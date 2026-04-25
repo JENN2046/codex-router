@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "vcpchat-codex-router-root-discovery-fix.v1",
+  "generatedAt": "2026-04-25T17:46:00+08:00",
+  "workspace": "A:/codex-router",
+  "targetHost": "A:/VCP/VCPChat_native_host",
+  "mode": "implementation",
+  "risk": "medium",
+  "trigger": "User sent the VCPChat /codex-router command and the UI reported codex_router_policy_config_entry_missing:A:\\VCP\\codex-router\\dist\\packages\\policy-config\\src\\index.js.",
+  "rootCause": "The live VCPChat IPC path called loadVcpChatCodexRouterPolicy() without an explicit routerRoot, so codexRouterHost.js used DEFAULT_CODEX_ROUTER_ROOT under A:/VCP/codex-router. The actual router workspace is A:/codex-router.",
+  "changedExternalFiles": [
+    "A:/VCP/VCPChat_native_host/modules/services/codexRouterHost.js"
+  ],
+  "patch": "A:/codex-router/docs/patches/vcpchat-codex-router-root-discovery-fix-20260425.patch",
+  "implementedBehavior": "When no explicit routerRoot or VCP_CODEX_ROUTER_ROOT is provided, codexRouterHost.js now checks the original A:/VCP/codex-router default and the drive-root A:/codex-router candidate, choosing the first candidate that contains dist/packages/policy-config/src/index.js.",
+  "validation": [
+    {
+      "command": "node --check A:/VCP/VCPChat_native_host/modules/services/codexRouterHost.js",
+      "result": "passed"
+    },
+    {
+      "command": "node -e require codexRouterHost.resolveCodexRouterRoot()",
+      "result": "returned A:/codex-router"
+    },
+    {
+      "command": "node -e loadVcpChatCodexRouterPolicy()",
+      "result": "passed, policyVersion 2026-04-23.desktop-first.v1.1"
+    },
+    {
+      "command": "node -e loadCodexRouterHostClientModule()",
+      "result": "passed"
+    },
+    {
+      "command": "node --check A:/VCP/VCPChat_native_host/modules/ipc/desktopRemoteHandlers.js",
+      "result": "passed"
+    },
+    {
+      "command": "git -C A:/VCP/VCPChat_native_host diff --check -- modules/services/codexRouterHost.js",
+      "result": "passed"
+    },
+    {
+      "command": "npm run typecheck",
+      "workdir": "A:/codex-router",
+      "result": "passed"
+    },
+    {
+      "command": "npm run build",
+      "workdir": "A:/codex-router",
+      "result": "passed"
+    },
+    {
+      "command": "npm test",
+      "workdir": "A:/codex-router",
+      "result": "passed 165/165"
+    },
+    {
+      "command": "restart VCPChat",
+      "result": "VCPChat relaunched on 0.0.0.0:15974 with pid 35092"
+    }
+  ],
+  "notValidated": [
+    "User has not yet resent the /codex-router UI command after this root-discovery fix.",
+    "DesktopRemote HTTP command path still rejects CodexRouterHost at the DesktopRemote normalizer layer with HTTP 400; this is separate from the UI IPC path."
+  ],
+  "nextGate": "Ask the user to resend /codex-router inspect current router status in the restarted VCPChat window and verify the policy_config_entry_missing error is gone.",
+  "secrets": {
+    "printed": false,
+    "modified": false
+  }
+}

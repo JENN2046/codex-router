@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "codex-cli-host-change-evidence.v1",
+  "generatedAt": "2026-04-25T16:35:00.000+08:00",
+  "area": "codex-cli-host",
+  "change": "model probe cache telemetry",
+  "summary": [
+    "Added optional best-effort telemetry for Codex CLI execution-time model probe cache activity.",
+    "When a telemetryStore is supplied, the runner emits cache miss and cache hit events.",
+    "Telemetry includes source, command, cwd, model, and ttlMs context.",
+    "Telemetry emission does not block probe execution if the sink fails."
+  ],
+  "files": [
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md"
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "targetTests": {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "result": "51/51 passed"
+    },
+    "fullTests": {
+      "command": "npm test",
+      "result": "193/193 passed"
+    },
+    "build": {
+      "command": "npm run build",
+      "result": "passed"
+    }
+  },
+  "remainingRisk": [
+    "Telemetry is optional and in-memory test coverage does not prove external sink delivery behavior in a live host session."
+  ],
+  "next": [
+    "Thread telemetryStore from the actual desktop/live host execution path into codex-cli-host runs.",
+    "Add a user-visible acceptance check that shows cache miss on first modeled run and cache hit on the second."
+  ]
+}

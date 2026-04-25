@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "vcpchat-ui-message-observation.v1",
+  "generatedAt": "2026-04-25T17:40:00+08:00",
+  "workspace": "A:/codex-router",
+  "targetHost": "A:/VCP/VCPChat_native_host",
+  "mode": "validation",
+  "risk": "low",
+  "trigger": "User reported sending a message in VCPChat after the 15974 port rebind.",
+  "runtimeState": {
+    "vcpchatPid": 33612,
+    "listening": "0.0.0.0:15974"
+  },
+  "observations": [
+    {
+      "area": "VCPChat chat history",
+      "result": "A recently updated topic history file was observed under AppData/UserData.",
+      "contentPrinted": false,
+      "classification": "ordinary_chat_path_observed"
+    },
+    {
+      "area": "codex-router artifacts",
+      "result": "No new codex-router evidence/checkpoint file was observed in A:/codex-router after the message.",
+      "classification": "no_router_artifact_observed"
+    },
+    {
+      "area": "codex memory",
+      "result": "No recent vcpchat-codex-task or CodexRouterHost execution checkpoint was found after the message.",
+      "classification": "no_router_memory_observed"
+    }
+  ],
+  "conclusion": "The observed user message appears to have exercised the normal VCPChat chat path, which confirms ordinary chat still works after the explicit Codex task entry change. This does not yet confirm the /codex-router or /codex-task governed command path.",
+  "nextGate": "Send an exact prefixed command such as /codex-router inspect current router status, then check for a CodexRouterHost/router execution result."
+}

@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "vcpchat-codex-router-toggle-button-evidence.v1",
+  "generatedAt": "2026-04-25T18:05:49.8031236+08:00",
+  "workspace": "A:/codex-router",
+  "targetWorkspace": "A:/VCP/VCPChat_native_host",
+  "targetArea": "VCPChat renderer UI / Codex Router explicit entry",
+  "mode": "implementation",
+  "risk": "medium",
+  "implemented": {
+    "button": {
+      "file": "A:/VCP/VCPChat_native_host/main.html",
+      "id": "codexRouterToggleBtn",
+      "defaultState": "disabled until renderer confirms host IPC availability",
+      "visualStates": [
+        "router-disabled",
+        "router-enabled",
+        "router-unavailable"
+      ]
+    },
+    "rendererBehavior": {
+      "file": "A:/VCP/VCPChat_native_host/renderer.js",
+      "defaultMode": "off",
+      "statePersistence": "window.localStorage key vcpchat.codexRouterModeEnabled",
+      "offBehavior": "normal send uses VCPChat chatManager.handleSendMessage",
+      "onBehavior": "normal send wraps input as a task-envelope.v1 and calls codexRouterHostClient.run",
+      "forcedPrefixBehavior": "/codex-router and /codex-task still force governed task execution",
+      "noSilentFallback": "router mode or prefixed commands report unavailable host instead of falling back to normal chat"
+    },
+    "styleBehavior": {
+      "file": "A:/VCP/VCPChat_native_host/styles/components.css",
+      "dimensions": "32px icon button aligned with existing input actions",
+      "enabledSignal": "uses button accent background and icon stroke"
+    }
+  },
+  "patches": [
+    "A:/codex-router/docs/patches/vcpchat-codex-router-toggle-button-main-style-20260425.patch",
+    "A:/codex-router/docs/patches/vcpchat-codex-router-toggle-button-renderer-20260425.patch"
+  ],
+  "validation": {
+    "nodeCheckRenderer": "passed",
+    "nodeCheckEventListeners": "passed",
+    "gitDiffCheck": "passed for main.html, renderer.js, styles/components.css",
+    "runtimeLaunch": {
+      "command": "npm run start:desktop",
+      "port": 15974,
+      "netstat": "0.0.0.0:15974 LISTENING PID 22356"
+    }
+  },
+  "notValidated": [
+    "No automated Electron DOM click test was run in this turn.",
+    "User still needs to click the new button in the live VCPChat window and send a task to confirm visible UX."
+  ],
+  "remainingRisk": [
+    "The toggle routes normal sends to Codex Router only while enabled; it does not make all VCPChat chat traffic mandatory-governed.",
+    "Current UI still reports task result by toast/window.__lastCodexRouterHostRun unless run-evidence persistence is implemented in a later step."
+  ],
+  "secrets": {
+    "rawEnvValuesStored": false,
+    "tokensStored": false
+  }
+}

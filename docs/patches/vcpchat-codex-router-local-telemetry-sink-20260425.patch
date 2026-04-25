@@ -1,0 +1,74 @@
+diff --git a/modules/ipc/desktopRemoteHandlers.js b/modules/ipc/desktopRemoteHandlers.js
+--- a/modules/ipc/desktopRemoteHandlers.js
++++ b/modules/ipc/desktopRemoteHandlers.js
+@@ -14,2 +14,3 @@
+ const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+ const CODEX_ROUTER_RUN_EVIDENCE_DIR = path.join(PROJECT_ROOT, 'AppData', 'codexRouter', 'runs');
++const CODEX_ROUTER_TELEMETRY_FILE = path.join(PROJECT_ROOT, 'AppData', 'codexRouter', 'telemetry.jsonl');
+@@ -143,6 +144,50 @@
+     }
+ }
+ 
++function sanitizeCodexRouterTelemetryContext(context = {}) {
++    if (!context || typeof context !== 'object') return {};
++    const memory = context.memory && typeof context.memory === 'object' ? context.memory : null;
++    const guidance = memory?.guidance && typeof memory.guidance === 'object' ? memory.guidance : null;
++    return {
++        taskId: typeof context.taskId === 'string' ? context.taskId : null,
++        decisionId: typeof context.decisionId === 'string' ? context.decisionId : null,
++        ok: typeof context.ok === 'boolean' ? context.ok : null,
++        errors: sanitizeCodexRouterStringArray(context.errors),
++        warnings: sanitizeCodexRouterStringArray(context.warnings),
++        memory: memory ? {
++            status: typeof memory.status === 'string' ? memory.status : null,
++            policyPack: typeof memory.policyPack === 'string' ? memory.policyPack : null,
++            guidance: guidance ? {
++                memoryRequired: typeof guidance.memoryRequired === 'boolean' ? guidance.memoryRequired : null,
++                telemetryMandatory: typeof guidance.telemetryMandatory === 'boolean' ? guidance.telemetryMandatory : null,
++                requiredMinReusable: typeof guidance.requiredMinReusable === 'number' ? guidance.requiredMinReusable : null
++            } : null
++        } : null
++    };
++}
++
++function sanitizeCodexRouterTelemetryEvent(event = {}) {
++    return {
++        level: typeof event.level === 'string' ? event.level : null,
++        message: typeof event.message === 'string' ? event.message : null,
++        correlationId: typeof event.correlationId === 'string' ? event.correlationId : null,
++        context: sanitizeCodexRouterTelemetryContext(event.context)
++    };
++}
++
++function createCodexRouterTelemetryStore(filePath = CODEX_ROUTER_TELEMETRY_FILE) {
++    return {
++        async record(event) {
++            await fs.ensureDir(path.dirname(filePath));
++            const entry = {
++                recordedAt: new Date().toISOString(),
++                event: sanitizeCodexRouterTelemetryEvent(event)
++            };
++            await fs.appendFile(filePath, `${JSON.stringify(entry)}\n`, 'utf8');
++        }
++    };
++}
++
+ function settlePendingRequest(map, event, envelope) {
+@@ -424,3 +469,4 @@
+                 policy,
+                 anchor: 'vcpchat-main-process@codex-router',
+                 bindings,
+-                directiveBuilders
++                directiveBuilders,
++                telemetryStore: createCodexRouterTelemetryStore()
+             });
+diff --git a/renderer.js b/renderer.js
+--- a/renderer.js
++++ b/renderer.js
+@@ -305,6 +305,7 @@
+         succeeded: '成功',
+         failed: '失败',
+         error: '失败',
++        not_ready: '未就绪',
+         blocked: '被治理规则拦截'
+     };

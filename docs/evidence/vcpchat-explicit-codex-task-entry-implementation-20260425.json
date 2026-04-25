@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "vcpchat-explicit-codex-task-entry-implementation.v1",
+  "generatedAt": "2026-04-25T17:04:57.6948218+08:00",
+  "workspace": "A:/codex-router",
+  "targetHost": "A:/VCP/VCPChat_native_host",
+  "mode": "implementation",
+  "risk": "medium",
+  "approval": {
+    "userApprovedExternalEdit": true,
+    "approvalText": "批准",
+    "approvalPacket": "A:/codex-router/docs/evidence/vcpchat-router-enforcement-approval-packet-20260425.json"
+  },
+  "branch": {
+    "targetHost": "postmerge/vcpchat-native-host-regression"
+  },
+  "changedExternalFiles": [
+    "A:/VCP/VCPChat_native_host/renderer.js",
+    "A:/VCP/VCPChat_native_host/modules/event-listeners.js"
+  ],
+  "preservedPreExistingTargetHostChanges": [
+    "M docs/vcpchat_v1_native_host_merge_readiness_checklist_20260423.md",
+    "M docs/vcpchat_v1_native_host_post_merge_regression_20260423.md",
+    "M docs/vcpchat_v1_native_host_pr_closeout_20260423.md",
+    "M docs/vcpchat_v1_native_host_pr_package_20260424.md",
+    "?? AGENTS.md",
+    "?? node_modules - shortcut.lnk"
+  ],
+  "implementedBehavior": {
+    "commandPrefixes": [
+      "/codex-router",
+      "/codex-task"
+    ],
+    "normalChatSend": "unchanged for non-prefixed messages; event handlers now delegate click/Enter through window.handleSendButtonAction, which then falls through to chatManager.handleSendMessage when no Codex Router command is present",
+    "governedPath": "prefixed input builds a task-envelope.v1 object and calls window.codexRouterHostClient.run(task)",
+    "fallback": "if CodexRouterHost is unavailable or the command has no task body, the governed command is consumed and reports a UI toast instead of silently falling back to unmanaged chat",
+    "buttonState": "send button disabled state is restored to its previous value after the governed command completes"
+  },
+  "patches": [
+    "A:/codex-router/docs/patches/vcpchat-explicit-codex-task-entry-20260425.patch",
+    "A:/codex-router/docs/patches/vcpchat-explicit-codex-task-entry-button-state-fix-20260425.patch"
+  ],
+  "validation": [
+    {
+      "command": "git -C A:/VCP/VCPChat_native_host apply --check A:/codex-router/docs/patches/vcpchat-explicit-codex-task-entry-20260425.patch",
+      "result": "passed before application"
+    },
+    {
+      "command": "git -C A:/VCP/VCPChat_native_host apply --check A:/codex-router/docs/patches/vcpchat-explicit-codex-task-entry-button-state-fix-20260425.patch",
+      "result": "passed before application"
+    },
+    {
+      "command": "node --check A:/VCP/VCPChat_native_host/renderer.js",
+      "result": "passed"
+    },
+    {
+      "command": "node --check A:/VCP/VCPChat_native_host/modules/event-listeners.js",
+      "result": "passed"
+    },
+    {
+      "command": "git -C A:/VCP/VCPChat_native_host diff --check -- renderer.js modules/event-listeners.js",
+      "result": "passed"
+    },
+    {
+      "command": "npm run typecheck",
+      "workdir": "A:/codex-router",
+      "result": "passed"
+    },
+    {
+      "command": "npm run build",
+      "workdir": "A:/codex-router",
+      "result": "passed"
+    },
+    {
+      "command": "npm test",
+      "workdir": "A:/codex-router",
+      "result": "passed 165/165"
+    }
+  ],
+  "notValidated": [
+    "fresh live Electron renderer command-path smoke",
+    "manual UI test of /codex-router or /codex-task input",
+    "packaged application build"
+  ],
+  "restartRequiredForUiAcceptance": true,
+  "acceptanceInstruction": "Restart or reload VCPChat before manual UI acceptance because renderer.js and modules/event-listeners.js are loaded by the Electron renderer.",
+  "nextGate": "After VCPChat restart, enter a safe prefixed command such as /codex-router inspect current router status, then confirm that the command path uses CodexRouterHost and that ordinary chat still sends normally.",
+  "secrets": {
+    "printed": false,
+    "modified": false
+  },
+  "externalWrites": {
+    "filesEdited": true,
+    "liveProviderWrites": false,
+    "branchMovement": false,
+    "pushMergeReleaseDeploy": false
+  }
+}

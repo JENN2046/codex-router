@@ -1,0 +1,173 @@
+diff --git a/renderer.js b/renderer.js
+--- a/renderer.js
++++ b/renderer.js
+@@ -313,6 +313,99 @@
+     return statusLabels[normalized] || String(status || '已完成');
+ }
+ 
++function getCodexRouterResultPayload(result) {
++    return result?.result && typeof result.result === 'object' ? result.result : (result || {});
++}
++
++function formatCodexRouterValue(value) {
++    if (value === null || value === undefined || value === '') return '未提供';
++    if (typeof value === 'boolean') return value ? '是' : '否';
++    return String(value);
++}
++
++function formatCodexRouterList(items, mapper, limit = 6) {
++    if (!Array.isArray(items) || items.length === 0) return [];
++    return items.slice(0, limit).map(mapper).filter(Boolean);
++}
++
++function getCodexRouterPrimitiveName(item) {
++    if (!item) return '';
++    if (typeof item === 'string') return item;
++    return item.primitive || item.name || item.type || item.action || '';
++}
++
++function buildCodexRouterVisibleReply(result, task) {
++    const payload = getCodexRouterResultPayload(result);
++    const executionStatus =
++        payload.executionStatus
++        || payload.execution?.status
++        || payload.status
++        || result?.status
++        || 'completed';
++    const plannedPrimitives = formatCodexRouterList(
++        payload.plannedPrimitives || payload.plan?.steps,
++        item => getCodexRouterPrimitiveName(item)
++    );
++    const executedSteps = formatCodexRouterList(
++        payload.executedStepStatuses || payload.execution?.steps,
++        item => {
++            if (!item) return '';
++            const name = getCodexRouterPrimitiveName(item);
++            const status = item.status || item.resultStatus || item.outcome || '';
++            return status ? `${name || 'step'}：${status}` : name;
++        }
++    );
++    const blockingReasons = formatCodexRouterList(
++        payload.blockingReasons || payload.preflight?.blockingReasons,
++        item => typeof item === 'string' ? item : (item?.reason || item?.message || '')
++    );
++
++    const lines = [
++        '### Codex Router 执行结果',
++        '',
++        `- 状态：${formatCodexRouterExecutionStatus(executionStatus)}`,
++        `- 策略版本：${formatCodexRouterValue(payload.policyVersion || payload.decision?.policyVersion)}`,
++        `- 模型：${formatCodexRouterValue(payload.selectedModel || payload.execution?.selectedModel)}`,
++        `- 执行档位：${formatCodexRouterValue(payload.executionProfile || payload.execution?.executionProfile)}`,
++        `- 工具权限：${formatCodexRouterValue(payload.toolAccess || payload.execution?.toolAccess)}`,
++        `- 是否需要审批：${formatCodexRouterValue(payload.approvalRequired ?? payload.approval?.required)}`,
++        `- 任务编号：${formatCodexRouterValue(task?.taskId)}`
++    ];
++
++    if (plannedPrimitives.length > 0) {
++        lines.push(`- 计划动作：${plannedPrimitives.join('、')}`);
++    }
++    if (executedSteps.length > 0) {
++        lines.push(`- 执行动作：${executedSteps.join('、')}`);
++    }
++    if (blockingReasons.length > 0) {
++        lines.push(`- 阻塞原因：${blockingReasons.join('；')}`);
++    }
++
++    lines.push('', '原始结果已保存在本窗口的 `window.__lastCodexRouterHostRun`，当前聊天历史也会记录这条摘要。');
++    return lines.join('\n');
++}
++
++async function saveCurrentCodexRouterVisibleHistory() {
++    if (!currentSelectedItem?.id || !currentTopicId) return false;
++    const historyToSave = currentChatHistory.filter(message => !message?.isThinking);
++    if (currentSelectedItem.type === 'group' && typeof chatAPI?.saveGroupChatHistory === 'function') {
++        await chatAPI.saveGroupChatHistory(currentSelectedItem.id, currentTopicId, historyToSave);
++        return true;
++    }
++    if (typeof chatAPI?.saveChatHistory === 'function') {
++        await chatAPI.saveChatHistory(currentSelectedItem.id, currentTopicId, historyToSave);
++        return true;
++    }
++    return false;
++}
++
++async function appendCodexRouterVisibleMessage(message, options = {}) {
++    if (!window.messageRenderer || typeof window.messageRenderer.renderMessage !== 'function') {
++        return false;
++    }
++
++    await window.messageRenderer.renderMessage(message);
++    if (options.persist !== false && !message.isThinking) {
++        currentChatHistory.push(message);
++        await saveCurrentCodexRouterVisibleHistory();
++    }
++    return true;
++}
++
+ function loadCodexRouterModeSetting() {
+@@ -407,6 +500,7 @@
+     const rawInput = messageInput?.value || '';
+     const parsed = parseCodexRouterCommand(rawInput);
+     const client = getCodexRouterHostClient();
++    const visibleUserContent = parsed ? rawInput.trim() : rawInput.trim();
+     const isRouterAvailable = Boolean(client && typeof client.run === 'function');
+@@ -433,8 +527,31 @@
+     sendMessageBtn.disabled = true;
+     sendMessageBtn.dataset.codexRouterRunning = 'true';
+ 
++    let task = null;
++    const thinkingMessageId = `codex_router_thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
++
+     try {
+-        const task = createVcpChatCodexRouterTask(prompt, parsed ? 'explicit-command' : 'toggle-mode');
++        const userMessage = {
++            role: 'user',
++            name: globalSettings.userName || '用户',
++            content: visibleUserContent,
++            timestamp: Date.now(),
++            id: `msg_${Date.now()}_user_codex_router_${Math.random().toString(36).slice(2, 9)}`,
++            attachments: []
++        };
++        await appendCodexRouterVisibleMessage(userMessage);
++
++        await appendCodexRouterVisibleMessage({
++            role: 'assistant',
++            name: 'Codex Router',
++            content: '正在通过 Codex Router 执行受治理任务...',
++            timestamp: Date.now(),
++            id: thinkingMessageId,
++            isThinking: true,
++            finishReason: 'running'
++        }, { persist: false });
++
++        task = createVcpChatCodexRouterTask(prompt, parsed ? 'explicit-command' : 'toggle-mode');
+         const result = await client.run(task);
+         if (result?.status === 'error') {
+             throw new Error(result.message || 'Codex Router Host 返回错误。');
+@@ -451,6 +568,14 @@
+         messageInput.value = '';
+         window.uiHelperFunctions?.autoResizeTextarea?.(messageInput);
++        window.messageRenderer?.removeMessageById?.(thinkingMessageId, false);
++        await appendCodexRouterVisibleMessage({
++            role: 'assistant',
++            name: 'Codex Router',
++            content: buildCodexRouterVisibleReply(result, task),
++            timestamp: Date.now(),
++            id: `msg_${Date.now()}_assistant_codex_router_${Math.random().toString(36).slice(2, 9)}`,
++            finishReason: executionStatus
++        });
+         notifyCodexRouterCommand(`Codex Router 任务${formatCodexRouterExecutionStatus(executionStatus)}。`, 'success');
+         return true;
+     } catch (error) {
+         console.error('[CodexRouterHost] Explicit command failed:', error);
++        window.messageRenderer?.removeMessageById?.(thinkingMessageId, false);
++        await appendCodexRouterVisibleMessage({
++            role: 'assistant',
++            name: 'Codex Router',
++            content: `### Codex Router 执行失败\n\n- 错误：${error.message}\n- 任务编号：${formatCodexRouterValue(task?.taskId)}`,
++            timestamp: Date.now(),
++            id: `msg_${Date.now()}_assistant_codex_router_error_${Math.random().toString(36).slice(2, 9)}`,
++            finishReason: 'failed'
++        });
+         notifyCodexRouterCommand(`Codex Router 任务失败：${error.message}`, 'error');

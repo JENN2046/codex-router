@@ -1,0 +1,150 @@
+diff --git a/renderer.js b/renderer.js
+--- a/renderer.js
++++ b/renderer.js
+@@ -76,6 +76,7 @@
+ const attachFileBtn = document.getElementById('attachFileBtn');
+ const emoticonTriggerBtn = document.getElementById('emoticonTriggerBtn');
+ const quickNewTopicBtn = document.getElementById('quickNewTopicBtn');
++const codexRouterToggleBtn = document.getElementById('codexRouterToggleBtn');
+ const attachmentPreviewArea = document.getElementById('attachmentPreviewArea');
+ const chatInputCard = document.querySelector('.chat-input-card');
+ 
+@@ -137,1 +138,3 @@
+ const CODEX_ROUTER_COMMAND_PREFIXES = ['/codex-router', '/codex-task'];
++const CODEX_ROUTER_MODE_STORAGE_KEY = 'vcpchat.codexRouterModeEnabled';
++let codexRouterModeEnabled = loadCodexRouterModeSetting();
+@@ -255,1 +258,1 @@
+-function createVcpChatCodexRouterTask(prompt) {
++function createVcpChatCodexRouterTask(prompt, mode = 'explicit-command') {
+@@ -286,1 +289,1 @@
+-            tags: ['vcpchat', 'codex-router', 'explicit-command']
++            tags: ['vcpchat', 'codex-router', mode]
+@@ -296,6 +299,88 @@
+ function notifyCodexRouterCommand(message, type = 'info') {
+     if (window.uiHelperFunctions && typeof window.uiHelperFunctions.showToastNotification === 'function') {
+         window.uiHelperFunctions.showToastNotification(message, type);
+     }
+ }
+ 
++function loadCodexRouterModeSetting() {
++    try {
++        return window.localStorage?.getItem(CODEX_ROUTER_MODE_STORAGE_KEY) === 'true';
++    } catch (error) {
++        console.warn('[CodexRouterHost] Failed to load toggle state:', error);
++        return false;
++    }
++}
++
++function saveCodexRouterModeSetting(enabled) {
++    try {
++        window.localStorage?.setItem(CODEX_ROUTER_MODE_STORAGE_KEY, enabled ? 'true' : 'false');
++    } catch (error) {
++        console.warn('[CodexRouterHost] Failed to save toggle state:', error);
++    }
++}
++
++function getCodexRouterHostClient() {
++    const client = window.codexRouterHostClient || createCodexRouterHostClient(window);
++    if (client && !window.codexRouterHostClient) {
++        window.codexRouterHostClient = client;
++    }
++    return client;
++}
++
++function updateCodexRouterToggleButtonState() {
++    if (!codexRouterToggleBtn) return;
++
++    const client = getCodexRouterHostClient();
++    const isAvailable = Boolean(client && typeof client.run === 'function');
++    const isEnabled = isAvailable && codexRouterModeEnabled;
++
++    codexRouterToggleBtn.disabled = !isAvailable;
++    codexRouterToggleBtn.classList.toggle('router-enabled', isEnabled);
++    codexRouterToggleBtn.classList.toggle('router-disabled', isAvailable && !isEnabled);
++    codexRouterToggleBtn.classList.toggle('router-unavailable', !isAvailable);
++    codexRouterToggleBtn.dataset.codexRouterMode = isEnabled ? 'enabled' : (isAvailable ? 'disabled' : 'unavailable');
++    codexRouterToggleBtn.setAttribute('aria-pressed', isEnabled ? 'true' : 'false');
++    codexRouterToggleBtn.title = !isAvailable
++        ? 'Codex Router: unavailable in this window'
++        : (isEnabled
++            ? 'Codex Router: on, normal send runs a governed task'
++            : 'Codex Router: off, normal send uses VCPChat');
++}
++
++function setCodexRouterModeEnabled(enabled, options = {}) {
++    const nextEnabled = Boolean(enabled);
++    const client = getCodexRouterHostClient();
++    const isAvailable = Boolean(client && typeof client.run === 'function');
++
++    if (nextEnabled && !isAvailable) {
++        codexRouterModeEnabled = false;
++        saveCodexRouterModeSetting(false);
++        updateCodexRouterToggleButtonState();
++        if (options.notify !== false) {
++            notifyCodexRouterCommand('Codex Router host is not available in this window.', 'error');
++        }
++        return false;
++    }
++
++    codexRouterModeEnabled = nextEnabled;
++    saveCodexRouterModeSetting(codexRouterModeEnabled);
++    updateCodexRouterToggleButtonState();
++
++    if (options.notify !== false) {
++        notifyCodexRouterCommand(
++            codexRouterModeEnabled
++                ? 'Codex Router mode enabled. Normal send now runs governed tasks.'
++                : 'Codex Router mode disabled. Normal send uses VCPChat.',
++            codexRouterModeEnabled ? 'success' : 'info'
++        );
++    }
++
++    return true;
++}
++
++function setupCodexRouterToggleButton() {
++    if (!codexRouterToggleBtn) return;
++
++    codexRouterToggleBtn.addEventListener('click', () => {
++        setCodexRouterModeEnabled(!codexRouterModeEnabled);
++    });
++
++    updateCodexRouterToggleButtonState();
++}
++
+ async function tryRunCodexRouterCommandFromInput() {
+@@ -303,16 +388,23 @@
+-    const parsed = parseCodexRouterCommand(messageInput?.value || '');
+-    if (!parsed) return false;
++    const rawInput = messageInput?.value || '';
++    const parsed = parseCodexRouterCommand(rawInput);
++    const isToggleModeSend = !parsed && codexRouterModeEnabled;
++    if (!parsed && !isToggleModeSend) return false;
+ 
+-    if (!parsed.prompt) {
+-        notifyCodexRouterCommand('Codex Router command requires a task after the prefix.', 'warning');
++    const prompt = parsed ? parsed.prompt : rawInput.trim();
++    if (!prompt) {
++        notifyCodexRouterCommand(
++            parsed ? 'Codex Router command requires a task after the prefix.' : 'Codex Router mode is on, but the task is empty.',
++            'warning'
++        );
+         return true;
+     }
+ 
+-    const client = window.codexRouterHostClient || createCodexRouterHostClient(window);
++    const client = getCodexRouterHostClient();
+     if (!client || typeof client.run !== 'function') {
+         notifyCodexRouterCommand('Codex Router host is not available in this window.', 'error');
+         return true;
+@@ -319,1 +411,1 @@
+-        const task = createVcpChatCodexRouterTask(parsed.prompt);
++        const task = createVcpChatCodexRouterTask(prompt, parsed ? 'explicit-command' : 'toggle-mode');
+@@ -382,3 +474,7 @@
+ window.updateSendButtonState = updateSendButtonState;
+ window.handleSendButtonAction = handleSendButtonAction;
++window.setCodexRouterModeEnabled = setCodexRouterModeEnabled;
++window.isCodexRouterModeEnabled = () => codexRouterModeEnabled;
++window.updateCodexRouterToggleButtonState = updateCodexRouterToggleButtonState;
+ updateSendButtonState();
++setupCodexRouterToggleButton();

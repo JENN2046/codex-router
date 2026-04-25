@@ -1,0 +1,20 @@
+diff --git a/renderer.js b/renderer.js
+--- a/renderer.js
++++ b/renderer.js
+@@ -311,6 +311,7 @@ async function tryRunCodexRouterCommandFromInput() {
+         return true;
+     }
+ 
++    const wasSendButtonDisabled = sendMessageBtn.disabled;
+     sendMessageBtn.disabled = true;
+     sendMessageBtn.dataset.codexRouterRunning = 'true';
+ 
+@@ -339,7 +340,7 @@ async function tryRunCodexRouterCommandFromInput() {
+         return true;
+     } finally {
+         delete sendMessageBtn.dataset.codexRouterRunning;
+-        sendMessageBtn.disabled = false;
++        sendMessageBtn.disabled = wasSendButtonDisabled;
+         updateSendButtonState();
+     }
+ }

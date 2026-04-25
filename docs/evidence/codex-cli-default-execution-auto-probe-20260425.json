@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "codex-cli-default-execution-auto-probe-evidence.v1",
+  "generatedAt": "2026-04-25T20:30:09.7678911+08:00",
+  "workspace": "A:/codex-router",
+  "status": "passed",
+  "targetArea": "codex-cli-host",
+  "changedFiles": [
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md",
+    "docs/evidence/codex-cli-default-execution-auto-probe-20260425.json"
+  ],
+  "implementedBehavior": [
+    "runCodexCliExecPlan now defaults to autoProbeModelWithCli=true and requireModelProbe=true whenever the execution plan contains a model and skipExecutionModelProbe is not set.",
+    "The default automatic probe runs before the main task spawn and blocks execution if the probe fails.",
+    "Callers can still opt out explicitly with skipExecutionModelProbe=true.",
+    "Internal probe execution keeps skipExecutionModelProbe=true so the probe does not recurse into itself."
+  ],
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "status": "passed",
+      "tests": {
+        "passed": 47,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "tests": {
+        "passed": 189,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    }
+  ],
+  "coveredScenarios": [
+    {
+      "name": "default_auto_probe",
+      "result": "a modeled execution now performs a strict probe before the main spawn by default"
+    },
+    {
+      "name": "explicit_skip",
+      "result": "callers can disable the default auto-probe only by setting skipExecutionModelProbe=true"
+    },
+    {
+      "name": "catalog_gate_coexists",
+      "result": "catalog-based model checks and CLI probe preflight both remain compatible"
+    }
+  ],
+  "limitations": [
+    "The default-execution evidence is covered by injected-spawner tests rather than a new live task execution through a higher-level host.",
+    "A later host integration step can still choose whether to surface probe reuse/caching explicitly in UI or startup state."
+  ],
+  "vcpchatLine": "paused"
+}

@@ -1,0 +1,295 @@
+diff --git a/main.html b/main.html
+--- a/main.html
++++ b/main.html
+@@ -577,6 +577,16 @@
+                                 <path d="M9 11h6"></path>
+                             </svg>
+                         </button>
++                        <button id="codexRouterToggleBtn" class="codex-router-toggle" title="Codex Router: off, normal send uses VCPChat" aria-label="Codex Router mode" aria-pressed="false" type="button" disabled>
++                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
++                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
++                                stroke-linejoin="round" class="lucide lucide-route-icon lucide-route"
++                                aria-hidden="true">
++                                <circle cx="6" cy="19" r="3"></circle>
++                                <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"></path>
++                                <circle cx="18" cy="5" r="3"></circle>
++                            </svg>
++                        </button>
+                         <button id="attachFileBtn" title="发送文件" disabled>
+                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+diff --git a/renderer.js b/renderer.js
+--- a/renderer.js
++++ b/renderer.js
+@@ -76,6 +76,7 @@
+ const sendMessageBtn = document.getElementById('sendMessageBtn');
+ const attachFileBtn = document.getElementById('attachFileBtn');
+ const emoticonTriggerBtn = document.getElementById('emoticonTriggerBtn');
+ const quickNewTopicBtn = document.getElementById('quickNewTopicBtn');
++const codexRouterToggleBtn = document.getElementById('codexRouterToggleBtn');
+ const attachmentPreviewArea = document.getElementById('attachmentPreviewArea');
+ const chatInputCard = document.querySelector('.chat-input-card');
+ 
+@@ -136,6 +137,8 @@
+     </svg>
+ `;
+ const CODEX_ROUTER_COMMAND_PREFIXES = ['/codex-router', '/codex-task'];
++const CODEX_ROUTER_MODE_STORAGE_KEY = 'vcpchat.codexRouterModeEnabled';
++let codexRouterModeEnabled = loadCodexRouterModeSetting();
+ 
+ function isContextForCurrentChat(context) {
+     if (!context || !currentSelectedItem?.id || !currentTopicId) return false;
+@@ -255,7 +258,7 @@
+     return null;
+ }
+ 
+-function createVcpChatCodexRouterTask(prompt) {
++function createVcpChatCodexRouterTask(prompt, mode = 'explicit-command') {
+     const summaryLine = prompt.split(/\r?\n/).find(line => line.trim())?.trim() || 'VCPChat Codex task';
+     const summary = summaryLine.length > 120 ? `${summaryLine.slice(0, 117)}...` : summaryLine;
+ 
+@@ -286,7 +289,7 @@
+         },
+         hints: {
+             riskHints: [],
+-            tags: ['vcpchat', 'codex-router', 'explicit-command']
++            tags: ['vcpchat', 'codex-router', mode]
+         }
+     };
+ }
+@@ -297,13 +300,96 @@
+     }
+ }
+ 
++function loadCodexRouterModeSetting() {
++    try {
++        return window.localStorage?.getItem(CODEX_ROUTER_MODE_STORAGE_KEY) === 'true';
++    } catch (error) {
++        console.warn('[CodexRouterHost] Failed to load toggle state:', error);
++        return false;
++    }
++}
++
++function saveCodexRouterModeSetting(enabled) {
++    try {
++        window.localStorage?.setItem(CODEX_ROUTER_MODE_STORAGE_KEY, enabled ? 'true' : 'false');
++    } catch (error) {
++        console.warn('[CodexRouterHost] Failed to save toggle state:', error);
++    }
++}
++
++function getCodexRouterHostClient() {
++    const client = window.codexRouterHostClient || createCodexRouterHostClient(window);
++    if (client && !window.codexRouterHostClient) {
++        window.codexRouterHostClient = client;
++    }
++    return client;
++}
++
++function updateCodexRouterToggleButtonState() {
++    if (!codexRouterToggleBtn) return;
++
++    const client = getCodexRouterHostClient();
++    const isAvailable = Boolean(client && typeof client.run === 'function');
++    const isEnabled = isAvailable && codexRouterModeEnabled;
++
++    codexRouterToggleBtn.disabled = !isAvailable;
++    codexRouterToggleBtn.classList.toggle('router-enabled', isEnabled);
++    codexRouterToggleBtn.classList.toggle('router-disabled', isAvailable && !isEnabled);
++    codexRouterToggleBtn.classList.toggle('router-unavailable', !isAvailable);
++    codexRouterToggleBtn.dataset.codexRouterMode = isEnabled ? 'enabled' : (isAvailable ? 'disabled' : 'unavailable');
++    codexRouterToggleBtn.setAttribute('aria-pressed', isEnabled ? 'true' : 'false');
++    codexRouterToggleBtn.title = !isAvailable
++        ? 'Codex Router: unavailable in this window'
++        : (isEnabled
++            ? 'Codex Router: on, normal send runs a governed task'
++            : 'Codex Router: off, normal send uses VCPChat');
++}
++
++function setCodexRouterModeEnabled(enabled, options = {}) {
++    const nextEnabled = Boolean(enabled);
++    const client = getCodexRouterHostClient();
++    const isAvailable = Boolean(client && typeof client.run === 'function');
++
++    if (nextEnabled && !isAvailable) {
++        codexRouterModeEnabled = false;
++        saveCodexRouterModeSetting(false);
++        updateCodexRouterToggleButtonState();
++        if (options.notify !== false) {
++            notifyCodexRouterCommand('Codex Router host is not available in this window.', 'error');
++        }
++        return false;
++    }
++
++    codexRouterModeEnabled = nextEnabled;
++    saveCodexRouterModeSetting(codexRouterModeEnabled);
++    updateCodexRouterToggleButtonState();
++
++    if (options.notify !== false) {
++        notifyCodexRouterCommand(
++            codexRouterModeEnabled
++                ? 'Codex Router mode enabled. Normal send now runs governed tasks.'
++                : 'Codex Router mode disabled. Normal send uses VCPChat.',
++            codexRouterModeEnabled ? 'success' : 'info'
++        );
++    }
++
++    return true;
++}
++
++function setupCodexRouterToggleButton() {
++    if (!codexRouterToggleBtn) return;
++
++    codexRouterToggleBtn.addEventListener('click', () => {
++        setCodexRouterModeEnabled(!codexRouterModeEnabled);
++    });
++
++    updateCodexRouterToggleButtonState();
++}
++
+ async function tryRunCodexRouterCommandFromInput() {
+-    const parsed = parseCodexRouterCommand(messageInput?.value || '');
+-    if (!parsed) return false;
++    const rawInput = messageInput?.value || '';
++    const parsed = parseCodexRouterCommand(rawInput);
++    const isToggleModeSend = !parsed && codexRouterModeEnabled;
++    if (!parsed && !isToggleModeSend) return false;
+ 
+-    if (!parsed.prompt) {
+-        notifyCodexRouterCommand('Codex Router command requires a task after the prefix.', 'warning');
++    const prompt = parsed ? parsed.prompt : rawInput.trim();
++    if (!prompt) {
++        notifyCodexRouterCommand(
++            parsed ? 'Codex Router command requires a task after the prefix.' : 'Codex Router mode is on, but the task is empty.',
++            'warning'
++        );
+         return true;
+     }
+ 
+-    const client = window.codexRouterHostClient || createCodexRouterHostClient(window);
++    const client = getCodexRouterHostClient();
+     if (!client || typeof client.run !== 'function') {
+         notifyCodexRouterCommand('Codex Router host is not available in this window.', 'error');
+         return true;
+@@ -315,7 +401,7 @@
+     sendMessageBtn.dataset.codexRouterRunning = 'true';
+ 
+     try {
+-        const task = createVcpChatCodexRouterTask(parsed.prompt);
++        const task = createVcpChatCodexRouterTask(prompt, parsed ? 'explicit-command' : 'toggle-mode');
+         const result = await client.run(task);
+         if (result?.status === 'error') {
+             throw new Error(result.message || 'Codex Router host returned an error.');
+@@ -381,8 +467,12 @@
+ }
+ 
+ window.updateSendButtonState = updateSendButtonState;
+ window.handleSendButtonAction = handleSendButtonAction;
++window.setCodexRouterModeEnabled = setCodexRouterModeEnabled;
++window.isCodexRouterModeEnabled = () => codexRouterModeEnabled;
++window.updateCodexRouterToggleButtonState = updateCodexRouterToggleButtonState;
+ updateSendButtonState();
++setupCodexRouterToggleButton();
+ 
+ const leftSidebar = document.querySelector('.sidebar');
+ const rightNotificationsSidebar = document.getElementById('notificationsSidebar');
+diff --git a/styles/components.css b/styles/components.css
+--- a/styles/components.css
++++ b/styles/components.css
+@@ -414,7 +414,7 @@ body.light-theme .chat-actions .header-button:hover {
+     color: #ffffff;
+ }
+ 
+-#sendMessageBtn, #attachFileBtn, #quickNewTopicBtn, #emoticonTriggerBtn {
++#sendMessageBtn, #attachFileBtn, #quickNewTopicBtn, #emoticonTriggerBtn, #codexRouterToggleBtn {
+     border: none;
+     display: flex;
+     justify-content: center;
+@@ -424,7 +424,7 @@ body.light-theme .chat-actions .header-button:hover {
+     transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+     padding: 0;
+ }
+-#sendMessageBtn svg, #attachFileBtn svg, #quickNewTopicBtn svg, #emoticonTriggerBtn svg {
++#sendMessageBtn svg, #attachFileBtn svg, #quickNewTopicBtn svg, #emoticonTriggerBtn svg, #codexRouterToggleBtn svg {
+     width: 24px;
+     height: 24px;
+     stroke: var(--secondary-text);
+@@ -440,12 +440,12 @@ body:not(.light-theme) #sendMessageBtn svg {
+     color: rgba(255, 255, 255, 0.92);
+ }
+ 
+-#attachFileBtn svg, #quickNewTopicBtn svg, #emoticonTriggerBtn svg {
++#attachFileBtn svg, #quickNewTopicBtn svg, #emoticonTriggerBtn svg, #codexRouterToggleBtn svg {
+     width: 16px;
+     height: 16px;
+     fill: none;
+ }
+ 
+-body.light-theme #sendMessageBtn svg, body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg {
++body.light-theme #sendMessageBtn svg, body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg, body.light-theme #codexRouterToggleBtn svg {
+     stroke: #ffffff; 
+ }
+ 
+@@ -453,11 +453,11 @@ body.light-theme #sendMessageBtn svg {
+     fill: none;
+ }
+ 
+-body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg {
++body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg, body.light-theme #codexRouterToggleBtn svg {
+     fill: none; 
+ }
+ 
+-body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg {
++body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg, body.light-theme #codexRouterToggleBtn svg {
+     stroke: var(--button-bg);
+     fill: none;
+ }
+@@ -497,7 +497,7 @@ body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, bod
+     transform: translateY(-1px);
+ }
+ 
+-#attachFileBtn, #quickNewTopicBtn, #emoticonTriggerBtn {
++#attachFileBtn, #quickNewTopicBtn, #emoticonTriggerBtn, #codexRouterToggleBtn {
+     width: 32px;
+     height: 32px;
+     border-radius: 50%;
+@@ -511,15 +511,36 @@ body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, bod
+     margin-right: 4px;
+ }
+ 
+-#attachFileBtn:hover:not(:disabled), #quickNewTopicBtn:hover:not(:disabled), #emoticonTriggerBtn:hover:not(:disabled) {
++#attachFileBtn:hover:not(:disabled), #quickNewTopicBtn:hover:not(:disabled), #emoticonTriggerBtn:hover:not(:disabled), #codexRouterToggleBtn:hover:not(:disabled) {
+     background-color: rgba(128, 128, 128, 0.12);
+ }
+ 
++#codexRouterToggleBtn {
++    position: relative;
++}
++
++#codexRouterToggleBtn.router-enabled {
++    background-color: color-mix(in srgb, var(--button-bg) 16%, transparent);
++}
++
++#codexRouterToggleBtn.router-enabled svg {
++    stroke: var(--button-bg);
++    color: var(--button-bg);
++}
++
++#codexRouterToggleBtn.router-unavailable svg {
++    stroke: var(--danger-color);
++    color: var(--danger-color);
++}
++
++body.light-theme #codexRouterToggleBtn.router-enabled {
++    background-color: rgba(229, 192, 123, 0.16);
++}
++
+ #sendMessageBtn:disabled,
+ #attachFileBtn:disabled,
+ #quickNewTopicBtn:disabled,
+-#emoticonTriggerBtn:disabled {
++#emoticonTriggerBtn:disabled,
++#codexRouterToggleBtn:disabled {
+     opacity: 0.55;
+     cursor: not-allowed;
+     transform: none;

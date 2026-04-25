@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "vcpchat-codex-router-toggle-orange-evidence.v1",
+  "generatedAt": "2026-04-25T18:14:37.2523839+08:00",
+  "workspace": "A:/codex-router",
+  "targetWorkspace": "A:/VCP/VCPChat_native_host",
+  "targetArea": "VCPChat renderer UI / Codex Router toggle styling",
+  "change": {
+    "file": "A:/VCP/VCPChat_native_host/styles/components.css",
+    "enabledBackgroundDark": "rgba(249, 115, 22, 0.16)",
+    "enabledBackgroundLight": "rgba(249, 115, 22, 0.14)",
+    "enabledIconColor": "#f97316"
+  },
+  "patch": "A:/codex-router/docs/patches/vcpchat-codex-router-toggle-orange-20260425.patch",
+  "validation": {
+    "gitDiffCheck": "passed for styles/components.css",
+    "runtimeRestart": {
+      "port": 15974,
+      "netstat": "0.0.0.0:15974 LISTENING PID 18284"
+    }
+  },
+  "notValidated": [
+    "No automated screenshot verification was run; user should visually confirm the enabled toggle color."
+  ]
+}

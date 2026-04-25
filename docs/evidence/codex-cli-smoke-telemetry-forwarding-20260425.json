@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "codex-cli-host-change-evidence.v1",
+  "generatedAt": "2026-04-25T16:55:00.000+08:00",
+  "area": "codex-cli-host",
+  "change": "smoke telemetry forwarding",
+  "summary": [
+    "Public codex-cli-host smoke run options now accept telemetryStore.",
+    "runCodexCliReadOnlySmoke and runCodexCliWorkspaceWriteSmoke forward telemetryStore into the guarded runner.",
+    "Repeated modeled read-only smoke runs can now surface model probe cache miss and hit events through the normal observability sink."
+  ],
+  "files": [
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md"
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "targetTests": {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "result": "52/52 passed"
+    },
+    "fullTests": {
+      "command": "npm test",
+      "result": "194/194 passed"
+    },
+    "build": {
+      "command": "npm run build",
+      "result": "passed"
+    }
+  },
+  "remainingRisk": [
+    "The live desktop host path still does not directly execute codex-cli-host smoke wrappers unless a caller opts into them."
+  ],
+  "next": [
+    "Run a live read-only smoke twice with telemetry enabled and inspect the sink for one miss followed by one hit.",
+    "If needed, add the same explicit acceptance check for workspace-write smoke after user approval."
+  ]
+}

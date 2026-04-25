@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "codex-cli-workspace-write-smoke-preflight.v1",
+  "generatedAt": "2026-04-25T13:05:00.000Z",
+  "host": "Codex CLI native 0.125.0",
+  "repoRoot": "A:/codex-router",
+  "status": "blocked",
+  "taskId": "codex-cli-workspace-write-smoke-preflight-20260425",
+  "requiredConfirmation": "ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE",
+  "plan": {
+    "command": "C:/Users/617/AppData/Roaming/npm/node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/codex/codex.exe",
+    "sandbox": "workspace-write",
+    "approvalPolicy": "on-request",
+    "workdir": "A:/codex-router",
+    "targetFiles": [
+      "docs/evidence/codex-cli-workspace-write-smoke.txt"
+    ],
+    "modules": [
+      "codex-cli-host"
+    ],
+    "usesJson": true,
+    "skipGitRepoCheck": true,
+    "ephemeral": true,
+    "warnings": []
+  },
+  "summary": {
+    "readyToRun": false,
+    "blockingReasons": [
+      "codex_cli_write_sandbox_requires_explicit_allowance",
+      "codex_cli_workspace_write_smoke_requires_confirmation"
+    ],
+    "warnings": []
+  },
+  "notes": [
+    "workspace-write preflight only",
+    "no live CLI spawn",
+    "no smoke target file edit",
+    "blocked until explicit allowance and confirmation"
+  ]
+}

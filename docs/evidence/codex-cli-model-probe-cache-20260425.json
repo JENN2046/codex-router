@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "codex-cli-host-change-evidence.v1",
+  "generatedAt": "2026-04-25T16:10:00.000+08:00",
+  "area": "codex-cli-host",
+  "change": "default execution model probe cache",
+  "summary": [
+    "Added a short-lived in-memory cache for passed Codex CLI model probes.",
+    "Default TTL is 300000 ms and applies to automatic execution-time probes.",
+    "Cache keys include command, working directory, and model.",
+    "Failed probes are not cached.",
+    "Callers can override the TTL or disable the cache explicitly."
+  ],
+  "files": [
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md"
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "targetTests": {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "result": "50/50 passed"
+    },
+    "fullTests": {
+      "command": "npm test",
+      "result": "192/192 passed"
+    },
+    "build": {
+      "command": "npm run build",
+      "result": "passed"
+    }
+  },
+  "remainingRisk": [
+    "The probe cache is process-local memory only and does not survive restarts.",
+    "Live repeated Codex CLI executions were not run in this change set; validation used injectable spawners."
+  ],
+  "next": [
+    "Consider surfacing cache hit and miss telemetry in host observability.",
+    "Consider exposing a host-level cache clear hook for long-lived desktop sessions."
+  ]
+}

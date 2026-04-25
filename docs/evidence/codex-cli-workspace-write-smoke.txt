@@ -1,0 +1,27 @@
+codex-cli-workspace-write-smoke
+request=codex-cli-workspace-write-smoke
+result=success
+workspace_root=A:/codex-router
+target_file=docs/evidence/codex-cli-workspace-write-smoke.txt
+execution=workspace-write
+runner_capture={"stdout":"SMOKE_OK","stderr":"","exitCode":0}
+scope=only_target_file
+rerun_task_id=codex-cli-workspace-write-smoke-live-rerun-20260425
+rerun_date=2026-04-25
+rerun_result=bounded_local_edit_confirmed
+rerun_scope=only_target_file
+rerun_notes=workspace-write sandbox performed a bounded local edit on the targeted smoke file only
+host_adapter_verification=bounded_local_edit_confirmed
+current_run=2026-04-25 bounded_local_edit_verified
+operator_acceptance=2026-04-25 bounded_workspace_write_write_target_only_confirmed
+operator_acceptance_task=codex-cli-operator-acceptance-workspace-write
+telemetry_acceptance=2026-04-25 workspace_write_operator_telemetry_attempt_recorded
+telemetry_acceptance_task=codex-cli-operator-acceptance-telemetry-workspace-write
+telemetry_acceptance_result=failed
+telemetry_acceptance_generated_at=2026-04-25T14:28:49.613Z
+telemetry_acceptance_mode=workspace-write
+telemetry_acceptance_first_run=failed
+telemetry_acceptance_second_run=failed
+telemetry_acceptance_cache_sequence=miss,miss
+telemetry_acceptance_blocking_reason=codex_cli_process_error:codex_cli_plan_not_runnable:codex_cli_command_not_executable
+telemetry_acceptance_note=bare codex override still failed in the model probe before cache reuse could produce a hit

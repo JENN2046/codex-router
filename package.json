@@ -1,0 +1,26 @@
+{
+  "name": "codex-router",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Desktop-first policy SDK for Codex routing, approval gating, escalation, and auditability.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "model:check": "tsx scripts/check-codex-cli-models.ts",
+    "operator:acceptance": "tsx scripts/run-codex-cli-operator-acceptance.ts",
+    "operator:acceptance:telemetry": "tsx scripts/run-codex-cli-operator-acceptance-telemetry.ts",
+    "smoke:telemetry": "tsx scripts/run-codex-cli-readonly-smoke-telemetry.ts",
+    "smoke:workspace-write:telemetry": "tsx scripts/run-codex-cli-workspace-write-smoke-telemetry.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.8.1",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

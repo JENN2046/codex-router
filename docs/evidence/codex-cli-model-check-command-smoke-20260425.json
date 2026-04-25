@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "codex-cli-model-check-evidence.v1",
+  "generatedAt": "2026-04-25T11:56:02.324Z",
+  "host": "Codex CLI model catalog",
+  "mode": "warn",
+  "status": "unavailable",
+  "api": {
+    "baseUrl": "https://api.openai.com/v1",
+    "endpoint": "/models",
+    "apiKeyConfigured": false
+  },
+  "summary": {
+    "officialModelCount": 0,
+    "knownModelCount": 5,
+    "availableKnownModelCount": 0,
+    "missingKnownModelCount": 0,
+    "untrackedOfficialModelCount": 0,
+    "ignoredOfficialModelCount": 0
+  },
+  "warnings": [
+    "openai_api_key_missing"
+  ],
+  "blockingReasons": []
+}

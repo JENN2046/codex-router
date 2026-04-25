@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+  "generatedAt": "2026-04-25T12:06:01.160Z",
+  "host": "Codex CLI model probe",
+  "source": "cli",
+  "mode": "warn",
+  "status": "unavailable",
+  "model": "gpt-5.4-mini",
+  "cli": {
+    "command": "codex-cli-does-not-exist",
+    "sandbox": "read-only",
+    "approvalPolicy": "never",
+    "usesJson": true,
+    "skipGitRepoCheck": true,
+    "ephemeral": true,
+    "workdir": "A:\\codex-router"
+  },
+  "run": {
+    "exitCode": 1,
+    "eventCount": 0,
+    "parseErrorCount": 0,
+    "timedOut": false,
+    "killed": false,
+    "warnings": [],
+    "blockingReasons": [
+      "codex_cli_exit_code:1",
+      "codex_cli_process_error:spawn codex-cli-does-not-exist ENOENT"
+    ],
+    "error": "spawn codex-cli-does-not-exist ENOENT"
+  },
+  "warnings": [
+    "codex_cli_model_probe_failed",
+    "codex_cli_exit_code:1",
+    "codex_cli_process_error:spawn codex-cli-does-not-exist ENOENT"
+  ],
+  "blockingReasons": []
+}

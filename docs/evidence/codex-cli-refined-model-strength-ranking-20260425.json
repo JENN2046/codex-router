@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "codex-cli-refined-model-strength-ranking.v1",
+  "generatedAt": "2026-04-25T11:42:00.000Z",
+  "workspace": "A:/codex-router",
+  "status": "passed",
+  "targetArea": "codex-cli-host,runtime-control",
+  "changedFiles": [
+    "packages/codex-cli-host/src/index.ts",
+    "packages/runtime-control/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "tests/runtime-control.test.ts",
+    "docs/codex-cli-host.md"
+  ],
+  "rationale": [
+    "gpt-5.3-codex-spark is treated as a latency-optimized real-time Codex model, not as a general capability upgrade over gpt-5.4-mini.",
+    "gpt-5.4-mini is treated as a newer general small model with a higher capability floor than gpt-5.3-codex-spark.",
+    "The ranking separates capabilityRank from latencyRank so fast models can retain a latency advantage without blocking higher-capability user choices."
+  ],
+  "capabilityOrder": [
+    "gpt-5.3-codex-spark",
+    "gpt-5.4-mini",
+    "gpt-5.3-codex",
+    "gpt-5.4",
+    "gpt-5.1-codex-max"
+  ],
+  "profiles": {
+    "gpt-5.3-codex-spark": {
+      "capabilityRank": 10,
+      "latencyRank": 50,
+      "specialization": "codex_realtime"
+    },
+    "gpt-5.4-mini": {
+      "capabilityRank": 20,
+      "latencyRank": 40,
+      "specialization": "general_small"
+    },
+    "gpt-5.3-codex": {
+      "capabilityRank": 30,
+      "latencyRank": 20,
+      "specialization": "codex_agentic"
+    },
+    "gpt-5.4": {
+      "capabilityRank": 40,
+      "latencyRank": 30,
+      "specialization": "general_frontier"
+    },
+    "gpt-5.1-codex-max": {
+      "capabilityRank": 50,
+      "latencyRank": 10,
+      "specialization": "governance_max"
+    }
+  },
+  "behaviorChanges": [
+    "A user preference from router-selected gpt-5.3-codex-spark to gpt-5.4-mini is now accepted.",
+    "A user preference from router-selected gpt-5.3-codex to gpt-5.4-mini is still rejected as a genuine downgrade.",
+    "Runtime upgradeModel now upgrades gpt-5.3-codex-spark to gpt-5.4-mini before larger models."
+  ],
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts tests/runtime-control.test.ts",
+      "status": "passed",
+      "tests": {
+        "passed": 31,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "tests": {
+        "passed": 172,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    }
+  ],
+  "limitations": [
+    "This is a project governance ranking, not a universal benchmark claim.",
+    "No new live Codex CLI run was required; this change affects model resolution and escalation policy.",
+    "VCPChat line remained paused."
+  ],
+  "officialContext": [
+    "OpenAI described GPT-5.4 mini as a newer efficient GPT-5.4-family model for coding, reasoning, tool use, and subagents.",
+    "OpenAI described GPT-5.3-Codex-Spark as a smaller Codex model optimized for ultra-low-latency real-time coding."
+  ]
+}

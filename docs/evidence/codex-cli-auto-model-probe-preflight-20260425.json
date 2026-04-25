@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "codex-cli-auto-model-probe-preflight-evidence.v1",
+  "generatedAt": "2026-04-25T20:22:48.8769440+08:00",
+  "workspace": "A:/codex-router",
+  "status": "passed",
+  "targetArea": "codex-cli-host",
+  "changedFiles": [
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md",
+    "docs/evidence/codex-cli-auto-model-probe-preflight-20260425.json"
+  ],
+  "implementedBehavior": [
+    "runCodexCliExecPlan now supports modelProbe reuse, requireModelProbe gating, and autoProbeModelWithCli preflight before the main spawn.",
+    "Automatic CLI model probe reuses the selected plan.model and runs as a read-only codex exec probe with approvalPolicy never.",
+    "Cached probe evidence can be supplied through modelProbe to avoid rerunning the probe.",
+    "Strict execution blocks when required model probe evidence is missing or when the auto-probe fails.",
+    "The internal CLI probe path sets skipExecutionModelProbe to avoid recursive self-probing."
+  ],
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "status": "passed",
+      "tests": {
+        "passed": 45,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "tests": {
+        "passed": 187,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    }
+  ],
+  "coveredScenarios": [
+    {
+      "name": "require_cached_probe",
+      "result": "validateCodexCliExecPlanForRun blocks with codex_cli_model_probe_required when a probe is required but not supplied and auto-probe is disabled"
+    },
+    {
+      "name": "auto_probe_before_main_spawn",
+      "result": "runCodexCliExecPlan runs a CLI model probe first and only then executes the main task when the probe passes"
+    },
+    {
+      "name": "strict_probe_failure_blocks_main_run",
+      "result": "main execution is blocked when the automatic CLI model probe fails in strict mode"
+    }
+  ],
+  "limitations": [
+    "This evidence validates the automatic preflight through injected spawners rather than a new live Codex CLI execution.",
+    "Host/startup integration still needs to choose whether to cache probe evidence or auto-probe on every execution boundary."
+  ],
+  "vcpchatLine": "paused"
+}

@@ -1,0 +1,192 @@
+{
+  "schemaVersion": "codex-router-mandatory-governance-gate.v1",
+  "generatedAt": "2026-04-25T15:50:52.5818695+08:00",
+  "workspace": "A:/codex-router",
+  "targetHost": "A:/VCP/VCPChat_native_host",
+  "mode": "validation",
+  "risk": "low-medium",
+  "branch": {
+    "targetHost": "postmerge/vcpchat-native-host-regression"
+  },
+  "worktree": {
+    "codexRouter": "not a git repository",
+    "targetHost": "dirty before this gate; no target-host files were edited by this gate",
+    "preExistingTargetHostChanges": [
+      "M docs/vcpchat_v1_native_host_merge_readiness_checklist_20260423.md",
+      "M docs/vcpchat_v1_native_host_post_merge_regression_20260423.md",
+      "M docs/vcpchat_v1_native_host_pr_closeout_20260423.md",
+      "M docs/vcpchat_v1_native_host_pr_package_20260424.md",
+      "?? AGENTS.md",
+      "?? node_modules - shortcut.lnk"
+    ]
+  },
+  "gateStatus": "not_enforced",
+  "conclusion": "codex-router is effective when work enters DesktopHostClient/runDesktopTask and VCPChat exposes a real CodexRouterHost entry, but the router is not yet a mandatory/global governance layer for all Codex or VCPChat user-visible actions.",
+  "validatedInputs": [
+    {
+      "path": "docs/evidence/codex-router-effectiveness-smoke-20260425.json",
+      "summary": "Proves codex-router changes execution posture when the call enters the router path; direct CLI remains the unrouted baseline."
+    },
+    {
+      "path": "docs/evidence/vcpchat-native-host-router-entry-smoke-20260425.json",
+      "summary": "Proves VCPChat native host can load codex-router, build a host bundle, select policy/model/tool posture, and execute through safe stub bindings."
+    },
+    {
+      "path": "A:/VCP/VCPChat_native_host/docs/vcpchat_v1_native_host_validation_addendum_20260424.md",
+      "summary": "Historical live Electron addendum reports renderer control-path smoke for inspect/run/resume, with run/resume intentionally preflight-blocked to avoid side effects."
+    },
+    {
+      "path": "A:/VCP/VCPChat_native_host/docs/vcpchat_v1_native_host_live_acceptance_20260423.md",
+      "summary": "Historical acceptance document records live inspect/run/resume integration surface acceptance."
+    },
+    {
+      "path": "A:/VCP/VCPChat_native_host/docs/vcpchat_v1_native_host_pr_closeout_20260423.md",
+      "summary": "Historical closeout records the first production-oriented native host embedding path as implemented and landed."
+    }
+  ],
+  "availableRouterEntries": [
+    {
+      "entry": "renderer client",
+      "evidence": [
+        "A:/VCP/VCPChat_native_host/renderer.js:253 createCodexRouterHostClient(runtime = window)",
+        "A:/VCP/VCPChat_native_host/renderer.js:270 client.run(task)",
+        "A:/VCP/VCPChat_native_host/renderer.js:273 client.resume(task, options)",
+        "A:/VCP/VCPChat_native_host/renderer.js:2460 window.codexRouterHostClient = createCodexRouterHostClient(window)"
+      ],
+      "status": "available"
+    },
+    {
+      "entry": "Electron preload bridge",
+      "evidence": [
+        "A:/VCP/VCPChat_native_host/preloads/desktop.js:263 codexRouterHostControl",
+        "A:/VCP/VCPChat_native_host/preloads/chat.js:264 codexRouterHostControl"
+      ],
+      "status": "available"
+    },
+    {
+      "entry": "main process IPC",
+      "evidence": [
+        "A:/VCP/VCPChat_native_host/main.js:1061 ipcMain.handle('codex-router-host:control', ...)"
+      ],
+      "status": "available"
+    },
+    {
+      "entry": "desktop remote handler",
+      "evidence": [
+        "A:/VCP/VCPChat_native_host/modules/ipc/desktopRemoteHandlers.js:327 handleCodexRouterHostControl",
+        "A:/VCP/VCPChat_native_host/modules/ipc/desktopRemoteHandlers.js:357 bundle.hostClient.run(task)",
+        "A:/VCP/VCPChat_native_host/modules/ipc/desktopRemoteHandlers.js:367 bundle.hostClient.resume(task, options)"
+      ],
+      "status": "available"
+    },
+    {
+      "entry": "DesktopRemote HTTP command path",
+      "evidence": [
+        "A:/VCP/VCPChat_native_host/VCPDistributedServer/VCPDistributedServer.js:182 loopback/key-protected desktop-remote-test route",
+        "A:/VCP/VCPChat_native_host/modules/ipc/desktopRemoteHandlers.js:273 case 'CodexRouterHost'"
+      ],
+      "status": "available_for_command_codex_router_host"
+    }
+  ],
+  "bypassPaths": [
+    {
+      "path": "normal VCPChat send button / enter-key chat send",
+      "evidence": [
+        "A:/VCP/VCPChat_native_host/renderer.js:248 window.chatManager.handleSendMessage()",
+        "A:/VCP/VCPChat_native_host/modules/event-listeners.js:422 chatManager.handleSendMessage()",
+        "A:/VCP/VCPChat_native_host/modules/chatManager.js:832 async function handleSendMessage()"
+      ],
+      "reason": "The normal chat send path calls chatManager.handleSendMessage and is separate from window.codexRouterHostClient.run.",
+      "status": "bypasses_router"
+    },
+    {
+      "path": "direct Codex CLI",
+      "evidence": [
+        "docs/evidence/codex-router-effectiveness-smoke-20260425.json"
+      ],
+      "reason": "Direct CLI execution does not automatically load codex-router routing-policy.yaml or enter DesktopHostClient/runDesktopTask.",
+      "status": "unmanaged_unless_wrapped"
+    },
+    {
+      "path": "official packaged Codex Desktop runtime",
+      "evidence": [
+        "Codex Desktop runtime inspection found packaged bootstrap/main bundle but no editable source entry that loads this router."
+      ],
+      "reason": "The official packaged Desktop runtime does not, by itself, consume this repository's router policy.",
+      "status": "unmanaged_unless_official_entry_or_wrapper_exists"
+    },
+    {
+      "path": "DesktopRemote non-CodexRouterHost commands",
+      "evidence": [
+        "A:/VCP/VCPChat_native_host/modules/ipc/desktopRemoteHandlers.js:273 case 'CodexRouterHost'"
+      ],
+      "reason": "Only DesktopRemote requests with command CodexRouterHost enter the router host handler; other DesktopRemote commands remain normal desktop remote actions.",
+      "status": "outside_router_scope"
+    }
+  ],
+  "mandatoryGovernanceCriteria": [
+    {
+      "criterion": "All in-scope user-visible Codex actions enter DesktopHostClient/runDesktopTask or an equivalent enforced router wrapper.",
+      "status": "missing",
+      "evidence": [
+        "normal VCPChat chat send path bypasses window.codexRouterHostClient"
+      ]
+    },
+    {
+      "criterion": "Direct CLI/Desktop usage is either wrapped, disabled for governed workflows, or explicitly labeled unmanaged.",
+      "status": "missing",
+      "evidence": [
+        "direct CLI remains the unrouted baseline"
+      ]
+    },
+    {
+      "criterion": "A production-like VCPChat entry can execute through codex-router.",
+      "status": "met_for_codex_router_host_entry",
+      "evidence": [
+        "docs/evidence/vcpchat-native-host-router-entry-smoke-20260425.json"
+      ]
+    },
+    {
+      "criterion": "Live Electron/HTTP smoke proves the exact governed production action path.",
+      "status": "partially_met",
+      "evidence": [
+        "historical live Electron renderer control-path smoke exists",
+        "current gate did not run a fresh live Electron or HTTP smoke"
+      ]
+    }
+  ],
+  "decision": {
+    "canClaimRouterEffective": true,
+    "canClaimVcpChatRouterEntryAvailable": true,
+    "canClaimMandatoryGlobalGovernance": false,
+    "recommendedAcceptanceLabel": "router available; governance not mandatory yet"
+  },
+  "nextGates": [
+    {
+      "gate": "define governed user-visible action set",
+      "why": "Mandatory governance needs a declared scope before code enforcement can be judged."
+    },
+    {
+      "gate": "route selected VCPChat Codex action through codexRouterHostClient",
+      "why": "The normal chat send path currently bypasses the router."
+    },
+    {
+      "gate": "add production-path smoke for the selected route",
+      "why": "A fresh live Electron or loopback HTTP smoke should prove the exact action path that users will exercise."
+    },
+    {
+      "gate": "document direct CLI/Desktop as unmanaged unless codex-cli-host or another wrapper is active",
+      "why": "Direct tools do not become governed merely because codex-router exists."
+    }
+  ],
+  "secrets": {
+    "printed": false,
+    "modified": false
+  },
+  "sideEffects": {
+    "targetHostEdited": false,
+    "externalWrites": false,
+    "liveShellOrPty": false,
+    "liveElectronStarted": false
+  }
+}

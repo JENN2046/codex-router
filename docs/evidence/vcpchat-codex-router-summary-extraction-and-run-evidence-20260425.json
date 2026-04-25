@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "vcpchat-codex-router-summary-extraction-and-run-evidence.v1",
+  "generatedAt": "2026-04-25T18:31:20+08:00",
+  "workspace": "A:/codex-router",
+  "targetWorkspace": "A:/VCP/VCPChat_native_host",
+  "targetArea": "VCPChat Codex Router visible summary and monitor evidence",
+  "reportedResult": {
+    "taskId": "vcpchat-codex-task-1777112492568-e5ry5qf9",
+    "observedStatus": "success",
+    "missingFields": [
+      "policyVersion",
+      "selectedModel",
+      "executionProfile",
+      "toolAccess",
+      "approvalRequired"
+    ]
+  },
+  "diagnosis": {
+    "historyRecorded": "A:/VCP/VCPChat_native_host/AppData/UserData/_Agent_1777109724527_1777109724527/topics/default/history.json contained the visible Codex Router summary for the task id.",
+    "cause": "The renderer summary read only shallow fields. Actual codex-router run results are shaped as { decisionResult, executionResult }, with policy/model/tool fields nested under decisionResult.decision and executionResult.",
+    "oldRunLimit": "The previous raw result was only kept in the live renderer window and was not persisted to disk, so that existing history entry cannot be enriched from disk."
+  },
+  "implemented": {
+    "renderer": {
+      "file": "A:/VCP/VCPChat_native_host/renderer.js",
+      "change": "Visible summary now extracts fields from decisionResult, executionResult, decisionResult.decision.execution, decisionResult.executionPlan, and executionResult.steps.",
+      "visibleEvidencePath": "When IPC returns a run evidence file path, the chat summary includes a monitor evidence line."
+    },
+    "mainProcess": {
+      "file": "A:/VCP/VCPChat_native_host/modules/ipc/desktopRemoteHandlers.js",
+      "change": "CodexRouterHost run/resume now writes sanitized JSON evidence under AppData/codexRouter/runs and returns the evidence reference to renderer.",
+      "directory": "A:/VCP/VCPChat_native_host/AppData/codexRouter/runs",
+      "safety": [
+        "Does not store raw requestedAction.",
+        "Does not store raw primitive output.",
+        "Stores governance metadata and primitive statuses only."
+      ]
+    }
+  },
+  "patches": [
+    "A:/codex-router/docs/patches/vcpchat-codex-router-summary-extraction-fix-20260425.patch",
+    "A:/codex-router/docs/patches/vcpchat-codex-router-main-run-evidence-20260425.patch",
+    "A:/codex-router/docs/patches/vcpchat-codex-router-run-evidence-const-order-fix-20260425.patch"
+  ],
+  "validation": {
+    "nodeCheckRenderer": "passed",
+    "nodeCheckDesktopRemoteHandlers": "passed",
+    "gitDiffCheck": "passed for renderer.js and modules/ipc/desktopRemoteHandlers.js",
+    "runtimeRestart": {
+      "port": 15974,
+      "netstat": "0.0.0.0:15974 LISTENING PID 6624"
+    }
+  },
+  "notValidated": [
+    "A new live routed task has not yet been sent after this fix.",
+    "Next expected validation is a new Codex Router task producing both enriched visible chat summary and a JSON evidence file under AppData/codexRouter/runs."
+  ]
+}

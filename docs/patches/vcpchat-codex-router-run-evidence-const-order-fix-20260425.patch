@@ -1,0 +1,14 @@
+diff --git a/modules/ipc/desktopRemoteHandlers.js b/modules/ipc/desktopRemoteHandlers.js
+--- a/modules/ipc/desktopRemoteHandlers.js
++++ b/modules/ipc/desktopRemoteHandlers.js
+@@ -11,8 +11,8 @@
+ let mainWindowRef = null;
+ let codexRouterHostStarterPromise = null;
+ let codexRouterHostBundlePromise = null;
+ 
+-const CODEX_ROUTER_RUN_EVIDENCE_DIR = path.join(PROJECT_ROOT, 'AppData', 'codexRouter', 'runs');
+ const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
++const CODEX_ROUTER_RUN_EVIDENCE_DIR = path.join(PROJECT_ROOT, 'AppData', 'codexRouter', 'runs');
+ const pendingDesktopRemoteRequests = new Map();
+ const pendingFlowlockRequests = new Map();
+ let bridgeInitialized = false;

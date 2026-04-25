@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "vcpchat-port-rebind.v1",
+  "generatedAt": "2026-04-25T17:35:30+08:00",
+  "workspace": "A:/codex-router",
+  "targetHost": "A:/VCP/VCPChat_native_host",
+  "mode": "configuration",
+  "risk": "medium",
+  "reason": "User reported old VCPChat port conflict and requested a new port.",
+  "changedFile": "A:/VCP/VCPChat_native_host/VCPDistributedServer/config.env",
+  "changedKey": "DIST_SERVER_PORT",
+  "newPort": 15974,
+  "validation": [
+    {
+      "command": "local TcpListener bind probe",
+      "result": "port 15974 was available before launch"
+    },
+    {
+      "command": "npm run start:desktop",
+      "workdir": "A:/VCP/VCPChat_native_host",
+      "result": "VCPChat Electron process started"
+    },
+    {
+      "command": "netstat -ano | Select-String ':15974'",
+      "result": "0.0.0.0:15974 LISTENING pid 33612"
+    }
+  ],
+  "runtimeObservation": {
+    "processTitle": "VCPChat",
+    "pid": 33612,
+    "listening": "0.0.0.0:15974"
+  },
+  "worktreeObservationAfterLaunch": {
+    "manualConfigChange": "M VCPDistributedServer/config.env",
+    "runtimeSideEffectObserved": "D .vcp_ready",
+    "preExistingChangesPreserved": [
+      "M docs/vcpchat_v1_native_host_merge_readiness_checklist_20260423.md",
+      "M docs/vcpchat_v1_native_host_post_merge_regression_20260423.md",
+      "M docs/vcpchat_v1_native_host_pr_closeout_20260423.md",
+      "M docs/vcpchat_v1_native_host_pr_package_20260424.md",
+      "M modules/event-listeners.js",
+      "M renderer.js",
+      "?? AGENTS.md",
+      "?? node_modules - shortcut.lnk"
+    ]
+  },
+  "secrets": {
+    "printed": false,
+    "modified": "Only DIST_SERVER_PORT was modified; no secret values were printed."
+  }
+}

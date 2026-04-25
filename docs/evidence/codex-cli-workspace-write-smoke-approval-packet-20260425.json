@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "codex-cli-workspace-write-smoke-approval-packet.v1",
+  "generatedAt": "2026-04-25T13:25:00.000Z",
+  "host": "Codex CLI native 0.125.0",
+  "status": "blocked",
+  "risk": "medium",
+  "taskId": "codex-cli-workspace-write-smoke-preflight-20260425",
+  "workspace": "A:/codex-router",
+  "repoState": {
+    "isGitRepository": false,
+    "worktree": "not_git_repository"
+  },
+  "proposedAction": {
+    "sandbox": "workspace-write",
+    "approvalPolicy": "on-request",
+    "commandPreview": "C:/Users/617/AppData/Roaming/npm/node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/codex/codex.exe -a on-request exec --json --sandbox workspace-write --cd A:/codex-router --skip-git-repo-check --ephemeral \"<task-envelope-prompt omitted>\"",
+    "targetFiles": [
+      "docs/evidence/codex-cli-workspace-write-smoke.txt"
+    ],
+    "modules": [
+      "codex-cli-host"
+    ]
+  },
+  "requiredGates": {
+    "allowWriteSandbox": true,
+    "confirmation": "ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE"
+  },
+  "blockers": [
+    "codex_cli_write_sandbox_requires_explicit_allowance",
+    "codex_cli_workspace_write_smoke_requires_confirmation"
+  ],
+  "rollback": {
+    "strategy": "Remove or restore the targeted smoke evidence file only. No branch movement, release action, external write, or secret change is part of this smoke.",
+    "affectedFiles": [
+      "docs/evidence/codex-cli-workspace-write-smoke.txt"
+    ]
+  },
+  "safetyNotes": [
+    "Approval packet does not execute Codex CLI.",
+    "Raw task prompt and full argv are omitted from this artifact.",
+    "Live workspace-write execution still requires explicit operator approval."
+  ],
+  "notes": [
+    "approval packet only",
+    "no live CLI spawn",
+    "no smoke target file edit",
+    "requires explicit operator approval before workspace-write live smoke"
+  ]
+}

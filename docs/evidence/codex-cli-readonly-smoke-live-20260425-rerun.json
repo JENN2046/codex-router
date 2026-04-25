@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "codex-cli-readonly-smoke-evidence.v1",
+  "generatedAt": "2026-04-25T10:57:13.646Z",
+  "host": "Codex CLI",
+  "repoRoot": "A:/codex-router",
+  "status": "passed",
+  "taskId": "codex-cli-readonly-smoke-live-20260425-rerun",
+  "plan": {
+    "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
+    "sandbox": "read-only",
+    "approvalPolicy": "never",
+    "workdir": "A:/codex-router",
+    "usesJson": true,
+    "skipGitRepoCheck": true,
+    "ephemeral": true,
+    "warnings": []
+  },
+  "run": {
+    "exitCode": 0,
+    "executionStatus": "completed",
+    "eventCount": 70,
+    "parseErrorCount": 0,
+    "warnings": [],
+    "blockingReasons": [],
+    "timedOut": false,
+    "killed": false
+  },
+  "summary": {
+    "passed": true,
+    "blockingReasons": [],
+    "warnings": []
+  },
+  "notes": [
+    "live read-only smoke rerun after CLI line resumed",
+    "sandbox read-only",
+    "approval policy never"
+  ]
+}

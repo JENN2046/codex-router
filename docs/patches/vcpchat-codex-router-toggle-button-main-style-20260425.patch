@@ -1,0 +1,69 @@
+diff --git a/main.html b/main.html
+--- a/main.html
++++ b/main.html
+@@ -580,0 +580,10 @@
++                        <button id="codexRouterToggleBtn" class="codex-router-toggle" title="Codex Router: off, normal send uses VCPChat" aria-label="Codex Router mode" aria-pressed="false" type="button" disabled>
++                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
++                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
++                                stroke-linejoin="round" class="lucide lucide-route-icon lucide-route"
++                                aria-hidden="true">
++                                <circle cx="6" cy="19" r="3"></circle>
++                                <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"></path>
++                                <circle cx="18" cy="5" r="3"></circle>
++                            </svg>
++                        </button>
+diff --git a/styles/components.css b/styles/components.css
+--- a/styles/components.css
++++ b/styles/components.css
+@@ -417,1 +417,1 @@
+-#sendMessageBtn, #attachFileBtn, #quickNewTopicBtn, #emoticonTriggerBtn {
++#sendMessageBtn, #attachFileBtn, #quickNewTopicBtn, #emoticonTriggerBtn, #codexRouterToggleBtn {
+@@ -426,1 +426,1 @@
+-#sendMessageBtn svg, #attachFileBtn svg, #quickNewTopicBtn svg, #emoticonTriggerBtn svg {
++#sendMessageBtn svg, #attachFileBtn svg, #quickNewTopicBtn svg, #emoticonTriggerBtn svg, #codexRouterToggleBtn svg {
+@@ -442,1 +442,1 @@
+-#attachFileBtn svg, #quickNewTopicBtn svg, #emoticonTriggerBtn svg {
++#attachFileBtn svg, #quickNewTopicBtn svg, #emoticonTriggerBtn svg, #codexRouterToggleBtn svg {
+@@ -448,1 +448,1 @@
+-body.light-theme #sendMessageBtn svg, body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg {
++body.light-theme #sendMessageBtn svg, body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg, body.light-theme #codexRouterToggleBtn svg {
+@@ -456,1 +456,1 @@
+-body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg {
++body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg, body.light-theme #codexRouterToggleBtn svg {
+@@ -460,1 +460,1 @@
+-body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg {
++body.light-theme #attachFileBtn svg, body.light-theme #quickNewTopicBtn svg, body.light-theme #emoticonTriggerBtn svg, body.light-theme #codexRouterToggleBtn svg {
+@@ -500,1 +500,1 @@
+-#attachFileBtn, #quickNewTopicBtn, #emoticonTriggerBtn {
++#attachFileBtn, #quickNewTopicBtn, #emoticonTriggerBtn, #codexRouterToggleBtn {
+@@ -514,1 +514,1 @@
+-#attachFileBtn:hover:not(:disabled), #quickNewTopicBtn:hover:not(:disabled), #emoticonTriggerBtn:hover:not(:disabled) {
++#attachFileBtn:hover:not(:disabled), #quickNewTopicBtn:hover:not(:disabled), #emoticonTriggerBtn:hover:not(:disabled), #codexRouterToggleBtn:hover:not(:disabled) {
+@@ -517,0 +517,25 @@
++
++#codexRouterToggleBtn {
++    position: relative;
++}
++
++#codexRouterToggleBtn.router-enabled {
++    background-color: color-mix(in srgb, var(--button-bg) 16%, transparent);
++}
++
++#codexRouterToggleBtn.router-enabled svg {
++    stroke: var(--button-bg);
++    color: var(--button-bg);
++}
++
++#codexRouterToggleBtn.router-unavailable svg {
++    stroke: var(--danger-color);
++    color: var(--danger-color);
++}
++
++body.light-theme #codexRouterToggleBtn.router-enabled {
++    background-color: rgba(229, 192, 123, 0.16);
++}
++
+@@ -521,1 +546,2 @@
+-#emoticonTriggerBtn:disabled {
++#emoticonTriggerBtn:disabled,
++#codexRouterToggleBtn:disabled {

@@ -1,0 +1,210 @@
+{
+  "schemaVersion": "vcpchat-native-host-router-entry-smoke.v1",
+  "generatedAt": "2026-04-25T15:05:00+08:00",
+  "workspace": "A:/codex-router",
+  "targetHost": "A:/VCP/VCPChat_native_host",
+  "mode": "validation",
+  "risk": "low-medium",
+  "branch": "postmerge/vcpchat-native-host-regression",
+  "worktree": "dirty before smoke; smoke did not edit native host files",
+  "entryChain": [
+    "renderer window.codexRouterHostClient.run(task)",
+    "preload codexRouterHostControl IPC",
+    "main ipcMain.handle(\"codex-router-host:control\")",
+    "desktopRemoteHandlers.handleCodexRouterHostControl({ action: \"run\" })",
+    "ensureCodexRouterHostBundle()",
+    "bundle.hostClient.run(task)",
+    "codex-router runDesktopTask/runDesktopDecision/routeTask/createDesktopExecutionPlan",
+    "host bridge/runtime primitive bindings"
+  ],
+  "starter": {
+    "ready": true,
+    "nextAction": "create_bundle",
+    "wiredRuntimeMethods": [
+      "read_thread_terminal",
+      "spawn_agent",
+      "wait_agent",
+      "send_input",
+      "close_agent",
+      "shell_command",
+      "apply_patch",
+      "automation_update"
+    ],
+    "wiredMemoryMethods": [
+      "record_memory",
+      "search_memory",
+      "memory_overview"
+    ],
+    "pendingRequiredMethods": [],
+    "pendingOptionalMethods": [],
+    "inspection": {
+      "ready": true,
+      "availableRuntimeMethods": [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "close_agent",
+        "shell_command",
+        "apply_patch",
+        "automation_update"
+      ],
+      "availableMemoryMethods": [
+        "record_memory",
+        "search_memory",
+        "memory_overview"
+      ],
+      "availableTools": [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "close_agent",
+        "shell_command",
+        "apply_patch",
+        "automation_update"
+      ],
+      "missingMethods": [],
+      "supportsMemoryOverview": true,
+      "placeholderMethods": []
+    }
+  },
+  "routedRun": {
+    "decisionStatus": "ready",
+    "executionStatus": "completed",
+    "policyVersion": "2026-04-23.desktop-first.v1.1",
+    "selectedModel": "gpt-5.4-mini",
+    "toolAccess": "read_only",
+    "executionProfile": "recon-only",
+    "reasoningEffort": "low",
+    "approvalRequired": false,
+    "approvalReasons": [],
+    "preflightOk": true,
+    "blockingReasons": [],
+    "plannedPrimitives": [
+      {
+        "primitive": "read_thread_terminal",
+        "reason": "read current thread context before dispatch"
+      },
+      {
+        "primitive": "spawn_agent",
+        "reason": "parallel read-only exploration is allowed"
+      },
+      {
+        "primitive": "wait_agent",
+        "reason": "collect explorer output before final synthesis"
+      }
+    ],
+    "planNotes": [
+      "model:gpt-5.4-mini",
+      "tool_access:read_only",
+      "approval:not_required"
+    ],
+    "executedStepStatuses": [
+      {
+        "primitive": "read_thread_terminal",
+        "status": "completed",
+        "reason": "read current thread context before dispatch"
+      },
+      {
+        "primitive": "spawn_agent",
+        "status": "completed",
+        "reason": "parallel read-only exploration is allowed"
+      },
+      {
+        "primitive": "wait_agent",
+        "status": "completed",
+        "reason": "collect explorer output before final synthesis"
+      }
+    ],
+    "auditEventTypes": [
+      "task_created",
+      "intent_classified",
+      "routing_decided",
+      "preflight_passed",
+      "runner_ready",
+      "runner_dispatched",
+      "primitive_executed",
+      "primitive_executed",
+      "primitive_executed"
+    ]
+  },
+  "safeBindingCalls": [
+    {
+      "method": "record_memory",
+      "input": {
+        "title": "checkpoint: vcpchat-main-process@codex-router-effectiveness-smoke vcpchat-native-host-router-entry-readonly-20260425 ready-for-desktop-execution",
+        "target": "process",
+        "tags": "codex-router,checkpoint,ready-for-desktop-execution,vcpchat-native-host-router-entry-readonly-20260425"
+      },
+      "output": {
+        "memoryId": "vcpchat-router-smoke-memory-1",
+        "success": true
+      }
+    },
+    {
+      "method": "search_memory",
+      "input": {
+        "query": "vcpchat-main-process@codex-router-effectiveness-smoke vcpchat-native-host-router-entry-readonly-20260425 checkpoint ready-for-desktop-execution",
+        "target": "process"
+      },
+      "output": {
+        "results": []
+      }
+    },
+    {
+      "method": "read_thread_terminal",
+      "input": {},
+      "output": {
+        "terminalOutput": "",
+        "summary": "safe smoke stub: no terminal logs read",
+        "payload": {
+          "stub": true
+        }
+      }
+    },
+    {
+      "method": "spawn_agent",
+      "input": {
+        "message": "Task: Verify VCPChat native host CodexRouterHost entry routes through codex-router.\nRequested action: Inspect VCPChat native host CodexRouterHost status. Do not modify files.\nReason: parallel read-only exploration is allowed\nAssigned role: analyst\nMode: read_only\nSlot: 1",
+        "agent_type": "explorer",
+        "fork_context": true,
+        "reasoning_effort": "low"
+      },
+      "output": {
+        "agentId": "vcpchat-router-smoke-agent-1",
+        "nickname": "safe-smoke-agent",
+        "status": "running",
+        "summary": "safe smoke stub: agent spawn captured without PTY"
+      }
+    },
+    {
+      "method": "wait_agent",
+      "input": {
+        "targets": [
+          "vcpchat-router-smoke-agent-1"
+        ]
+      },
+      "output": {
+        "agentId": "vcpchat-router-smoke-agent-1",
+        "status": "completed",
+        "message": "safe smoke stub: agent completed"
+      }
+    }
+  ],
+  "effectiveness": {
+    "nativeHostEntryExists": true,
+    "nativeHostServiceCanCreateRouterBundle": true,
+    "hostClientRunEnteredRouter": true,
+    "hostBridgeReceivedRouterPrimitives": true,
+    "mandatoryForAllCodexActions": false,
+    "conclusion": "VCPChat_native_host has a real CodexRouterHost entry that can route tasks through codex-router. This proves an available host entry, not mandatory global governance for every Codex/CLI/Desktop path."
+  },
+  "limits": [
+    "This smoke uses safe stub bindings to avoid PTY, shell execution, file edits, and external memory writes.",
+    "This smoke does not start Electron or exercise renderer IPC live.",
+    "This smoke does not prove every VCPChat or Codex action is forced through codex-router.",
+    "Native host worktree was already dirty with docs changes before this smoke."
+  ],
+  "nextGate": "For mandatory governance, add or validate a production entry policy that routes user-visible Codex actions only through window.codexRouterHostClient/runDesktopTask and marks direct CLI/Desktop use as unmanaged."
+}

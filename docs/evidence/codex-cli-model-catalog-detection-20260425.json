@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "codex-cli-model-catalog-detection-evidence.v1",
+  "generatedAt": "2026-04-25T19:37:35.198167+08:00",
+  "workspace": "A:/codex-router",
+  "status": "passed",
+  "targetArea": "codex-cli-host",
+  "changedFiles": [
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md",
+    "docs/evidence/codex-cli-model-catalog-detection-20260425.json"
+  ],
+  "officialApiReference": "https://developers.openai.com/api/reference/resources/models/methods/list",
+  "implementedFunctions": [
+    "getKnownCodexCliModelIds",
+    "parseOpenAiModelCatalogResponse",
+    "fetchOpenAiModelCatalog",
+    "detectCodexCliModelCatalogDrift"
+  ],
+  "behavior": [
+    "Local known models are derived from ModelIdSchema so the drift check uses the same model universe as routing policy.",
+    "The OpenAI model catalog parser accepts the official list response shape with model id, object, created, and owned_by fields.",
+    "The fetch wrapper calls /models with Authorization supplied from an injected apiKey or OPENAI_API_KEY.",
+    "The drift detector reports availableKnownModels, missingKnownModels, untrackedOfficialModels, ignoredOfficialModelCount, and warnings.",
+    "The default relevance filter tracks GPT-5 and Codex model ids while ignoring unrelated model families such as embedding, audio, or image models."
+  ],
+  "coveredScenarios": [
+    {
+      "name": "current_official_coverage",
+      "result": "status current when every local policy model appears in the supplied official catalog"
+    },
+    {
+      "name": "official_addition_and_removal",
+      "result": "status drift_detected when a known model disappears and new relevant official models are not yet modeled"
+    },
+    {
+      "name": "official_shape_and_fetch_wrapper",
+      "result": "parser and injected fetch wrapper handle the official list response without live network access"
+    }
+  ],
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "status": "passed",
+      "tests": {
+        "passed": 33,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "tests": {
+        "passed": 175,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    }
+  ],
+  "limitations": [
+    "No live OpenAI /models request was executed for this evidence file.",
+    "No API key or Authorization header value is recorded.",
+    "This adds library-level detection only; a user-facing CLI command or scheduled check can be wired in a later step."
+  ],
+  "vcpchatLine": "paused"
+}

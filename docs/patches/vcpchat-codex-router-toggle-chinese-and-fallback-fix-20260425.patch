@@ -1,0 +1,86 @@
+diff --git a/main.html b/main.html
+--- a/main.html
++++ b/main.html
+@@ -580,1 +580,1 @@
+-                        <button id="codexRouterToggleBtn" class="codex-router-toggle" title="Codex Router: off, normal send uses VCPChat" aria-label="Codex Router mode" aria-pressed="false" type="button" disabled>
++                        <button id="codexRouterToggleBtn" class="codex-router-toggle" title="Codex Router：关闭，普通发送走 VCPChat" aria-label="Codex Router 模式" aria-pressed="false" type="button" disabled>
+diff --git a/renderer.js b/renderer.js
+--- a/renderer.js
++++ b/renderer.js
+@@ -299,6 +299,17 @@
+     }
+ }
+ 
++function formatCodexRouterExecutionStatus(status) {
++    const normalized = String(status || 'completed').toLowerCase();
++    const statusLabels = {
++        completed: '已完成',
++        success: '成功',
++        succeeded: '成功',
++        failed: '失败',
++        error: '失败',
++        blocked: '被治理规则拦截'
++    };
++    return statusLabels[normalized] || String(status || '已完成');
++}
++
+ function loadCodexRouterModeSetting() {
+@@ -330,2 +341,7 @@
+     const isAvailable = Boolean(client && typeof client.run === 'function');
++    if (!isAvailable && codexRouterModeEnabled) {
++        codexRouterModeEnabled = false;
++        saveCodexRouterModeSetting(false);
++    }
++
+     const isEnabled = isAvailable && codexRouterModeEnabled;
+@@ -339,5 +355,5 @@
+     codexRouterToggleBtn.setAttribute('aria-pressed', isEnabled ? 'true' : 'false');
+     codexRouterToggleBtn.title = !isAvailable
+-        ? 'Codex Router: unavailable in this window'
++        ? 'Codex Router：当前窗口不可用'
+         : (isEnabled
+-            ? 'Codex Router: on, normal send runs a governed task'
+-            : 'Codex Router: off, normal send uses VCPChat');
++            ? 'Codex Router：开启，普通发送走受治理任务'
++            : 'Codex Router：关闭，普通发送走 VCPChat');
+ }
+@@ -355,1 +371,1 @@
+-            notifyCodexRouterCommand('Codex Router host is not available in this window.', 'error');
++            notifyCodexRouterCommand('当前窗口不可用 Codex Router Host。', 'error');
+@@ -367,2 +383,2 @@
+-                ? 'Codex Router mode enabled. Normal send now runs governed tasks.'
+-                : 'Codex Router mode disabled. Normal send uses VCPChat.',
++                ? 'Codex Router 模式已开启，普通发送会走受治理任务。'
++                : 'Codex Router 模式已关闭，普通发送恢复 VCPChat。',
+@@ -390,3 +406,10 @@
+     const rawInput = messageInput?.value || '';
+     const parsed = parseCodexRouterCommand(rawInput);
+-    const isToggleModeSend = !parsed && codexRouterModeEnabled;
++    const client = getCodexRouterHostClient();
++    const isRouterAvailable = Boolean(client && typeof client.run === 'function');
++    if (!parsed && codexRouterModeEnabled && !isRouterAvailable) {
++        codexRouterModeEnabled = false;
++        saveCodexRouterModeSetting(false);
++        updateCodexRouterToggleButtonState();
++    }
++    const isToggleModeSend = !parsed && codexRouterModeEnabled && isRouterAvailable;
+     if (!parsed && !isToggleModeSend) return false;
+@@ -396,1 +419,1 @@
+-            parsed ? 'Codex Router command requires a task after the prefix.' : 'Codex Router mode is on, but the task is empty.',
++            parsed ? 'Codex Router 命令需要在前缀后写任务。' : 'Codex Router 模式已开启，但任务内容为空。',
+@@ -402,4 +425,3 @@
+-    const client = getCodexRouterHostClient();
+-    if (!client || typeof client.run !== 'function') {
+-        notifyCodexRouterCommand('Codex Router host is not available in this window.', 'error');
++    if (!isRouterAvailable) {
++        notifyCodexRouterCommand('当前窗口不可用 Codex Router Host。', 'error');
+         return true;
+@@ -414,1 +436,1 @@
+-            throw new Error(result.message || 'Codex Router host returned an error.');
++            throw new Error(result.message || 'Codex Router Host 返回错误。');
+@@ -428,1 +450,1 @@
+-        notifyCodexRouterCommand(`Codex Router task ${executionStatus}.`, 'success');
++        notifyCodexRouterCommand(`Codex Router 任务${formatCodexRouterExecutionStatus(executionStatus)}。`, 'success');
+@@ -432,1 +454,1 @@
+-        notifyCodexRouterCommand(`Codex Router task failed: ${error.message}`, 'error');
++        notifyCodexRouterCommand(`Codex Router 任务失败：${error.message}`, 'error');

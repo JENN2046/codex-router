@@ -1,0 +1,160 @@
+diff --git a/renderer.js b/renderer.js
+--- a/renderer.js
++++ b/renderer.js
+@@ -131,11 +131,12 @@
+ const topicSearchInput = document.getElementById('topicSearchInput'); // Should be in tabContentTopics
+ const DEFAULT_SEND_BUTTON_HTML = sendMessageBtn?.innerHTML || '';
+ const INTERRUPT_SEND_BUTTON_HTML = `
+     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+         fill="none" stroke="none" aria-hidden="true">
+         <rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor"></rect>
+     </svg>
+ `;
++const CODEX_ROUTER_COMMAND_PREFIXES = ['/codex-router', '/codex-task'];
+ 
+ function isContextForCurrentChat(context) {
+     if (!context || !currentSelectedItem?.id || !currentTopicId) return false;
+@@ -242,10 +243,119 @@
++function parseCodexRouterCommand(rawContent) {
++    const content = typeof rawContent === 'string' ? rawContent.trim() : '';
++    if (!content) return null;
++
++    for (const prefix of CODEX_ROUTER_COMMAND_PREFIXES) {
++        if (content === prefix) {
++            return { prefix, prompt: '' };
++        }
++        if (content.startsWith(`${prefix} `) || content.startsWith(`${prefix}\n`) || content.startsWith(`${prefix}\r\n`)) {
++            return { prefix, prompt: content.slice(prefix.length).trim() };
++        }
++    }
++
++    return null;
++}
++
++function createVcpChatCodexRouterTask(prompt) {
++    const summaryLine = prompt.split(/\r?\n/).find(line => line.trim())?.trim() || 'VCPChat Codex task';
++    const summary = summaryLine.length > 120 ? `${summaryLine.slice(0, 117)}...` : summaryLine;
++
++    return {
++        schemaVersion: 'task-envelope.v1',
++        taskId: `vcpchat-codex-task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
++        source: 'desktop-thread',
++        intent: {
++            summary,
++            requestedAction: prompt,
++            successCriteria: ['Return a codex-router execution result to VCPChat.'],
++            outOfScope: [
++                'external writes without explicit approval',
++                'secret or env file changes',
++                'branch movement, push, merge, release, or deploy unless explicitly approved'
++            ]
++        },
++        repoContext: {
++            repoRoot: globalSettings.codexRouterWorkspaceRoot || globalSettings.workspaceRoot || 'A:/codex-router'
++        },
++        target: {
++            branches: [],
++            files: [],
++            modules: ['vcpchat-explicit-codex-task']
++        },
++        constraints: {},
++        hints: {
++            riskHints: [],
++            tags: ['vcpchat', 'codex-router', 'explicit-command']
++        }
++    };
++}
++
++function notifyCodexRouterCommand(message, type = 'info') {
++    if (window.uiHelperFunctions && typeof window.uiHelperFunctions.showToastNotification === 'function') {
++        window.uiHelperFunctions.showToastNotification(message, type);
++    }
++}
++
++async function tryRunCodexRouterCommandFromInput() {
++    const parsed = parseCodexRouterCommand(messageInput?.value || '');
++    if (!parsed) return false;
++
++    if (!parsed.prompt) {
++        notifyCodexRouterCommand('Codex Router command requires a task after the prefix.', 'warning');
++        return true;
++    }
++
++    const client = window.codexRouterHostClient || createCodexRouterHostClient(window);
++    if (!client || typeof client.run !== 'function') {
++        notifyCodexRouterCommand('Codex Router host is not available in this window.', 'error');
++        return true;
++    }
++
++    const wasSendButtonDisabled = sendMessageBtn.disabled;
++    sendMessageBtn.disabled = true;
++    sendMessageBtn.dataset.codexRouterRunning = 'true';
++
++    try {
++        const task = createVcpChatCodexRouterTask(parsed.prompt);
++        const result = await client.run(task);
++        if (result?.status === 'error') {
++            throw new Error(result.message || 'Codex Router host returned an error.');
++        }
++
++        window.__lastCodexRouterHostRun = result;
++        const executionStatus =
++            result?.result?.executionStatus
++            || result?.result?.execution?.status
++            || result?.result?.status
++            || result?.status
++            || 'completed';
++
++        messageInput.value = '';
++        window.uiHelperFunctions?.autoResizeTextarea?.(messageInput);
++        notifyCodexRouterCommand(`Codex Router task ${executionStatus}.`, 'success');
++        return true;
++    } catch (error) {
++        console.error('[CodexRouterHost] Explicit command failed:', error);
++        notifyCodexRouterCommand(`Codex Router task failed: ${error.message}`, 'error');
++        return true;
++    } finally {
++        delete sendMessageBtn.dataset.codexRouterRunning;
++        sendMessageBtn.disabled = wasSendButtonDisabled;
++        updateSendButtonState();
++    }
++}
++
+ async function handleSendButtonAction() {
+     if (getInterruptibleMessageForCurrentChat()) {
+         await interruptActiveResponseFromSendButton();
+         return;
+     }
+ 
++    if (await tryRunCodexRouterCommandFromInput()) {
++        return;
++    }
++
+     if (window.chatManager && typeof window.chatManager.handleSendMessage === 'function') {
+         await window.chatManager.handleSendMessage();
+     }
+ }
+diff --git a/modules/event-listeners.js b/modules/event-listeners.js
+--- a/modules/event-listeners.js
++++ b/modules/event-listeners.js
+@@ -417,14 +417,18 @@
+     sendMessageBtn.addEventListener('click', async () => {
+-        if (typeof window.handleSendButtonAction === 'function' && sendMessageBtn?.dataset.mode === 'interrupt') {
++        if (typeof window.handleSendButtonAction === 'function') {
+             await window.handleSendButtonAction();
+             return;
+         }
+         chatManager.handleSendMessage();
+     });
+-    messageInput.addEventListener('keydown', (e) => {
++    messageInput.addEventListener('keydown', async (e) => {
+         if (e.key === 'Enter' && !e.shiftKey) {
+             e.preventDefault();
++            if (typeof window.handleSendButtonAction === 'function') {
++                await window.handleSendButtonAction();
++                return;
++            }
+             chatManager.handleSendMessage();
+         }
+     });
+     messageInput.addEventListener('input', () => uiHelperFunctions.autoResizeTextarea(messageInput));

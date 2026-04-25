@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "vcpchat-router-enforcement-approval-packet.v1",
+  "generatedAt": "2026-04-25T15:58:00+08:00",
+  "workspace": "A:/codex-router",
+  "targetHost": "A:/VCP/VCPChat_native_host",
+  "mode": "implementation-planning",
+  "risk": "medium",
+  "decisionContext": {
+    "routerEvidence": "docs/evidence/codex-router-mandatory-governance-gate-20260425.json",
+    "currentGateStatus": "not_enforced",
+    "reason": "VCPChat exposes CodexRouterHost, but normal chat send still calls chatManager.handleSendMessage and direct CLI/Desktop paths are unmanaged unless wrapped."
+  },
+  "candidatePaths": [
+    {
+      "id": "document-only",
+      "summary": "Keep current state and document router as available but not mandatory.",
+      "benefit": "Lowest risk; no runtime behavior change.",
+      "risk": "Does not advance enforcement.",
+      "reversibility": "Immediate",
+      "validationCost": "Docs/evidence review only",
+      "fit": "Useful as a checkpoint, insufficient for user-visible governed action."
+    },
+    {
+      "id": "explicit-codex-task-entry",
+      "summary": "Add a narrow user-visible Codex task path in VCPChat that builds a codex-router task envelope and calls codexRouterHostClient.run.",
+      "benefit": "Creates a real governed action without hijacking ordinary chat semantics.",
+      "risk": "Medium; touches renderer/chat send flow but can be gated by an explicit prefix or command.",
+      "reversibility": "High; remove the command branch and normal chat path remains intact.",
+      "validationCost": "node --check for touched JS files, npm run build if available, and a renderer/control-path smoke.",
+      "fit": "Best fit for current evidence and project governance."
+    },
+    {
+      "id": "force-all-chat-through-router",
+      "summary": "Route every normal VCPChat send through codex-router.",
+      "benefit": "Strongest apparent enforcement label.",
+      "risk": "High; codex-router is a desktop task governance host, not a drop-in chat completion proxy.",
+      "reversibility": "Medium; broad behavior change could disrupt streaming, attachments, topics, and group chat.",
+      "validationCost": "High; full VCPChat interactive regression required.",
+      "fit": "Not recommended."
+    },
+    {
+      "id": "external-cli-wrapper-only",
+      "summary": "Treat codex-cli-host as the governed surface and leave VCPChat UI unchanged.",
+      "benefit": "Good for CLI acceptance and bounded write smoke.",
+      "risk": "Does not make VCPChat user-visible actions governed.",
+      "reversibility": "High",
+      "validationCost": "Existing CLI smoke coverage plus wrapper tests.",
+      "fit": "Partial only."
+    }
+  ],
+  "recommendedPath": "explicit-codex-task-entry",
+  "draftPatch": {
+    "path": "A:/codex-router/docs/patches/vcpchat-explicit-codex-task-entry-20260425.patch",
+    "buttonStateFixPatch": "A:/codex-router/docs/patches/vcpchat-explicit-codex-task-entry-button-state-fix-20260425.patch",
+    "applyCheck": "passed with git -C A:/VCP/VCPChat_native_host apply --check before application",
+    "targetFiles": [
+      "A:/VCP/VCPChat_native_host/renderer.js",
+      "A:/VCP/VCPChat_native_host/modules/event-listeners.js"
+    ],
+    "applied": true,
+    "appliedAt": "2026-04-25T17:04:57.6948218+08:00"
+  },
+  "proposedScope": {
+    "writeSet": [
+      "A:/VCP/VCPChat_native_host/renderer.js",
+      "A:/VCP/VCPChat_native_host/modules/event-listeners.js",
+      "A:/VCP/VCPChat_native_host/modules/chatManager.js"
+    ],
+    "preferredSmallerWriteSetIfFeasible": [
+      "A:/VCP/VCPChat_native_host/renderer.js",
+      "A:/VCP/VCPChat_native_host/modules/event-listeners.js"
+    ],
+    "outsideWritableRoot": true,
+    "requiresExplicitPermission": true
+  },
+  "proposedBehavior": {
+    "trigger": "An explicit user command such as /codex-router or /codex-task at the start of the message.",
+    "normalChat": "Unchanged; non-matching messages continue through chatManager.handleSendMessage.",
+    "routerPath": "The renderer builds a task envelope from current input and calls window.codexRouterHostClient.run(task).",
+    "fallback": "If codexRouterHostClient is unavailable, show a clear UI error and do not silently fall back to unmanaged execution for the governed command.",
+    "acceptanceLabel": "explicit governed Codex task entry, not global mandatory governance for all chat"
+  },
+  "minimalTaskEnvelopeSketch": {
+    "id": "vcpchat-codex-task:<timestamp>",
+    "kind": "engineering",
+    "title": "User-provided Codex task from VCPChat",
+    "prompt": "<message text after command prefix>",
+    "workspace": "A:/codex-router or explicit selected workspace",
+    "source": "vcpchat-renderer",
+    "risk": "router-classified",
+    "requestedAt": "<ISO timestamp>"
+  },
+  "preEditRealityCheck": {
+    "targetBranch": "postmerge/vcpchat-native-host-regression",
+    "targetWorktree": "dirty before this packet with pre-existing docs/untracked changes",
+    "instruction": "Do not touch or revert pre-existing user-owned changes."
+  },
+  "validationPlan": [
+    "node --check A:/VCP/VCPChat_native_host/renderer.js",
+    "node --check A:/VCP/VCPChat_native_host/modules/event-listeners.js",
+    "node --check A:/VCP/VCPChat_native_host/modules/chatManager.js if touched",
+    "npm run typecheck in A:/codex-router",
+    "npm run build in A:/codex-router",
+    "npm test in A:/codex-router",
+    "fresh VCPChat Electron or DesktopRemote smoke for the explicit command path"
+  ],
+  "notInScope": [
+    "Force-routing all normal VCPChat messages",
+    "Editing env files or secrets",
+    "Changing provider credentials",
+    "Starting live external writes",
+    "Moving branches, pushing, merging, releasing, or deploying"
+  ],
+  "approvalQuestion": "Approve editing A:/VCP/VCPChat_native_host to add the explicit governed Codex task entry?"
+}

@@ -1,0 +1,248 @@
+policyVersion: "2026-04-23.desktop-first.v1.1"
+rolloutMode: "desktop-first"
+models:
+  read_only: "gpt-5.4-mini"
+  small_edit: "gpt-5.3-codex-spark"
+  engineering: "gpt-5.3-codex"
+  high_risk: "gpt-5.1-codex-max"
+  release_external_action: "gpt-5.1-codex-max"
+toolPolicies:
+  read_only: "read_only"
+  small_edit: "local_write"
+  engineering: "engineering_write"
+  high_risk: "engineering_write"
+  release_external_action: "protected_remote"
+executionProfiles:
+  read_only: "recon-only"
+  small_edit: "engineering"
+  engineering: "engineering"
+  high_risk: "high-risk-change"
+  release_external_action: "release-governance"
+approvalRules:
+  protectedBranches:
+    - "main"
+    - "prod/stable"
+  protectedKeywords:
+    - "push"
+    - "merge"
+    - "delete"
+    - "secret"
+    - "env"
+    - "migration"
+    - "permission"
+    - "production"
+  protectedToolAccess:
+    - "protected_remote"
+escalationRules:
+  failureThreshold: 2
+  contextPressureThreshold: 0.85
+  highRiskSticky: true
+memoryHealth:
+  defaultPack: "engineering"
+  packByToolAccess:
+    read_only: "read_only"
+    local_write: "local_write"
+    engineering_write: "engineering"
+    protected_remote: "release"
+  packs:
+    read_only:
+      health:
+        overviewUnavailableSeverity: "ignore"
+        codexMcpUnavailableSeverity: "warn"
+        maxRejectedWrites: 3
+        rejectedWritesSeverity: "warn"
+        maxShadowReconcileCount: 5
+        shadowReconcileSeverity: "warn"
+        recallUnavailableSeverity: "ignore"
+        nonActiveRecallSeverity: "warn"
+      guidance:
+        memoryRequired: false
+        resumeExpected: false
+        telemetryMandatory: false
+        checkpointFrequency: "minimal"
+    local_write:
+      health:
+        overviewUnavailableSeverity: "ignore"
+        codexMcpUnavailableSeverity: "warn"
+        maxRejectedWrites: 1
+        rejectedWritesSeverity: "warn"
+        maxShadowReconcileCount: 2
+        shadowReconcileSeverity: "warn"
+        recallUnavailableSeverity: "warn"
+        nonActiveRecallSeverity: "warn"
+      guidance:
+        memoryRequired: false
+        resumeExpected: true
+        telemetryMandatory: false
+        checkpointFrequency: "standard"
+    engineering:
+      health:
+        overviewUnavailableSeverity: "warn"
+        codexMcpUnavailableSeverity: "warn"
+        maxRejectedWrites: 0
+        rejectedWritesSeverity: "warn"
+        maxShadowReconcileCount: 0
+        shadowReconcileSeverity: "warn"
+        recallUnavailableSeverity: "warn"
+        nonActiveRecallSeverity: "warn"
+      guidance:
+        memoryRequired: false
+        resumeExpected: true
+        telemetryMandatory: true
+        checkpointFrequency: "stage"
+    release:
+      health:
+        overviewUnavailableSeverity: "block"
+        codexMcpUnavailableSeverity: "block"
+        maxRejectedWrites: 0
+        rejectedWritesSeverity: "block"
+        maxShadowReconcileCount: 0
+        shadowReconcileSeverity: "block"
+        recallUnavailableSeverity: "block"
+        nonActiveRecallSeverity: "block"
+      guidance:
+        memoryRequired: true
+        resumeExpected: true
+        telemetryMandatory: true
+        checkpointFrequency: "dense"
+telemetryAlerts:
+  defaultPreset: "engineering"
+  presetByToolAccess:
+    read_only: "read_only"
+    local_write: "local_write"
+    engineering_write: "engineering"
+    protected_remote: "release"
+  presets:
+    read_only:
+      warn:
+        totals:
+          failures: 1
+          timeouts: 1
+        perSink:
+          failureRate: 0.75
+      error:
+        totals:
+          failureRate: 0.75
+          timeoutRate: 0.75
+    local_write:
+      warn:
+        totals:
+          failures: 0
+          retries: 1
+          timeouts: 0
+        perSink:
+          failureRate: 0.5
+      error:
+        totals:
+          failureRate: 0.5
+          timeoutRate: 0.5
+    engineering:
+      warn:
+        totals:
+          failures: 0
+          retries: 0
+          timeouts: 0
+        perSink:
+          failureRate: 0.25
+      error:
+        totals:
+          failureRate: 0.25
+          timeoutRate: 0.25
+        perSink:
+          failureRate: 0.75
+    release:
+      warn:
+        totals:
+          retries: 0
+        perSink:
+          failureRate: 0
+      error:
+        totals:
+          failures: 0
+          timeouts: 0
+          failureRate: 0
+          timeoutRate: 0
+        perSink:
+          failures: 0
+          timeouts: 0
+telemetryAlertDeliveryAlerts:
+  defaultPreset: "engineering"
+  presetByToolAccess:
+    read_only: "read_only"
+    local_write: "local_write"
+    engineering_write: "engineering"
+    protected_remote: "release"
+  presets:
+    read_only:
+      warn:
+        totals:
+          failures: 1
+          timeouts: 1
+        perSink:
+          failureRate: 0.75
+      error:
+        totals:
+          failureRate: 0.75
+          timeoutRate: 0.75
+    local_write:
+      warn:
+        totals:
+          failures: 0
+          retries: 1
+          timeouts: 0
+        perSink:
+          failureRate: 0.5
+      error:
+        totals:
+          failureRate: 0.5
+          timeoutRate: 0.5
+    engineering:
+      warn:
+        totals:
+          failures: 0
+          retries: 0
+          timeouts: 0
+        perSink:
+          failureRate: 0.25
+      error:
+        totals:
+          failureRate: 0.25
+          timeoutRate: 0.25
+        perSink:
+          failureRate: 0.75
+    release:
+      warn:
+        totals:
+          failures: 0
+          retries: 0
+        perSink:
+          failureRate: 0
+      error:
+        totals:
+          failures: 0
+          timeouts: 0
+          failureRate: 0
+          timeoutRate: 0
+        perSink:
+          failures: 0
+          timeouts: 0
+telemetryAlertDeliveryWindow:
+  defaultPreset: "engineering"
+  presetByToolAccess:
+    read_only: "read_only"
+    local_write: "local_write"
+    engineering_write: "engineering"
+    protected_remote: "release"
+  presets:
+    read_only:
+      dedupeWindowMs: 60000
+      cooldownWindowMs: 120000
+    local_write:
+      dedupeWindowMs: 30000
+      cooldownWindowMs: 60000
+    engineering:
+      dedupeWindowMs: 30000
+      cooldownWindowMs: 60000
+    release:
+      dedupeWindowMs: 15000
+      cooldownWindowMs: 300000

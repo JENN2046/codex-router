@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "codex-cli-user-model-selection-switch.v1",
+  "generatedAt": "2026-04-25T11:27:00.000Z",
+  "workspace": "A:/codex-router",
+  "status": "passed",
+  "targetArea": "codex-cli-host",
+  "changedFiles": [
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md"
+  ],
+  "switch": {
+    "name": "modelSelection.mode",
+    "default": "auto",
+    "userEnabledMode": "user_preference",
+    "requestedModelField": "modelSelection.requestedModel"
+  },
+  "behavior": [
+    {
+      "case": "auto",
+      "result": "uses RoutingDecision.execution.selectedModel"
+    },
+    {
+      "case": "user_preference stronger_or_equal",
+      "result": "accepts requestedModel and emits --model <requestedModel>"
+    },
+    {
+      "case": "user_preference weaker_than_router_model",
+      "result": "rejects requestedModel by default, falls back to router-selected model, records modelResolution and warning"
+    }
+  ],
+  "guards": [
+    "task and decision taskId mismatch is rejected",
+    "direct model override remains rejected for decision-derived plans",
+    "direct sandbox override remains rejected for decision-derived plans",
+    "unsafe downgrade records codex_cli_model_selection:requested_model_rejected_weaker_than_router_model"
+  ],
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "status": "passed",
+      "tests": {
+        "passed": 28,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "tests": {
+        "passed": 169,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    }
+  ],
+  "limitations": [
+    "This is a CLI helper/config switch, not a VCPChat UI switch.",
+    "Bare human invocations of codex remain unmanaged unless they enter through codex-router/codex-cli-host.",
+    "No live model preference smoke was run; coverage is contract-level with prior live CLI smoke still valid for CLI execution."
+  ],
+  "notes": [
+    "VCPChat line remained paused.",
+    "No secrets or raw prompts are recorded in this artifact."
+  ]
+}

@@ -1,0 +1,2388 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
+import {
+  CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
+  checkCodexCliExecPlanModelAvailability,
+  checkCodexCliModelAvailability,
+  checkCodexCliModelCatalogAtStartup,
+  clearCodexCliModelProbeCache,
+  createCodexCliModelCliProbeEvidence,
+  createCodexCliModelCheckEvidence,
+  createCodexCliOperatorAcceptanceEvidence,
+  createCodexCliReadOnlySmokeEvidence,
+  createCodexCliReadOnlySmokeTask,
+  createCodexCliExecPlan,
+  createCodexCliExecPlanFromRoutingDecision,
+  createCodexCliWorkspaceWriteSmokeApprovalPacket,
+  createCodexCliWorkspaceWriteSmokeEvidence,
+  createCodexCliWorkspaceWriteSmokePreflight,
+  createCodexCliWorkspaceWriteSmokePreflightEvidence,
+  createCodexCliWorkspaceWriteSmokeTask,
+  inspectCodexCliCommandOutput,
+  parseCodexCliJsonl,
+  runAndWriteCodexCliReadOnlySmokeEvidence,
+  runAndWriteCodexCliModelCliProbeEvidence,
+  runAndWriteCodexCliModelCheckEvidence,
+  runAndWriteCodexCliOperatorAcceptanceEvidence,
+  runCodexCliReadOnlySmoke,
+  runCodexCliOperatorAcceptance,
+  runCodexCliExecPlan,
+  runAndWriteCodexCliWorkspaceWriteSmokeEvidence,
+  runCodexCliWorkspaceWriteSmoke,
+  type CodexCliProcessSpawner,
+  compareCodexCliModelStrength,
+  detectCodexCliModelCatalogDrift,
+  fetchOpenAiModelCatalog,
+  getCodexCliModelStrengthProfile,
+  getKnownCodexCliModelIds,
+  parseOpenAiModelCatalogResponse,
+  validateCodexCliExecPlanForRun,
+  writeCodexCliWorkspaceWriteSmokeEvidenceFile,
+  writeCodexCliWorkspaceWriteSmokeApprovalPacketFile,
+  writeCodexCliWorkspaceWriteSmokePreflightEvidenceFile,
+  writeCodexCliReadOnlySmokeEvidenceFile,
+  writeCodexCliOperatorAcceptanceEvidenceFile,
+  resolveCodexCliModelForRoutingDecision,
+  resolveCodexCliSandboxForRoutingDecision,
+  resolveCodexCliSandbox
+} from "../packages/codex-cli-host/src/index.js";
+import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
+import { classifyIntent } from "../packages/intent-gate/src/index.js";
+import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
+import { routeTask } from "../packages/routing-engine/src/index.js";
+
+const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
+
+test.beforeEach(() => {
+  clearCodexCliModelProbeCache();
+});
+
+test("codex cli host builds a read-only exec json plan without running the CLI", () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-readonly",
+    source: "cli",
+    intent: {
+      summary: "inspect repo",
+      requestedAction: "inspect current repo state",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: ["codex-cli-host-smoke"]
+    }
+  }, {
+    skipGitRepoCheck: true,
+    ephemeral: true
+  });
+
+  assert.equal(plan.command, "codex");
+  assert.equal(plan.sandbox, "read-only");
+  assert.equal(plan.approvalPolicy, "on-request");
+  assert.equal(plan.workdir, "A:/codex-router");
+  assert.deepEqual(plan.args.slice(0, 7), [
+    "-a",
+    "on-request",
+    "exec",
+    "--json",
+    "--sandbox",
+    "read-only",
+    "--cd"
+  ]);
+  assert.ok(plan.args.includes("--skip-git-repo-check"));
+  assert.ok(plan.args.includes("--ephemeral"));
+  assert.equal(plan.args.at(-1), plan.prompt);
+  assert.match(plan.prompt, /"source": "cli"/);
+});
+
+test("codex cli host derives CLI model and sandbox from routing decisions", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const readOnlyTask = parseTaskEnvelope({
+    taskId: "cli-decision-readonly",
+    source: "cli",
+    intent: {
+      summary: "inspect repo",
+      requestedAction: "inspect and summarize the current config without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["routing-policy.yaml"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      riskHints: [],
+      tags: []
+    }
+  });
+  const smallEditTask = parseTaskEnvelope({
+    taskId: "cli-decision-small-edit",
+    source: "cli",
+    intent: {
+      summary: "small fix",
+      requestedAction: "single file typo fix in README.md",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      riskHints: [],
+      tags: []
+    }
+  });
+
+  const readOnlyDecision = routeTask(readOnlyTask, classifyIntent(readOnlyTask), policy);
+  const smallEditDecision = routeTask(smallEditTask, classifyIntent(smallEditTask), policy);
+  const readOnlyPlan = createCodexCliExecPlanFromRoutingDecision(
+    readOnlyTask,
+    readOnlyDecision,
+    {
+      skipGitRepoCheck: true,
+      ephemeral: true
+    }
+  );
+  const smallEditPlan = createCodexCliExecPlanFromRoutingDecision(
+    smallEditTask,
+    smallEditDecision,
+    {
+      skipGitRepoCheck: true,
+      ephemeral: true
+    }
+  );
+
+  assert.equal(readOnlyDecision.execution.selectedModel, "gpt-5.4-mini");
+  assert.equal(readOnlyPlan.sandbox, "read-only");
+  assert.equal(readOnlyPlan.model, "gpt-5.4-mini");
+  assert.equal(readOnlyPlan.modelResolution?.mode, "auto");
+  assert.equal(readOnlyPlan.modelResolution?.source, "router");
+  assert.equal(resolveCodexCliSandboxForRoutingDecision(readOnlyDecision), "read-only");
+  assert.equal(getArgValue(readOnlyPlan.args, "--model"), readOnlyDecision.execution.selectedModel);
+  assert.equal(getArgValue(readOnlyPlan.args, "--sandbox"), "read-only");
+
+  assert.equal(smallEditDecision.execution.selectedModel, "gpt-5.3-codex-spark");
+  assert.equal(smallEditPlan.sandbox, "workspace-write");
+  assert.equal(smallEditPlan.model, "gpt-5.3-codex-spark");
+  assert.equal(smallEditPlan.modelResolution?.mode, "auto");
+  assert.equal(smallEditPlan.modelResolution?.source, "router");
+  assert.equal(resolveCodexCliSandboxForRoutingDecision(smallEditDecision), "workspace-write");
+  assert.equal(getArgValue(smallEditPlan.args, "--model"), smallEditDecision.execution.selectedModel);
+  assert.equal(getArgValue(smallEditPlan.args, "--sandbox"), "workspace-write");
+});
+
+test("codex cli model strength ranks gpt-5.4-mini above codex spark on capability", () => {
+  const sparkProfile = getCodexCliModelStrengthProfile("gpt-5.3-codex-spark");
+  const miniProfile = getCodexCliModelStrengthProfile("gpt-5.4-mini");
+
+  assert.equal(sparkProfile.specialization, "codex_realtime");
+  assert.equal(miniProfile.specialization, "general_small");
+  assert.ok(miniProfile.capabilityRank > sparkProfile.capabilityRank);
+  assert.ok(sparkProfile.latencyRank > miniProfile.latencyRank);
+  assert.ok(compareCodexCliModelStrength("gpt-5.4-mini", "gpt-5.3-codex-spark") > 0);
+  assert.ok(compareCodexCliModelStrength("gpt-5.3-codex-spark", "gpt-5.4-mini") < 0);
+});
+
+test("codex cli model selection switch accepts stronger user preferences", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = parseTaskEnvelope({
+    taskId: "cli-model-switch-stronger",
+    source: "cli",
+    intent: {
+      summary: "inspect repo",
+      requestedAction: "inspect current config without edits",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["routing-policy.yaml"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      riskHints: [],
+      tags: []
+    }
+  });
+  const decision = routeTask(task, classifyIntent(task), policy);
+  const plan = createCodexCliExecPlanFromRoutingDecision(task, decision, {
+    modelSelection: {
+      mode: "user_preference",
+      requestedModel: "gpt-5.3-codex"
+    }
+  });
+  const resolution = resolveCodexCliModelForRoutingDecision(decision, {
+    mode: "user_preference",
+    requestedModel: "gpt-5.3-codex"
+  });
+
+  assert.equal(decision.execution.selectedModel, "gpt-5.4-mini");
+  assert.equal(resolution.accepted, true);
+  assert.equal(resolution.source, "user");
+  assert.equal(resolution.selectedModel, "gpt-5.3-codex");
+  assert.equal(plan.modelResolution?.accepted, true);
+  assert.equal(plan.modelResolution?.source, "user");
+  assert.equal(plan.model, "gpt-5.3-codex");
+  assert.equal(getArgValue(plan.args, "--model"), "gpt-5.3-codex");
+});
+
+test("codex cli model selection switch accepts gpt-5.4-mini over codex spark", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = parseTaskEnvelope({
+    taskId: "cli-model-switch-mini-over-spark",
+    source: "cli",
+    intent: {
+      summary: "small fix",
+      requestedAction: "single file typo fix in README.md",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      riskHints: [],
+      tags: []
+    }
+  });
+  const decision = routeTask(task, classifyIntent(task), policy);
+  const plan = createCodexCliExecPlanFromRoutingDecision(task, decision, {
+    modelSelection: {
+      mode: "user_preference",
+      requestedModel: "gpt-5.4-mini"
+    }
+  });
+
+  assert.equal(decision.execution.selectedModel, "gpt-5.3-codex-spark");
+  assert.equal(plan.modelResolution?.accepted, true);
+  assert.equal(plan.modelResolution?.requestedModel, "gpt-5.4-mini");
+  assert.equal(plan.modelResolution?.selectedModel, "gpt-5.4-mini");
+  assert.equal(plan.modelResolution?.source, "user");
+  assert.equal(plan.model, "gpt-5.4-mini");
+  assert.equal(getArgValue(plan.args, "--model"), "gpt-5.4-mini");
+  assert.equal(plan.warnings.includes(
+    "codex_cli_model_selection:requested_model_rejected_weaker_than_router_model"
+  ), false);
+});
+
+test("codex cli model selection switch still rejects genuinely unsafe downgrades", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = parseTaskEnvelope({
+    taskId: "cli-model-switch-unsafe-downgrade",
+    source: "cli",
+    intent: {
+      summary: "implement new package",
+      requestedAction: "add multi-file TypeScript modules and tests",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["packages/contracts/src/index.ts", "packages/routing-engine/src/index.ts"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      riskHints: [],
+      tags: []
+    }
+  });
+  const decision = routeTask(task, classifyIntent(task), policy);
+  const plan = createCodexCliExecPlanFromRoutingDecision(task, decision, {
+    modelSelection: {
+      mode: "user_preference",
+      requestedModel: "gpt-5.4-mini"
+    }
+  });
+
+  assert.equal(decision.execution.selectedModel, "gpt-5.3-codex");
+  assert.equal(plan.modelResolution?.accepted, false);
+  assert.equal(plan.modelResolution?.requestedModel, "gpt-5.4-mini");
+  assert.equal(plan.modelResolution?.selectedModel, "gpt-5.3-codex");
+  assert.equal(plan.modelResolution?.source, "router");
+  assert.equal(plan.model, "gpt-5.3-codex");
+  assert.equal(getArgValue(plan.args, "--model"), "gpt-5.3-codex");
+  assert.ok(plan.warnings.includes(
+    "codex_cli_model_selection:requested_model_rejected_weaker_than_router_model"
+  ));
+});
+
+test("codex cli model catalog detection reports current official coverage", () => {
+  const knownModels = getKnownCodexCliModelIds();
+  const detection = detectCodexCliModelCatalogDrift({
+    officialModels: [
+      ...knownModels,
+      "text-embedding-3-large"
+    ]
+  });
+
+  assert.equal(detection.status, "current");
+  assert.deepEqual(detection.missingKnownModels, []);
+  assert.deepEqual(detection.untrackedOfficialModels, []);
+  assert.equal(detection.ignoredOfficialModelCount, 1);
+  assert.equal(detection.availableKnownModels.length, knownModels.length);
+});
+
+test("codex cli model catalog detection catches additions and removals", () => {
+  const detection = detectCodexCliModelCatalogDrift({
+    officialModels: [
+      "gpt-5.3-codex-spark",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex",
+      "gpt-5.4",
+      "gpt-5.4-nano",
+      "gpt-5.5-codex"
+    ]
+  });
+
+  assert.equal(detection.status, "drift_detected");
+  assert.deepEqual(detection.missingKnownModels, ["gpt-5.1-codex-max"]);
+  assert.deepEqual(detection.untrackedOfficialModels, [
+    "gpt-5.4-nano",
+    "gpt-5.5-codex"
+  ]);
+  assert.ok(detection.warnings.includes("known_models_missing_from_official_catalog"));
+  assert.ok(detection.warnings.includes("official_models_untracked_by_local_policy"));
+});
+
+test("codex cli model catalog parser and fetch wrapper handle official list shape", async () => {
+  const parsed = parseOpenAiModelCatalogResponse({
+    object: "list",
+    data: [
+      {
+        id: "gpt-5.4-mini",
+        object: "model",
+        created: 1770000000,
+        owned_by: "openai"
+      }
+    ]
+  });
+  let authorizationHeader = "";
+
+  assert.equal(parsed.object, "list");
+  assert.equal(parsed.data[0]?.id, "gpt-5.4-mini");
+  assert.equal(parsed.data[0]?.owned_by, "openai");
+
+  const fetched = await fetchOpenAiModelCatalog({
+    apiKey: "test-key",
+    baseUrl: "https://api.openai.example/v1/",
+    fetch: async (url, init) => {
+      assert.equal(url, "https://api.openai.example/v1/models");
+      authorizationHeader = init.headers.Authorization ?? "";
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            object: "list",
+            data: [
+              {
+                id: "gpt-5.4-mini",
+                object: "model"
+              }
+            ]
+          });
+        }
+      };
+    }
+  });
+
+  assert.equal(authorizationHeader, "Bearer test-key");
+  assert.equal(fetched.data[0]?.id, "gpt-5.4-mini");
+  assert.throws(
+    () => parseOpenAiModelCatalogResponse({ object: "list", data: [{ object: "model" }] }),
+    /openai_model_catalog_model_id_missing/
+  );
+});
+
+test("codex cli startup catalog check fetches once and returns reusable catalog", async () => {
+  const knownModels = getKnownCodexCliModelIds();
+  let requestCount = 0;
+  const startupCheck = await checkCodexCliModelCatalogAtStartup({
+    apiKey: "test-key",
+    baseUrl: "https://api.openai.example/v1",
+    checkedAt: "2026-04-25T12:00:00.000Z",
+    fetch: async (url, init) => {
+      requestCount += 1;
+      assert.equal(url, "https://api.openai.example/v1/models");
+      assert.equal(init.headers.Authorization, "Bearer test-key");
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            object: "list",
+            data: knownModels.map((id) => ({
+              id,
+              object: "model",
+              owned_by: "openai"
+            }))
+          });
+        }
+      };
+    }
+  });
+
+  assert.equal(requestCount, 1);
+  assert.equal(startupCheck.status, "ready");
+  assert.equal(startupCheck.checkedAt, "2026-04-25T12:00:00.000Z");
+  assert.deepEqual(startupCheck.warnings, []);
+  assert.equal(startupCheck.catalog.data.length, knownModels.length);
+});
+
+test("codex cli model availability check blocks missing selected models", () => {
+  const available = checkCodexCliModelAvailability({
+    model: "gpt-5.4-mini",
+    officialModels: ["gpt-5.4-mini", "gpt-5.3-codex"]
+  });
+  const missing = checkCodexCliModelAvailability({
+    model: "gpt-5.4-mini",
+    officialModels: ["gpt-5.3-codex"],
+    requireCatalog: true
+  });
+  const required = checkCodexCliModelAvailability({
+    model: "gpt-5.4-mini",
+    requireCatalog: true
+  });
+
+  assert.equal(available.status, "available");
+  assert.deepEqual(available.blockingReasons, []);
+  assert.equal(missing.status, "missing");
+  assert.deepEqual(missing.blockingReasons, [
+    "codex_cli_model_unavailable:gpt-5.4-mini"
+  ]);
+  assert.equal(required.status, "not_checked");
+  assert.deepEqual(required.blockingReasons, ["codex_cli_model_catalog_required"]);
+});
+
+test("codex cli runner checks selected model against startup catalog before spawn", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-model-catalog",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+  let spawned = false;
+
+  assert.deepEqual(
+    checkCodexCliExecPlanModelAvailability(plan, {
+      modelCatalog: ["gpt-5.4-mini"],
+      requireModelCatalog: true
+    }).blockingReasons,
+    []
+  );
+  assert.ok(validateCodexCliExecPlanForRun(plan, {
+    requireModelCatalog: true
+  }).includes("codex_cli_model_catalog_required"));
+
+  const result = await runCodexCliExecPlan(plan, {
+    modelCatalog: ["gpt-5.4-mini"],
+    requireModelCatalog: true,
+    spawn: () => {
+      spawned = true;
+      return createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"model checked\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+
+  assert.equal(spawned, true);
+  assert.equal(result.modelAvailability?.status, "available");
+  assert.equal(result.inspection.status, "completed");
+
+  let calls = 0;
+  await assert.rejects(
+    () => runCodexCliExecPlan(plan, {
+      modelCatalog: ["gpt-5.3-codex"],
+      requireModelCatalog: true,
+      spawn: () => {
+        calls += 1;
+        return createFakeCodexCliChild({
+          stdout: "",
+          exitCode: 0
+        });
+      }
+    }),
+    /codex_cli_model_unavailable:gpt-5\.4-mini/
+  );
+  assert.equal(calls, 0);
+});
+
+test("codex cli model probe evidence uses logged-in CLI path without API key", async () => {
+  const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
+  const evidence = await createCodexCliModelCliProbeEvidence({
+    generatedAt: "2026-04-25T14:03:00.000Z",
+    model: "gpt-5.4-mini",
+    codexCommand: "codex",
+    cwd: "A:/codex-router",
+    spawn: (command, args, options) => {
+      calls.push({
+        command,
+        args,
+        ...(options.cwd ? { cwd: options.cwd } : {})
+      });
+      return createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+
+  assert.equal(evidence.schemaVersion, "codex-cli-model-cli-probe-evidence.v1");
+  assert.equal(evidence.source, "cli");
+  assert.equal(evidence.status, "passed");
+  assert.equal(evidence.mode, "strict");
+  assert.equal(evidence.model, "gpt-5.4-mini");
+  assert.equal(evidence.cli.command, "codex");
+  assert.equal(evidence.cli.sandbox, "read-only");
+  assert.equal(evidence.cli.approvalPolicy, "never");
+  assert.equal(evidence.cli.usesJson, true);
+  assert.equal(evidence.cli.skipGitRepoCheck, true);
+  assert.equal(evidence.cli.ephemeral, true);
+  assert.equal(evidence.run?.eventCount, 1);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.cwd, "A:/codex-router");
+  assert.equal(calls[0]?.args.includes("--model"), true);
+  assert.equal(getArgValue(calls[0]?.args ?? [], "--model"), "gpt-5.4-mini");
+});
+
+test("codex cli model probe evidence can warn on CLI probe failure", async () => {
+  const evidence = await createCodexCliModelCliProbeEvidence({
+    generatedAt: "2026-04-25T14:04:00.000Z",
+    model: "gpt-5.4-mini",
+    strict: false,
+    codexCommand: "codex",
+    cwd: "A:/codex-router",
+    spawn: () => createFakeCodexCliChild({
+      stdout: "",
+      stderr: "model unavailable",
+      exitCode: 1
+    })
+  });
+
+  assert.equal(evidence.status, "unavailable");
+  assert.equal(evidence.mode, "warn");
+  assert.deepEqual(evidence.blockingReasons, []);
+  assert.ok(evidence.run?.blockingReasons.includes("codex_cli_exit_code:1"));
+});
+
+test("codex cli model probe evidence writes without raw prompt", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-model-probe-"));
+  const path = join(dir, "nested", "model-probe.json");
+  const persisted = await runAndWriteCodexCliModelCliProbeEvidence({
+    evidencePath: path,
+    generatedAt: "2026-04-25T14:05:00.000Z",
+    model: "gpt-5.4-mini",
+    codexCommand: "codex",
+    cwd: "A:/codex-router",
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n",
+      exitCode: 0
+    })
+  });
+  const content = await readFile(path, "utf8");
+  const written = JSON.parse(content) as typeof persisted.evidence;
+
+  assert.equal(written.status, "passed");
+  assert.equal(written.source, "cli");
+  assert.equal(content.includes("CODEX_CLI_MODEL_PROBE_OK"), false);
+  assert.equal(content.includes("requestedAction"), false);
+});
+
+test("codex cli runner can require a cached model probe", () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-probe-required",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+
+  assert.ok(validateCodexCliExecPlanForRun(plan, {
+    requireModelProbe: true
+  }).includes("codex_cli_model_probe_required"));
+});
+
+test("codex cli runner auto-probes model with cli before main execution", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-auto-probe",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+  const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
+
+  const result = await runCodexCliExecPlan(plan, {
+    autoProbeModelWithCli: true,
+    requireModelProbe: true,
+    spawn: (command, args, options) => {
+      calls.push({
+        command,
+        args,
+        ...(options.cwd ? { cwd: options.cwd } : {})
+      });
+
+      if (calls.length === 1) {
+        return createFakeCodexCliChild({
+          stdout: "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n",
+          exitCode: 0
+        });
+      }
+
+      return createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"main run ok\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(getArgValue(calls[0]?.args ?? [], "--model"), "gpt-5.4-mini");
+  assert.equal(getArgValue(calls[1]?.args ?? [], "--model"), "gpt-5.4-mini");
+  assert.equal(result.modelProbe?.status, "passed");
+  assert.equal(result.output.exitCode, 0);
+  assert.equal(result.inspection.status, "completed");
+});
+
+test("codex cli runner defaults to automatic strict model probe when plan has a model", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-default-auto-probe",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+  let calls = 0;
+
+  const result = await runCodexCliExecPlan(plan, {
+    spawn: () => {
+      calls += 1;
+      return createFakeCodexCliChild({
+        stdout: calls === 1
+          ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
+          : "{\"type\":\"agent_message\",\"message\":\"main run ok\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(result.modelProbe?.status, "passed");
+  assert.equal(result.inspection.status, "completed");
+});
+
+test("codex cli runner blocks when auto model probe fails in strict mode", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-auto-probe-blocked",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+  let calls = 0;
+
+  await assert.rejects(
+    () => runCodexCliExecPlan(plan, {
+      autoProbeModelWithCli: true,
+      requireModelProbe: true,
+      spawn: () => {
+        calls += 1;
+        return createFakeCodexCliChild({
+          stdout: "",
+          stderr: "model unavailable",
+          exitCode: 1
+        });
+      }
+    }),
+    /codex_cli_model_probe_failed/
+  );
+
+  assert.equal(calls, 1);
+});
+
+test("codex cli runner can explicitly skip default execution model probe", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-skip-default-probe",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+  let calls = 0;
+
+  const result = await runCodexCliExecPlan(plan, {
+    skipExecutionModelProbe: true,
+    spawn: () => {
+      calls += 1;
+      return createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"main run ok\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.modelProbe, undefined);
+  assert.equal(result.inspection.status, "completed");
+});
+
+test("codex cli runner reuses a cached passed model probe within the ttl", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-probe-cache-hit",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+  let calls = 0;
+
+  const spawn: CodexCliProcessSpawner = () => {
+    calls += 1;
+    return createFakeCodexCliChild({
+      stdout: calls === 1 || calls === 3
+        ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
+        : "{\"type\":\"agent_message\",\"message\":\"main run ok\"}\n",
+      exitCode: 0
+    });
+  };
+
+  const first = await runCodexCliExecPlan(plan, {
+    spawn,
+    modelProbeCacheTtlMs: 60_000
+  });
+  const second = await runCodexCliExecPlan(plan, {
+    spawn,
+    modelProbeCacheTtlMs: 60_000
+  });
+
+  assert.equal(calls, 3);
+  assert.equal(first.modelProbe?.status, "passed");
+  assert.equal(second.modelProbe?.status, "passed");
+  assert.equal(second.inspection.status, "completed");
+});
+
+test("codex cli runner refreshes the model probe after cache ttl expiry", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-probe-cache-expired",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+  let calls = 0;
+
+  const spawn: CodexCliProcessSpawner = () => {
+    calls += 1;
+    return createFakeCodexCliChild({
+      stdout: calls % 2 === 1
+        ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
+        : "{\"type\":\"agent_message\",\"message\":\"main run ok\"}\n",
+      exitCode: 0
+    });
+  };
+
+  await runCodexCliExecPlan(plan, {
+    spawn,
+    modelProbeCacheTtlMs: 0
+  });
+  await runCodexCliExecPlan(plan, {
+    spawn,
+    modelProbeCacheTtlMs: 0
+  });
+
+  assert.equal(calls, 4);
+});
+
+test("codex cli runner can disable the passed probe cache explicitly", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-probe-cache-disabled",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+  let calls = 0;
+
+  const spawn: CodexCliProcessSpawner = () => {
+    calls += 1;
+    return createFakeCodexCliChild({
+      stdout: calls % 2 === 1
+        ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
+        : "{\"type\":\"agent_message\",\"message\":\"main run ok\"}\n",
+      exitCode: 0
+    });
+  };
+
+  await runCodexCliExecPlan(plan, {
+    spawn,
+    disableModelProbeCache: true
+  });
+  await runCodexCliExecPlan(plan, {
+    spawn,
+    disableModelProbeCache: true
+  });
+
+  assert.equal(calls, 4);
+});
+
+test("codex cli runner emits telemetry for model probe cache miss and hit", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-probe-cache-telemetry",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+  const telemetryStore = createRecordingTelemetrySink();
+  let calls = 0;
+
+  const spawn: CodexCliProcessSpawner = () => {
+    calls += 1;
+    return createFakeCodexCliChild({
+      stdout: calls === 1 || calls === 3
+        ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
+        : "{\"type\":\"agent_message\",\"message\":\"main run ok\"}\n",
+      exitCode: 0
+    });
+  };
+
+  await runCodexCliExecPlan(plan, {
+    spawn,
+    telemetryStore,
+    modelProbeCacheTtlMs: 60_000
+  });
+  await runCodexCliExecPlan(plan, {
+    spawn,
+    telemetryStore,
+    modelProbeCacheTtlMs: 60_000
+  });
+
+  const events = await telemetryStore.loadAll();
+  assert.equal(calls, 3);
+  assert.equal(events.length, 2);
+  assert.equal(events[0]?.message, "codex cli model probe cache miss");
+  assert.equal(events[1]?.message, "codex cli model probe cache hit");
+  assert.equal(events[0]?.context?.source, "codex-cli-host");
+  assert.equal(events[1]?.context?.model, "gpt-5.4-mini");
+});
+
+test("codex cli model check evidence records drift as strict failure", async () => {
+  const evidence = await createCodexCliModelCheckEvidence({
+    apiKey: "test-key",
+    generatedAt: "2026-04-25T14:00:00.000Z",
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({
+          object: "list",
+          data: [
+            { id: "gpt-5.3-codex-spark", object: "model" },
+            { id: "gpt-5.4-mini", object: "model" },
+            { id: "gpt-5.3-codex", object: "model" },
+            { id: "gpt-5.4", object: "model" },
+            { id: "gpt-5.5-codex", object: "model" }
+          ]
+        });
+      }
+    })
+  });
+
+  assert.equal(evidence.schemaVersion, "codex-cli-model-check-evidence.v1");
+  assert.equal(evidence.status, "failed");
+  assert.equal(evidence.mode, "strict");
+  assert.equal(evidence.api.apiKeyConfigured, true);
+  assert.deepEqual(evidence.blockingReasons, [
+    "codex_cli_model_catalog_drift_detected"
+  ]);
+  assert.deepEqual(evidence.detection?.missingKnownModels, ["gpt-5.1-codex-max"]);
+  assert.deepEqual(evidence.detection?.untrackedOfficialModels, ["gpt-5.5-codex"]);
+});
+
+test("codex cli model check evidence can warn when catalog access is unavailable", async () => {
+  const evidence = await createCodexCliModelCheckEvidence({
+    apiKey: "",
+    strict: false,
+    generatedAt: "2026-04-25T14:01:00.000Z"
+  });
+
+  assert.equal(evidence.status, "unavailable");
+  assert.equal(evidence.mode, "warn");
+  assert.equal(evidence.api.apiKeyConfigured, false);
+  assert.deepEqual(evidence.blockingReasons, []);
+  assert.deepEqual(evidence.warnings, ["openai_api_key_missing"]);
+});
+
+test("codex cli model check command evidence writes without raw credentials", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-model-check-"));
+  const path = join(dir, "nested", "model-check.json");
+  const knownModels = getKnownCodexCliModelIds();
+  const persisted = await runAndWriteCodexCliModelCheckEvidence({
+    evidencePath: path,
+    apiKey: "secret-test-key",
+    baseUrl: "https://user:password@api.openai.example/v1?token=secret",
+    generatedAt: "2026-04-25T14:02:00.000Z",
+    fetch: async (url, init) => {
+      assert.equal(url, "https://user:password@api.openai.example/v1?token=secret/models");
+      assert.equal(init.headers.Authorization, "Bearer secret-test-key");
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            object: "list",
+            data: knownModels.map((id) => ({ id, object: "model" }))
+          });
+        }
+      };
+    }
+  });
+  const content = await readFile(path, "utf8");
+  const written = JSON.parse(content) as typeof persisted.evidence;
+
+  assert.equal(persisted.write.path, path);
+  assert.equal(written.status, "passed");
+  assert.equal(written.api.baseUrl, "https://api.openai.example/v1");
+  assert.equal(content.includes("secret-test-key"), false);
+  assert.equal(content.includes("password"), false);
+  assert.equal(content.includes("token=secret"), false);
+});
+
+test("codex cli decision plan rejects task mismatches and policy overrides", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = parseTaskEnvelope({
+    taskId: "cli-decision-guard",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect current files",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["routing-policy.yaml"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      riskHints: [],
+      tags: []
+    }
+  });
+  const decision = routeTask(task, classifyIntent(task), policy);
+
+  assert.throws(
+    () => createCodexCliExecPlanFromRoutingDecision(
+      {
+        ...task,
+        taskId: "different-task"
+      },
+      decision
+    ),
+    /codex_cli_decision_task_id_mismatch/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlanFromRoutingDecision(task, decision, {
+      model: "gpt-5.1-codex-max"
+    } as never),
+    /codex_cli_decision_plan_disallows_policy_override:model/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlanFromRoutingDecision(task, decision, {
+      sandbox: "workspace-write"
+    } as never),
+    /codex_cli_decision_plan_disallows_policy_override:sandbox/
+  );
+});
+
+test("codex cli host keeps write and release tasks sandboxed without bypass flags", () => {
+  const engineeringTask = parseTaskEnvelope({
+    taskId: "cli-engineering",
+    source: "cli",
+    intent: {
+      summary: "implement",
+      requestedAction: "make a small change",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["packages/codex-cli-host/src/index.ts"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {
+      explicitOwnership: true
+    },
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const releasePlan = createCodexCliExecPlan({
+    ...engineeringTask,
+    taskId: "cli-release",
+    hints: {
+      taskClassHint: "release_external_action",
+      riskHints: [],
+      tags: []
+    }
+  });
+
+  assert.equal(resolveCodexCliSandbox(engineeringTask), "workspace-write");
+  assert.equal(releasePlan.sandbox, "workspace-write");
+  assert.ok(releasePlan.warnings.includes("codex_cli_release_posture_requires_external_approval_gate"));
+  assert.equal(releasePlan.args.includes("--dangerously-bypass-approvals-and-sandbox"), false);
+  assert.equal(releasePlan.args.includes("--full-auto"), false);
+
+  assert.throws(
+    () => createCodexCliExecPlan(engineeringTask, {
+      extraArgs: ["--dangerously-bypass-approvals-and-sandbox"]
+    }),
+    /codex_cli_dangerous_arg_not_allowed/
+  );
+});
+
+test("codex cli host parses jsonl events and preserves parse diagnostics", () => {
+  const parsed = parseCodexCliJsonl([
+    "{\"type\":\"session.started\",\"id\":\"s1\"}",
+    "not-json",
+    "42",
+    "{\"type\":\"agent_message\",\"message\":\"done\"}",
+    ""
+  ].join("\n"));
+
+  assert.equal(parsed.events.length, 2);
+  assert.deepEqual(parsed.events.map((event) => event.event.type), [
+    "session.started",
+    "agent_message"
+  ]);
+  assert.equal(parsed.parseErrors.length, 2);
+  assert.equal(parsed.parseErrors[1]?.error, "codex_cli_jsonl_event_not_object");
+});
+
+test("codex cli host inspects command output without treating stderr warnings as failure", () => {
+  const inspection = inspectCodexCliCommandOutput({
+    exitCode: 0,
+    stdout: "{\"type\":\"agent_message\",\"message\":\"ok\"}\n",
+    stderr: [
+      "WARNING: failed to clean up stale arg0 temp dirs: access denied",
+      "WARNING: proceeding, even though we could not update PATH"
+    ].join("\n")
+  });
+
+  assert.equal(inspection.status, "completed");
+  assert.equal(inspection.events.length, 1);
+  assert.equal(inspection.warnings.length, 2);
+  assert.deepEqual(inspection.blockingReasons, []);
+});
+
+test("codex cli host runner captures read-only process output through an injectable spawner", async () => {
+  const calls: Array<{ command: string; args: string[]; cwd?: string; stdio?: unknown }> = [];
+  const spawner: CodexCliProcessSpawner = (command, args, options) => {
+    calls.push({
+      command,
+      args,
+      ...(options.cwd ? { cwd: options.cwd } : {}),
+      stdio: options.stdio
+    });
+
+    return createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"ok\"}\n",
+      stderr: "WARNING: diagnostic only\n",
+      exitCode: 0
+    });
+  };
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-readonly",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    skipGitRepoCheck: true,
+    ephemeral: true
+  });
+
+  const result = await runCodexCliExecPlan(plan, {
+    spawn: spawner
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.command, "codex");
+  assert.equal(calls[0]?.cwd, "A:/codex-router");
+  assert.deepEqual(calls[0]?.stdio, ["ignore", "pipe", "pipe"]);
+  assert.deepEqual(calls[0]?.args.slice(0, 4), [
+    "-a",
+    "on-request",
+    "exec",
+    "--json"
+  ]);
+  assert.equal(result.output.exitCode, 0);
+  assert.equal(result.inspection.status, "completed");
+  assert.equal(result.inspection.events.length, 1);
+  assert.deepEqual(result.inspection.warnings, ["WARNING: diagnostic only"]);
+});
+
+test("codex cli operator acceptance runs a task through the guarded exec runner and captures telemetry", async () => {
+  const telemetryStore = createRecordingTelemetrySink();
+  let calls = 0;
+
+  const result = await runCodexCliOperatorAcceptance({
+    task: {
+      taskId: "cli-operator-acceptance",
+      source: "cli",
+      intent: {
+        summary: "inspect codex router readiness",
+        requestedAction: "inspect the workspace without edits",
+        successCriteria: [],
+        outOfScope: ["file edits"]
+      },
+      repoContext: {
+        repoRoot: "A:/codex-router"
+      },
+      target: {
+        branches: [],
+        files: ["README.md"],
+        modules: ["codex-cli-host"]
+      },
+      constraints: {},
+      hints: {
+        taskClassHint: "read_only",
+        riskHints: [],
+        tags: ["operator-acceptance"]
+      }
+    },
+    planOptions: {
+      model: "gpt-5.4-mini",
+      skipGitRepoCheck: true,
+      ephemeral: true
+    },
+    telemetryStore,
+    spawn: () => createFakeCodexCliChild({
+      stdout: (++calls === 1)
+        ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
+        : "{\"type\":\"agent_message\",\"message\":\"acceptance ok\"}\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(result.status, "passed");
+  assert.equal(result.run?.inspection.status, "completed");
+  assert.equal(
+    result.telemetryEvents.some((event) => event.message === "codex cli model probe cache miss"),
+    true
+  );
+  assert.equal((await telemetryStore.loadAll()).length >= 1, true);
+});
+
+test("codex cli operator acceptance emits cache miss then hit across consecutive runs", async () => {
+  const telemetryStore = createRecordingTelemetrySink();
+  let calls = 0;
+  const task = {
+    taskId: "cli-operator-acceptance-cache",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect codex router readiness",
+      requestedAction: "inspect the workspace without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: ["operator-acceptance"]
+    }
+  };
+  const spawn = () => createFakeCodexCliChild({
+    stdout: (++calls === 1)
+      ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
+      : "{\"type\":\"agent_message\",\"message\":\"acceptance ok\"}\n",
+    exitCode: 0
+  });
+
+  const first = await runCodexCliOperatorAcceptance({
+    task,
+    planOptions: {
+      model: "gpt-5.4-mini",
+      skipGitRepoCheck: true,
+      ephemeral: true
+    },
+    telemetryStore,
+    spawn
+  });
+  const second = await runCodexCliOperatorAcceptance({
+    task,
+    planOptions: {
+      model: "gpt-5.4-mini",
+      skipGitRepoCheck: true,
+      ephemeral: true
+    },
+    telemetryStore,
+    spawn
+  });
+  const messages = (await telemetryStore.loadAll()).map((event) => event.message);
+
+  assert.equal(first.status, "passed");
+  assert.equal(second.status, "passed");
+  assert.equal(calls, 3);
+  assert.deepEqual(messages, [
+    "codex cli model probe cache miss",
+    "codex cli model probe cache hit"
+  ]);
+});
+
+test("codex cli operator acceptance evidence writes without raw prompt or argv", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-operator-acceptance-"));
+  const path = join(dir, "operator", "evidence.json");
+  let calls = 0;
+  const persisted = await runAndWriteCodexCliOperatorAcceptanceEvidence({
+    evidencePath: path,
+    task: {
+      taskId: "cli-operator-acceptance-write",
+      source: "cli",
+      intent: {
+        summary: "inspect codex router readiness",
+        requestedAction: "inspect the workspace without edits",
+        successCriteria: [],
+        outOfScope: ["file edits"]
+      },
+      repoContext: {
+        repoRoot: "A:/codex-router"
+      },
+      target: {
+        branches: [],
+        files: ["README.md"],
+        modules: ["codex-cli-host"]
+      },
+      constraints: {},
+      hints: {
+        taskClassHint: "read_only",
+        riskHints: [],
+        tags: ["operator-acceptance"]
+      }
+    },
+    planOptions: {
+      model: "gpt-5.4-mini",
+      skipGitRepoCheck: true,
+      ephemeral: true
+    },
+    spawn: () => createFakeCodexCliChild({
+      stdout: (++calls === 1)
+        ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
+        : "{\"type\":\"agent_message\",\"message\":\"acceptance ok\"}\n",
+      exitCode: 0
+    })
+  });
+  const content = await readFile(path, "utf8");
+  const written = JSON.parse(content) as typeof persisted.evidence;
+
+  assert.equal(persisted.result.status, "passed");
+  assert.equal(persisted.evidence.schemaVersion, "codex-cli-operator-acceptance-evidence.v1");
+  assert.equal(persisted.evidence.taskId, "cli-operator-acceptance-write");
+  assert.equal(persisted.evidence.plan.model, "gpt-5.4-mini");
+  assert.equal(
+    persisted.evidence.summary.telemetryMessages.includes("codex cli model probe cache miss"),
+    true
+  );
+  assert.equal("prompt" in written.plan, false);
+  assert.equal("args" in written.plan, false);
+});
+
+test("codex cli operator acceptance blocks workspace-write plans without explicit allowance", async () => {
+  const result = await runCodexCliOperatorAcceptance({
+    task: {
+      taskId: "cli-operator-acceptance-write-blocked",
+      source: "cli",
+      intent: {
+        summary: "perform a bounded operator acceptance write",
+        requestedAction: "update the bounded acceptance evidence file and report the result",
+        successCriteria: [],
+        outOfScope: ["external writes"]
+      },
+      repoContext: {
+        repoRoot: "A:/codex-router"
+      },
+      target: {
+        branches: [],
+        files: ["docs/evidence/codex-cli-workspace-write-smoke.txt"],
+        modules: ["codex-cli-host"]
+      },
+      constraints: {},
+      hints: {
+        taskClassHint: "engineering",
+        riskHints: [],
+        tags: ["operator-acceptance"]
+      }
+    },
+    planOptions: {
+      model: "gpt-5.4-mini",
+      sandbox: "workspace-write",
+      approvalPolicy: "on-request",
+      skipGitRepoCheck: true,
+      ephemeral: true
+    }
+  });
+
+  assert.equal(result.status, "failed");
+  assert.ok(result.validationBlockers.includes(
+    "codex_cli_write_sandbox_requires_explicit_allowance"
+  ));
+  assert.equal(result.run, undefined);
+});
+
+test("codex cli host runner blocks write sandbox unless explicitly allowed", async () => {
+  const task = parseTaskEnvelope({
+    taskId: "cli-runner-write",
+    source: "cli",
+    intent: {
+      summary: "edit",
+      requestedAction: "edit a file",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const plan = createCodexCliExecPlan(task);
+
+  assert.ok(validateCodexCliExecPlanForRun(plan).includes(
+    "codex_cli_write_sandbox_requires_explicit_allowance"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(plan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_write_sandbox_requires_explicit_allowance/
+  );
+
+  const result = await runCodexCliExecPlan(plan, {
+    allowWriteSandbox: true,
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"allowed\"}\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(result.inspection.status, "completed");
+});
+
+test("codex cli host runner rejects manually forged dangerous plans", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-danger",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const forgedPlan = {
+    ...plan,
+    args: [...plan.args, "--dangerously-bypass-approvals-and-sandbox"]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedPlan).some((reason) => (
+    reason.includes("codex_cli_dangerous_arg_not_allowed")
+  )));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_dangerous_arg_not_allowed/
+  );
+});
+
+test("codex cli host runner rejects forged sandbox argv mismatches", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-forged-sandbox",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const sandboxIndex = plan.args.indexOf("--sandbox") + 1;
+  const forgedPlan = {
+    ...plan,
+    args: plan.args.map((arg, index) => (
+      index === sandboxIndex ? "workspace-write" : arg
+    ))
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
+    "codex_cli_sandbox_arg_mismatch:workspace-write:read-only"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_sandbox_arg_mismatch/
+  );
+});
+
+test("codex cli host runner reports timeout as failed evidence", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-timeout",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const child = createFakeCodexCliChild({
+    stdout: "{\"type\":\"agent_message\",\"message\":\"slow\"}\n",
+    exitCode: 0,
+    autoClose: false
+  });
+
+  const result = await runCodexCliExecPlan(plan, {
+    timeoutMs: 1,
+    spawn: () => child
+  });
+
+  assert.equal(result.timedOut, true);
+  assert.equal(result.killed, true);
+  assert.equal(result.inspection.status, "failed");
+  assert.ok(result.inspection.blockingReasons.includes("codex_cli_process_timeout"));
+});
+
+test("codex cli read-only smoke creates a fixed safe task envelope", () => {
+  const task = createCodexCliReadOnlySmokeTask({
+    taskId: "cli-smoke-safe",
+    repoRoot: "A:/codex-router",
+    branch: "main"
+  });
+
+  assert.equal(task.taskId, "cli-smoke-safe");
+  assert.equal(task.source, "cli");
+  assert.equal(task.repoContext?.repoRoot, "A:/codex-router");
+  assert.equal(task.repoContext?.branch, "main");
+  assert.equal(task.hints?.taskClassHint, "read_only");
+  assert.deepEqual(task.hints?.tags, ["codex-cli-host-smoke", "read-only"]);
+  assert.ok(task.intent.outOfScope?.includes("workspace-write sandbox"));
+  assert.deepEqual(task.target?.modules, ["codex-cli-host"]);
+});
+
+test("codex cli read-only smoke runs through guarded runner and captures evidence", async () => {
+  const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
+  const spawner: CodexCliProcessSpawner = (command, args, options) => {
+    calls.push({
+      command,
+      args,
+      ...(options.cwd ? { cwd: options.cwd } : {})
+    });
+
+    return createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"read-only ok\"}\n",
+      stderr: "WARNING: diagnostic only\n",
+      exitCode: 0
+    });
+  };
+
+  const result = await runCodexCliReadOnlySmoke({
+    taskOptions: {
+      taskId: "cli-smoke-readonly",
+      repoRoot: "A:/codex-router"
+    },
+    spawn: spawner
+  });
+  const evidence = createCodexCliReadOnlySmokeEvidence(result, {
+    generatedAt: "2026-04-25T12:30:00.000Z",
+    notes: ["fake spawner validation"]
+  });
+
+  assert.equal(result.status, "passed");
+  if (process.platform === "win32") {
+    assert.match(calls[0]?.command ?? "", /codex\.exe$/i);
+  } else {
+    assert.equal(calls[0]?.command, "codex");
+  }
+  assert.equal(result.plan.sandbox, "read-only");
+  assert.equal(result.plan.approvalPolicy, "never");
+  assert.deepEqual(result.plan.args.slice(0, 4), [
+    "-a",
+    "never",
+    "exec",
+    "--json"
+  ]);
+  assert.equal(result.plan.args.includes("--skip-git-repo-check"), true);
+  assert.equal(result.plan.args.includes("--ephemeral"), true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.cwd, "A:/codex-router");
+  assert.equal(calls[0]?.args.includes("workspace-write"), false);
+
+  assert.equal(evidence.schemaVersion, "codex-cli-readonly-smoke-evidence.v1");
+  assert.equal(evidence.status, "passed");
+  assert.equal(evidence.taskId, "cli-smoke-readonly");
+  assert.equal(evidence.plan.usesJson, true);
+  assert.equal(evidence.plan.skipGitRepoCheck, true);
+  assert.equal(evidence.plan.ephemeral, true);
+  assert.equal(evidence.run.eventCount, 1);
+  assert.deepEqual(evidence.summary.warnings, ["WARNING: diagnostic only"]);
+  assert.deepEqual(evidence.notes, ["fake spawner validation"]);
+  assert.equal("prompt" in evidence.plan, false);
+});
+
+test("codex cli read-only smoke forwards telemetryStore into probe cache telemetry", async () => {
+  const telemetryStore = createRecordingTelemetrySink();
+  let calls = 0;
+
+  const spawner: CodexCliProcessSpawner = () => {
+    calls += 1;
+    return createFakeCodexCliChild({
+      stdout: calls === 1 || calls === 3
+        ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
+        : "{\"type\":\"agent_message\",\"message\":\"smoke run ok\"}\n",
+      exitCode: 0
+    });
+  };
+
+  const first = await runCodexCliReadOnlySmoke({
+    telemetryStore,
+    planOptions: {
+      model: "gpt-5.4-mini"
+    },
+    spawn: spawner
+  });
+  const second = await runCodexCliReadOnlySmoke({
+    telemetryStore,
+    planOptions: {
+      model: "gpt-5.4-mini"
+    },
+    spawn: spawner
+  });
+  const telemetryEvents = await telemetryStore.loadAll();
+
+  assert.equal(first.status, "passed");
+  assert.equal(second.status, "passed");
+  assert.equal(calls, 3);
+  assert.equal(
+    telemetryEvents.some((event) => event.message === "codex cli model probe cache miss"),
+    true
+  );
+  assert.equal(
+    telemetryEvents.some((event) => event.message === "codex cli model probe cache hit"),
+    true
+  );
+});
+
+test("codex cli read-only smoke evidence records validation blockers without running", async () => {
+  let didSpawn = false;
+  const result = await runCodexCliReadOnlySmoke({
+    task: {
+      ...createCodexCliReadOnlySmokeTask(),
+      repoContext: {}
+    },
+    planOptions: {
+      codexCommand: "   "
+    },
+    spawn: () => {
+      didSpawn = true;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const evidence = createCodexCliReadOnlySmokeEvidence(result, {
+    generatedAt: "2026-04-25T12:31:00.000Z"
+  });
+
+  assert.equal(didSpawn, false);
+  assert.equal(result.status, "failed");
+  assert.ok(result.validationBlockers.includes("codex_cli_command_missing"));
+  assert.equal(evidence.status, "failed");
+  assert.deepEqual(evidence.run.blockingReasons, ["codex_cli_command_missing"]);
+  assert.deepEqual(evidence.summary.blockingReasons, ["codex_cli_command_missing"]);
+});
+
+test("codex cli read-only smoke evidence mirrors process errors into run blockers", () => {
+  const task = parseTaskEnvelope(createCodexCliReadOnlySmokeTask({
+    taskId: "cli-smoke-process-error"
+  }));
+  const plan = createCodexCliExecPlan(task, {
+    sandbox: "read-only",
+    approvalPolicy: "never"
+  });
+  const evidence = createCodexCliReadOnlySmokeEvidence({
+    status: "failed",
+    task,
+    plan,
+    validationBlockers: [],
+    error: "spawn EPERM"
+  });
+
+  assert.deepEqual(evidence.run.blockingReasons, [
+    "codex_cli_process_error:spawn EPERM"
+  ]);
+  assert.deepEqual(evidence.summary.blockingReasons, [
+    "codex_cli_process_error:spawn EPERM"
+  ]);
+});
+
+test("codex cli read-only smoke evidence can be written to disk without raw prompt", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-smoke-"));
+  const path = join(dir, "nested", "evidence.json");
+  const result = await runCodexCliReadOnlySmoke({
+    taskOptions: {
+      taskId: "cli-smoke-write-file"
+    },
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"ok\"}\n",
+      exitCode: 0
+    })
+  });
+  const evidence = createCodexCliReadOnlySmokeEvidence(result, {
+    generatedAt: "2026-04-25T12:40:00.000Z"
+  });
+
+  const write = await writeCodexCliReadOnlySmokeEvidenceFile(evidence, path);
+  const written = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+
+  assert.equal(write.path, path);
+  assert.ok(write.bytes > 0);
+  assert.equal(written.schemaVersion, "codex-cli-readonly-smoke-evidence.v1");
+  assert.equal(written.status, "passed");
+  assert.equal("prompt" in (written.plan as Record<string, unknown>), false);
+  assert.equal("args" in (written.plan as Record<string, unknown>), false);
+});
+
+test("codex cli read-only smoke run-and-write persists failed validation evidence without spawning", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-smoke-"));
+  const path = join(dir, "failed", "evidence.json");
+  let didSpawn = false;
+
+  const persisted = await runAndWriteCodexCliReadOnlySmokeEvidence({
+    evidencePath: path,
+    task: {
+      ...createCodexCliReadOnlySmokeTask({
+        taskId: "cli-smoke-persist-failed"
+      }),
+      repoContext: {}
+    },
+    planOptions: {
+      codexCommand: "   "
+    },
+    evidenceOptions: {
+      generatedAt: "2026-04-25T12:41:00.000Z",
+      notes: ["failed pre-run validation"]
+    },
+    spawn: () => {
+      didSpawn = true;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const written = JSON.parse(await readFile(path, "utf8")) as {
+    status: string;
+    summary: { blockingReasons: string[] };
+    notes: string[];
+  };
+
+  assert.equal(didSpawn, false);
+  assert.equal(persisted.result.status, "failed");
+  assert.equal(persisted.evidence.status, "failed");
+  assert.equal(persisted.write.path, path);
+  assert.deepEqual(written.summary.blockingReasons, ["codex_cli_command_missing"]);
+  assert.deepEqual(written.notes, ["failed pre-run validation"]);
+});
+
+test("codex cli workspace-write smoke task is bounded to one local evidence file", () => {
+  const task = createCodexCliWorkspaceWriteSmokeTask({
+    taskId: "cli-write-smoke-task",
+    repoRoot: "A:/codex-router",
+    file: "docs/evidence/write-smoke.txt"
+  });
+
+  assert.equal(task.taskId, "cli-write-smoke-task");
+  assert.equal(task.source, "cli");
+  assert.equal(task.hints?.taskClassHint, "small_edit");
+  assert.deepEqual(task.hints?.riskHints, ["workspace-write"]);
+  assert.deepEqual(task.target?.files, ["docs/evidence/write-smoke.txt"]);
+  assert.equal(task.constraints?.explicitOwnership, true);
+  assert.ok(task.intent.outOfScope?.includes("external writes"));
+  assert.ok(task.intent.outOfScope?.includes("secret or env file changes"));
+});
+
+test("codex cli workspace-write smoke preflight blocks without explicit allowance and confirmation", () => {
+  const preflight = createCodexCliWorkspaceWriteSmokePreflight({
+    taskOptions: {
+      taskId: "cli-write-smoke-blocked",
+      repoRoot: "A:/codex-router"
+    }
+  });
+  const evidence = createCodexCliWorkspaceWriteSmokePreflightEvidence(preflight, {
+    generatedAt: "2026-04-25T13:00:00.000Z",
+    notes: ["preflight only"]
+  });
+
+  assert.equal(preflight.status, "blocked");
+  assert.equal(preflight.plan.sandbox, "workspace-write");
+  assert.deepEqual(preflight.plan.args.slice(0, 4), [
+    "-a",
+    "on-request",
+    "exec",
+    "--json"
+  ]);
+  assert.ok(preflight.blockingReasons.includes(
+    "codex_cli_write_sandbox_requires_explicit_allowance"
+  ));
+  assert.ok(preflight.blockingReasons.includes(
+    "codex_cli_workspace_write_smoke_requires_confirmation"
+  ));
+
+  assert.equal(evidence.schemaVersion, "codex-cli-workspace-write-smoke-preflight.v1");
+  assert.equal(evidence.status, "blocked");
+  assert.equal(evidence.summary.readyToRun, false);
+  assert.equal(evidence.requiredConfirmation, CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION);
+  assert.equal("prompt" in evidence.plan, false);
+  assert.equal("args" in evidence.plan, false);
+});
+
+test("codex cli workspace-write smoke preflight becomes ready only with both gates", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-write-smoke-"));
+  const path = join(dir, "preflight", "evidence.json");
+  const preflight = createCodexCliWorkspaceWriteSmokePreflight({
+    taskOptions: {
+      taskId: "cli-write-smoke-ready",
+      repoRoot: "A:/codex-router",
+      file: "docs/evidence/codex-cli-workspace-write-smoke.txt"
+    },
+    allowWriteSandbox: true,
+    confirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION
+  });
+  const evidence = createCodexCliWorkspaceWriteSmokePreflightEvidence(preflight, {
+    generatedAt: "2026-04-25T13:01:00.000Z"
+  });
+
+  const write = await writeCodexCliWorkspaceWriteSmokePreflightEvidenceFile(
+    evidence,
+    path
+  );
+  const written = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+
+  assert.equal(preflight.status, "ready");
+  assert.deepEqual(preflight.blockingReasons, []);
+  assert.equal(evidence.summary.readyToRun, true);
+  assert.deepEqual(evidence.plan.targetFiles, [
+    "docs/evidence/codex-cli-workspace-write-smoke.txt"
+  ]);
+  assert.equal(write.path, path);
+  assert.ok(write.bytes > 0);
+  assert.equal(written.status, "ready");
+});
+
+test("codex cli workspace-write approval packet summarizes exact gates without raw prompt", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-write-approval-"));
+  const path = join(dir, "approval", "packet.json");
+  const preflight = createCodexCliWorkspaceWriteSmokePreflight({
+    taskOptions: {
+      taskId: "cli-write-smoke-approval",
+      repoRoot: "A:/codex-router"
+    }
+  });
+  const packet = createCodexCliWorkspaceWriteSmokeApprovalPacket(preflight, {
+    generatedAt: "2026-04-25T13:20:00.000Z",
+    host: "Codex CLI native 0.125.0",
+    repoState: {
+      isGitRepository: false,
+      worktree: "not_git_repository"
+    },
+    notes: ["approval packet only"]
+  });
+
+  const write = await writeCodexCliWorkspaceWriteSmokeApprovalPacketFile(
+    packet,
+    path
+  );
+  const written = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+
+  assert.equal(packet.schemaVersion, "codex-cli-workspace-write-smoke-approval-packet.v1");
+  assert.equal(packet.status, "blocked");
+  assert.equal(packet.risk, "medium");
+  assert.equal(packet.repoState.isGitRepository, false);
+  assert.deepEqual(packet.proposedAction.targetFiles, [
+    "docs/evidence/codex-cli-workspace-write-smoke.txt"
+  ]);
+  assert.match(packet.proposedAction.commandPreview, /workspace-write/);
+  assert.match(packet.proposedAction.commandPreview, /<task-envelope-prompt omitted>/);
+  assert.doesNotMatch(packet.proposedAction.commandPreview, /Task envelope/);
+  assert.equal(
+    packet.requiredGates.confirmation,
+    CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION
+  );
+  assert.ok(packet.blockers.includes("codex_cli_write_sandbox_requires_explicit_allowance"));
+  assert.ok(packet.rollback.affectedFiles.includes(
+    "docs/evidence/codex-cli-workspace-write-smoke.txt"
+  ));
+  assert.equal(write.path, path);
+  assert.ok(write.bytes > 0);
+  assert.equal(written.schemaVersion, "codex-cli-workspace-write-smoke-approval-packet.v1");
+});
+
+test("codex cli workspace-write smoke runner does not spawn while gates are missing", async () => {
+  let didSpawn = false;
+  const result = await runCodexCliWorkspaceWriteSmoke({
+    taskOptions: {
+      taskId: "cli-write-smoke-run-blocked",
+      repoRoot: "A:/codex-router"
+    },
+    spawn: () => {
+      didSpawn = true;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+
+  assert.equal(didSpawn, false);
+  assert.equal(result.status, "blocked");
+  assert.equal(result.preflight.status, "blocked");
+  assert.ok(result.validationBlockers.includes(
+    "codex_cli_write_sandbox_requires_explicit_allowance"
+  ));
+  assert.ok(result.validationBlockers.includes(
+    "codex_cli_workspace_write_smoke_requires_confirmation"
+  ));
+});
+
+test("codex cli workspace-write smoke runner executes only after both gates", async () => {
+  const calls: Array<{ command: string; args: string[]; cwd?: string; stdio?: unknown }> = [];
+  const spawner: CodexCliProcessSpawner = (command, args, options) => {
+    calls.push({
+      command,
+      args,
+      ...(options.cwd ? { cwd: options.cwd } : {}),
+      stdio: options.stdio
+    });
+
+    return createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"workspace-write ok\"}\n",
+      exitCode: 0
+    });
+  };
+
+  const result = await runCodexCliWorkspaceWriteSmoke({
+    taskOptions: {
+      taskId: "cli-write-smoke-run-ready",
+      repoRoot: "A:/codex-router"
+    },
+    allowWriteSandbox: true,
+    confirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
+    spawn: spawner
+  });
+
+  assert.equal(result.status, "passed");
+  assert.equal(result.preflight.status, "ready");
+  assert.deepEqual(result.validationBlockers, []);
+  assert.equal(calls.length, 1);
+  if (process.platform === "win32") {
+    assert.match(calls[0]?.command ?? "", /codex\.exe$/i);
+  } else {
+    assert.equal(calls[0]?.command, "codex");
+  }
+  assert.equal(calls[0]?.cwd, "A:/codex-router");
+  assert.deepEqual(calls[0]?.stdio, ["ignore", "pipe", "pipe"]);
+  assert.deepEqual(calls[0]?.args.slice(0, 6), [
+    "-a",
+    "on-request",
+    "exec",
+    "--json",
+    "--sandbox",
+    "workspace-write"
+  ]);
+  assert.equal(result.run?.inspection.status, "completed");
+  assert.equal(result.run?.inspection.events.length, 1);
+});
+
+test("codex cli workspace-write smoke runner respects an explicit codex command override", async () => {
+  const calls: Array<{ command: string; args: string[]; cwd?: string; stdio?: unknown }> = [];
+  const spawner: CodexCliProcessSpawner = (command, args, options) => {
+    calls.push({
+      command,
+      args,
+      ...(options.cwd ? { cwd: options.cwd } : {}),
+      stdio: options.stdio
+    });
+
+    return createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"workspace-write ok\"}\n",
+      exitCode: 0
+    });
+  };
+
+  const result = await runCodexCliWorkspaceWriteSmoke({
+    taskOptions: {
+      taskId: "cli-write-smoke-run-custom-command",
+      repoRoot: "A:/codex-router"
+    },
+    planOptions: {
+      codexCommand: "custom-codex"
+    },
+    allowWriteSandbox: true,
+    confirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
+    spawn: spawner
+  });
+
+  assert.equal(result.status, "passed");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.command, "custom-codex");
+  assert.equal(calls[0]?.cwd, "A:/codex-router");
+});
+
+test("codex cli workspace-write smoke evidence can be written without raw prompt", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-write-evidence-"));
+  const path = join(dir, "nested", "evidence.json");
+  const result = await runCodexCliWorkspaceWriteSmoke({
+    taskOptions: {
+      taskId: "cli-write-smoke-evidence"
+    }
+  });
+  const evidence = createCodexCliWorkspaceWriteSmokeEvidence(result, {
+    generatedAt: "2026-04-25T13:40:00.000Z"
+  });
+
+  const write = await writeCodexCliWorkspaceWriteSmokeEvidenceFile(evidence, path);
+  const written = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+
+  assert.equal(write.path, path);
+  assert.ok(write.bytes > 0);
+  assert.equal(written.schemaVersion, "codex-cli-workspace-write-smoke-evidence.v1");
+  assert.equal(written.status, "blocked");
+  assert.equal("prompt" in (written.plan as Record<string, unknown>), false);
+});
+
+test("codex cli workspace-write run-and-write persists blocked evidence without spawning", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-write-persist-"));
+  const path = join(dir, "blocked", "evidence.json");
+  let didSpawn = false;
+
+  const persisted = await runAndWriteCodexCliWorkspaceWriteSmokeEvidence({
+    evidencePath: path,
+    taskOptions: {
+      taskId: "cli-write-smoke-persist-blocked"
+    },
+    spawn: () => {
+      didSpawn = true;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const written = JSON.parse(await readFile(path, "utf8")) as {
+    status: string;
+    summary: { blockingReasons: string[] };
+  };
+
+  assert.equal(didSpawn, false);
+  assert.equal(persisted.result.status, "blocked");
+  assert.equal(persisted.evidence.status, "blocked");
+  assert.equal(persisted.write.path, path);
+  assert.ok(written.summary.blockingReasons.includes(
+    "codex_cli_write_sandbox_requires_explicit_allowance"
+  ));
+});
+
+function getArgValue(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  return index >= 0 ? args[index + 1] : undefined;
+}
+
+class FakeCodexCliStream extends EventEmitter {
+  setEncoding(_encoding: BufferEncoding): void {}
+}
+
+class FakeCodexCliChild extends EventEmitter {
+  readonly stdout = new FakeCodexCliStream();
+  readonly stderr = new FakeCodexCliStream();
+  private readonly closeCode: number;
+  private readonly closeSignal: NodeJS.Signals | null;
+
+  constructor(closeCode: number, closeSignal: NodeJS.Signals | null) {
+    super();
+    this.closeCode = closeCode;
+    this.closeSignal = closeSignal;
+  }
+
+  kill(_signal?: NodeJS.Signals | number): boolean {
+    queueMicrotask(() => {
+      this.emit("close", this.closeCode, this.closeSignal);
+    });
+    return true;
+  }
+}
+
+function createFakeCodexCliChild(options: {
+  stdout: string;
+  stderr?: string;
+  exitCode: number;
+  signal?: NodeJS.Signals | null;
+  autoClose?: boolean;
+}): FakeCodexCliChild {
+  const child = new FakeCodexCliChild(options.exitCode, options.signal ?? null);
+
+  if (options.autoClose !== false) {
+    queueMicrotask(() => {
+      if (options.stdout) {
+        child.stdout.emit("data", options.stdout);
+      }
+      if (options.stderr) {
+        child.stderr.emit("data", options.stderr);
+      }
+      child.emit("close", options.exitCode, options.signal ?? null);
+    });
+  }
+
+  return child;
+}

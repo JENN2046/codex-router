@@ -1,0 +1,36 @@
+diff --git a/modules/services/codexRouterHost.js b/modules/services/codexRouterHost.js
+--- a/modules/services/codexRouterHost.js
++++ b/modules/services/codexRouterHost.js
+@@ -62,8 +62,31 @@
+ const CHANGE_CONTEXT_MARKER = '@@ ';
+ const EMPTY_CHANGE_CONTEXT_MARKER = '@@';
+ 
++function hasCodexRouterPolicyConfig(root) {
++    if (typeof root !== 'string' || root.trim() === '') {
++        return false;
++    }
++
++    return fs.existsSync(path.join(path.resolve(root), ...POLICY_CONFIG_ENTRY));
++}
++
++function discoverDefaultCodexRouterRoot() {
++    const candidates = [
++        DEFAULT_CODEX_ROUTER_ROOT,
++        path.join(path.parse(DEFAULT_VCPCHAT_ROOT).root, 'codex-router'),
++    ];
++
++    for (const candidate of candidates) {
++        if (hasCodexRouterPolicyConfig(candidate)) {
++            return path.resolve(candidate);
++        }
++    }
++
++    return path.resolve(DEFAULT_CODEX_ROUTER_ROOT);
++}
++
+ function resolveCodexRouterRoot(explicitRoot) {
+-    const candidate = explicitRoot || process.env.VCP_CODEX_ROUTER_ROOT || DEFAULT_CODEX_ROUTER_ROOT;
++    const candidate = explicitRoot || process.env.VCP_CODEX_ROUTER_ROOT || discoverDefaultCodexRouterRoot();
+     return path.resolve(candidate);
+ }
+ 

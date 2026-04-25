@@ -1,0 +1,119 @@
+diff --git a/renderer.js b/renderer.js
+--- a/renderer.js
++++ b/renderer.js
+@@ -317,6 +317,43 @@
+     return result?.result && typeof result.result === 'object' ? result.result : (result || {});
+ }
+ 
++function getCodexRouterDecisionResult(payload) {
++    return payload?.decisionResult
++        || payload?.decision_result
++        || payload?.runnerResult
++        || {};
++}
++
++function getCodexRouterExecutionResult(payload) {
++    return payload?.executionResult
++        || payload?.execution_result
++        || payload?.liveExecution
++        || {};
++}
++
++function getCodexRouterRoutingDecision(payload) {
++    const decisionResult = getCodexRouterDecisionResult(payload);
++    return decisionResult?.decision
++        || payload?.routingDecision
++        || payload?.decision
++        || {};
++}
++
++function getCodexRouterExecutionDecision(payload) {
++    const routingDecision = getCodexRouterRoutingDecision(payload);
++    return routingDecision?.execution || payload?.execution || {};
++}
++
++function getCodexRouterApprovalDecision(payload) {
++    const routingDecision = getCodexRouterRoutingDecision(payload);
++    const decisionResult = getCodexRouterDecisionResult(payload);
++    return routingDecision?.approval || decisionResult?.approval || payload?.approval || {};
++}
++
++function getCodexRouterExecutionPlan(payload) {
++    const decisionResult = getCodexRouterDecisionResult(payload);
++    const executionResult = getCodexRouterExecutionResult(payload);
++    return decisionResult?.executionPlan || executionResult?.plan || payload?.plan || {};
++}
++
+ function formatCodexRouterValue(value) {
+@@ -340,28 +377,44 @@
+ function buildCodexRouterVisibleReply(result, task) {
+     const payload = getCodexRouterResultPayload(result);
++    const decisionResult = getCodexRouterDecisionResult(payload);
++    const executionResult = getCodexRouterExecutionResult(payload);
++    const routingDecision = getCodexRouterRoutingDecision(payload);
++    const executionDecision = getCodexRouterExecutionDecision(payload);
++    const approvalDecision = getCodexRouterApprovalDecision(payload);
++    const executionPlan = getCodexRouterExecutionPlan(payload);
+     const executionStatus =
+-        payload.executionStatus
++        executionResult.status
++        || payload.executionStatus
+         || payload.execution?.status
+         || payload.status
++        || decisionResult.status
+         || result?.status
+         || 'completed';
+     const plannedPrimitives = formatCodexRouterList(
+-        payload.plannedPrimitives || payload.plan?.steps,
++        payload.plannedPrimitives
++            || executionPlan.primitives
++            || executionPlan.steps
++            || payload.plan?.primitives
++            || payload.plan?.steps,
+         item => getCodexRouterPrimitiveName(item)
+     );
+     const executedSteps = formatCodexRouterList(
+-        payload.executedStepStatuses || payload.execution?.steps,
++        payload.executedStepStatuses || executionResult.steps || payload.execution?.steps,
+         item => {
+             if (!item) return '';
+             const name = getCodexRouterPrimitiveName(item);
+             const status = item.status || item.resultStatus || item.outcome || '';
+             return status ? `${name || 'step'}：${status}` : name;
+         }
+     );
+     const blockingReasons = formatCodexRouterList(
+-        payload.blockingReasons || payload.preflight?.blockingReasons,
++        payload.blockingReasons
++            || decisionResult.blockingReasons
++            || executionResult.blockingReasons
++            || payload.preflight?.blockingReasons,
+         item => typeof item === 'string' ? item : (item?.reason || item?.message || '')
+     );
++    const evidencePath = result?.evidence?.filePath || payload?.evidence?.filePath;
+ 
+     const lines = [
+         '### Codex Router 执行结果',
+         '',
+         `- 状态：${formatCodexRouterExecutionStatus(executionStatus)}`,
+-        `- 策略版本：${formatCodexRouterValue(payload.policyVersion || payload.decision?.policyVersion)}`,
+-        `- 模型：${formatCodexRouterValue(payload.selectedModel || payload.execution?.selectedModel)}`,
+-        `- 执行档位：${formatCodexRouterValue(payload.executionProfile || payload.execution?.executionProfile)}`,
+-        `- 工具权限：${formatCodexRouterValue(payload.toolAccess || payload.execution?.toolAccess)}`,
+-        `- 是否需要审批：${formatCodexRouterValue(payload.approvalRequired ?? payload.approval?.required)}`,
++        `- 策略版本：${formatCodexRouterValue(payload.policyVersion || routingDecision.policyVersion)}`,
++        `- 模型：${formatCodexRouterValue(payload.selectedModel || executionDecision.selectedModel)}`,
++        `- 执行档位：${formatCodexRouterValue(payload.executionProfile || executionDecision.executionProfile || executionPlan.executionProfile)}`,
++        `- 工具权限：${formatCodexRouterValue(payload.toolAccess || executionDecision.toolAccess)}`,
++        `- 是否需要审批：${formatCodexRouterValue(payload.approvalRequired ?? approvalDecision.required)}`,
+         `- 任务编号：${formatCodexRouterValue(task?.taskId)}`
+     ];
+@@ -377,6 +430,9 @@
+     if (blockingReasons.length > 0) {
+         lines.push(`- 阻塞原因：${blockingReasons.join('；')}`);
+     }
++    if (evidencePath) {
++        lines.push(`- 监控证据：${evidencePath}`);
++    }
+ 
+     lines.push('', '原始结果已保存在本窗口的 `window.__lastCodexRouterHostRun`，当前聊天历史也会记录这条摘要。');

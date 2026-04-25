@@ -1,0 +1,32 @@
+diff --git a/styles/components.css b/styles/components.css
+--- a/styles/components.css
++++ b/styles/components.css
+@@ -518,23 +518,23 @@
+ #codexRouterToggleBtn {
+     position: relative;
+ }
+ 
+ #codexRouterToggleBtn.router-enabled {
+-    background-color: color-mix(in srgb, var(--button-bg) 16%, transparent);
++    background-color: rgba(249, 115, 22, 0.16);
+ }
+ 
+ #codexRouterToggleBtn.router-enabled svg {
+-    stroke: var(--button-bg);
+-    color: var(--button-bg);
++    stroke: #f97316;
++    color: #f97316;
+ }
+ 
+ #codexRouterToggleBtn.router-unavailable svg {
+     stroke: var(--danger-color);
+     color: var(--danger-color);
+ }
+ 
+ body.light-theme #codexRouterToggleBtn.router-enabled {
+-    background-color: rgba(229, 192, 123, 0.16);
++    background-color: rgba(249, 115, 22, 0.14);
+ }
+ 
+ 
+ #sendMessageBtn:disabled,

@@ -1,0 +1,141 @@
+diff --git a/modules/ipc/desktopRemoteHandlers.js b/modules/ipc/desktopRemoteHandlers.js
+--- a/modules/ipc/desktopRemoteHandlers.js
++++ b/modules/ipc/desktopRemoteHandlers.js
+@@ -13,0 +14,1 @@
++const CODEX_ROUTER_RUN_EVIDENCE_DIR = path.join(PROJECT_ROOT, 'AppData', 'codexRouter', 'runs');
+@@ -19,3 +20,110 @@
+ function createRequestId(prefix) {
+     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+ }
++
++function toCodexRouterEvidenceStamp(date = new Date()) {
++    return date.toISOString().replace(/[:.]/g, '-');
++}
++
++function toSafeEvidenceFilePart(value, fallback = 'task') {
++    const text = String(value || fallback)
++        .replace(/[^a-zA-Z0-9_.-]+/g, '-')
++        .replace(/^-+|-+$/g, '')
++        .slice(0, 96);
++    return text || fallback;
++}
++
++function sanitizeCodexRouterStringArray(value, limit = 20) {
++    if (!Array.isArray(value)) return [];
++    return value
++        .filter(item => typeof item === 'string')
++        .map(item => item.slice(0, 300))
++        .slice(0, limit);
++}
++
++function sanitizeCodexRouterTaskForEvidence(task = {}) {
++    const intent = task && typeof task.intent === 'object' ? task.intent : {};
++    const requestedAction = typeof intent.requestedAction === 'string' ? intent.requestedAction : '';
++    const target = task && typeof task.target === 'object' ? task.target : {};
++    const repoContext = task && typeof task.repoContext === 'object' ? task.repoContext : {};
++    return {
++        schemaVersion: typeof task.schemaVersion === 'string' ? task.schemaVersion : null,
++        taskId: typeof task.taskId === 'string' ? task.taskId : null,
++        source: typeof task.source === 'string' ? task.source : null,
++        intent: {
++            summary: typeof intent.summary === 'string' ? intent.summary.slice(0, 300) : null,
++            requestedActionLength: requestedAction.length,
++            successCriteria: sanitizeCodexRouterStringArray(intent.successCriteria),
++            outOfScope: sanitizeCodexRouterStringArray(intent.outOfScope)
++        },
++        repoContext: {
++            repoRoot: typeof repoContext.repoRoot === 'string' ? repoContext.repoRoot : null,
++            branch: typeof repoContext.branch === 'string' ? repoContext.branch : null,
++            worktreeClean: typeof repoContext.worktreeClean === 'boolean' ? repoContext.worktreeClean : null
++        },
++        target: {
++            branches: sanitizeCodexRouterStringArray(target.branches),
++            files: sanitizeCodexRouterStringArray(target.files),
++            modules: sanitizeCodexRouterStringArray(target.modules)
++        }
++    };
++}
++
++function getCodexRouterPrimitiveName(item) {
++    if (!item) return '';
++    if (typeof item === 'string') return item;
++    return item.primitive || item.name || item.type || item.action || '';
++}
++
++function summarizeCodexRouterRunResult(result = {}) {
++    const decisionResult = result.decisionResult || result.decision_result || {};
++    const executionResult = result.executionResult || result.execution_result || {};
++    const decision = decisionResult.decision || result.routingDecision || result.decision || {};
++    const executionDecision = decision.execution || result.execution || {};
++    const approval = decision.approval || decisionResult.approval || result.approval || {};
++    const executionPlan = decisionResult.executionPlan || executionResult.plan || result.plan || {};
++    const blockingReasons = [
++        ...sanitizeCodexRouterStringArray(result.blockingReasons),
++        ...sanitizeCodexRouterStringArray(decisionResult.blockingReasons),
++        ...sanitizeCodexRouterStringArray(executionResult.blockingReasons)
++    ];
++
++    return {
++        decisionStatus: decisionResult.status || result.decisionStatus || null,
++        executionStatus: executionResult.status || result.executionStatus || result.status || null,
++        policyVersion: decision.policyVersion || result.policyVersion || null,
++        selectedModel: executionDecision.selectedModel || result.selectedModel || null,
++        toolAccess: executionDecision.toolAccess || result.toolAccess || null,
++        executionProfile: executionDecision.executionProfile || executionPlan.executionProfile || result.executionProfile || null,
++        reasoningEffort: executionDecision.reasoningEffort || result.reasoningEffort || null,
++        approvalRequired: typeof approval.required === 'boolean' ? approval.required : null,
++        approvalReasons: sanitizeCodexRouterStringArray(approval.reasons || result.approvalReasons),
++        preflightOk: typeof decisionResult.preflight?.ok === 'boolean' ? decisionResult.preflight.ok : null,
++        blockingReasons: [...new Set(blockingReasons)],
++        plannedPrimitives: (executionPlan.primitives || result.plannedPrimitives || [])
++            .slice(0, 20)
++            .map(item => ({
++                primitive: getCodexRouterPrimitiveName(item),
++                reason: typeof item?.reason === 'string' ? item.reason : null
++            })),
++        executedStepStatuses: (executionResult.steps || result.executedStepStatuses || [])
++            .slice(0, 20)
++            .map(item => ({
++                primitive: getCodexRouterPrimitiveName(item),
++                status: typeof item?.status === 'string' ? item.status : null,
++                reason: typeof item?.reason === 'string' ? item.reason : null,
++                error: typeof item?.error === 'string' ? item.error.slice(0, 500) : null
++            })),
++        auditEventTypes: Array.isArray(decisionResult.auditEvents)
++            ? decisionResult.auditEvents.map(event => event?.eventType || event?.type).filter(Boolean).slice(0, 40)
++            : []
++    };
++}
++
++async function writeCodexRouterRunEvidence(action, task, result) {
++    try {
++        await fs.ensureDir(CODEX_ROUTER_RUN_EVIDENCE_DIR);
++        const generatedAt = new Date().toISOString();
++        const taskId = typeof task?.taskId === 'string' ? task.taskId : null;
++        const fileName = `${toCodexRouterEvidenceStamp(new Date(generatedAt))}-${toSafeEvidenceFilePart(action, 'run')}-${toSafeEvidenceFilePart(taskId, 'task')}.json`;
++        const filePath = path.join(CODEX_ROUTER_RUN_EVIDENCE_DIR, fileName);
++        const evidence = {
++            schemaVersion: 'vcpchat-codex-router-run-evidence.v1',
++            generatedAt,
++            action,
++            task: sanitizeCodexRouterTaskForEvidence(task),
++            result: summarizeCodexRouterRunResult(result),
++            rawRequestedActionStored: false,
++            rawPrimitiveOutputStored: false
++        };
++        await fs.writeJson(filePath, evidence, { spaces: 2 });
++        return { status: 'written', filePath, schemaVersion: evidence.schemaVersion, generatedAt };
++    } catch (error) {
++        return { status: 'failed', message: error.message };
++    }
++}
+@@ -358,2 +466,3 @@
+                 const result = await bundle.hostClient.run(task);
+-                return { status: 'success', result };
++                const evidence = await writeCodexRouterRunEvidence('run', task, result);
++                return { status: 'success', result, evidence };
+@@ -368,2 +477,3 @@
+                 const result = await bundle.hostClient.resume(task, commandPayload.options || {});
+-                return { status: 'success', result };
++                const evidence = await writeCodexRouterRunEvidence('resume', task, result);
++                return { status: 'success', result, evidence };

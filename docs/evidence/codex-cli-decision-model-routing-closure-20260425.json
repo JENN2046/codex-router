@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "codex-cli-decision-model-routing-closure.v1",
+  "generatedAt": "2026-04-25T11:15:00.000Z",
+  "workspace": "A:/codex-router",
+  "status": "passed",
+  "targetArea": "codex-cli-host",
+  "changedFiles": [
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md"
+  ],
+  "closure": {
+    "helper": "createCodexCliExecPlanFromRoutingDecision",
+    "modelSource": "RoutingDecision.execution.selectedModel",
+    "modelSink": "codex exec --model <selectedModel>",
+    "sandboxSource": "RoutingDecision.execution.toolAccess",
+    "sandboxMapping": {
+      "read_only": "read-only",
+      "local_write": "workspace-write",
+      "engineering_write": "workspace-write",
+      "protected_remote": "workspace-write"
+    }
+  },
+  "observedMappings": [
+    {
+      "taskClass": "read_only",
+      "toolAccess": "read_only",
+      "selectedModel": "gpt-5.4-mini",
+      "cliSandbox": "read-only",
+      "cliModelArg": "gpt-5.4-mini"
+    },
+    {
+      "taskClass": "small_edit",
+      "toolAccess": "local_write",
+      "selectedModel": "gpt-5.3-codex-spark",
+      "cliSandbox": "workspace-write",
+      "cliModelArg": "gpt-5.3-codex-spark"
+    }
+  ],
+  "guards": [
+    "task and decision taskId mismatch is rejected",
+    "caller model override is rejected for decision-derived plans",
+    "caller sandbox override is rejected for decision-derived plans",
+    "existing dangerous Codex CLI argument rejection remains in place"
+  ],
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "status": "passed",
+      "tests": {
+        "passed": 26,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "tests": {
+        "passed": 167,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    }
+  ],
+  "relatedLiveEvidence": [
+    "docs/evidence/codex-cli-readonly-smoke-live-20260425-rerun.json",
+    "docs/evidence/codex-cli-workspace-write-smoke-live-rerun-20260425.json"
+  ],
+  "limitations": [
+    "This evidence proves routing-decision-to-CLI-plan closure in tests; it does not rerun a live smoke for every model class.",
+    "Bare human invocations of codex remain unmanaged unless they enter through codex-router/codex-cli-host."
+  ],
+  "notes": [
+    "No raw task prompt or full live argv is recorded in this artifact.",
+    "VCPChat line remained paused."
+  ]
+}

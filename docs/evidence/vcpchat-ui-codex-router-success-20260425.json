@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "vcpchat-ui-codex-router-success.v1",
+  "generatedAt": "2026-04-25T17:52:00+08:00",
+  "workspace": "A:/codex-router",
+  "targetHost": "A:/VCP/VCPChat_native_host",
+  "mode": "validation",
+  "risk": "low",
+  "trigger": "After the codex-router root discovery fix and VCPChat restart, the user resent the /codex-router UI command.",
+  "userObservedUiResult": "Codex Router task success.",
+  "runtimeState": {
+    "vcpchatPid": 15704,
+    "listening": "0.0.0.0:15974"
+  },
+  "validatedPrerequisites": [
+    {
+      "evidence": "A:/codex-router/docs/evidence/vcpchat-codex-router-root-discovery-fix-20260425.json",
+      "summary": "Default router root resolves to A:/codex-router and policy loading succeeds with policyVersion 2026-04-23.desktop-first.v1.1."
+    },
+    {
+      "evidence": "A:/codex-router/docs/evidence/vcpchat-explicit-codex-task-entry-implementation-20260425.json",
+      "summary": "VCPChat recognizes /codex-router and /codex-task prefixes and calls window.codexRouterHostClient.run(task)."
+    },
+    {
+      "evidence": "A:/codex-router/docs/evidence/vcpchat-port-rebind-20260425.json",
+      "summary": "VCPChat distributed server was moved to port 15974."
+    }
+  ],
+  "interpretation": "The UI toast is emitted only after the renderer command path receives a non-error response from window.codexRouterHostClient.run(task). This confirms the explicit VCPChat Codex Router command path is live and the earlier A:/VCP/codex-router policy path error is fixed.",
+  "externalArtifactsObserved": {
+    "newCodexRouterEvidenceFile": false,
+    "newCodexMemoryCheckpointFromUiCommand": false,
+    "reason": "The current renderer implementation stores the last result in window.__lastCodexRouterHostRun and shows a toast; it does not persist the UI command result to disk by default."
+  },
+  "acceptance": {
+    "ordinaryChatNotHijacked": true,
+    "explicitCodexRouterUiPathLive": true,
+    "policyConfigEntryMissingFixed": true,
+    "desktopRemoteHttpCodexRouterHostPath": "not_validated; HTTP DesktopRemote normalizer still rejects CodexRouterHost separately"
+  },
+  "nextRecommendedGate": "Add optional audit/evidence persistence for UI Codex Router command results, or extend the DesktopRemote HTTP normalizer to accept CodexRouterHost if HTTP-based acceptance is required.",
+  "secrets": {
+    "printed": false,
+    "modified": false
+  }
+}

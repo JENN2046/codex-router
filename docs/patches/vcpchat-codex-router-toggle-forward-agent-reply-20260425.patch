@@ -1,0 +1,114 @@
+diff --git a/renderer.js b/renderer.js
+--- a/renderer.js
++++ b/renderer.js
+@@ -287,8 +287,10 @@
+         constraints: {},
+         hints: {
++            ...(mode === 'toggle-mode' ? { taskClassHint: 'read_only' } : {}),
+             riskHints: [],
+             tags: ['vcpchat', 'codex-router', mode]
+         }
+     };
+ }
+@@ -440,6 +442,25 @@
+     return lines.join('\n');
+ }
+ 
++function getCodexRouterExecutionStatus(result) {
++    const payload = getCodexRouterResultPayload(result);
++    const executionResult = getCodexRouterExecutionResult(payload);
++    const decisionResult = getCodexRouterDecisionResult(payload);
++    return executionResult.status
++        || payload.executionStatus
++        || payload.execution?.status
++        || payload.status
++        || decisionResult.status
++        || result?.status
++        || 'completed';
++}
++
++function isCodexRouterRunAllowedForAgent(result) {
++    const payload = getCodexRouterResultPayload(result);
++    const executionStatus = String(getCodexRouterExecutionStatus(result)).toLowerCase();
++    const blockingReasons = payload.blockingReasons || getCodexRouterDecisionResult(payload).blockingReasons || getCodexRouterExecutionResult(payload).blockingReasons || [];
++    return !['not_ready', 'failed', 'blocked', 'error'].includes(executionStatus) && (!Array.isArray(blockingReasons) || blockingReasons.length === 0);
++}
++
+ async function saveCurrentCodexRouterVisibleHistory() {
+@@ -530,11 +551,13 @@
+     let task = null;
+     const thinkingMessageId = `codex_router_thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
++    const shouldForwardToAgent = isToggleModeSend;
++    const shouldRenderRouterCommand = Boolean(parsed);
+ 
+     try {
+-        const userMessage = {
++        if (shouldRenderRouterCommand) {
++            const userMessage = {
+             role: 'user',
+             name: globalSettings.userName || '用户',
+             content: visibleUserContent,
+             timestamp: Date.now(),
+@@ -542,9 +565,11 @@
+             attachments: []
+         };
+-        await appendCodexRouterVisibleMessage(userMessage);
++            await appendCodexRouterVisibleMessage(userMessage);
++        }
+ 
+-        await appendCodexRouterVisibleMessage({
++        if (shouldRenderRouterCommand) {
++            await appendCodexRouterVisibleMessage({
+             role: 'assistant',
+             name: 'Codex Router',
+             content: '正在通过 Codex Router 执行受治理任务...',
+@@ -553,7 +578,8 @@
+             isThinking: true,
+             finishReason: 'running'
+         }, { persist: false });
++        }
+ 
+         task = createVcpChatCodexRouterTask(prompt, parsed ? 'explicit-command' : 'toggle-mode');
+@@ -566,16 +592,26 @@
+-        const executionStatus =
+-            result?.result?.executionStatus
+-            || result?.result?.execution?.status
+-            || result?.result?.status
+-            || result?.status
+-            || 'completed';
++        const executionStatus = getCodexRouterExecutionStatus(result);
++        const routerSummaryMessage = {
++            role: 'assistant',
++            name: 'Codex Router',
++            content: buildCodexRouterVisibleReply(result, task),
++            timestamp: Date.now(),
++            id: `msg_${Date.now()}_assistant_codex_router_${Math.random().toString(36).slice(2, 9)}`,
++            finishReason: executionStatus
++        };
+ 
+-        messageInput.value = '';
+-        window.uiHelperFunctions?.autoResizeTextarea?.(messageInput);
+-        window.messageRenderer?.removeMessageById?.(thinkingMessageId, false);
+-        await appendCodexRouterVisibleMessage({
+-            role: 'assistant',
+-            name: 'Codex Router',
+-            content: buildCodexRouterVisibleReply(result, task),
+-            timestamp: Date.now(),
+-            id: `msg_${Date.now()}_assistant_codex_router_${Math.random().toString(36).slice(2, 9)}`,
+-            finishReason: executionStatus
+-        });
++        window.messageRenderer?.removeMessageById?.(thinkingMessageId, false);
++
++        if (shouldForwardToAgent && isCodexRouterRunAllowedForAgent(result)) {
++            messageInput.value = rawInput;
++            window.uiHelperFunctions?.autoResizeTextarea?.(messageInput);
++            if (window.chatManager && typeof window.chatManager.handleSendMessage === 'function') {
++                await window.chatManager.handleSendMessage();
++            }
++            await appendCodexRouterVisibleMessage(routerSummaryMessage);
++        } else {
++            messageInput.value = '';
++            window.uiHelperFunctions?.autoResizeTextarea?.(messageInput);
++            await appendCodexRouterVisibleMessage(routerSummaryMessage);
++        }
+         notifyCodexRouterCommand(`Codex Router 任务${formatCodexRouterExecutionStatus(executionStatus)}。`, 'success');

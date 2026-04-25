@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "codex-cli-model-check-command-implementation-evidence.v1",
+  "generatedAt": "2026-04-25T19:56:33.4531351+08:00",
+  "workspace": "A:/codex-router",
+  "status": "passed",
+  "targetArea": "codex-cli-host",
+  "changedFiles": [
+    "package.json",
+    "tsconfig.json",
+    "scripts/check-codex-cli-models.ts",
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md",
+    "docs/evidence/codex-cli-model-check-command-smoke-20260425.json",
+    "docs/evidence/codex-cli-model-check-command-implementation-20260425.json"
+  ],
+  "command": "npm run model:check",
+  "defaultEvidencePath": "docs/evidence/codex-cli-model-check-latest.json",
+  "implementedBehavior": [
+    "Added an explicit model:check npm script for operator-triggered official model catalog checks.",
+    "The command reads OPENAI_API_KEY, optional OPENAI_BASE_URL, CODEX_CLI_MODEL_CHECK_MODE, and CODEX_CLI_MODEL_CHECK_EVIDENCE_PATH.",
+    "Strict mode treats unavailable catalog access or model policy drift as blocking.",
+    "Warn mode records the same evidence but does not block when catalog access is unavailable.",
+    "Evidence records sanitized base URL metadata and apiKeyConfigured, but not raw API keys, Authorization headers, or raw request headers."
+  ],
+  "libraryFunctions": [
+    "createCodexCliModelCheckEvidence",
+    "writeCodexCliModelCheckEvidenceFile",
+    "runAndWriteCodexCliModelCheckEvidence"
+  ],
+  "offlineCommandSmoke": {
+    "command": "OPENAI_API_KEY empty; CODEX_CLI_MODEL_CHECK_MODE=warn; npm run model:check",
+    "status": "passed",
+    "exitCode": 0,
+    "evidencePath": "docs/evidence/codex-cli-model-check-command-smoke-20260425.json",
+    "resultStatus": "unavailable",
+    "warning": "openai_api_key_missing",
+    "liveOpenAiRequestExecuted": false
+  },
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "status": "passed",
+      "tests": {
+        "passed": 39,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run model:check",
+      "status": "passed",
+      "mode": "warn",
+      "apiKeyConfigured": false
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "tests": {
+        "passed": 181,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    }
+  ],
+  "limitations": [
+    "No live OpenAI /models request was executed in this implementation validation.",
+    "A live strict catalog acceptance run still requires OPENAI_API_KEY and explicit operator intent.",
+    "This command is the manual operator check; host startup wiring can reuse the same library functions in a later integration step."
+  ],
+  "vcpchatLine": "paused"
+}

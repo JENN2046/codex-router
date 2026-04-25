@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+  "generatedAt": "2026-04-25T12:15:08.100Z",
+  "host": "Codex CLI model probe",
+  "source": "cli",
+  "mode": "strict",
+  "status": "passed",
+  "model": "gpt-5.4-mini",
+  "cli": {
+    "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
+    "sandbox": "read-only",
+    "approvalPolicy": "never",
+    "usesJson": true,
+    "skipGitRepoCheck": true,
+    "ephemeral": true,
+    "workdir": "A:\\codex-router"
+  },
+  "run": {
+    "exitCode": 0,
+    "eventCount": 16,
+    "parseErrorCount": 0,
+    "timedOut": false,
+    "killed": false,
+    "warnings": [],
+    "blockingReasons": []
+  },
+  "warnings": [],
+  "blockingReasons": []
+}

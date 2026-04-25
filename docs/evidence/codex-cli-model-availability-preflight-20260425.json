@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "codex-cli-model-availability-preflight-evidence.v1",
+  "generatedAt": "2026-04-25T19:45:40.2345991+08:00",
+  "workspace": "A:/codex-router",
+  "status": "passed",
+  "targetArea": "codex-cli-host",
+  "changedFiles": [
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md",
+    "docs/evidence/codex-cli-model-availability-preflight-20260425.json"
+  ],
+  "implementedFunctions": [
+    "checkCodexCliModelCatalogAtStartup",
+    "checkCodexCliModelAvailability",
+    "checkCodexCliExecPlanModelAvailability"
+  ],
+  "runnerOptions": [
+    "modelCatalog",
+    "requireModelCatalog",
+    "modelCatalogKnownModels",
+    "modelCatalogRelevance"
+  ],
+  "behavior": [
+    "Host startup can fetch the official OpenAI model catalog once and keep it as a reusable runtime guard input.",
+    "runCodexCliExecPlan checks the selected plan.model against a supplied modelCatalog before spawning Codex CLI.",
+    "If requireModelCatalog is true and no catalog is supplied, execution is blocked with codex_cli_model_catalog_required before spawn.",
+    "If the selected model is absent from the supplied catalog, execution is blocked with codex_cli_model_unavailable:<model> before spawn.",
+    "Successful runs include modelAvailability evidence in the run result."
+  ],
+  "coveredScenarios": [
+    {
+      "name": "startup_catalog_check",
+      "result": "fetch wrapper is called once and returns a reusable startup catalog check"
+    },
+    {
+      "name": "model_availability",
+      "result": "available, missing, and required-catalog states are reported"
+    },
+    {
+      "name": "pre_spawn_runner_gate",
+      "result": "runner spawns only when the selected model is present in the supplied catalog"
+    }
+  ],
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "status": "passed",
+      "tests": {
+        "passed": 36,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "tests": {
+        "passed": 178,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    }
+  ],
+  "limitations": [
+    "No live OpenAI /models request was executed for this evidence file.",
+    "No API key or Authorization header value is recorded.",
+    "The feature is exposed as library-level startup and pre-run gates; a separate CLI command can be added for operator-triggered checks."
+  ],
+  "vcpchatLine": "paused"
+}

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "vcpchat-codex-router-visible-reply-evidence.v1",
+  "generatedAt": "2026-04-25T18:20:39.9842290+08:00",
+  "workspace": "A:/codex-router",
+  "targetWorkspace": "A:/VCP/VCPChat_native_host",
+  "targetArea": "VCPChat renderer UI / Codex Router visible results",
+  "issueReported": "When Codex Router mode was enabled, the user could not see the information/reply produced by the routed task.",
+  "preImplementationObservation": {
+    "appDataCodexRouterRecentFiles": "No new AppData/codexRouter runtime artifact after the recent UI send.",
+    "chatHistoryRecentWrites": "The visible chat history file had recent ordinary VCPChat messages but no Codex Router result summary from the toggle path."
+  },
+  "implemented": {
+    "rendererFile": "A:/VCP/VCPChat_native_host/renderer.js",
+    "behavior": [
+      "Router-mode and prefixed Router sends now render the user's task into the active chat.",
+      "A transient Codex Router thinking message is shown while the host run is in flight.",
+      "On success, the transient thinking message is replaced by an assistant message named Codex Router.",
+      "The assistant message contains a sanitized Chinese Markdown summary: status, policy version, model, execution profile, tool access, approval requirement, task id, planned primitives, executed steps, and blocking reasons when present.",
+      "On failure, a Codex Router failure message is rendered in the chat.",
+      "Visible non-thinking Router messages are appended to currentChatHistory and saved to the current topic history file, making them monitorable from AppData/UserData/.../history.json."
+    ],
+    "secretSafety": "The chat summary intentionally avoids raw execution output and stores only governance/result metadata."
+  },
+  "patch": "A:/codex-router/docs/patches/vcpchat-codex-router-visible-reply-20260425.patch",
+  "validation": {
+    "nodeCheckRenderer": "passed",
+    "gitDiffCheckRenderer": "passed",
+    "runtimeRestart": {
+      "port": 15974,
+      "netstat": "0.0.0.0:15974 LISTENING PID 20688"
+    }
+  },
+  "notValidated": [
+    "No automated Electron send/click test was run.",
+    "User should send a new Codex Router task from the live window; after that, history.json can be inspected for the Codex Router summary."
+  ]
+}

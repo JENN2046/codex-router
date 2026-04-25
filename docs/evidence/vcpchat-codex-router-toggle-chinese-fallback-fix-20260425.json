@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "vcpchat-codex-router-toggle-fix-evidence.v1",
+  "generatedAt": "2026-04-25T18:10:43.6786369+08:00",
+  "workspace": "A:/codex-router",
+  "targetWorkspace": "A:/VCP/VCPChat_native_host",
+  "targetArea": "VCPChat renderer UI / Codex Router toggle",
+  "issueReported": [
+    "Codex Router UI prompts should be Chinese.",
+    "When the toggle is not visibly enabled, ordinary messages could not be sent."
+  ],
+  "rootCause": "The toggle mode decision used persisted codexRouterModeEnabled state directly. If localStorage retained enabled while the button was visually off/unavailable, ordinary sends could still be captured by the Router path.",
+  "fix": {
+    "activeRouterModeRequires": [
+      "persisted user toggle enabled",
+      "codexRouterHostClient.run available in the current window"
+    ],
+    "fallbackBehavior": "If the current message is not explicitly prefixed and Router host is unavailable, the persisted toggle is cleared and ordinary VCPChat send continues.",
+    "explicitPrefixBehavior": "/codex-router and /codex-task still intentionally require the Router host and report an error if unavailable.",
+    "localization": "Toggle title/toast/error/success messages are now Chinese."
+  },
+  "changedFiles": [
+    "A:/VCP/VCPChat_native_host/main.html",
+    "A:/VCP/VCPChat_native_host/renderer.js"
+  ],
+  "patch": "A:/codex-router/docs/patches/vcpchat-codex-router-toggle-chinese-and-fallback-fix-20260425.patch",
+  "validation": {
+    "nodeCheckRenderer": "passed",
+    "gitDiffCheck": "passed for main.html renderer.js styles/components.css",
+    "runtimeRestart": {
+      "port": 15974,
+      "netstat": "0.0.0.0:15974 LISTENING PID 26432"
+    }
+  },
+  "notValidated": [
+    "No automated Electron click/send test was run; user should retry ordinary send with the toggle off in the live window."
+  ],
+  "secrets": {
+    "rawEnvValuesStored": false,
+    "tokensStored": false
+  }
+}

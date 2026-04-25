@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+  "generatedAt": "2026-04-25T14:20:00.000Z",
+  "host": "Codex CLI",
+  "repoRoot": "A:/codex-router",
+  "status": "passed",
+  "taskId": "codex-cli-workspace-write-smoke",
+  "requiredConfirmation": "ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE",
+  "preflight": {
+    "status": "ready",
+    "blockingReasons": []
+  },
+  "approvalPacket": {
+    "status": "ready",
+    "risk": "medium",
+    "blockers": [],
+    "targetFiles": [
+      "docs/evidence/codex-cli-workspace-write-smoke.txt"
+    ],
+    "commandPreview": "\"C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe\" -a on-request exec --json --sandbox workspace-write --cd A:/codex-router --skip-git-repo-check --ephemeral \"<task-envelope-prompt omitted>\""
+  },
+  "plan": {
+    "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
+    "sandbox": "workspace-write",
+    "approvalPolicy": "on-request",
+    "workdir": "A:/codex-router",
+    "usesJson": true,
+    "skipGitRepoCheck": true,
+    "ephemeral": true,
+    "warnings": []
+  },
+  "run": {
+    "exitCode": 0,
+    "executionStatus": "completed",
+    "eventCount": 12,
+    "parseErrorCount": 0,
+    "warnings": [],
+    "blockingReasons": [],
+    "timedOut": false,
+    "killed": false
+  },
+  "summary": {
+    "passed": true,
+    "blockingReasons": [],
+    "warnings": []
+  },
+  "notes": [
+    "live workspace-write smoke approved by operator",
+    "codex.exe direct entry"
+  ]
+}

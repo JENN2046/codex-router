@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "codex-router-effectiveness-smoke.v1",
+  "generatedAt": "2026-04-25T14:58:00+08:00",
+  "workspace": "A:/codex-router",
+  "mode": "validation",
+  "risk": "low",
+  "git": {
+    "isRepository": false,
+    "note": "A:/codex-router is not a Git repository in this workspace."
+  },
+  "task": {
+    "taskId": "codex-router-effectiveness-readonly-20260425",
+    "requestedAction": "Inspect routing-policy.yaml and report which policy version is active. Do not modify files.",
+    "taskClassHint": "read_only",
+    "targetFiles": [
+      "routing-policy.yaml"
+    ]
+  },
+  "routedPath": {
+    "entrypoint": "runDesktopTask -> runDesktopDecision -> routeTask -> createDesktopExecutionPlan -> host bridge primitives",
+    "decisionStatus": "ready",
+    "executionStatus": "completed",
+    "policyVersion": "2026-04-23.desktop-first.v1.1",
+    "selectedModel": "gpt-5.4-mini",
+    "toolAccess": "read_only",
+    "executionProfile": "recon-only",
+    "reasoningEffort": "low",
+    "approvalRequired": false,
+    "approvalReasons": [],
+    "preflightOk": true,
+    "blockingReasons": [],
+    "planNotes": [
+      "model:gpt-5.4-mini",
+      "tool_access:read_only",
+      "approval:not_required"
+    ],
+    "plannedPrimitives": [
+      {
+        "primitive": "read_thread_terminal",
+        "reason": "read current thread context before dispatch"
+      },
+      {
+        "primitive": "spawn_agent",
+        "reason": "parallel read-only exploration is allowed"
+      },
+      {
+        "primitive": "wait_agent",
+        "reason": "collect explorer output before final synthesis"
+      }
+    ],
+    "bridgeCalls": [
+      {
+        "primitive": "read_thread_terminal",
+        "taskId": "codex-router-effectiveness-readonly-20260425",
+        "reason": "read current thread context before dispatch",
+        "selectedModel": "gpt-5.4-mini",
+        "toolAccess": "read_only",
+        "executionProfile": "recon-only"
+      },
+      {
+        "primitive": "spawn_agent",
+        "taskId": "codex-router-effectiveness-readonly-20260425",
+        "reason": "parallel read-only exploration is allowed",
+        "selectedModel": "gpt-5.4-mini",
+        "toolAccess": "read_only",
+        "executionProfile": "recon-only"
+      },
+      {
+        "primitive": "wait_agent",
+        "taskId": "codex-router-effectiveness-readonly-20260425",
+        "reason": "collect explorer output before final synthesis",
+        "selectedModel": "gpt-5.4-mini",
+        "toolAccess": "read_only",
+        "executionProfile": "recon-only"
+      }
+    ],
+    "auditEventTypes": [
+      "task_created",
+      "intent_classified",
+      "routing_decided",
+      "preflight_passed",
+      "runner_ready",
+      "runner_dispatched",
+      "primitive_executed",
+      "primitive_executed",
+      "primitive_executed"
+    ]
+  },
+  "directCliBaseline": {
+    "entrypoint": "codex exec invoked directly with equivalent read-only prompt",
+    "executed": false,
+    "reasonNotExecuted": "This local smoke isolates router effectiveness from live model/network availability. The command shape is recorded as the bypass baseline.",
+    "commandPreview": "codex -a never exec --json --sandbox read-only --cd A:/codex-router --skip-git-repo-check --ephemeral <prompt omitted>",
+    "sandbox": "read-only",
+    "approvalPolicy": "never",
+    "usesJson": true,
+    "validationBlockers": [],
+    "routerMetadataPresent": false,
+    "notes": [
+      "Direct CLI can be made safe by flags, but it does not automatically consume routing-policy.yaml.",
+      "Direct CLI has no router approval decision, no desktop execution plan, and no host bridge primitive sequence unless wrapped by codex-router."
+    ]
+  },
+  "comparison": {
+    "routedHasPolicyVersion": true,
+    "routedHasSelectedModel": true,
+    "routedHasToolAccess": true,
+    "routedHasDesktopPlan": true,
+    "routedInvokedBridge": true,
+    "directHasRouterDecision": false,
+    "directHasBridgeCalls": false,
+    "directCanBypassRouter": true
+  },
+  "effectiveness": {
+    "routerOnPath": true,
+    "routerChangedExecutionPosture": true,
+    "directCliIsUnroutedBaseline": true,
+    "forcedGovernance": false,
+    "conclusion": "codex-router is effective only for calls that enter its SDK/host-client path; direct Codex CLI remains a bypass unless a host makes router entry mandatory."
+  },
+  "limits": [
+    "This smoke does not prove Codex Desktop native app uses codex-router internally.",
+    "This smoke does not enforce that every human or host must use codex-router.",
+    "This smoke proves the SDK path is effective when a host enters through runDesktopTask/DesktopHostClient."
+  ],
+  "nextGate": "To prove mandatory governance, wire a real host entry so all Codex CLI/Desktop actions enter codex-router first, then repeat this smoke against that host entry."
+}

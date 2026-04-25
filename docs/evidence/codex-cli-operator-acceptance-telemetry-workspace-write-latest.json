@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "codex-cli-operator-acceptance-telemetry.v1",
+  "generatedAt": "2026-04-25T14:31:54.587Z",
+  "host": "Codex CLI operator acceptance telemetry",
+  "mode": "workspace-write",
+  "model": "gpt-5.4-mini",
+  "summary": {
+    "firstRunStatus": "passed",
+    "secondRunStatus": "passed",
+    "passed": true,
+    "telemetryMessages": [
+      "codex cli model probe cache miss",
+      "codex cli model probe cache hit"
+    ]
+  },
+  "telemetry": [
+    {
+      "level": "info",
+      "message": "codex cli model probe cache miss",
+      "context": {
+        "source": "codex-cli-host",
+        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
+        "cwd": "A:/codex-router",
+        "model": "gpt-5.4-mini",
+        "ttlMs": 300000
+      }
+    },
+    {
+      "level": "info",
+      "message": "codex cli model probe cache hit",
+      "context": {
+        "source": "codex-cli-host",
+        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
+        "cwd": "A:/codex-router",
+        "model": "gpt-5.4-mini",
+        "ttlMs": 300000
+      }
+    }
+  ],
+  "runs": [
+    {
+      "label": "first",
+      "status": "passed",
+      "taskId": "codex-cli-operator-acceptance-telemetry-workspace-write",
+      "plan": {
+        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
+        "sandbox": "workspace-write",
+        "approvalPolicy": "on-request",
+        "model": "gpt-5.4-mini",
+        "workdir": "A:/codex-router",
+        "usesJson": true,
+        "skipGitRepoCheck": true,
+        "ephemeral": true,
+        "warnings": []
+      },
+      "run": {
+        "exitCode": 0,
+        "executionStatus": "completed",
+        "eventCount": 111,
+        "parseErrorCount": 0,
+        "warnings": [],
+        "blockingReasons": [],
+        "timedOut": false,
+        "killed": false
+      },
+      "summary": {
+        "passed": true,
+        "validationBlockers": [],
+        "blockingReasons": [],
+        "telemetryMessages": [
+          "codex cli model probe cache miss"
+        ]
+      }
+    },
+    {
+      "label": "second",
+      "status": "passed",
+      "taskId": "codex-cli-operator-acceptance-telemetry-workspace-write",
+      "plan": {
+        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
+        "sandbox": "workspace-write",
+        "approvalPolicy": "on-request",
+        "model": "gpt-5.4-mini",
+        "workdir": "A:/codex-router",
+        "usesJson": true,
+        "skipGitRepoCheck": true,
+        "ephemeral": true,
+        "warnings": []
+      },
+      "run": {
+        "exitCode": 0,
+        "executionStatus": "completed",
+        "eventCount": 157,
+        "parseErrorCount": 0,
+        "warnings": [],
+        "blockingReasons": [],
+        "timedOut": false,
+        "killed": false
+      },
+      "summary": {
+        "passed": true,
+        "validationBlockers": [],
+        "blockingReasons": [],
+        "telemetryMessages": [
+          "codex cli model probe cache hit"
+        ]
+      }
+    }
+  ]
+}

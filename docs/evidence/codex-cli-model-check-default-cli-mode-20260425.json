@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "codex-cli-model-check-default-cli-mode-evidence.v1",
+  "generatedAt": "2026-04-25T20:07:30.9822478+08:00",
+  "workspace": "A:/codex-router",
+  "status": "passed",
+  "targetArea": "codex-cli-host",
+  "changedFiles": [
+    "scripts/check-codex-cli-models.ts",
+    "packages/codex-cli-host/src/index.ts",
+    "tests/codex-cli-host.test.ts",
+    "docs/codex-cli-host.md",
+    "docs/evidence/codex-cli-model-check-cli-mode-offline-smoke-20260425.json",
+    "docs/evidence/codex-cli-model-check-default-cli-mode-20260425.json"
+  ],
+  "implementedBehavior": [
+    "model:check now defaults to CODEX_CLI_MODEL_CHECK_SOURCE=cli, which uses the logged-in Codex CLI session instead of OPENAI_API_KEY.",
+    "CLI mode runs a read-only codex exec probe with --json, --model <model>, -a never, --skip-git-repo-check, and --ephemeral.",
+    "The default probe model is gpt-5.4-mini and can be overridden with CODEX_CLI_MODEL_CHECK_MODEL.",
+    "Official /models catalog drift checking remains available through CODEX_CLI_MODEL_CHECK_SOURCE=catalog.",
+    "Command output is ASCII to avoid Windows console mojibake while docs and chat can remain localized."
+  ],
+  "newLibraryFunctions": [
+    "createCodexCliModelCliProbeEvidence",
+    "writeCodexCliModelCliProbeEvidenceFile",
+    "runAndWriteCodexCliModelCliProbeEvidence"
+  ],
+  "offlineCommandSmoke": {
+    "command": "CODEX_CLI_MODEL_CHECK_SOURCE=cli; CODEX_CLI_MODEL_CHECK_MODE=warn; CODEX_CLI_MODEL_CHECK_CODEX_COMMAND=codex-cli-does-not-exist; npm run model:check",
+    "status": "passed",
+    "exitCode": 0,
+    "evidencePath": "docs/evidence/codex-cli-model-check-cli-mode-offline-smoke-20260425.json",
+    "resultStatus": "unavailable",
+    "liveOpenAiRequestExecuted": false,
+    "liveCodexCliRequestExecuted": false
+  },
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npx tsx --test tests/codex-cli-host.test.ts",
+      "status": "passed",
+      "tests": {
+        "passed": 42,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run model:check",
+      "status": "passed",
+      "mode": "warn",
+      "source": "cli",
+      "codexCommand": "codex-cli-does-not-exist",
+      "liveRequestExecuted": false
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "tests": {
+        "passed": 184,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    }
+  ],
+  "limitations": [
+    "No live Codex CLI model probe was executed during validation.",
+    "No live OpenAI /models catalog request was executed during validation.",
+    "A real strict CLI probe should be run only with explicit operator approval because it uses the logged-in Codex account."
+  ],
+  "vcpchatLine": "paused"
+}
