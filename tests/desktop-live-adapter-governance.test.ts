@@ -146,6 +146,7 @@ test("governance: handler returning ok:false appends anomaly, re-scores risk, an
   });
 
   assert.equal(execution.status, "failed");
+  assert.equal(execution.governance, undefined);
   assert.ok(govUpdates.length >= 1, "onGovernanceUpdate should be called for ok:false handler");
 
   const firstUpdate = govUpdates[0]!;
@@ -410,23 +411,29 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
     now: () => "2026-04-28T12:00:00.000Z"
   });
 
-  // With strike 3 in a high risk state, step_back or abort should block execution
+  // With strike 3, the adapter should stop and return host-consumable recovery data.
   const stepBackUpdates = govUpdates.filter(
     u => u.strategy.actionFamily === "step_back" || u.strategy.actionFamily === "abort"
   );
 
-  // Either the execution was blocked by arbitration_required,
-  // or the strategy was re-routed to step_back/abort
-  const wasBlocked = execution.blockingReasons.some(
-    r => r === "governance_step_back_triggered" || r === "arbitration_required"
+  assert.equal(execution.status, "failed");
+  assert.ok(execution.blockingReasons.includes("governance_step_back_triggered"));
+  assert.ok(execution.blockingReasons.includes("arbitration_required"));
+  assert.ok(stepBackUpdates.length > 0, "strategy should be re-routed to recovery");
+  assert.ok(execution.governance, "execution result should expose governance recovery data");
+  assert.equal(execution.governance?.recoveryRequired, true);
+  assert.equal(execution.governance?.lockdown, true);
+  assert.equal(execution.governance?.state.taskId, ready.task.taskId);
+  assert.equal(execution.governance?.state.anomalies.at(-1)?.strikeNumber, 3);
+  assert.equal(execution.governance?.strategyDecision.actionFamily, "step_back");
+  assert.equal(execution.governance?.arbitrationPacket.trigger, "third_anomaly");
+  assert.equal(execution.governance?.arbitrationPacket.probabilityPredictionAllowed, false);
+  assert.deepEqual(
+    execution.governance?.availableRecoveryActions,
+    execution.governance?.arbitrationPacket.availableActions
   );
-  const wasRerouted = stepBackUpdates.length > 0;
-
-  assert.ok(
-    wasBlocked || wasRerouted,
-    `expected step_back trigger: blocked=${wasBlocked}, rerouted=${wasRerouted}, ` +
-    `blockingReasons=[${execution.blockingReasons.join(",")}]`
-  );
+  assert.ok(execution.governance?.availableRecoveryActions.includes("rollback"));
+  assert.ok(execution.governance?.availableRecoveryActions.includes("abort"));
 });
 
 // ── 21.1.7: governance is not called when no governanceState provided ───────

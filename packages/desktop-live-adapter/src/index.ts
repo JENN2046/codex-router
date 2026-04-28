@@ -35,7 +35,11 @@ import {
   type GovernanceState
 } from "../../state-manager/src/index.js";
 import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
-import { shouldLockdown } from "../../recovery-control/src/index.js";
+import {
+  shouldLockdown,
+  type ArbitrationPacket,
+  type RecoveryAction
+} from "../../recovery-control/src/index.js";
 import {
   applyExecutionFailureToGovernanceState
 } from "../../governance-failure-reducer/src/index.js";
@@ -127,6 +131,16 @@ export interface DesktopLiveExecutionResult {
   steps: PrimitiveExecutionResult[];
   blockingReasons: string[];
   auditEvents: AuditEvent[];
+  governance?: DesktopLiveExecutionGovernance;
+}
+
+export interface DesktopLiveExecutionGovernance {
+  state: GovernanceState;
+  strategyDecision: StrategyDecisionV2;
+  arbitrationPacket: ArbitrationPacket;
+  availableRecoveryActions: RecoveryAction[];
+  recoveryRequired: boolean;
+  lockdown: boolean;
 }
 
 export interface RunDesktopTaskInput extends DesktopDecisionRunnerInput {
@@ -309,6 +323,40 @@ export function createRecordingHostBridge(
   };
 }
 
+function createRecoveryGovernanceIfRequired(input: {
+  state: GovernanceState;
+  strategyDecision: StrategyDecisionV2;
+  arbitrationPacket: ArbitrationPacket;
+}): DesktopLiveExecutionGovernance | undefined {
+  if (
+    input.strategyDecision.actionFamily !== "step_back" &&
+    input.strategyDecision.actionFamily !== "abort"
+  ) {
+    return undefined;
+  }
+
+  return {
+    state: input.state,
+    strategyDecision: input.strategyDecision,
+    arbitrationPacket: input.arbitrationPacket,
+    availableRecoveryActions: [...input.arbitrationPacket.availableActions],
+    recoveryRequired: true,
+    lockdown: shouldLockdown(input.arbitrationPacket) ||
+      input.strategyDecision.actionFamily === "abort"
+  };
+}
+
+function createGovernanceBlockingReasons(
+  governance: DesktopLiveExecutionGovernance
+): string[] {
+  return [
+    governance.strategyDecision.actionFamily === "abort"
+      ? "governance_abort_triggered"
+      : "governance_step_back_triggered",
+    "arbitration_required"
+  ];
+}
+
 export async function executeDesktopPlan(
   input: DesktopLiveAdapterInput
 ): Promise<DesktopLiveExecutionResult> {
@@ -419,18 +467,21 @@ export async function executeDesktopPlan(
           await input.onGovernanceUpdate(governanceState, strategyDecision);
         }
 
-        // Check for lockdown/step_back
-        if (strategyDecision.actionFamily === "step_back" || strategyDecision.actionFamily === "abort") {
-          if (shouldLockdown(failureResult.arbitrationPacket)) {
-            return {
-              status: "failed",
-              taskId: result.task.taskId,
-              plan: result.executionPlan,
-              steps,
-              blockingReasons: ["governance_step_back_triggered", "arbitration_required"],
-              auditEvents
-            };
-          }
+        const governance = createRecoveryGovernanceIfRequired({
+          state: governanceState,
+          strategyDecision,
+          arbitrationPacket: failureResult.arbitrationPacket
+        });
+        if (governance) {
+          return {
+            status: "failed",
+            taskId: result.task.taskId,
+            plan: result.executionPlan,
+            steps,
+            blockingReasons: createGovernanceBlockingReasons(governance),
+            auditEvents,
+            governance
+          };
         }
       }
 
@@ -517,18 +568,21 @@ export async function executeDesktopPlan(
             await input.onGovernanceUpdate(governanceState, strategyDecision);
           }
 
-          // Check for lockdown/step_back
-          if (strategyDecision.actionFamily === "step_back" || strategyDecision.actionFamily === "abort") {
-            if (shouldLockdown(failureResult.arbitrationPacket)) {
-              return {
-                status: "failed",
-                taskId: result.task.taskId,
-                plan: result.executionPlan,
-                steps,
-                blockingReasons: ["governance_step_back_triggered", "arbitration_required"],
-                auditEvents
-              };
-            }
+          const governance = createRecoveryGovernanceIfRequired({
+            state: governanceState,
+            strategyDecision,
+            arbitrationPacket: failureResult.arbitrationPacket
+          });
+          if (governance) {
+            return {
+              status: "failed",
+              taskId: result.task.taskId,
+              plan: result.executionPlan,
+              steps,
+              blockingReasons: createGovernanceBlockingReasons(governance),
+              auditEvents,
+              governance
+            };
           }
         }
 
@@ -643,18 +697,21 @@ export async function executeDesktopPlan(
             await input.onGovernanceUpdate(governanceState, strategyDecision);
           }
 
-          // Check for lockdown/step_back
-          if (strategyDecision.actionFamily === "step_back" || strategyDecision.actionFamily === "abort") {
-            if (shouldLockdown(failureResult.arbitrationPacket)) {
-              return {
-                status: "failed",
-                taskId: result.task.taskId,
-                plan: result.executionPlan,
-                steps,
-                blockingReasons: ["governance_step_back_triggered", "arbitration_required"],
-                auditEvents
-              };
-            }
+          const governance = createRecoveryGovernanceIfRequired({
+            state: governanceState,
+            strategyDecision,
+            arbitrationPacket: failureResult.arbitrationPacket
+          });
+          if (governance) {
+            return {
+              status: "failed",
+              taskId: result.task.taskId,
+              plan: result.executionPlan,
+              steps,
+              blockingReasons: createGovernanceBlockingReasons(governance),
+              auditEvents,
+              governance
+            };
           }
         }
 
