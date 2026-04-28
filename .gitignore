@@ -8,3 +8,13 @@ Thumbs.db
 .env
 .env.*
 config.env
+
+# Local state
+.codex-home/
+.omc/
+
+# Test temporary directories
+.test-*
+
+# Temporary files
+tmp-*

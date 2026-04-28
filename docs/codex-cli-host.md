@@ -440,6 +440,30 @@ clears the in-memory probe cache, runs the bounded workspace-write smoke twice,
 captures telemetry, and writes a combined artifact to
 `docs/evidence/codex-cli-workspace-write-smoke-telemetry-latest.json`.
 
+## Governance V2 and Recovery
+
+`runCodexCliExecPlan()` now carries a V2 governance bundle through execution.
+The bundle includes:
+
+- `state`: phase, strategy, risk score, anomaly ledger, and approvals.
+- `observation`: parsed signals (blocked/failed/degraded context) and status.
+- `strategy`: `continue`, `verify`, `lockdown`, `step_back`, or `abort`.
+- `ledgerEntry`: checkpoint state and reversible/irreversible action tracking.
+- optional `arbitrationPacket`: machine review packet when escalation is needed.
+
+The step policy is enforced on anomaly count:
+
+- anomaly count `1`: strategy escalates to `verify`.
+- anomaly count `2`: strategy escalates to `lockdown`.
+- anomaly count `3`: strategy enters `step_back` and execution is hard-blocked.
+
+In this release track, write sandbox is disallowed in `lockdown` and `step_back`
+to keep workspace-write recovery bounded. If `step_back` is active, execution
+helpers return `codex_cli_governance_step_back_active` before process spawn.
+
+Evidence serializers expose compact governance metadata so acceptance and smoke
+artifacts can be checked without leaking full governance internals.
+
 ## Operator Acceptance
 
 `runCodexCliOperatorAcceptance()` is the formal operator-task acceptance helper
@@ -479,6 +503,19 @@ $env:CODEX_CLI_OPERATOR_ACCEPTANCE_ALLOW_WRITE="true"
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_CONFIRMATION="ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE"
 npm run operator:acceptance
 ```
+
+For manual release-only acceptance, command wrappers are available:
+
+```powershell
+npm run operator:acceptance:readonly
+npm run operator:acceptance:release
+```
+
+The release wrapper pre-fills:
+
+- `CODEX_CLI_OPERATOR_ACCEPTANCE_MODE=workspace-write`
+- `CODEX_CLI_OPERATOR_ACCEPTANCE_ALLOW_WRITE=true`
+- `CODEX_CLI_OPERATOR_ACCEPTANCE_CONFIRMATION=ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE`
 
 The persisted evidence omits the raw prompt and full argv, records the task
 summary, target files, model, sandbox, approval policy, validation blockers,
@@ -537,38 +574,34 @@ This matters because local `codex --help` commands have emitted warnings about
 stale `~\.codex\tmp\arg0` cleanup being denied. That should be surfaced as
 diagnostic evidence, not automatically treated as a failed host smoke.
 
-## Next Step
+## Verification Snapshot
 
-The first explicit live read-only smoke was attempted on `2026-04-25` with
-native Codex CLI `0.125.0` and evidence recorded at:
+The CLI host line is now implemented and documented as a guarded, split
+adapter:
 
-- `docs/evidence/codex-cli-readonly-smoke-20260425.json`
+- `index.ts` remains a façade and re-exports `index-impl.ts`.
+- governance V2 lives in `governance-v2.ts`.
+- export-lock fixtures cover the public host surface and the governance-v2
+  surface.
+- operator acceptance wrappers exist for read-only and release-only
+  workspace-write runs.
+- workspace-write remains explicitly gated behind the
+  `ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE` confirmation path.
 
-Current result after the stdin and timeout-window fixes:
+Validated on `2026-04-27`:
 
-- status: `passed`
-- blocking reasons: none
-- event count: `56`
-- parse error count: `0`
-- timeout: `false`
+- `npm run build` passed.
+- `npm test` passed, `202/202`.
+- the documented `operator:acceptance` and smoke wrappers were exercised live:
+  all lanes passed (read-only, workspace-write, telemetry miss→hit).
+- previous `spawn EPERM` blocker is resolved in this environment; the default
+  spawner now falls back to `shell: true` when the native `.exe` spawn hits
+  EPERM on Windows.
 
-The CLI can be started outside the command sandbox, the adapter matches the
-current CLI argument placement (`codex -a never exec ...`), and the official
-route now has passing read-only live smoke evidence. Write-capable CLI execution
-still remains behind the explicit `allowWriteSandbox` gate and normal project
-approval rules.
+Current evidence files:
 
-A workspace-write preflight artifact was recorded at:
-
-- `docs/evidence/codex-cli-workspace-write-smoke-preflight-20260425.json`
-- `docs/evidence/codex-cli-workspace-write-smoke-approval-packet-20260425.json`
-
-Current preflight result:
-
-- status: `blocked`
-- blocking reasons:
-  - `codex_cli_write_sandbox_requires_explicit_allowance`
-  - `codex_cli_workspace_write_smoke_requires_confirmation`
-
-This is the expected posture until the operator explicitly approves a bounded
-workspace-write live smoke.
+- `docs/evidence/codex-cli-operator-acceptance-readonly-latest.json`
+- `docs/evidence/codex-cli-operator-acceptance-workspace-write-latest.json`
+- `docs/evidence/codex-cli-operator-acceptance-telemetry-readonly-latest.json`
+- `docs/evidence/codex-cli-readonly-smoke-telemetry-latest.json`
+- `docs/evidence/codex-cli-workspace-write-smoke-telemetry-latest.json`

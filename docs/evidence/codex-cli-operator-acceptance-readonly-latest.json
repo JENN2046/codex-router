@@ -1,6 +1,6 @@
 {
   "schemaVersion": "codex-cli-operator-acceptance-evidence.v1",
-  "generatedAt": "2026-04-25T14:03:27.753Z",
+  "generatedAt": "2026-04-27T09:36:58.588Z",
   "host": "Codex CLI operator acceptance",
   "repoRoot": "A:/codex-router",
   "status": "passed",
@@ -30,7 +30,7 @@
   "run": {
     "exitCode": 0,
     "executionStatus": "completed",
-    "eventCount": 83,
+    "eventCount": 67,
     "parseErrorCount": 0,
     "warnings": [],
     "blockingReasons": [],
@@ -57,6 +57,15 @@
     "telemetryMessages": [
       "codex cli model probe cache miss"
     ]
+  },
+  "governance": {
+    "schemaVersion": "codex-cli-governance-evidence-summary.v1",
+    "action": "continue",
+    "riskLevel": "low",
+    "anomalyCount": 0,
+    "observationStatus": "succeeded",
+    "observationSignals": [],
+    "ledgerId": "codex-cli-operator-acceptance-readonly:codex-cli-ledger:2026-04-27T09:36:58.588Z"
   },
   "notes": [
     "mode=read-only",

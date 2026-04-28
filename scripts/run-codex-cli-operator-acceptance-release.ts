@@ -1,0 +1,12 @@
+import {
+  CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
+  DEFAULT_CODEX_CLI_MODEL_PROBE_MODEL
+} from "../packages/codex-cli-host/src/index.js";
+
+process.env.CODEX_CLI_OPERATOR_ACCEPTANCE_MODE = "workspace-write";
+process.env.CODEX_CLI_OPERATOR_ACCEPTANCE_ALLOW_WRITE = "true";
+process.env.CODEX_CLI_OPERATOR_ACCEPTANCE_CONFIRMATION
+  ??= CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION;
+process.env.CODEX_CLI_OPERATOR_ACCEPTANCE_MODEL ??= DEFAULT_CODEX_CLI_MODEL_PROBE_MODEL;
+
+await import("./run-codex-cli-operator-acceptance.js");

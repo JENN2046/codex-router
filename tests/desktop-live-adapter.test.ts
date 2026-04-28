@@ -12,6 +12,13 @@ import {
   resumeDesktopTask,
   runDesktopTask
 } from "../packages/desktop-live-adapter/src/index.js";
+import {
+  createRecordingExecutionObservationStore,
+  parseExecutionObservation
+} from "../packages/execution-observation/src/index.js";
+import {
+  type GovernanceState
+} from "../packages/state-manager/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
 
@@ -430,4 +437,63 @@ test("resumeDesktopTask fails clearly when resume is required but no checkpoint 
     }),
     /resume_checkpoint_not_found:resume-desktop-task-missing/
   );
+});
+
+test("desktop live adapter emits execution observations when observation bus is provided", async () => {
+  const ready = await createReadyRunnerResult();
+  const observationStore = createRecordingExecutionObservationStore();
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => "thread context",
+      spawn_agent: () => ({ agentId: "agent-1" }),
+      wait_agent: () => ({ status: "completed" })
+    },
+    observationBus: observationStore,
+    now: () => "2026-04-27T00:00:00.000Z"
+  });
+
+  const observations = await observationStore.loadAll();
+
+  assert.equal(execution.status, "completed");
+  assert.ok(observations.length > 0);
+  assert.equal(observations[0]?.taskId, ready.task.taskId);
+});
+
+test("desktop live adapter does not emit observations without observation bus", async () => {
+  const ready = await createReadyRunnerResult();
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => "thread context",
+      spawn_agent: () => ({ agentId: "agent-1" }),
+      wait_agent: () => ({ status: "completed" })
+    },
+    now: () => "2026-04-27T00:00:00.000Z"
+  });
+
+  assert.equal(execution.status, "completed");
+});
+
+test("desktop live adapter triggers governance step_back after three failures", async () => {
+  const ready = await createReadyRunnerResult();
+  const observationStore = createRecordingExecutionObservationStore();
+  let governanceUpdateCount = 0;
+  let lastStrategyAction: string | undefined;
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => { throw new Error("fail1"); },
+      spawn_agent: () => { throw new Error("fail2"); },
+      wait_agent: () => { throw new Error("fail3"); }
+    },
+    observationBus: observationStore,
+    now: () => "2026-04-27T00:00:00.000Z",
+    stopOnFailure: false
+  });
+
+  assert.equal(execution.status, "failed");
 });

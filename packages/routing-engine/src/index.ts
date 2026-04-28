@@ -1,4 +1,5 @@
 import type {
+  HostRoute,
   IntentClassification,
   ModelId,
   ReasoningEffort,
@@ -60,8 +61,20 @@ export function routeTask(
       allowed: profile.allowParallel,
       maxAgents: profile.maxParallelAgents,
       mode: parallelismMode
-    }
+    },
+    hostRoute: resolveHostRoute(taskClass, policy)
   };
+}
+
+function resolveHostRoute(
+  taskClass: IntentClassification["taskClass"],
+  policy: PolicySnapshot
+): HostRoute {
+  const hostRoutes = (policy as { hostRoutes?: Record<string, HostRoute> }).hostRoutes;
+  if (hostRoutes && hostRoutes[taskClass]) {
+    return hostRoutes[taskClass];
+  }
+  return "desktop";
 }
 
 function scoreRisk(

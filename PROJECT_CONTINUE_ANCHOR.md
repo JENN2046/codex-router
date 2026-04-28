@@ -6,14 +6,26 @@ Workspace: `A:\codex-router`
 ## Current Status
 
 This workspace is the `codex-router` SDK and final-host integration preparation
-workspace. It is not currently a Git repository.
+workspace. It is a Git repository on `main`.
 
-Latest validated baseline:
+Latest validated baseline on `2026-04-27`:
 
 - `npm run typecheck` passed
 - `npm run build` passed
-- `npm test` passed
-- `165/165` tests passing
+- `npm test` passed, `202/202` tests passing
+
+Current CLI host line status:
+
+- `packages/codex-cli-host` has the split façade plus internal implementation
+  module.
+- governance V2, ledger, and step-back handling are documented and covered by
+  tests.
+- read-only and release-only workspace-write acceptance wrappers exist.
+- export-lock fixtures for the public host surface and governance-v2 surface
+  have been added.
+- all acceptance and smoke lanes now pass live on `2026-04-27`:
+  read-only, workspace-write, and telemetry (both miss→hit cache cycles).
+  EPERM is no longer blocking in this environment.
 
 Latest read-only source-gate checkpoint on `2026-04-25`:
 
@@ -179,7 +191,9 @@ npm test
 
 ## One-Line Resume Prompt
 
-Continue from the blocked Desktop native-source gate or the official CLI route:
+Continue from the blocked Desktop native-source gate or the accepted CLI route:
 for Desktop, identify an editable final-host source path before mapping; for CLI,
-diagnose the persisted failed read-only CLI smoke timeout, then get a passing
-read-only evidence file before any write-capable execution.
+all acceptance lanes (read-only, workspace-write, telemetry) now pass live — next
+step is to refresh the acceptance closeout and host doc to remove stale EPERM
+language, then decide whether to extend the CLI host surface or resume Desktop
+source discovery.

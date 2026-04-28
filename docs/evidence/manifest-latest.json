@@ -1,0 +1,971 @@
+{
+  "schemaVersion": "codex-router-evidence-manifest.v1",
+  "generatedAt": "2026-04-28T07:04:24.578Z",
+  "totalFiles": 48,
+  "totalSize": 577114,
+  "byPhase": {
+    "unknown": [
+      {
+        "file": "codex-cli-auto-model-probe-preflight-20260425.json",
+        "schemaVersion": "codex-cli-auto-model-probe-preflight-evidence.v1",
+        "generatedAt": "2026-04-25T20:22:48.8769440+08:00",
+        "size": 2400,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-decision-model-routing-closure-20260425.json",
+        "schemaVersion": "codex-cli-decision-model-routing-closure.v1",
+        "generatedAt": "2026-04-25T11:15:00.000Z",
+        "size": 2538,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-default-execution-auto-probe-20260425.json",
+        "schemaVersion": "codex-cli-default-execution-auto-probe-evidence.v1",
+        "generatedAt": "2026-04-25T20:30:09.7678911+08:00",
+        "size": 2204,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-availability-preflight-20260425.json",
+        "schemaVersion": "codex-cli-model-availability-preflight-evidence.v1",
+        "generatedAt": "2026-04-25T19:45:40.2345991+08:00",
+        "size": 2580,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-catalog-detection-20260425.json",
+        "schemaVersion": "codex-cli-model-catalog-detection-evidence.v1",
+        "generatedAt": "2026-04-25T19:37:35.198167+08:00",
+        "size": 2706,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-probe-cache-20260425.json",
+        "schemaVersion": "codex-cli-host-change-evidence.v1",
+        "generatedAt": "2026-04-25T16:10:00.000+08:00",
+        "size": 1406
+      },
+      {
+        "file": "codex-cli-model-probe-cache-telemetry-20260425.json",
+        "schemaVersion": "codex-cli-host-change-evidence.v1",
+        "generatedAt": "2026-04-25T16:35:00.000+08:00",
+        "size": 1398
+      },
+      {
+        "file": "codex-cli-refined-model-strength-ranking-20260425.json",
+        "schemaVersion": "codex-cli-refined-model-strength-ranking.v1",
+        "generatedAt": "2026-04-25T11:42:00.000Z",
+        "size": 3016,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-user-model-selection-switch-20260425.json",
+        "schemaVersion": "codex-cli-user-model-selection-switch.v1",
+        "generatedAt": "2026-04-25T11:27:00.000Z",
+        "size": 2222,
+        "status": "passed"
+      },
+      {
+        "file": "codex-router-mandatory-governance-gate-20260425.json",
+        "schemaVersion": "codex-router-mandatory-governance-gate.v1",
+        "generatedAt": "2026-04-25T15:50:52.5818695+08:00",
+        "size": 8394
+      },
+      {
+        "file": "mock-openai-responses-log.txt",
+        "schemaVersion": "unknown",
+        "generatedAt": "2026-04-27T08:03:58.998Z",
+        "size": 466595
+      },
+      {
+        "file": "vcpchat-codex-router-root-discovery-fix-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-root-discovery-fix.v1",
+        "generatedAt": "2026-04-25T17:46:00+08:00",
+        "size": 2943
+      },
+      {
+        "file": "vcpchat-codex-router-summary-extraction-and-run-evidence-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-summary-extraction-and-run-evidence.v1",
+        "generatedAt": "2026-04-25T18:31:20+08:00",
+        "size": 2984
+      },
+      {
+        "file": "vcpchat-codex-router-toggle-button-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-toggle-button-evidence.v1",
+        "generatedAt": "2026-04-25T18:05:49.8031236+08:00",
+        "size": 2637
+      },
+      {
+        "file": "vcpchat-codex-router-toggle-chinese-fallback-fix-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-toggle-fix-evidence.v1",
+        "generatedAt": "2026-04-25T18:10:43.6786369+08:00",
+        "size": 1922
+      },
+      {
+        "file": "vcpchat-codex-router-toggle-orange-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-toggle-orange-evidence.v1",
+        "generatedAt": "2026-04-25T18:14:37.2523839+08:00",
+        "size": 920
+      },
+      {
+        "file": "vcpchat-codex-router-visible-reply-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-visible-reply-evidence.v1",
+        "generatedAt": "2026-04-25T18:20:39.9842290+08:00",
+        "size": 2276
+      },
+      {
+        "file": "vcpchat-explicit-codex-task-entry-implementation-20260425.json",
+        "schemaVersion": "vcpchat-explicit-codex-task-entry-implementation.v1",
+        "generatedAt": "2026-04-25T17:04:57.6948218+08:00",
+        "size": 4019
+      },
+      {
+        "file": "vcpchat-port-rebind-20260425.json",
+        "schemaVersion": "vcpchat-port-rebind.v1",
+        "generatedAt": "2026-04-25T17:35:30+08:00",
+        "size": 1689
+      },
+      {
+        "file": "vcpchat-router-enforcement-approval-packet-20260425.json",
+        "schemaVersion": "vcpchat-router-enforcement-approval-packet.v1",
+        "generatedAt": "2026-04-25T15:58:00+08:00",
+        "size": 5820
+      },
+      {
+        "file": "vcpchat-ui-codex-router-success-20260425.json",
+        "schemaVersion": "vcpchat-ui-codex-router-success.v1",
+        "generatedAt": "2026-04-25T17:52:00+08:00",
+        "size": 2380
+      },
+      {
+        "file": "vcpchat-ui-message-observation-20260425.json",
+        "schemaVersion": "vcpchat-ui-message-observation.v1",
+        "generatedAt": "2026-04-25T17:40:00+08:00",
+        "size": 1512
+      }
+    ],
+    "phase20-canary": [
+      {
+        "file": "codex-cli-canary-latest.json",
+        "schemaVersion": "codex-router-evidence.v1",
+        "generatedAt": "2026-04-28T07:04:22.838Z",
+        "size": 481,
+        "status": "passed"
+      }
+    ],
+    "phase16-model-check": [
+      {
+        "file": "codex-cli-model-check-cli-mode-live-20260425.json",
+        "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+        "generatedAt": "2026-04-25T12:15:08.100Z",
+        "size": 807,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-check-command-implementation-20260425.json",
+        "schemaVersion": "codex-cli-model-check-command-implementation-evidence.v1",
+        "generatedAt": "2026-04-25T19:56:33.4531351+08:00",
+        "size": 2814,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-check-default-cli-mode-20260425.json",
+        "schemaVersion": "codex-cli-model-check-default-cli-mode-evidence.v1",
+        "generatedAt": "2026-04-25T20:07:30.9822478+08:00",
+        "size": 2801,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-check-latest.json",
+        "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+        "generatedAt": "2026-04-27T08:22:13.491Z",
+        "size": 1134,
+        "status": "failed"
+      }
+    ],
+    "phase20-smoke": [
+      {
+        "file": "codex-cli-model-check-cli-mode-offline-smoke-20260425.json",
+        "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+        "generatedAt": "2026-04-25T12:06:01.160Z",
+        "size": 972,
+        "status": "unavailable"
+      },
+      {
+        "file": "codex-cli-model-check-command-smoke-20260425.json",
+        "schemaVersion": "codex-cli-model-check-evidence.v1",
+        "generatedAt": "2026-04-25T11:56:02.324Z",
+        "size": 594,
+        "status": "unavailable"
+      },
+      {
+        "file": "codex-cli-readonly-smoke-20260425.json",
+        "schemaVersion": "codex-cli-readonly-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T04:41:51.045Z",
+        "size": 1136,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-readonly-smoke-live-20260425-rerun.json",
+        "schemaVersion": "codex-cli-readonly-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T10:57:13.646Z",
+        "size": 1048,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-readonly-smoke-telemetry-latest.json",
+        "schemaVersion": "codex-cli-readonly-smoke-telemetry-acceptance.v1",
+        "generatedAt": "2026-04-27T09:49:28.507Z",
+        "size": 1433
+      },
+      {
+        "file": "codex-cli-smoke-telemetry-forwarding-20260425.json",
+        "schemaVersion": "codex-cli-host-change-evidence.v1",
+        "generatedAt": "2026-04-25T16:55:00.000+08:00",
+        "size": 1384
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-approval-packet-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-approval-packet.v1",
+        "generatedAt": "2026-04-25T13:25:00.000Z",
+        "size": 1867,
+        "status": "blocked"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-evidence-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T14:00:00.000Z",
+        "size": 1769,
+        "status": "blocked"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-live-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T14:10:00.000Z",
+        "size": 1574,
+        "status": "failed"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-live-fixed-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T14:20:00.000Z",
+        "size": 1671,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-live-rerun-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T10:59:58.249Z",
+        "size": 1768,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-preflight-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-preflight.v1",
+        "generatedAt": "2026-04-25T13:05:00.000Z",
+        "size": 1240,
+        "status": "blocked"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-telemetry-latest.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-telemetry-acceptance.v1",
+        "generatedAt": "2026-04-27T09:52:15.868Z",
+        "size": 1440
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke.txt",
+        "schemaVersion": "unknown",
+        "generatedAt": "2026-04-27T09:52:02.312Z",
+        "size": 1817
+      },
+      {
+        "file": "codex-router-effectiveness-smoke-20260425.json",
+        "schemaVersion": "codex-router-effectiveness-smoke.v1",
+        "generatedAt": "2026-04-25T14:58:00+08:00",
+        "size": 4804
+      },
+      {
+        "file": "vcpchat-native-host-router-entry-smoke-20260425.json",
+        "schemaVersion": "vcpchat-native-host-router-entry-smoke.v1",
+        "generatedAt": "2026-04-25T15:05:00+08:00",
+        "size": 6820
+      }
+    ],
+    "phase17-operator": [
+      {
+        "file": "codex-cli-operator-acceptance-latest.json",
+        "schemaVersion": "codex-cli-operator-acceptance-evidence.v1",
+        "generatedAt": "2026-04-25T13:44:28.353Z",
+        "size": 1910,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-operator-acceptance-readonly-latest.json",
+        "schemaVersion": "codex-cli-operator-acceptance-evidence.v1",
+        "generatedAt": "2026-04-27T09:36:58.588Z",
+        "size": 2166,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-operator-acceptance-telemetry-readonly-latest.json",
+        "schemaVersion": "codex-cli-operator-acceptance-telemetry.v1",
+        "generatedAt": "2026-04-27T09:41:54.882Z",
+        "size": 3388
+      },
+      {
+        "file": "codex-cli-operator-acceptance-telemetry-workspace-write-latest.json",
+        "schemaVersion": "codex-cli-operator-acceptance-telemetry.v1",
+        "generatedAt": "2026-04-25T14:31:54.587Z",
+        "size": 3432
+      },
+      {
+        "file": "codex-cli-operator-acceptance-workspace-write-latest.json",
+        "schemaVersion": "codex-cli-operator-acceptance-evidence.v1",
+        "generatedAt": "2026-04-27T09:39:52.744Z",
+        "size": 2283,
+        "status": "passed"
+      }
+    ]
+  },
+  "byStatus": {
+    "passed": [
+      {
+        "file": "codex-cli-auto-model-probe-preflight-20260425.json",
+        "schemaVersion": "codex-cli-auto-model-probe-preflight-evidence.v1",
+        "generatedAt": "2026-04-25T20:22:48.8769440+08:00",
+        "size": 2400,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-canary-latest.json",
+        "schemaVersion": "codex-router-evidence.v1",
+        "generatedAt": "2026-04-28T07:04:22.838Z",
+        "size": 481,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-decision-model-routing-closure-20260425.json",
+        "schemaVersion": "codex-cli-decision-model-routing-closure.v1",
+        "generatedAt": "2026-04-25T11:15:00.000Z",
+        "size": 2538,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-default-execution-auto-probe-20260425.json",
+        "schemaVersion": "codex-cli-default-execution-auto-probe-evidence.v1",
+        "generatedAt": "2026-04-25T20:30:09.7678911+08:00",
+        "size": 2204,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-availability-preflight-20260425.json",
+        "schemaVersion": "codex-cli-model-availability-preflight-evidence.v1",
+        "generatedAt": "2026-04-25T19:45:40.2345991+08:00",
+        "size": 2580,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-catalog-detection-20260425.json",
+        "schemaVersion": "codex-cli-model-catalog-detection-evidence.v1",
+        "generatedAt": "2026-04-25T19:37:35.198167+08:00",
+        "size": 2706,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-check-cli-mode-live-20260425.json",
+        "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+        "generatedAt": "2026-04-25T12:15:08.100Z",
+        "size": 807,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-check-command-implementation-20260425.json",
+        "schemaVersion": "codex-cli-model-check-command-implementation-evidence.v1",
+        "generatedAt": "2026-04-25T19:56:33.4531351+08:00",
+        "size": 2814,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-model-check-default-cli-mode-20260425.json",
+        "schemaVersion": "codex-cli-model-check-default-cli-mode-evidence.v1",
+        "generatedAt": "2026-04-25T20:07:30.9822478+08:00",
+        "size": 2801,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-operator-acceptance-latest.json",
+        "schemaVersion": "codex-cli-operator-acceptance-evidence.v1",
+        "generatedAt": "2026-04-25T13:44:28.353Z",
+        "size": 1910,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-operator-acceptance-readonly-latest.json",
+        "schemaVersion": "codex-cli-operator-acceptance-evidence.v1",
+        "generatedAt": "2026-04-27T09:36:58.588Z",
+        "size": 2166,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-operator-acceptance-workspace-write-latest.json",
+        "schemaVersion": "codex-cli-operator-acceptance-evidence.v1",
+        "generatedAt": "2026-04-27T09:39:52.744Z",
+        "size": 2283,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-readonly-smoke-20260425.json",
+        "schemaVersion": "codex-cli-readonly-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T04:41:51.045Z",
+        "size": 1136,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-readonly-smoke-live-20260425-rerun.json",
+        "schemaVersion": "codex-cli-readonly-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T10:57:13.646Z",
+        "size": 1048,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-refined-model-strength-ranking-20260425.json",
+        "schemaVersion": "codex-cli-refined-model-strength-ranking.v1",
+        "generatedAt": "2026-04-25T11:42:00.000Z",
+        "size": 3016,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-user-model-selection-switch-20260425.json",
+        "schemaVersion": "codex-cli-user-model-selection-switch.v1",
+        "generatedAt": "2026-04-25T11:27:00.000Z",
+        "size": 2222,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-live-fixed-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T14:20:00.000Z",
+        "size": 1671,
+        "status": "passed"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-live-rerun-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T10:59:58.249Z",
+        "size": 1768,
+        "status": "passed"
+      }
+    ],
+    "unavailable": [
+      {
+        "file": "codex-cli-model-check-cli-mode-offline-smoke-20260425.json",
+        "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+        "generatedAt": "2026-04-25T12:06:01.160Z",
+        "size": 972,
+        "status": "unavailable"
+      },
+      {
+        "file": "codex-cli-model-check-command-smoke-20260425.json",
+        "schemaVersion": "codex-cli-model-check-evidence.v1",
+        "generatedAt": "2026-04-25T11:56:02.324Z",
+        "size": 594,
+        "status": "unavailable"
+      }
+    ],
+    "failed": [
+      {
+        "file": "codex-cli-model-check-latest.json",
+        "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+        "generatedAt": "2026-04-27T08:22:13.491Z",
+        "size": 1134,
+        "status": "failed"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-live-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T14:10:00.000Z",
+        "size": 1574,
+        "status": "failed"
+      }
+    ],
+    "unknown": [
+      {
+        "file": "codex-cli-model-probe-cache-20260425.json",
+        "schemaVersion": "codex-cli-host-change-evidence.v1",
+        "generatedAt": "2026-04-25T16:10:00.000+08:00",
+        "size": 1406
+      },
+      {
+        "file": "codex-cli-model-probe-cache-telemetry-20260425.json",
+        "schemaVersion": "codex-cli-host-change-evidence.v1",
+        "generatedAt": "2026-04-25T16:35:00.000+08:00",
+        "size": 1398
+      },
+      {
+        "file": "codex-cli-operator-acceptance-telemetry-readonly-latest.json",
+        "schemaVersion": "codex-cli-operator-acceptance-telemetry.v1",
+        "generatedAt": "2026-04-27T09:41:54.882Z",
+        "size": 3388
+      },
+      {
+        "file": "codex-cli-operator-acceptance-telemetry-workspace-write-latest.json",
+        "schemaVersion": "codex-cli-operator-acceptance-telemetry.v1",
+        "generatedAt": "2026-04-25T14:31:54.587Z",
+        "size": 3432
+      },
+      {
+        "file": "codex-cli-readonly-smoke-telemetry-latest.json",
+        "schemaVersion": "codex-cli-readonly-smoke-telemetry-acceptance.v1",
+        "generatedAt": "2026-04-27T09:49:28.507Z",
+        "size": 1433
+      },
+      {
+        "file": "codex-cli-smoke-telemetry-forwarding-20260425.json",
+        "schemaVersion": "codex-cli-host-change-evidence.v1",
+        "generatedAt": "2026-04-25T16:55:00.000+08:00",
+        "size": 1384
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-telemetry-latest.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-telemetry-acceptance.v1",
+        "generatedAt": "2026-04-27T09:52:15.868Z",
+        "size": 1440
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke.txt",
+        "schemaVersion": "unknown",
+        "generatedAt": "2026-04-27T09:52:02.312Z",
+        "size": 1817
+      },
+      {
+        "file": "codex-router-effectiveness-smoke-20260425.json",
+        "schemaVersion": "codex-router-effectiveness-smoke.v1",
+        "generatedAt": "2026-04-25T14:58:00+08:00",
+        "size": 4804
+      },
+      {
+        "file": "codex-router-mandatory-governance-gate-20260425.json",
+        "schemaVersion": "codex-router-mandatory-governance-gate.v1",
+        "generatedAt": "2026-04-25T15:50:52.5818695+08:00",
+        "size": 8394
+      },
+      {
+        "file": "mock-openai-responses-log.txt",
+        "schemaVersion": "unknown",
+        "generatedAt": "2026-04-27T08:03:58.998Z",
+        "size": 466595
+      },
+      {
+        "file": "vcpchat-codex-router-root-discovery-fix-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-root-discovery-fix.v1",
+        "generatedAt": "2026-04-25T17:46:00+08:00",
+        "size": 2943
+      },
+      {
+        "file": "vcpchat-codex-router-summary-extraction-and-run-evidence-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-summary-extraction-and-run-evidence.v1",
+        "generatedAt": "2026-04-25T18:31:20+08:00",
+        "size": 2984
+      },
+      {
+        "file": "vcpchat-codex-router-toggle-button-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-toggle-button-evidence.v1",
+        "generatedAt": "2026-04-25T18:05:49.8031236+08:00",
+        "size": 2637
+      },
+      {
+        "file": "vcpchat-codex-router-toggle-chinese-fallback-fix-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-toggle-fix-evidence.v1",
+        "generatedAt": "2026-04-25T18:10:43.6786369+08:00",
+        "size": 1922
+      },
+      {
+        "file": "vcpchat-codex-router-toggle-orange-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-toggle-orange-evidence.v1",
+        "generatedAt": "2026-04-25T18:14:37.2523839+08:00",
+        "size": 920
+      },
+      {
+        "file": "vcpchat-codex-router-visible-reply-20260425.json",
+        "schemaVersion": "vcpchat-codex-router-visible-reply-evidence.v1",
+        "generatedAt": "2026-04-25T18:20:39.9842290+08:00",
+        "size": 2276
+      },
+      {
+        "file": "vcpchat-explicit-codex-task-entry-implementation-20260425.json",
+        "schemaVersion": "vcpchat-explicit-codex-task-entry-implementation.v1",
+        "generatedAt": "2026-04-25T17:04:57.6948218+08:00",
+        "size": 4019
+      },
+      {
+        "file": "vcpchat-native-host-router-entry-smoke-20260425.json",
+        "schemaVersion": "vcpchat-native-host-router-entry-smoke.v1",
+        "generatedAt": "2026-04-25T15:05:00+08:00",
+        "size": 6820
+      },
+      {
+        "file": "vcpchat-port-rebind-20260425.json",
+        "schemaVersion": "vcpchat-port-rebind.v1",
+        "generatedAt": "2026-04-25T17:35:30+08:00",
+        "size": 1689
+      },
+      {
+        "file": "vcpchat-router-enforcement-approval-packet-20260425.json",
+        "schemaVersion": "vcpchat-router-enforcement-approval-packet.v1",
+        "generatedAt": "2026-04-25T15:58:00+08:00",
+        "size": 5820
+      },
+      {
+        "file": "vcpchat-ui-codex-router-success-20260425.json",
+        "schemaVersion": "vcpchat-ui-codex-router-success.v1",
+        "generatedAt": "2026-04-25T17:52:00+08:00",
+        "size": 2380
+      },
+      {
+        "file": "vcpchat-ui-message-observation-20260425.json",
+        "schemaVersion": "vcpchat-ui-message-observation.v1",
+        "generatedAt": "2026-04-25T17:40:00+08:00",
+        "size": 1512
+      }
+    ],
+    "blocked": [
+      {
+        "file": "codex-cli-workspace-write-smoke-approval-packet-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-approval-packet.v1",
+        "generatedAt": "2026-04-25T13:25:00.000Z",
+        "size": 1867,
+        "status": "blocked"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-evidence-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+        "generatedAt": "2026-04-25T14:00:00.000Z",
+        "size": 1769,
+        "status": "blocked"
+      },
+      {
+        "file": "codex-cli-workspace-write-smoke-preflight-20260425.json",
+        "schemaVersion": "codex-cli-workspace-write-smoke-preflight.v1",
+        "generatedAt": "2026-04-25T13:05:00.000Z",
+        "size": 1240,
+        "status": "blocked"
+      }
+    ]
+  },
+  "entries": [
+    {
+      "file": "codex-cli-auto-model-probe-preflight-20260425.json",
+      "schemaVersion": "codex-cli-auto-model-probe-preflight-evidence.v1",
+      "generatedAt": "2026-04-25T20:22:48.8769440+08:00",
+      "size": 2400,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-canary-latest.json",
+      "schemaVersion": "codex-router-evidence.v1",
+      "generatedAt": "2026-04-28T07:04:22.838Z",
+      "size": 481,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-decision-model-routing-closure-20260425.json",
+      "schemaVersion": "codex-cli-decision-model-routing-closure.v1",
+      "generatedAt": "2026-04-25T11:15:00.000Z",
+      "size": 2538,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-default-execution-auto-probe-20260425.json",
+      "schemaVersion": "codex-cli-default-execution-auto-probe-evidence.v1",
+      "generatedAt": "2026-04-25T20:30:09.7678911+08:00",
+      "size": 2204,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-model-availability-preflight-20260425.json",
+      "schemaVersion": "codex-cli-model-availability-preflight-evidence.v1",
+      "generatedAt": "2026-04-25T19:45:40.2345991+08:00",
+      "size": 2580,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-model-catalog-detection-20260425.json",
+      "schemaVersion": "codex-cli-model-catalog-detection-evidence.v1",
+      "generatedAt": "2026-04-25T19:37:35.198167+08:00",
+      "size": 2706,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-model-check-cli-mode-live-20260425.json",
+      "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+      "generatedAt": "2026-04-25T12:15:08.100Z",
+      "size": 807,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-model-check-cli-mode-offline-smoke-20260425.json",
+      "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+      "generatedAt": "2026-04-25T12:06:01.160Z",
+      "size": 972,
+      "status": "unavailable"
+    },
+    {
+      "file": "codex-cli-model-check-command-implementation-20260425.json",
+      "schemaVersion": "codex-cli-model-check-command-implementation-evidence.v1",
+      "generatedAt": "2026-04-25T19:56:33.4531351+08:00",
+      "size": 2814,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-model-check-command-smoke-20260425.json",
+      "schemaVersion": "codex-cli-model-check-evidence.v1",
+      "generatedAt": "2026-04-25T11:56:02.324Z",
+      "size": 594,
+      "status": "unavailable"
+    },
+    {
+      "file": "codex-cli-model-check-default-cli-mode-20260425.json",
+      "schemaVersion": "codex-cli-model-check-default-cli-mode-evidence.v1",
+      "generatedAt": "2026-04-25T20:07:30.9822478+08:00",
+      "size": 2801,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-model-check-latest.json",
+      "schemaVersion": "codex-cli-model-cli-probe-evidence.v1",
+      "generatedAt": "2026-04-27T08:22:13.491Z",
+      "size": 1134,
+      "status": "failed"
+    },
+    {
+      "file": "codex-cli-model-probe-cache-20260425.json",
+      "schemaVersion": "codex-cli-host-change-evidence.v1",
+      "generatedAt": "2026-04-25T16:10:00.000+08:00",
+      "size": 1406
+    },
+    {
+      "file": "codex-cli-model-probe-cache-telemetry-20260425.json",
+      "schemaVersion": "codex-cli-host-change-evidence.v1",
+      "generatedAt": "2026-04-25T16:35:00.000+08:00",
+      "size": 1398
+    },
+    {
+      "file": "codex-cli-operator-acceptance-latest.json",
+      "schemaVersion": "codex-cli-operator-acceptance-evidence.v1",
+      "generatedAt": "2026-04-25T13:44:28.353Z",
+      "size": 1910,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-operator-acceptance-readonly-latest.json",
+      "schemaVersion": "codex-cli-operator-acceptance-evidence.v1",
+      "generatedAt": "2026-04-27T09:36:58.588Z",
+      "size": 2166,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-operator-acceptance-telemetry-readonly-latest.json",
+      "schemaVersion": "codex-cli-operator-acceptance-telemetry.v1",
+      "generatedAt": "2026-04-27T09:41:54.882Z",
+      "size": 3388
+    },
+    {
+      "file": "codex-cli-operator-acceptance-telemetry-workspace-write-latest.json",
+      "schemaVersion": "codex-cli-operator-acceptance-telemetry.v1",
+      "generatedAt": "2026-04-25T14:31:54.587Z",
+      "size": 3432
+    },
+    {
+      "file": "codex-cli-operator-acceptance-workspace-write-latest.json",
+      "schemaVersion": "codex-cli-operator-acceptance-evidence.v1",
+      "generatedAt": "2026-04-27T09:39:52.744Z",
+      "size": 2283,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-readonly-smoke-20260425.json",
+      "schemaVersion": "codex-cli-readonly-smoke-evidence.v1",
+      "generatedAt": "2026-04-25T04:41:51.045Z",
+      "size": 1136,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-readonly-smoke-live-20260425-rerun.json",
+      "schemaVersion": "codex-cli-readonly-smoke-evidence.v1",
+      "generatedAt": "2026-04-25T10:57:13.646Z",
+      "size": 1048,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-readonly-smoke-telemetry-latest.json",
+      "schemaVersion": "codex-cli-readonly-smoke-telemetry-acceptance.v1",
+      "generatedAt": "2026-04-27T09:49:28.507Z",
+      "size": 1433
+    },
+    {
+      "file": "codex-cli-refined-model-strength-ranking-20260425.json",
+      "schemaVersion": "codex-cli-refined-model-strength-ranking.v1",
+      "generatedAt": "2026-04-25T11:42:00.000Z",
+      "size": 3016,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-smoke-telemetry-forwarding-20260425.json",
+      "schemaVersion": "codex-cli-host-change-evidence.v1",
+      "generatedAt": "2026-04-25T16:55:00.000+08:00",
+      "size": 1384
+    },
+    {
+      "file": "codex-cli-user-model-selection-switch-20260425.json",
+      "schemaVersion": "codex-cli-user-model-selection-switch.v1",
+      "generatedAt": "2026-04-25T11:27:00.000Z",
+      "size": 2222,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-workspace-write-smoke-approval-packet-20260425.json",
+      "schemaVersion": "codex-cli-workspace-write-smoke-approval-packet.v1",
+      "generatedAt": "2026-04-25T13:25:00.000Z",
+      "size": 1867,
+      "status": "blocked"
+    },
+    {
+      "file": "codex-cli-workspace-write-smoke-evidence-20260425.json",
+      "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+      "generatedAt": "2026-04-25T14:00:00.000Z",
+      "size": 1769,
+      "status": "blocked"
+    },
+    {
+      "file": "codex-cli-workspace-write-smoke-live-20260425.json",
+      "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+      "generatedAt": "2026-04-25T14:10:00.000Z",
+      "size": 1574,
+      "status": "failed"
+    },
+    {
+      "file": "codex-cli-workspace-write-smoke-live-fixed-20260425.json",
+      "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+      "generatedAt": "2026-04-25T14:20:00.000Z",
+      "size": 1671,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-workspace-write-smoke-live-rerun-20260425.json",
+      "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+      "generatedAt": "2026-04-25T10:59:58.249Z",
+      "size": 1768,
+      "status": "passed"
+    },
+    {
+      "file": "codex-cli-workspace-write-smoke-preflight-20260425.json",
+      "schemaVersion": "codex-cli-workspace-write-smoke-preflight.v1",
+      "generatedAt": "2026-04-25T13:05:00.000Z",
+      "size": 1240,
+      "status": "blocked"
+    },
+    {
+      "file": "codex-cli-workspace-write-smoke-telemetry-latest.json",
+      "schemaVersion": "codex-cli-workspace-write-smoke-telemetry-acceptance.v1",
+      "generatedAt": "2026-04-27T09:52:15.868Z",
+      "size": 1440
+    },
+    {
+      "file": "codex-cli-workspace-write-smoke.txt",
+      "schemaVersion": "unknown",
+      "generatedAt": "2026-04-27T09:52:02.312Z",
+      "size": 1817
+    },
+    {
+      "file": "codex-router-effectiveness-smoke-20260425.json",
+      "schemaVersion": "codex-router-effectiveness-smoke.v1",
+      "generatedAt": "2026-04-25T14:58:00+08:00",
+      "size": 4804
+    },
+    {
+      "file": "codex-router-mandatory-governance-gate-20260425.json",
+      "schemaVersion": "codex-router-mandatory-governance-gate.v1",
+      "generatedAt": "2026-04-25T15:50:52.5818695+08:00",
+      "size": 8394
+    },
+    {
+      "file": "mock-openai-responses-log.txt",
+      "schemaVersion": "unknown",
+      "generatedAt": "2026-04-27T08:03:58.998Z",
+      "size": 466595
+    },
+    {
+      "file": "vcpchat-codex-router-root-discovery-fix-20260425.json",
+      "schemaVersion": "vcpchat-codex-router-root-discovery-fix.v1",
+      "generatedAt": "2026-04-25T17:46:00+08:00",
+      "size": 2943
+    },
+    {
+      "file": "vcpchat-codex-router-summary-extraction-and-run-evidence-20260425.json",
+      "schemaVersion": "vcpchat-codex-router-summary-extraction-and-run-evidence.v1",
+      "generatedAt": "2026-04-25T18:31:20+08:00",
+      "size": 2984
+    },
+    {
+      "file": "vcpchat-codex-router-toggle-button-20260425.json",
+      "schemaVersion": "vcpchat-codex-router-toggle-button-evidence.v1",
+      "generatedAt": "2026-04-25T18:05:49.8031236+08:00",
+      "size": 2637
+    },
+    {
+      "file": "vcpchat-codex-router-toggle-chinese-fallback-fix-20260425.json",
+      "schemaVersion": "vcpchat-codex-router-toggle-fix-evidence.v1",
+      "generatedAt": "2026-04-25T18:10:43.6786369+08:00",
+      "size": 1922
+    },
+    {
+      "file": "vcpchat-codex-router-toggle-orange-20260425.json",
+      "schemaVersion": "vcpchat-codex-router-toggle-orange-evidence.v1",
+      "generatedAt": "2026-04-25T18:14:37.2523839+08:00",
+      "size": 920
+    },
+    {
+      "file": "vcpchat-codex-router-visible-reply-20260425.json",
+      "schemaVersion": "vcpchat-codex-router-visible-reply-evidence.v1",
+      "generatedAt": "2026-04-25T18:20:39.9842290+08:00",
+      "size": 2276
+    },
+    {
+      "file": "vcpchat-explicit-codex-task-entry-implementation-20260425.json",
+      "schemaVersion": "vcpchat-explicit-codex-task-entry-implementation.v1",
+      "generatedAt": "2026-04-25T17:04:57.6948218+08:00",
+      "size": 4019
+    },
+    {
+      "file": "vcpchat-native-host-router-entry-smoke-20260425.json",
+      "schemaVersion": "vcpchat-native-host-router-entry-smoke.v1",
+      "generatedAt": "2026-04-25T15:05:00+08:00",
+      "size": 6820
+    },
+    {
+      "file": "vcpchat-port-rebind-20260425.json",
+      "schemaVersion": "vcpchat-port-rebind.v1",
+      "generatedAt": "2026-04-25T17:35:30+08:00",
+      "size": 1689
+    },
+    {
+      "file": "vcpchat-router-enforcement-approval-packet-20260425.json",
+      "schemaVersion": "vcpchat-router-enforcement-approval-packet.v1",
+      "generatedAt": "2026-04-25T15:58:00+08:00",
+      "size": 5820
+    },
+    {
+      "file": "vcpchat-ui-codex-router-success-20260425.json",
+      "schemaVersion": "vcpchat-ui-codex-router-success.v1",
+      "generatedAt": "2026-04-25T17:52:00+08:00",
+      "size": 2380
+    },
+    {
+      "file": "vcpchat-ui-message-observation-20260425.json",
+      "schemaVersion": "vcpchat-ui-message-observation.v1",
+      "generatedAt": "2026-04-25T17:40:00+08:00",
+      "size": 1512
+    }
+  ]
+}

@@ -18,6 +18,12 @@ executionProfiles:
   engineering: "engineering"
   high_risk: "high-risk-change"
   release_external_action: "release-governance"
+hostRoutes:
+  read_only: "codex-cli"
+  small_edit: "codex-cli"
+  engineering: "desktop"
+  high_risk: "desktop"
+  release_external_action: "desktop"
 approvalRules:
   protectedBranches:
     - "main"
