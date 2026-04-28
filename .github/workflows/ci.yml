@@ -76,27 +76,18 @@ jobs:
           name: canary-evidence-node${{ matrix.node }}-${{ matrix.risk }}
           path: docs/evidence/codex-cli-canary-latest.json
 
-  smoke-cli:
-    name: Smoke CLI (Node ${{ matrix.node }})
-    runs-on: ubuntu-latest
-    needs: build
-    continue-on-error: true  # Requires Codex CLI binary, not available in CI
-    strategy:
-      matrix:
-        node: [20, 22]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-      - run: npm ci
-      - run: npm run smoke:telemetry
+  # smoke-cli requires Codex CLI binary to be installed on the runner,
+  # which is not available on GitHub Actions. Smoke tests are run locally
+  # via `npm run smoke:telemetry` and `npm run smoke:workspace-write:telemetry`.
+  #
+  # smoke-cli:
+  #   name: Smoke CLI (Node ${{ matrix.node }})
+  #   ...
 
   evidence:
     name: Evidence Collection
     runs-on: ubuntu-latest
-    needs: [canary, smoke-cli]
+    needs: [canary]
     if: always()
     steps:
       - uses: actions/checkout@v4
