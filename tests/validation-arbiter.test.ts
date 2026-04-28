@@ -197,6 +197,38 @@ test("validation arbiter prefers verifier in high risk with high confidence", ()
   assert.ok(result.confidence >= 0.85);
 });
 
+test("validation arbiter fallback derives action from top evidence agentRole", () => {
+  const state = createLowRiskState();
+  const evidence = [
+    createEvidenceRecord({
+      taskId: "task-1",
+      agentRole: "executor",
+      content: "executor result",
+      confidence: 0.5,
+      createdAt: "2026-04-27T00:00:00.000Z"
+    }),
+    createEvidenceRecord({
+      taskId: "task-1",
+      agentRole: "verifier",
+      content: "verifier result",
+      confidence: 0.6,
+      createdAt: "2026-04-27T00:01:00.000Z"
+    })
+  ];
+
+  const result = arbitrateConflict({
+    taskId: "task-1",
+    evidence,
+    state
+  });
+
+  // Fallback: low risk + verifier top but not >0.7 → fallback path
+  // Action must match top evidence agentRole, not default accept_executor
+  assert.equal(result.action, "accept_verifier");
+  assert.equal(result.confidence, 0.6);
+  assert.ok(result.winnerEvidenceId?.includes("verifier"));
+});
+
 // ── Conjugate trigger tests ────────────────────────────────────────────────
 
 test("validation arbiter does not trigger conjugate for low risk clean state", () => {
