@@ -425,63 +425,45 @@ export function mergeBranch(
   }
 
   const now = new Date().toISOString();
-  const targetNodeIds = new Set(graph.nodes.map(n => n.nodeId));
-  const targetEdgeKeys = new Set(
-    graph.edges.map(e => `${e.sourceNodeId}->${e.targetNodeId}`)
-  );
 
-  // Collect source-branch-only nodes (by heuristic: nodes created after branch creation)
-  // For simplicity, we merge all non-root nodes that aren't already in target
-  const newNodes: TaskGraphNode[] = [];
-  const newEdges: TaskGraphEdge[] = [];
-
-  for (const node of graph.nodes) {
-    if (!targetNodeIds.has(node.nodeId)) {
-      newNodes.push(node);
-    } else if (strategy === "keep_source") {
-      // Replace target node with source version
-      newNodes.push(node);
-    }
-  }
-
-  for (const edge of graph.edges) {
-    const key = `${edge.sourceNodeId}->${edge.targetNodeId}`;
-    if (!targetEdgeKeys.has(key)) {
-      newEdges.push(edge);
-    }
-  }
-
-  // Remove duplicates when strategy is keep_source (source nodes replace target)
+  // Deduplicate nodes: keep_target strategy → target nodes win (later in array wins);
+  // keep_source strategy → source nodes should win, but since we can't distinguish
+  // per-node branch ownership without a branchId field on nodes, we apply strategy
+  // to duplicates found during the merge pass. For now, merge operates on the full
+  // graph and resolves duplicates by nodeId.
   const mergedNodeIds = new Set<string>();
   const mergedNodes: TaskGraphNode[] = [];
 
-  if (strategy === "keep_source") {
-    // Source nodes first, then target nodes (source wins on duplicate)
-    for (const node of newNodes) {
-      if (!mergedNodeIds.has(node.nodeId)) {
-        mergedNodeIds.add(node.nodeId);
-        mergedNodes.push(node);
+  for (const node of graph.nodes) {
+    if (mergedNodeIds.has(node.nodeId)) {
+      if (strategy === "keep_source") {
+        // Replace existing with this version (source wins)
+        const idx = mergedNodes.findIndex(n => n.nodeId === node.nodeId);
+        if (idx >= 0) mergedNodes[idx] = node;
       }
+      // keep_target: skip duplicate (target version already in mergedNodes)
+      continue;
     }
-    for (const node of graph.nodes) {
-      if (!mergedNodeIds.has(node.nodeId)) {
-        mergedNodeIds.add(node.nodeId);
-        mergedNodes.push(node);
-      }
-    }
-  } else {
-    mergedNodes.push(...graph.nodes);
-    for (const node of newNodes) {
-      if (!targetNodeIds.has(node.nodeId)) {
-        mergedNodes.push(node);
-      }
+    mergedNodeIds.add(node.nodeId);
+    mergedNodes.push(node);
+  }
+
+  // Deduplicate edges
+  const mergedEdgeKeys = new Set<string>();
+  const mergedEdges: TaskGraphEdge[] = [];
+
+  for (const edge of graph.edges) {
+    const key = `${edge.sourceNodeId}->${edge.targetNodeId}`;
+    if (!mergedEdgeKeys.has(key)) {
+      mergedEdgeKeys.add(key);
+      mergedEdges.push(edge);
     }
   }
 
   return {
     ...graph,
     nodes: mergedNodes,
-    edges: [...graph.edges, ...newEdges],
+    edges: mergedEdges,
     activeBranch: targetBranchId,
     updatedAt: now
   };

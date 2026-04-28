@@ -139,7 +139,20 @@ export function arbitrateConflict(input: ArbitrateConflictInput): ArbitrationRes
     confidence = maxConjugateConfidence;
     winnerEvidenceId = conjugateEvidence.find((e) => e.confidence === maxConjugateConfidence)?.evidenceId;
   } else if (sortedEvidence.length > 0) {
-    winnerEvidenceId = sortedEvidence[0]?.evidenceId;
+    // Fallback: use top-ranked evidence, derive action from its agent role
+    const top = sortedEvidence[0]!;
+    winnerEvidenceId = top.evidenceId;
+    switch (top.agentRole) {
+      case "conjugate":
+        action = "accept_conjugate";
+        break;
+      case "verifier":
+        action = "accept_verifier";
+        break;
+      default:
+        action = "accept_executor";
+    }
+    confidence = top.confidence;
   }
 
   const reasons: string[] = [];
