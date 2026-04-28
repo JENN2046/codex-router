@@ -85,6 +85,11 @@ export const EnvelopeSourceSchema = z.enum([
   "api"
 ]);
 
+export const HostRouteSchema = z.enum([
+  "desktop",
+  "codex-cli"
+]);
+
 export const ParallelismModeSchema = z.enum([
   "disabled",
   "read_only",
@@ -168,7 +173,8 @@ export const RoutingDecisionSchema = z.object({
     allowed: z.boolean(),
     maxAgents: z.number().int().positive(),
     mode: ParallelismModeSchema
-  })
+  }),
+  hostRoute: HostRouteSchema.default("desktop")
 });
 
 export const ApprovalDecisionSchema = z.object({
@@ -225,6 +231,7 @@ export type AgentRole = z.infer<typeof AgentRoleSchema>;
 export type DesktopPrimitive = z.infer<typeof DesktopPrimitiveSchema>;
 export type EnvelopeSource = z.infer<typeof EnvelopeSourceSchema>;
 export type ParallelismMode = z.infer<typeof ParallelismModeSchema>;
+export type HostRoute = z.infer<typeof HostRouteSchema>;
 export type RepoContext = z.infer<typeof RepoContextSchema>;
 export type TaskIntent = z.infer<typeof TaskIntentSchema>;
 export type TaskTarget = z.infer<typeof TaskTargetSchema>;

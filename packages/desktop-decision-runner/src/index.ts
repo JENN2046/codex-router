@@ -29,6 +29,14 @@ import { planAgentStrategy, type AgentStrategyPlan } from "../../desktop-agent-s
 import { createDesktopExecutionPlan } from "../../desktop-bridge/src/index.js";
 import { createMemoryPreflightLogEvent, createPreflightLogEvent, type LogEvent } from "../../observability/src/index.js";
 import type { TelemetrySink } from "../../observability/src/index.js";
+import {
+  createInitialGovernanceState,
+  type GovernanceState
+} from "../../state-manager/src/index.js";
+import {
+  routeStrategyV2,
+  type StrategyDecisionV2
+} from "../../strategy-router/src/index.js";
 
 export type DesktopDecisionRunnerStatus =
   | "blocked_preflight"
@@ -470,4 +478,34 @@ async function resolveResumeCheckpoint(
   }
 
   return undefined;
+}
+
+// ── Governance wrapper ─────────────────────────────────────────────────────
+
+export interface DesktopDecisionWithGovernanceResult {
+  base: DesktopDecisionRunnerResult;
+  governanceState: GovernanceState;
+  strategyDecision: StrategyDecisionV2;
+}
+
+export async function runDesktopDecisionWithGovernance(
+  input: DesktopDecisionRunnerInput
+): Promise<DesktopDecisionWithGovernanceResult> {
+  const base = await runDesktopDecision(input);
+  const governanceState = createInitialGovernanceState({
+    task: base.task,
+    decision: base.decision,
+    ...(base.checkpoint !== undefined ? { checkpoint: base.checkpoint } : {}),
+    ...(input.now !== undefined ? { now: input.now } : {})
+  });
+  const strategyDecision = routeStrategyV2({
+    state: governanceState,
+    ...(input.now !== undefined ? { now: input.now } : {})
+  });
+
+  return {
+    base,
+    governanceState,
+    strategyDecision
+  };
 }

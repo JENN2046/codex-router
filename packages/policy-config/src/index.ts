@@ -3,6 +3,7 @@ import YAML from "yaml";
 import { z } from "zod";
 import {
   ExecutionProfileNameSchema,
+  HostRouteSchema,
   RolloutModeSchema,
   TaskClassSchema,
   ToolAccessLevelSchema,
@@ -90,6 +91,7 @@ const PolicySnapshotSchema = z.object({
   models: z.record(TaskClassSchema, ModelIdSchema),
   toolPolicies: z.record(TaskClassSchema, ToolAccessLevelSchema),
   executionProfiles: z.record(TaskClassSchema, ExecutionProfileNameSchema),
+  hostRoutes: z.record(TaskClassSchema, HostRouteSchema).optional(),
   approvalRules: z.object({
     protectedBranches: z.array(z.string().min(1)),
     protectedKeywords: z.array(z.string().min(1)),
@@ -290,6 +292,7 @@ export function getTelemetryAlertDeliveryWindowPolicy(
 }
 
 export {
+  HostRouteSchema,
   MemoryCheckpointFrequencySchema,
   MemoryExecutionGuidanceSchema,
   MemoryHealthPolicySchema,

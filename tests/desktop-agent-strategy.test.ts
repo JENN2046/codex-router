@@ -30,7 +30,8 @@ test("desktop agent strategy allows bounded read-only parallelism", () => {
         allowed: true,
         maxAgents: 3,
         mode: "read_only"
-      }
+      },
+      hostRoute: "desktop"
     },
     {
       availableAgents: 4,
@@ -71,7 +72,8 @@ test("desktop agent strategy disables write parallelism without ownership", () =
         allowed: true,
         maxAgents: 2,
         mode: "owned_write"
-      }
+      },
+      hostRoute: "desktop"
     },
     {
       availableAgents: 3,

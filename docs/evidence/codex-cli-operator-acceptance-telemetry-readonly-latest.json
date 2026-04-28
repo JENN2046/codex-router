@@ -1,6 +1,6 @@
 {
   "schemaVersion": "codex-cli-operator-acceptance-telemetry.v1",
-  "generatedAt": "2026-04-25T14:21:53.953Z",
+  "generatedAt": "2026-04-27T09:41:54.882Z",
   "host": "Codex CLI operator acceptance telemetry",
   "mode": "read-only",
   "model": "gpt-5.4-mini",
@@ -56,7 +56,7 @@
       "run": {
         "exitCode": 0,
         "executionStatus": "completed",
-        "eventCount": 50,
+        "eventCount": 49,
         "parseErrorCount": 0,
         "warnings": [],
         "blockingReasons": [],
@@ -90,7 +90,7 @@
       "run": {
         "exitCode": 0,
         "executionStatus": "completed",
-        "eventCount": 41,
+        "eventCount": 56,
         "parseErrorCount": 0,
         "warnings": [],
         "blockingReasons": [],

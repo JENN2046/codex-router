@@ -7,8 +7,25 @@ tasks through `runCodexCliExecPlan()` and the formal operator acceptance runner.
 
 Workspace: `A:/codex-router`
 
-Repository state: not a Git repository. Validation is based on executable tests,
-build checks, and persisted evidence artifacts.
+Repository state at the time: not a Git repository. Validation is based on
+executable tests, build checks, and persisted evidence artifacts.
+
+## 2026-04-27 Follow-Up
+
+The closeout remains the right historical record for the 2026-04-25 acceptance
+work, but the CLI host line has since been extended further:
+
+- `packages/codex-cli-host/src/index.ts` is now a façade over `index-impl.ts`.
+- governance V2 lives in `packages/codex-cli-host/src/governance-v2.ts`.
+- export-lock fixtures now cover the public host surface and the
+  governance-v2 surface.
+- release-only workspace-write acceptance wrappers were added and documented.
+- `npm run build` passed on `2026-04-27`.
+- `npm test` passed on `2026-04-27`, `202/202`.
+- all acceptance and smoke lanes now pass live: read-only, workspace-write,
+  and telemetry (miss→hit cache cycle). The previous `spawn EPERM` blocker
+  is resolved — the default spawner falls back to `shell: true` when the
+  native `.exe` spawn hits EPERM on Windows.
 
 ## Accepted Capabilities
 
@@ -59,16 +76,18 @@ npm run operator:acceptance:telemetry
 Code validation:
 
 - `npm run typecheck` passed.
-- `npx tsx --test tests/codex-cli-host.test.ts` passed, `56/56`.
-- `npm test` passed, `198/198`.
+- `npx tsx --test tests/codex-cli-host.test.ts` passed, `60/60`.
+- `npm test` passed, `202/202`.
 - `npm run build` passed.
 
-Live acceptance:
+Live acceptance (revalidated `2026-04-27`):
 
 - `npm run operator:acceptance` passed in read-only mode.
 - gated `npm run operator:acceptance` passed in workspace-write mode.
 - `npm run operator:acceptance:telemetry` passed in read-only mode.
 - gated `npm run operator:acceptance:telemetry` passed in workspace-write mode.
+- `npm run smoke:telemetry` passed (miss→hit).
+- gated `npm run smoke:workspace-write:telemetry` passed (miss→hit).
 
 ## Evidence
 
@@ -89,8 +108,7 @@ Latest telemetry results:
 - This closeout does not claim production deployment readiness.
 - This closeout does not validate live external service writes.
 - Probe cache is in-process only and is cleared across host restarts.
-- The project is not a Git repository, so branch/worktree governance cannot be
-  verified through Git commands in this workspace.
+- The project is a Git repository; branch/worktree governance is available.
 
 ## Result
 

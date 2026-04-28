@@ -5,6 +5,8 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import codexCliHostPublicExportLockFixture from "../tests/fixtures/codex-cli-host-public-export-lock.fixture.json" with { type: "json" };
+import codexCliHostGovernanceV2PublicExportLockFixture from "../tests/fixtures/codex-cli-host-governance-v2-public-export-lock.fixture.json" with { type: "json" };
 import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import {
   CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
@@ -12,6 +14,7 @@ import {
   checkCodexCliModelAvailability,
   checkCodexCliModelCatalogAtStartup,
   clearCodexCliModelProbeCache,
+  createCodexCliGovernanceBundle,
   createCodexCliModelCliProbeEvidence,
   createCodexCliModelCheckEvidence,
   createCodexCliOperatorAcceptanceEvidence,
@@ -58,6 +61,27 @@ import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import { routeTask } from "../packages/routing-engine/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
+
+test("codex cli host public export surface is lock-stable", async () => {
+  const moduleExports = await import("../packages/codex-cli-host/src/index.js");
+  const actualExports = Object.keys(moduleExports)
+    .filter((name) => !name.startsWith("__") && name !== "default")
+    .sort();
+
+  assert.deepEqual(actualExports, codexCliHostPublicExportLockFixture);
+});
+
+test("codex cli host governance-v2 public export surface is lock-stable", async () => {
+  const moduleExports = await import("../packages/codex-cli-host/src/governance-v2.js");
+  const actualExports = Object.keys(moduleExports)
+    .filter((name) => !name.startsWith("__") && name !== "default")
+    .sort();
+
+  assert.deepEqual(
+    actualExports,
+    codexCliHostGovernanceV2PublicExportLockFixture
+  );
+});
 
 test.beforeEach(() => {
   clearCodexCliModelProbeCache();
@@ -1393,6 +1417,29 @@ test("codex cli host runner captures read-only process output through an injecta
   assert.deepEqual(result.inspection.warnings, ["WARNING: diagnostic only"]);
 });
 
+test("codex cli runner converts synchronous spawner failure into a failed execution result", async () => {
+  const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
+    taskId: "cli-runner-sync-spawn-error"
+  }), {
+    skipGitRepoCheck: true,
+    ephemeral: true
+  });
+
+  const result = await runCodexCliExecPlan(plan, {
+    spawn: () => {
+      throw new Error("spawn EPERM");
+    }
+  });
+
+  assert.equal(result.output.exitCode, 1);
+  assert.equal(result.inspection.status, "failed");
+  assert.equal(result.error, "spawn EPERM");
+  assert.deepEqual(result.inspection.blockingReasons, [
+    "codex_cli_exit_code:1",
+    "codex_cli_process_error:spawn EPERM"
+  ]);
+});
+
 test("codex cli operator acceptance runs a task through the guarded exec runner and captures telemetry", async () => {
   const telemetryStore = createRecordingTelemetrySink();
   let calls = 0;
@@ -1868,6 +1915,12 @@ test("codex cli read-only smoke runs through guarded runner and captures evidenc
   assert.deepEqual(evidence.summary.warnings, ["WARNING: diagnostic only"]);
   assert.deepEqual(evidence.notes, ["fake spawner validation"]);
   assert.equal("prompt" in evidence.plan, false);
+  assert.equal(result.governance?.observation.status, "succeeded");
+  assert.equal(result.governance?.strategy.action, "continue");
+  assert.equal(result.governance?.ledgerEntry.schemaVersion, "codex-cli-checkpoint-ledger-entry.v2");
+  assert.equal(evidence.governance?.schemaVersion, "codex-cli-governance-evidence-summary.v1");
+  assert.equal(evidence.governance?.observationStatus, "succeeded");
+  assert.equal(evidence.governance?.anomalyCount, 0);
 });
 
 test("codex cli read-only smoke forwards telemetryStore into probe cache telemetry", async () => {
@@ -2194,6 +2247,11 @@ test("codex cli workspace-write smoke runner does not spawn while gates are miss
   assert.ok(result.validationBlockers.includes(
     "codex_cli_workspace_write_smoke_requires_confirmation"
   ));
+  assert.equal(result.governance?.observation.status, "blocked");
+  assert.equal(result.governance?.observation.signals.sandboxBlocked, true);
+  assert.equal(result.governance?.observation.signals.writeSandboxRequested, true);
+  assert.equal(result.governance?.state.anomalies.count, 1);
+  assert.equal(result.governance?.strategy.action, "verify");
 });
 
 test("codex cli workspace-write smoke runner executes only after both gates", async () => {
@@ -2243,6 +2301,80 @@ test("codex cli workspace-write smoke runner executes only after both gates", as
   ]);
   assert.equal(result.run?.inspection.status, "completed");
   assert.equal(result.run?.inspection.events.length, 1);
+  assert.equal(result.governance?.observation.status, "succeeded");
+  assert.equal(result.governance?.strategy.writeSandboxAllowed, true);
+});
+
+test("codex cli governance forces step-back after three anomalies and blocks write sandbox", async () => {
+  const task = parseTaskEnvelope(createCodexCliWorkspaceWriteSmokeTask({
+    taskId: "cli-governance-three-strike",
+    repoRoot: "A:/codex-router"
+  }));
+  const plan = createCodexCliExecPlan(task, {
+    codexCommand: "codex",
+    sandbox: "workspace-write",
+    approvalPolicy: "on-request",
+    skipGitRepoCheck: true,
+    ephemeral: true
+  });
+  const first = createCodexCliGovernanceBundle({
+    task,
+    plan,
+    stage: "attempt-1",
+    status: "failed",
+    blockingReasons: ["codex_cli_process_timeout"],
+    timedOut: true,
+    now: () => "2026-04-27T01:00:00.000Z"
+  });
+  const second = createCodexCliGovernanceBundle({
+    task,
+    plan,
+    stage: "attempt-2",
+    status: "failed",
+    blockingReasons: ["codex_cli_process_timeout"],
+    timedOut: true,
+    previousState: first.state,
+    now: () => "2026-04-27T01:01:00.000Z"
+  });
+  const third = createCodexCliGovernanceBundle({
+    task,
+    plan,
+    stage: "attempt-3",
+    status: "failed",
+    blockingReasons: ["codex_cli_process_timeout"],
+    timedOut: true,
+    previousState: second.state,
+    now: () => "2026-04-27T01:02:00.000Z"
+  });
+  let didSpawn = false;
+
+  assert.equal(first.strategy.action, "verify");
+  assert.equal(second.strategy.action, "lockdown");
+  assert.equal(second.arbitrationPacket?.trigger, "second_anomaly");
+  assert.equal(second.arbitrationPacket?.probabilityPredictionAllowed, false);
+  assert.equal(third.strategy.action, "step_back");
+  assert.equal(third.strategy.writeSandboxAllowed, false);
+  assert.equal(third.arbitrationPacket?.trigger, "third_anomaly");
+  assert.equal(third.arbitrationPacket?.probabilityPredictionAllowed, false);
+
+  await assert.rejects(
+    () => runCodexCliExecPlan(plan, {
+      allowWriteSandbox: true,
+      skipExecutionModelProbe: true,
+      governance: {
+        previousState: third.state
+      },
+      spawn: () => {
+        didSpawn = true;
+        return createFakeCodexCliChild({
+          stdout: "{\"type\":\"agent_message\",\"message\":\"should not run\"}\n",
+          exitCode: 0
+        });
+      }
+    }),
+    /codex_cli_governance_step_back_active/
+  );
+  assert.equal(didSpawn, false);
 });
 
 test("codex cli workspace-write smoke runner respects an explicit codex command override", async () => {

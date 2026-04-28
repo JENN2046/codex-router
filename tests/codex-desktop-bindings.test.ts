@@ -66,7 +66,8 @@ function createInvocation(
         allowed: true,
         maxAgents: 2,
         mode: "read_only"
-      }
+      },
+      hostRoute: "desktop"
     },
     executionPlan: {
       executionProfile: "recon-only",

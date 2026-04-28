@@ -26,6 +26,28 @@ import {
   type DesktopPrimitiveHandlerOutput,
   type DesktopPrimitiveResultEnvelope
 } from "./result-envelope.js";
+import {
+  createObservationId,
+  parseExecutionObservation,
+  type ExecutionObservation,
+  type ExecutionObservationBus
+} from "../../execution-observation/src/index.js";
+import {
+  type GovernanceState,
+  type AnomalyRecord
+} from "../../state-manager/src/index.js";
+import {
+  scoreGovernanceRisk,
+  type ScoreGovernanceRiskInput
+} from "../../entropy-risk/src/index.js";
+import {
+  routeStrategyV2,
+  type StrategyDecisionV2
+} from "../../strategy-router/src/index.js";
+import {
+  createArbitrationPacket,
+  shouldLockdown
+} from "../../recovery-control/src/index.js";
 export {
   createPrimitiveFailureEnvelope,
   createPrimitiveSuccessEnvelope,
@@ -102,6 +124,9 @@ export interface DesktopLiveAdapterInput {
   };
   memoryAdapter?: MemoryAdapter;
   telemetryStore?: TelemetrySink;
+  observationBus?: ExecutionObservationBus;
+  governanceState?: GovernanceState;
+  onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
 }
 
 export interface DesktopLiveExecutionResult {
@@ -302,6 +327,11 @@ export async function executeDesktopPlan(
   const auditEvents: AuditEvent[] = [];
   const checkpointFrequency = result.preflight.memory.guidance?.checkpointFrequency ?? "minimal";
 
+  // Initialize governance state from runner result or create new
+  let governanceState: GovernanceState | undefined = input.governanceState;
+  let strategyDecision: StrategyDecisionV2 | undefined = undefined;
+  let anomalyCount = 0;
+
   if (result.status !== "ready") {
     const blockedEvent: AuditEvent = {
       type: "runner_blocked",
@@ -370,6 +400,97 @@ export async function executeDesktopPlan(
           stepIndex
         }
       });
+      await emitPrimitiveObservation({
+        ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+        taskId: result.task.taskId,
+        primitiveId: `${operation.primitive}:${stepIndex}`,
+        stage: "execution",
+        status: "failed" as const,
+        error: errorMessage,
+        createdAt: now()
+      });
+
+      // Update governance state on failure
+      if (governanceState) {
+        const observationForRisk: ExecutionObservation = parseExecutionObservation({
+          observationId: createObservationId({
+            taskId: result.task.taskId,
+            primitiveId: `${operation.primitive}:${stepIndex}`,
+            status: "failed",
+            createdAt: now()
+          }),
+          taskId: result.task.taskId,
+          primitiveId: `${operation.primitive}:${stepIndex}`,
+          stage: "execution",
+          status: "failed",
+          signals: { errorClass: errorMessage },
+          createdAt: now()
+        });
+
+        // Record anomaly with proper strike counting
+        const sameKindCount = governanceState.anomalies.filter(
+          (a) => a.kind === "execution_failure"
+        ).length;
+        const strikeNumber = Math.min(sameKindCount + 1, 3) as 1 | 2 | 3;
+
+        const newAnomaly: AnomalyRecord = {
+          anomalyId: `anomaly:${result.task.taskId}:${stepIndex}`,
+          taskId: result.task.taskId,
+          kind: "execution_failure",
+          message: errorMessage,
+          strikeNumber,
+          createdAt: now(),
+          evidenceRefs: []
+        };
+
+        governanceState = {
+          ...governanceState,
+          anomalies: [...governanceState.anomalies, newAnomaly],
+          updatedAt: now()
+        };
+
+        // Re-score risk
+        const riskInput: ScoreGovernanceRiskInput = {
+          task: result.task,
+          observations: governanceState.anomalies.length > 0
+            ? [observationForRisk]
+            : []
+        };
+        const newRisk = scoreGovernanceRisk(riskInput);
+        governanceState = {
+          ...governanceState,
+          risk: newRisk
+        };
+
+        // Re-route strategy
+        strategyDecision = routeStrategyV2({
+          state: governanceState,
+          now
+        });
+
+        // Notify callback
+        if (input.onGovernanceUpdate && strategyDecision) {
+          await input.onGovernanceUpdate(governanceState, strategyDecision);
+        }
+
+        // Check for lockdown/step_back
+        if (strategyDecision.actionFamily === "step_back" || strategyDecision.actionFamily === "abort") {
+          const arbitrationPacket = createArbitrationPacket({
+            state: governanceState,
+            now
+          });
+          if (shouldLockdown(arbitrationPacket)) {
+            return {
+              status: "failed",
+              taskId: result.task.taskId,
+              plan: result.executionPlan,
+              steps,
+              blockingReasons: ["governance_step_back_triggered", "arbitration_required"],
+              auditEvents
+            };
+          }
+        }
+      }
 
       if (stopOnFailure) {
         await maybePersistExecutionCheckpoint({
@@ -426,6 +547,94 @@ export async function executeDesktopPlan(
             stepIndex
           }
         });
+        await emitPrimitiveObservation({
+          ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+          taskId: result.task.taskId,
+          primitiveId: `${operation.primitive}:${stepIndex}`,
+          stage: "execution",
+          status: "failed",
+          error: output.error,
+          createdAt: now()
+        });
+
+        // Update governance state on handler failure
+        if (governanceState) {
+          const sameKindCount = governanceState.anomalies.filter(
+            (a) => a.kind === "execution_failure"
+          ).length;
+          const strikeNumber = Math.min(sameKindCount + 1, 3) as 1 | 2 | 3;
+
+          const handlerAnomaly: AnomalyRecord = {
+            anomalyId: `anomaly:${result.task.taskId}:handler:${stepIndex}`,
+            taskId: result.task.taskId,
+            kind: "execution_failure",
+            message: output.error ?? "handler returned failure",
+            strikeNumber,
+            createdAt: now(),
+            evidenceRefs: []
+          };
+
+          governanceState = {
+            ...governanceState,
+            anomalies: [...governanceState.anomalies, handlerAnomaly],
+            updatedAt: now()
+          };
+
+          // Re-score risk with updated anomalies
+          const observationForRisk: ExecutionObservation = parseExecutionObservation({
+            observationId: createObservationId({
+              taskId: result.task.taskId,
+              primitiveId: `${operation.primitive}:${stepIndex}`,
+              status: "failed",
+              createdAt: now()
+            }),
+            taskId: result.task.taskId,
+            primitiveId: `${operation.primitive}:${stepIndex}`,
+            stage: "execution",
+            status: "failed",
+            signals: { errorClass: output.error ?? "handler_failure" },
+            createdAt: now()
+          });
+
+          const riskInput: ScoreGovernanceRiskInput = {
+            task: result.task,
+            observations: [observationForRisk]
+          };
+          const newRisk = scoreGovernanceRisk(riskInput);
+          governanceState = {
+            ...governanceState,
+            risk: newRisk
+          };
+
+          // Re-route strategy
+          strategyDecision = routeStrategyV2({
+            state: governanceState,
+            now
+          });
+
+          // Notify callback
+          if (input.onGovernanceUpdate && strategyDecision) {
+            await input.onGovernanceUpdate(governanceState, strategyDecision);
+          }
+
+          // Check for lockdown/step_back
+          if (strategyDecision.actionFamily === "step_back" || strategyDecision.actionFamily === "abort") {
+            const arbitrationPacket = createArbitrationPacket({
+              state: governanceState,
+              now
+            });
+            if (shouldLockdown(arbitrationPacket)) {
+              return {
+                status: "failed",
+                taskId: result.task.taskId,
+                plan: result.executionPlan,
+                steps,
+                blockingReasons: ["governance_step_back_triggered", "arbitration_required"],
+                auditEvents
+              };
+            }
+          }
+        }
 
         if (stopOnFailure) {
           await maybePersistExecutionCheckpoint({
@@ -457,6 +666,14 @@ export async function executeDesktopPlan(
         status: "completed",
         reason: operation.reason,
         output
+      });
+      await emitPrimitiveObservation({
+        ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+        taskId: result.task.taskId,
+        primitiveId: `${operation.primitive}:${stepIndex}`,
+        stage: "execution",
+        status: "succeeded" as const,
+        createdAt: now()
       });
       await maybePersistExecutionCheckpoint({
         taskId: result.task.taskId,
@@ -499,6 +716,15 @@ export async function executeDesktopPlan(
           error: failedStep.error,
           stepIndex
         }
+      });
+      await emitPrimitiveObservation({
+        ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+        taskId: result.task.taskId,
+        primitiveId: `${operation.primitive}:${stepIndex}`,
+        stage: "execution",
+        status: "failed" as const,
+        error: (error as Error).message,
+        createdAt: now()
       });
 
       if (stopOnFailure) {
@@ -649,4 +875,37 @@ function shouldRecordCheckpoint(
     default:
       return false;
   }
+}
+
+async function emitPrimitiveObservation(input: {
+  observationBus?: ExecutionObservationBus;
+  taskId: string;
+  primitiveId: string;
+  stage: string;
+  status: "succeeded" | "failed" | "blocked";
+  error?: string;
+  evidenceRef?: string;
+  createdAt: string;
+}): Promise<void> {
+  if (!input.observationBus) {
+    return;
+  }
+
+  await input.observationBus.emit(parseExecutionObservation({
+    observationId: createObservationId({
+      taskId: input.taskId,
+      primitiveId: input.primitiveId,
+      status: input.status,
+      createdAt: input.createdAt
+    }),
+    taskId: input.taskId,
+    primitiveId: input.primitiveId,
+    stage: input.stage,
+    status: input.status,
+    signals: {
+      ...(input.error !== undefined ? { errorClass: input.error } : {})
+    },
+    ...(input.evidenceRef !== undefined ? { evidenceRef: input.evidenceRef } : {}),
+    createdAt: input.createdAt
+  }));
 }
