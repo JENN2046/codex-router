@@ -163,8 +163,12 @@ Review the refreshed files before committing:
 ```powershell
 git diff -- docs/evidence/codex-cli-readonly-smoke-telemetry-latest.json
 git diff -- docs/evidence/codex-cli-workspace-write-smoke-telemetry-latest.json
+git diff -- docs/evidence/codex-cli-workspace-write-smoke.txt
 git diff -- docs/evidence/manifest-latest.json
 ```
+
+If workspace-write smoke ran, the bounded target file diff is mandatory review
+material, not incidental evidence.
 
 Only commit evidence when it is intentional release evidence. Otherwise archive
 it outside the repository or leave it as CI/local artifact.
