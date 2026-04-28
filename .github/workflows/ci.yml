@@ -76,6 +76,27 @@ jobs:
           name: canary-evidence-node${{ matrix.node }}-${{ matrix.risk }}
           path: docs/evidence/codex-cli-canary-latest.json
 
+  smoke-contract:
+    name: Smoke Contract (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run smoke:contract
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-contract-evidence-node${{ matrix.node }}
+          path: docs/evidence/codex-cli-contract-smoke-latest.json
+
   # smoke-cli requires Codex CLI binary to be installed on the runner,
   # which is not available on GitHub Actions. Smoke tests are run locally
   # via `npm run smoke:telemetry` and `npm run smoke:workspace-write:telemetry`.
@@ -87,7 +108,7 @@ jobs:
   evidence:
     name: Evidence Collection
     runs-on: ubuntu-latest
-    needs: [canary]
+    needs: [canary, smoke-contract]
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -99,7 +120,7 @@ jobs:
       - name: Download canary artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: canary-evidence-*
+          pattern: "*-evidence-*"
           path: docs/evidence/
           merge-multiple: true
         continue-on-error: true

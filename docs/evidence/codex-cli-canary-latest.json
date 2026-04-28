@@ -1,12 +1,12 @@
 {
   "schemaVersion": "codex-router-evidence.v1",
-  "generatedAt": "2026-04-28T07:04:22.838Z",
+  "generatedAt": "2026-04-28T14:04:32.159Z",
   "phase": "phase20",
   "scenarioId": "CANARY-02",
   "host": "cli",
   "result": {
     "status": "passed",
-    "taskId": "canary-medium-1777359862833",
+    "taskId": "canary-medium-1777385072151",
     "governancePhase": "planning",
     "riskLevel": "medium",
     "actionFamily": "execute",

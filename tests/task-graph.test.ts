@@ -17,6 +17,7 @@ import {
   getReachableNodes,
   isGraphComplete,
   parseTaskGraph,
+  parseTaskGraphDelta,
   createGraphDelta,
   applyGraphDelta,
   recordCheckpointNode,
@@ -41,18 +42,71 @@ test("task-graph: createTaskGraph creates a graph with root node", () => {
     now: () => "2026-04-28T00:00:00.000Z"
   });
 
-  assert.equal(graph.schemaVersion, "task-graph.v1");
+  assert.equal(graph.schemaVersion, "task-graph.v2");
   assert.equal(graph.rootTaskId, "test-task");
   assert.equal(graph.activeBranch, "main");
   assert.equal(graph.nodes.length, 1);
   assert.equal(graph.nodes[0]?.type, "root");
   assert.equal(graph.nodes[0]?.status, "pending");
+  assert.equal(graph.nodes[0]?.branchId, "main");
+  assert.equal(graph.nodes[0]?.originBranchId, "main");
+  assert.deepEqual(graph.nodes[0]?.mergedFromBranchIds, []);
 });
 
 test("task-graph: parseTaskGraph validates input", () => {
   const graph = createTaskGraph({ taskId: "test-task" });
   const parsed = parseTaskGraph(graph);
   assert.equal(parsed.graphId, graph.graphId);
+});
+
+test("task-graph: parseTaskGraph rejects legacy v1 graph payloads", () => {
+  assert.throws(() =>
+    parseTaskGraph({
+      schemaVersion: "task-graph.v1",
+      graphId: "graph:legacy",
+      rootTaskId: "legacy",
+      nodes: [
+        {
+          nodeId: "legacy:root",
+          taskId: "legacy",
+          type: "root",
+          status: "pending",
+          createdAt: "2026-04-28T00:00:00.000Z",
+          updatedAt: "2026-04-28T00:00:00.000Z"
+        }
+      ],
+      edges: [],
+      branches: ["main"],
+      activeBranch: "main",
+      createdAt: "2026-04-28T00:00:00.000Z",
+      updatedAt: "2026-04-28T00:00:00.000Z"
+    } as unknown as Parameters<typeof parseTaskGraph>[0])
+  );
+});
+
+test("task-graph: parseTaskGraph rejects v2 nodes without branch ownership", () => {
+  assert.throws(() =>
+    parseTaskGraph({
+      schemaVersion: "task-graph.v2",
+      graphId: "graph:missing-ownership",
+      rootTaskId: "missing-ownership",
+      nodes: [
+        {
+          nodeId: "missing-ownership:root",
+          taskId: "missing-ownership",
+          type: "root",
+          status: "pending",
+          createdAt: "2026-04-28T00:00:00.000Z",
+          updatedAt: "2026-04-28T00:00:00.000Z"
+        }
+      ],
+      edges: [],
+      branches: ["main"],
+      activeBranch: "main",
+      createdAt: "2026-04-28T00:00:00.000Z",
+      updatedAt: "2026-04-28T00:00:00.000Z"
+    } as unknown as Parameters<typeof parseTaskGraph>[0])
+  );
 });
 
 // ── Node operations tests ───────────────────────────────────────────────────
@@ -68,6 +122,10 @@ test("task-graph: addNodeToGraph adds a node", () => {
 
   assert.equal(updated.nodes.length, 2);
   assert.ok(updated.nodes.some(n => n.nodeId === "node-1"));
+  const node = getNode(updated, "node-1");
+  assert.equal(node?.branchId, "main");
+  assert.equal(node?.originBranchId, "main");
+  assert.deepEqual(node?.mergedFromBranchIds, []);
 });
 
 test("task-graph: updateNodeStatus updates node status", () => {
@@ -76,6 +134,36 @@ test("task-graph: updateNodeStatus updates node status", () => {
   const node = getNode(updated, `${graph.rootTaskId}:root`);
 
   assert.equal(node?.status, "completed");
+});
+
+test("task-graph: updateNodeStatus only updates active branch duplicate when present", () => {
+  let graph = createTaskGraph({ taskId: "branch-update-test" });
+  graph = addNodeToGraph(graph, {
+    nodeId: "shared-node",
+    taskId: "branch-update-test",
+    type: "subtask",
+    status: "pending",
+    branchId: "main",
+    originBranchId: "main",
+    mergedFromBranchIds: []
+  });
+
+  graph = createBranch(graph, "feature");
+  graph = addNodeToGraph(graph, {
+    nodeId: "shared-node",
+    taskId: "branch-update-test",
+    type: "subtask",
+    status: "in_progress",
+    branchId: "feature",
+    originBranchId: "main",
+    mergedFromBranchIds: []
+  });
+
+  const updated = updateNodeStatus(graph, "shared-node", "completed");
+  const sharedNodes = updated.nodes.filter(n => n.nodeId === "shared-node");
+
+  assert.equal(sharedNodes.find(n => n.branchId === "main")?.status, "pending");
+  assert.equal(sharedNodes.find(n => n.branchId === "feature")?.status, "completed");
 });
 
 test("task-graph: getNodesByStatus filters nodes", () => {
@@ -117,6 +205,9 @@ test("task-graph: addEdgeToGraph adds an edge", () => {
 
   assert.equal(updated.edges.length, 1);
   assert.equal(updated.edges[0]?.type, "dependency");
+  assert.equal(updated.edges[0]?.branchId, "main");
+  assert.equal(updated.edges[0]?.originBranchId, "main");
+  assert.deepEqual(updated.edges[0]?.mergedFromBranchIds, []);
 });
 
 test("task-graph: addDependencyEdge adds dependency edge", () => {
@@ -239,12 +330,28 @@ test("task-graph: createGraphDelta captures full graph state", () => {
 
   const delta = createGraphDelta(graph, "cp-1");
 
-  assert.equal(delta.schemaVersion, "task-graph-delta.v1");
+  assert.equal(delta.schemaVersion, "task-graph-delta.v2");
   assert.equal(delta.graphId, graph.graphId);
   assert.equal(delta.checkpointId, "cp-1");
   assert.equal(delta.nodes.length, 2);
   assert.equal(delta.edges.length, 0);
   assert.equal(delta.rootTaskId, "delta-test");
+});
+
+test("task-graph: parseTaskGraphDelta rejects legacy v1 delta payloads", () => {
+  assert.throws(() =>
+    parseTaskGraphDelta({
+      schemaVersion: "task-graph-delta.v1",
+      graphId: "graph:legacy",
+      checkpointId: "cp-legacy",
+      branchId: "main",
+      nodes: [],
+      edges: [],
+      activeBranch: "main",
+      rootTaskId: "legacy",
+      createdAt: "2026-04-28T00:00:00.000Z"
+    } as unknown as Parameters<typeof parseTaskGraphDelta>[0])
+  );
 });
 
 test("task-graph: applyGraphDelta restores graph to checkpoint state", () => {
@@ -292,6 +399,9 @@ test("task-graph: recordCheckpointNode adds checkpoint node and returns delta", 
   assert.ok(cpNode);
   assert.equal(cpNode?.type, "checkpoint");
   assert.equal(cpNode?.status, "completed");
+  assert.equal(cpNode?.branchId, "main");
+  assert.equal(cpNode?.originBranchId, "main");
+  assert.deepEqual(cpNode?.mergedFromBranchIds, []);
   assert.ok(cpNode?.data?.delta);
   assert.equal(delta.checkpointId, "cp-1");
   assert.equal(updated.nodes.length, 3); // root + node-1 + checkpoint
@@ -359,9 +469,38 @@ test("task-graph: mergeBranch with union copies new nodes to target", () => {
   });
 
   const merged = mergeBranch(graph, "feature-x", "main", "union");
+  const featureNode = getNode(merged, "feat-node");
 
-  assert.ok(merged.nodes.some(n => n.nodeId === "feat-node"));
+  assert.ok(featureNode);
+  assert.equal(featureNode?.branchId, "main");
+  assert.equal(featureNode?.originBranchId, "feature-x");
+  assert.deepEqual(featureNode?.mergedFromBranchIds, ["feature-x"]);
   assert.equal(merged.activeBranch, "main");
+});
+
+test("task-graph: mergeBranch copies source-only edges to target with provenance", () => {
+  let graph = createTaskGraph({ taskId: "merge-edge-test" });
+  graph = createBranch(graph, "feature-x");
+  graph = addNodeToGraph(graph, {
+    nodeId: "feat-node",
+    taskId: "merge-edge-test",
+    type: "subtask",
+    status: "completed"
+  });
+  graph = addDependencyEdge(graph, `${graph.rootTaskId}:root`, "feat-node");
+
+  const merged = mergeBranch(graph, "feature-x", "main", "union");
+  const featureEdge = merged.edges.find(
+    e =>
+      e.sourceNodeId === `${graph.rootTaskId}:root` &&
+      e.targetNodeId === "feat-node" &&
+      e.type === "dependency"
+  );
+
+  assert.ok(featureEdge);
+  assert.equal(featureEdge?.branchId, "main");
+  assert.equal(featureEdge?.originBranchId, "feature-x");
+  assert.deepEqual(featureEdge?.mergedFromBranchIds, ["feature-x"]);
 });
 
 test("task-graph: mergeBranch returns original if source branch missing", () => {
@@ -376,26 +515,124 @@ test("task-graph: mergeBranch returns original if source equals target", () => {
   assert.equal(result.nodes.length, 1);
 });
 
-test("task-graph: mergeBranch keep_source strategy replaces conflicting nodes", () => {
-  let graph = createTaskGraph({ taskId: "merge-ks-test" });
-  const rootId = `${graph.rootTaskId}:root`;
+test("task-graph: mergeBranch keep_target keeps target-owned conflicting node", () => {
+  let graph = createTaskGraph({ taskId: "merge-kt-test" });
 
-  // Target branch (main) has node-1 with status "pending"
+  graph = addNodeToGraph(graph, {
+    nodeId: "node-1",
+    taskId: "merge-kt-test",
+    type: "subtask",
+    status: "pending",
+    branchId: "main",
+    originBranchId: "main",
+    mergedFromBranchIds: ["main-base"]
+  });
+
+  graph = createBranch(graph, "feature");
+  graph = addNodeToGraph(graph, {
+    nodeId: "node-1",
+    taskId: "merge-kt-test",
+    type: "subtask",
+    status: "completed",
+    branchId: "feature",
+    originBranchId: "main",
+    mergedFromBranchIds: ["feature-base"]
+  });
+
+  const merged = mergeBranch(graph, "feature", "main", "keep_target");
+  const mergedNodes = merged.nodes.filter(n => n.nodeId === "node-1");
+
+  assert.equal(mergedNodes.length, 1);
+  assert.equal(mergedNodes[0]?.status, "pending");
+  assert.equal(mergedNodes[0]?.branchId, "main");
+  assert.equal(mergedNodes[0]?.originBranchId, "main");
+  assert.deepEqual(mergedNodes[0]?.mergedFromBranchIds, [
+    "main-base",
+    "feature-base",
+    "feature"
+  ]);
+});
+
+test("task-graph: mergeBranch keep_source retargets source-owned conflicting node", () => {
+  let graph = createTaskGraph({ taskId: "merge-ks-test" });
+
   graph = addNodeToGraph(graph, {
     nodeId: "node-1",
     taskId: "merge-ks-test",
     type: "subtask",
-    status: "pending"
+    status: "pending",
+    branchId: "main",
+    originBranchId: "main",
+    mergedFromBranchIds: ["main-base"]
   });
 
-  // Create source branch and modify node-1 status
   graph = createBranch(graph, "feature");
-  graph = updateNodeStatus(graph, "node-1", "completed");
+  graph = addNodeToGraph(graph, {
+    nodeId: "node-1",
+    taskId: "merge-ks-test",
+    type: "subtask",
+    status: "completed",
+    branchId: "feature",
+    originBranchId: "feature",
+    mergedFromBranchIds: ["feature-base"]
+  });
 
-  // Merge with keep_source: source version should win
   const merged = mergeBranch(graph, "feature", "main", "keep_source");
-  const mergedNode = getNode(merged, "node-1");
-  assert.equal(mergedNode?.status, "completed");
+  const mergedNodes = merged.nodes.filter(n => n.nodeId === "node-1");
+
+  assert.equal(mergedNodes.length, 1);
+  assert.equal(mergedNodes[0]?.status, "completed");
+  assert.equal(mergedNodes[0]?.branchId, "main");
+  assert.equal(mergedNodes[0]?.originBranchId, "feature");
+  assert.deepEqual(mergedNodes[0]?.mergedFromBranchIds, [
+    "feature-base",
+    "main-base",
+    "feature"
+  ]);
+});
+
+test("task-graph: mergeBranch keep_source retargets source-owned conflicting edge", () => {
+  let graph = createTaskGraph({ taskId: "merge-edge-ks-test" });
+  graph = addNodeToGraph(graph, {
+    nodeId: "node-1",
+    taskId: "merge-edge-ks-test",
+    type: "subtask",
+    status: "pending"
+  });
+  graph = addEdgeToGraph(graph, {
+    sourceNodeId: `${graph.rootTaskId}:root`,
+    targetNodeId: "node-1",
+    type: "dependency",
+    branchId: "main",
+    originBranchId: "main",
+    mergedFromBranchIds: [],
+    metadata: { owner: "target" }
+  });
+
+  graph = createBranch(graph, "feature");
+  graph = addEdgeToGraph(graph, {
+    sourceNodeId: `${graph.rootTaskId}:root`,
+    targetNodeId: "node-1",
+    type: "dependency",
+    branchId: "feature",
+    originBranchId: "feature",
+    mergedFromBranchIds: [],
+    metadata: { owner: "source" }
+  });
+
+  const merged = mergeBranch(graph, "feature", "main", "keep_source");
+  const mergedEdges = merged.edges.filter(
+    e =>
+      e.sourceNodeId === `${graph.rootTaskId}:root` &&
+      e.targetNodeId === "node-1" &&
+      e.type === "dependency"
+  );
+
+  assert.equal(mergedEdges.length, 1);
+  assert.equal(mergedEdges[0]?.branchId, "main");
+  assert.equal(mergedEdges[0]?.originBranchId, "feature");
+  assert.deepEqual(mergedEdges[0]?.mergedFromBranchIds, ["feature"]);
+  assert.equal(mergedEdges[0]?.metadata?.owner, "source");
 });
 
 // ── Store tests ──────────────────────────────────────────────────────────────

@@ -1,5 +1,154 @@
 import { z } from "zod";
 
+// ── Branch Ownership ────────────────────────────────────────────────────────
+
+const BranchOwnershipSchema = {
+  branchId: z.string().min(1),
+  originBranchId: z.string().min(1),
+  mergedFromBranchIds: z.array(z.string().min(1))
+};
+
+interface BranchOwned {
+  branchId: string;
+  originBranchId: string;
+  mergedFromBranchIds: string[];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter(value => value.length > 0)));
+}
+
+function applyBranchOwnership<T extends Partial<BranchOwned>>(
+  item: T,
+  defaultBranchId: string
+): T & BranchOwned {
+  const branchId = item.branchId ?? defaultBranchId;
+  return {
+    ...item,
+    branchId,
+    originBranchId: item.originBranchId ?? branchId,
+    mergedFromBranchIds: uniqueStrings(item.mergedFromBranchIds ?? [])
+  };
+}
+
+function markMergedIntoTarget<T extends BranchOwned>(
+  item: T,
+  targetBranchId: string,
+  sourceBranchId: string,
+  extraMergedFromBranchIds: string[] = []
+): T {
+  return {
+    ...item,
+    branchId: targetBranchId,
+    mergedFromBranchIds: uniqueStrings([
+      ...item.mergedFromBranchIds,
+      ...extraMergedFromBranchIds,
+      sourceBranchId
+    ])
+  };
+}
+
+function collectMergedFrom(...items: BranchOwned[]): string[] {
+  return uniqueStrings(items.flatMap(item => item.mergedFromBranchIds));
+}
+
+function edgeOwnedKey(edge: { sourceNodeId: string; targetNodeId: string; type: string }): string {
+  return `${edge.sourceNodeId}->${edge.targetNodeId}:${edge.type}`;
+}
+
+function groupByKey<T>(items: T[], getKey: (item: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const key = getKey(item);
+    const group = groups.get(key);
+    if (group) {
+      group.push(item);
+    } else {
+      groups.set(key, [item]);
+    }
+  }
+  return groups;
+}
+
+function mergeBranchOwnedItems<T extends BranchOwned>(
+  items: T[],
+  sourceBranchId: string,
+  targetBranchId: string,
+  strategy: MergeStrategy
+): T[] {
+  const mergedItems: T[] = [];
+
+  for (const group of groupByKey(items, itemKey).values()) {
+    const sourceItem = group.find(item => item.branchId === sourceBranchId);
+    const targetItem = group.find(item => item.branchId === targetBranchId);
+    const unrelatedItems = group.filter(
+      item => item.branchId !== sourceBranchId && item.branchId !== targetBranchId
+    );
+
+    mergedItems.push(...unrelatedItems);
+
+    if (sourceItem && targetItem) {
+      if (strategy === "keep_source") {
+        mergedItems.push(
+          markMergedIntoTarget(
+            sourceItem,
+            targetBranchId,
+            sourceBranchId,
+            collectMergedFrom(targetItem)
+          )
+        );
+      } else {
+        mergedItems.push(
+          markMergedIntoTarget(
+            targetItem,
+            targetBranchId,
+            sourceBranchId,
+            collectMergedFrom(sourceItem)
+          )
+        );
+      }
+      continue;
+    }
+
+    if (sourceItem) {
+      mergedItems.push(markMergedIntoTarget(sourceItem, targetBranchId, sourceBranchId));
+      continue;
+    }
+
+    if (targetItem) {
+      mergedItems.push(targetItem);
+    }
+  }
+
+  return mergedItems;
+}
+
+function itemKey(item: BranchOwned): string {
+  const maybeNode = item as BranchOwned & { nodeId?: unknown };
+  if (typeof maybeNode.nodeId === "string") {
+    return maybeNode.nodeId;
+  }
+
+  const maybeEdge = item as BranchOwned & {
+    sourceNodeId?: unknown;
+    targetNodeId?: unknown;
+    type?: unknown;
+  };
+  if (
+    typeof maybeEdge.sourceNodeId === "string" &&
+    typeof maybeEdge.targetNodeId === "string" &&
+    typeof maybeEdge.type === "string"
+  ) {
+    return edgeOwnedKey({
+      sourceNodeId: maybeEdge.sourceNodeId,
+      targetNodeId: maybeEdge.targetNodeId,
+      type: maybeEdge.type
+    });
+  }
+
+  return JSON.stringify(item);
+}
+
 // ── Task Graph Node ──────────────────────────────────────────────────────────
 
 export const TaskGraphNodeSchema = z.object({
@@ -8,12 +157,18 @@ export const TaskGraphNodeSchema = z.object({
   type: z.enum(["root", "subtask", "checkpoint", "branch"]),
   status: z.enum(["pending", "in_progress", "completed", "failed", "blocked"]),
   data: z.record(z.unknown()).optional(),
+  ...BranchOwnershipSchema,
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1)
 });
 
 export type TaskGraphNode = z.infer<typeof TaskGraphNodeSchema>;
 export type TaskGraphNodeStatus = z.infer<typeof TaskGraphNodeSchema>["status"];
+export type TaskGraphNodeInput = Omit<
+  TaskGraphNode,
+  "createdAt" | "updatedAt" | "branchId" | "originBranchId" | "mergedFromBranchIds"
+> &
+  Partial<Pick<TaskGraphNode, "branchId" | "originBranchId" | "mergedFromBranchIds">>;
 
 // ── Task Graph Edge ──────────────────────────────────────────────────────────
 
@@ -22,15 +177,21 @@ export const TaskGraphEdgeSchema = z.object({
   sourceNodeId: z.string().min(1),
   targetNodeId: z.string().min(1),
   type: z.enum(["dependency", "conflict", "parent_child", "sequential"]),
+  ...BranchOwnershipSchema,
   metadata: z.record(z.unknown()).optional()
 });
 
 export type TaskGraphEdge = z.infer<typeof TaskGraphEdgeSchema>;
+export type TaskGraphEdgeInput = Omit<
+  TaskGraphEdge,
+  "edgeId" | "branchId" | "originBranchId" | "mergedFromBranchIds"
+> &
+  Partial<Pick<TaskGraphEdge, "branchId" | "originBranchId" | "mergedFromBranchIds">>;
 
 // ── Task Graph ───────────────────────────────────────────────────────────────
 
 export const TaskGraphSchema = z.object({
-  schemaVersion: z.literal("task-graph.v1").default("task-graph.v1"),
+  schemaVersion: z.literal("task-graph.v2").default("task-graph.v2"),
   graphId: z.string().min(1),
   rootTaskId: z.string().min(1),
   nodes: z.array(TaskGraphNodeSchema).default([]),
@@ -68,6 +229,9 @@ export function createTaskGraph(input: CreateTaskGraphInput): TaskGraph {
     taskId: input.taskId,
     type: "root",
     status: "pending",
+    branchId,
+    originBranchId: branchId,
+    mergedFromBranchIds: [],
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -86,10 +250,10 @@ export function createTaskGraph(input: CreateTaskGraphInput): TaskGraph {
 
 // ── Node operations ─────────────────────────────────────────────────────────
 
-export function addNodeToGraph(graph: TaskGraph, node: Omit<TaskGraphNode, "createdAt" | "updatedAt">): TaskGraph {
+export function addNodeToGraph(graph: TaskGraph, node: TaskGraphNodeInput): TaskGraph {
   const now = new Date().toISOString();
   const newNode: TaskGraphNode = {
-    ...node,
+    ...applyBranchOwnership(node, graph.activeBranch),
     createdAt: now,
     updatedAt: now
   };
@@ -107,10 +271,15 @@ export function updateNodeStatus(
   status: TaskGraphNodeStatus
 ): TaskGraph {
   const now = new Date().toISOString();
+  const activeBranchHasNode = graph.nodes.some(
+    n => n.nodeId === nodeId && n.branchId === graph.activeBranch
+  );
   return {
     ...graph,
     nodes: graph.nodes.map(n =>
-      n.nodeId === nodeId ? { ...n, status, updatedAt: now } : n
+      n.nodeId === nodeId && (!activeBranchHasNode || n.branchId === graph.activeBranch)
+        ? { ...n, status, updatedAt: now }
+        : n
     ),
     updatedAt: now
   };
@@ -120,11 +289,11 @@ export function updateNodeStatus(
 
 export function addEdgeToGraph(
   graph: TaskGraph,
-  edge: Omit<TaskGraphEdge, "edgeId">
+  edge: TaskGraphEdgeInput
 ): TaskGraph {
   const now = new Date().toISOString();
   const newEdge: TaskGraphEdge = {
-    ...edge,
+    ...applyBranchOwnership(edge, graph.activeBranch),
     edgeId: `edge:${edge.sourceNodeId}->${edge.targetNodeId}:${now}`
   };
 
@@ -247,7 +416,7 @@ export function isGraphComplete(graph: TaskGraph): boolean {
 // ── Graph Delta ──────────────────────────────────────────────────────────────
 
 export const TaskGraphDeltaSchema = z.object({
-  schemaVersion: z.literal("task-graph-delta.v1").default("task-graph-delta.v1"),
+  schemaVersion: z.literal("task-graph-delta.v2").default("task-graph-delta.v2"),
   graphId: z.string().min(1),
   checkpointId: z.string().min(1),
   branchId: z.string().min(1),
@@ -325,15 +494,15 @@ export function recordCheckpointNode(
   graph: TaskGraph,
   checkpointId: string
 ): { graph: TaskGraph; delta: TaskGraphDelta } {
-  const now = new Date().toISOString();
-
-  const checkpointNode: TaskGraphNode = {
-    nodeId: `checkpoint:${checkpointId}`,
+  const checkpointNodeId = `checkpoint:${checkpointId}`;
+  const checkpointNode: TaskGraphNodeInput = {
+    nodeId: checkpointNodeId,
     taskId: graph.rootTaskId,
     type: "checkpoint",
     status: "completed",
-    createdAt: now,
-    updatedAt: now
+    branchId: graph.activeBranch,
+    originBranchId: graph.activeBranch,
+    mergedFromBranchIds: []
   };
 
   const updated = addNodeToGraph(graph, checkpointNode);
@@ -342,7 +511,7 @@ export function recordCheckpointNode(
   const delta = createGraphDelta(updated, checkpointId);
   // Store delta reference on the node
   updated.nodes = updated.nodes.map(n =>
-    n.nodeId === checkpointNode.nodeId
+    n.nodeId === checkpointNodeId
       ? { ...n, data: { delta: delta as unknown as Record<string, unknown> } }
       : n
   );
@@ -404,9 +573,9 @@ export type MergeStrategy = "keep_source" | "keep_target" | "union";
  * Merges nodes and edges from sourceBranch into targetBranch.
  *
  * Strategies:
- * - "keep_source": on conflict, source branch wins
+ * - "keep_source": on conflict, source branch wins and is retargeted
  * - "keep_target": on conflict, target branch wins (default)
- * - "union": duplicate nodes are skipped by nodeId
+ * - "union": source-only items are copied, conflicting target items are kept with merge provenance
  */
 export function mergeBranch(
   graph: TaskGraph,
@@ -426,44 +595,10 @@ export function mergeBranch(
 
   const now = new Date().toISOString();
 
-  // Deduplicate nodes: keep_target strategy → target nodes win (later in array wins);
-  // keep_source strategy → source nodes should win, but since we can't distinguish
-  // per-node branch ownership without a branchId field on nodes, we apply strategy
-  // to duplicates found during the merge pass. For now, merge operates on the full
-  // graph and resolves duplicates by nodeId.
-  const mergedNodeIds = new Set<string>();
-  const mergedNodes: TaskGraphNode[] = [];
-
-  for (const node of graph.nodes) {
-    if (mergedNodeIds.has(node.nodeId)) {
-      if (strategy === "keep_source") {
-        // Replace existing with this version (source wins)
-        const idx = mergedNodes.findIndex(n => n.nodeId === node.nodeId);
-        if (idx >= 0) mergedNodes[idx] = node;
-      }
-      // keep_target: skip duplicate (target version already in mergedNodes)
-      continue;
-    }
-    mergedNodeIds.add(node.nodeId);
-    mergedNodes.push(node);
-  }
-
-  // Deduplicate edges
-  const mergedEdgeKeys = new Set<string>();
-  const mergedEdges: TaskGraphEdge[] = [];
-
-  for (const edge of graph.edges) {
-    const key = `${edge.sourceNodeId}->${edge.targetNodeId}`;
-    if (!mergedEdgeKeys.has(key)) {
-      mergedEdgeKeys.add(key);
-      mergedEdges.push(edge);
-    }
-  }
-
   return {
     ...graph,
-    nodes: mergedNodes,
-    edges: mergedEdges,
+    nodes: mergeBranchOwnedItems(graph.nodes, sourceBranchId, targetBranchId, strategy),
+    edges: mergeBranchOwnedItems(graph.edges, sourceBranchId, targetBranchId, strategy),
     activeBranch: targetBranchId,
     updatedAt: now
   };
