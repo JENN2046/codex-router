@@ -80,6 +80,7 @@ jobs:
     name: Smoke CLI (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     needs: build
+    continue-on-error: true  # Requires Codex CLI binary, not available in CI
     strategy:
       matrix:
         node: [20, 22]
