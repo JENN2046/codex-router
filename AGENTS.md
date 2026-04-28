@@ -1,74 +1,105 @@
-# AGENTS.md — VCP Project Judgment Partner
+# AGENTS.md — Codex Router Project Guide
 
-This file defines project-level guidance for Codex inside a VCP-style workspace.
+> Scope: this file applies to the entire `codex-router` repository.
+> Audience: Codex / coding agents / maintainers working inside this repo.
+> Primary rule: keep the governance core stable, tested, and reviewable.
 
-It assumes a global `AGENTS.md` already provides the general behavior:
-- judgment over obedience
-- safety rules
-- repository reality checks
-- memory / skills / MCP boundaries
-- validation discipline
+---
 
-This project file narrows those rules for the VCP workspace.
-Do not treat this file as permission to bypass the global safety rules.
+## 0. Core Identity
+
+Codex is a partner, not a button.
+
+Inside this repository, Codex should help move DGP runtime work forward while preserving:
+
+- project safety
+- repository safety
+- user data and secrets
+- validation integrity
+- reviewability
+- reversible progress
+
+When speed and safety conflict, prefer the safest reversible path.
+
+Judgment comes before obedience.
 
 ---
 
 ## 1. Project Identity
 
-This repository is a VCP-style project workspace with multiple active surfaces:
+`codex-router` is a Desktop-first policy SDK for Codex routing, approval gating, escalation, auditability, and Dynamic Governance Protocol (DGP) runtime hardening.
 
-- `VCPToolBox`
-- `VCPChat`
-- `photo_studio`
-- shared docs / governance
-- shared runtime / infra
-- provider integrations
-- memory / MCP rollout work
+This repository is not an app-specific business workflow.
 
-The project-level goal is not simply to change code.
-The goal is to preserve project governance while moving the correct module forward.
+It should remain a reusable governance and execution-control layer.
 
-Use relative paths from the detected repository root.
-Do not assume any fixed absolute path.
+Do not copy VCPToolBox business logic into this repository. Field lessons from VCPToolBox may be documented as architecture feedback, but implementation here must remain generic.
 
 ---
 
-## 2. Project Startup Routing
+## 2. Default Working Language
 
-When starting or resuming work in this workspace:
+Use Simplified Chinese for:
 
-1. Identify the active workspace root.
-2. Confirm whether the task is inside:
-   - `VCPToolBox`
-   - `VCPChat`
-   - `photo_studio`
-   - shared docs / governance
-   - shared runtime / infra
-   - provider integrations
-   - memory / MCP rollout
-3. Classify the task mode:
-   - reconnaissance
-   - implementation
-   - validation
-   - release / sync / branch action
-   - configuration
-   - external-write activation
-4. Classify risk:
-   - low: read-only, docs, local reversible edits
-   - medium: multi-file implementation, debugging, checklist execution
-   - high: branch movement, release path, transport changes, shared runtime, provider integration
-   - critical: production movement, live external writes, secrets, destructive commands, irreversible data changes
+- plans
+- summaries
+- review notes
+- status updates
+- risk explanations
 
-If the task is unclear, start in reconnaissance mode.
+Keep the following in their original language:
+
+- code
+- commands
+- file paths
+- package names
+- API fields
+- test names
+- logs and error messages
+- TypeScript identifiers
 
 ---
 
-## 3. Repository Reality Check
+## 3. Task Mode and Risk Classification
 
-Before planning edits or release-sensitive work, inspect the actual repository state.
+Classify each task before acting.
 
-Run or inspect the equivalent of:
+Task modes:
+
+```text
+reconnaissance   inspect, summarize, diagnose
+implementation   modify files or code
+validation       run checks, tests, audits
+runtime-governance   change DGP runtime behavior
+migration        schema / contract / cross-module changes
+release-branch   merge, push, tag, sync, rollback, branch movement
+configuration    env, credentials, runtime config
+```
+
+Risk levels:
+
+```text
+low       read-only, docs, small reversible inspection
+medium    local package edits, tests, narrow feature work
+high      runtime behavior, adapter, recovery, TaskGraph, CI, shared contracts
+critical  release, force push, destructive commands, secret changes, irreversible host execution
+```
+
+Defaults:
+
+```text
+unclear task       → reconnaissance
+implementation     → smallest useful change
+high/critical risk → pause, explain, request confirmation when needed
+```
+
+---
+
+## 4. Repository Reality Check
+
+Before planning edits or release-sensitive work in a Git workspace, inspect repository reality.
+
+Use or inspect the equivalent of:
 
 ```bash
 git branch --show-current
@@ -76,403 +107,483 @@ git status --short
 git diff --stat
 ```
 
-For release, sync, rollback, PR, merge, push, or branch movement, also inspect:
+For merge, push, release, rollback, PR, sync, or branch movement, also inspect:
 
 ```bash
 git log --oneline --decorate -n 10
 ```
 
 Do not assume:
+
 - current branch
 - clean worktree
+- upstream status
 - release readiness
-- upstream state
-- production readiness
-- user intent to push or deploy
+- user intent to push
+- user intent to deploy
 
-If the worktree is dirty, separate:
-- change review / classification
-- targeted validation
-- upstream sync
-- production release
-
-Do not combine upstream sync and production release into one step.
+If uncommitted changes exist, treat them as user-owned until proven otherwise.
 
 ---
 
-## 4. Candidate-First Reasoning
+## 5. Branch and PR Rules
 
-When a VCP task has multiple plausible paths, do not immediately choose one.
+Never work directly on `main`.
 
-First identify 2-4 viable options.
+Use focused branches, for example:
+
+```bash
+git switch main
+git pull origin main
+git switch -c feature/<short-purpose>
+```
+
+Before committing:
+
+```bash
+git status --short
+npm run typecheck
+npm test
+npm run build
+```
+
+For larger governance changes, also run relevant canary / evidence commands:
+
+```bash
+npm run canary
+npm run canary:write
+npm run evidence:collect
+```
+
+Do not push directly to `main`.
+
+Open a PR.
+
+Each PR should have a narrow purpose.
+
+A good PR includes:
+
+- summary of what changed
+- validation commands and results
+- risk / compatibility notes
+- known gaps or follow-up issues
+- related issue numbers
+
+Avoid mixing unrelated areas such as:
+
+- TaskGraph schema changes
+- live adapter runtime changes
+- CI changes
+- documentation-only field notes
+
+Use separate PRs unless the changes are tightly coupled.
+
+---
+
+## 6. Clarification Policy
+
+Do not ask questions just to avoid work.
+
+Ask a clarifying question only when:
+
+- the target file, project, or action is genuinely ambiguous
+- the task may affect production, releases, secrets, external writes, or irreversible state
+- there are multiple plausible interpretations with materially different outcomes
+- proceeding would require guessing user intent
+
+If ambiguity can be resolved by inspecting files, repository state, scripts, docs, PR context, or nearby code, inspect first.
+
+When unclear and safe:
+
+```text
+start in reconnaissance mode
+report what was found
+propose the next narrow action
+```
+
+---
+
+## 7. Candidate-First Reasoning
+
+When a change has multiple plausible approaches, do not immediately choose one.
+
+First identify 2–4 viable options.
+
 For each option, compare:
+
 - benefit
 - risk
 - reversibility
 - validation cost
-- fit with current project governance
+- fit with DGP architecture
 - fit with user intent
 
 Then choose the smallest safe path, or ask for confirmation if the choice changes risk materially.
 
 Use this especially for:
-- release path decisions
+
+- TaskGraph schema design
+- recovery contract design
+- host smoke strategy
+- runtime-governance changes
 - branch movement
-- provider activation
-- external write enablement
-- contract migration
-- VCPToolBox vs VCPChat routing
-- memory / MCP rollout changes
+- CI changes
+- migration work
 
 ---
 
-## 5. Baseline and Document Discovery
+## 8. Script Discovery
 
-Do not rely on hardcoded absolute paths.
+Before running project scripts:
 
-When project docs are needed, discover them from the current workspace root using filename search, repository search, or direct user-provided paths.
+1. Inspect available scripts or `package.json`.
+2. Use only commands that actually exist.
+3. Do not invent script names.
 
-Useful discovery pattern:
+For Node projects:
 
 ```bash
-rg --files | rg "photo_studio|vcp_photo_studio|VCP_Photo_Studio|scope_freeze|execution_plan|validation|promotion|baserow|dingtalk|notion|vcpchat|memory|mcp|release|governance|progress"
+npm run
 ```
 
-Preferred doc categories:
-- current Guide / re-baseline docs
-- scope-freeze docs
-- operator SOP docs
-- execution plans
-- validation checklists / results
-- release / promotion decisions
-- provider governance docs
-- memory / MCP rollout docs
-- project progress tables
+If a script is missing, say so explicitly and choose the narrowest available validation path.
 
-Treat older historical phase notes as archaeology unless a current baseline explicitly re-adopts them.
+Main project scripts include:
 
-When current docs conflict with old notes, prefer the current baseline / scope-freeze / operator SOP / validation result.
+```bash
+npm run typecheck
+npm test
+npm run build
+npm run canary
+npm run canary:write
+npm run canary:external
+npm run evidence:collect
+```
+
+Smoke commands involving the real Codex CLI may require a local Codex binary and should not be assumed to work in GitHub Actions:
+
+```bash
+npm run smoke:telemetry
+npm run smoke:workspace-write:telemetry
+```
 
 ---
 
-## 6. Active Contract Priority
+## 9. Dangerous Command Denylist
 
-For VCPToolBox and plugin work, prefer active executable contracts over historical notes.
+Never auto-run:
 
-Inspect active contracts first when relevant:
+```bash
+git reset --hard
+git clean -fd
+git clean -fdx
+git push --force
+git push --force-with-lease
+git branch -D
+rm -rf
+del /s /q
+```
+
+Never auto-run:
+
+```powershell
+Remove-Item -Recurse
+Remove-Item -Recurse -Force
+```
+
+Also do not automatically:
+
+- delete branches
+- delete env files
+- overwrite production configs
+- rewrite Git history
+- publish or deploy
+- move production / stable baselines
+- write to live external services
+- expose secrets in output, logs, memory, docs, or commits
+
+Before any dangerous action, provide:
+
+1. current branch and worktree state
+2. exact command proposed
+3. files, branches, services, or targets affected
+4. rollback or recovery path
+5. explicit confirmation request
+
+---
+
+## 10. Architecture Guardrails
+
+Prefer small, composable packages over large central files.
+
+Current DGP architecture concepts include:
 
 ```text
-VCPToolBox/plugins/registry.json
-VCPToolBox/plugins/custom/**/plugin.json
-VCPToolBox/Plugin.js
+state-manager                  governance state and anomaly history
+execution-observation          primitive execution observations
+entropy-risk                   risk scoring inputs and derived risk
+strategy-router                dynamic strategy decisions
+recovery-control               step-back / arbitration packet semantics
+checkpoint-ledger-v2           checkpoint metadata and recovery references
+task-graph                     task graph and branch semantics
+validation-arbiter             executor / verifier / conjugate arbitration
+governance-failure-reducer     shared failure-to-governance-state reducer
+desktop-live-adapter           runtime bridge between execution primitives and governance updates
 ```
 
-For legacy plugin areas, inspect historical plugin manifests only when the affected module still uses them:
+Keep these responsibilities separated.
+
+Do not bury governance logic inside `desktop-live-adapter` if it can be expressed as a tested reducer or policy module.
+
+---
+
+## 11. DGP Principles to Preserve
+
+When changing runtime behavior, preserve these DGP principles:
+
+1. **Dry-run before execution** — prefer simulated / inspectable paths before real side effects.
+2. **Explicit injection** — host bridges, stores, runtime executors, and external dependencies must be passed explicitly.
+3. **No hidden side effects** — do not read global state, environment state, or host executors implicitly unless the module is explicitly a host boundary.
+4. **Failure must be named** — every failure path should produce a stable error class / anomaly message.
+5. **Failures should update governance** — execution failures should update anomalies, risk, strategy, and recovery signals when a governance state is present.
+6. **Step-back must be actionable** — recovery outputs should preserve enough context for host / UI / CLI presentation.
+7. **Auditability over cleverness** — prefer transparent rules and evidence over opaque automation.
+
+---
+
+## 12. Failure-Path Rules
+
+For runtime failure handling:
+
+- normalize unknown thrown values before storing them as `errorClass` or anomaly messages.
+- do not assume `throw` values are `Error` instances.
+- never let `errorClass` become `undefined`.
+- use stable fallback strings such as `unknown_execution_error`.
+- update governance state through shared reducer logic where available.
+
+Expected failure chain:
 
 ```text
-VCPToolBox/Plugin/**/plugin-manifest.json
+primitive failure
+→ execution observation
+→ anomaly record
+→ risk re-score
+→ strategy re-route
+→ optional arbitration / step-back
+→ host-consumable result
 ```
 
-Do not infer active plugin behavior from docs alone.
-Confirm with the current contract and runtime surface.
+For `desktop-live-adapter`, cover these cases:
 
-If a change affects plugin discovery, routing, registry, runtime loading, or provider selection, treat it as at least medium risk.
-
----
-
-## 7. Photo_Studio Rules
-
-When the task is `photo_studio`-related:
-
-1. Discover the current Guide / re-baseline / scope-freeze / operator SOP docs.
-2. Prefer Guide-based current docs over old compatibility-first rollout notes.
-3. Inspect active plugin contracts:
-   - `VCPToolBox/plugins/registry.json`
-   - `VCPToolBox/plugins/custom/**/plugin.json`
-4. Keep the shared data model coherent:
-   - customer
-   - project
-   - task
-   - status log
-   - content pool
-   - template
-5. When present, keep the migrated core tool set coherent:
-   - `create_customer_record`
-   - `create_project_record`
-   - `update_project_status`
-   - `create_project_tasks`
-   - `generate_client_reply_draft`
-
-Do not treat local-shadow, dry-run, staging, and live external write behavior as the same thing.
-
-For `photo_studio`, release progress should remain staged:
-1. staging validation
-2. main integration
-3. production promotion only after explicit decision and validation
+- missing handler
+- handler returns `ok: false`
+- handler throws `Error`
+- handler throws non-`Error` value
+- strike number progression
+- `onGovernanceUpdate` callback shape
+- step-back / arbitration behavior where reachable
 
 ---
 
-## 8. Provider Integration Rules
+## 13. Testing Policy
 
-Provider integrations are high risk when they can write to live external services.
+Every meaningful runtime behavior change needs a test.
 
-Provider surfaces may include:
-- Notion
-- DingTalk AI Table
-- Baserow
-- Google Sheets
-- other live table / database / workspace services
+Minimum expectations:
 
-Always separate:
-- code implementation
-- runtime configuration
-- dry-run acceptance
-- live-write acceptance
-- production readiness
+```text
+new package              → unit tests
+new reducer / policy     → unit tests for edge cases and immutability
+new execution path       → integration test where feasible
+bug fix from review      → regression test when practical
+runtime-governance change → targeted test + broader npm test
+```
 
-Before live external writes:
-1. identify provider
-2. identify destination
-3. confirm runtime config without printing secrets
-4. confirm dry-run / staging result
-5. confirm exact write action
-6. ask for explicit user confirmation
+Do not mark known gaps as solved unless they have direct regression coverage.
 
-Never print:
+When a review finding is fixed, add a regression test unless the test would be unsafe or unreasonably expensive. If no regression test is added, state the reason and record a follow-up.
+
+---
+
+## 14. Validation Claim Discipline
+
+Use the narrowest useful validation, but do not overclaim.
+
+Validation tiers:
+
+```text
+read-only/docs        inspect files and diffs
+small local edit      diff review + targeted check if available
+feature-level change  affected tests or syntax checks
+runtime/integration   targeted tests + broader tests when justified
+release/branch work   explicit preflight and confirmation
+```
+
+Do not say a change is fully validated unless full validation was run.
+
+Use precise wording:
+
+```text
+typecheck passed
+targeted test passed
+full npm test passed
+build passed
+CI passed
+real host smoke not run
+```
+
+Never say production is safe unless production-level validation actually happened.
+
+---
+
+## 15. CI and Evidence Policy
+
+GitHub CI should stay deterministic.
+
+CI should cover:
+
+- typecheck
+- build
+- tests
+- canary low / medium
+- evidence collection
+
+Real Codex CLI smoke should remain local or run on an explicitly prepared runner.
+
+Do not make normal PRs depend on a binary that GitHub Actions does not provide.
+
+If a PR changes CI behavior, explain:
+
+- why the change is needed
+- what remains covered in CI
+- what must be verified locally
+
+---
+
+## 16. File and Artifact Hygiene
+
+Do not commit local runtime artifacts.
+
+Keep these out of commits unless explicitly intended:
+
+```text
+node_modules/
+dist/
+.env
+.env.*
+config.env
+.codex-home/
+.omc/
+.test-*
+tmp-*
+```
+
+For temporary docs or mock servers, either commit them intentionally with clear purpose or archive them outside the repository.
+
+Do not leave untracked files in the repo root at the end of a task.
+
+---
+
+## 17. Secrets and External Service Policy
+
+Treat these as sensitive:
+
+- `.env`
+- `config.env`
 - API keys
 - tokens
-- service account values
+- service account files
+- provider credentials
+- production endpoints
 - database URLs
 - webhook URLs
-- raw `.env` values
 
-Do not write to live external services merely because a tool or MCP connection exists.
+Rules:
 
----
-
-## 9. VCPChat Rules
-
-When the task is clearly `VCPChat`-related:
-
-1. Switch context to `VCPChat`.
-2. Inspect `VCPChat`-specific docs and scope-freeze notes if present.
-3. Inspect `VCPChat/package.json` scripts before running commands.
-4. Do not assume top-level VCPToolBox scripts apply.
-5. Treat `.env`, `config.env`, and runtime config as sensitive.
-6. Avoid modifying env files unless explicitly asked.
-7. Keep VCPChat-specific work separate from `photo_studio` assumptions.
-
-Use the narrowest available validation path inside `VCPChat`.
+- Do not print secret values.
+- Do not copy secrets into summaries, docs, memory, commits, logs, or issues.
+- Do not modify env files unless explicitly asked.
+- Prefer sanitized examples such as `.env.example`.
+- Separate dry-run behavior from live external writes.
+- Require confirmation before writing to live services.
 
 ---
 
-## 10. Shared Runtime and Infra Rules
+## 18. VCPToolBox Field Feedback Boundary
 
-Treat shared runtime / infra changes as high risk when they affect:
+VCPToolBox AI Image Agent work may inform this repo, especially around:
 
-- plugin loading
-- provider routing
-- transport behavior
-- shared server runtime
-- registry parsing
-- memory bridge / MCP availability
-- cross-module contracts
-- authentication or secrets
-- production or staging behavior
+- dry-run to real execution gates
+- explicit dependency injection
+- env flags
+- allowlists
+- audit logs
+- runtime artifact cleanup
+- operator confirmation flows
 
-Before editing shared runtime:
-1. inspect current branch and worktree
-2. inspect affected contracts
-3. identify downstream modules affected
-4. choose the smallest reversible change
-5. validate more broadly than for a single module change
+But do not paste VCPToolBox-specific business code, plugin names, route handlers, or AdminPanel implementation into `codex-router` unless the task explicitly asks for generic architecture documentation.
 
-Do not mix shared runtime changes with unrelated feature work.
+Capture lessons as docs, tests, or reusable governance patterns.
 
 ---
 
-## 11. Script Discovery and Validation
+## 19. Memory Policy
 
-Before running project scripts, inspect available scripts.
+Do not rely on hidden chat memory for correctness.
 
-For top-level work:
+If a decision matters, put it in one of:
 
-```bash
-npm run
-```
+- code comments where appropriate
+- tests
+- docs
+- issue / PR notes
+- evidence artifacts
 
-For VCPChat work:
-
-```bash
-cd VCPChat
-npm run
-```
-
-Use only scripts that actually exist.
-Do not invent script names.
-
-Suggested validation approach:
-
-### Read-only or docs work
-
-Use:
-- file inspection
-- diff inspection if files changed
-
-### Small local edit
-
-Use:
-- `git diff --stat`
-- targeted file review
-- targeted script if available
-
-### Photo_Studio plugin work
-
-Prefer, if available:
-
-```bash
-npm run test:photo-studio
-```
-
-If the change affects `Plugin.js`, `plugins/registry.json`, `plugin.json`, provider routing, or shared runtime behavior, also consider, if available:
-
-```bash
-node --check Plugin.js
-npm test
-```
-
-### VCPToolBox shared runtime work
-
-Use:
-- targeted plugin test if available
-- contract inspection
-- `npm test` if shared runtime behavior may be affected
-
-### VCPChat work
-
-Inspect `VCPChat/package.json` scripts first.
-Run the narrowest relevant available script.
-
-Do not say the whole project is validated unless broad validation actually ran.
-
----
-
-## 12. Branch and Release Governance
-
-Release, sync, rollback, branch movement, merge, push, tag, or PR actions are not normal implementation steps.
-
-Before any such action:
-1. confirm current branch
-2. confirm worktree cleanliness
-3. inspect pending changes
-4. identify target line
-5. confirm validation status
-6. identify rollback path
-7. ask for explicit confirmation unless the user already clearly made the decision
-
-Project-level defaults:
-- treat `main` as an integration line unless current docs say otherwise
-- treat `prod/stable` or equivalent stable branches as explicit production targets
-- prefer staging validation before main integration
-- prefer main integration before production promotion
-- keep upstream sync separate from production release
-- keep backup / frozen baselines as rollback references
-- do not move stable or production baselines automatically
-
-Do not push, merge, release, deploy, or promote by implication.
-
----
-
-## 13. Memory Policy for VCP
-
-Use project memory only for stable, reusable, non-sensitive conclusions.
-
-When `vcp_codex_memory` or an equivalent memory MCP is available, prefer it for:
-- reusable project conclusions
-- validation checkpoints
-- branch / release decision checkpoints
-- provider acceptance results
-- governance decisions
-- recurring pitfalls
-- durable next steps
-
-For normal memory writes:
-1. write a clear task anchor
-2. include changed area
-3. include validation performed
-4. include result
-5. include remaining risk
-6. include next step
-7. verify recall after writing when the tool supports it
+Project memory should clarify durable design intent, not replace executable tests.
 
 Do not record:
+
 - secrets
 - tokens
+- passwords
 - raw env values
-- API keys
-- service account values
-- transient guesses
+- temporary guesses
 - unverified assumptions
-- short-lived dirty worktree state
-- temporary branch state unless part of a durable checkpoint
-
-If the expected memory MCP is missing, say so explicitly and diagnose tool availability before falling back to local scripts or shell greps.
+- short-lived branch or workspace state
 
 ---
 
-## 14. Skills Policy for VCP
+## 20. Skills / MCP / Host Tool Policy
 
-Use repository skills for repeatable project workflows when available.
+Use Skills for repeatable workflows, domain-specific procedures, and task-specific expertise.
 
-Prefer a Skill for:
-- release preflight
-- provider acceptance
-- Photo_Studio rollout
-- VCPChat cleanup / validation
-- contract audit
-- branch promotion review
-- memory checkpointing
-- documentation closeout
-- recurring project review
+Use MCP tools only when necessary.
 
-Do not stuff long workflow details into this project `AGENTS.md`.
-Use Skills or checked-in SOP docs for detailed procedures.
+Before using a tool, classify it as:
 
-Load or invoke Skills only when relevant to the current task.
-
----
-
-## 15. MCP Policy for VCP
-
-Before using any MCP tool, classify it as:
-
-- read-only
-- local-write
-- external-write
-- irreversible / side-effectful
+```text
+read-only
+local-write
+external-write
+irreversible / side-effectful
+```
 
 Prefer read-only inspection before write actions.
 
-Require explicit confirmation before MCP actions that:
-- write to external services
-- modify live provider records
-- modify production data
-- change permissions
-- create or update issues, tickets, docs, database rows, or remote records
-- trigger deployment, notification, release, purchase, or irreversible side effects
+External-write or irreversible tools require explicit confirmation.
 
-MCP tools extend reach.
-They do not bypass project governance, validation, or user confirmation.
+Tools extend reach. They do not bypass safety, validation, or user confirmation.
 
 ---
 
-## 16. Output and Reporting
+## 21. Output Discipline
 
-For VCP repository work, report:
+Be concise but complete.
+
+For repository work, use:
 
 ```text
 - Workspace:
-- Target area:
 - Mode:
 - Risk:
 - Branch:
@@ -486,27 +597,39 @@ For VCP repository work, report:
 ```
 
 When giving a conclusion:
+
 - explain what evidence supports it
-- explain what evidence is missing
+- explain what evidence is still missing
 - do not present inference as verification
 - do not hide uncertainty
 - do not expose secrets
 - do not bury critical risk in a long paragraph
 
-After validation, report exactly what was checked.
-Do not imply production readiness unless production-level validation actually happened.
+---
+
+## 22. Stop Conditions
+
+Stop and ask for direction if:
+
+- the change would alter public contracts broadly
+- a migration is needed
+- a failure path cannot be tested safely
+- CI requires unavailable external binaries
+- the task starts mixing unrelated architecture areas
+- secrets, credentials, or local config files appear in the diff
+- implementation starts drifting beyond the branch or issue scope
+
+When in doubt, preserve the current branch state and report the exact diff and risk.
 
 ---
 
-## 17. Final VCP Execution Flow
+## 23. Final Execution Flow
 
 Use this sequence:
 
-1. Detect workspace root.
-2. Confirm VCP-style project surface.
-3. Identify target area.
-4. Classify task mode and risk.
-5. Identify the hidden governing principle:
+1. Detect workspace.
+2. Classify task mode and risk.
+3. Identify the hidden governing principle:
    - safety
    - correctness
    - reversibility
@@ -514,33 +637,29 @@ Use this sequence:
    - validation integrity
    - data / secret protection
    - production boundary
-6. Use candidate-first reasoning if multiple paths exist.
-7. Check repository reality.
-8. Discover relevant docs, contracts, scripts, and baselines.
-9. Apply global and project safety rules.
-10. Execute the smallest useful step.
-11. Validate with the narrowest relevant check.
-12. Report with clear evidence limits.
-13. Record memory only when appropriate and available.
-14. Use Skills or MCP only when relevant and safe.
+4. Use candidate-first reasoning when multiple paths exist.
+5. Check repository reality.
+6. Discover scripts, docs, contracts, or baselines as needed.
+7. Apply safety rules.
+8. Execute the smallest useful step.
+9. Validate with the narrowest relevant check.
+10. Report with clear limits.
+11. Record memory only when appropriate and safe.
+12. Use Skills or MCP only when relevant and safe.
 
 ---
 
-## 18. Final Principle
+## 24. One-Line Operating Principle
 
-VCP work is not just code execution.
+Build governance like a cockpit:
 
-It is project governance under motion.
-
-A good Codex partner in this repo:
-- routes before acting
-- protects active contracts
-- respects staging / main / production boundaries
-- separates dry-run from live writes
-- keeps secrets out of logs and memory
-- validates narrowly but honestly
-- records durable checkpoints
-- refuses to turn ambiguity into reckless action
+```text
+clear instruments
+explicit switches
+named failures
+recoverable states
+no hidden engines
+```
 
 Judgment is the feature.
-Project safety is the frame.
+Obedience is only useful after judgment.
