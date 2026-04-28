@@ -481,3 +481,69 @@ test("governance: successful execution with governanceState does not call onGove
   );
   assert.equal(execution.steps.length, 3);
 });
+
+// ── 21.1.9: thrown non-Error values produce non-undefined errorClass ────────
+
+test("governance: thrown string produces non-empty errorClass in anomaly", async () => {
+  const ready = await createReadyRunnerResult();
+  const govUpdates: GovernanceUpdateRecord[] = [];
+  const initialState = createLowRiskGovernanceState(ready.task.taskId);
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => "thread context",
+      spawn_agent: () => { throw "string_error_value"; },
+      wait_agent: () => ({ status: "completed" })
+    },
+    governanceState: initialState,
+    onGovernanceUpdate: async (state, strategy) => {
+      govUpdates.push({ state, strategy });
+    },
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  assert.equal(execution.status, "failed");
+  assert.ok(govUpdates.length >= 1, "onGovernanceUpdate should be called for thrown string");
+
+  const firstUpdate = govUpdates[0]!;
+  const anomaly = firstUpdate.state.anomalies[firstUpdate.state.anomalies.length - 1]!;
+  assert.equal(anomaly.kind, "execution_failure");
+  assert.ok(anomaly.message.length > 0, "anomaly message must be non-empty");
+  assert.equal(anomaly.message, "string_error_value",
+    "thrown string should be used as errorClass"
+  );
+});
+
+test("governance: thrown object with no message falls back to unknown_execution_error", async () => {
+  const ready = await createReadyRunnerResult();
+  const govUpdates: GovernanceUpdateRecord[] = [];
+  const initialState = createLowRiskGovernanceState(ready.task.taskId);
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => "thread context",
+      spawn_agent: () => { throw { code: 42 }; },
+      wait_agent: () => ({ status: "completed" })
+    },
+    governanceState: initialState,
+    onGovernanceUpdate: async (state, strategy) => {
+      govUpdates.push({ state, strategy });
+    },
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  assert.equal(execution.status, "failed");
+  assert.ok(govUpdates.length >= 1, "onGovernanceUpdate should be called for thrown object");
+
+  const firstUpdate = govUpdates[0]!;
+  const anomaly = firstUpdate.state.anomalies[firstUpdate.state.anomalies.length - 1]!;
+  assert.equal(anomaly.kind, "execution_failure");
+  assert.equal(anomaly.message, "unknown_execution_error",
+    "thrown object without message should fall back to unknown_execution_error"
+  );
+
+  // Strategy should still be usable
+  assert.ok(firstUpdate.strategy.actionFamily.length > 0);
+});

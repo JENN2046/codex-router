@@ -592,15 +592,16 @@ export async function executeDesktopPlan(
         }
       });
     } catch (error) {
+      const errorMessage = normalizeThrownError(error);
       const failedStep: PrimitiveExecutionResult = {
         primitive: operation.primitive,
         status: "failed",
         reason: operation.reason,
         output: createPrimitiveFailureEnvelope(
           operation.primitive,
-          (error as Error).message
+          errorMessage
         ),
-        error: (error as Error).message
+        error: errorMessage
       };
       steps.push(failedStep);
       auditEvents.push({
@@ -619,7 +620,7 @@ export async function executeDesktopPlan(
         primitiveId: `${operation.primitive}:${stepIndex}`,
         stage: "execution",
         status: "failed" as const,
-        error: (error as Error).message,
+        error: errorMessage,
         createdAt: now()
       });
 
@@ -630,7 +631,7 @@ export async function executeDesktopPlan(
             state: governanceState,
             task: result.task,
             primitiveId: `${operation.primitive}:${stepIndex}`,
-            errorClass: (error as Error).message,
+            errorClass: errorMessage,
             stepIndex,
             now
           });
@@ -837,4 +838,16 @@ async function emitPrimitiveObservation(input: {
     ...(input.evidenceRef !== undefined ? { evidenceRef: input.evidenceRef } : {}),
     createdAt: input.createdAt
   }));
+}
+
+// ── Error normalization ────────────────────────────────────────────────────
+
+function normalizeThrownError(error: unknown): string {
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message;
+  }
+  if (typeof error === "string" && error.length > 0) {
+    return error;
+  }
+  return "unknown_execution_error";
 }
