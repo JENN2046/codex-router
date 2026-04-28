@@ -29,25 +29,16 @@ import {
 import {
   createObservationId,
   parseExecutionObservation,
-  type ExecutionObservation,
   type ExecutionObservationBus
 } from "../../execution-observation/src/index.js";
 import {
-  type GovernanceState,
-  type AnomalyRecord
+  type GovernanceState
 } from "../../state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
+import { shouldLockdown } from "../../recovery-control/src/index.js";
 import {
-  scoreGovernanceRisk,
-  type ScoreGovernanceRiskInput
-} from "../../entropy-risk/src/index.js";
-import {
-  routeStrategyV2,
-  type StrategyDecisionV2
-} from "../../strategy-router/src/index.js";
-import {
-  createArbitrationPacket,
-  shouldLockdown
-} from "../../recovery-control/src/index.js";
+  applyExecutionFailureToGovernanceState
+} from "../../governance-failure-reducer/src/index.js";
 export {
   createPrimitiveFailureEnvelope,
   createPrimitiveSuccessEnvelope,
@@ -412,61 +403,16 @@ export async function executeDesktopPlan(
 
       // Update governance state on failure
       if (governanceState) {
-        const observationForRisk: ExecutionObservation = parseExecutionObservation({
-          observationId: createObservationId({
-            taskId: result.task.taskId,
-            primitiveId: `${operation.primitive}:${stepIndex}`,
-            status: "failed",
-            createdAt: now()
-          }),
-          taskId: result.task.taskId,
-          primitiveId: `${operation.primitive}:${stepIndex}`,
-          stage: "execution",
-          status: "failed",
-          signals: { errorClass: errorMessage },
-          createdAt: now()
-        });
-
-        // Record anomaly with proper strike counting
-        const sameKindCount = governanceState.anomalies.filter(
-          (a) => a.kind === "execution_failure"
-        ).length;
-        const strikeNumber = Math.min(sameKindCount + 1, 3) as 1 | 2 | 3;
-
-        const newAnomaly: AnomalyRecord = {
-          anomalyId: `anomaly:${result.task.taskId}:${stepIndex}`,
-          taskId: result.task.taskId,
-          kind: "execution_failure",
-          message: errorMessage,
-          strikeNumber,
-          createdAt: now(),
-          evidenceRefs: []
-        };
-
-        governanceState = {
-          ...governanceState,
-          anomalies: [...governanceState.anomalies, newAnomaly],
-          updatedAt: now()
-        };
-
-        // Re-score risk
-        const riskInput: ScoreGovernanceRiskInput = {
-          task: result.task,
-          observations: governanceState.anomalies.length > 0
-            ? [observationForRisk]
-            : []
-        };
-        const newRisk = scoreGovernanceRisk(riskInput);
-        governanceState = {
-          ...governanceState,
-          risk: newRisk
-        };
-
-        // Re-route strategy
-        strategyDecision = routeStrategyV2({
+        const failureResult = applyExecutionFailureToGovernanceState({
           state: governanceState,
+          task: result.task,
+          primitiveId: `${operation.primitive}:${stepIndex}`,
+          errorClass: errorMessage,
+          stepIndex,
           now
         });
+        governanceState = failureResult.state;
+        strategyDecision = failureResult.strategyDecision;
 
         // Notify callback
         if (input.onGovernanceUpdate && strategyDecision) {
@@ -475,11 +421,7 @@ export async function executeDesktopPlan(
 
         // Check for lockdown/step_back
         if (strategyDecision.actionFamily === "step_back" || strategyDecision.actionFamily === "abort") {
-          const arbitrationPacket = createArbitrationPacket({
-            state: governanceState,
-            now
-          });
-          if (shouldLockdown(arbitrationPacket)) {
+          if (shouldLockdown(failureResult.arbitrationPacket)) {
             return {
               status: "failed",
               taskId: result.task.taskId,
@@ -559,58 +501,16 @@ export async function executeDesktopPlan(
 
         // Update governance state on handler failure
         if (governanceState) {
-          const sameKindCount = governanceState.anomalies.filter(
-            (a) => a.kind === "execution_failure"
-          ).length;
-          const strikeNumber = Math.min(sameKindCount + 1, 3) as 1 | 2 | 3;
-
-          const handlerAnomaly: AnomalyRecord = {
-            anomalyId: `anomaly:${result.task.taskId}:handler:${stepIndex}`,
-            taskId: result.task.taskId,
-            kind: "execution_failure",
-            message: output.error ?? "handler returned failure",
-            strikeNumber,
-            createdAt: now(),
-            evidenceRefs: []
-          };
-
-          governanceState = {
-            ...governanceState,
-            anomalies: [...governanceState.anomalies, handlerAnomaly],
-            updatedAt: now()
-          };
-
-          // Re-score risk with updated anomalies
-          const observationForRisk: ExecutionObservation = parseExecutionObservation({
-            observationId: createObservationId({
-              taskId: result.task.taskId,
-              primitiveId: `${operation.primitive}:${stepIndex}`,
-              status: "failed",
-              createdAt: now()
-            }),
-            taskId: result.task.taskId,
-            primitiveId: `${operation.primitive}:${stepIndex}`,
-            stage: "execution",
-            status: "failed",
-            signals: { errorClass: output.error ?? "handler_failure" },
-            createdAt: now()
-          });
-
-          const riskInput: ScoreGovernanceRiskInput = {
-            task: result.task,
-            observations: [observationForRisk]
-          };
-          const newRisk = scoreGovernanceRisk(riskInput);
-          governanceState = {
-            ...governanceState,
-            risk: newRisk
-          };
-
-          // Re-route strategy
-          strategyDecision = routeStrategyV2({
+          const failureResult = applyExecutionFailureToGovernanceState({
             state: governanceState,
+            task: result.task,
+            primitiveId: `${operation.primitive}:${stepIndex}`,
+            errorClass: output.error ?? "handler returned failure",
+            stepIndex,
             now
           });
+          governanceState = failureResult.state;
+          strategyDecision = failureResult.strategyDecision;
 
           // Notify callback
           if (input.onGovernanceUpdate && strategyDecision) {
@@ -619,11 +519,7 @@ export async function executeDesktopPlan(
 
           // Check for lockdown/step_back
           if (strategyDecision.actionFamily === "step_back" || strategyDecision.actionFamily === "abort") {
-            const arbitrationPacket = createArbitrationPacket({
-              state: governanceState,
-              now
-            });
-            if (shouldLockdown(arbitrationPacket)) {
+            if (shouldLockdown(failureResult.arbitrationPacket)) {
               return {
                 status: "failed",
                 taskId: result.task.taskId,
@@ -728,6 +624,39 @@ export async function executeDesktopPlan(
       });
 
       if (stopOnFailure) {
+        // Update governance state on thrown error before returning
+        if (governanceState) {
+          const failureResult = applyExecutionFailureToGovernanceState({
+            state: governanceState,
+            task: result.task,
+            primitiveId: `${operation.primitive}:${stepIndex}`,
+            errorClass: (error as Error).message,
+            stepIndex,
+            now
+          });
+          governanceState = failureResult.state;
+          strategyDecision = failureResult.strategyDecision;
+
+          // Notify callback
+          if (input.onGovernanceUpdate && strategyDecision) {
+            await input.onGovernanceUpdate(governanceState, strategyDecision);
+          }
+
+          // Check for lockdown/step_back
+          if (strategyDecision.actionFamily === "step_back" || strategyDecision.actionFamily === "abort") {
+            if (shouldLockdown(failureResult.arbitrationPacket)) {
+              return {
+                status: "failed",
+                taskId: result.task.taskId,
+                plan: result.executionPlan,
+                steps,
+                blockingReasons: ["governance_step_back_triggered", "arbitration_required"],
+                auditEvents
+              };
+            }
+          }
+        }
+
         await maybePersistExecutionCheckpoint({
           taskId: result.task.taskId,
           stage: `execution-failed-${stepIndex + 1}`,
