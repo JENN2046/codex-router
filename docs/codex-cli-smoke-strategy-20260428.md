@@ -52,6 +52,9 @@ npm run evidence:collect
 Real Codex CLI smoke remains local because GitHub Actions does not provide a
 logged-in Codex CLI binary.
 
+Use `docs/codex-cli-real-host-smoke-release-checklist.md` when real host smoke
+is needed for release evidence.
+
 Read-only smoke:
 
 ```bash
