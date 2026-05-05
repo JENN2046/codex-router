@@ -97,7 +97,7 @@ Observed `codex-router` governance surfaces include:
 
 ## 7. Recommended next step
 
-Create a second documentation spec:
+At the time this dry-run record was created, the recommended next step was to create a second documentation spec:
 
 ```text
 docs/harness-adoption/harness-to-dgp-mapping.md
@@ -105,15 +105,17 @@ docs/harness-adoption/harness-to-dgp-mapping.md
 
 That document should define a conservative, non-runtime mapping between Harness `A0-A4` / `R0-R5` and existing `codex-router` DGP concepts.
 
-Do not create that file as part of this task.
+That follow-up belongs to a separate approved docs-only task. If this dry-run record is reviewed inside a later PR that also contains the mapping spec, the mapping spec should be treated as subsequent work, not as part of the original dry-run task.
 
 ## 8. Validation expectation
 
 This document should be validated as docs-only and staged review only.
 
-Expected checks:
+Expected checks for this dry-run record as a standalone staged change:
 
 - confirm only this Markdown file is staged;
 - confirm no source, package, test, script, or runtime adapter file changed;
 - run `git diff --cached --check`;
 - do not commit until explicitly approved after staged review.
+
+When this record is reviewed as part of a larger docs-only PR, branch-level validation should instead confirm that every changed file is within the approved documentation scope.
