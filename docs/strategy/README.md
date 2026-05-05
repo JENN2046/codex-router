@@ -19,6 +19,8 @@ reopens the project and chooses a concrete execution target.
   - main pivot toward local-first governance and evidence harness
 - `codex-router-codebase-review-20260429.md`
   - codebase review originally captured as `docs/1111.txt`
+- `codex-router-checkpoint-change-note-20260505.md`
+  - local checkpoint change note and future PR draft
 
 ## Private VCP Field Notes
 

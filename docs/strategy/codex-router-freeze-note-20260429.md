@@ -71,6 +71,7 @@ Root strategy artifacts:
 - `docs/strategy/codex-router-freeze-note-20260429.md`
 - `docs/strategy/codex-host-governance-pivot-20260429.md`
 - `docs/strategy/codex-router-codebase-review-20260429.md`
+- `docs/strategy/codex-router-checkpoint-change-note-20260505.md`
 
 Private VCP field notes:
 
