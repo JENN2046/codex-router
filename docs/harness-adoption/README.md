@@ -82,7 +82,6 @@ Implementation remains blocked until readiness gaps are resolved. Any future fir
 - no Codex Governance Suite fixture implementation
 - no Codex Governance Suite fixture runner
 - no Codex Governance Suite checker tests
-- no Codex Governance Suite implementation approval
 
 ## 6. Rules for Future Work
 
