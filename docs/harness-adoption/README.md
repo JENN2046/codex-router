@@ -26,6 +26,7 @@ This directory records the staged path for evaluating whether `Codex_Autonomous_
 | `harness-adoption-checker-contract-fixtures-proposal.md` | Docs-only proposal for future checker contracts and fixture expectations. | Present | Does not authorize code |
 | `harness-adoption-checker-test-fixture-plan.md` | Docs-only plan for future checker test fixture names, snippets, and expected report rows. | Present | Does not authorize code |
 | `codex-governance-suite-boundary.md` | Docs-only boundary for the proposed `Codex Governance Suite` strategic umbrella. | Present | Does not authorize code |
+| `codex-governance-suite-contracts-plan.md` | Docs-only Phase 2 plan for proposed governance suite contract topics. | Present | Does not authorize code |
 
 ## 4. Current Governance Seal
 
@@ -39,6 +40,7 @@ The current governance package is complete at documentation level:
 - checker contract and fixtures proposal exists
 - checker test fixture plan exists
 - Codex Governance Suite boundary exists
+- Codex Governance Suite contract topic plan exists
 
 Implementation remains blocked until readiness gaps are resolved. Any future first implementation, if separately approved, must be:
 
@@ -60,6 +62,7 @@ Implementation remains blocked until readiness gaps are resolved. Any future fir
 - no implementation approval
 - no Harness adoption checker implementation
 - no Codex Governance Suite implementation approval
+- no Codex Governance Suite contract implementation
 
 ## 6. Rules for Future Work
 
@@ -73,6 +76,6 @@ Implementation remains blocked until readiness gaps are resolved. Any future fir
 
 ## 7. Recommended Next Step
 
-Pause before implementation and review whether the documentation package is sufficient to seal the adoption planning track, including the Codex Governance Suite boundary. The next local task should remain docs-only contract or boundary planning unless a separate implementation scope is approved.
+Pause before implementation and review whether the documentation package is sufficient to seal the adoption planning track, including the Codex Governance Suite boundary and contract topic plan. The next local task should remain docs-only contract vocabulary, checklist, or boundary traceability planning unless a separate implementation scope is approved.
 
 Any checker implementation still requires a separate scoped goal and explicit approval.
