@@ -25,6 +25,7 @@ This directory records the staged path for evaluating whether `Codex_Autonomous_
 | `harness-adoption-checker-implementation-plan.md` | Docs-only plan for a future read-only/report-only adoption checker. | Present | Does not authorize code |
 | `harness-adoption-checker-contract-fixtures-proposal.md` | Docs-only proposal for future checker contracts and fixture expectations. | Present | Does not authorize code |
 | `harness-adoption-checker-test-fixture-plan.md` | Docs-only plan for future checker test fixture names, snippets, and expected report rows. | Present | Does not authorize code |
+| `codex-governance-suite-boundary.md` | Docs-only boundary for the proposed `Codex Governance Suite` strategic umbrella. | Present | Does not authorize code |
 
 ## 4. Current Governance Seal
 
@@ -37,6 +38,7 @@ The current governance package is complete at documentation level:
 - checker implementation plan exists
 - checker contract and fixtures proposal exists
 - checker test fixture plan exists
+- Codex Governance Suite boundary exists
 
 Implementation remains blocked until readiness gaps are resolved. Any future first implementation, if separately approved, must be:
 
@@ -57,10 +59,12 @@ Implementation remains blocked until readiness gaps are resolved. Any future fir
 - no rollback/removal path
 - no implementation approval
 - no Harness adoption checker implementation
+- no Codex Governance Suite implementation approval
 
 ## 6. Rules for Future Work
 
 - Future work under this adoption direction must start docs-only unless a separate explicit scope approval is given.
+- Any Codex Governance Suite work must remain a strategic boundary, contract, or planning document until a separate implementation scope is approved.
 - Any code proposal requires a separate scoped goal.
 - Any adapter must be dry-run-first.
 - No `push/merge/tag/release/deploy` without explicit human approval.
@@ -69,6 +73,6 @@ Implementation remains blocked until readiness gaps are resolved. Any future fir
 
 ## 7. Recommended Next Step
 
-Pause before implementation and decide whether the documentation package is sufficient to seal the adoption planning track, or whether to create a separate scoped code proposal for a read-only/report-only Harness adoption checker.
+Pause before implementation and review whether the documentation package is sufficient to seal the adoption planning track, including the Codex Governance Suite boundary. The next local task should remain docs-only contract or boundary planning unless a separate implementation scope is approved.
 
 Any checker implementation still requires a separate scoped goal and explicit approval.
