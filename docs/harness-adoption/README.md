@@ -34,6 +34,7 @@ This directory records the staged path for evaluating whether `Codex_Autonomous_
 | `codex-governance-suite-fixture-plan.md` | Docs-only plan for candidate future fixture coverage and expected report vocabulary. | Present | Does not authorize code |
 | `codex-governance-suite-implementation-readiness-gates.md` | Docs-only readiness gates before any future implementation proposal. | Present | Does not authorize code |
 | `codex-governance-suite-completion-audit.md` | Docs-only completion audit for the governance suite planning package. | Present | Does not authorize code |
+| `codex-governance-suite-docs-first-baseline-seal.md` | Docs-only seal for the completed governance suite planning baseline. | Present | Does not authorize code |
 
 ## 4. Current Governance Seal
 
@@ -55,6 +56,7 @@ The current governance package is complete as a docs-first planning package:
 - Codex Governance Suite fixture plan exists
 - Codex Governance Suite implementation readiness gates exist
 - Codex Governance Suite completion audit exists
+- Codex Governance Suite docs-first baseline seal exists
 
 Implementation remains blocked until readiness gaps are resolved. Any future first implementation, if separately approved, must be:
 
@@ -97,6 +99,6 @@ Implementation remains blocked until readiness gaps are resolved. Any future fir
 
 ## 7. Recommended Next Step
 
-Pause before implementation and use the completion audit to review the documentation package, including the Codex Governance Suite boundary, contract topic plan, vocabulary checklist, boundary traceability, side-effect taxonomy, checker strategy, fixture plan, and implementation readiness gates.
+Pause before implementation and use the baseline seal plus completion audit to review the documentation package, including the Codex Governance Suite boundary, contract topic plan, vocabulary checklist, boundary traceability, side-effect taxonomy, checker strategy, fixture plan, and implementation readiness gates. The next local task should remain docs-only implementation proposal planning unless a separate implementation scope is approved.
 
 Any checker implementation still requires a separate scoped goal and explicit approval.
