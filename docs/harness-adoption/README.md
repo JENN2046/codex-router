@@ -33,10 +33,11 @@ This directory records the staged path for evaluating whether `Codex_Autonomous_
 | `codex-governance-suite-checker-strategy.md` | Docs-only strategy for a future read-only/report-only/local-repo-only checker review posture. | Present | Does not authorize code |
 | `codex-governance-suite-fixture-plan.md` | Docs-only plan for candidate future fixture coverage and expected report vocabulary. | Present | Does not authorize code |
 | `codex-governance-suite-implementation-readiness-gates.md` | Docs-only readiness gates before any future implementation proposal. | Present | Does not authorize code |
+| `codex-governance-suite-completion-audit.md` | Docs-only completion audit for the governance suite planning package. | Present | Does not authorize code |
 
 ## 4. Current Governance Seal
 
-The current governance package is complete at documentation level:
+The current governance package is complete as a docs-first planning package:
 
 - dry-run record exists
 - mapping spec exists
@@ -53,6 +54,7 @@ The current governance package is complete at documentation level:
 - Codex Governance Suite checker strategy exists
 - Codex Governance Suite fixture plan exists
 - Codex Governance Suite implementation readiness gates exist
+- Codex Governance Suite completion audit exists
 
 Implementation remains blocked until readiness gaps are resolved. Any future first implementation, if separately approved, must be:
 
@@ -95,6 +97,6 @@ Implementation remains blocked until readiness gaps are resolved. Any future fir
 
 ## 7. Recommended Next Step
 
-Pause before implementation and perform a completion audit of the documentation package, including the Codex Governance Suite boundary, contract topic plan, vocabulary checklist, boundary traceability, side-effect taxonomy, checker strategy, fixture plan, and implementation readiness gates.
+Pause before implementation and use the completion audit to review the documentation package, including the Codex Governance Suite boundary, contract topic plan, vocabulary checklist, boundary traceability, side-effect taxonomy, checker strategy, fixture plan, and implementation readiness gates.
 
 Any checker implementation still requires a separate scoped goal and explicit approval.
