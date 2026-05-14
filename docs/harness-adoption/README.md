@@ -25,6 +25,7 @@ This directory records the staged path for evaluating whether `Codex_Autonomous_
 | `harness-adoption-checker-implementation-plan.md` | Docs-only plan for a future read-only/report-only adoption checker. | Present | Does not authorize code |
 | `harness-adoption-checker-contract-fixtures-proposal.md` | Docs-only proposal for future checker contracts and fixture expectations. | Present | Does not authorize code |
 | `harness-adoption-checker-test-fixture-plan.md` | Docs-only plan for future checker test fixture names, snippets, and expected report rows. | Present | Does not authorize code |
+| `codex-governance-suite-boundary.md` | Docs-only boundary for the proposed `Codex Governance Suite` strategic umbrella. | Present | Does not authorize code |
 
 ## 4. Current Governance Seal
 
