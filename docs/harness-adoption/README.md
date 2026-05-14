@@ -32,6 +32,7 @@ This directory records the staged path for evaluating whether `Codex_Autonomous_
 | `codex-governance-suite-side-effect-taxonomy.md` | Docs-only taxonomy for side-effect class planning and hard-gate vocabulary. | Present | Does not authorize code |
 | `codex-governance-suite-checker-strategy.md` | Docs-only strategy for a future read-only/report-only/local-repo-only checker review posture. | Present | Does not authorize code |
 | `codex-governance-suite-fixture-plan.md` | Docs-only plan for candidate future fixture coverage and expected report vocabulary. | Present | Does not authorize code |
+| `codex-governance-suite-implementation-readiness-gates.md` | Docs-only readiness gates before any future implementation proposal. | Present | Does not authorize code |
 
 ## 4. Current Governance Seal
 
@@ -51,6 +52,7 @@ The current governance package is complete at documentation level:
 - Codex Governance Suite side-effect taxonomy exists
 - Codex Governance Suite checker strategy exists
 - Codex Governance Suite fixture plan exists
+- Codex Governance Suite implementation readiness gates exist
 
 Implementation remains blocked until readiness gaps are resolved. Any future first implementation, if separately approved, must be:
 
@@ -80,6 +82,7 @@ Implementation remains blocked until readiness gaps are resolved. Any future fir
 - no Codex Governance Suite fixture implementation
 - no Codex Governance Suite fixture runner
 - no Codex Governance Suite checker tests
+- no Codex Governance Suite implementation approval
 
 ## 6. Rules for Future Work
 
@@ -93,6 +96,6 @@ Implementation remains blocked until readiness gaps are resolved. Any future fir
 
 ## 7. Recommended Next Step
 
-Pause before implementation and review whether the documentation package is sufficient to seal the adoption planning track, including the Codex Governance Suite boundary, contract topic plan, vocabulary checklist, boundary traceability, side-effect taxonomy, checker strategy, and fixture plan. The next local task should remain docs-only implementation readiness gate planning unless a separate implementation scope is approved.
+Pause before implementation and perform a completion audit of the documentation package, including the Codex Governance Suite boundary, contract topic plan, vocabulary checklist, boundary traceability, side-effect taxonomy, checker strategy, fixture plan, and implementation readiness gates.
 
 Any checker implementation still requires a separate scoped goal and explicit approval.
