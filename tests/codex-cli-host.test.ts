@@ -1417,6 +1417,54 @@ test("codex cli host runner captures read-only process output through an injecta
   assert.deepEqual(result.inspection.warnings, ["WARNING: diagnostic only"]);
 });
 
+test("codex cli runner prepends packaged helper PATH for Windows bin executable layout", async () => {
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+  const vendorRoot = await mkdtemp(join(tmpdir(), "codex-cli-vendor-"));
+  const command = join(vendorRoot, "bin", "codex.exe");
+  const helperPath = join(vendorRoot, "codex-path");
+  const calls: Array<{ command: string; env?: NodeJS.ProcessEnv }> = [];
+  const spawner: CodexCliProcessSpawner = (spawnCommand, args, options) => {
+    calls.push({
+      command: spawnCommand,
+      ...(options.env ? { env: options.env } : {})
+    });
+
+    return createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"ok\"}\n",
+      exitCode: 0
+    });
+  };
+  const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
+    taskId: "cli-runner-windows-bin-helper-path"
+  }), {
+    codexCommand: command,
+    skipGitRepoCheck: true,
+    ephemeral: true
+  });
+
+  Object.defineProperty(process, "platform", { value: "win32" });
+  try {
+    const result = await runCodexCliExecPlan(plan, {
+      env: {
+        Path: "C:/Windows/System32",
+        CODEX_TEST_ENV: "preserved"
+      },
+      skipExecutionModelProbe: true,
+      spawn: spawner
+    });
+
+    assert.equal(result.inspection.status, "completed");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.command, command);
+    assert.equal(calls[0]?.env?.CODEX_TEST_ENV, "preserved");
+    assert.equal(calls[0]?.env?.Path, `${helperPath};C:/Windows/System32`);
+  } finally {
+    if (originalPlatform) {
+      Object.defineProperty(process, "platform", originalPlatform);
+    }
+  }
+});
+
 test("codex cli runner converts synchronous spawner failure into a failed execution result", async () => {
   const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
     taskId: "cli-runner-sync-spawn-error"
