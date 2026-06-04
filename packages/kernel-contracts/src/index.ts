@@ -1,14 +1,5 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import {
-  parseRoutingDecision,
-  parseTaskEnvelope,
-  type RoutingDecision,
-  type RoutingDecisionInput,
-  type TaskEnvelope,
-  type TaskEnvelopeInput,
-  type ToolAccessLevel
-} from "../../contracts/src/index.js";
 
 export const KernelTimestampSchema = z.string().min(1);
 
@@ -105,6 +96,12 @@ export const TaskSchema = z.object({
   requestedAction: z.string().min(1),
   successCriteria: z.array(z.string()).default([]),
   outOfScope: z.array(z.string()).default([]),
+  intent: z.object({
+    summary: z.string().min(1),
+    requestedAction: z.string().min(1),
+    successCriteria: z.array(z.string()).default([]),
+    outOfScope: z.array(z.string()).default([])
+  }).optional(),
   createdBy: PrincipalSchema.optional(),
   repo: z.object({
     root: z.string().min(1).optional(),
@@ -112,6 +109,13 @@ export const TaskSchema = z.object({
     worktreeClean: z.boolean().optional(),
     protectedBranch: z.boolean().optional()
   }).default({}),
+  workspace: z.object({
+    root: z.string().min(1).optional(),
+    branch: z.string().min(1).optional(),
+    worktreeClean: z.boolean().optional(),
+    protectedBranch: z.boolean().optional()
+  }).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
   target: z.object({
     branches: z.array(z.string()).default([]),
     files: z.array(z.string()).default([]),
@@ -123,6 +127,11 @@ export const TaskSchema = z.object({
     tags: z.array(z.string()).default([])
   }).default({ riskHints: [], tags: [] }),
   constraints: z.record(z.string(), z.unknown()).default({}),
+  metadata: z.object({
+    legacySource: z.string().min(1).optional(),
+    legacyHints: z.record(z.string(), z.unknown()).optional(),
+    legacy: z.record(z.string(), z.unknown()).optional()
+  }).optional(),
   createdAt: KernelTimestampSchema
 });
 
@@ -154,6 +163,9 @@ export const RunSchema = z.object({
   taskId: z.string().min(1),
   status: RunStatusSchema.default("queued"),
   policyDecisionId: z.string().min(1).optional(),
+  metadata: z.object({
+    legacy: z.record(z.string(), z.unknown()).optional()
+  }).optional(),
   createdAt: KernelTimestampSchema,
   updatedAt: KernelTimestampSchema,
   completedAt: KernelTimestampSchema.optional()
@@ -188,6 +200,19 @@ export const PolicyDecisionSchema = z.object({
   decisionId: z.string().min(1),
   taskId: z.string().min(1),
   policyVersion: z.string().min(1),
+  classification: z.object({
+    taskClass: z.enum([
+      "read_only",
+      "small_edit",
+      "engineering",
+      "high_risk",
+      "release_external_action"
+    ]),
+    riskLevel: z.enum(["low", "medium", "high"]),
+    ambiguityScore: z.number().min(0).max(1),
+    clarificationRequired: z.boolean(),
+    riskFactors: z.array(z.string()).default([])
+  }).optional(),
   risk: z.object({
     level: z.enum(["low", "medium", "high", "critical"]),
     factors: z.array(z.string()).default([]),
@@ -211,6 +236,10 @@ export const PolicyDecisionSchema = z.object({
     maxAgents: z.number().int().positive().default(1),
     mode: z.string().min(1).default("disabled")
   }).default({ allowed: false, maxAgents: 1, mode: "disabled" }),
+  hostRoute: z.enum(["desktop", "codex-cli"]).optional(),
+  metadata: z.object({
+    legacy: z.record(z.string(), z.unknown()).optional()
+  }).optional(),
   createdAt: KernelTimestampSchema,
   legacy: z.object({
     routingDecisionId: z.string().min(1).optional(),
@@ -321,145 +350,10 @@ export function parseApprovalPermit(
   return ApprovalPermitSchema.parse(input);
 }
 
-export function createTaskFromLegacyTaskEnvelope(
-  input: TaskEnvelope | TaskEnvelopeInput,
-  options: { createdAt?: string; createdBy?: Principal } = {}
-): Task {
-  const legacy = parseTaskEnvelope(input);
-  return TaskSchema.parse({
-    taskId: legacy.taskId,
-    source: legacy.source,
-    title: legacy.intent.summary,
-    requestedAction: legacy.intent.requestedAction,
-    successCriteria: legacy.intent.successCriteria,
-    outOfScope: legacy.intent.outOfScope,
-    ...(options.createdBy ? { createdBy: options.createdBy } : {}),
-    repo: {
-      root: legacy.repoContext.repoRoot,
-      branch: legacy.repoContext.branch,
-      worktreeClean: legacy.repoContext.worktreeClean,
-      protectedBranch: legacy.repoContext.protectedBranch
-    },
-    target: legacy.target,
-    hints: {
-      taskClass: legacy.hints.taskClassHint,
-      riskHints: legacy.hints.riskHints,
-      tags: legacy.hints.tags
-    },
-    constraints: legacy.constraints,
-    createdAt: options.createdAt ?? "1970-01-01T00:00:00.000Z"
-  });
-}
-
-export function createPolicyDecisionFromLegacyRoutingDecision(
-  input: RoutingDecision | RoutingDecisionInput,
-  options: { createdAt?: string } = {}
-): PolicyDecision {
-  const legacy = parseRoutingDecision(input);
-  const sandbox = createSandboxProfileFromToolAccess(legacy.execution.toolAccess);
-
-  return PolicyDecisionSchema.parse({
-    decisionId: legacy.decisionId,
-    taskId: legacy.taskId,
-    policyVersion: legacy.policyVersion,
-    risk: {
-      level: legacy.classification.taskClass === "release_external_action"
-        ? "critical"
-        : legacy.classification.riskLevel,
-      factors: legacy.classification.riskFactors,
-      ambiguityScore: legacy.classification.ambiguityScore,
-      clarificationRequired: legacy.classification.clarificationRequired
-    },
-    execution: {
-      executor: legacy.hostRoute === "codex-cli" ? "codex-cli" : "codex-desktop",
-      model: legacy.execution.selectedModel,
-      profile: legacy.execution.executionProfile,
-      reasoningEffort: legacy.execution.reasoningEffort,
-      sandbox
-    },
-    capabilities: createCapabilityScopesFromToolAccess(legacy.execution.toolAccess),
-    approval: legacy.approval,
-    parallelism: legacy.parallelism,
-    createdAt: options.createdAt ?? "1970-01-01T00:00:00.000Z",
-    legacy: {
-      routingDecisionId: legacy.decisionId,
-      taskClass: legacy.classification.taskClass,
-      toolAccess: legacy.execution.toolAccess
-    }
-  });
-}
-
 export function hashKernelObject(input: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(input))
     .digest("hex");
-}
-
-function createSandboxProfileFromToolAccess(toolAccess: ToolAccessLevel): SandboxProfile {
-  if (toolAccess === "read_only") {
-    return SandboxProfileSchema.parse({
-      sandboxId: "legacy-read-only",
-      mode: "read-only"
-    });
-  }
-
-  return SandboxProfileSchema.parse({
-    sandboxId: "legacy-workspace-write",
-    mode: "workspace-write",
-    writableRoots: ["workspace"]
-  });
-}
-
-function createCapabilityScopesFromToolAccess(toolAccess: ToolAccessLevel): CapabilityScope[] {
-  switch (toolAccess) {
-    case "read_only":
-      return [
-        CapabilityScopeSchema.parse({
-          kind: "file",
-          resource: "workspace/**",
-          access: "read"
-        })
-      ];
-    case "local_write":
-      return [
-        CapabilityScopeSchema.parse({
-          kind: "file",
-          resource: "workspace/**",
-          access: "read"
-        }),
-        CapabilityScopeSchema.parse({
-          kind: "file",
-          resource: "workspace/**",
-          access: "write"
-        })
-      ];
-    case "engineering_write":
-      return [
-        CapabilityScopeSchema.parse({
-          kind: "file",
-          resource: "workspace/**",
-          access: "write"
-        }),
-        CapabilityScopeSchema.parse({
-          kind: "tool",
-          resource: "shell_command",
-          access: "execute"
-        }),
-        CapabilityScopeSchema.parse({
-          kind: "tool",
-          resource: "apply_patch",
-          access: "execute"
-        })
-      ];
-    case "protected_remote":
-      return [
-        CapabilityScopeSchema.parse({
-          kind: "external",
-          resource: "protected_remote",
-          access: "write"
-        })
-      ];
-  }
 }
 
 export type KernelTimestamp = z.infer<typeof KernelTimestampSchema>;
@@ -484,3 +378,4 @@ export type Artifact = z.infer<typeof ArtifactSchema>;
 export type Event = z.infer<typeof EventSchema>;
 export type ExecutionLease = z.infer<typeof ExecutionLeaseSchema>;
 
+export * from "./legacy-adapter.js";
