@@ -12,7 +12,9 @@ import {
   RunSchema,
   TaskSchema,
   type ApprovalPermit,
+  type CapabilityGrant,
   type PolicyDecision,
+  type Principal,
   type Task
 } from "../packages/kernel-contracts/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
@@ -156,6 +158,66 @@ test("execution eligibility waits for approval for destructive tasks without per
   assert.ok(decision.reasons.includes("approval_required"));
   assert.ok(decision.requiredApprovals.includes("approval:destructive"));
   assert.ok(decision.requiredApprovals.includes("approval:production"));
+});
+
+test("execution eligibility covers a complete Phase 1 kernel flow", () => {
+  const task: Task = createTask({
+    requestedAction: "Update Phase 1 docs after approval."
+  });
+  const principal: Principal = validPrincipal;
+  const run = RunSchema.parse({
+    ...validRun,
+    taskId: task.taskId
+  });
+  const policyDecision = createPolicyDecision({
+    taskId: task.taskId
+  });
+  const capabilityGrant: CapabilityGrant = {
+    schemaVersion: "capability-grant.v1",
+    grantId: "grant_execution_eligibility_flow_001",
+    principalId: principal.principalId,
+    taskId: task.taskId,
+    runId: run.runId,
+    scopes: [],
+    issuedAt: "2026-06-04T00:00:00.000Z",
+    expiresAt: "2026-06-04T01:00:00.000Z",
+    reason: "phase_1_flow_fixture"
+  };
+  const approvalPermit: ApprovalPermit = createApprovalPermit({
+    permitId: "permit_execution_eligibility_flow_001",
+    taskId: task.taskId,
+    runId: run.runId,
+    principalId: principal.principalId,
+    approverId: "principal_approver_001",
+    policyDecisionHash: hashApprovalScope(policyDecision),
+    planHash,
+    capabilityScopes: ["fs.write:/repo/docs/**"],
+    createdAt: "2026-06-04T00:00:00.000Z",
+    expiresAt: "2026-06-04T01:00:00.000Z"
+  });
+
+  const eligibilityDecision = evaluateExecutionEligibility({
+    task,
+    run,
+    principal,
+    policyDecision,
+    capabilityGrants: [{
+      scope: "fs.write:/repo/docs/**",
+      principalId: capabilityGrant.principalId,
+      taskId: capabilityGrant.taskId!,
+      runId: capabilityGrant.runId!,
+      expiresAt: capabilityGrant.expiresAt!
+    }],
+    approvalPermits: [approvalPermit],
+    requestedScopes: [writeScope],
+    planHash,
+    now
+  });
+
+  assert.equal(eligibilityDecision.status, "eligible");
+  assert.equal(eligibilityDecision.taskId, task.taskId);
+  assert.equal(eligibilityDecision.runId, run.runId);
+  assert.deepEqual(eligibilityDecision.acceptedPermits, [approvalPermit.permitId]);
 });
 
 function createInput(overrides: Partial<{
