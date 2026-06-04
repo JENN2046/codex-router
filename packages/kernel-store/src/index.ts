@@ -9,6 +9,8 @@ import {
   type Step
 } from "../../kernel-contracts/src/index.js";
 
+export * from "./jsonl-event-log.js";
+
 export type KernelRunFilter = {
   taskId?: string;
   runId?: string;
