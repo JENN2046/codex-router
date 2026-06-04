@@ -106,7 +106,18 @@ export function validateApprovalPermit(
     reasons.push("plan_hash_mismatch");
   }
 
-  if (Date.parse(permit.expiresAt) <= Date.parse(context.now)) {
+  const expiresAtTime = Date.parse(permit.expiresAt);
+  const nowTime = Date.parse(context.now);
+
+  if (Number.isNaN(expiresAtTime)) {
+    reasons.push("invalid_permit_expires_at");
+  }
+
+  if (Number.isNaN(nowTime)) {
+    reasons.push("invalid_validation_now");
+  }
+
+  if (!Number.isNaN(expiresAtTime) && !Number.isNaN(nowTime) && expiresAtTime <= nowTime) {
     reasons.push("permit_expired");
   }
 

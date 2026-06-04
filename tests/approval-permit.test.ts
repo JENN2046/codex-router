@@ -69,6 +69,28 @@ test("approval permit rejects expired permits", () => {
   assert.ok(result.reasons.includes("permit_expired"));
 });
 
+test("approval permit rejects malformed expiration timestamps", () => {
+  const permit = createApprovalPermit({
+    ...baseInput,
+    expiresAt: "not-a-date"
+  });
+
+  const result = validateApprovalPermit(permit, createContext());
+
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.reasons, ["invalid_permit_expires_at"]);
+});
+
+test("approval permit rejects malformed validation timestamps", () => {
+  const result = validateApprovalPermit(createApprovalPermit(baseInput), {
+    ...createContext(),
+    now: "not-a-date"
+  });
+
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.reasons, ["invalid_validation_now"]);
+});
+
 test("approval permit rejects revoked permits", () => {
   const permit = revokeApprovalPermit(
     createApprovalPermit(baseInput),
