@@ -20,6 +20,8 @@ import {
   type ToolSideEffectClass
 } from "../../tool-registry/src/index.js";
 
+export * from "./agent-os-server-manifest.js";
+
 export type ToolManifest = RegisteredToolManifest;
 
 export const MCP_TOOL_PROVIDER_INVOKE_DISABLED =
