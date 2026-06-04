@@ -8,7 +8,8 @@ export const ToolSideEffectClassSchema = z.enum([
   "local_write",
   "external_write",
   "destructive",
-  "secret_access"
+  "secret_access",
+  "unknown"
 ]);
 
 export const ToolAuditPolicySchema = z.object({
@@ -305,7 +306,8 @@ function isDangerousSideEffectClass(sideEffectClass: ToolSideEffectClass): boole
   return sideEffectClass === "local_write"
     || sideEffectClass === "external_write"
     || sideEffectClass === "destructive"
-    || sideEffectClass === "secret_access";
+    || sideEffectClass === "secret_access"
+    || sideEffectClass === "unknown";
 }
 
 function matchesToolFilter(

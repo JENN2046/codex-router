@@ -276,7 +276,8 @@ function isDangerousSideEffectClass(sideEffectClass: ToolSideEffectClass): boole
   return sideEffectClass === "local_write"
     || sideEffectClass === "external_write"
     || sideEffectClass === "destructive"
-    || sideEffectClass === "secret_access";
+    || sideEffectClass === "secret_access"
+    || sideEffectClass === "unknown";
 }
 
 function redactSecretLikeFields(input: unknown, secretKeys: Set<string>): unknown {
