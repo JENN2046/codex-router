@@ -2821,63 +2821,7 @@ function resolveWindowsCodexExecutableFromGlobalNpmRoot(): string | undefined {
     return undefined;
   }
 
-  const candidates = process.arch === "arm64"
-    ? [
-        join(
-          npmRoot,
-          "node_modules",
-          "@openai",
-          "codex",
-          "node_modules",
-          "@openai",
-          "codex-win32-arm64",
-          "vendor",
-          "aarch64-pc-windows-msvc",
-          "codex",
-          "codex.exe"
-        ),
-        join(
-          npmRoot,
-          "node_modules",
-          "@openai",
-          "codex",
-          "node_modules",
-          "@openai",
-          "codex-win32-x64",
-          "vendor",
-          "x86_64-pc-windows-msvc",
-          "codex",
-          "codex.exe"
-        )
-      ]
-    : [
-        join(
-          npmRoot,
-          "node_modules",
-          "@openai",
-          "codex",
-          "node_modules",
-          "@openai",
-          "codex-win32-x64",
-          "vendor",
-          "x86_64-pc-windows-msvc",
-          "codex",
-          "codex.exe"
-        ),
-        join(
-          npmRoot,
-          "node_modules",
-          "@openai",
-          "codex",
-          "node_modules",
-          "@openai",
-          "codex-win32-arm64",
-          "vendor",
-          "aarch64-pc-windows-msvc",
-          "codex",
-          "codex.exe"
-        )
-      ];
+  const candidates = createWindowsCodexExecutableCandidates(npmRoot);
 
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
@@ -2903,63 +2847,7 @@ function resolveWindowsCodexExecutableFromPath(): string | undefined {
       continue;
     }
 
-    const candidates = process.arch === "arm64"
-      ? [
-          join(
-            entry,
-            "node_modules",
-            "@openai",
-            "codex",
-            "node_modules",
-            "@openai",
-            "codex-win32-arm64",
-            "vendor",
-            "aarch64-pc-windows-msvc",
-            "codex",
-            "codex.exe"
-          ),
-          join(
-            entry,
-            "node_modules",
-            "@openai",
-            "codex",
-            "node_modules",
-            "@openai",
-            "codex-win32-x64",
-            "vendor",
-            "x86_64-pc-windows-msvc",
-            "codex",
-            "codex.exe"
-          )
-        ]
-      : [
-          join(
-            entry,
-            "node_modules",
-            "@openai",
-            "codex",
-            "node_modules",
-            "@openai",
-            "codex-win32-x64",
-            "vendor",
-            "x86_64-pc-windows-msvc",
-            "codex",
-            "codex.exe"
-          ),
-          join(
-            entry,
-            "node_modules",
-            "@openai",
-            "codex",
-            "node_modules",
-            "@openai",
-            "codex-win32-arm64",
-            "vendor",
-            "aarch64-pc-windows-msvc",
-            "codex",
-            "codex.exe"
-          )
-        ];
+    const candidates = createWindowsCodexExecutableCandidates(entry);
 
     for (const candidate of candidates) {
       if (existsSync(candidate)) {
@@ -2969,6 +2857,37 @@ function resolveWindowsCodexExecutableFromPath(): string | undefined {
   }
 
   return undefined;
+}
+
+function createWindowsCodexExecutableCandidates(npmRoot: string): string[] {
+  const platformTriples: Array<[string, string]> = process.arch === "arm64"
+    ? [
+        ["codex-win32-arm64", "aarch64-pc-windows-msvc"],
+        ["codex-win32-x64", "x86_64-pc-windows-msvc"]
+      ]
+    : [
+        ["codex-win32-x64", "x86_64-pc-windows-msvc"],
+        ["codex-win32-arm64", "aarch64-pc-windows-msvc"]
+      ];
+
+  return platformTriples.flatMap(([packageName, targetTriple]) => {
+    const vendorRoot = join(
+      npmRoot,
+      "node_modules",
+      "@openai",
+      "codex",
+      "node_modules",
+      "@openai",
+      packageName,
+      "vendor",
+      targetTriple
+    );
+
+    return [
+      join(vendorRoot, "bin", "codex.exe"),
+      join(vendorRoot, "codex", "codex.exe")
+    ];
+  });
 }
 
 function createCodexCliExecPlanWarnings(
