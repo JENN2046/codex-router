@@ -336,6 +336,10 @@ function collectTaskSignalText(task: Task): string[] {
 
 function appendRecordValues(values: string[], record: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(record)) {
+    if (value === false || value === undefined || value === null) {
+      continue;
+    }
+
     values.push(key);
 
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
