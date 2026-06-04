@@ -1756,11 +1756,12 @@ export async function runCodexCliExecPlan(
     };
   };
 
+  const spawnEnv = resolveCodexCliSpawnEnv(plan.command, resolvedOptions.env);
   let child: CodexCliChildProcess;
   try {
     child = spawn(plan.command, plan.args, {
       ...(plan.workdir ? { cwd: plan.workdir } : {}),
-      ...(resolvedOptions.env ? { env: resolvedOptions.env } : {}),
+      ...(spawnEnv ? { env: spawnEnv } : {}),
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true
     });
@@ -2888,6 +2889,52 @@ function createWindowsCodexExecutableCandidates(npmRoot: string): string[] {
       join(vendorRoot, "codex", "codex.exe")
     ];
   });
+}
+
+function resolveCodexCliSpawnEnv(
+  command: string,
+  env: NodeJS.ProcessEnv | undefined
+): NodeJS.ProcessEnv | undefined {
+  const helperPath = resolveWindowsCodexHelperPathForCommand(command);
+
+  if (!helperPath) {
+    return env;
+  }
+
+  const baseEnv = env ?? process.env;
+  const pathKey = getWindowsPathEnvKey(baseEnv);
+  const currentPath = baseEnv[pathKey] ?? "";
+  const pathEntries = currentPath
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (pathEntries.some((entry) => entry.toLowerCase() === helperPath.toLowerCase())) {
+    return env ?? undefined;
+  }
+
+  return {
+    ...baseEnv,
+    [pathKey]: currentPath ? `${helperPath};${currentPath}` : helperPath
+  };
+}
+
+function resolveWindowsCodexHelperPathForCommand(command: string): string | undefined {
+  if (process.platform !== "win32") {
+    return undefined;
+  }
+
+  const match = command.match(/^(.*)[/\\]bin[/\\]codex\.exe$/i);
+
+  if (!match?.[1]) {
+    return undefined;
+  }
+
+  return join(match[1], "codex-path");
+}
+
+function getWindowsPathEnvKey(env: NodeJS.ProcessEnv): string {
+  return Object.keys(env).find((key) => key.toLowerCase() === "path") ?? "PATH";
 }
 
 function createCodexCliExecPlanWarnings(
