@@ -13,6 +13,10 @@ export const validApprovalPermit = {
   planHash: "plan_hash_phase_1_fixture_001",
   approvedBy: validPrincipal,
   scopes: [validCapabilityScope, validToolExecuteScope],
+  capabilityScopes: [
+    "fs.read:workspace/packages/kernel-contracts/**",
+    "shell.exec:apply_patch"
+  ],
   issuedAt: "2026-06-04T00:07:00.000Z",
   expiresAt: "2026-06-04T01:07:00.000Z",
   reason: "phase_1_fixture"

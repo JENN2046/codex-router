@@ -253,13 +253,20 @@ export const ApprovalPermitSchema = z.object({
   permitId: z.string().min(1),
   taskId: z.string().min(1),
   runId: z.string().min(1),
+  principalId: z.string().min(1).optional(),
+  approverId: z.string().min(1).optional(),
   decisionHash: z.string().min(1),
+  policyDecisionHash: z.string().min(1).optional(),
   planHash: z.string().min(1),
   approvedBy: PrincipalSchema,
   scopes: z.array(CapabilityScopeSchema).min(1),
+  capabilityScopes: z.array(z.string().min(1)).default([]),
   issuedAt: KernelTimestampSchema,
+  createdAt: KernelTimestampSchema.optional(),
   expiresAt: KernelTimestampSchema,
   revokedAt: KernelTimestampSchema.optional(),
+  revokedReason: z.string().min(1).optional(),
+  signature: z.string().min(1).optional(),
   reason: z.string().min(1).optional()
 });
 
