@@ -2,6 +2,7 @@ import {
   evaluateTaskAdmission
 } from "../../admission-control/src/index.js";
 import {
+  capabilityScopeToCanonicalString,
   explainCapabilityDecision,
   type CapabilityGrantLike
 } from "../../capability/src/index.js";
@@ -87,7 +88,11 @@ export function evaluateExecutionEligibility(
     };
   }
 
-  const capabilityResults = input.requestedScopes.map((scope) => (
+  const effectiveRequestedScopes = uniqueStrings([
+    ...input.requestedScopes,
+    ...input.policyDecision.capabilities.map(capabilityScopeToCanonicalString)
+  ]);
+  const capabilityResults = effectiveRequestedScopes.map((scope) => (
     explainCapabilityDecision(input.capabilityGrants, scope, {
       principalId: input.principal.principalId,
       taskId: input.task.taskId,
@@ -114,10 +119,12 @@ export function evaluateExecutionEligibility(
   const missingCapabilities = capabilityResults
     .filter((result) => !result.allowed)
     .map((result) => result.requestedScope);
-  const approvalRequired = admission.status === "needs_approval"
-    || admission.requiredApprovals.length > 0
+  const nonCapabilityApprovals = admission.requiredApprovals.filter((approval) => (
+    !approval.startsWith("capability:")
+  ));
+  const approvalRequired = nonCapabilityApprovals.length > 0
     || missingCapabilities.length > 0;
-  const permitEvaluation = evaluatePermits(input);
+  const permitEvaluation = evaluatePermits(input, effectiveRequestedScopes);
 
   if (missingCapabilities.length > 0 && permitEvaluation.acceptedPermits.length === 0) {
     return {
@@ -149,7 +156,7 @@ export function evaluateExecutionEligibility(
       missingCapabilities,
       requiredApprovals: uniqueStrings([
         ...admission.requiredApprovals,
-        ...input.requestedScopes.map((scope) => `approval:${scope}`)
+        ...effectiveRequestedScopes.map((scope) => `approval:${scope}`)
       ]),
       rejectedPermits: permitEvaluation.rejectedPermits
     };
@@ -177,7 +184,10 @@ export function evaluateExecutionEligibility(
   };
 }
 
-function evaluatePermits(input: EvaluateExecutionEligibilityInput): {
+function evaluatePermits(
+  input: EvaluateExecutionEligibilityInput,
+  requestedCapabilityScopes: string[]
+): {
   acceptedPermits: string[];
   rejectedPermits: string[];
 } {
@@ -192,7 +202,7 @@ function evaluatePermits(input: EvaluateExecutionEligibilityInput): {
       principalId: input.principal.principalId,
       policyDecisionHash,
       planHash: input.planHash,
-      requestedCapabilityScopes: input.requestedScopes,
+      requestedCapabilityScopes,
       now: input.now
     });
 

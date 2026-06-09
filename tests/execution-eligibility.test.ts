@@ -138,6 +138,35 @@ test("execution eligibility accepts valid approval permits", () => {
   assert.deepEqual(decision.rejectedPermits, []);
 });
 
+test("execution eligibility checks policy-required scopes when caller underreports requested scopes", () => {
+  const policyDecision = createPolicyDecision({
+    capabilities: [{
+      schemaVersion: "capability-scope.v1",
+      kind: "file",
+      resource: "/repo/docs/**",
+      access: "write",
+      constraints: {}
+    }]
+  });
+  const unrelatedPermit = createPermit(policyDecision, {
+    capabilityScopes: ["fs.write:/repo/other/**"]
+  });
+
+  const decision = evaluateExecutionEligibility(createInput({
+    policyDecision,
+    requestedScopes: [],
+    capabilityGrants: [],
+    approvalPermits: [unrelatedPermit]
+  }));
+
+  assert.equal(decision.status, "waiting_approval");
+  assert.ok(decision.reasons.includes("missing_capability"));
+  assert.deepEqual(decision.missingCapabilities, ["fs.write:/repo/docs/**"]);
+  assert.ok(decision.requiredApprovals.includes("approval:fs.write:/repo/docs/**"));
+  assert.deepEqual(decision.acceptedPermits, []);
+  assert.ok(decision.rejectedPermits[0]?.includes("missing_capability_scope"));
+});
+
 test("execution eligibility waits for approval when capability clock is invalid", () => {
   const decision = evaluateExecutionEligibility(createInput({
     requestedScopes: [writeScope],

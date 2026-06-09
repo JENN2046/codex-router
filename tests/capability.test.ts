@@ -66,6 +66,25 @@ test("capability matcher allows path wildcard matches", () => {
   );
 });
 
+test("capability matcher normalizes file paths before wildcard matches", () => {
+  assert.equal(
+    hasCapabilityGrant(["fs.write:/repo/**"], "fs.write:/repo/../outside"),
+    false
+  );
+  assert.equal(
+    hasCapabilityGrant(["fs.write:/repo/**"], "fs.write:/repo/docs/../src/index.ts"),
+    true
+  );
+  assert.equal(
+    hasCapabilityGrant(["fs.write:/repo/docs/**"], "fs.write:/repo/docs/../src/index.ts"),
+    false
+  );
+  assert.equal(
+    capabilityImplies("fs.read:/repo/docs/../src/**", "fs.read:/repo/src/file.md"),
+    true
+  );
+});
+
 test("capability matcher accepts typed kernel capability grants", () => {
   const grant = CapabilityGrantSchema.parse({
     schemaVersion: "capability-grant.v1",

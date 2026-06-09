@@ -1,3 +1,4 @@
+import { posix as pathPosix } from "node:path";
 import {
   CapabilityScopeSchema,
   type CapabilityGrant,
@@ -89,7 +90,7 @@ export function capabilityImplies(
   const requested = parseCapabilityScope(requestedScope);
 
   return grant.action === requested.action
-    && resourceImplies(grant.resource, requested.resource);
+    && resourceImplies(grant.resource, requested.resource, grant.action);
 }
 
 export function capabilityScopeToCanonicalString(scopeInput: CapabilityScope): string {
@@ -155,7 +156,7 @@ export function explainCapabilityDecision(
       if (
         parsedGrant.effect === "deny"
         && parsedGrant.action === requested.action
-        && denyResourceMatches(parsedGrant.resource, requested.resource)
+        && denyResourceMatches(parsedGrant.resource, requested.resource, parsedGrant.action)
       ) {
         matchedDenyScopes.push(parsedGrant.raw);
         continue;
@@ -384,25 +385,68 @@ function explainInvalidNow(now?: string): string | undefined {
     : undefined;
 }
 
-function resourceImplies(grantResource: string, requestedResource: string): boolean {
+function resourceImplies(
+  grantResource: string,
+  requestedResource: string,
+  action: string
+): boolean {
   if (grantResource === "deny") {
     return false;
   }
 
-  if (grantResource === requestedResource || grantResource === "*") {
+  if (grantResource === "*") {
     return true;
   }
 
-  if (grantResource.endsWith("/**")) {
-    const prefix = grantResource.slice(0, -3);
-    return requestedResource === prefix || requestedResource.startsWith(`${prefix}/`);
+  const normalizedGrantResource = normalizeResourceForAction(grantResource, action);
+  const normalizedRequestedResource = normalizeResourceForAction(requestedResource, action);
+
+  if (normalizedGrantResource === normalizedRequestedResource) {
+    return true;
+  }
+
+  if (normalizedGrantResource.endsWith("/**")) {
+    const prefix = normalizedGrantResource.slice(0, -3);
+    return normalizedRequestedResource === prefix
+      || normalizedRequestedResource.startsWith(`${prefix}/`);
   }
 
   return false;
 }
 
-function denyResourceMatches(denyResource: string, requestedResource: string): boolean {
-  return denyResource === "deny" || resourceImplies(denyResource, requestedResource);
+function denyResourceMatches(
+  denyResource: string,
+  requestedResource: string,
+  action: string
+): boolean {
+  return denyResource === "deny" || resourceImplies(denyResource, requestedResource, action);
+}
+
+function normalizeResourceForAction(resource: string, action: string): string {
+  return action.startsWith("fs.")
+    ? normalizeFileResource(resource)
+    : resource;
+}
+
+function normalizeFileResource(resource: string): string {
+  const slashResource = resource.replace(/\\/g, "/");
+  const hasRecursiveWildcard = slashResource.endsWith("/**");
+  const resourceBase = hasRecursiveWildcard
+    ? slashResource.slice(0, -3)
+    : slashResource;
+  const normalizedBase = trimTrailingSlash(pathPosix.normalize(resourceBase));
+
+  return hasRecursiveWildcard
+    ? `${normalizedBase}/**`
+    : normalizedBase;
+}
+
+function trimTrailingSlash(resource: string): string {
+  if (resource.length > 1 && resource.endsWith("/")) {
+    return resource.slice(0, -1);
+  }
+
+  return resource;
 }
 
 function normalizeErrorMessage(error: unknown): string {
