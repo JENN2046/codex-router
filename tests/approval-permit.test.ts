@@ -161,6 +161,25 @@ test("approval permit accepts when extra permitted capabilities are unused", () 
   assert.deepEqual(result.matchedCapabilityScopes, ["shell.exec:pytest"]);
 });
 
+test("approval permit accepts external capability scopes", () => {
+  const permit = createApprovalPermit({
+    ...baseInput,
+    capabilityScopes: ["external.write:protected_remote"]
+  });
+
+  const result = validateApprovalPermit(permit, {
+    ...createContext(),
+    requestedCapabilityScopes: ["external.write:protected_remote"]
+  });
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.reasons, []);
+  assert.deepEqual(result.missingCapabilityScopes, []);
+  assert.deepEqual(result.matchedCapabilityScopes, ["external.write:protected_remote"]);
+  assert.equal(permit.scopes[0]?.kind, "external");
+  assert.equal(permit.scopes[0]?.access, "write");
+});
+
 test("approval permit maps typed scopes to canonical capability strings", () => {
   const permit = ApprovalPermitSchema.parse({
     schemaVersion: "approval-permit.v1",

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   capabilityImplies,
+  capabilityScopeToCanonicalString,
   explainCapabilityDecision,
   hasCapabilityGrant,
   parseCapabilityScope
@@ -24,6 +25,14 @@ test("capability matcher parses scope strings", () => {
     action: "secret.read",
     resource: "deny",
     effect: "deny"
+  });
+
+  assert.deepEqual(parseCapabilityScope("external.write:protected_remote"), {
+    raw: "external.write:protected_remote",
+    family: "external",
+    action: "external.write",
+    resource: "protected_remote",
+    effect: "allow"
   });
 });
 
@@ -50,6 +59,27 @@ test("capability matcher allows path wildcard matches", () => {
   );
   assert.equal(
     hasCapabilityGrant(["fs.write:/repo/docs/**"], "fs.write:/repo/src/index.ts"),
+    false
+  );
+});
+
+test("capability matcher supports external write scopes", () => {
+  assert.equal(
+    capabilityScopeToCanonicalString({
+      schemaVersion: "capability-scope.v1",
+      kind: "external",
+      resource: "protected_remote",
+      access: "write",
+      constraints: {}
+    }),
+    "external.write:protected_remote"
+  );
+  assert.equal(
+    hasCapabilityGrant(["external.write:*"], "external.write:protected_remote"),
+    true
+  );
+  assert.equal(
+    hasCapabilityGrant(["external.write:protected_remote"], "external.write:external_side_effect"),
     false
   );
 });

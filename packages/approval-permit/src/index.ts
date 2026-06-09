@@ -238,15 +238,31 @@ function capabilityScopeToKernelScope(scope: string): CapabilityScope {
     };
   }
 
-  return {
-    schemaVersion: "capability-scope.v1",
-    kind: "secret",
-    resource: parsed.resource,
-    access: "read",
-    constraints: {
-      capabilityScope: scope
-    }
-  };
+  if (family === "secret") {
+    return {
+      schemaVersion: "capability-scope.v1",
+      kind: "secret",
+      resource: parsed.resource,
+      access: "read",
+      constraints: {
+        capabilityScope: scope
+      }
+    };
+  }
+
+  if (family === "external") {
+    return {
+      schemaVersion: "capability-scope.v1",
+      kind: "external",
+      resource: parsed.resource,
+      access: action === "admin" ? "admin" : action === "execute" ? "execute" : "write",
+      constraints: {
+        capabilityScope: scope
+      }
+    };
+  }
+
+  throw new Error(`unsupported capability family: ${family}`);
 }
 
 function stableStringify(input: unknown): string {

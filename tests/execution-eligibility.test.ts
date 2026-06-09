@@ -27,6 +27,7 @@ const planHash = "plan_hash_execution_001";
 const readScope = "fs.read:/repo/README.md";
 const writeScope = "fs.write:/repo/docs/phase-1.md";
 const destructiveScope = "fs.write:/repo/prod/config.yml";
+const externalWriteScope = "external.write:protected_remote";
 
 test("execution eligibility accepts read-only work when capability is granted", () => {
   const input = createInput({
@@ -90,6 +91,17 @@ test("execution eligibility waits for approval when capability is missing", () =
   assert.ok(decision.reasons.includes("missing_capability"));
   assert.deepEqual(decision.missingCapabilities, [writeScope]);
   assert.ok(decision.requiredApprovals.includes(`approval:${writeScope}`));
+});
+
+test("execution eligibility accepts external capabilities when granted", () => {
+  const decision = evaluateExecutionEligibility(createInput({
+    requestedScopes: [externalWriteScope],
+    capabilityGrants: ["external.write:protected_remote"]
+  }));
+
+  assert.equal(decision.status, "eligible");
+  assert.deepEqual(decision.reasons, ["capability_grants_satisfied"]);
+  assert.deepEqual(decision.missingCapabilities, []);
 });
 
 test("execution eligibility blocks explicit deny capability decisions", () => {

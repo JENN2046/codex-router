@@ -45,7 +45,10 @@ const knownActions = new Set([
   "mcp.call",
   "memory.read",
   "memory.write",
-  "secret.read"
+  "secret.read",
+  "external.write",
+  "external.execute",
+  "external.admin"
 ]);
 
 export function parseCapabilityScope(scope: string): ParsedCapabilityScope {
