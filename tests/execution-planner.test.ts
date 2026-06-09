@@ -95,6 +95,26 @@ test("execution planner emits canonical required capability scopes", () => {
   ]);
 });
 
+test("execution planner preserves local command side effects before write sandbox", () => {
+  const sandboxProfile = createSandboxProfile("workspace-write");
+  const policyDecision = createPolicyDecision({
+    sandboxProfile,
+    capabilities: [
+      createReadScope(),
+      createWriteScope(),
+      createToolExecuteScope()
+    ]
+  });
+  const plan = planProviderExecution(createPlannerInput({
+    policyDecision,
+    preferredProviderId: "codex-cli"
+  }));
+
+  assert.equal(plan.status, "planned");
+  assert.equal(plan.sandboxProfile.mode, "workspace-write");
+  assert.equal(plan.sideEffectClass, "local_command");
+});
+
 test("execution planner blocks when execution eligibility is blocked", () => {
   const plan = planProviderExecution(createPlannerInput({
     executionEligibility: createEligibility({

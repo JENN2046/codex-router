@@ -124,6 +124,42 @@ test("codex cli workspace-write plan requires a workspace-write policy decision"
   });
 });
 
+test("codex cli provider classifies command plans as local command before write sandbox", () => {
+  const provider = new CodexCliExecutorProvider();
+  const task = createTask({
+    taskId: "task_codex_cli_provider_write_command",
+    taskClass: "engineering"
+  });
+  const sandbox = createSandboxProfile("workspace-write");
+  const policyDecision = createPolicyDecision({
+    task,
+    taskClass: "engineering",
+    sandbox,
+    capabilities: [
+      createReadScope(),
+      createWriteScope(),
+      createToolExecuteScope()
+    ]
+  });
+  const run = createRun(task, policyDecision);
+  const plan = provider.planExecution({
+    task,
+    run,
+    policyDecision,
+    sandboxProfile: sandbox,
+    now
+  });
+  const validation = provider.validateExecutionPlan(plan);
+
+  assert.equal(plan.sideEffectClass, "local_command");
+  assert.equal(plan.sandboxProfile.mode, "workspace-write");
+  assert.equal(readProviderMetadata(plan).codexCliPlan.sandbox, "workspace-write");
+  assert.deepEqual(validation, {
+    valid: true,
+    reasons: []
+  });
+});
+
 test("codex cli provider rejects dangerous external side effects by default", () => {
   const provider = new CodexCliExecutorProvider();
   const task = createTask({
@@ -385,6 +421,14 @@ function createWriteScope(): CapabilityScope {
     kind: "file",
     resource: "workspace/**",
     access: "write"
+  });
+}
+
+function createToolExecuteScope(): CapabilityScope {
+  return CapabilityScopeSchema.parse({
+    kind: "tool",
+    resource: "pytest",
+    access: "execute"
   });
 }
 

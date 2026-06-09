@@ -336,12 +336,12 @@ function resolveProviderSideEffectClass(
     return "secret_access";
   }
 
-  if (sandboxProfile.mode === "workspace-write") {
-    return "workspace_write";
-  }
-
   if (hasLocalCommand(policyDecision)) {
     return "local_command";
+  }
+
+  if (sandboxProfile.mode === "workspace-write") {
+    return "workspace_write";
   }
 
   return "read_only";

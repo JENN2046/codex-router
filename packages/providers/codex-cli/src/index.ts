@@ -386,12 +386,12 @@ function resolveProviderSideEffectClass(
     return "secret_access";
   }
 
-  if (effectiveSandbox === "workspace-write") {
-    return "workspace_write";
-  }
-
   if (hasLocalCommand(input.policyDecision)) {
     return "local_command";
+  }
+
+  if (effectiveSandbox === "workspace-write") {
+    return "workspace_write";
   }
 
   return "read_only";

@@ -100,6 +100,33 @@ test("run-manager cancels queued and running runs", () => {
   );
 });
 
+test("run-manager starts blocked runs after approval", () => {
+  const { manager, store } = createHarness();
+  const run = manager.createRunFromTask(validTask, validPrincipal, {
+    runId: "run_manager_blocked_resume_001"
+  });
+
+  store.updateRun(run.runId, {
+    status: "blocked",
+    updatedAt: "2026-06-04T00:02:00.000Z",
+    metadata: {
+      legacy: {
+        approvalRequired: true
+      }
+    }
+  });
+  const started = manager.startRun(run.runId);
+
+  assert.equal(started.status, "running");
+  assert.deepEqual(
+    store.listEvents({ runId: run.runId }).map((event) => event.eventType),
+    [
+      "kernel.run.created",
+      "kernel.run.started"
+    ]
+  );
+});
+
 test("run-manager rejects invalid run transitions", () => {
   const { manager } = createHarness();
   const run = manager.createRunFromTask(validTask, validPrincipal, {

@@ -269,6 +269,7 @@ export class RunManager {
     }
 
     const allowed = (run.status === "queued" && (nextStatus === "running" || nextStatus === "cancelled"))
+      || (run.status === "blocked" && nextStatus === "running")
       || (run.status === "running" && (
         nextStatus === "succeeded"
         || nextStatus === "failed"
