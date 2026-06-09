@@ -13,7 +13,8 @@ import {
   type ProviderManifest
 } from "../packages/provider-core/src/index.js";
 import {
-  SandboxProfileSchema
+  SandboxProfileSchema,
+  type SandboxProfile
 } from "../packages/kernel-contracts/src/index.js";
 
 test("provider-core parses a valid provider manifest", () => {
@@ -175,6 +176,59 @@ test("provider-core constrains workspace wildcard writable roots", () => {
   );
 });
 
+test("provider-core constrains sandbox env policy", () => {
+  const manifest = ProviderManifestSchema.parse({
+    ...createProviderManifest(),
+    supportedSandboxProfiles: [
+      createSandboxProfile("workspace-write", ["workspace/**"], {
+        inheritProcessEnv: false,
+        allowlist: ["SAFE_TOKEN"]
+      })
+    ]
+  });
+
+  assert.equal(
+    providerSupportsSandboxProfile(
+      manifest,
+      createSandboxProfile("workspace-write", ["workspace/packages/provider-core/**"], {
+        inheritProcessEnv: false,
+        allowlist: ["SAFE_TOKEN"]
+      })
+    ),
+    true
+  );
+  assert.equal(
+    providerSupportsSandboxProfile(
+      manifest,
+      createSandboxProfile("workspace-write", ["workspace/packages/provider-core/**"], {
+        inheritProcessEnv: true,
+        allowlist: ["SAFE_TOKEN"]
+      })
+    ),
+    false
+  );
+  assert.equal(
+    providerSupportsSandboxProfile(
+      manifest,
+      createSandboxProfile("workspace-write", ["workspace/packages/provider-core/**"], {
+        inheritProcessEnv: false,
+        allowlist: ["SAFE_TOKEN", "EXTRA_TOKEN"]
+      })
+    ),
+    false
+  );
+  assert.throws(
+    () => assertProviderSupportsSandboxProfile(
+      manifest,
+      createSandboxProfile("workspace-write", ["workspace/packages/provider-core/**"], {
+        inheritProcessEnv: true,
+        allowlist: ["SAFE_TOKEN"]
+      })
+    ),
+    /unsupported_sandbox_profile:provider_core_executor_001:/
+  );
+});
+
 function createProviderManifest(): ProviderManifest {
   return ProviderManifestSchema.parse({
     schemaVersion: "provider-manifest.v1",
@@ -205,7 +259,11 @@ function createProviderManifest(): ProviderManifest {
 
 function createSandboxProfile(
   mode: "read-only" | "workspace-write" | "danger-full-access",
-  writableRoots = mode === "read-only" ? [] : ["workspace"]
+  writableRoots = mode === "read-only" ? [] : ["workspace"],
+  envPolicy: SandboxProfile["envPolicy"] = {
+    inheritProcessEnv: false,
+    allowlist: []
+  }
 ) {
   return SandboxProfileSchema.parse({
     schemaVersion: "sandbox-profile.v1",
@@ -213,9 +271,6 @@ function createSandboxProfile(
     mode,
     networkAccess: "none",
     writableRoots,
-    envPolicy: {
-      inheritProcessEnv: false,
-      allowlist: []
-    }
+    envPolicy
   });
 }

@@ -283,6 +283,7 @@ export function providerSupportsSandboxProfile(
     supported.mode === requested.mode
     && networkAccessImplies(supported.networkAccess, requested.networkAccess)
     && writableRootsImply(supported.writableRoots, requested.writableRoots)
+    && envPolicyImplies(supported.envPolicy, requested.envPolicy)
   ));
 }
 
@@ -335,4 +336,19 @@ function writableRootImplies(grantedRoot: string, requestedRoot: string): boolea
   }
 
   return false;
+}
+
+function envPolicyImplies(
+  granted: SandboxProfile["envPolicy"],
+  requested: SandboxProfile["envPolicy"]
+): boolean {
+  if (!granted.inheritProcessEnv && requested.inheritProcessEnv) {
+    return false;
+  }
+
+  if (granted.inheritProcessEnv) {
+    return true;
+  }
+
+  return requested.allowlist.every((key) => granted.allowlist.includes(key));
 }

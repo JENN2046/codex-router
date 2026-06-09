@@ -227,7 +227,7 @@ export class InMemoryScheduler implements Scheduler {
   }
 
   private expireLeases(): void {
-    const now = Date.parse(this.clock.now());
+    const now = parseTimestamp(this.clock.now());
     for (const lease of this.leases.values()) {
       if (lease.status !== "active") {
         continue;
@@ -306,11 +306,16 @@ export class InMemoryScheduler implements Scheduler {
 }
 
 function addMilliseconds(timestamp: string, milliseconds: number): string {
+  const time = parseTimestamp(timestamp);
+  return new Date(time + milliseconds).toISOString();
+}
+
+function parseTimestamp(timestamp: string): number {
   const time = Date.parse(timestamp);
   if (Number.isNaN(time)) {
     throw new Error(`invalid_clock_timestamp:${timestamp}`);
   }
-  return new Date(time + milliseconds).toISOString();
+  return time;
 }
 
 function normalizeError(error: unknown): Record<string, unknown> {

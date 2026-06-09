@@ -131,11 +131,7 @@ test("codex cli provider enforces policy sandbox constraints before planning", (
     taskClass: "small_edit"
   });
   const policySandbox = createSandboxProfile("workspace-write", {
-    writableRoots: ["workspace/docs/**"],
-    envPolicy: {
-      inheritProcessEnv: false,
-      allowlist: ["SAFE_TOKEN"]
-    }
+    writableRoots: ["workspace/docs/**"]
   });
   const policyDecision = createPolicyDecision({
     task,
@@ -153,7 +149,8 @@ test("codex cli provider enforces policy sandbox constraints before planning", (
   });
 
   assert.deepEqual(plan.sandboxProfile.writableRoots, ["workspace/docs/**"]);
-  assert.deepEqual(plan.sandboxProfile.envPolicy.allowlist, ["SAFE_TOKEN"]);
+  assert.equal(plan.sandboxProfile.envPolicy.inheritProcessEnv, false);
+  assert.deepEqual(plan.sandboxProfile.envPolicy.allowlist, []);
 
   assert.throws(
     () => provider.planExecution({
@@ -193,7 +190,7 @@ test("codex cli provider enforces policy sandbox constraints before planning", (
         writableRoots: policySandbox.writableRoots,
         envPolicy: {
           inheritProcessEnv: false,
-          allowlist: ["SAFE_TOKEN", "EXTRA_TOKEN"]
+          allowlist: ["EXTRA_TOKEN"]
         }
       }),
       now

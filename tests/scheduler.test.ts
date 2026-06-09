@@ -84,6 +84,32 @@ test("scheduler reacquires expired leases and increments attempts", () => {
   assert.equal(scheduler.listLeases()[1]?.status, "active");
 });
 
+test("scheduler rejects invalid clocks before expiring active leases", () => {
+  const clock = createClock();
+  const scheduler = new InMemoryScheduler({ clock, defaultLeaseDurationMs: 60_000 });
+
+  scheduler.enqueueRun("run_scheduler_invalid_clock_001", { maxAttempts: 2 });
+  const lease = scheduler.acquireLease("worker_001");
+  assert.ok(lease);
+
+  clock.set("not-a-timestamp");
+
+  assert.throws(
+    () => scheduler.listLeases(),
+    /invalid_clock_timestamp:not-a-timestamp/
+  );
+  assert.equal(scheduler.listQueue()[0]?.status, "leased");
+
+  assert.throws(
+    () => scheduler.renewLease(lease.leaseId),
+    /invalid_clock_timestamp:not-a-timestamp/
+  );
+
+  clock.set("2026-06-04T00:00:30.000Z");
+  assert.equal(scheduler.listLeases()[0]?.status, "active");
+  assert.equal(scheduler.listQueue()[0]?.status, "leased");
+});
+
 test("scheduler retries failed leases while attempts remain", () => {
   const scheduler = new InMemoryScheduler({ clock: createClock() });
 
