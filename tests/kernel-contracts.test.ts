@@ -264,3 +264,39 @@ test("hashKernelObject returns stable sha256 strings", () => {
   assert.equal(hash, hashKernelObject({ taskId: "task-1", value: 1 }));
 });
 
+test("hashKernelObject canonicalizes object key order and undefined fields", () => {
+  const first = hashKernelObject({
+    taskId: "task-1",
+    value: 1,
+    omitted: undefined,
+    nested: {
+      z: 2,
+      a: 1,
+      ignored: undefined
+    },
+    list: [
+      {
+        b: 2,
+        a: 1,
+        ignored: undefined
+      }
+    ]
+  });
+  const second = hashKernelObject({
+    list: [
+      {
+        a: 1,
+        b: 2
+      }
+    ],
+    nested: {
+      a: 1,
+      z: 2
+    },
+    value: 1,
+    taskId: "task-1"
+  });
+
+  assert.equal(first, second);
+  assert.notEqual(first, hashKernelObject({ taskId: "task-1", value: 2 }));
+});

@@ -359,8 +359,31 @@ export function parseApprovalPermit(
 
 export function hashKernelObject(input: unknown): string {
   return createHash("sha256")
-    .update(JSON.stringify(input))
+    .update(stableStringifyKernelObject(input))
     .digest("hex");
+}
+
+function stableStringifyKernelObject(input: unknown): string {
+  if (input === undefined) {
+    return "null";
+  }
+
+  if (input === null || typeof input !== "object") {
+    return JSON.stringify(input) ?? "null";
+  }
+
+  if (Array.isArray(input)) {
+    return `[${input.map((item) => stableStringifyKernelObject(item)).join(",")}]`;
+  }
+
+  const record = input as Record<string, unknown>;
+  const keys = Object.keys(record)
+    .filter((key) => record[key] !== undefined)
+    .sort();
+
+  return `{${keys.map((key) => (
+    `${JSON.stringify(key)}:${stableStringifyKernelObject(record[key])}`
+  )).join(",")}}`;
 }
 
 export type KernelTimestamp = z.infer<typeof KernelTimestampSchema>;

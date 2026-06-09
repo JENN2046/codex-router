@@ -21,11 +21,13 @@ import {
 import {
   SandboxProfileSchema,
   hashKernelObject,
-  type CapabilityScope,
   type PolicyDecision,
   type SandboxProfile,
   type Task
 } from "../../../kernel-contracts/src/index.js";
+import {
+  capabilityScopeToCanonicalString
+} from "../../../capability/src/index.js";
 import {
   assertProviderSupportsSandboxProfile,
   assertProviderSupportsSideEffectClass,
@@ -189,7 +191,7 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
       providerId: this.manifest.providerId,
       inputHash,
       policyDecisionHash,
-      requiredCapabilities: input.policyDecision.capabilities.map(capabilityScopeToString),
+      requiredCapabilities: input.policyDecision.capabilities.map(capabilityScopeToCanonicalString),
       approvalRequired: input.policyDecision.approval.required,
       sandboxProfile: createExecutorSandboxProfile(input.sandboxProfile, effectiveSandbox),
       sideEffectClass,
@@ -846,10 +848,6 @@ function createCodexCliProviderInputHash(input: ExecutionPlanInput): string {
       ? undefined
       : hashKernelObject(input.proposedInput)
   });
-}
-
-function capabilityScopeToString(scope: CapabilityScope): string {
-  return `${scope.kind}:${scope.access}:${scope.resource}`;
 }
 
 function hasProtectedRemoteSideEffect(policyDecision: PolicyDecision): boolean {

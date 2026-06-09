@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
-  CapabilityScopeSchema,
+  capabilityScopeToCanonicalString
+} from "../../capability/src/index.js";
+import {
   PolicyDecisionSchema,
   PrincipalSchema,
   RunSchema,
   SandboxProfileSchema,
   TaskSchema,
-  type CapabilityScope,
   type PolicyDecision,
   type Principal,
   type Run,
@@ -84,7 +85,7 @@ export function planProviderExecution(
   const eligibility = parseExecutionEligibility(input.executionEligibility);
   const sandboxProfile = SandboxProfileSchema.parse(policyDecision.execution.sandbox);
   const sideEffectClass = resolveProviderSideEffectClass(policyDecision, sandboxProfile);
-  const requiredCapabilities = policyDecision.capabilities.map(capabilityScopeToString);
+  const requiredCapabilities = policyDecision.capabilities.map(capabilityScopeToCanonicalString);
   const requiredApprovals = uniqueStrings([...eligibility.requiredApprovals]);
   const policyDecisionHash = hashProviderExecutionPlannerObject(policyDecision);
   const providerResolution = resolveProvider({
@@ -371,11 +372,6 @@ function hasLocalCommand(policyDecision: PolicyDecision): boolean {
     (scope.kind === "tool" || scope.kind === "process")
     && scope.access === "execute"
   ));
-}
-
-function capabilityScopeToString(scopeInput: CapabilityScope): string {
-  const scope = CapabilityScopeSchema.parse(scopeInput);
-  return `${scope.kind}:${scope.access}:${scope.resource}`;
 }
 
 function createInputHash(input: Record<string, unknown>): string {

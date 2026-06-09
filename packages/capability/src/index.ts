@@ -1,3 +1,8 @@
+import {
+  CapabilityScopeSchema,
+  type CapabilityScope
+} from "../../kernel-contracts/src/index.js";
+
 export type ParsedCapabilityScope = {
   raw: string;
   family: string;
@@ -81,6 +86,17 @@ export function capabilityImplies(
 
   return grant.action === requested.action
     && resourceImplies(grant.resource, requested.resource);
+}
+
+export function capabilityScopeToCanonicalString(scopeInput: CapabilityScope): string {
+  const scope = CapabilityScopeSchema.parse(scopeInput);
+  const canonicalScope = getCanonicalScopeConstraint(scope);
+
+  if (canonicalScope) {
+    return canonicalScope;
+  }
+
+  return `${capabilityScopeToCanonicalAction(scope)}:${scope.resource}`;
 }
 
 export function hasCapabilityGrant(
@@ -270,6 +286,55 @@ function normalizeGrant(grant: CapabilityGrantLike): {
     ...(grant.expiresAt ? { expiresAt: grant.expiresAt } : {}),
     ...(grant.revokedAt ? { revokedAt: grant.revokedAt } : {})
   };
+}
+
+function getCanonicalScopeConstraint(scope: CapabilityScope): string | undefined {
+  const canonicalScope = scope.constraints.capabilityScope;
+
+  if (typeof canonicalScope !== "string") {
+    return undefined;
+  }
+
+  try {
+    parseCapabilityScope(canonicalScope);
+    return canonicalScope;
+  } catch {
+    return undefined;
+  }
+}
+
+function capabilityScopeToCanonicalAction(scope: CapabilityScope): string {
+  const family = scope.constraints.family;
+
+  if (scope.kind === "file" && scope.access === "read") {
+    return "fs.read";
+  }
+
+  if (scope.kind === "file" && scope.access === "write") {
+    return "fs.write";
+  }
+
+  if (scope.kind === "tool" && scope.access === "execute") {
+    return family === "mcp" ? "mcp.call" : "shell.exec";
+  }
+
+  if (scope.kind === "network" && scope.access !== "read") {
+    return "network.egress";
+  }
+
+  if (scope.kind === "secret" && scope.access === "read") {
+    return "secret.read";
+  }
+
+  if (scope.kind === "process" && family === "memory" && scope.access === "read") {
+    return "memory.read";
+  }
+
+  if (scope.kind === "process" && family === "memory" && scope.access === "write") {
+    return "memory.write";
+  }
+
+  return `${scope.kind}.${scope.access}`;
 }
 
 function isExpired(expiresAt: string, now?: string): boolean {

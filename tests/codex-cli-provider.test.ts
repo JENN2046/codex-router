@@ -113,6 +113,10 @@ test("codex cli workspace-write plan requires a workspace-write policy decision"
 
   assert.equal(plan.sideEffectClass, "workspace_write");
   assert.equal(plan.sandboxProfile.mode, "workspace-write");
+  assert.deepEqual(plan.requiredCapabilities, [
+    "fs.read:workspace/**",
+    "fs.write:workspace/**"
+  ]);
   assert.equal(readProviderMetadata(plan).policyAllowsWorkspaceWrite, true);
   assert.deepEqual(validation, {
     valid: true,

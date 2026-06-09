@@ -66,10 +66,33 @@ test("execution planner creates a planned plan with codex-cli provider", () => {
   assert.equal(plan.providerKind, "executor");
   assert.equal(plan.sideEffectClass, "read_only");
   assert.equal(plan.sandboxProfile.mode, "read-only");
-  assert.equal(plan.requiredCapabilities.includes("file:read:workspace/**"), true);
+  assert.equal(plan.requiredCapabilities.includes("fs.read:workspace/**"), true);
   assert.equal(plan.reasons.includes("provider_planned"), true);
   assert.match(plan.inputHash, /^[a-f0-9]{64}$/);
   assert.match(plan.policyDecisionHash, /^[a-f0-9]{64}$/);
+});
+
+test("execution planner emits canonical required capability scopes", () => {
+  const sandboxProfile = createSandboxProfile("workspace-write");
+  const policyDecision = createPolicyDecision({
+    sandboxProfile,
+    capabilities: [
+      createReadScope(),
+      createWriteScope(),
+      createToolExecuteScope()
+    ]
+  });
+  const plan = planProviderExecution(createPlannerInput({
+    policyDecision,
+    providerRegistry: createRegistryWithCodex(),
+    preferredProviderId: "codex-cli"
+  }));
+
+  assert.deepEqual(plan.requiredCapabilities, [
+    "fs.read:workspace/**",
+    "fs.write:workspace/**",
+    "shell.exec:pytest"
+  ]);
 });
 
 test("execution planner blocks when execution eligibility is blocked", () => {
@@ -392,6 +415,14 @@ function createWriteScope(): CapabilityScope {
     kind: "file",
     resource: "workspace/**",
     access: "write"
+  });
+}
+
+function createToolExecuteScope(): CapabilityScope {
+  return CapabilityScopeSchema.parse({
+    kind: "tool",
+    resource: "pytest",
+    access: "execute"
   });
 }
 
