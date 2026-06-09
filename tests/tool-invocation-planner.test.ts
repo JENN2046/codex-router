@@ -249,6 +249,42 @@ test("tool invocation planner blocks mismatched kernel objects before planning",
   ]);
 });
 
+test("tool invocation planner blocks terminal runs and steps before planning", () => {
+  for (const status of ["succeeded", "failed", "cancelled"] as const) {
+    const run = RunSchema.parse({
+      ...createRun(),
+      status,
+      completedAt: "2026-06-04T00:05:00.000Z"
+    });
+    const plan = planToolInvocation(createInput({
+      run,
+      step: createStep(run),
+      toolManifest: builtinReadFileToolManifest,
+      capabilityGrants: ["fs.read:/repo/**"]
+    }));
+
+    assert.equal(plan.status, "blocked");
+    assert.deepEqual(plan.reasons, [`tool_invocation_run_terminal:${status}`]);
+  }
+
+  for (const status of ["succeeded", "failed", "skipped", "cancelled"] as const) {
+    const run = createRun();
+    const step = StepSchema.parse({
+      ...createStep(run),
+      status
+    });
+    const plan = planToolInvocation(createInput({
+      run,
+      step,
+      toolManifest: builtinReadFileToolManifest,
+      capabilityGrants: ["fs.read:/repo/**"]
+    }));
+
+    assert.equal(plan.status, "blocked");
+    assert.deepEqual(plan.reasons, [`tool_invocation_step_terminal:${status}`]);
+  }
+});
+
 test("tool invocation planner uses a stable input hash without storing raw input", () => {
   const first = planToolInvocation(createInput({
     toolManifest: builtinReadFileToolManifest,

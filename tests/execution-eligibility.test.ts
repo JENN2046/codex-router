@@ -45,6 +45,25 @@ test("execution eligibility accepts read-only work when capability is granted", 
   assert.deepEqual(decision.missingCapabilities, []);
 });
 
+test("execution eligibility blocks terminal runs before capability checks", () => {
+  const terminalRun = RunSchema.parse({
+    ...validRun,
+    taskId: validTask.taskId,
+    status: "succeeded",
+    completedAt: "2026-06-04T00:05:00.000Z"
+  });
+  const decision = evaluateExecutionEligibility(createInput({
+    run: terminalRun,
+    requestedScopes: [readScope],
+    capabilityGrants: ["fs.read:/repo/**"]
+  }));
+
+  assert.equal(decision.status, "blocked");
+  assert.deepEqual(decision.reasons, ["run_terminal:succeeded"]);
+  assert.deepEqual(decision.missingCapabilities, []);
+  assert.deepEqual(decision.requiredApprovals, []);
+});
+
 test("execution eligibility blocks when policy is blocked", () => {
   const decision = evaluateExecutionEligibility(createInput({
     policyDecision: {

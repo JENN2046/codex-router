@@ -319,11 +319,38 @@ function getCanonicalScopeConstraint(scope: CapabilityScope): string | undefined
   }
 
   try {
-    parseCapabilityScope(canonicalScope);
-    return canonicalScope;
+    return canonicalScopeMatchesStructuredScope(scope, canonicalScope)
+      ? canonicalScope
+      : undefined;
   } catch {
     return undefined;
   }
+}
+
+function canonicalScopeMatchesStructuredScope(
+  scope: CapabilityScope,
+  canonicalScope: string
+): boolean {
+  const parsedCanonical = parseCapabilityScope(canonicalScope);
+  const parsedStructured = parseCapabilityScope(
+    `${capabilityScopeToCanonicalAction(scope)}:${scope.resource}`
+  );
+
+  return parsedCanonical.action === parsedStructured.action
+    && resourcesAreEquivalent(
+      parsedCanonical.resource,
+      parsedStructured.resource,
+      parsedStructured.action
+    );
+}
+
+function resourcesAreEquivalent(
+  leftResource: string,
+  rightResource: string,
+  action: string
+): boolean {
+  return resourceImplies(leftResource, rightResource, action)
+    && resourceImplies(rightResource, leftResource, action);
 }
 
 function capabilityScopeToCanonicalAction(scope: CapabilityScope): string {

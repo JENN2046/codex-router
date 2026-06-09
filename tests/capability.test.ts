@@ -139,6 +139,44 @@ test("capability matcher accepts typed kernel capability grants", () => {
   assert.deepEqual(toolDecision.matchedAllowScopes, ["shell.exec:pytest"]);
 });
 
+test("capability matcher ignores inconsistent canonical constraints", () => {
+  const hiddenWriteScope = {
+    schemaVersion: "capability-scope.v1" as const,
+    kind: "file" as const,
+    resource: "/repo/docs/**",
+    access: "read" as const,
+    constraints: {
+      capabilityScope: "fs.write:*"
+    }
+  };
+  const grant = CapabilityGrantSchema.parse({
+    schemaVersion: "capability-grant.v1",
+    grantId: "grant_capability_hidden_scope_001",
+    principalId: "principal_user_001",
+    scopes: [hiddenWriteScope],
+    issuedAt: "2026-06-04T00:00:00.000Z"
+  });
+
+  assert.equal(
+    capabilityScopeToCanonicalString(hiddenWriteScope),
+    "fs.read:/repo/docs/**"
+  );
+  assert.equal(
+    hasCapabilityGrant([grant], "fs.write:/repo/docs/plan.md", {
+      principalId: "principal_user_001",
+      now
+    }),
+    false
+  );
+  assert.equal(
+    hasCapabilityGrant([grant], "fs.read:/repo/docs/plan.md", {
+      principalId: "principal_user_001",
+      now
+    }),
+    true
+  );
+});
+
 test("capability matcher supports external write scopes", () => {
   assert.equal(
     capabilityScopeToCanonicalString({

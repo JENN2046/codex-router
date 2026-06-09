@@ -51,10 +51,25 @@ export type EvaluateExecutionEligibilityInput = {
   now: string;
 };
 
+const terminalRunStatuses = new Set<Run["status"]>([
+  "succeeded",
+  "failed",
+  "cancelled"
+]);
+
 export function evaluateExecutionEligibility(
   input: EvaluateExecutionEligibilityInput
 ): ExecutionEligibilityDecision {
   const base = createBaseDecision(input);
+
+  if (terminalRunStatuses.has(input.run.status)) {
+    return {
+      ...base,
+      status: "blocked",
+      reasons: [`run_terminal:${input.run.status}`]
+    };
+  }
+
   const admission = evaluateTaskAdmission({
     task: input.task,
     principal: input.principal,

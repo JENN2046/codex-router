@@ -59,6 +59,19 @@ export type PlanToolInvocationInput = {
   now: string;
 };
 
+const terminalRunStatuses = new Set<Run["status"]>([
+  "succeeded",
+  "failed",
+  "cancelled"
+]);
+
+const terminalStepStatuses = new Set<Step["status"]>([
+  "succeeded",
+  "failed",
+  "skipped",
+  "cancelled"
+]);
+
 export function planToolInvocation(input: PlanToolInvocationInput): ToolInvocationPlan {
   const toolManifest = RegisteredToolManifestSchema.parse(input.toolManifest);
   const inputHash = hashToolInvocationInput(input.proposedInput);
@@ -211,6 +224,14 @@ function createBasePlan(
 
 function collectKernelIntegrityReasons(input: PlanToolInvocationInput): string[] {
   const reasons: string[] = [];
+
+  if (terminalRunStatuses.has(input.run.status)) {
+    reasons.push(`tool_invocation_run_terminal:${input.run.status}`);
+  }
+
+  if (terminalStepStatuses.has(input.step.status)) {
+    reasons.push(`tool_invocation_step_terminal:${input.step.status}`);
+  }
 
   if (input.step.runId !== input.run.runId) {
     reasons.push(`tool_invocation_step_run_mismatch:${input.step.runId}:${input.run.runId}`);
