@@ -1,5 +1,6 @@
 import {
   CapabilityScopeSchema,
+  type CapabilityGrant,
   type CapabilityScope
 } from "../../kernel-contracts/src/index.js";
 
@@ -12,14 +13,14 @@ export type ParsedCapabilityScope = {
 };
 
 export type CapabilityGrantLike = string | {
-  scope?: string;
-  scopes?: string[];
+  scope?: string | CapabilityScope;
+  scopes?: Array<string | CapabilityScope>;
   principalId?: string;
   taskId?: string;
   runId?: string;
   expiresAt?: string;
   revokedAt?: string;
-};
+} | CapabilityGrant;
 
 export type CapabilityCheckOptions = {
   principalId?: string;
@@ -285,10 +286,11 @@ function normalizeGrant(grant: CapabilityGrantLike): {
     return { scopes: [grant] };
   }
 
+  const scope = "scope" in grant ? grant.scope : undefined;
   const scopes = [
-    ...(grant.scope ? [grant.scope] : []),
-    ...(grant.scopes ?? [])
-  ];
+    ...(scope ? [scope] : []),
+    ...("scopes" in grant ? grant.scopes : [])
+  ].map(normalizeGrantScope);
 
   return {
     scopes,
@@ -298,6 +300,14 @@ function normalizeGrant(grant: CapabilityGrantLike): {
     ...(grant.expiresAt ? { expiresAt: grant.expiresAt } : {}),
     ...(grant.revokedAt ? { revokedAt: grant.revokedAt } : {})
   };
+}
+
+function normalizeGrantScope(scope: string | CapabilityScope): string {
+  if (typeof scope === "string") {
+    return scope;
+  }
+
+  return capabilityScopeToCanonicalString(scope);
 }
 
 function getCanonicalScopeConstraint(scope: CapabilityScope): string | undefined {

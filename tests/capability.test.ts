@@ -7,6 +7,9 @@ import {
   hasCapabilityGrant,
   parseCapabilityScope
 } from "../packages/capability/src/index.js";
+import {
+  CapabilityGrantSchema
+} from "../packages/kernel-contracts/src/index.js";
 
 const now = "2026-06-04T00:00:00.000Z";
 
@@ -61,6 +64,60 @@ test("capability matcher allows path wildcard matches", () => {
     hasCapabilityGrant(["fs.write:/repo/docs/**"], "fs.write:/repo/src/index.ts"),
     false
   );
+});
+
+test("capability matcher accepts typed kernel capability grants", () => {
+  const grant = CapabilityGrantSchema.parse({
+    schemaVersion: "capability-grant.v1",
+    grantId: "grant_capability_typed_001",
+    principalId: "principal_user_001",
+    taskId: "task_capability_001",
+    runId: "run_capability_001",
+    scopes: [
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "file",
+        resource: "/repo/docs/**",
+        access: "read",
+        constraints: {}
+      },
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "tool",
+        resource: "pytest",
+        access: "execute",
+        constraints: {}
+      }
+    ],
+    issuedAt: "2026-06-04T00:00:00.000Z",
+    expiresAt: "2026-06-05T00:00:00.000Z"
+  });
+
+  const fileDecision = explainCapabilityDecision(
+    [grant],
+    "fs.read:/repo/docs/plan.md",
+    {
+      principalId: "principal_user_001",
+      taskId: "task_capability_001",
+      runId: "run_capability_001",
+      now
+    }
+  );
+  const toolDecision = explainCapabilityDecision(
+    [grant],
+    "shell.exec:pytest",
+    {
+      principalId: "principal_user_001",
+      taskId: "task_capability_001",
+      runId: "run_capability_001",
+      now
+    }
+  );
+
+  assert.equal(fileDecision.allowed, true);
+  assert.deepEqual(fileDecision.matchedAllowScopes, ["fs.read:/repo/docs/**"]);
+  assert.equal(toolDecision.allowed, true);
+  assert.deepEqual(toolDecision.matchedAllowScopes, ["shell.exec:pytest"]);
 });
 
 test("capability matcher supports external write scopes", () => {
