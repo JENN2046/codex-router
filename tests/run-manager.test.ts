@@ -273,6 +273,96 @@ test("run-manager cancels pending and running steps", () => {
   );
 });
 
+test("run-manager rejects step transitions after parent run is terminal", () => {
+  const cases: Array<{
+    runId: string;
+    stepId: string;
+    terminalStatus: "cancelled" | "failed" | "succeeded";
+    makeTerminal: (manager: RunManager, runId: string) => void;
+  }> = [
+    {
+      runId: "run_manager_step_after_cancel_001",
+      stepId: "step_run_manager_after_cancel_001",
+      terminalStatus: "cancelled",
+      makeTerminal: (manager, runId) => {
+        manager.cancelRun(runId, "operator stopped run");
+      }
+    },
+    {
+      runId: "run_manager_step_after_fail_001",
+      stepId: "step_run_manager_after_fail_001",
+      terminalStatus: "failed",
+      makeTerminal: (manager, runId) => {
+        manager.startRun(runId);
+        manager.failRun(runId, "run failed before step dispatch");
+      }
+    },
+    {
+      runId: "run_manager_step_after_complete_001",
+      stepId: "step_run_manager_after_complete_001",
+      terminalStatus: "succeeded",
+      makeTerminal: (manager, runId) => {
+        manager.startRun(runId);
+        manager.completeRun(runId, {
+          summary: "run finished before step dispatch"
+        });
+      }
+    }
+  ];
+
+  for (const entry of cases) {
+    const { manager, store } = createHarness();
+    const run = manager.createRunFromTask(validTask, validPrincipal, {
+      runId: entry.runId
+    });
+    const step = manager.createStep(run.runId, {
+      stepId: entry.stepId,
+      kind: "tool"
+    });
+
+    entry.makeTerminal(manager, run.runId);
+
+    assert.throws(
+      () => manager.startStep(step.stepId),
+      new RegExp(`run_terminal:${entry.terminalStatus}`)
+    );
+    assert.equal(store.getStep(step.stepId)?.status, "pending");
+    assert.equal(
+      store.listEvents({ runId: run.runId })
+        .some((event) => event.eventType === "kernel.step.started"),
+      false
+    );
+  }
+});
+
+test("run-manager rejects completing a running step after parent run completes", () => {
+  const { manager, store } = createHarness();
+  const run = manager.createRunFromTask(validTask, validPrincipal, {
+    runId: "run_manager_running_step_after_complete_001"
+  });
+  const step = manager.createStep(run.runId, {
+    stepId: "step_run_manager_running_after_complete_001",
+    kind: "tool"
+  });
+
+  manager.startRun(run.runId);
+  manager.startStep(step.stepId);
+  manager.completeRun(run.runId, {
+    summary: "run finished before step reported"
+  });
+
+  assert.throws(
+    () => manager.completeStep(step.stepId, { summary: "late step" }),
+    /run_terminal:succeeded/
+  );
+  assert.equal(store.getStep(step.stepId)?.status, "running");
+  assert.equal(
+    store.listEvents({ runId: run.runId })
+      .some((event) => event.eventType === "kernel.step.completed"),
+    false
+  );
+});
+
 test("run-manager emits events in lifecycle order", () => {
   const { manager, store } = createHarness();
   const run = manager.createRunFromTask(validTask, validPrincipal, {
