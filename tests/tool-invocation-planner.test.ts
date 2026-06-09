@@ -12,7 +12,8 @@ import {
 import {
   builtinApplyPatchToolManifest,
   builtinReadFileToolManifest,
-  mcpGithubCreatePullRequestToolManifest
+  mcpGithubCreatePullRequestToolManifest,
+  type ToolManifestInput
 } from "../packages/tool-registry/src/index.js";
 import {
   PolicyDecisionSchema,
@@ -153,6 +154,23 @@ test("tool invocation planner uses a stable input hash without storing raw input
   }));
 });
 
+test("tool invocation planner hashes undefined proposed input deterministically", () => {
+  const directHash = hashToolInvocationInput(undefined);
+  const roundTrippedHash = hashToolInvocationInput(JSON.parse(JSON.stringify({
+    omitted: undefined
+  })));
+  const plan = planToolInvocation(createInput({
+    toolManifest: noInputToolManifest,
+    proposedInput: undefined
+  }));
+
+  assert.match(directHash, /^[a-f0-9]{64}$/);
+  assert.equal(hashToolInvocationInput({ omitted: undefined }), roundTrippedHash);
+  assert.equal(plan.status, "planned");
+  assert.equal(plan.inputHash, directHash);
+  assert.equal(plan.inputPreview, undefined);
+});
+
 test("tool invocation planner redacts proposed input preview", () => {
   const plan = planToolInvocation(createInput({
     toolManifest: mcpGithubCreatePullRequestToolManifest,
@@ -211,9 +229,9 @@ function createInput(overrides: Partial<{
     run,
     step,
     toolManifest: overrides.toolManifest ?? builtinReadFileToolManifest,
-    proposedInput: overrides.proposedInput ?? {
-      path: "/repo/README.md"
-    },
+    proposedInput: "proposedInput" in overrides
+      ? overrides.proposedInput
+      : { path: "/repo/README.md" },
     principal: validPrincipal,
     capabilityGrants: overrides.capabilityGrants ?? [],
     approvalPermits: overrides.approvalPermits ?? [],
@@ -259,6 +277,37 @@ function createPolicyDecision(overrides: Partial<PolicyDecision> = {}): PolicyDe
     ...overrides
   });
 }
+
+const noInputToolManifest = {
+  schemaVersion: "tool-registry-manifest.v1",
+  toolId: "builtin.no_input",
+  provider: "builtin",
+  inputSchema: {
+    type: "object",
+    properties: {}
+  },
+  outputSchema: {
+    type: "object",
+    properties: {}
+  },
+  sideEffectClass: "none",
+  requiredCapabilities: [],
+  defaultTimeoutMs: 1_000,
+  auditPolicy: {
+    recordInvocation: true,
+    recordInput: false,
+    recordOutput: false,
+    retention: "run"
+  },
+  redactionPolicy: {
+    redactInput: true,
+    redactOutput: true,
+    secretKeys: []
+  },
+  metadata: {
+    fixture: true
+  }
+} satisfies ToolManifestInput;
 
 function createPermit(
   policyDecision: PolicyDecision,

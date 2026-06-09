@@ -192,6 +192,35 @@ test("protocol-mcp provider skeleton enforces allowedTools allowlist", async () 
   );
 });
 
+test("protocol-mcp provider hashes undefined proposed input deterministically", async () => {
+  const provider = createMcpToolProviderSkeleton(createServerRef({
+    allowedTools: ["repo_search"]
+  }));
+  const manifest = mcpToolToToolManifest({
+    serverRef: createServerRef({
+      allowedTools: ["repo_search"]
+    }),
+    tool: {
+      name: "repo_search",
+      inputSchema: { type: "object" },
+      annotations: {
+        sideEffectClass: "read"
+      }
+    }
+  });
+  const first = await provider.planInvocation(createToolInvocationInput({
+    toolManifest: manifest,
+    proposedInput: undefined
+  }));
+  const second = await provider.planInvocation(createToolInvocationInput({
+    toolManifest: manifest,
+    proposedInput: undefined
+  }));
+
+  assert.match(first.inputHash, /^[a-f0-9]{64}$/);
+  assert.equal(first.inputHash, second.inputHash);
+});
+
 test("protocol-mcp provider skeleton enforces disabledTools blocklist", () => {
   const serverRef = createServerRef({
     allowedTools: ["repo_search"],
@@ -310,7 +339,7 @@ function createToolInvocationInput(overrides: Partial<{
         inputSchema: { type: "object" }
       }
     }),
-    proposedInput: overrides.proposedInput ?? {},
+    proposedInput: "proposedInput" in overrides ? overrides.proposedInput : {},
     sandboxProfile: overrides.sandboxProfile ?? createSandboxProfile(),
     now
   };

@@ -312,8 +312,12 @@ function isSecretLikeKey(key: string, secretKeys: Set<string>): boolean {
 }
 
 function stableStringify(input: unknown): string {
+  if (input === undefined) {
+    return "null";
+  }
+
   if (input === null || typeof input !== "object") {
-    return JSON.stringify(input);
+    return JSON.stringify(input) ?? "null";
   }
 
   if (Array.isArray(input)) {
@@ -321,7 +325,9 @@ function stableStringify(input: unknown): string {
   }
 
   const record = input as Record<string, unknown>;
-  const keys = Object.keys(record).sort();
+  const keys = Object.keys(record)
+    .filter((key) => record[key] !== undefined)
+    .sort();
 
   return `{${keys.map((key) => (
     `${JSON.stringify(key)}:${stableStringify(record[key])}`
