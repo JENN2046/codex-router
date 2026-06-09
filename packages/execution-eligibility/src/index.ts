@@ -26,6 +26,7 @@ export type ExecutionEligibilityDecision = {
   status: ExecutionEligibilityStatus;
   taskId: string;
   runId: string;
+  policyDecisionHash: string;
   reasons: string[];
   missingCapabilities: string[];
   requiredApprovals: string[];
@@ -215,6 +216,7 @@ function createBaseDecision(
     status: "blocked",
     taskId: input.task.taskId,
     runId: input.run.runId,
+    policyDecisionHash: hashApprovalScope(input.policyDecision),
     reasons: [],
     missingCapabilities: [],
     requiredApprovals: [],

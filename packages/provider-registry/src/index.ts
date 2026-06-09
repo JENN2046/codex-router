@@ -71,6 +71,7 @@ export class ProviderRegistry {
 
     if (manifest.kind === "remote_agent") {
       assertRemoteAgentAuthSchemes(manifest);
+      assertRemoteAgentAuthSchemes(providerManifest);
     }
 
     const entry = {
@@ -213,7 +214,7 @@ function assertRemoteAgentAuthSchemes(manifest: ProviderManifest): void {
 
 function isAnonymousAuthScheme(input: unknown): boolean {
   if (typeof input === "string") {
-    return input.toLowerCase() === "anonymous";
+    return normalizeAuthSchemeField(input) === "anonymous";
   }
 
   if (!isRecord(input)) {
@@ -226,7 +227,11 @@ function isAnonymousAuthScheme(input: unknown): boolean {
 }
 
 function isAnonymousAuthSchemeField(input: unknown): boolean {
-  return typeof input === "string" && input.toLowerCase() === "anonymous";
+  return typeof input === "string" && normalizeAuthSchemeField(input) === "anonymous";
+}
+
+function normalizeAuthSchemeField(input: string): string {
+  return input.trim().toLowerCase();
 }
 
 function isExecutorProvider(provider: ProviderImplementation): provider is ExecutorProvider {

@@ -27,6 +27,9 @@ import {
   type ExecutionEligibilityDecision
 } from "../../execution-eligibility/src/index.js";
 import {
+  hashApprovalScope
+} from "../../approval-permit/src/index.js";
+import {
   type ProviderRegistry,
   type ProviderRegistryEntry
 } from "../../provider-registry/src/index.js";
@@ -294,11 +297,40 @@ function collectKernelIntegrityReasons(
     reasons.push(`eligibility_run_mismatch:${eligibility.runId}:${run.runId}`);
   }
 
+  const expectedPolicyDecisionHash = hashApprovalScope(policyDecision);
+  if (eligibility.policyDecisionHash !== expectedPolicyDecisionHash) {
+    reasons.push("eligibility_policy_decision_hash_mismatch");
+  }
+
   if (
     run.policyDecisionId !== undefined
     && run.policyDecisionId !== policyDecision.decisionId
   ) {
     reasons.push(`run_policy_decision_mismatch:${run.policyDecisionId}:${policyDecision.decisionId}`);
+  }
+
+  if (eligibility.status === "eligible") {
+    if (eligibility.missingCapabilities.length > 0) {
+      reasons.push("eligibility_has_unresolved_missing_capabilities");
+    }
+
+    if (eligibility.requiredApprovals.length > 0) {
+      reasons.push("eligibility_has_unresolved_required_approvals");
+    }
+
+    if (
+      policyDecision.approval.required
+      && eligibility.acceptedPermits.length === 0
+    ) {
+      reasons.push("eligibility_missing_policy_approval_permit");
+    }
+
+    if (
+      eligibility.reasons.includes("valid_approval_permit")
+      && eligibility.acceptedPermits.length === 0
+    ) {
+      reasons.push("eligibility_valid_permit_without_accepted_permit");
+    }
   }
 
   return reasons;
@@ -311,6 +343,7 @@ function parseExecutionEligibility(
     status: z.enum(["eligible", "blocked", "waiting_approval"]).parse(input.status),
     taskId: z.string().min(1).parse(input.taskId),
     runId: z.string().min(1).parse(input.runId),
+    policyDecisionHash: z.string().regex(/^[a-f0-9]{64}$/).parse(input.policyDecisionHash),
     reasons: z.array(z.string().min(1)).parse(input.reasons),
     missingCapabilities: z.array(z.string().min(1)).parse(input.missingCapabilities),
     requiredApprovals: z.array(z.string().min(1)).parse(input.requiredApprovals),

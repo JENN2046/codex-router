@@ -97,50 +97,31 @@ export function evaluateTaskAdmission(input: EvaluateTaskAdmissionInput): Admiss
     });
   }
 
-  if (requiresApproval(riskSignals)) {
-    return createDecision({
-      status: "needs_approval",
-      taskId: input.task.taskId,
-      principalId,
-      reasons: ["approval_required_by_task_risk"],
-      riskSignals,
-      requiredCapabilities,
-      requiredApprovals,
-      createdAt
-    });
-  }
-
   const missingCapabilities = requiredCapabilities.filter((scope) => (
     !agentHasMatchingCapability(input.agent, scope)
   ));
+  const capabilityApprovals = missingCapabilities.map((scope) => (
+    `capability:${scope.kind}:${scope.access}:${scope.resource}`
+  ));
+  const missingWriteCapabilities = missingCapabilities.some((scope) => scope.access !== "read");
+  const missingReadCapabilities = missingCapabilities.some((scope) => scope.access === "read");
+  const approvalReasons = [
+    ...(requiresApproval(riskSignals) ? ["approval_required_by_task_risk"] : []),
+    ...(missingWriteCapabilities ? ["missing_required_write_capability"] : []),
+    ...(missingReadCapabilities ? ["missing_required_read_capability"] : [])
+  ];
 
-  if (missingCapabilities.some((scope) => scope.access !== "read")) {
+  if (approvalReasons.length > 0) {
     return createDecision({
       status: "needs_approval",
       taskId: input.task.taskId,
       principalId,
-      reasons: ["missing_required_write_capability"],
+      reasons: approvalReasons,
       riskSignals,
       requiredCapabilities,
       requiredApprovals: [
         ...requiredApprovals,
-        ...missingCapabilities.map((scope) => `capability:${scope.kind}:${scope.access}:${scope.resource}`)
-      ],
-      createdAt
-    });
-  }
-
-  if (missingCapabilities.length > 0) {
-    return createDecision({
-      status: "needs_approval",
-      taskId: input.task.taskId,
-      principalId,
-      reasons: ["missing_required_read_capability"],
-      riskSignals,
-      requiredCapabilities,
-      requiredApprovals: [
-        ...requiredApprovals,
-        ...missingCapabilities.map((scope) => `capability:${scope.kind}:${scope.access}:${scope.resource}`)
+        ...capabilityApprovals
       ],
       createdAt
     });

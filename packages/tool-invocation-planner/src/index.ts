@@ -67,6 +67,16 @@ export function planToolInvocation(input: PlanToolInvocationInput): ToolInvocati
     toolManifest.redactionPolicy.secretKeys
   );
   const basePlan = createBasePlan(input, toolManifest, inputHash, inputPreview);
+  const integrityReasons = collectKernelIntegrityReasons(input);
+
+  if (integrityReasons.length > 0) {
+    return {
+      ...basePlan,
+      status: "blocked",
+      reasons: uniqueStrings(integrityReasons)
+    };
+  }
+
   const capabilityResults = toolManifest.requiredCapabilities.map((scope) => (
     explainCapabilityDecision(input.capabilityGrants, scope, {
       principalId: input.principal.principalId,
@@ -197,6 +207,33 @@ function createBasePlan(
     status: "blocked",
     reasons: []
   };
+}
+
+function collectKernelIntegrityReasons(input: PlanToolInvocationInput): string[] {
+  const reasons: string[] = [];
+
+  if (input.step.runId !== input.run.runId) {
+    reasons.push(`tool_invocation_step_run_mismatch:${input.step.runId}:${input.run.runId}`);
+  }
+
+  if (input.step.taskId !== input.run.taskId) {
+    reasons.push(`tool_invocation_step_task_mismatch:${input.step.taskId}:${input.run.taskId}`);
+  }
+
+  if (input.policyDecision.taskId !== input.run.taskId) {
+    reasons.push(`tool_invocation_policy_task_mismatch:${input.policyDecision.taskId}:${input.run.taskId}`);
+  }
+
+  if (
+    input.run.policyDecisionId !== undefined
+    && input.run.policyDecisionId !== input.policyDecision.decisionId
+  ) {
+    reasons.push(
+      `tool_invocation_run_policy_decision_mismatch:${input.run.policyDecisionId}:${input.policyDecision.decisionId}`
+    );
+  }
+
+  return reasons;
 }
 
 function evaluateApprovalPermits(

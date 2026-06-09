@@ -10,6 +10,9 @@ import {
   type ExecutionEligibilityDecision
 } from "../packages/execution-eligibility/src/index.js";
 import {
+  hashApprovalScope
+} from "../packages/approval-permit/src/index.js";
+import {
   ProviderRegistry
 } from "../packages/provider-registry/src/index.js";
 import {
@@ -148,6 +151,59 @@ test("execution planner waits when execution eligibility waits for approval", ()
   assert.ok(plan.reasons.includes("missing_capability"));
 });
 
+test("execution planner blocks forged eligible decisions when policy requires approval", () => {
+  const policyDecision = PolicyDecisionSchema.parse({
+    ...createPolicyDecision(),
+    approval: {
+      required: true,
+      reasons: ["policy_high_risk_context"]
+    }
+  });
+  const plan = planProviderExecution(createPlannerInput({
+    policyDecision,
+    executionEligibility: createEligibility({
+      status: "eligible",
+      reasons: ["capability_grants_satisfied"],
+      acceptedPermits: [],
+      policyDecisionHash: hashApprovalScope(policyDecision)
+    }),
+    preferredProviderId: "codex-cli"
+  }));
+
+  assert.equal(plan.status, "blocked");
+  assert.ok(plan.reasons.includes("eligibility_missing_policy_approval_permit"));
+});
+
+test("execution planner blocks eligibility decisions bound to another policy hash", () => {
+  const plan = planProviderExecution(createPlannerInput({
+    executionEligibility: createEligibility({
+      policyDecisionHash: "0".repeat(64)
+    }),
+    preferredProviderId: "codex-cli"
+  }));
+
+  assert.equal(plan.status, "blocked");
+  assert.ok(plan.reasons.includes("eligibility_policy_decision_hash_mismatch"));
+});
+
+test("execution planner blocks eligible decisions with unresolved approvals or capabilities", () => {
+  const plan = planProviderExecution(createPlannerInput({
+    executionEligibility: createEligibility({
+      status: "eligible",
+      reasons: ["valid_approval_permit"],
+      missingCapabilities: ["fs.write:workspace/**"],
+      requiredApprovals: ["approval:fs.write:workspace/**"],
+      acceptedPermits: []
+    }),
+    preferredProviderId: "codex-cli"
+  }));
+
+  assert.equal(plan.status, "blocked");
+  assert.ok(plan.reasons.includes("eligibility_has_unresolved_missing_capabilities"));
+  assert.ok(plan.reasons.includes("eligibility_has_unresolved_required_approvals"));
+  assert.ok(plan.reasons.includes("eligibility_valid_permit_without_accepted_permit"));
+});
+
 test("execution planner blocks when preferred provider is missing", () => {
   const plan = planProviderExecution(createPlannerInput({
     providerRegistry: new ProviderRegistry(),
@@ -177,7 +233,8 @@ test("execution planner blocks when preferred provider is disabled", () => {
     policyDecision,
     executionEligibility: createEligibility({
       taskId: task.taskId,
-      runId: run.runId
+      runId: run.runId,
+      policyDecisionHash: hashApprovalScope(policyDecision)
     }),
     providerRegistry: registry,
     preferredProviderId: provider.manifest.providerId
@@ -225,7 +282,8 @@ test("execution planner blocks unsupported sandbox profiles", () => {
     policyDecision,
     executionEligibility: createEligibility({
       taskId: task.taskId,
-      runId: run.runId
+      runId: run.runId,
+      policyDecisionHash: hashApprovalScope(policyDecision)
     }),
     providerRegistry: registry,
     preferredProviderId: provider.manifest.providerId
@@ -333,7 +391,8 @@ function createPlannerInput(overrides: Partial<PlanProviderExecutionInput> = {})
     policyDecision,
     executionEligibility: overrides.executionEligibility ?? createEligibility({
       taskId: task.taskId,
-      runId: run.runId
+      runId: run.runId,
+      policyDecisionHash: hashApprovalScope(policyDecision)
     }),
     providerRegistry: overrides.providerRegistry ?? createRegistryWithCodex(),
     ...(overrides.preferredProviderId !== undefined
@@ -417,6 +476,9 @@ function createEligibility(
     status: overrides.status ?? "eligible",
     taskId: overrides.taskId ?? "task_execution_planner_001",
     runId: overrides.runId ?? "run_execution_planner_001",
+    policyDecisionHash: overrides.policyDecisionHash ?? hashApprovalScope(createPolicyDecision({
+      taskId: overrides.taskId ?? "task_execution_planner_001"
+    })),
     reasons: overrides.reasons ?? ["capability_grants_satisfied"],
     missingCapabilities: overrides.missingCapabilities ?? [],
     requiredApprovals: overrides.requiredApprovals ?? [],

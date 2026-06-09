@@ -163,7 +163,9 @@ test("provider-registry rejects remote agents without explicit authSchemes", () 
 
 test("provider-registry rejects anonymous remote agent auth schemes case-insensitively", () => {
   const anonymousSchemes = [
+    " Anonymous ",
     { schemeId: "Anonymous" },
+    { schemeId: " Anonymous " },
     { type: "ANONYMOUS" },
     { name: "Anonymous" }
   ];
@@ -184,6 +186,26 @@ test("provider-registry rejects anonymous remote agent auth schemes case-insensi
       /provider_registry_remote_agent_anonymous_auth_rejected:a2a\.agent_coding_worker_001/
     );
   }
+});
+
+test("provider-registry rejects anonymous auth declared only on provider manifest", () => {
+  const registry = new ProviderRegistry();
+  const remoteProvider = createA2AProvider();
+  const unsafeProvider: RemoteAgentProvider = {
+    ...remoteProvider,
+    manifest: ProviderManifestSchema.parse({
+      ...remoteProvider.manifest,
+      metadata: {
+        ...remoteProvider.manifest.metadata,
+        authSchemes: [{ schemeId: "Anonymous" }]
+      }
+    })
+  };
+
+  assert.throws(
+    () => registry.registerProvider(remoteProvider.manifest, unsafeProvider),
+    /provider_registry_remote_agent_anonymous_auth_rejected:a2a\.agent_coding_worker_001/
+  );
 });
 
 test("provider-registry accepts Codex CLI provider while execution remains disabled", async () => {

@@ -40,6 +40,7 @@ test("execution eligibility accepts read-only work when capability is granted", 
   assert.equal(decision.status, "eligible");
   assert.equal(decision.taskId, validTask.taskId);
   assert.equal(decision.runId, validRun.runId);
+  assert.equal(decision.policyDecisionHash, hashApprovalScope(input.policyDecision));
   assert.deepEqual(decision.reasons, ["capability_grants_satisfied"]);
   assert.deepEqual(decision.missingCapabilities, []);
 });

@@ -216,6 +216,39 @@ test("tool invocation planner blocks tool sandboxes that exceed policy", () => {
   ]);
 });
 
+test("tool invocation planner blocks mismatched kernel objects before planning", () => {
+  const run = RunSchema.parse({
+    ...createRun(),
+    policyDecisionId: "decision_stale_policy"
+  });
+  const step = StepSchema.parse({
+    ...validStep,
+    stepId: "step_tool_invocation_planner_001",
+    runId: "run_other",
+    taskId: "task_other",
+    kind: "tool"
+  });
+  const policyDecision = createPolicyDecision({
+    decisionId: "decision_current_policy",
+    taskId: "task_policy_other"
+  });
+  const plan = planToolInvocation(createInput({
+    run,
+    step,
+    policyDecision,
+    toolManifest: builtinReadFileToolManifest,
+    capabilityGrants: ["fs.read:/repo/**"]
+  }));
+
+  assert.equal(plan.status, "blocked");
+  assert.deepEqual(plan.reasons, [
+    "tool_invocation_step_run_mismatch:run_other:run_tool_invocation_planner_001",
+    "tool_invocation_step_task_mismatch:task_other:task_tool_invocation_planner_001",
+    "tool_invocation_policy_task_mismatch:task_policy_other:task_tool_invocation_planner_001",
+    "tool_invocation_run_policy_decision_mismatch:decision_stale_policy:decision_current_policy"
+  ]);
+});
+
 test("tool invocation planner uses a stable input hash without storing raw input", () => {
   const first = planToolInvocation(createInput({
     toolManifest: builtinReadFileToolManifest,

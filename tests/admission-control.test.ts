@@ -215,6 +215,48 @@ test("admission-control handles missing read capabilities from agent manifests",
   assert.ok(decision.requiredApprovals.includes("capability:file:read:/tmp/**"));
 });
 
+test("admission-control preserves missing capability approvals when risk also requires approval", () => {
+  const policyDecision = createPolicyDecision({
+    capabilities: [
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "file",
+        resource: "/tmp/**",
+        access: "read",
+        constraints: {}
+      }
+    ],
+    approval: {
+      required: true,
+      reasons: ["policy_high_risk_context"]
+    }
+  });
+
+  const decision = evaluateTaskAdmission({
+    task: createTask(),
+    principal: validPrincipal,
+    agent: createAgentWithCapabilities([
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "file",
+        resource: "workspace/**",
+        access: "read",
+        constraints: {}
+      }
+    ]),
+    policyDecision,
+    now
+  });
+
+  assert.equal(decision.status, "needs_approval");
+  assert.deepEqual(decision.reasons, [
+    "approval_required_by_task_risk",
+    "missing_required_read_capability"
+  ]);
+  assert.ok(decision.requiredApprovals.includes("approval:policy_approval_required"));
+  assert.ok(decision.requiredApprovals.includes("capability:file:read:/tmp/**"));
+});
+
 test("admission-control uses the fixed now parameter for createdAt", () => {
   const decision = evaluateTaskAdmission({
     task: createTask(),

@@ -60,7 +60,7 @@ export const A2AAuthSchemeSchema = z.object({
   metadataRef: z.string().min(1).optional(),
   required: z.boolean().default(true)
 }).strict().superRefine((authScheme, ctx) => {
-  if (authScheme.schemeId.toLowerCase() === "anonymous") {
+  if (normalizeAuthIdentifier(authScheme.schemeId) === "anonymous") {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "anonymous A2A auth schemes are not allowed",
@@ -337,20 +337,21 @@ export function assertA2ARemoteInvocationAuthorized(
   authorization: A2ARemoteInvocationAuthorization
 ): void {
   const agentCard = A2AAgentCardSkeletonSchema.parse(agentCardInput);
-  const authSchemeId = authorization.authSchemeId?.toLowerCase();
-  const authSchemeType = authorization.authSchemeType;
+  const authSchemeId = normalizeAuthIdentifier(authorization.authSchemeId);
+  const authSchemeType = normalizeAuthIdentifier(authorization.authSchemeType);
+  const principalId = normalizeAuthIdentifier(authorization.principalId);
 
   if (
     authSchemeId === "anonymous"
     || authSchemeType === "anonymous"
-    || authorization.principalId?.toLowerCase() === "anonymous"
+    || principalId === "anonymous"
   ) {
     throw new Error(A2A_ANONYMOUS_REMOTE_INVOCATION_REJECTED);
   }
 
   const declared = agentCard.authSchemes.some((authScheme) => (
-    authScheme.schemeId === authorization.authSchemeId
-    || authScheme.type === authorization.authSchemeType
+    normalizeAuthIdentifier(authScheme.schemeId) === authSchemeId
+    || normalizeAuthIdentifier(authScheme.type) === authSchemeType
   ));
 
   if (!declared) {
@@ -510,6 +511,10 @@ function isSafeMetadataRef(value: string): boolean {
   return /^metadata:[A-Za-z0-9_.:-]+$/.test(value)
     && !value.includes("://")
     && !/[;&|`$<>\r\n\t ]/.test(value);
+}
+
+function normalizeAuthIdentifier(value: string | undefined): string | undefined {
+  return value?.trim().toLowerCase();
 }
 
 function toSafeIdPart(value: string): string {
