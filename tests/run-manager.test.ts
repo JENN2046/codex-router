@@ -183,6 +183,7 @@ test("run-manager drives step lifecycle to success", () => {
     kind: "executor"
   });
 
+  manager.startRun(run.runId);
   const started = manager.startStep(step.stepId);
   const completed = manager.completeStep(step.stepId, {
     summary: "step complete"
@@ -198,6 +199,7 @@ test("run-manager drives step lifecycle to success", () => {
     [
       "kernel.run.created",
       "kernel.step.created",
+      "kernel.run.started",
       "kernel.step.started",
       "kernel.step.completed"
     ]
@@ -214,6 +216,7 @@ test("run-manager drives step lifecycle to failure", () => {
     kind: "tool"
   });
 
+  manager.startRun(run.runId);
   manager.startStep(step.stepId);
   const failed = manager.failStep(step.stepId, "tool failed before execution");
 
@@ -228,6 +231,7 @@ test("run-manager drives step lifecycle to failure", () => {
     [
       "kernel.run.created",
       "kernel.step.created",
+      "kernel.run.started",
       "kernel.step.started",
       "kernel.step.failed"
     ]
@@ -248,6 +252,7 @@ test("run-manager cancels pending and running steps", () => {
     kind: "tool"
   });
 
+  manager.startRun(run.runId);
   const cancelledPending = manager.cancelStep(pending.stepId, "approval no longer needed");
   manager.startStep(running.stepId);
   const cancelledRunning = manager.cancelStep(running.stepId, "operator stopped step");
@@ -266,11 +271,118 @@ test("run-manager cancels pending and running steps", () => {
       "kernel.run.created",
       "kernel.step.created",
       "kernel.step.created",
+      "kernel.run.started",
       "kernel.step.cancelled",
       "kernel.step.started",
       "kernel.step.cancelled"
     ]
   );
+});
+
+test("run-manager rejects step transitions until parent run is running", () => {
+  const queuedHarness = createHarness();
+  const queuedRun = queuedHarness.manager.createRunFromTask(validTask, validPrincipal, {
+    runId: "run_manager_step_before_start_001"
+  });
+  const queuedStep = queuedHarness.manager.createStep(queuedRun.runId, {
+    stepId: "step_run_manager_before_start_001",
+    kind: "tool"
+  });
+  const runningQueuedStep = queuedHarness.manager.createStep(queuedRun.runId, {
+    stepId: "step_run_manager_running_before_start_001",
+    kind: "tool"
+  });
+  queuedHarness.store.updateStep(runningQueuedStep.stepId, {
+    status: "running",
+    updatedAt: "2026-06-04T00:05:00.000Z"
+  });
+
+  assert.throws(
+    () => queuedHarness.manager.startStep(queuedStep.stepId),
+    /run_not_running:queued/
+  );
+  assert.throws(
+    () => queuedHarness.manager.cancelStep(queuedStep.stepId, "too early"),
+    /run_not_running:queued/
+  );
+  assert.throws(
+    () => queuedHarness.manager.completeStep(runningQueuedStep.stepId, {
+      summary: "should not complete before run starts"
+    }),
+    /run_not_running:queued/
+  );
+  assert.throws(
+    () => queuedHarness.manager.failStep(
+      runningQueuedStep.stepId,
+      "should not fail before run starts"
+    ),
+    /run_not_running:queued/
+  );
+  assert.throws(
+    () => queuedHarness.manager.cancelStep(
+      runningQueuedStep.stepId,
+      "should not cancel before run starts"
+    ),
+    /run_not_running:queued/
+  );
+  assert.equal(queuedHarness.store.getStep(queuedStep.stepId)?.status, "pending");
+  assert.equal(queuedHarness.store.getStep(runningQueuedStep.stepId)?.status, "running");
+  assert.equal(
+    queuedHarness.store.listEvents({ runId: queuedRun.runId })
+      .some((event) => event.eventType === "kernel.step.started"),
+    false
+  );
+
+  const blockedHarness = createHarness();
+  const blockedRun = blockedHarness.manager.createRunFromTask(validTask, validPrincipal, {
+    runId: "run_manager_step_while_blocked_001"
+  });
+  const pendingBlockedStep = blockedHarness.manager.createStep(blockedRun.runId, {
+    stepId: "step_run_manager_pending_while_blocked_001",
+    kind: "approval"
+  });
+  const runningBlockedStep = blockedHarness.manager.createStep(blockedRun.runId, {
+    stepId: "step_run_manager_running_while_blocked_001",
+    kind: "tool"
+  });
+
+  blockedHarness.manager.startRun(blockedRun.runId);
+  blockedHarness.manager.startStep(runningBlockedStep.stepId);
+  blockedHarness.store.updateRun(blockedRun.runId, {
+    status: "blocked",
+    updatedAt: "2026-06-04T00:05:00.000Z"
+  });
+
+  assert.throws(
+    () => blockedHarness.manager.startStep(pendingBlockedStep.stepId),
+    /run_not_running:blocked/
+  );
+  assert.throws(
+    () => blockedHarness.manager.cancelStep(pendingBlockedStep.stepId, "blocked approval"),
+    /run_not_running:blocked/
+  );
+  assert.throws(
+    () => blockedHarness.manager.completeStep(runningBlockedStep.stepId, {
+      summary: "should not complete while blocked"
+    }),
+    /run_not_running:blocked/
+  );
+  assert.throws(
+    () => blockedHarness.manager.failStep(
+      runningBlockedStep.stepId,
+      "should not fail while blocked"
+    ),
+    /run_not_running:blocked/
+  );
+  assert.throws(
+    () => blockedHarness.manager.cancelStep(
+      runningBlockedStep.stepId,
+      "should not cancel while blocked"
+    ),
+    /run_not_running:blocked/
+  );
+  assert.equal(blockedHarness.store.getStep(pendingBlockedStep.stepId)?.status, "pending");
+  assert.equal(blockedHarness.store.getStep(runningBlockedStep.stepId)?.status, "running");
 });
 
 test("run-manager rejects step transitions after parent run is terminal", () => {

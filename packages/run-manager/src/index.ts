@@ -176,7 +176,7 @@ export class RunManager {
 
   startStep(stepId: string): Step {
     const step = this.requireStep(stepId);
-    this.assertStepParentRunActive(step);
+    this.assertStepParentRunRunning(step);
     this.assertStepTransition(step, "running");
     const updated = this.store.updateStep(stepId, {
       status: "running",
@@ -188,7 +188,7 @@ export class RunManager {
 
   completeStep(stepId: string, output: Record<string, unknown>): Step {
     const step = this.requireStep(stepId);
-    this.assertStepParentRunActive(step);
+    this.assertStepParentRunRunning(step);
     this.assertStepTransition(step, "succeeded");
     const updated = this.store.updateStep(stepId, {
       status: "succeeded",
@@ -201,7 +201,7 @@ export class RunManager {
 
   failStep(stepId: string, error: FailRunError): Step {
     const step = this.requireStep(stepId);
-    this.assertStepParentRunActive(step);
+    this.assertStepParentRunRunning(step);
     this.assertStepTransition(step, "failed");
     const normalizedError = normalizeFailure(error);
     const updated = this.store.updateStep(stepId, {
@@ -217,7 +217,7 @@ export class RunManager {
 
   cancelStep(stepId: string, reason: string): Step {
     const step = this.requireStep(stepId);
-    this.assertStepParentRunActive(step);
+    this.assertStepParentRunRunning(step);
     this.assertStepTransition(step, "cancelled");
     const updated = this.store.updateStep(stepId, {
       status: "cancelled",
@@ -302,10 +302,13 @@ export class RunManager {
     }
   }
 
-  private assertStepParentRunActive(step: Step): void {
+  private assertStepParentRunRunning(step: Step): void {
     const run = this.requireRun(step.runId);
     if (terminalRunStatuses.has(run.status)) {
       throw new Error(`run_terminal:${run.status}`);
+    }
+    if (run.status !== "running") {
+      throw new Error(`run_not_running:${run.status}`);
     }
   }
 
