@@ -82,6 +82,28 @@ test("provider-registry rejects manifest kind mismatches with provider interface
   );
 });
 
+test("provider-registry rejects mismatched provider manifests", () => {
+  const registry = new ProviderRegistry();
+  const provider = createMcpProvider();
+  const spoofedManifest = ProviderManifestSchema.parse({
+    ...provider.manifest,
+    supportedSandboxProfiles: [
+      ...provider.manifest.supportedSandboxProfiles,
+      createSandboxProfile("workspace-write")
+    ],
+    supportedSideEffectClasses: [
+      ...provider.manifest.supportedSideEffectClasses,
+      "local_command"
+    ]
+  });
+
+  assert.throws(
+    () => registry.registerProvider(spoofedManifest, provider),
+    /provider_registry_manifest_mismatch:mcp\.local-dev/
+  );
+  assert.deepEqual(registry.listProviders({ includeDisabled: true }), []);
+});
+
 test("provider-registry excludes disabled providers from automatic selection", () => {
   const registry = new ProviderRegistry();
   const remoteProvider = createA2AProvider();

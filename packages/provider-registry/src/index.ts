@@ -74,8 +74,10 @@ export class ProviderRegistry {
       assertRemoteAgentAuthSchemes(providerManifest);
     }
 
+    assertProviderManifestMatches(manifest, providerManifest);
+
     const entry = {
-      manifest: cloneManifest(manifest),
+      manifest: cloneManifest(providerManifest),
       provider
     };
 
@@ -138,6 +140,15 @@ export class ProviderRegistry {
     return this.listProviders({
       sandboxProfile: SandboxProfileSchema.parse(sandboxProfile)
     });
+  }
+}
+
+function assertProviderManifestMatches(
+  manifest: ProviderManifest,
+  providerManifest: ProviderManifest
+): void {
+  if (stableStringify(manifest) !== stableStringify(providerManifest)) {
+    throw new Error(`provider_registry_manifest_mismatch:${providerManifest.providerId}`);
   }
 }
 
@@ -276,6 +287,27 @@ function cloneEntry(entry: ProviderRegistryEntry): ProviderRegistryEntry {
 
 function cloneManifest(manifest: ProviderManifest): ProviderManifest {
   return structuredClone(manifest) as ProviderManifest;
+}
+
+function stableStringify(input: unknown): string {
+  return JSON.stringify(canonicalize(input));
+}
+
+function canonicalize(input: unknown): unknown {
+  if (Array.isArray(input)) {
+    return input.map(canonicalize);
+  }
+
+  if (isRecord(input)) {
+    return Object.fromEntries(
+      Object.entries(input)
+        .filter(([, value]) => value !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, value]) => [key, canonicalize(value)])
+    );
+  }
+
+  return input;
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {
