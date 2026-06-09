@@ -1,3 +1,4 @@
+import { posix as pathPosix } from "node:path";
 import type {
   AgentManifest,
   CapabilityScope,
@@ -293,16 +294,41 @@ function agentHasMatchingCapability(
 }
 
 function resourceMatches(grantedResource: string, requiredResource: string): boolean {
-  if (grantedResource === requiredResource || grantedResource === "**") {
+  if (grantedResource === "**") {
     return true;
   }
 
-  if (grantedResource.endsWith("/**")) {
-    const prefix = grantedResource.slice(0, -3);
-    return requiredResource === prefix || requiredResource.startsWith(`${prefix}/`);
+  const normalizedGrantedResource = normalizeFileResourcePattern(grantedResource);
+  const normalizedRequiredResource = normalizeFileResourcePattern(requiredResource);
+
+  if (normalizedGrantedResource === normalizedRequiredResource) {
+    return true;
+  }
+
+  if (normalizedGrantedResource.endsWith("/**")) {
+    const prefix = normalizedGrantedResource.slice(0, -3);
+    return normalizedRequiredResource === prefix
+      || normalizedRequiredResource.startsWith(`${prefix}/`);
   }
 
   return false;
+}
+
+function normalizeFileResourcePattern(resource: string): string {
+  const slashResource = resource.replace(/\\/g, "/");
+  const hasRecursiveWildcard = slashResource.endsWith("/**");
+  const resourceBase = hasRecursiveWildcard ? slashResource.slice(0, -3) : slashResource;
+  const normalizedBase = trimTrailingSlash(pathPosix.normalize(resourceBase));
+
+  return hasRecursiveWildcard ? `${normalizedBase}/**` : normalizedBase;
+}
+
+function trimTrailingSlash(resource: string): string {
+  if (resource.length > 1 && resource.endsWith("/")) {
+    return resource.slice(0, -1);
+  }
+
+  return resource;
 }
 
 function collectTaskSignalText(task: Task): string[] {

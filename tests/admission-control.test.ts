@@ -271,6 +271,37 @@ test("admission-control checks inferred target files independently", () => {
   assert.ok(decision.requiredApprovals.includes("capability:file:read:/etc/passwd"));
 });
 
+test("admission-control normalizes target file paths before workspace matching", () => {
+  const decision = evaluateTaskAdmission({
+    task: createTask({
+      target: {
+        files: ["workspace/docs/../src/index.ts", "workspace/../outside/config.txt"]
+      }
+    }),
+    principal: validPrincipal,
+    agent: createAgentWithCapabilities([
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "file",
+        resource: "workspace/**",
+        access: "read",
+        constraints: {}
+      }
+    ]),
+    now
+  });
+
+  assert.equal(decision.status, "needs_approval");
+  assert.deepEqual(
+    decision.requiredCapabilities.map((scope) => scope.resource),
+    ["workspace/docs/../src/index.ts", "workspace/../outside/config.txt"]
+  );
+  assert.deepEqual(decision.reasons, ["missing_required_read_capability"]);
+  assert.ok(decision.requiredApprovals.includes(
+    "capability:file:read:workspace/../outside/config.txt"
+  ));
+});
+
 test("admission-control preserves missing capability approvals when risk also requires approval", () => {
   const policyDecision = createPolicyDecision({
     capabilities: [

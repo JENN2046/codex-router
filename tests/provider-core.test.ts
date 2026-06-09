@@ -174,6 +174,20 @@ test("provider-core constrains workspace wildcard writable roots", () => {
     ),
     /unsupported_sandbox_profile:provider_core_executor_001:/
   );
+  assert.equal(
+    providerSupportsSandboxProfile(
+      manifest,
+      createSandboxProfile("workspace-write", ["workspace/packages/../src/**"])
+    ),
+    true
+  );
+  assert.equal(
+    providerSupportsSandboxProfile(
+      manifest,
+      createSandboxProfile("workspace-write", ["workspace/../outside/**"])
+    ),
+    false
+  );
 });
 
 test("provider-core constrains sandbox env policy", () => {
