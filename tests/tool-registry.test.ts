@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import {
+  parseCapabilityScope
+} from "../packages/capability/src/index.js";
+import {
   InMemoryToolRegistry,
   RegisteredToolManifestSchema,
   builtinApplyPatchToolManifest,
@@ -109,6 +112,17 @@ test("tool registry requires remote provider metadata", () => {
     () => new InMemoryToolRegistry().registerTool(manifest),
     z.ZodError
   );
+});
+
+test("tool registry remote agent required capabilities are canonical", () => {
+  assert.deepEqual(remoteAgentInvokeToolManifest.requiredCapabilities, [
+    "network.egress:agent-runtime",
+    "mcp.call:remote.agent.invoke"
+  ]);
+
+  for (const capability of remoteAgentInvokeToolManifest.requiredCapabilities) {
+    assert.equal(parseCapabilityScope(capability).raw, capability);
+  }
 });
 
 test("tool registry unregisters manifests", () => {

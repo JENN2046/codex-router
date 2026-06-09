@@ -295,10 +295,16 @@ function agentHasMatchingCapability(
 }
 
 function resourceMatches(grantedResource: string, requiredResource: string): boolean {
-  return grantedResource === requiredResource
-    || grantedResource === "**"
-    || grantedResource === "workspace/**"
-    || requiredResource.startsWith(grantedResource.replace(/\*\*$/, ""));
+  if (grantedResource === requiredResource || grantedResource === "**") {
+    return true;
+  }
+
+  if (grantedResource.endsWith("/**")) {
+    const prefix = grantedResource.slice(0, -3);
+    return requiredResource === prefix || requiredResource.startsWith(`${prefix}/`);
+  }
+
+  return false;
 }
 
 function collectTaskSignalText(task: Task): string[] {

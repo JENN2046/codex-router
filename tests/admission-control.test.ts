@@ -147,6 +147,40 @@ test("admission-control collects required capabilities from policy decisions", (
   ));
 });
 
+test("admission-control does not match workspace wildcard outside workspace", () => {
+  const policyDecision = createPolicyDecision({
+    capabilities: [
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "file",
+        resource: "/tmp/**",
+        access: "write",
+        constraints: {}
+      }
+    ]
+  });
+
+  const decision = evaluateTaskAdmission({
+    task: createTask(),
+    principal: validPrincipal,
+    agent: createAgentWithCapabilities([
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "file",
+        resource: "workspace/**",
+        access: "write",
+        constraints: {}
+      }
+    ]),
+    policyDecision,
+    now
+  });
+
+  assert.equal(decision.status, "needs_approval");
+  assert.deepEqual(decision.reasons, ["missing_required_write_capability"]);
+  assert.ok(decision.requiredApprovals.includes("capability:file:write:/tmp/**"));
+});
+
 test("admission-control uses the fixed now parameter for createdAt", () => {
   const decision = evaluateTaskAdmission({
     task: createTask(),

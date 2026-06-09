@@ -273,7 +273,7 @@ export const remoteAgentInvokeToolManifest = {
     }
   },
   sideEffectClass: "external_write",
-  requiredCapabilities: ["network.egress:agent-runtime", "tool.invoke:remote.agent"],
+  requiredCapabilities: ["network.egress:agent-runtime", "mcp.call:remote.agent.invoke"],
   defaultTimeoutMs: 60_000,
   auditPolicy: {
     recordInvocation: true,
