@@ -51,6 +51,57 @@ test("tool invocation planner plans read-only tools when capability is granted",
   assert.deepEqual(plan.reasons, ["capability_grants_satisfied"]);
 });
 
+test("tool invocation planner honors policy-required approval for read-only tools", () => {
+  const policyDecision = createPolicyDecision({
+    approval: {
+      required: true,
+      reasons: ["policy_high_risk_context"]
+    }
+  });
+  const plan = planToolInvocation(createInput({
+    policyDecision,
+    toolManifest: builtinReadFileToolManifest,
+    proposedInput: {
+      path: "/repo/README.md"
+    },
+    capabilityGrants: ["fs.read:/repo/**"]
+  }));
+
+  assert.equal(plan.status, "waiting_approval");
+  assert.equal(plan.approvalRequired, true);
+  assert.equal(plan.sandboxProfile.mode, "read-only");
+  assert.deepEqual(plan.reasons, [
+    "approval_required",
+    "policy_high_risk_context"
+  ]);
+});
+
+test("tool invocation planner accepts read-only tools after policy approval permit", () => {
+  const policyDecision = createPolicyDecision({
+    approval: {
+      required: true,
+      reasons: ["policy_high_risk_context"]
+    }
+  });
+  const permit = createPermit(policyDecision, {
+    capabilityScopes: ["fs.read:/repo/**"]
+  });
+  const plan = planToolInvocation(createInput({
+    policyDecision,
+    toolManifest: builtinReadFileToolManifest,
+    proposedInput: {
+      path: "/repo/README.md"
+    },
+    capabilityGrants: ["fs.read:/repo/**"],
+    approvalPermits: [permit]
+  }));
+
+  assert.equal(plan.status, "planned");
+  assert.equal(plan.approvalRequired, true);
+  assert.ok(plan.reasons.includes("valid_approval_permit"));
+  assert.ok(plan.reasons.includes(`permit:${permit.permitId}`));
+});
+
 test("tool invocation planner waits for approval when capability is missing", () => {
   const plan = planToolInvocation(createInput({
     policyDecision: createWorkspaceWritePolicyDecision(),

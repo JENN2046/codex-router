@@ -130,6 +130,7 @@ export function planToolInvocation(input: PlanToolInvocationInput): ToolInvocati
       status: "waiting_approval",
       reasons: uniqueStrings([
         "approval_required",
+        ...input.policyDecision.approval.reasons,
         ...permitEvaluation.rejectedPermits
       ])
     };
@@ -191,7 +192,8 @@ function createBasePlan(
     requiredCapabilities: [...toolManifest.requiredCapabilities],
     sideEffectClass: toolManifest.sideEffectClass,
     sandboxProfile: deriveSandboxProfile(toolManifest.sideEffectClass),
-    approvalRequired: isDangerousSideEffectClass(toolManifest.sideEffectClass),
+    approvalRequired: input.policyDecision.approval.required
+      || isDangerousSideEffectClass(toolManifest.sideEffectClass),
     status: "blocked",
     reasons: []
   };
