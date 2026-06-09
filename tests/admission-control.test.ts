@@ -215,6 +215,35 @@ test("admission-control handles missing read capabilities from agent manifests",
   assert.ok(decision.requiredApprovals.includes("capability:file:read:/tmp/**"));
 });
 
+test("admission-control checks inferred target files independently", () => {
+  const decision = evaluateTaskAdmission({
+    task: createTask({
+      target: {
+        files: ["workspace/a.ts", "/etc/passwd"]
+      }
+    }),
+    principal: validPrincipal,
+    agent: createAgentWithCapabilities([
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "file",
+        resource: "workspace/**",
+        access: "read",
+        constraints: {}
+      }
+    ]),
+    now
+  });
+
+  assert.equal(decision.status, "needs_approval");
+  assert.deepEqual(
+    decision.requiredCapabilities.map((scope) => scope.resource),
+    ["workspace/a.ts", "/etc/passwd"]
+  );
+  assert.deepEqual(decision.reasons, ["missing_required_read_capability"]);
+  assert.ok(decision.requiredApprovals.includes("capability:file:read:/etc/passwd"));
+});
+
 test("admission-control preserves missing capability approvals when risk also requires approval", () => {
   const policyDecision = createPolicyDecision({
     capabilities: [

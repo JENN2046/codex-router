@@ -171,22 +171,23 @@ function collectRequiredCapabilities(
   }
 
   const signals = collectTaskSignalText(task).join(" ");
-  const capabilities: CapabilityScope[] = [{
+  const resources = inferResources(task);
+  const capabilities: CapabilityScope[] = resources.map((resource): CapabilityScope => ({
     schemaVersion: "capability-scope.v1",
     kind: "file",
-    resource: inferResource(task),
+    resource,
     access: "read",
     constraints: {}
-  }];
+  }));
 
   if (hasAnySignal(signals, ["write", "edit", "modify", "patch", "change", "local_write"])) {
-    capabilities.push({
+    capabilities.push(...resources.map((resource): CapabilityScope => ({
       schemaVersion: "capability-scope.v1",
       kind: "file",
-      resource: inferResource(task),
+      resource,
       access: "write",
       constraints: {}
-    });
+    })));
   }
 
   if (hasAnySignal(signals, ["external", "network", "remote"])) {
@@ -359,16 +360,16 @@ function appendRecordValues(values: string[], record: Record<string, unknown>): 
   }
 }
 
-function inferResource(task: Task): string {
+function inferResources(task: Task): string[] {
   if (task.target.files.length > 0) {
-    return task.target.files.join(",");
+    return task.target.files;
   }
 
   if (task.repo.root) {
-    return `${task.repo.root}/**`;
+    return [`${task.repo.root}/**`];
   }
 
-  return "workspace/**";
+  return ["workspace/**"];
 }
 
 function hasAnySignal(text: string, terms: string[]): boolean {
