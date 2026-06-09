@@ -279,6 +279,154 @@ test("run-manager cancels pending and running steps", () => {
   );
 });
 
+test("run-manager starts dependent steps only after dependencies succeed", () => {
+  const { manager, store } = createHarness();
+  const run = manager.createRunFromTask(validTask, validPrincipal, {
+    runId: "run_manager_step_dependencies_001"
+  });
+  const dependency = manager.createStep(run.runId, {
+    stepId: "step_run_manager_dependency_001",
+    kind: "approval"
+  });
+  const dependent = manager.createStep(run.runId, {
+    stepId: "step_run_manager_dependent_001",
+    kind: "tool",
+    dependsOn: [dependency.stepId]
+  });
+
+  manager.startRun(run.runId);
+  assert.throws(
+    () => manager.startStep(dependent.stepId),
+    /step_dependency_not_succeeded:step_run_manager_dependency_001:pending/
+  );
+
+  manager.startStep(dependency.stepId);
+  assert.throws(
+    () => manager.startStep(dependent.stepId),
+    /step_dependency_not_succeeded:step_run_manager_dependency_001:running/
+  );
+
+  manager.completeStep(dependency.stepId, {
+    summary: "dependency complete"
+  });
+  const started = manager.startStep(dependent.stepId);
+
+  assert.equal(started.status, "running");
+  assert.deepEqual(
+    store.listEvents({ runId: run.runId }).map((event) => event.eventType),
+    [
+      "kernel.run.created",
+      "kernel.step.created",
+      "kernel.step.created",
+      "kernel.run.started",
+      "kernel.step.started",
+      "kernel.step.completed",
+      "kernel.step.started"
+    ]
+  );
+});
+
+test("run-manager rejects dependencies that are failed, skipped, cancelled, missing, or foreign", () => {
+  const cases: Array<{
+    status: "failed" | "skipped" | "cancelled";
+    prepare: (harness: ReturnType<typeof createHarness>, dependencyStepId: string) => void;
+  }> = [
+    {
+      status: "failed",
+      prepare: ({ manager }, dependencyStepId) => {
+        manager.startStep(dependencyStepId);
+        manager.failStep(dependencyStepId, "dependency failed");
+      }
+    },
+    {
+      status: "skipped",
+      prepare: ({ store }, dependencyStepId) => {
+        store.updateStep(dependencyStepId, {
+          status: "skipped",
+          updatedAt: "2026-06-04T00:05:00.000Z"
+        });
+      }
+    },
+    {
+      status: "cancelled",
+      prepare: ({ manager }, dependencyStepId) => {
+        manager.cancelStep(dependencyStepId, "dependency cancelled");
+      }
+    }
+  ];
+
+  for (const entry of cases) {
+    const harness = createHarness();
+    const run = harness.manager.createRunFromTask(validTask, validPrincipal, {
+      runId: `run_manager_step_dependency_${entry.status}_001`
+    });
+    const dependency = harness.manager.createStep(run.runId, {
+      stepId: `step_run_manager_dependency_${entry.status}_001`,
+      kind: "approval"
+    });
+    const dependent = harness.manager.createStep(run.runId, {
+      stepId: `step_run_manager_dependent_${entry.status}_001`,
+      kind: "tool",
+      dependsOn: [dependency.stepId]
+    });
+
+    harness.manager.startRun(run.runId);
+    entry.prepare(harness, dependency.stepId);
+
+    assert.throws(
+      () => harness.manager.startStep(dependent.stepId),
+      new RegExp(`step_dependency_not_succeeded:${dependency.stepId}:${entry.status}`)
+    );
+    assert.equal(harness.store.getStep(dependent.stepId)?.status, "pending");
+  }
+
+  const missingHarness = createHarness();
+  const missingRun = missingHarness.manager.createRunFromTask(validTask, validPrincipal, {
+    runId: "run_manager_missing_dependency_001"
+  });
+  const missingDependent = missingHarness.manager.createStep(missingRun.runId, {
+    stepId: "step_run_manager_missing_dependency_001",
+    kind: "tool",
+    dependsOn: ["step_run_manager_dependency_missing_001"]
+  });
+  missingHarness.manager.startRun(missingRun.runId);
+
+  assert.throws(
+    () => missingHarness.manager.startStep(missingDependent.stepId),
+    /step_not_found:step_run_manager_dependency_missing_001/
+  );
+
+  const foreignHarness = createHarness();
+  const dependencyRun = foreignHarness.manager.createRunFromTask(validTask, validPrincipal, {
+    runId: "run_manager_foreign_dependency_source_001"
+  });
+  const dependentRun = foreignHarness.manager.createRunFromTask(validTask, validPrincipal, {
+    runId: "run_manager_foreign_dependency_target_001"
+  });
+  const foreignDependency = foreignHarness.manager.createStep(dependencyRun.runId, {
+    stepId: "step_run_manager_foreign_dependency_001",
+    kind: "approval"
+  });
+  const foreignDependent = foreignHarness.manager.createStep(dependentRun.runId, {
+    stepId: "step_run_manager_foreign_dependent_001",
+    kind: "tool",
+    dependsOn: [foreignDependency.stepId]
+  });
+
+  foreignHarness.manager.startRun(dependencyRun.runId);
+  foreignHarness.manager.startStep(foreignDependency.stepId);
+  foreignHarness.manager.completeStep(foreignDependency.stepId, {
+    summary: "foreign dependency complete"
+  });
+  foreignHarness.manager.startRun(dependentRun.runId);
+
+  assert.throws(
+    () => foreignHarness.manager.startStep(foreignDependent.stepId),
+    /step_dependency_run_mismatch:step_run_manager_foreign_dependency_001:run_manager_foreign_dependency_source_001:run_manager_foreign_dependency_target_001/
+  );
+  assert.equal(foreignHarness.store.getStep(foreignDependent.stepId)?.status, "pending");
+});
+
 test("run-manager rejects step transitions until parent run is running", () => {
   const queuedHarness = createHarness();
   const queuedRun = queuedHarness.manager.createRunFromTask(validTask, validPrincipal, {

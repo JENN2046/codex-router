@@ -178,6 +178,7 @@ export class RunManager {
     const step = this.requireStep(stepId);
     this.assertStepParentRunRunning(step);
     this.assertStepTransition(step, "running");
+    this.assertStepDependenciesSucceeded(step);
     const updated = this.store.updateStep(stepId, {
       status: "running",
       updatedAt: this.now()
@@ -299,6 +300,20 @@ export class RunManager {
 
     if (!allowed) {
       throw new Error(`invalid_step_transition:${step.status}->${nextStatus}`);
+    }
+  }
+
+  private assertStepDependenciesSucceeded(step: Step): void {
+    for (const dependencyStepId of step.dependsOn) {
+      const dependency = this.requireStep(dependencyStepId);
+      if (dependency.runId !== step.runId) {
+        throw new Error(
+          `step_dependency_run_mismatch:${dependency.stepId}:${dependency.runId}:${step.runId}`
+        );
+      }
+      if (dependency.status !== "succeeded") {
+        throw new Error(`step_dependency_not_succeeded:${dependency.stepId}:${dependency.status}`);
+      }
     }
   }
 
