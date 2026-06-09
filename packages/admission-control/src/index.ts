@@ -282,7 +282,7 @@ function agentHasMatchingCapability(
   requiredScope: CapabilityScope
 ): boolean {
   if (!agent) {
-    return requiredScope.access === "read";
+    return requiredScope.kind === "file" && requiredScope.access === "read";
   }
 
   return agent.capabilities.some((scope) => (

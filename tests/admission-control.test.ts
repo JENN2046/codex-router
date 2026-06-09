@@ -215,6 +215,33 @@ test("admission-control handles missing read capabilities from agent manifests",
   assert.ok(decision.requiredApprovals.includes("capability:file:read:/tmp/**"));
 });
 
+test("admission-control requires explicit capabilities for policy secret reads without an agent", () => {
+  const policyDecision = createPolicyDecision({
+    capabilities: [
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "secret",
+        resource: "task_secret",
+        access: "read",
+        constraints: {}
+      }
+    ]
+  });
+
+  const decision = evaluateTaskAdmission({
+    task: createTask({
+      requestedAction: "Load runtime configuration needed for the task."
+    }),
+    principal: validPrincipal,
+    policyDecision,
+    now
+  });
+
+  assert.equal(decision.status, "needs_approval");
+  assert.deepEqual(decision.reasons, ["missing_required_read_capability"]);
+  assert.ok(decision.requiredApprovals.includes("capability:secret:read:task_secret"));
+});
+
 test("admission-control checks inferred target files independently", () => {
   const decision = evaluateTaskAdmission({
     task: createTask({
