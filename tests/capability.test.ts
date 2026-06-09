@@ -95,6 +95,22 @@ test("capability matcher rejects expired grants", () => {
   ));
 });
 
+test("capability matcher rejects invalid capability-check clocks", () => {
+  const result = explainCapabilityDecision(
+    [{
+      scope: "network.egress:api.github.com",
+      expiresAt: "2026-06-05T00:00:00.000Z"
+    }],
+    "network.egress:api.github.com",
+    { now: "not-a-timestamp" }
+  );
+
+  assert.equal(result.allowed, false);
+  assert.ok(result.ignoredGrantReasons.includes(
+    "invalid_capability_check_now:not-a-timestamp"
+  ));
+});
+
 test("capability matcher rejects revoked grants", () => {
   const result = explainCapabilityDecision(
     [{

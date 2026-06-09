@@ -66,6 +66,24 @@ test("tool invocation planner waits for approval when capability is missing", ()
   assert.ok(plan.reasons.some((reason) => reason.includes("missing_capability:fs.write:/repo/**")));
 });
 
+test("tool invocation planner waits for approval when capability clock is invalid", () => {
+  const plan = planToolInvocation(createInput({
+    toolManifest: builtinApplyPatchToolManifest,
+    proposedInput: {
+      patch: "*** Begin Patch\n*** End Patch\n"
+    },
+    capabilityGrants: [{
+      scope: "fs.write:/repo/**",
+      expiresAt: "2026-06-04T01:00:00.000Z"
+    }],
+    now: "not-a-timestamp"
+  }));
+
+  assert.equal(plan.status, "waiting_approval");
+  assert.equal(plan.approvalRequired, true);
+  assert.ok(plan.reasons.includes("invalid_capability_check_now:not-a-timestamp"));
+});
+
 test("tool invocation planner blocks explicit deny capabilities", () => {
   const plan = planToolInvocation(createInput({
     toolManifest: builtinApplyPatchToolManifest,
@@ -218,9 +236,10 @@ function createInput(overrides: Partial<{
   step: Step;
   toolManifest: Parameters<typeof planToolInvocation>[0]["toolManifest"];
   proposedInput: unknown;
-  capabilityGrants: string[];
+  capabilityGrants: Parameters<typeof planToolInvocation>[0]["capabilityGrants"];
   approvalPermits: ApprovalPermit[];
   policyDecision: PolicyDecision;
+  now: string;
 }> = {}): Parameters<typeof planToolInvocation>[0] {
   const run = overrides.run ?? createRun();
   const step = overrides.step ?? createStep(run);
@@ -237,7 +256,7 @@ function createInput(overrides: Partial<{
     approvalPermits: overrides.approvalPermits ?? [],
     policyDecision: overrides.policyDecision ?? createPolicyDecision(),
     planHash,
-    now
+    now: overrides.now ?? now
   };
 }
 

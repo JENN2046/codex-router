@@ -146,9 +146,11 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
   planExecution(input: ExecutionPlanInput): ExecutorExecutionPlan {
     assertNoDirectCodexCliPolicyOverrides(input.proposedInput);
     assertKernelInputMatches(input);
-    assertProviderSupportsSandboxProfile(this.manifest, input.sandboxProfile);
 
-    const effectiveSandbox = resolveEffectiveSandboxMode(input);
+    const effectiveSandboxProfile = resolveEffectiveSandboxProfile(input);
+    assertProviderSupportsSandboxProfile(this.manifest, effectiveSandboxProfile);
+
+    const effectiveSandbox = effectiveSandboxProfile.mode;
     const sideEffectClass = resolveProviderSideEffectClass(input, effectiveSandbox);
     assertProviderSupportsSideEffectClass(this.manifest, sideEffectClass);
 
@@ -193,7 +195,7 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
       policyDecisionHash,
       requiredCapabilities: input.policyDecision.capabilities.map(capabilityScopeToCanonicalString),
       approvalRequired: input.policyDecision.approval.required,
-      sandboxProfile: createExecutorSandboxProfile(input.sandboxProfile, effectiveSandbox),
+      sandboxProfile: effectiveSandboxProfile,
       sideEffectClass,
       createdAt: input.now,
       metadata: {
@@ -351,7 +353,11 @@ function assertKernelInputMatches(input: ExecutionPlanInput): void {
   }
 }
 
-function resolveEffectiveSandboxMode(input: ExecutionPlanInput): CodexCliSandboxMode {
+type CodexCliEffectiveSandboxProfile = SandboxProfile & {
+  mode: CodexCliSandboxMode;
+};
+
+function resolveEffectiveSandboxProfile(input: ExecutionPlanInput): CodexCliEffectiveSandboxProfile {
   const requested = SandboxProfileSchema.parse(input.sandboxProfile);
   const policySandbox = SandboxProfileSchema.parse(input.policyDecision.execution.sandbox);
 
@@ -367,7 +373,14 @@ function resolveEffectiveSandboxMode(input: ExecutionPlanInput): CodexCliSandbox
     throw new Error("codex_cli_provider_policy_disallows_workspace_write");
   }
 
-  return requested.mode;
+  const policyMismatch = explainRequestedSandboxPolicyMismatch(requested, policySandbox);
+  if (policyMismatch !== undefined) {
+    throw new Error(
+      `codex_cli_provider_requested_sandbox_exceeds_policy:${policyMismatch}:${requested.sandboxId}:${policySandbox.sandboxId}`
+    );
+  }
+
+  return requested as CodexCliEffectiveSandboxProfile;
 }
 
 function resolveProviderSideEffectClass(
@@ -827,17 +840,6 @@ function validateCodexCliPlanAlignment(
   return reasons;
 }
 
-function createExecutorSandboxProfile(
-  requested: SandboxProfile,
-  effectiveSandbox: CodexCliSandboxMode
-): SandboxProfile {
-  if (requested.mode === effectiveSandbox) {
-    return requested;
-  }
-
-  return createCodexCliSandboxProfile(effectiveSandbox);
-}
-
 function createCodexCliProviderInputHash(input: ExecutionPlanInput): string {
   return hashKernelObject({
     task: input.task,
@@ -875,6 +877,90 @@ function hasLocalCommand(policyDecision: PolicyDecision): boolean {
     (scope.kind === "tool" || scope.kind === "process")
     && scope.access === "execute"
   ));
+}
+
+function explainRequestedSandboxPolicyMismatch(
+  requested: SandboxProfile,
+  policySandbox: SandboxProfile
+): string | undefined {
+  if (!sandboxModeImplies(policySandbox.mode, requested.mode)) {
+    return "mode";
+  }
+
+  if (!networkAccessImplies(policySandbox.networkAccess, requested.networkAccess)) {
+    return "networkAccess";
+  }
+
+  if (!writableRootsImply(policySandbox.writableRoots, requested.writableRoots)) {
+    return "writableRoots";
+  }
+
+  if (!envPolicyImplies(policySandbox.envPolicy, requested.envPolicy)) {
+    return "envPolicy";
+  }
+
+  return undefined;
+}
+
+function sandboxModeImplies(
+  policyMode: SandboxProfile["mode"],
+  requestedMode: SandboxProfile["mode"]
+): boolean {
+  return policyMode === requestedMode
+    || (policyMode === "workspace-write" && requestedMode === "read-only");
+}
+
+function networkAccessImplies(
+  granted: SandboxProfile["networkAccess"],
+  requested: SandboxProfile["networkAccess"]
+): boolean {
+  if (granted === requested) {
+    return true;
+  }
+
+  if (granted === "full") {
+    return true;
+  }
+
+  return granted === "restricted" && requested === "none";
+}
+
+function writableRootsImply(granted: string[], requested: string[]): boolean {
+  if (requested.length === 0) {
+    return true;
+  }
+
+  return requested.every((root) => (
+    granted.some((grantedRoot) => writableRootImplies(grantedRoot, root))
+  ));
+}
+
+function writableRootImplies(grantedRoot: string, requestedRoot: string): boolean {
+  if (grantedRoot === requestedRoot || grantedRoot === "*") {
+    return true;
+  }
+
+  if (grantedRoot.endsWith("/**")) {
+    const prefix = grantedRoot.slice(0, -3);
+    return requestedRoot === prefix || requestedRoot.startsWith(`${prefix}/`);
+  }
+
+  return false;
+}
+
+function envPolicyImplies(
+  granted: SandboxProfile["envPolicy"],
+  requested: SandboxProfile["envPolicy"]
+): boolean {
+  if (!granted.inheritProcessEnv && requested.inheritProcessEnv) {
+    return false;
+  }
+
+  if (granted.inheritProcessEnv) {
+    return true;
+  }
+
+  return requested.allowlist.every((key) => granted.allowlist.includes(key));
 }
 
 function collectProviderSupportReason(

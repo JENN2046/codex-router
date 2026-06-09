@@ -205,16 +205,25 @@ function explainGrantAvailability(
 } {
   const normalized = normalizeGrant(grant);
   const reasons: string[] = [];
+  const invalidNowReason = explainInvalidNow(options.now);
 
   if (normalized.scopes.length === 0) {
     reasons.push("grant_has_no_scopes");
+  }
+
+  if (invalidNowReason !== undefined) {
+    reasons.push(invalidNowReason);
   }
 
   if (normalized.revokedAt) {
     reasons.push(`grant_revoked:${normalized.revokedAt}`);
   }
 
-  if (normalized.expiresAt && isExpired(normalized.expiresAt, options.now)) {
+  if (
+    normalized.expiresAt
+    && invalidNowReason === undefined
+    && isExpired(normalized.expiresAt, options.now)
+  ) {
     reasons.push(`grant_expired:${normalized.expiresAt}`);
   }
 
@@ -341,11 +350,25 @@ function isExpired(expiresAt: string, now?: string): boolean {
   const nowTime = now ? Date.parse(now) : Date.now();
   const expiresTime = Date.parse(expiresAt);
 
+  if (Number.isNaN(nowTime)) {
+    return true;
+  }
+
   if (Number.isNaN(expiresTime)) {
     return true;
   }
 
   return expiresTime <= nowTime;
+}
+
+function explainInvalidNow(now?: string): string | undefined {
+  if (now === undefined) {
+    return undefined;
+  }
+
+  return Number.isNaN(Date.parse(now))
+    ? `invalid_capability_check_now:${now}`
+    : undefined;
 }
 
 function resourceImplies(grantResource: string, requestedResource: string): boolean {

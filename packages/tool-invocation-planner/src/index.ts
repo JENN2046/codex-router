@@ -101,7 +101,7 @@ export function planToolInvocation(input: PlanToolInvocationInput): ToolInvocati
         "missing_capability",
         ...capabilityResults
           .filter((result) => !result.allowed)
-          .flatMap((result) => result.reasons),
+          .flatMap(capabilityFailureReasons),
         ...permitEvaluation.rejectedPermits
       ])
     };
@@ -336,6 +336,15 @@ function stableStringify(input: unknown): string {
 
 function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === "object" && input !== null;
+}
+
+function capabilityFailureReasons(
+  result: ReturnType<typeof explainCapabilityDecision>
+): string[] {
+  return [
+    ...result.reasons,
+    ...result.ignoredGrantReasons
+  ];
 }
 
 function uniqueStrings(values: string[]): string[] {

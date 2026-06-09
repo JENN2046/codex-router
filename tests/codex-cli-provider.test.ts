@@ -124,6 +124,84 @@ test("codex cli workspace-write plan requires a workspace-write policy decision"
   });
 });
 
+test("codex cli provider enforces policy sandbox constraints before planning", () => {
+  const provider = new CodexCliExecutorProvider();
+  const task = createTask({
+    taskId: "task_codex_cli_provider_policy_sandbox",
+    taskClass: "small_edit"
+  });
+  const policySandbox = createSandboxProfile("workspace-write", {
+    writableRoots: ["workspace/docs/**"],
+    envPolicy: {
+      inheritProcessEnv: false,
+      allowlist: ["SAFE_TOKEN"]
+    }
+  });
+  const policyDecision = createPolicyDecision({
+    task,
+    taskClass: "small_edit",
+    sandbox: policySandbox,
+    capabilities: [createReadScope(), createWriteScope()]
+  });
+  const run = createRun(task, policyDecision);
+  const plan = provider.planExecution({
+    task,
+    run,
+    policyDecision,
+    sandboxProfile: policySandbox,
+    now
+  });
+
+  assert.deepEqual(plan.sandboxProfile.writableRoots, ["workspace/docs/**"]);
+  assert.deepEqual(plan.sandboxProfile.envPolicy.allowlist, ["SAFE_TOKEN"]);
+
+  assert.throws(
+    () => provider.planExecution({
+      task,
+      run,
+      policyDecision,
+      sandboxProfile: createSandboxProfile("workspace-write", {
+        writableRoots: ["workspace/**"],
+        envPolicy: policySandbox.envPolicy
+      }),
+      now
+    }),
+    /codex_cli_provider_requested_sandbox_exceeds_policy:writableRoots/
+  );
+
+  assert.throws(
+    () => provider.planExecution({
+      task,
+      run,
+      policyDecision,
+      sandboxProfile: createSandboxProfile("workspace-write", {
+        networkAccess: "restricted",
+        writableRoots: policySandbox.writableRoots,
+        envPolicy: policySandbox.envPolicy
+      }),
+      now
+    }),
+    /codex_cli_provider_requested_sandbox_exceeds_policy:networkAccess/
+  );
+
+  assert.throws(
+    () => provider.planExecution({
+      task,
+      run,
+      policyDecision,
+      sandboxProfile: createSandboxProfile("workspace-write", {
+        writableRoots: policySandbox.writableRoots,
+        envPolicy: {
+          inheritProcessEnv: false,
+          allowlist: ["SAFE_TOKEN", "EXTRA_TOKEN"]
+        }
+      }),
+      now
+    }),
+    /codex_cli_provider_requested_sandbox_exceeds_policy:envPolicy/
+  );
+});
+
 test("codex cli provider classifies command plans as local command before write sandbox", () => {
   const provider = new CodexCliExecutorProvider();
   const task = createTask({
@@ -393,15 +471,16 @@ function createRun(task: Task, policyDecision: PolicyDecision): Run {
 }
 
 function createSandboxProfile(
-  mode: "read-only" | "workspace-write"
+  mode: "read-only" | "workspace-write",
+  overrides: Partial<Pick<SandboxProfile, "networkAccess" | "writableRoots" | "envPolicy">> = {}
 ): SandboxProfile {
   return SandboxProfileSchema.parse({
     schemaVersion: "sandbox-profile.v1",
     sandboxId: `sandbox_codex_cli_provider_${mode.replace(/[^a-z0-9]+/g, "_")}`,
     mode,
-    networkAccess: "none",
-    writableRoots: mode === "read-only" ? [] : ["workspace"],
-    envPolicy: {
+    networkAccess: overrides.networkAccess ?? "none",
+    writableRoots: overrides.writableRoots ?? (mode === "read-only" ? [] : ["workspace"]),
+    envPolicy: overrides.envPolicy ?? {
       inheritProcessEnv: false,
       allowlist: []
     }

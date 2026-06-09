@@ -117,7 +117,7 @@ export function evaluateExecutionEligibility(
         "missing_capability",
         ...capabilityResults
           .filter((result) => !result.allowed)
-          .flatMap((result) => result.reasons)
+          .flatMap(capabilityFailureReasons)
       ]),
       missingCapabilities,
       requiredApprovals: uniqueStrings([
@@ -222,6 +222,15 @@ function isPolicyBlocked(policyDecision: EvaluateExecutionEligibilityInput["poli
     || policyDecision.blocked === true
     || metadata?.status === "blocked"
     || metadata?.blocked === true;
+}
+
+function capabilityFailureReasons(
+  result: ReturnType<typeof explainCapabilityDecision>
+): string[] {
+  return [
+    ...result.reasons,
+    ...result.ignoredGrantReasons
+  ];
 }
 
 function uniqueStrings(values: string[]): string[] {

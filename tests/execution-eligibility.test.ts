@@ -103,6 +103,21 @@ test("execution eligibility accepts valid approval permits", () => {
   assert.deepEqual(decision.rejectedPermits, []);
 });
 
+test("execution eligibility waits for approval when capability clock is invalid", () => {
+  const decision = evaluateExecutionEligibility(createInput({
+    requestedScopes: [writeScope],
+    capabilityGrants: [{
+      scope: "fs.write:/repo/docs/**",
+      expiresAt: "2026-06-04T01:00:00.000Z"
+    }],
+    now: "not-a-timestamp"
+  }));
+
+  assert.equal(decision.status, "waiting_approval");
+  assert.ok(decision.reasons.includes("invalid_capability_check_now:not-a-timestamp"));
+  assert.deepEqual(decision.missingCapabilities, [writeScope]);
+});
+
 test("execution eligibility waits for approval when permit is expired", () => {
   const policyDecision = createPolicyDecision();
   const permit = createPermit(policyDecision, {
@@ -225,8 +240,9 @@ function createInput(overrides: Partial<{
   run: ReturnType<typeof RunSchema.parse>;
   policyDecision: PolicyDecision & { status?: string; blocked?: boolean };
   requestedScopes: string[];
-  capabilityGrants: string[];
+  capabilityGrants: Parameters<typeof evaluateExecutionEligibility>[0]["capabilityGrants"];
   approvalPermits: ApprovalPermit[];
+  now: string;
 }> = {}) {
   const task = overrides.task ?? createTask();
   const run = overrides.run ?? RunSchema.parse({
@@ -246,7 +262,7 @@ function createInput(overrides: Partial<{
     approvalPermits: overrides.approvalPermits ?? [],
     requestedScopes: overrides.requestedScopes ?? [readScope],
     planHash,
-    now
+    now: overrides.now ?? now
   };
 }
 
