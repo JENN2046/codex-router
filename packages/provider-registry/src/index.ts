@@ -220,9 +220,13 @@ function isAnonymousAuthScheme(input: unknown): boolean {
     return false;
   }
 
-  return input.schemeId === "anonymous"
-    || input.type === "anonymous"
-    || input.name === "anonymous";
+  return isAnonymousAuthSchemeField(input.schemeId)
+    || isAnonymousAuthSchemeField(input.type)
+    || isAnonymousAuthSchemeField(input.name);
+}
+
+function isAnonymousAuthSchemeField(input: unknown): boolean {
+  return typeof input === "string" && input.toLowerCase() === "anonymous";
 }
 
 function isExecutorProvider(provider: ProviderImplementation): provider is ExecutorProvider {

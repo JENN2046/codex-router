@@ -161,6 +161,31 @@ test("provider-registry rejects remote agents without explicit authSchemes", () 
   );
 });
 
+test("provider-registry rejects anonymous remote agent auth schemes case-insensitively", () => {
+  const anonymousSchemes = [
+    { schemeId: "Anonymous" },
+    { type: "ANONYMOUS" },
+    { name: "Anonymous" }
+  ];
+
+  for (const authScheme of anonymousSchemes) {
+    const registry = new ProviderRegistry();
+    const remoteProvider = createA2AProvider();
+    const manifestWithAnonymousAuth = ProviderManifestSchema.parse({
+      ...remoteProvider.manifest,
+      metadata: {
+        ...remoteProvider.manifest.metadata,
+        authSchemes: [authScheme]
+      }
+    });
+
+    assert.throws(
+      () => registry.registerProvider(manifestWithAnonymousAuth, remoteProvider),
+      /provider_registry_remote_agent_anonymous_auth_rejected:a2a\.agent_coding_worker_001/
+    );
+  }
+});
+
 test("provider-registry accepts Codex CLI provider while execution remains disabled", async () => {
   const registry = new ProviderRegistry();
   const codexProvider = createCodexProvider();
