@@ -227,6 +227,22 @@ test("approval permit scope hash is stable across object key order", () => {
   assert.equal(first, second);
 });
 
+test("approval permit scope hash ignores undefined object fields", () => {
+  const input = {
+    taskId: "task_001",
+    planHash: "plan_001",
+    optionalDecisionHash: undefined,
+    capabilityScopes: ["shell.exec:pytest", "fs.read:/repo/**"],
+    nested: {
+      present: true,
+      omitted: undefined
+    }
+  };
+  const roundTripped = JSON.parse(JSON.stringify(input));
+
+  assert.equal(hashApprovalScope(input), hashApprovalScope(roundTripped));
+});
+
 function createContext() {
   return {
     taskId: baseInput.taskId,
