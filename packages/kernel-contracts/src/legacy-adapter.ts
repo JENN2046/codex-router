@@ -272,6 +272,11 @@ function createCapabilityScopesFromToolAccess(toolAccess: ToolAccessLevel): Capa
         CapabilityScopeSchema.parse({
           kind: "file",
           resource: "workspace/**",
+          access: "read"
+        }),
+        CapabilityScopeSchema.parse({
+          kind: "file",
+          resource: "workspace/**",
           access: "write"
         }),
         CapabilityScopeSchema.parse({

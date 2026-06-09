@@ -160,6 +160,16 @@ test("legacy adapter maps write and release tool access into scoped kernel capab
     scope.kind === "file" && scope.access === "write"
   )));
   assert.ok(engineering.capabilities.some((scope) => (
+    scope.kind === "file"
+    && scope.resource === "workspace/**"
+    && scope.access === "read"
+  )));
+  assert.ok(engineering.capabilities.some((scope) => (
+    scope.kind === "file"
+    && scope.resource === "workspace/**"
+    && scope.access === "write"
+  )));
+  assert.ok(engineering.capabilities.some((scope) => (
     scope.kind === "tool"
     && scope.resource === "apply_patch"
     && scope.access === "execute"

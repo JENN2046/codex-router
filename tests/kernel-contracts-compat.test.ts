@@ -145,6 +145,16 @@ test("kernel compatibility maps legacy write access into workspace sandbox and s
   assert.equal(decision.execution.sandbox.mode, "workspace-write");
   assert.deepEqual(decision.execution.sandbox.writableRoots, ["workspace"]);
   assert.ok(decision.capabilities.some((scope) => (
+    scope.kind === "file"
+    && scope.resource === "workspace/**"
+    && scope.access === "read"
+  )));
+  assert.ok(decision.capabilities.some((scope) => (
+    scope.kind === "file"
+    && scope.resource === "workspace/**"
+    && scope.access === "write"
+  )));
+  assert.ok(decision.capabilities.some((scope) => (
     scope.kind === "tool"
     && scope.resource === "shell_command"
     && scope.access === "execute"
