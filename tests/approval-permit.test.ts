@@ -6,6 +6,9 @@ import {
   revokeApprovalPermit,
   validateApprovalPermit
 } from "../packages/approval-permit/src/index.js";
+import {
+  ApprovalPermitSchema
+} from "../packages/kernel-contracts/src/index.js";
 
 const createdAt = "2026-06-04T00:00:00.000Z";
 const now = "2026-06-04T00:10:00.000Z";
@@ -156,6 +159,56 @@ test("approval permit accepts when extra permitted capabilities are unused", () 
   assert.equal(result.valid, true);
   assert.deepEqual(result.missingCapabilityScopes, []);
   assert.deepEqual(result.matchedCapabilityScopes, ["shell.exec:pytest"]);
+});
+
+test("approval permit maps typed scopes to canonical capability strings", () => {
+  const permit = ApprovalPermitSchema.parse({
+    schemaVersion: "approval-permit.v1",
+    permitId: baseInput.permitId,
+    taskId: baseInput.taskId,
+    runId: baseInput.runId,
+    principalId: baseInput.principalId,
+    approverId: baseInput.approverId,
+    decisionHash: baseInput.policyDecisionHash,
+    policyDecisionHash: baseInput.policyDecisionHash,
+    planHash: baseInput.planHash,
+    approvedBy: {
+      principalId: baseInput.approverId,
+      kind: "user",
+      createdAt
+    },
+    scopes: [
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "file",
+        resource: "/repo/docs/**",
+        access: "write",
+        constraints: {}
+      },
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "tool",
+        resource: "pytest",
+        access: "execute",
+        constraints: {}
+      }
+    ],
+    capabilityScopes: [],
+    issuedAt: createdAt,
+    createdAt,
+    expiresAt,
+    reason: "legacy typed permit fixture"
+  });
+
+  const result = validateApprovalPermit(permit, createContext());
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.reasons, []);
+  assert.deepEqual(result.missingCapabilityScopes, []);
+  assert.deepEqual(result.matchedCapabilityScopes, [
+    "fs.write:/repo/docs/phase-1.md",
+    "shell.exec:pytest"
+  ]);
 });
 
 test("approval permit scope hash is stable across object key order", () => {

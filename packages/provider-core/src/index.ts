@@ -320,6 +320,19 @@ function writableRootsImply(granted: string[], requested: string[]): boolean {
   }
 
   return requested.every((root) => (
-    granted.includes(root) || granted.includes("*") || granted.includes("workspace/**")
+    granted.some((grantedRoot) => writableRootImplies(grantedRoot, root))
   ));
+}
+
+function writableRootImplies(grantedRoot: string, requestedRoot: string): boolean {
+  if (grantedRoot === requestedRoot || grantedRoot === "*") {
+    return true;
+  }
+
+  if (grantedRoot.endsWith("/**")) {
+    const prefix = grantedRoot.slice(0, -3);
+    return requestedRoot === prefix || requestedRoot.startsWith(`${prefix}/`);
+  }
+
+  return false;
 }

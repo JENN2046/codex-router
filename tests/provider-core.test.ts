@@ -6,6 +6,7 @@ import {
   ProviderKindSchema,
   ProviderManifestSchema,
   ToolProviderInvocationPlanSchema,
+  assertProviderSupportsSandboxProfile,
   assertProviderSupportsSideEffectClass,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass,
@@ -136,6 +137,44 @@ test("provider-core detects supported sandbox profiles", () => {
   );
 });
 
+test("provider-core constrains workspace wildcard writable roots", () => {
+  const manifest = ProviderManifestSchema.parse({
+    ...createProviderManifest(),
+    supportedSandboxProfiles: [
+      createSandboxProfile("workspace-write", ["workspace/**"])
+    ]
+  });
+
+  assert.equal(
+    providerSupportsSandboxProfile(
+      manifest,
+      createSandboxProfile("workspace-write", ["workspace/packages/provider-core/**"])
+    ),
+    true
+  );
+  assert.equal(
+    providerSupportsSandboxProfile(
+      manifest,
+      createSandboxProfile("workspace-write", ["/tmp/**"])
+    ),
+    false
+  );
+  assert.equal(
+    providerSupportsSandboxProfile(
+      manifest,
+      createSandboxProfile("workspace-write", ["/etc/**"])
+    ),
+    false
+  );
+  assert.throws(
+    () => assertProviderSupportsSandboxProfile(
+      manifest,
+      createSandboxProfile("workspace-write", ["/tmp/**"])
+    ),
+    /unsupported_sandbox_profile:provider_core_executor_001:/
+  );
+});
+
 function createProviderManifest(): ProviderManifest {
   return ProviderManifestSchema.parse({
     schemaVersion: "provider-manifest.v1",
@@ -164,13 +203,16 @@ function createProviderManifest(): ProviderManifest {
   });
 }
 
-function createSandboxProfile(mode: "read-only" | "workspace-write" | "danger-full-access") {
+function createSandboxProfile(
+  mode: "read-only" | "workspace-write" | "danger-full-access",
+  writableRoots = mode === "read-only" ? [] : ["workspace"]
+) {
   return SandboxProfileSchema.parse({
     schemaVersion: "sandbox-profile.v1",
     sandboxId: `sandbox_provider_core_${mode.replace(/[^a-z0-9]+/g, "_")}`,
     mode,
     networkAccess: "none",
-    writableRoots: mode === "read-only" ? [] : ["workspace"],
+    writableRoots,
     envPolicy: {
       inheritProcessEnv: false,
       allowlist: []
