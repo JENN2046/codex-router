@@ -349,10 +349,17 @@ export function assertA2ARemoteInvocationAuthorized(
     throw new Error(A2A_ANONYMOUS_REMOTE_INVOCATION_REJECTED);
   }
 
-  const declared = agentCard.authSchemes.some((authScheme) => (
-    normalizeAuthIdentifier(authScheme.schemeId) === authSchemeId
-    || normalizeAuthIdentifier(authScheme.type) === authSchemeType
-  ));
+  const declared = agentCard.authSchemes.some((authScheme) => {
+    const declaredId = normalizeAuthIdentifier(authScheme.schemeId);
+    const declaredType = normalizeAuthIdentifier(authScheme.type);
+
+    if (authSchemeId !== undefined) {
+      return declaredId === authSchemeId
+        && (authSchemeType === undefined || declaredType === authSchemeType);
+    }
+
+    return authSchemeType !== undefined && declaredType === authSchemeType;
+  });
 
   if (!declared) {
     throw new Error(

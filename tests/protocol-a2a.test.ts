@@ -149,6 +149,27 @@ test("protocol-a2a rejects anonymous remote invocation by helper", () => {
   assert.doesNotThrow(() => assertA2ARemoteInvocationAuthorized(card, {
     authSchemeId: "agent-os-signed-request"
   }));
+  assert.doesNotThrow(() => assertA2ARemoteInvocationAuthorized(card, {
+    authSchemeId: "agent-os-signed-request",
+    authSchemeType: "signed_request"
+  }));
+  assert.doesNotThrow(() => assertA2ARemoteInvocationAuthorized(card, {
+    authSchemeType: "signed_request"
+  }));
+  assert.throws(
+    () => assertA2ARemoteInvocationAuthorized(card, {
+      authSchemeId: "not-declared",
+      authSchemeType: "signed_request"
+    }),
+    /a2a_auth_scheme_not_declared:not-declared/
+  );
+  assert.throws(
+    () => assertA2ARemoteInvocationAuthorized(card, {
+      authSchemeId: "agent-os-signed-request",
+      authSchemeType: "bearer_ref"
+    }),
+    /a2a_auth_scheme_not_declared:agent-os-signed-request/
+  );
   assert.throws(
     () => A2AAgentCardSkeletonSchema.parse({
       ...card,
