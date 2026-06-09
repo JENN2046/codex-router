@@ -16,6 +16,9 @@ import type {
   Step
 } from "../../kernel-contracts/src/index.js";
 import {
+  SandboxProfileSchema
+} from "../../kernel-contracts/src/index.js";
+import {
   RegisteredToolManifestSchema,
   type RegisteredToolManifest,
   type ToolProvider,
@@ -75,6 +78,20 @@ export function planToolInvocation(input: PlanToolInvocationInput): ToolInvocati
   const denyResults = capabilityResults.filter((result) => (
     result.reasons.includes("matched_deny_scope")
   ));
+  const policySandboxMismatch = explainToolSandboxPolicyMismatch(
+    basePlan.sandboxProfile,
+    input.policyDecision.execution.sandbox
+  );
+
+  if (policySandboxMismatch !== undefined) {
+    return {
+      ...basePlan,
+      status: "blocked",
+      reasons: [
+        `tool_invocation_sandbox_exceeds_policy:${policySandboxMismatch}:${basePlan.sandboxProfile.sandboxId}:${input.policyDecision.execution.sandbox.sandboxId}`
+      ]
+    };
+  }
 
   if (denyResults.length > 0) {
     return {
@@ -258,6 +275,93 @@ function deriveSandboxProfile(sideEffectClass: ToolSideEffectClass): SandboxProf
     networkAccess: "none",
     writableRoots: []
   };
+}
+
+function explainToolSandboxPolicyMismatch(
+  requested: SandboxProfile,
+  policySandboxInput: SandboxProfile
+): string | undefined {
+  const policySandbox = SandboxProfileSchema.parse(policySandboxInput);
+
+  if (!sandboxModeImplies(policySandbox.mode, requested.mode)) {
+    return "mode";
+  }
+
+  if (!networkAccessImplies(policySandbox.networkAccess, requested.networkAccess)) {
+    return "networkAccess";
+  }
+
+  if (!writableRootsImply(policySandbox.writableRoots, requested.writableRoots)) {
+    return "writableRoots";
+  }
+
+  if (!envPolicyImplies(policySandbox.envPolicy, requested.envPolicy)) {
+    return "envPolicy";
+  }
+
+  return undefined;
+}
+
+function sandboxModeImplies(
+  policyMode: SandboxProfile["mode"],
+  requestedMode: SandboxProfile["mode"]
+): boolean {
+  return policyMode === requestedMode
+    || policyMode === "danger-full-access"
+    || (policyMode === "workspace-write" && requestedMode === "read-only");
+}
+
+function networkAccessImplies(
+  granted: SandboxProfile["networkAccess"],
+  requested: SandboxProfile["networkAccess"]
+): boolean {
+  if (granted === requested) {
+    return true;
+  }
+
+  if (granted === "full") {
+    return true;
+  }
+
+  return granted === "restricted" && requested === "none";
+}
+
+function writableRootsImply(granted: string[], requested: string[]): boolean {
+  if (requested.length === 0) {
+    return true;
+  }
+
+  return requested.every((root) => (
+    granted.some((grantedRoot) => writableRootImplies(grantedRoot, root))
+  ));
+}
+
+function writableRootImplies(grantedRoot: string, requestedRoot: string): boolean {
+  if (grantedRoot === requestedRoot || grantedRoot === "*") {
+    return true;
+  }
+
+  if (grantedRoot.endsWith("/**")) {
+    const prefix = grantedRoot.slice(0, -3);
+    return requestedRoot === prefix || requestedRoot.startsWith(`${prefix}/`);
+  }
+
+  return false;
+}
+
+function envPolicyImplies(
+  granted: SandboxProfile["envPolicy"],
+  requested: SandboxProfile["envPolicy"]
+): boolean {
+  if (!granted.inheritProcessEnv && requested.inheritProcessEnv) {
+    return false;
+  }
+
+  if (granted.inheritProcessEnv) {
+    return true;
+  }
+
+  return requested.allowlist.every((key) => granted.allowlist.includes(key));
 }
 
 function createInvocationId(

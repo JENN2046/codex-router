@@ -53,6 +53,7 @@ test("tool invocation planner plans read-only tools when capability is granted",
 
 test("tool invocation planner waits for approval when capability is missing", () => {
   const plan = planToolInvocation(createInput({
+    policyDecision: createWorkspaceWritePolicyDecision(),
     toolManifest: builtinApplyPatchToolManifest,
     proposedInput: {
       patch: "*** Begin Patch\n*** End Patch\n"
@@ -68,6 +69,7 @@ test("tool invocation planner waits for approval when capability is missing", ()
 
 test("tool invocation planner waits for approval when capability clock is invalid", () => {
   const plan = planToolInvocation(createInput({
+    policyDecision: createWorkspaceWritePolicyDecision(),
     toolManifest: builtinApplyPatchToolManifest,
     proposedInput: {
       patch: "*** Begin Patch\n*** End Patch\n"
@@ -86,6 +88,7 @@ test("tool invocation planner waits for approval when capability clock is invali
 
 test("tool invocation planner blocks explicit deny capabilities", () => {
   const plan = planToolInvocation(createInput({
+    policyDecision: createWorkspaceWritePolicyDecision(),
     toolManifest: builtinApplyPatchToolManifest,
     proposedInput: {
       patch: "*** Begin Patch\n*** End Patch\n"
@@ -104,6 +107,7 @@ test("tool invocation planner blocks explicit deny capabilities", () => {
 
 test("tool invocation planner requires approval for dangerous side effects", () => {
   const plan = planToolInvocation(createInput({
+    policyDecision: createWorkspaceWritePolicyDecision(),
     toolManifest: builtinApplyPatchToolManifest,
     proposedInput: {
       patch: "*** Begin Patch\n*** End Patch\n"
@@ -118,7 +122,7 @@ test("tool invocation planner requires approval for dangerous side effects", () 
 });
 
 test("tool invocation planner plans dangerous tools with a valid approval permit", () => {
-  const policyDecision = createPolicyDecision();
+  const policyDecision = createWorkspaceWritePolicyDecision();
   const permit = createPermit(policyDecision, {
     capabilityScopes: ["fs.write:/repo/**"]
   });
@@ -136,6 +140,29 @@ test("tool invocation planner plans dangerous tools with a valid approval permit
   assert.equal(plan.approvalRequired, true);
   assert.ok(plan.reasons.includes("valid_approval_permit"));
   assert.ok(plan.reasons.includes(`permit:${permit.permitId}`));
+});
+
+test("tool invocation planner blocks tool sandboxes that exceed policy", () => {
+  const policyDecision = createPolicyDecision();
+  const permit = createPermit(policyDecision, {
+    capabilityScopes: ["fs.write:/repo/**"]
+  });
+  const plan = planToolInvocation(createInput({
+    policyDecision,
+    toolManifest: builtinApplyPatchToolManifest,
+    proposedInput: {
+      patch: "*** Begin Patch\n*** End Patch\n"
+    },
+    capabilityGrants: ["fs.write:/repo/**"],
+    approvalPermits: [permit]
+  }));
+
+  assert.equal(plan.status, "blocked");
+  assert.equal(plan.approvalRequired, true);
+  assert.equal(plan.sandboxProfile.mode, "workspace-write");
+  assert.deepEqual(plan.reasons, [
+    "tool_invocation_sandbox_exceeds_policy:mode:sandbox_tool_local_write:sandbox_readonly_001"
+  ]);
 });
 
 test("tool invocation planner uses a stable input hash without storing raw input", () => {
@@ -294,6 +321,25 @@ function createPolicyDecision(overrides: Partial<PolicyDecision> = {}): PolicyDe
       clarificationRequired: false
     },
     ...overrides
+  });
+}
+
+function createWorkspaceWritePolicyDecision(): PolicyDecision {
+  return createPolicyDecision({
+    execution: {
+      ...validPolicyDecision.execution,
+      sandbox: {
+        schemaVersion: "sandbox-profile.v1",
+        sandboxId: "sandbox_tool_invocation_workspace_write_001",
+        mode: "workspace-write",
+        networkAccess: "none",
+        writableRoots: ["workspace"],
+        envPolicy: {
+          inheritProcessEnv: false,
+          allowlist: []
+        }
+      }
+    }
   });
 }
 
