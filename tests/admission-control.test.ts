@@ -181,6 +181,40 @@ test("admission-control does not match workspace wildcard outside workspace", ()
   assert.ok(decision.requiredApprovals.includes("capability:file:write:/tmp/**"));
 });
 
+test("admission-control handles missing read capabilities from agent manifests", () => {
+  const policyDecision = createPolicyDecision({
+    capabilities: [
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "file",
+        resource: "/tmp/**",
+        access: "read",
+        constraints: {}
+      }
+    ]
+  });
+
+  const decision = evaluateTaskAdmission({
+    task: createTask(),
+    principal: validPrincipal,
+    agent: createAgentWithCapabilities([
+      {
+        schemaVersion: "capability-scope.v1",
+        kind: "file",
+        resource: "workspace/**",
+        access: "read",
+        constraints: {}
+      }
+    ]),
+    policyDecision,
+    now
+  });
+
+  assert.equal(decision.status, "needs_approval");
+  assert.deepEqual(decision.reasons, ["missing_required_read_capability"]);
+  assert.ok(decision.requiredApprovals.includes("capability:file:read:/tmp/**"));
+});
+
 test("admission-control uses the fixed now parameter for createdAt", () => {
   const decision = evaluateTaskAdmission({
     task: createTask(),

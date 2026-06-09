@@ -130,6 +130,22 @@ export function evaluateTaskAdmission(input: EvaluateTaskAdmissionInput): Admiss
     });
   }
 
+  if (missingCapabilities.length > 0) {
+    return createDecision({
+      status: "needs_approval",
+      taskId: input.task.taskId,
+      principalId,
+      reasons: ["missing_required_read_capability"],
+      riskSignals,
+      requiredCapabilities,
+      requiredApprovals: [
+        ...requiredApprovals,
+        ...missingCapabilities.map((scope) => `capability:${scope.kind}:${scope.access}:${scope.resource}`)
+      ],
+      createdAt
+    });
+  }
+
   return createDecision({
     status: "accepted",
     taskId: input.task.taskId,
