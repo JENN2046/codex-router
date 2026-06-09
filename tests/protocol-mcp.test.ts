@@ -192,6 +192,42 @@ test("protocol-mcp provider skeleton enforces allowedTools allowlist", async () 
   );
 });
 
+test("protocol-mcp provider skeleton rejects unsupported invocation sandboxes", () => {
+  const provider = createMcpToolProviderSkeleton(createServerRef({
+    allowedTools: ["repo_search"]
+  }));
+  const manifest = mcpToolToToolManifest({
+    serverRef: createServerRef({
+      allowedTools: ["repo_search"]
+    }),
+    tool: {
+      name: "repo_search",
+      inputSchema: { type: "object" },
+      annotations: {
+        sideEffectClass: "read"
+      }
+    }
+  });
+
+  assert.throws(
+    () => provider.planInvocation(createToolInvocationInput({
+      toolManifest: manifest,
+      sandboxProfile: SandboxProfileSchema.parse({
+        schemaVersion: "sandbox-profile.v1",
+        sandboxId: "sandbox_protocol_mcp_workspace_write",
+        mode: "workspace-write",
+        networkAccess: "none",
+        writableRoots: ["workspace/**"],
+        envPolicy: {
+          inheritProcessEnv: false,
+          allowlist: []
+        }
+      })
+    })),
+    /unsupported_sandbox_profile:mcp\.local-dev:sandbox_protocol_mcp_workspace_write/
+  );
+});
+
 test("protocol-mcp provider hashes undefined proposed input deterministically", async () => {
   const provider = createMcpToolProviderSkeleton(createServerRef({
     allowedTools: ["repo_search"]

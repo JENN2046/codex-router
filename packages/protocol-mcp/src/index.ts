@@ -4,6 +4,7 @@ import {
   SandboxProfileSchema
 } from "../../kernel-contracts/src/index.js";
 import {
+  assertProviderSupportsSandboxProfile,
   parseProviderManifest,
   parseToolProviderInvocationPlan,
   type ProviderManifest,
@@ -218,6 +219,8 @@ export function createMcpToolProviderSkeleton(
       const toolManifest = RegisteredToolManifestSchema.parse(input.toolManifest);
       assertMcpToolAllowed(serverRef, toolManifest);
       const sideEffectClass = mapToolSideEffectClass(toolManifest.sideEffectClass);
+      const sandboxProfile = SandboxProfileSchema.parse(input.sandboxProfile);
+      assertProviderSupportsSandboxProfile(providerManifest, sandboxProfile);
 
       return parseToolProviderInvocationPlan({
         schemaVersion: "tool-provider-invocation-plan.v1",
@@ -230,7 +233,7 @@ export function createMcpToolProviderSkeleton(
         inputHash: hashUnknown(input.proposedInput),
         requiredCapabilities: [...toolManifest.requiredCapabilities],
         approvalRequired: requiresApproval(toolManifest.sideEffectClass),
-        sandboxProfile: SandboxProfileSchema.parse(input.sandboxProfile),
+        sandboxProfile,
         sideEffectClass,
         createdAt: input.now,
         metadata: {
