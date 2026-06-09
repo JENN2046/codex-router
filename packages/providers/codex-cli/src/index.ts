@@ -1,3 +1,4 @@
+import { posix as pathPosix } from "node:path";
 import {
   createCodexCliExecPlanFromRoutingDecision,
   validateCodexCliExecPlanForRun,
@@ -936,16 +937,40 @@ function writableRootsImply(granted: string[], requested: string[]): boolean {
 }
 
 function writableRootImplies(grantedRoot: string, requestedRoot: string): boolean {
-  if (grantedRoot === requestedRoot || grantedRoot === "*") {
+  if (grantedRoot === "*") {
     return true;
   }
 
-  if (grantedRoot.endsWith("/**")) {
-    const prefix = grantedRoot.slice(0, -3);
-    return requestedRoot === prefix || requestedRoot.startsWith(`${prefix}/`);
+  const normalizedGrantedRoot = normalizeRootPattern(grantedRoot);
+  const normalizedRequestedRoot = normalizeRootPattern(requestedRoot);
+
+  if (normalizedGrantedRoot === normalizedRequestedRoot) {
+    return true;
+  }
+
+  if (normalizedGrantedRoot.endsWith("/**")) {
+    const prefix = normalizedGrantedRoot.slice(0, -3);
+    return normalizedRequestedRoot === prefix || normalizedRequestedRoot.startsWith(`${prefix}/`);
   }
 
   return false;
+}
+
+function normalizeRootPattern(root: string): string {
+  const slashRoot = root.replace(/\\/g, "/");
+  const hasRecursiveWildcard = slashRoot.endsWith("/**");
+  const rootBase = hasRecursiveWildcard ? slashRoot.slice(0, -3) : slashRoot;
+  const normalizedBase = trimTrailingSlash(pathPosix.normalize(rootBase));
+
+  return hasRecursiveWildcard ? `${normalizedBase}/**` : normalizedBase;
+}
+
+function trimTrailingSlash(root: string): string {
+  if (root.length > 1 && root.endsWith("/")) {
+    return root.slice(0, -1);
+  }
+
+  return root;
 }
 
 function envPolicyImplies(

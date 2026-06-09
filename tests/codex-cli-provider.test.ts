@@ -152,6 +152,21 @@ test("codex cli provider enforces policy sandbox constraints before planning", (
   assert.equal(plan.sandboxProfile.envPolicy.inheritProcessEnv, false);
   assert.deepEqual(plan.sandboxProfile.envPolicy.allowlist, []);
 
+  const normalizedInPolicyPlan = provider.planExecution({
+    task,
+    run,
+    policyDecision,
+    sandboxProfile: createSandboxProfile("workspace-write", {
+      writableRoots: ["workspace/docs/guide/../index.md"],
+      envPolicy: policySandbox.envPolicy
+    }),
+    now
+  });
+  assert.deepEqual(
+    normalizedInPolicyPlan.sandboxProfile.writableRoots,
+    ["workspace/docs/guide/../index.md"]
+  );
+
   assert.throws(
     () => provider.planExecution({
       task,
@@ -159,6 +174,20 @@ test("codex cli provider enforces policy sandbox constraints before planning", (
       policyDecision,
       sandboxProfile: createSandboxProfile("workspace-write", {
         writableRoots: ["workspace/**"],
+        envPolicy: policySandbox.envPolicy
+      }),
+      now
+    }),
+    /codex_cli_provider_requested_sandbox_exceeds_policy:writableRoots/
+  );
+
+  assert.throws(
+    () => provider.planExecution({
+      task,
+      run,
+      policyDecision,
+      sandboxProfile: createSandboxProfile("workspace-write", {
+        writableRoots: ["workspace/docs/../secrets"],
         envPolicy: policySandbox.envPolicy
       }),
       now
