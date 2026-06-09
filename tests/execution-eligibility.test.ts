@@ -58,6 +58,28 @@ test("execution eligibility blocks when policy is blocked", () => {
   assert.ok(decision.reasons.includes("policy_decision_blocked"));
 });
 
+test("execution eligibility blocks when policy requires clarification", () => {
+  const policyDecision = createPolicyDecision({
+    risk: {
+      level: "low",
+      factors: [],
+      ambiguityScore: 0.8,
+      clarificationRequired: true
+    }
+  });
+
+  const decision = evaluateExecutionEligibility(createInput({
+    policyDecision,
+    requestedScopes: [readScope],
+    capabilityGrants: ["fs.read:/repo/**"]
+  }));
+
+  assert.equal(decision.status, "blocked");
+  assert.ok(decision.reasons.includes("admission_needs_clarification"));
+  assert.ok(decision.reasons.includes("policy_decision_requires_clarification"));
+  assert.deepEqual(decision.missingCapabilities, []);
+});
+
 test("execution eligibility waits for approval when capability is missing", () => {
   const decision = evaluateExecutionEligibility(createInput({
     requestedScopes: [writeScope],

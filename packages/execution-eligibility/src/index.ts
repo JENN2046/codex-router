@@ -69,6 +69,15 @@ export function evaluateExecutionEligibility(
     };
   }
 
+  if (admission.status === "needs_clarification") {
+    return {
+      ...base,
+      status: "blocked",
+      reasons: uniqueStrings(["admission_needs_clarification", ...admission.reasons]),
+      requiredApprovals: admission.requiredApprovals
+    };
+  }
+
   if (isPolicyBlocked(input.policyDecision)) {
     return {
       ...base,
