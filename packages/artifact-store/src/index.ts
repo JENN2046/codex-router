@@ -211,7 +211,23 @@ export class FileSystemArtifactStore implements ArtifactStore {
     }
 
     const payloadPath = this.getPayloadPath(artifactId);
-    const payload = await readFile(payloadPath);
+    const payload = await readFile(payloadPath).catch((error: unknown) => {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    });
+
+    if (!payload) {
+      return {
+        ok: false,
+        artifactId,
+        expectedSha256: artifact.sha256,
+        reason: "artifact_payload_not_found"
+      };
+    }
+
     const actualSha256 = sha256(payload);
 
     return createVerificationResult({

@@ -95,6 +95,26 @@ test("artifact store verifies filesystem sha256 and reports mismatch", async () 
   });
 });
 
+test("artifact store verification reports missing filesystem payloads", async () => {
+  await withTempArtifactStore(async ({ store, baseDir }) => {
+    const artifact = await store.putArtifact({
+      artifactId: "artifact_missing_payload_001",
+      taskId: "task_artifact_store_001",
+      type: "report",
+      payload: "payload that will be removed"
+    });
+
+    await rm(join(baseDir, artifact.artifactId, "payload"));
+    const verification = await store.verifyArtifact(artifact.artifactId);
+
+    assert.equal(verification.ok, false);
+    assert.equal(verification.artifactId, artifact.artifactId);
+    assert.equal(verification.expectedSha256, artifact.sha256);
+    assert.equal(verification.actualSha256, undefined);
+    assert.equal(verification.reason, "artifact_payload_not_found");
+  });
+});
+
 test("artifact store rejects path traversal artifact ids", async () => {
   await withTempArtifactStore(async ({ store }) => {
     await assert.rejects(
