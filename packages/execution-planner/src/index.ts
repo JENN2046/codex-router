@@ -383,12 +383,16 @@ function createPlanId(runId: string, providerId: string, inputHash: string): str
 }
 
 function stableStringify(input: unknown): string {
+  if (input === undefined) {
+    return "null";
+  }
+
   if (input === null || typeof input !== "object") {
-    return JSON.stringify(input);
+    return JSON.stringify(input) ?? "null";
   }
 
   if (Array.isArray(input)) {
-    return `[${input.map((item) => stableStringify(item)).join(",")}]`;
+    return `[${Array.from(input, (item) => stableStringify(item)).join(",")}]`;
   }
 
   const record = input as Record<string, unknown>;

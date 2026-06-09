@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  hashProviderExecutionPlannerObject,
   ProviderExecutionPlanSchema,
   planProviderExecution,
   type PlanProviderExecutionInput
@@ -275,6 +276,25 @@ test("execution planner uses a stable policyDecisionHash", () => {
   }));
 
   assert.equal(first.policyDecisionHash, second.policyDecisionHash);
+});
+
+test("execution planner hash canonicalizes undefined deterministically", () => {
+  assert.equal(
+    hashProviderExecutionPlannerObject(undefined),
+    hashProviderExecutionPlannerObject(null)
+  );
+  assert.equal(
+    hashProviderExecutionPlannerObject([undefined]),
+    hashProviderExecutionPlannerObject([null])
+  );
+  assert.notEqual(
+    hashProviderExecutionPlannerObject([undefined]),
+    hashProviderExecutionPlannerObject([])
+  );
+  assert.notEqual(
+    hashProviderExecutionPlannerObject(Array(1)),
+    hashProviderExecutionPlannerObject([])
+  );
 });
 
 function createRegistryWithCodex(): ProviderRegistry {
