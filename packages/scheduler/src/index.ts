@@ -733,13 +733,43 @@ function normalizeError(error: unknown): Record<string, unknown> {
     };
   }
 
-  if (error && typeof error === "object") {
+  if (isPlainRecord(error)) {
     return error as Record<string, unknown>;
+  }
+
+  if (error instanceof Date) {
+    return {
+      message: error.toISOString()
+    };
+  }
+
+  if (error && typeof error === "object") {
+    return {
+      message: stringifyUnknownError(error)
+    };
   }
 
   return {
     message: String(error)
   };
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function stringifyUnknownError(error: unknown): string {
+  try {
+    const serialized = JSON.stringify(error);
+    return serialized ?? String(error);
+  } catch {
+    return String(error);
+  }
 }
 
 function cloneQueueItem(item: SchedulerQueueItem): SchedulerQueueItem {

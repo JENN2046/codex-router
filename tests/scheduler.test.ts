@@ -279,6 +279,34 @@ test("file scheduler persists release and completion across instances", async ()
   }
 });
 
+test("file scheduler normalizes non-plain failed lease errors across instances", async () => {
+  const baseDir = await createSchedulerTempDir();
+  try {
+    const clock = createClock();
+    const first = new FileSystemScheduler({ baseDir, clock });
+
+    first.enqueueRun("run_scheduler_file_non_plain_failure_001", { maxAttempts: 2 });
+    const lease = first.acquireLease("worker_001");
+    assert.ok(lease);
+
+    const failed = first.failLease(lease.leaseId, ["worker", "failed"]);
+
+    assert.equal(failed.status, "failed");
+    assert.deepEqual(failed.error, { message: "[\"worker\",\"failed\"]" });
+
+    const second = new FileSystemScheduler({ baseDir, clock });
+    const queue = second.listQueue();
+    const leases = second.listLeases();
+
+    assert.equal(queue[0]?.status, "queued");
+    assert.deepEqual(queue[0]?.lastError, { message: "[\"worker\",\"failed\"]" });
+    assert.equal(leases[0]?.status, "failed");
+    assert.deepEqual(leases[0]?.error, { message: "[\"worker\",\"failed\"]" });
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
 test("file scheduler refuses state mutation while another lock is present", async () => {
   const baseDir = await createSchedulerTempDir();
   try {

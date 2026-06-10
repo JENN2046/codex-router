@@ -321,6 +321,10 @@ function collectExecutorPlanInvariantReasons(input: {
     reasons.push("executor_plan_policy_decision_hash_mismatch");
   }
 
+  if (!equalStringSets(executorPlan.requiredCapabilities, providerExecutionPlan.requiredCapabilities)) {
+    reasons.push("executor_plan_required_capabilities_mismatch");
+  }
+
   if (
     hashProviderExecutionPlannerObject(executorPlan.sandboxProfile)
     !== hashProviderExecutionPlannerObject(providerExecutionPlan.sandboxProfile)
@@ -625,6 +629,18 @@ function normalizeErrorMessage(error: unknown): string {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function sortedUniqueStrings(values: string[]): string[] {
+  return uniqueStrings(values).sort();
+}
+
+function equalStringSets(left: string[], right: string[]): boolean {
+  const normalizedLeft = sortedUniqueStrings(left);
+  const normalizedRight = sortedUniqueStrings(right);
+
+  return normalizedLeft.length === normalizedRight.length
+    && normalizedLeft.every((value, index) => value === normalizedRight[index]);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

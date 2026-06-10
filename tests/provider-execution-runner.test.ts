@@ -286,6 +286,45 @@ test("provider execution runner enforces executor plan invariants before provide
   assert.deepEqual(result.validation?.reasons, result.reasons.slice(1));
 });
 
+test("provider execution runner enforces required capability invariants before provider validation", async () => {
+  const provider = createFakeExecutorProvider({
+    executorPlanOverrides: {
+      requiredCapabilities: []
+    }
+  });
+  const registry = createRegistry(provider);
+  const task = createTask();
+  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const run = createRun(task, policyDecision, "running");
+  const providerExecutionPlan = planProviderExecution(createPlannerInput({
+    task,
+    run,
+    policyDecision,
+    providerRegistry: registry,
+    preferredProviderId: provider.manifest.providerId
+  }));
+
+  const result = await runProviderExecutionPlanDryRun({
+    providerExecutionPlan,
+    task,
+    run,
+    principal: validPrincipal,
+    policyDecision,
+    providerRegistry: registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "validation_failed");
+  assert.ok(result.reasons.includes("executor_plan_invariant_mismatch"));
+  assert.ok(result.reasons.includes("executor_plan_required_capabilities_mismatch"));
+  assert.equal(provider.calls.planExecution, 1);
+  assert.equal(provider.calls.validateExecutionPlan, 0);
+  assert.equal(provider.calls.execute, 0);
+  assert.deepEqual(result.validation?.reasons, result.reasons.slice(1));
+});
+
 test("provider execution runner validates codex-cli dry-runs without invoking execute", async () => {
   const codexProvider = new CodexCliExecutorProvider();
   let executeCalls = 0;
