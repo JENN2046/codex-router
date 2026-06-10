@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   handleAgentOsAppServerRequest,
-  routeAgentOsAppServerRequest
+  routeAgentOsAppServerRequest,
+  type AgentOsAppServerRequest
 } from "../packages/agent-os-app-server/src/index.js";
 import {
   InMemoryProviderExecutionPlanStore
@@ -94,6 +95,43 @@ test("Agent OS App Server wrapper blocks mutating requests by default", () => {
   assert.deepEqual(kernelStore.listRuns(), []);
 });
 
+test("Agent OS App Server wrapper ignores client-supplied gate fields", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const clientControlledRequest: AgentOsAppServerRequest & {
+    grantedCapabilities: string[];
+    approvedMutatingTools: ["agentos.create_task"];
+    allowLocalMutations: true;
+    preferredProviderId: string;
+  } = {
+    method: "POST",
+    path: "/agent-os/tasks",
+    body: {
+      title: "Spoofed app task",
+      requestedAction: "Try to create a task with client-side gates."
+    },
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli"
+  };
+
+  const response = handleAgentOsAppServerRequest({
+    ...createRuntimeInput(kernelStore),
+    request: clientControlledRequest
+  });
+  const result = response.body.result as {
+    status: string;
+    reasons: string[];
+  };
+
+  assert.equal(response.statusCode, 403);
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes(`${AGENT_OS_MCP_TOOL_CAPABILITY_MISSING}:task.create`));
+  assert.ok(result.reasons.includes(`${AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED}:agentos.create_task`));
+  assert.ok(result.reasons.includes(`${AGENT_OS_MCP_LOCAL_MUTATION_DISABLED}:agentos.create_task`));
+  assert.deepEqual(kernelStore.listRuns(), []);
+});
+
 test("Agent OS App Server wrapper creates local run and provider plan without network", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
@@ -101,6 +139,10 @@ test("Agent OS App Server wrapper creates local run and provider plan without ne
   const policyDecision = createPolicyDecision();
   const response = handleAgentOsAppServerRequest({
     ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli",
     request: {
       method: "POST",
       path: "/agent-os/tasks",
@@ -115,11 +157,7 @@ test("Agent OS App Server wrapper creates local run and provider plan without ne
         metadata: {
           source: "phase-8-app-server-test"
         }
-      },
-      grantedCapabilities: ["task.create"],
-      approvedMutatingTools: ["agentos.create_task"],
-      allowLocalMutations: true,
-      preferredProviderId: "codex-cli"
+      }
     }
   });
   const result = response.body.result as {
@@ -144,10 +182,10 @@ test("Agent OS App Server wrapper creates local run and provider plan without ne
 
   const getRunResponse = handleAgentOsAppServerRequest({
     ...createRuntimeInput(kernelStore),
+    grantedCapabilities: ["run.read"],
     request: {
       method: "GET",
-      path: `/agent-os/runs/${runId}`,
-      grantedCapabilities: ["run.read"]
+      path: `/agent-os/runs/${runId}`
     }
   });
   const getRunResult = getRunResponse.body.result as {
@@ -159,14 +197,14 @@ test("Agent OS App Server wrapper creates local run and provider plan without ne
 
   const eventsResponse = handleAgentOsAppServerRequest({
     ...createRuntimeInput(kernelStore),
+    grantedCapabilities: ["event.read"],
     request: {
       method: "GET",
       path: "/agent-os/events",
       query: {
         runId,
         eventTypes: ["kernel.public_surface.app_server.create_task"]
-      },
-      grantedCapabilities: ["event.read"]
+      }
     }
   });
   const eventsResult = eventsResponse.body.result as {

@@ -3,7 +3,6 @@ import {
   createAgentOsMcpLocalRuntime,
   type AgentOsMcpLocalRuntimeOptions,
   type AgentOsMcpLocalRuntimeResult,
-  type AgentOsMcpLocalToolCall,
   type AgentOsMcpToolName
 } from "../../protocol-mcp/src/index.js";
 
@@ -16,12 +15,10 @@ export type AgentOsAppServerRequest = {
   path: string;
   query?: Record<string, string | string[] | undefined>;
   body?: unknown;
-  grantedCapabilities?: string[];
-  approvedMutatingTools?: AgentOsMcpToolName[];
-  allowLocalMutations?: boolean;
-  preferredProviderId?: string;
 };
 
+// Capability grants and approvals belong in these trusted server-side options,
+// never in the client-controlled request envelope.
 export type HandleAgentOsAppServerRequestInput = Omit<
   AgentOsMcpLocalRuntimeOptions,
   "publicSurface"
@@ -52,7 +49,7 @@ const ARTIFACT_PATH_PATTERN = /^\/agent-os\/artifacts\/([^/]+)$/;
 export function handleAgentOsAppServerRequest(
   input: HandleAgentOsAppServerRequestInput
 ): AgentOsAppServerResponse {
-  const { request, ...runtimeOptions } = input;
+  const { request, ...trustedRuntimeOptions } = input;
   const route = routeAgentOsAppServerRequest(request);
   if (route === undefined) {
     return createAppServerResponse(404, {
@@ -62,31 +59,14 @@ export function handleAgentOsAppServerRequest(
   }
 
   const runtime = createAgentOsMcpLocalRuntime({
-    ...runtimeOptions,
-    publicSurface: "app_server",
-    ...(request.preferredProviderId !== undefined
-      ? { preferredProviderId: request.preferredProviderId }
-      : {})
+    ...trustedRuntimeOptions,
+    publicSurface: "app_server"
   });
-  const call: AgentOsMcpLocalToolCall = {
+
+  const result = runtime.handleToolCall({
     toolName: route.toolName,
     input: route.input
-  };
-
-  if (request.grantedCapabilities !== undefined) {
-    call.grantedCapabilities = request.grantedCapabilities;
-  }
-  if (request.approvedMutatingTools !== undefined) {
-    call.approvedMutatingTools = request.approvedMutatingTools;
-  }
-  if (request.allowLocalMutations !== undefined) {
-    call.allowLocalMutations = request.allowLocalMutations;
-  }
-  if (request.preferredProviderId !== undefined) {
-    call.preferredProviderId = request.preferredProviderId;
-  }
-
-  const result = runtime.handleToolCall(call);
+  });
   return createAppServerResponse(statusCodeForRuntimeResult(result), {
     result
   });
