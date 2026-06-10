@@ -266,6 +266,27 @@ test("Agent OS CLI sanitizer redacts secret-like option values", () => {
       "<REDACTED>"
     ]
   );
+
+  assert.deepEqual(
+    sanitizeAgentOsCliArgv([
+      "create-task",
+      "--api-key=raw-api-key",
+      "--title",
+      "safe",
+      "--token=raw-token",
+      "--target-file",
+      "packages/agent-os-cli/src/index.ts"
+    ]),
+    [
+      "create-task",
+      "--api-key=<REDACTED>",
+      "--title",
+      "safe",
+      "--token=<REDACTED>",
+      "--target-file",
+      "packages/agent-os-cli/src/index.ts"
+    ]
+  );
 });
 
 function createRuntimeInput(

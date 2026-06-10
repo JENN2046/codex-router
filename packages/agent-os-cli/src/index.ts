@@ -128,6 +128,12 @@ export function sanitizeAgentOsCliArgv(argv: string[]): string[] {
       continue;
     }
 
+    const inlineRedacted = redactInlineSecretLikeArg(arg);
+    if (inlineRedacted !== undefined) {
+      sanitized.push(inlineRedacted);
+      continue;
+    }
+
     sanitized.push(arg);
     if (isSecretLikeFlag(arg) || arg === "--metadata-json") {
       redactNext = true;
@@ -562,6 +568,19 @@ function parseIntegerOption(value: string, option: string): number {
     throw new Error(`agent_os_cli_option_must_be_integer:${option}`);
   }
   return parsed;
+}
+
+function redactInlineSecretLikeArg(arg: string): string | undefined {
+  const separatorIndex = arg.indexOf("=");
+  if (separatorIndex <= 0) {
+    return undefined;
+  }
+
+  const flag = arg.slice(0, separatorIndex);
+  if (!isSecretLikeFlag(flag) && flag !== "--metadata-json") {
+    return undefined;
+  }
+  return `${flag}=<REDACTED>`;
 }
 
 function isSecretLikeFlag(arg: string): boolean {
