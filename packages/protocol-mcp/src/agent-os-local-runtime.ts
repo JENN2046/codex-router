@@ -55,6 +55,8 @@ export const AGENT_OS_MCP_APPROVAL_PERMIT_INVALID =
   "agent_os_mcp_approval_permit_invalid";
 export const AGENT_OS_MCP_APPROVAL_SCOPE_OUTSIDE_PLAN =
   "agent_os_mcp_approval_scope_outside_plan";
+export const AGENT_OS_MCP_APPROVAL_PERMIT_DUPLICATE =
+  "agent_os_mcp_approval_permit_duplicate";
 export const AGENT_OS_MCP_RUN_NOT_FOUND =
   "agent_os_run_not_found";
 export const AGENT_OS_MCP_ARTIFACT_NOT_FOUND =
@@ -89,7 +91,11 @@ export type AgentOsMcpLocalRuntimeOptions = {
   now?: () => string;
   createTaskId?: (input: AgentOsCreateTaskInput) => string;
   createRunId?: (task: Task) => string;
-  createPermitId?: (input: AgentOsApproveRunInput, run: Run) => string;
+  createPermitId?: (
+    input: AgentOsApproveRunInput,
+    run: Run,
+    context: AgentOsApproveRunPermitIdContext
+  ) => string;
   defaultApprovalDurationMs?: number;
 };
 
@@ -183,6 +189,11 @@ const AgentOsSearchEventsInputSchema = z.object({
 export type AgentOsCreateTaskInput = z.infer<typeof AgentOsCreateTaskInputSchema>;
 export type AgentOsApproveRunInput = z.infer<typeof AgentOsApproveRunInputSchema>;
 
+export type AgentOsApproveRunPermitIdContext = {
+  issuedAt: string;
+  expiresAt: string;
+};
+
 export class AgentOsMcpLocalRuntime {
   private readonly kernelStore: KernelStore;
   private readonly providerExecutionPlanStore: ProviderExecutionPlanStore | undefined;
@@ -200,7 +211,11 @@ export class AgentOsMcpLocalRuntime {
   private readonly now: () => string;
   private readonly createTaskId: (input: AgentOsCreateTaskInput) => string;
   private readonly createRunId: (task: Task) => string;
-  private readonly createPermitId: (input: AgentOsApproveRunInput, run: Run) => string;
+  private readonly createPermitId: (
+    input: AgentOsApproveRunInput,
+    run: Run,
+    context: AgentOsApproveRunPermitIdContext
+  ) => string;
   private readonly defaultApprovalDurationMs: number;
   private runtimeEventSequence = 0;
 
@@ -225,7 +240,8 @@ export class AgentOsMcpLocalRuntime {
     this.now = options.now ?? (() => new Date().toISOString());
     this.createTaskId = options.createTaskId ?? ((input) => this.createDefaultTaskId(input));
     this.createRunId = options.createRunId ?? ((task) => this.createDefaultRunId(task));
-    this.createPermitId = options.createPermitId ?? ((input, run) => this.createDefaultPermitId(input, run));
+    this.createPermitId = options.createPermitId
+      ?? ((input, run, context) => this.createDefaultPermitId(input, run, context));
     this.defaultApprovalDurationMs = options.defaultApprovalDurationMs ?? 60 * 60 * 1000;
   }
 
@@ -507,7 +523,10 @@ export class AgentOsMcpLocalRuntime {
     const approver = this.approver ?? principal;
     const planHash = hashApprovalScope(plan);
     const permit = createApprovalPermit({
-      permitId: this.createPermitId(input, run),
+      permitId: this.createPermitId(input, run, {
+        issuedAt: createdAt,
+        expiresAt
+      }),
       taskId: run.taskId,
       runId: run.runId,
       principalId: principal.principalId,
@@ -542,7 +561,23 @@ export class AgentOsMcpLocalRuntime {
       });
     }
 
-    const savedPermit = permitStore.savePermit(permit);
+    let savedPermit;
+    try {
+      savedPermit = permitStore.savePermit(permit);
+    } catch (error) {
+      const blockedReason = approvalPermitSaveBlockedReason(error, permit.permitId);
+      if (blockedReason !== undefined) {
+        return this.createResult("agentos.approve_run", [blockedReason], {
+          status: "blocked"
+        }, {
+          localMutationAttempted: true,
+          localMutationApplied: false,
+          gate
+        });
+      }
+      throw error;
+    }
+
     this.appendRuntimeEvent("kernel.approval.permit.issued", run, {
       publicSurface: this.publicSurface,
       toolName: "agentos.approve_run",
@@ -830,7 +865,11 @@ export class AgentOsMcpLocalRuntime {
     return `run_${sanitizeIdPart(task.taskId)}_001`;
   }
 
-  private createDefaultPermitId(input: AgentOsApproveRunInput, run: Run): string {
+  private createDefaultPermitId(
+    input: AgentOsApproveRunInput,
+    run: Run,
+    context: AgentOsApproveRunPermitIdContext
+  ): string {
     return [
       "permit",
       "agentos_mcp",
@@ -839,8 +878,10 @@ export class AgentOsMcpLocalRuntime {
         runId: run.runId,
         capabilityScopes: input.capabilityScopes,
         reason: input.reason,
-        expiresAt: input.expiresAt
-      }).slice(0, 12)
+        issuedAt: context.issuedAt,
+        expiresAt: context.expiresAt
+      }).slice(0, 12),
+      randomUUID()
     ].join("_");
   }
 }
@@ -917,6 +958,17 @@ function capabilityImpliesSafely(availableScope: string, requestedScope: string)
   } catch {
     return false;
   }
+}
+
+function approvalPermitSaveBlockedReason(error: unknown, permitId: string): string | undefined {
+  if (
+    error instanceof Error
+    && error.message === `duplicate_approval_permit_id:${permitId}`
+  ) {
+    return `${AGENT_OS_MCP_APPROVAL_PERMIT_DUPLICATE}:${permitId}`;
+  }
+
+  return undefined;
 }
 
 type AgentOsOffsetCursorConfig = {

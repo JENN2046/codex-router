@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   AGENT_OS_MCP_ARTIFACT_NOT_FOUND,
+  AGENT_OS_MCP_APPROVAL_PERMIT_DUPLICATE,
   AGENT_OS_MCP_APPROVAL_SCOPE_OUTSIDE_PLAN,
   AGENT_OS_MCP_APPROVAL_STORE_NOT_CONFIGURED,
   AGENT_OS_MCP_LOCAL_MUTATION_DISABLED,
@@ -444,6 +445,137 @@ test("Agent OS MCP local runtime issues an approval permit for a planned run sco
       "kernel.approval.permit.issued"
     ]
   );
+});
+
+test("Agent OS MCP local runtime default approval permit IDs are unique for repeated approvals", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    providerExecutionPlanStore: planStore,
+    approvalPermitStore: permitStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "approval.issue"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.approve_run"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli",
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId
+  });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Create governed task",
+      requestedAction: "Create a run before repeated approval."
+    }
+  });
+  assert.equal(create.status, "succeeded");
+
+  const first = runtime.handleToolCall({
+    toolName: "agentos.approve_run",
+    input: {
+      runId,
+      capabilityScopes: ["fs.read:workspace/docs/report.md"],
+      reason: "review approval"
+    }
+  });
+  const second = runtime.handleToolCall({
+    toolName: "agentos.approve_run",
+    input: {
+      runId,
+      capabilityScopes: ["fs.read:workspace/docs/report.md"],
+      reason: "review approval"
+    }
+  });
+  const firstPermitId = String(first.output.permitId);
+  const secondPermitId = String(second.output.permitId);
+
+  assert.equal(first.status, "succeeded");
+  assert.equal(second.status, "succeeded");
+  assert.match(firstPermitId, /^permit_agentos_mcp_run_agentos_mcp_runtime_001_/);
+  assert.match(secondPermitId, /^permit_agentos_mcp_run_agentos_mcp_runtime_001_/);
+  assert.notEqual(firstPermitId, secondPermitId);
+  assert.equal(permitStore.listPermits({ runId }).length, 2);
+  assert.deepEqual(
+    kernelStore.listEvents({ runId }).map((event) => event.eventType),
+    [
+      "kernel.run.created",
+      "kernel.public_surface.mcp.create_task",
+      "kernel.approval.permit.issued",
+      "kernel.approval.permit.issued"
+    ]
+  );
+});
+
+test("Agent OS MCP local runtime returns blocked instead of throwing on duplicate approval permit IDs", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    providerExecutionPlanStore: planStore,
+    approvalPermitStore: permitStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "approval.issue"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.approve_run"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli",
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId,
+    createPermitId: () => "permit_agentos_mcp_runtime_duplicate"
+  });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Create governed task",
+      requestedAction: "Create a run before duplicate approval."
+    }
+  });
+  assert.equal(create.status, "succeeded");
+
+  const first = runtime.handleToolCall({
+    toolName: "agentos.approve_run",
+    input: {
+      runId,
+      capabilityScopes: ["fs.read:workspace/docs/report.md"],
+      reason: "review approval"
+    }
+  });
+  const second = runtime.handleToolCall({
+    toolName: "agentos.approve_run",
+    input: {
+      runId,
+      capabilityScopes: ["fs.read:workspace/docs/report.md"],
+      reason: "review approval"
+    }
+  });
+
+  assert.equal(first.status, "succeeded");
+  assert.equal(second.status, "blocked");
+  assert.deepEqual(second.reasons, [
+    `${AGENT_OS_MCP_APPROVAL_PERMIT_DUPLICATE}:permit_agentos_mcp_runtime_duplicate`
+  ]);
+  assert.deepEqual(second.output, {
+    status: "blocked"
+  });
+  assert.equal(second.audit.localMutationAttempted, true);
+  assert.equal(second.audit.localMutationApplied, false);
+  assert.equal(permitStore.listPermits({ runId }).length, 1);
 });
 
 test("Agent OS MCP local runtime honors list runs cursor pagination", () => {
