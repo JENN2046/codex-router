@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   AGENT_OS_MCP_ARTIFACT_NOT_FOUND,
-  AGENT_OS_MCP_APPROVAL_RUNTIME_NOT_IMPLEMENTED,
+  AGENT_OS_MCP_APPROVAL_SCOPE_OUTSIDE_PLAN,
+  AGENT_OS_MCP_APPROVAL_STORE_NOT_CONFIGURED,
   AGENT_OS_MCP_LOCAL_MUTATION_DISABLED,
   AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
@@ -32,7 +33,8 @@ import {
   type PolicyDecision
 } from "../packages/kernel-contracts/src/index.js";
 import {
-  hashApprovalScope
+  hashApprovalScope,
+  InMemoryApprovalPermitStore
 } from "../packages/approval-permit/src/index.js";
 import { validArtifact } from "../packages/kernel-contracts/test-fixtures/valid-artifact.js";
 import { validEvent } from "../packages/kernel-contracts/test-fixtures/valid-event.js";
@@ -272,34 +274,176 @@ test("Agent OS MCP local runtime converts cancel failures into blocked results",
   assert.equal(secondCancel.audit.localMutationApplied, false);
 });
 
-test("Agent OS MCP local runtime returns manifest-aligned blocked approve_run output", () => {
+test("Agent OS MCP local runtime blocks approve_run without a permit store", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
   const runtime = createAgentOsMcpLocalRuntime({
-    kernelStore: new InMemoryKernelStore(),
+    kernelStore,
+    providerExecutionPlanStore: planStore,
+    providerRegistry,
     principal: validPrincipal,
-    grantedCapabilities: ["approval.issue"],
-    approvedMutatingTools: ["agentos.approve_run"],
+    policyDecision,
+    executionEligibility: createEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "approval.issue"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.approve_run"],
     allowLocalMutations: true,
-    now: () => now
+    preferredProviderId: "codex-cli",
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId
   });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Create governed task",
+      requestedAction: "Create a run before approval."
+    }
+  });
+  assert.equal(create.status, "succeeded");
 
   const result = runtime.handleToolCall({
     toolName: "agentos.approve_run",
     input: {
       runId,
-      capabilityScopes: ["fs.write:workspace/**"],
+      capabilityScopes: ["fs.read:workspace/docs/report.md"],
       reason: "review approval"
     }
   });
 
   assert.equal(result.status, "blocked");
   assert.deepEqual(result.reasons, [
-    AGENT_OS_MCP_APPROVAL_RUNTIME_NOT_IMPLEMENTED
+    AGENT_OS_MCP_APPROVAL_STORE_NOT_CONFIGURED
   ]);
   assert.deepEqual(result.output, {
     status: "blocked"
   });
   assert.equal(result.audit.localMutationAttempted, true);
   assert.equal(result.audit.localMutationApplied, false);
+});
+
+test("Agent OS MCP local runtime rejects approve_run scopes outside the provider plan", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    providerExecutionPlanStore: planStore,
+    approvalPermitStore: permitStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "approval.issue"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.approve_run"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli",
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId,
+    createPermitId: () => "permit_agentos_mcp_runtime_outside_plan"
+  });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Create governed task",
+      requestedAction: "Create a run before approval."
+    }
+  });
+  assert.equal(create.status, "succeeded");
+
+  const result = runtime.handleToolCall({
+    toolName: "agentos.approve_run",
+    input: {
+      runId,
+      capabilityScopes: ["fs.write:workspace/docs/report.md"],
+      reason: "review approval"
+    }
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    `${AGENT_OS_MCP_APPROVAL_SCOPE_OUTSIDE_PLAN}:fs.write:workspace/docs/report.md`
+  ]);
+  assert.equal(permitStore.listPermits().length, 0);
+  assert.equal(result.audit.localMutationApplied, false);
+});
+
+test("Agent OS MCP local runtime issues an approval permit for a planned run scope", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    providerExecutionPlanStore: planStore,
+    approvalPermitStore: permitStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "approval.issue"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.approve_run"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli",
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId,
+    createPermitId: () => "permit_agentos_mcp_runtime_001"
+  });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Create governed task",
+      requestedAction: "Create a run before approval."
+    }
+  });
+  assert.equal(create.status, "succeeded");
+
+  const approve = runtime.handleToolCall({
+    toolName: "agentos.approve_run",
+    input: {
+      runId,
+      capabilityScopes: ["fs.read:workspace/docs/report.md"],
+      reason: "review approval"
+    }
+  });
+
+  const storedPlan = planStore.listPlans({ runId }).at(-1);
+  const storedPermit = permitStore.getPermit("permit_agentos_mcp_runtime_001");
+  assert.ok(storedPlan);
+  assert.ok(storedPermit);
+  assert.equal(approve.status, "succeeded");
+  assert.deepEqual(approve.reasons, []);
+  assert.deepEqual(approve.output, {
+    permitId: "permit_agentos_mcp_runtime_001",
+    runId,
+    expiresAt: "2026-06-10T01:00:00.000Z"
+  });
+  assert.equal(approve.audit.localMutationAttempted, true);
+  assert.equal(approve.audit.localMutationApplied, true);
+  assert.equal(storedPermit.taskId, taskId);
+  assert.equal(storedPermit.runId, runId);
+  assert.equal(storedPermit.principalId, validPrincipal.principalId);
+  assert.equal(storedPermit.approverId, validPrincipal.principalId);
+  assert.equal(storedPermit.policyDecisionHash, storedPlan.policyDecisionHash);
+  assert.equal(storedPermit.planHash, hashApprovalScope(storedPlan));
+  assert.deepEqual(storedPermit.capabilityScopes, ["fs.read:workspace/docs/report.md"]);
+  assert.deepEqual(
+    kernelStore.listEvents({ runId }).map((event) => event.eventType),
+    [
+      "kernel.run.created",
+      "kernel.public_surface.mcp.create_task",
+      "kernel.approval.permit.issued"
+    ]
+  );
 });
 
 test("Agent OS MCP local runtime honors list runs cursor pagination", () => {

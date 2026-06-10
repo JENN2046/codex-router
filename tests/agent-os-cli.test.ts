@@ -29,7 +29,8 @@ import {
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING
 } from "../packages/protocol-mcp/src/index.js";
 import {
-  hashApprovalScope
+  hashApprovalScope,
+  InMemoryApprovalPermitStore
 } from "../packages/approval-permit/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
@@ -65,6 +66,37 @@ test("Agent OS CLI parser maps create-task argv to a governed tool call", () => 
   assert.deepEqual(parsed.approvedMutatingTools, ["agentos.create_task"]);
   assert.equal(parsed.allowLocalMutations, true);
   assert.equal(parsed.preferredProviderId, "codex-cli");
+});
+
+test("Agent OS CLI parser maps approve-run argv to a governed tool call", () => {
+  const parsed = parseAgentOsCliArgv([
+    "approve-run",
+    "--run-id",
+    runId,
+    "--capability-scope",
+    "fs.read:workspace/docs/report.md",
+    "--expires-at",
+    "2026-06-10T02:00:00.000Z",
+    "--reason",
+    "CLI approval",
+    "--grant",
+    "approval.issue",
+    "--approve-tool",
+    "agentos.approve_run",
+    "--allow-local-mutation"
+  ]);
+
+  assert.equal(parsed.command, "approve-run");
+  assert.equal(parsed.toolName, "agentos.approve_run");
+  assert.deepEqual(parsed.toolInput, {
+    runId,
+    capabilityScopes: ["fs.read:workspace/docs/report.md"],
+    expiresAt: "2026-06-10T02:00:00.000Z",
+    reason: "CLI approval"
+  });
+  assert.deepEqual(parsed.grantedCapabilities, ["approval.issue"]);
+  assert.deepEqual(parsed.approvedMutatingTools, ["agentos.approve_run"]);
+  assert.equal(parsed.allowLocalMutations, true);
 });
 
 test("Agent OS CLI wrapper blocks local mutation by default", () => {
@@ -172,6 +204,78 @@ test("Agent OS CLI wrapper creates a local run and provider plan without spawnin
   assert.deepEqual(
     (searchEvents.output.events as Array<{ eventType: string }>).map((event) => event.eventType),
     ["kernel.public_surface.cli.create_task"]
+  );
+});
+
+test("Agent OS CLI wrapper issues an approval permit without spawning CLI", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const runtimeInput = {
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    approvalPermitStore: permitStore,
+    createPermitId: () => "permit_agentos_cli_001"
+  };
+
+  const create = runAgentOsCliCommand({
+    ...runtimeInput,
+    argv: [
+      "create-task",
+      "--title",
+      "CLI governed task",
+      "--requested-action",
+      "Create a run before CLI approval.",
+      "--grant",
+      "task.create",
+      "--approve-tool",
+      "agentos.create_task",
+      "--allow-local-mutation",
+      "--preferred-provider",
+      "codex-cli"
+    ]
+  });
+  assert.equal(create.status, "succeeded");
+
+  const approve = runAgentOsCliCommand({
+    ...runtimeInput,
+    argv: [
+      "approve-run",
+      "--run-id",
+      runId,
+      "--capability-scope",
+      "fs.read:workspace/docs/report.md",
+      "--reason",
+      "CLI approval",
+      "--grant",
+      "approval.issue",
+      "--approve-tool",
+      "agentos.approve_run",
+      "--allow-local-mutation"
+    ]
+  });
+
+  const storedPermit = permitStore.getPermit("permit_agentos_cli_001");
+  assert.equal(approve.status, "succeeded");
+  assert.equal(approve.surface, "cli");
+  assert.equal(approve.command, "approve-run");
+  assert.equal(approve.audit.publicSurface, "cli");
+  assert.equal(approve.audit.localMutationApplied, true);
+  assert.deepEqual(approve.output, {
+    permitId: "permit_agentos_cli_001",
+    runId,
+    expiresAt: "2026-06-10T02:00:00.000Z"
+  });
+  assert.equal(storedPermit?.runId, runId);
+  assert.deepEqual(storedPermit?.capabilityScopes, ["fs.read:workspace/docs/report.md"]);
+  assert.deepEqual(
+    kernelStore.listEvents({ runId }).map((event) => event.eventType),
+    [
+      "kernel.run.created",
+      "kernel.public_surface.cli.create_task",
+      "kernel.approval.permit.issued"
+    ]
   );
 });
 

@@ -296,7 +296,7 @@ export const agentOsCancelRunMcpToolManifest = defineAgentOsMcpTool({
 export const agentOsApproveRunMcpToolManifest = defineAgentOsMcpTool({
   toolId: "agentos.approve_run",
   name: "agentos.approve_run",
-  description: "Issue an approval permit for a governed run scope. This is a manifest-only declaration.",
+  description: "Issue an approval permit for a governed run scope when a local approval store is configured.",
   inputSchema: {
     type: "object",
     required: ["runId", "capabilityScopes", "reason"],
