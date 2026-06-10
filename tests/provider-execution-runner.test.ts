@@ -171,6 +171,41 @@ test("provider execution runner enforces policy-derived plan invariants before p
   assert.equal(provider.calls.execute, 0);
 });
 
+test("provider execution runner blocks disabled providers before provider hooks", async () => {
+  const planningProvider = createFakeExecutorProvider();
+  const planningRegistry = createRegistry(planningProvider);
+  const task = createTask();
+  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const run = createRun(task, policyDecision, "running");
+  const providerExecutionPlan = planProviderExecution(createPlannerInput({
+    task,
+    run,
+    policyDecision,
+    providerRegistry: planningRegistry,
+    preferredProviderId: planningProvider.manifest.providerId
+  }));
+  const disabledProvider = createFakeExecutorProvider({ enabled: false });
+  const disabledRegistry = createRegistry(disabledProvider);
+
+  const result = await runProviderExecutionPlanDryRun({
+    providerExecutionPlan,
+    task,
+    run,
+    principal: validPrincipal,
+    policyDecision,
+    providerRegistry: disabledRegistry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("provider_disabled:fake-executor"));
+  assert.equal(disabledProvider.calls.planExecution, 0);
+  assert.equal(disabledProvider.calls.validateExecutionPlan, 0);
+  assert.equal(disabledProvider.calls.execute, 0);
+});
+
 test("provider execution runner requires the parent run to be running", async () => {
   const provider = createFakeExecutorProvider();
   const registry = createRegistry(provider);
@@ -323,6 +358,45 @@ test("provider execution runner enforces executor plan invariants before provide
   assert.ok(result.reasons.includes("executor_plan_policy_decision_hash_mismatch"));
   assert.ok(result.reasons.includes("executor_plan_sandbox_profile_mismatch"));
   assert.ok(result.reasons.includes("executor_plan_side_effect_class_mismatch:workspace_write:read_only"));
+  assert.equal(provider.calls.planExecution, 1);
+  assert.equal(provider.calls.validateExecutionPlan, 0);
+  assert.equal(provider.calls.execute, 0);
+  assert.deepEqual(result.validation?.reasons, result.reasons.slice(1));
+});
+
+test("provider execution runner enforces executor inputHash before provider validation", async () => {
+  const provider = createFakeExecutorProvider({
+    executorPlanOverrides: {
+      inputHash: "0".repeat(64)
+    }
+  });
+  const registry = createRegistry(provider);
+  const task = createTask();
+  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const run = createRun(task, policyDecision, "running");
+  const providerExecutionPlan = planProviderExecution(createPlannerInput({
+    task,
+    run,
+    policyDecision,
+    providerRegistry: registry,
+    preferredProviderId: provider.manifest.providerId
+  }));
+
+  const result = await runProviderExecutionPlanDryRun({
+    providerExecutionPlan,
+    task,
+    run,
+    principal: validPrincipal,
+    policyDecision,
+    providerRegistry: registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "validation_failed");
+  assert.ok(result.reasons.includes("executor_plan_invariant_mismatch"));
+  assert.ok(result.reasons.includes("executor_plan_input_hash_mismatch"));
   assert.equal(provider.calls.planExecution, 1);
   assert.equal(provider.calls.validateExecutionPlan, 0);
   assert.equal(provider.calls.execute, 0);
@@ -568,13 +642,16 @@ type FakeExecutorProvider = ExecutorProvider & {
 function createFakeExecutorProvider(options: {
   validation?: ExecutionValidationResult;
   executorPlanOverrides?: Partial<ExecutorExecutionPlan>;
+  enabled?: boolean;
 } = {}): FakeExecutorProvider {
   const calls = {
     planExecution: 0,
     validateExecutionPlan: 0,
     execute: 0
   };
-  const manifest = createFakeExecutorManifest();
+  const manifest = createFakeExecutorManifest({
+    enabled: options.enabled ?? true
+  });
 
   return {
     manifest,
@@ -588,7 +665,7 @@ function createFakeExecutorProvider(options: {
         runId: input.run.runId,
         taskId: input.task.taskId,
         providerId: manifest.providerId,
-        inputHash: "1".repeat(64),
+        inputHash: input.inputHash ?? "1".repeat(64),
         policyDecisionHash: hashApprovalScope(input.policyDecision),
         requiredCapabilities: ["fs.read:workspace/**"],
         approvalRequired: false,
@@ -618,7 +695,9 @@ function createFakeExecutorProvider(options: {
   };
 }
 
-function createFakeExecutorManifest(): ProviderManifest {
+function createFakeExecutorManifest(options: {
+  enabled?: boolean;
+} = {}): ProviderManifest {
   return parseProviderManifest({
     schemaVersion: "provider-manifest.v1",
     providerId: "fake-executor",
@@ -639,7 +718,7 @@ function createFakeExecutorManifest(): ProviderManifest {
     },
     supportedSandboxProfiles: [createSandboxProfile()],
     supportedSideEffectClasses: ["read_only"],
-    enabled: true,
+    enabled: options.enabled ?? true,
     metadata: {}
   });
 }

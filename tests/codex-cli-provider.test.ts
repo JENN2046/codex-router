@@ -69,6 +69,22 @@ test("codex cli provider creates a read-only plan without storing the prompt", (
   });
 });
 
+test("codex cli provider echoes supplied execution inputHash", () => {
+  const provider = new CodexCliExecutorProvider();
+  const inputHash = "a".repeat(64);
+  const plan = provider.planExecution({
+    ...createExecutionInput({
+      taskId: "task_codex_cli_provider_supplied_input_hash",
+      taskClass: "read_only",
+      sandboxMode: "read-only"
+    }),
+    inputHash
+  });
+
+  assert.equal(plan.inputHash, inputHash);
+  assert.equal(provider.validateExecutionPlan(plan).valid, true);
+});
+
 test("codex cli workspace-write plan requires a workspace-write policy decision", () => {
   const provider = new CodexCliExecutorProvider();
   const task = createTask({

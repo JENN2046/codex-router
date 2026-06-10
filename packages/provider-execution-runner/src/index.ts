@@ -154,6 +154,7 @@ export async function runProviderExecutionPlanDryRun(
       run,
       policyDecision,
       sandboxProfile: providerExecutionPlan.sandboxProfile,
+      inputHash: providerExecutionPlan.inputHash,
       ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
       now: input.now()
     }));
@@ -296,6 +297,8 @@ function collectRunnerPreflightReasons(input: {
   const entry = input.providerRegistry.getProvider(input.providerExecutionPlan.providerId);
   if (entry === undefined) {
     reasons.push(`provider_not_found:${input.providerExecutionPlan.providerId}`);
+  } else if (!entry.manifest.enabled) {
+    reasons.push(`provider_disabled:${input.providerExecutionPlan.providerId}`);
   } else if (entry.manifest.kind !== input.providerExecutionPlan.providerKind) {
     reasons.push(
       `provider_kind_mismatch:${entry.manifest.kind}:${input.providerExecutionPlan.providerKind}`
@@ -359,6 +362,10 @@ function collectExecutorPlanInvariantReasons(input: {
 
   if (executorPlan.policyDecisionHash !== providerExecutionPlan.policyDecisionHash) {
     reasons.push("executor_plan_policy_decision_hash_mismatch");
+  }
+
+  if (executorPlan.inputHash !== providerExecutionPlan.inputHash) {
+    reasons.push("executor_plan_input_hash_mismatch");
   }
 
   if (!equalStringSets(executorPlan.requiredCapabilities, providerExecutionPlan.requiredCapabilities)) {

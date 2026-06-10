@@ -175,7 +175,7 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
     );
     const policyDecisionHash = hashKernelObject(input.policyDecision);
     const routingDecisionHash = hashKernelObject(parsedRoutingDecision);
-    const inputHash = createCodexCliProviderInputHash(input);
+    const inputHash = input.inputHash ?? createCodexCliProviderInputHash(input);
     const metadata: CodexCliProviderPlanMetadata = {
       schemaVersion: "codex-cli-provider-plan-metadata.v1",
       promptStorage: "omitted",
