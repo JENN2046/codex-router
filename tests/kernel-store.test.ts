@@ -324,6 +324,34 @@ test("file kernel store does not remove a fresh lock during stale cleanup", asyn
   }
 });
 
+test("file kernel store does not remove a stale-looking lock owned by a live process", async () => {
+  const baseDir = await createKernelStoreTempDir();
+  try {
+    const lockPath = join(baseDir, ".kernel-store.lock");
+    const lockPayload = `${JSON.stringify({
+      token: "live-owner",
+      pid: process.pid,
+      createdAt: "2000-01-01T00:00:00.000Z"
+    })}\n`;
+    await writeFile(lockPath, lockPayload, "utf8");
+    await utimes(lockPath, new Date(0), new Date(0));
+    const store = new FileSystemKernelStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 1
+    });
+
+    assert.throws(
+      () => store.createRun(createRun({ runId: "run_kernel_store_live_lock_001" })),
+      /kernel_store_lock_timeout:/
+    );
+    assert.equal(await readFile(lockPath, "utf8"), lockPayload);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
 function createRun(overrides: Partial<Run> = {}): Run {
   return RunSchema.parse({
     ...validRun,
