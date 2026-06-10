@@ -1,3 +1,11 @@
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync
+} from "node:fs";
+import { join, resolve } from "node:path";
 import { z } from "zod";
 import {
   SandboxProfileSchema,
@@ -38,6 +46,35 @@ export type ProviderRegistryFilter = {
   sideEffectClass?: ProviderSideEffectClass;
   sandboxProfile?: SandboxProfile;
 };
+
+export type FileSystemProviderManifestStoreOptions = {
+  baseDir: string;
+  stateFileName?: string;
+};
+
+export interface ProviderManifestStore {
+  saveManifest(
+    manifest: ProviderManifest | z.input<typeof ProviderManifestSchema>
+  ): ProviderManifest;
+  getManifest(providerId: string): ProviderManifest | undefined;
+  listManifests(filter?: ProviderRegistryFilter): ProviderManifest[];
+  deleteManifest(providerId: string): boolean;
+}
+
+const ProviderManifestStoreStateSchema = z.object({
+  schemaVersion: z.literal("provider-manifest-store.v1"),
+  manifests: z.array(ProviderManifestSchema)
+}).superRefine((state, ctx) => {
+  for (const duplicate of findDuplicateStrings(state.manifests.map((manifest) => manifest.providerId))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `duplicate_provider_manifest_id:${duplicate}`,
+      path: ["manifests"]
+    });
+  }
+});
+
+type ProviderManifestStoreState = z.infer<typeof ProviderManifestStoreStateSchema>;
 
 export class ProviderRegistry {
   private readonly entries = new Map<string, ProviderRegistryEntry>();
@@ -143,6 +180,112 @@ export class ProviderRegistry {
   }
 }
 
+export class InMemoryProviderManifestStore implements ProviderManifestStore {
+  private readonly manifests = new Map<string, ProviderManifest>();
+
+  saveManifest(
+    manifestInput: ProviderManifest | z.input<typeof ProviderManifestSchema>
+  ): ProviderManifest {
+    const manifest = parseProviderManifestForStorage(manifestInput);
+    if (this.manifests.has(manifest.providerId)) {
+      throw new Error(`duplicate_provider_manifest_id:${manifest.providerId}`);
+    }
+
+    this.manifests.set(manifest.providerId, cloneManifest(manifest));
+    return cloneManifest(manifest);
+  }
+
+  getManifest(providerId: string): ProviderManifest | undefined {
+    const manifest = this.manifests.get(providerId);
+    return manifest === undefined ? undefined : cloneManifest(manifest);
+  }
+
+  listManifests(filter: ProviderRegistryFilter = {}): ProviderManifest[] {
+    return [...this.manifests.values()]
+      .filter((manifest) => providerManifestMatchesFilter(manifest, filter))
+      .map(cloneManifest);
+  }
+
+  deleteManifest(providerId: string): boolean {
+    return this.manifests.delete(providerId);
+  }
+}
+
+export class FileSystemProviderManifestStore implements ProviderManifestStore {
+  private readonly baseDir: string;
+  private readonly statePath: string;
+
+  constructor(options: FileSystemProviderManifestStoreOptions) {
+    this.baseDir = resolve(options.baseDir);
+    this.statePath = join(this.baseDir, options.stateFileName ?? "provider-manifests.json");
+  }
+
+  saveManifest(
+    manifestInput: ProviderManifest | z.input<typeof ProviderManifestSchema>
+  ): ProviderManifest {
+    const manifest = parseProviderManifestForStorage(manifestInput);
+    const state = this.readState();
+    if (state.manifests.some((item) => item.providerId === manifest.providerId)) {
+      throw new Error(`duplicate_provider_manifest_id:${manifest.providerId}`);
+    }
+
+    state.manifests.push(cloneManifest(manifest));
+    this.writeState(state);
+    return cloneManifest(manifest);
+  }
+
+  getManifest(providerId: string): ProviderManifest | undefined {
+    const manifest = this.readState().manifests.find((item) => item.providerId === providerId);
+    return manifest === undefined ? undefined : cloneManifest(manifest);
+  }
+
+  listManifests(filter: ProviderRegistryFilter = {}): ProviderManifest[] {
+    return this.readState().manifests
+      .filter((manifest) => providerManifestMatchesFilter(manifest, filter))
+      .map(cloneManifest);
+  }
+
+  deleteManifest(providerId: string): boolean {
+    const state = this.readState();
+    const nextManifests = state.manifests.filter((manifest) => manifest.providerId !== providerId);
+    if (nextManifests.length === state.manifests.length) {
+      return false;
+    }
+
+    this.writeState({
+      ...state,
+      manifests: nextManifests
+    });
+    return true;
+  }
+
+  private readState(): ProviderManifestStoreState {
+    this.ensureBaseDir();
+    if (!existsSync(this.statePath)) {
+      return createEmptyProviderManifestStoreState();
+    }
+
+    return ProviderManifestStoreStateSchema.parse(
+      JSON.parse(readFileSync(this.statePath, "utf8"))
+    );
+  }
+
+  private writeState(state: ProviderManifestStoreState): void {
+    this.ensureBaseDir();
+    const parsed = ProviderManifestStoreStateSchema.parse(state);
+    const tempPath = join(
+      this.baseDir,
+      `provider-manifests.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+    );
+    writeFileSync(tempPath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+    renameSync(tempPath, this.statePath);
+  }
+
+  private ensureBaseDir(): void {
+    mkdirSync(this.baseDir, { recursive: true });
+  }
+}
+
 function assertProviderManifestMatches(
   manifest: ProviderManifest,
   providerManifest: ProviderManifest
@@ -156,6 +299,16 @@ export function createProviderRegistry(): ProviderRegistry {
   return new ProviderRegistry();
 }
 
+export function createInMemoryProviderManifestStore(): InMemoryProviderManifestStore {
+  return new InMemoryProviderManifestStore();
+}
+
+export function createFileSystemProviderManifestStore(
+  options: FileSystemProviderManifestStoreOptions
+): FileSystemProviderManifestStore {
+  return new FileSystemProviderManifestStore(options);
+}
+
 function providerMatchesEnabledFilter(
   entry: ProviderRegistryEntry,
   filter: ProviderRegistryFilter
@@ -165,6 +318,54 @@ function providerMatchesEnabledFilter(
   }
 
   return filter.includeDisabled === true || entry.manifest.enabled;
+}
+
+function providerManifestMatchesFilter(
+  manifest: ProviderManifest,
+  filter: ProviderRegistryFilter
+): boolean {
+  const kind = filter.kind === undefined
+    ? undefined
+    : ProviderKindSchema.parse(filter.kind);
+  const sideEffectClass = filter.sideEffectClass === undefined
+    ? undefined
+    : ProviderSideEffectClassSchema.parse(filter.sideEffectClass);
+  const sandboxProfile = filter.sandboxProfile === undefined
+    ? undefined
+    : SandboxProfileSchema.parse(filter.sandboxProfile);
+
+  return providerManifestMatchesEnabledFilter(manifest, filter)
+    && (kind === undefined || manifest.kind === kind)
+    && (
+      sideEffectClass === undefined
+      || providerSupportsSideEffectClass(manifest, sideEffectClass)
+    )
+    && (
+      sandboxProfile === undefined
+      || providerSupportsSandboxProfile(manifest, sandboxProfile)
+    );
+}
+
+function providerManifestMatchesEnabledFilter(
+  manifest: ProviderManifest,
+  filter: ProviderRegistryFilter
+): boolean {
+  if (filter.enabled !== undefined) {
+    return manifest.enabled === filter.enabled;
+  }
+
+  return filter.includeDisabled === true || manifest.enabled;
+}
+
+function parseProviderManifestForStorage(
+  manifestInput: ProviderManifest | z.input<typeof ProviderManifestSchema>
+): ProviderManifest {
+  assertSecurityBoundaryPresent(manifestInput);
+  const manifest = ProviderManifestSchema.parse(manifestInput);
+  if (manifest.kind === "remote_agent") {
+    assertRemoteAgentAuthSchemes(manifest);
+  }
+  return manifest;
 }
 
 function assertSecurityBoundaryPresent(
@@ -287,6 +488,27 @@ function cloneEntry(entry: ProviderRegistryEntry): ProviderRegistryEntry {
 
 function cloneManifest(manifest: ProviderManifest): ProviderManifest {
   return structuredClone(manifest) as ProviderManifest;
+}
+
+function createEmptyProviderManifestStoreState(): ProviderManifestStoreState {
+  return {
+    schemaVersion: "provider-manifest-store.v1",
+    manifests: []
+  };
+}
+
+function findDuplicateStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+
+  for (const value of values) {
+    if (seen.has(value)) {
+      duplicates.add(value);
+    }
+    seen.add(value);
+  }
+
+  return [...duplicates];
 }
 
 function stableStringify(input: unknown): string {

@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryScheduler } from "../packages/scheduler/src/index.js";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  FileSystemScheduler,
+  InMemoryScheduler
+} from "../packages/scheduler/src/index.js";
 
 test("scheduler enqueues and acquires a run lease", () => {
   const clock = createClock();
@@ -169,6 +175,113 @@ test("scheduler lists queue and leases as stable snapshots", () => {
   assert.equal(scheduler.listLeases()[0]?.status, "active");
 });
 
+test("file scheduler persists queue and leases across instances", async () => {
+  const baseDir = await createSchedulerTempDir();
+  try {
+    const clock = createClock();
+    const first = new FileSystemScheduler({
+      baseDir,
+      clock,
+      defaultLeaseDurationMs: 60_000
+    });
+
+    first.enqueueRun("run_scheduler_file_001", { maxAttempts: 2 });
+    const lease = first.acquireLease("worker_001");
+    assert.ok(lease);
+
+    const second = new FileSystemScheduler({ baseDir, clock });
+
+    assert.equal(second.listQueue()[0]?.status, "leased");
+    assert.equal(second.listLeases()[0]?.leaseId, lease.leaseId);
+    assert.equal(second.acquireLease("worker_002"), undefined);
+    assert.equal(
+      second.listLeases().filter((item) => item.status === "active").length,
+      1
+    );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file scheduler reacquires expired leases across instances", async () => {
+  const baseDir = await createSchedulerTempDir();
+  try {
+    const clock = createClock();
+    const first = new FileSystemScheduler({
+      baseDir,
+      clock,
+      defaultLeaseDurationMs: 60_000
+    });
+
+    first.enqueueRun("run_scheduler_file_expired_001", { maxAttempts: 2 });
+    const firstLease = first.acquireLease("worker_001");
+    assert.ok(firstLease);
+
+    clock.set("2026-06-04T00:01:01.000Z");
+    const second = new FileSystemScheduler({ baseDir, clock });
+    const secondLease = second.acquireLease("worker_002");
+
+    assert.ok(secondLease);
+    assert.equal(secondLease.runId, firstLease.runId);
+    assert.equal(secondLease.workerId, "worker_002");
+    assert.equal(secondLease.attempt, 2);
+    assert.deepEqual(
+      second.listLeases().map((lease) => lease.status),
+      ["expired", "active"]
+    );
+    assert.equal(second.listQueue()[0]?.status, "leased");
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file scheduler persists release and completion across instances", async () => {
+  const baseDir = await createSchedulerTempDir();
+  try {
+    const clock = createClock();
+    const first = new FileSystemScheduler({ baseDir, clock });
+
+    first.enqueueRun("run_scheduler_file_release_001");
+    const lease = first.acquireLease("worker_001");
+    assert.ok(lease);
+    first.releaseLease(lease.leaseId, { summary: "done" });
+
+    const second = new FileSystemScheduler({ baseDir, clock });
+    const released = second.listLeases()[0];
+
+    assert.equal(second.listQueue()[0]?.status, "completed");
+    assert.equal(released?.status, "released");
+    assert.deepEqual(released?.result, { summary: "done" });
+    assert.throws(
+      () => second.enqueueRun("run_scheduler_file_release_001"),
+      /run_not_enqueueable:completed/
+    );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file scheduler refuses state mutation while another lock is present", async () => {
+  const baseDir = await createSchedulerTempDir();
+  try {
+    await writeFile(join(baseDir, ".scheduler.lock"), "{\"token\":\"held\"}\n", "utf8");
+    const scheduler = new FileSystemScheduler({
+      baseDir,
+      clock: createClock(),
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 60_000
+    });
+
+    assert.throws(
+      () => scheduler.enqueueRun("run_scheduler_file_locked_001"),
+      /scheduler_lock_timeout:/
+    );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
 function createClock(initial = "2026-06-04T00:00:00.000Z"): {
   now(): string;
   set(value: string): void;
@@ -180,4 +293,8 @@ function createClock(initial = "2026-06-04T00:00:00.000Z"): {
       current = value;
     }
   };
+}
+
+async function createSchedulerTempDir(): Promise<string> {
+  return mkdtemp(join(tmpdir(), "codex-router-scheduler-"));
 }
