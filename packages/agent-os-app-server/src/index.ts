@@ -125,7 +125,8 @@ export function routeAgentOsAppServerRequest(
         taskId: "taskId",
         runId: "runId",
         kind: "kind",
-        limit: "limit"
+        limit: "limit",
+        cursor: "cursor"
       })
     };
   }
@@ -148,7 +149,8 @@ export function routeAgentOsAppServerRequest(
         taskId: "taskId",
         runId: "runId",
         eventTypes: "eventTypes",
-        limit: "limit"
+        limit: "limit",
+        cursor: "cursor"
       })
     };
   }

@@ -19,14 +19,20 @@ import {
   CodexCliExecutorProvider
 } from "../packages/providers/codex-cli/src/index.js";
 import {
+  ArtifactSchema,
   CapabilityScopeSchema,
+  EventSchema,
   PolicyDecisionSchema,
   SandboxProfileSchema,
+  type Artifact,
+  type Event,
   type PolicyDecision
 } from "../packages/kernel-contracts/src/index.js";
 import {
   hashApprovalScope
 } from "../packages/approval-permit/src/index.js";
+import { validArtifact } from "../packages/kernel-contracts/test-fixtures/valid-artifact.js";
+import { validEvent } from "../packages/kernel-contracts/test-fixtures/valid-event.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 
@@ -264,6 +270,110 @@ test("Agent OS MCP local runtime rejects invalid list runs cursors", () => {
   }), /agent_os_list_runs_invalid_cursor:not-a-list-runs-cursor/);
 });
 
+test("Agent OS MCP local runtime honors artifact and event cursors", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    principal: validPrincipal,
+    grantedCapabilities: ["artifact.read", "event.read"],
+    now: () => now
+  });
+
+  for (const index of [1, 2, 3]) {
+    kernelStore.createArtifact(createArtifact(index));
+    kernelStore.appendEvent(createEvent(index));
+  }
+
+  const artifactFirstPage = runtime.handleToolCall({
+    toolName: "agentos.list_artifacts",
+    input: {
+      kind: "evidence",
+      limit: 2
+    }
+  });
+  const artifactCursor = artifactFirstPage.output.nextCursor;
+
+  assert.equal(artifactFirstPage.status, "succeeded");
+  assert.deepEqual(
+    (artifactFirstPage.output.artifacts as Array<{ artifactId: string }>).map((artifact) => (
+      artifact.artifactId
+    )),
+    ["artifact_agentos_mcp_runtime_001", "artifact_agentos_mcp_runtime_002"]
+  );
+  assert.equal(typeof artifactCursor, "string");
+
+  const artifactSecondPage = runtime.handleToolCall({
+    toolName: "agentos.list_artifacts",
+    input: {
+      kind: "evidence",
+      limit: 2,
+      cursor: artifactCursor
+    }
+  });
+
+  assert.deepEqual(
+    (artifactSecondPage.output.artifacts as Array<{ artifactId: string }>).map((artifact) => (
+      artifact.artifactId
+    )),
+    ["artifact_agentos_mcp_runtime_003"]
+  );
+  assert.equal(artifactSecondPage.output.nextCursor, undefined);
+
+  const eventFirstPage = runtime.handleToolCall({
+    toolName: "agentos.search_events",
+    input: {
+      query: "cursor-pagination",
+      limit: 2
+    }
+  });
+  const eventCursor = eventFirstPage.output.nextCursor;
+
+  assert.equal(eventFirstPage.status, "succeeded");
+  assert.deepEqual(
+    (eventFirstPage.output.events as Array<{ eventId: string }>).map((event) => event.eventId),
+    ["event_agentos_mcp_runtime_001", "event_agentos_mcp_runtime_002"]
+  );
+  assert.equal(typeof eventCursor, "string");
+
+  const eventSecondPage = runtime.handleToolCall({
+    toolName: "agentos.search_events",
+    input: {
+      query: "cursor-pagination",
+      limit: 2,
+      cursor: eventCursor
+    }
+  });
+
+  assert.deepEqual(
+    (eventSecondPage.output.events as Array<{ eventId: string }>).map((event) => event.eventId),
+    ["event_agentos_mcp_runtime_003"]
+  );
+  assert.equal(eventSecondPage.output.nextCursor, undefined);
+});
+
+test("Agent OS MCP local runtime rejects invalid artifact and event cursors", () => {
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["artifact.read", "event.read"],
+    now: () => now
+  });
+
+  assert.throws(() => runtime.handleToolCall({
+    toolName: "agentos.list_artifacts",
+    input: {
+      cursor: "not-an-artifact-cursor"
+    }
+  }), /agent_os_list_artifacts_invalid_cursor:not-an-artifact-cursor/);
+
+  assert.throws(() => runtime.handleToolCall({
+    toolName: "agentos.search_events",
+    input: {
+      cursor: "not-an-event-cursor"
+    }
+  }), /agent_os_search_events_invalid_cursor:not-an-event-cursor/);
+});
+
 function createProviderRegistry(): ProviderRegistry {
   const registry = new ProviderRegistry();
   const provider = new CodexCliExecutorProvider();
@@ -331,4 +441,36 @@ function createEligibility(policyDecision: PolicyDecision) {
     rejectedPermits: [],
     createdAt: now
   };
+}
+
+function createArtifact(index: number): Artifact {
+  return ArtifactSchema.parse({
+    ...validArtifact,
+    artifactId: `artifact_agentos_mcp_runtime_${String(index).padStart(3, "0")}`,
+    taskId,
+    runId,
+    kind: "evidence",
+    uri: `memory://agent-os-mcp-runtime/artifact-${index}`,
+    sha256: String(index).repeat(64),
+    sizeBytes: index,
+    createdAt: now,
+    metadata: {
+      marker: "cursor-pagination"
+    }
+  });
+}
+
+function createEvent(index: number): Event {
+  return EventSchema.parse({
+    ...validEvent,
+    eventId: `event_agentos_mcp_runtime_${String(index).padStart(3, "0")}`,
+    eventType: "kernel.public_surface.mcp.cursor-pagination",
+    taskId,
+    runId,
+    createdAt: now,
+    payload: {
+      marker: "cursor-pagination",
+      index
+    }
+  });
 }

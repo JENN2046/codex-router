@@ -36,7 +36,18 @@ export const AGENT_OS_MCP_TOOL_CAPABILITY_MISSING =
   "agent_os_mcp_tool_capability_missing";
 export const AGENT_OS_MCP_APPROVAL_RUNTIME_NOT_IMPLEMENTED =
   "agent_os_mcp_approval_runtime_not_implemented";
-const AGENT_OS_LIST_RUNS_CURSOR_PREFIX = "agentos-list-runs:";
+const AGENT_OS_LIST_RUNS_CURSOR = {
+  prefix: "agentos-list-runs:",
+  invalidReason: "agent_os_list_runs_invalid_cursor"
+} as const;
+const AGENT_OS_LIST_ARTIFACTS_CURSOR = {
+  prefix: "agentos-list-artifacts:",
+  invalidReason: "agent_os_list_artifacts_invalid_cursor"
+} as const;
+const AGENT_OS_SEARCH_EVENTS_CURSOR = {
+  prefix: "agentos-search-events:",
+  invalidReason: "agent_os_search_events_invalid_cursor"
+} as const;
 
 export type AgentOsMcpLocalRuntimeOptions = {
   kernelStore: KernelStore;
@@ -318,15 +329,11 @@ export class AgentOsMcpLocalRuntime {
       ...(input.taskId ? { taskId: input.taskId } : {}),
       ...(input.status ? { status: input.status } : {})
     });
-    const offset = parseListRunsCursor(input.cursor);
-    const runs = allRuns.slice(offset, offset + input.limit);
-    const nextOffset = offset + runs.length;
+    const page = pageByOffset(allRuns, input.limit, input.cursor, AGENT_OS_LIST_RUNS_CURSOR);
 
     return this.createResult("agentos.list_runs", [], {
-      runs,
-      ...(nextOffset < allRuns.length ? {
-        nextCursor: formatListRunsCursor(nextOffset)
-      } : {})
+      runs: page.items,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
     }, {
       localMutationAttempted: false,
       localMutationApplied: false,
@@ -379,14 +386,21 @@ export class AgentOsMcpLocalRuntime {
     gate: AgentOsMcpLocalRuntimeGate
   ): AgentOsMcpLocalRuntimeResult {
     const input = AgentOsListArtifactsInputSchema.parse(call.input ?? {});
-    const artifacts = this.kernelStore.listArtifacts({
+    const allArtifacts = this.kernelStore.listArtifacts({
       ...(input.taskId ? { taskId: input.taskId } : {}),
       ...(input.runId ? { runId: input.runId } : {}),
       ...(input.kind ? { type: input.kind } : {})
-    }).slice(0, input.limit);
+    });
+    const page = pageByOffset(
+      allArtifacts,
+      input.limit,
+      input.cursor,
+      AGENT_OS_LIST_ARTIFACTS_CURSOR
+    );
 
     return this.createResult("agentos.list_artifacts", [], {
-      artifacts
+      artifacts: page.items,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
     }, {
       localMutationAttempted: false,
       localMutationApplied: false,
@@ -426,8 +440,11 @@ export class AgentOsMcpLocalRuntime {
       events = events.filter((event) => eventMatchesQuery(event, input.query!));
     }
 
+    const page = pageByOffset(events, input.limit, input.cursor, AGENT_OS_SEARCH_EVENTS_CURSOR);
+
     return this.createResult("agentos.search_events", [], {
-      events: events.slice(0, input.limit)
+      events: page.items,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
     }, {
       localMutationAttempted: false,
       localMutationApplied: false,
@@ -637,25 +654,51 @@ function eventMatchesQuery(event: Event, query: string): boolean {
     || JSON.stringify(event.payload).toLowerCase().includes(normalizedQuery);
 }
 
-function parseListRunsCursor(cursor: string | undefined): number {
+function pageByOffset<T>(
+  items: T[],
+  limit: number,
+  cursor: string | undefined,
+  config: AgentOsOffsetCursorConfig
+): {
+  items: T[];
+  nextCursor?: string;
+} {
+  const offset = parseOffsetCursor(cursor, config);
+  const pageItems = items.slice(offset, offset + limit);
+  const nextOffset = offset + pageItems.length;
+
+  return {
+    items: pageItems,
+    ...(nextOffset < items.length ? {
+      nextCursor: formatOffsetCursor(nextOffset, config)
+    } : {})
+  };
+}
+
+type AgentOsOffsetCursorConfig = {
+  prefix: string;
+  invalidReason: string;
+};
+
+function parseOffsetCursor(cursor: string | undefined, config: AgentOsOffsetCursorConfig): number {
   if (cursor === undefined) {
     return 0;
   }
 
-  if (!cursor.startsWith(AGENT_OS_LIST_RUNS_CURSOR_PREFIX)) {
-    throw new Error(`agent_os_list_runs_invalid_cursor:${cursor}`);
+  if (!cursor.startsWith(config.prefix)) {
+    throw new Error(`${config.invalidReason}:${cursor}`);
   }
 
-  const offset = Number(cursor.slice(AGENT_OS_LIST_RUNS_CURSOR_PREFIX.length));
-  if (!Number.isInteger(offset) || offset < 0) {
-    throw new Error(`agent_os_list_runs_invalid_cursor:${cursor}`);
+  const rawOffset = cursor.slice(config.prefix.length);
+  if (!/^\d+$/.test(rawOffset)) {
+    throw new Error(`${config.invalidReason}:${cursor}`);
   }
 
-  return offset;
+  return Number(rawOffset);
 }
 
-function formatListRunsCursor(offset: number): string {
-  return `${AGENT_OS_LIST_RUNS_CURSOR_PREFIX}${offset}`;
+function formatOffsetCursor(offset: number, config: AgentOsOffsetCursorConfig): string {
+  return `${config.prefix}${offset}`;
 }
 
 function sanitizeIdPart(value: string): string {
