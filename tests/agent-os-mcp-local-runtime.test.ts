@@ -142,6 +142,48 @@ test("Agent OS MCP local runtime creates a governed run and provider plan withou
   );
 });
 
+test("Agent OS MCP local runtime default IDs do not collide for repeated titles", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const firstRuntime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    principal: validPrincipal,
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    now: () => now
+  });
+  const secondRuntime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    principal: validPrincipal,
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    now: () => now
+  });
+  const input = {
+    title: "Fix tests",
+    requestedAction: "Create a repeated-title task through the local MCP wrapper."
+  };
+
+  const first = firstRuntime.handleToolCall({
+    toolName: "agentos.create_task",
+    input
+  });
+  const second = secondRuntime.handleToolCall({
+    toolName: "agentos.create_task",
+    input
+  });
+
+  assert.equal(first.status, "succeeded");
+  assert.equal(second.status, "succeeded");
+  assert.notEqual(first.output.taskId, second.output.taskId);
+  assert.notEqual(first.output.runId, second.output.runId);
+  assert.deepEqual(
+    kernelStore.listRuns().map((run) => run.runId),
+    [first.output.runId, second.output.runId]
+  );
+});
+
 function createProviderRegistry(): ProviderRegistry {
   const registry = new ProviderRegistry();
   const provider = new CodexCliExecutorProvider();

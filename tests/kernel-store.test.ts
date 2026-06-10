@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -272,6 +272,26 @@ test("file kernel store rejects duplicate ids after reload", async () => {
     assert.throws(() => second.createStep(step), /duplicate_step_id/);
     assert.throws(() => second.appendEvent(event), /duplicate_event_id/);
     assert.throws(() => second.createArtifact(artifact), /duplicate_artifact_id/);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file kernel store refuses state mutation while another lock is present", async () => {
+  const baseDir = await createKernelStoreTempDir();
+  try {
+    await writeFile(join(baseDir, ".kernel-store.lock"), "{\"token\":\"held\"}\n", "utf8");
+    const store = new FileSystemKernelStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 60_000
+    });
+
+    assert.throws(
+      () => store.createRun(createRun()),
+      /kernel_store_lock_timeout:/
+    );
   } finally {
     await rm(baseDir, { recursive: true, force: true });
   }

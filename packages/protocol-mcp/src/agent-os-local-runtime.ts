@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   EventSchema,
@@ -174,8 +175,8 @@ export class AgentOsMcpLocalRuntime {
     this.preferredProviderId = options.preferredProviderId;
     this.publicSurface = options.publicSurface ?? "mcp";
     this.now = options.now ?? (() => new Date().toISOString());
-    this.createTaskId = options.createTaskId ?? defaultCreateTaskId;
-    this.createRunId = options.createRunId ?? defaultCreateRunId;
+    this.createTaskId = options.createTaskId ?? ((input) => this.createDefaultTaskId(input));
+    this.createRunId = options.createRunId ?? ((task) => this.createDefaultRunId(task));
   }
 
   handleToolCall(call: AgentOsMcpLocalToolCall): AgentOsMcpLocalRuntimeResult {
@@ -579,6 +580,18 @@ export class AgentOsMcpLocalRuntime {
       }
     };
   }
+
+  private createDefaultTaskId(input: AgentOsCreateTaskInput): string {
+    return [
+      "task_agentos_mcp",
+      sanitizeIdPart(input.title).toLowerCase(),
+      randomUUID()
+    ].join("_");
+  }
+
+  private createDefaultRunId(task: Task): string {
+    return `run_${sanitizeIdPart(task.taskId)}_001`;
+  }
 }
 
 export function createAgentOsMcpLocalRuntime(
@@ -608,14 +621,6 @@ function isMutatingTool(toolName: AgentOsMcpToolName): boolean {
   return toolName === "agentos.create_task"
     || toolName === "agentos.cancel_run"
     || toolName === "agentos.approve_run";
-}
-
-function defaultCreateTaskId(input: AgentOsCreateTaskInput): string {
-  return `task_agentos_mcp_${sanitizeIdPart(input.title).toLowerCase()}`;
-}
-
-function defaultCreateRunId(task: Task): string {
-  return `run_${sanitizeIdPart(task.taskId)}_001`;
 }
 
 function eventMatchesQuery(event: Event, query: string): boolean {

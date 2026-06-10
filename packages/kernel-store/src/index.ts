@@ -1,8 +1,12 @@
 import {
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readFileSync,
   renameSync,
+  statSync,
+  unlinkSync,
   writeFileSync
 } from "node:fs";
 import { join, resolve } from "node:path";
@@ -54,6 +58,9 @@ export type StepPatch = Partial<Step>;
 export type FileSystemKernelStoreOptions = {
   baseDir: string;
   stateFileName?: string;
+  lockTimeoutMs?: number;
+  lockRetryDelayMs?: number;
+  lockStaleMs?: number;
 };
 
 export interface KernelStore {
@@ -91,6 +98,10 @@ const FileSystemKernelStoreStateSchema = z.object({
 });
 
 type FileSystemKernelStoreState = z.infer<typeof FileSystemKernelStoreStateSchema>;
+
+const defaultLockTimeoutMs = 1_000;
+const defaultLockRetryDelayMs = 10;
+const defaultLockStaleMs = 30_000;
 
 export class InMemoryKernelStore implements KernelStore {
   private readonly runs = new Map<string, Run>();
@@ -213,10 +224,18 @@ export class InMemoryKernelStore implements KernelStore {
 export class FileSystemKernelStore implements KernelStore {
   private readonly baseDir: string;
   private readonly statePath: string;
+  private readonly lockPath: string;
+  private readonly lockTimeoutMs: number;
+  private readonly lockRetryDelayMs: number;
+  private readonly lockStaleMs: number;
 
   constructor(options: FileSystemKernelStoreOptions) {
     this.baseDir = resolve(options.baseDir);
     this.statePath = join(this.baseDir, options.stateFileName ?? "kernel-store-state.json");
+    this.lockPath = join(this.baseDir, ".kernel-store.lock");
+    this.lockTimeoutMs = options.lockTimeoutMs ?? defaultLockTimeoutMs;
+    this.lockRetryDelayMs = options.lockRetryDelayMs ?? defaultLockRetryDelayMs;
+    this.lockStaleMs = options.lockStaleMs ?? defaultLockStaleMs;
   }
 
   createRun(run: Run): Run {
@@ -352,10 +371,79 @@ export class FileSystemKernelStore implements KernelStore {
   }
 
   private withStateMutation<T>(mutate: (state: FileSystemKernelStoreState) => T): T {
-    const state = this.readState();
-    const result = mutate(state);
-    this.writeState(state);
-    return result;
+    return this.withLock(() => {
+      const state = this.readState();
+      const result = mutate(state);
+      this.writeState(state);
+      return result;
+    });
+  }
+
+  private withLock<T>(fn: () => T): T {
+    const token = createLockToken();
+    const startedAt = Date.now();
+
+    while (true) {
+      try {
+        this.ensureBaseDir();
+        const fd = openSync(this.lockPath, "wx");
+        try {
+          writeFileSync(fd, `${JSON.stringify({
+            token,
+            pid: process.pid,
+            createdAt: new Date().toISOString()
+          })}\n`, "utf8");
+        } finally {
+          closeSync(fd);
+        }
+
+        try {
+          return fn();
+        } finally {
+          this.releaseLock(token);
+        }
+      } catch (error) {
+        if (!isNodeError(error) || error.code !== "EEXIST") {
+          throw error;
+        }
+
+        this.removeStaleLock();
+        if (Date.now() - startedAt >= this.lockTimeoutMs) {
+          throw new Error(`kernel_store_lock_timeout:${this.lockPath}`);
+        }
+
+        sleepSync(this.lockRetryDelayMs);
+      }
+    }
+  }
+
+  private releaseLock(token: string): void {
+    try {
+      const raw = readFileSync(this.lockPath, "utf8");
+      const parsed = JSON.parse(raw) as { token?: unknown };
+      if (parsed.token === token) {
+        unlinkSync(this.lockPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private removeStaleLock(): void {
+    try {
+      const lockStat = statSync(this.lockPath);
+      if (Date.now() - lockStat.mtimeMs >= this.lockStaleMs) {
+        unlinkSync(this.lockPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
   }
 
   private readState(): FileSystemKernelStoreState {
@@ -489,4 +577,26 @@ function cloneEvent(event: Event): Event {
 
 function cloneArtifact(artifact: Artifact): Artifact {
   return ArtifactSchema.parse(structuredClone(artifact));
+}
+
+function createLockToken(): string {
+  return [
+    process.pid,
+    Date.now(),
+    Math.random().toString(36).slice(2)
+  ].join(":");
+}
+
+function sleepSync(milliseconds: number): void {
+  if (milliseconds <= 0) {
+    return;
+  }
+
+  const shared = new SharedArrayBuffer(4);
+  const view = new Int32Array(shared);
+  Atomics.wait(view, 0, 0, milliseconds);
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }
