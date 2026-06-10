@@ -5,6 +5,9 @@ import type {
   StoredArtifact
 } from "../../artifact-store/src/index.js";
 import {
+  capabilityScopeToCanonicalString
+} from "../../capability/src/index.js";
+import {
   hashProviderExecutionPlannerObject,
   ProviderExecutionPlanSchema,
   type ProviderExecutionPlan
@@ -30,7 +33,8 @@ import {
   ExecutorExecutionPlanSchema,
   type ExecutionValidationResult,
   type ExecutorExecutionPlan,
-  type ExecutorProvider
+  type ExecutorProvider,
+  type ProviderSideEffectClass
 } from "../../provider-core/src/index.js";
 import type {
   ProviderRegistry
@@ -284,12 +288,48 @@ function collectRunnerPreflightReasons(input: {
     reasons.push("provider_plan_policy_decision_hash_mismatch");
   }
 
+  reasons.push(...collectProviderPlanPolicyInvariantReasons({
+    providerExecutionPlan: input.providerExecutionPlan,
+    policyDecision: input.policyDecision
+  }));
+
   const entry = input.providerRegistry.getProvider(input.providerExecutionPlan.providerId);
   if (entry === undefined) {
     reasons.push(`provider_not_found:${input.providerExecutionPlan.providerId}`);
   } else if (entry.manifest.kind !== input.providerExecutionPlan.providerKind) {
     reasons.push(
       `provider_kind_mismatch:${entry.manifest.kind}:${input.providerExecutionPlan.providerKind}`
+    );
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function collectProviderPlanPolicyInvariantReasons(input: {
+  providerExecutionPlan: ProviderExecutionPlan;
+  policyDecision: PolicyDecision;
+}): string[] {
+  const reasons: string[] = [];
+  const expectedSandboxProfile = input.policyDecision.execution.sandbox;
+  const expectedRequiredCapabilities = input.policyDecision.capabilities.map(
+    capabilityScopeToCanonicalString
+  );
+  const expectedSideEffectClass = resolvePolicySideEffectClass(input.policyDecision);
+
+  if (
+    hashProviderExecutionPlannerObject(input.providerExecutionPlan.sandboxProfile)
+    !== hashProviderExecutionPlannerObject(expectedSandboxProfile)
+  ) {
+    reasons.push("provider_plan_sandbox_profile_policy_mismatch");
+  }
+
+  if (!equalStringSets(input.providerExecutionPlan.requiredCapabilities, expectedRequiredCapabilities)) {
+    reasons.push("provider_plan_required_capabilities_policy_mismatch");
+  }
+
+  if (input.providerExecutionPlan.sideEffectClass !== expectedSideEffectClass) {
+    reasons.push(
+      `provider_plan_side_effect_class_policy_mismatch:${input.providerExecutionPlan.sideEffectClass}:${expectedSideEffectClass}`
     );
   }
 
@@ -625,6 +665,59 @@ function toSafeIdPart(value: string): string {
 
 function normalizeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function resolvePolicySideEffectClass(policyDecision: PolicyDecision): ProviderSideEffectClass {
+  const sandboxProfile = policyDecision.execution.sandbox;
+
+  if (hasProtectedRemoteSideEffect(policyDecision)) {
+    return "protected_remote";
+  }
+
+  if (hasExternalSideEffect(policyDecision)) {
+    return "external_side_effects";
+  }
+
+  if (hasSecretAccess(policyDecision)) {
+    return "secret_access";
+  }
+
+  if (hasLocalCommand(policyDecision)) {
+    return "local_command";
+  }
+
+  if (sandboxProfile.mode === "workspace-write") {
+    return "workspace_write";
+  }
+
+  return "read_only";
+}
+
+function hasProtectedRemoteSideEffect(policyDecision: PolicyDecision): boolean {
+  return policyDecision.legacy.toolAccess === "protected_remote"
+    || policyDecision.capabilities.some((scope) => (
+      scope.kind === "external"
+      && scope.resource === "protected_remote"
+      && scope.access !== "read"
+    ));
+}
+
+function hasExternalSideEffect(policyDecision: PolicyDecision): boolean {
+  return policyDecision.capabilities.some((scope) => (
+    scope.kind === "external"
+    && scope.access !== "read"
+  ));
+}
+
+function hasSecretAccess(policyDecision: PolicyDecision): boolean {
+  return policyDecision.capabilities.some((scope) => scope.kind === "secret");
+}
+
+function hasLocalCommand(policyDecision: PolicyDecision): boolean {
+  return policyDecision.capabilities.some((scope) => (
+    (scope.kind === "tool" || scope.kind === "process")
+    && scope.access === "execute"
+  ));
 }
 
 function uniqueStrings(values: string[]): string[] {

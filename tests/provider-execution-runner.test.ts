@@ -128,6 +128,49 @@ test("provider execution runner blocks non-planned provider plans before provide
   assert.equal(provider.calls.execute, 0);
 });
 
+test("provider execution runner enforces policy-derived plan invariants before provider hooks", async () => {
+  const provider = createFakeExecutorProvider();
+  const registry = createRegistry(provider);
+  const task = createTask();
+  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const run = createRun(task, policyDecision, "running");
+  const planned = planProviderExecution(createPlannerInput({
+    task,
+    run,
+    policyDecision,
+    providerRegistry: registry,
+    preferredProviderId: provider.manifest.providerId
+  }));
+  const tamperedPlan = ProviderExecutionPlanSchema.parse({
+    ...planned,
+    requiredCapabilities: [],
+    sandboxProfile: createWorkspaceWriteSandboxProfile(),
+    sideEffectClass: "workspace_write"
+  });
+
+  const result = await runProviderExecutionPlanDryRun({
+    providerExecutionPlan: tamperedPlan,
+    task,
+    run,
+    principal: validPrincipal,
+    policyDecision,
+    providerRegistry: registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("provider_plan_sandbox_profile_policy_mismatch"));
+  assert.ok(result.reasons.includes("provider_plan_required_capabilities_policy_mismatch"));
+  assert.ok(result.reasons.includes(
+    "provider_plan_side_effect_class_policy_mismatch:workspace_write:read_only"
+  ));
+  assert.equal(provider.calls.planExecution, 0);
+  assert.equal(provider.calls.validateExecutionPlan, 0);
+  assert.equal(provider.calls.execute, 0);
+});
+
 test("provider execution runner requires the parent run to be running", async () => {
   const provider = createFakeExecutorProvider();
   const registry = createRegistry(provider);
