@@ -356,6 +356,35 @@ test("file scheduler does not remove a fresh lock during stale cleanup", async (
   }
 });
 
+test("file scheduler does not remove a stale-looking lock owned by a live process", async () => {
+  const baseDir = await createSchedulerTempDir();
+  try {
+    const lockPath = join(baseDir, ".scheduler.lock");
+    const lockPayload = `${JSON.stringify({
+      token: "live-owner",
+      pid: process.pid,
+      createdAt: "2000-01-01T00:00:00.000Z"
+    })}\n`;
+    await writeFile(lockPath, lockPayload, "utf8");
+    await utimes(lockPath, new Date(0), new Date(0));
+    const scheduler = new FileSystemScheduler({
+      baseDir,
+      clock: createClock(),
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 1
+    });
+
+    assert.throws(
+      () => scheduler.enqueueRun("run_scheduler_file_live_lock_001"),
+      /scheduler_lock_timeout:/
+    );
+    assert.equal(await readFile(lockPath, "utf8"), lockPayload);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
 function createClock(initial = "2026-06-04T00:00:00.000Z"): {
   now(): string;
   set(value: string): void;
