@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  AGENT_OS_MCP_RUN_NOT_FOUND,
   createAgentOsMcpLocalRuntime,
   type AgentOsMcpLocalRuntimeOptions,
   type AgentOsMcpLocalRuntimeResult,
@@ -48,6 +49,11 @@ const ARTIFACT_PATH_PATTERN = /^\/agent-os\/artifacts\/([^/]+)$/;
 const AGENT_OS_APP_SERVER_INVALID_METHOD = "agent_os_app_server_invalid_method";
 const AGENT_OS_APP_SERVER_INVALID_PATH = "agent_os_app_server_invalid_path";
 const AGENT_OS_APP_SERVER_INVALID_REQUEST = "agent_os_app_server_invalid_request";
+const AGENT_OS_RUNTIME_INVALID_CURSOR_PREFIXES = [
+  "agent_os_list_runs_invalid_cursor:",
+  "agent_os_list_artifacts_invalid_cursor:",
+  "agent_os_search_events_invalid_cursor:"
+] as const;
 
 export function handleAgentOsAppServerRequest(
   input: HandleAgentOsAppServerRequestInput
@@ -78,8 +84,9 @@ export function handleAgentOsAppServerRequest(
       input: route.input
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return createBadRequestResponse(AGENT_OS_APP_SERVER_INVALID_REQUEST);
+    const badRequestReason = appServerRuntimeBadRequestReason(error);
+    if (badRequestReason !== undefined) {
+      return createBadRequestResponse(badRequestReason);
     }
     throw error;
   }
@@ -206,6 +213,9 @@ function routeAgentOsAppServerRequestSafely(
 }
 
 function statusCodeForRuntimeResult(result: AgentOsMcpLocalRuntimeResult): number {
+  if (result.reasons.some((reason) => reason.startsWith(`${AGENT_OS_MCP_RUN_NOT_FOUND}:`))) {
+    return 404;
+  }
   return result.status === "succeeded" ? 200 : 403;
 }
 
@@ -314,4 +324,16 @@ function appServerRequestErrorReason(error: unknown): string {
     return error.message;
   }
   return AGENT_OS_APP_SERVER_INVALID_REQUEST;
+}
+
+function appServerRuntimeBadRequestReason(error: unknown): string | undefined {
+  if (error instanceof z.ZodError) {
+    return AGENT_OS_APP_SERVER_INVALID_REQUEST;
+  }
+  if (!(error instanceof Error)) {
+    return undefined;
+  }
+  return AGENT_OS_RUNTIME_INVALID_CURSOR_PREFIXES.some((prefix) => error.message.startsWith(prefix))
+    ? error.message
+    : undefined;
 }

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   AGENT_OS_MCP_LOCAL_MUTATION_DISABLED,
+  AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING,
   createAgentOsMcpLocalRuntime
@@ -188,6 +189,29 @@ test("Agent OS MCP local runtime default IDs do not collide for repeated titles"
     kernelStore.listRuns().map((run) => run.runId),
     [first.output.runId, second.output.runId]
   );
+});
+
+test("Agent OS MCP local runtime returns not found for missing runs", () => {
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["run.read"],
+    now: () => now
+  });
+
+  const result = runtime.handleToolCall({
+    toolName: "agentos.get_run",
+    input: {
+      runId: "run_agentos_mcp_runtime_missing"
+    }
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    `${AGENT_OS_MCP_RUN_NOT_FOUND}:run_agentos_mcp_runtime_missing`
+  ]);
+  assert.deepEqual(result.output, {});
+  assert.equal(result.audit.localMutationApplied, false);
 });
 
 test("Agent OS MCP local runtime honors list runs cursor pagination", () => {

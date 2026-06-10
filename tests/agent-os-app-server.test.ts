@@ -25,6 +25,7 @@ import {
 } from "../packages/kernel-contracts/src/index.js";
 import {
   AGENT_OS_MCP_LOCAL_MUTATION_DISABLED,
+  AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING
 } from "../packages/protocol-mcp/src/index.js";
@@ -251,6 +252,88 @@ test("Agent OS App Server wrapper returns audited bad requests for invalid clien
     assert.equal(response.audit.realProviderExecutionInvoked, false);
     assert.deepEqual(kernelStore.listRuns(), []);
   }
+});
+
+test("Agent OS App Server wrapper converts invalid cursors into audited bad requests", () => {
+  const cases: Array<{
+    request: AgentOsAppServerRequest;
+    capabilities: string[];
+    reason: string;
+  }> = [
+    {
+      request: {
+        method: "GET",
+        path: "/agent-os/runs",
+        query: {
+          cursor: "bogus"
+        }
+      },
+      capabilities: ["run.read"],
+      reason: "agent_os_list_runs_invalid_cursor:bogus"
+    },
+    {
+      request: {
+        method: "GET",
+        path: "/agent-os/artifacts",
+        query: {
+          cursor: "bogus"
+        }
+      },
+      capabilities: ["artifact.read"],
+      reason: "agent_os_list_artifacts_invalid_cursor:bogus"
+    },
+    {
+      request: {
+        method: "GET",
+        path: "/agent-os/events",
+        query: {
+          cursor: "bogus"
+        }
+      },
+      capabilities: ["event.read"],
+      reason: "agent_os_search_events_invalid_cursor:bogus"
+    }
+  ];
+
+  for (const item of cases) {
+    const response = handleAgentOsAppServerRequest({
+      ...createRuntimeInput(new InMemoryKernelStore()),
+      grantedCapabilities: item.capabilities,
+      request: item.request
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.deepEqual(response.body, {
+      status: "blocked",
+      reasons: [item.reason]
+    });
+    assert.equal(response.audit.liveHttpServerStarted, false);
+    assert.equal(response.audit.networkAccessed, false);
+    assert.equal(response.audit.realProviderExecutionInvoked, false);
+  }
+});
+
+test("Agent OS App Server wrapper returns not found for missing runs", () => {
+  const response = handleAgentOsAppServerRequest({
+    ...createRuntimeInput(new InMemoryKernelStore()),
+    grantedCapabilities: ["run.read"],
+    request: {
+      method: "GET",
+      path: "/agent-os/runs/run_agentos_app_server_missing"
+    }
+  });
+  const result = response.body.result as {
+    status: string;
+    reasons: string[];
+    output: Record<string, unknown>;
+  };
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    `${AGENT_OS_MCP_RUN_NOT_FOUND}:run_agentos_app_server_missing`
+  ]);
+  assert.deepEqual(result.output, {});
 });
 
 test("Agent OS App Server wrapper creates local run and provider plan without network", () => {

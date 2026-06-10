@@ -36,6 +36,8 @@ export const AGENT_OS_MCP_TOOL_CAPABILITY_MISSING =
   "agent_os_mcp_tool_capability_missing";
 export const AGENT_OS_MCP_APPROVAL_RUNTIME_NOT_IMPLEMENTED =
   "agent_os_mcp_approval_runtime_not_implemented";
+export const AGENT_OS_MCP_RUN_NOT_FOUND =
+  "agent_os_run_not_found";
 const AGENT_OS_LIST_RUNS_CURSOR = {
   prefix: "agentos-list-runs:",
   invalidReason: "agent_os_list_runs_invalid_cursor"
@@ -311,8 +313,17 @@ export class AgentOsMcpLocalRuntime {
     gate: AgentOsMcpLocalRuntimeGate
   ): AgentOsMcpLocalRuntimeResult {
     const input = AgentOsGetRunInputSchema.parse(call.input ?? {});
+    const run = this.kernelStore.getRun(input.runId);
+    if (run === undefined) {
+      return this.createResult("agentos.get_run", [`${AGENT_OS_MCP_RUN_NOT_FOUND}:${input.runId}`], {}, {
+        localMutationAttempted: false,
+        localMutationApplied: false,
+        gate
+      });
+    }
+
     return this.createResult("agentos.get_run", [], {
-      run: this.kernelStore.getRun(input.runId)
+      run
     }, {
       localMutationAttempted: false,
       localMutationApplied: false,
