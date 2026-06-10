@@ -63,6 +63,25 @@ test("Agent OS App Server router maps HTTP-like routes to governed tool calls", 
       runId: "run_001"
     }
   });
+
+  assert.deepEqual(routeAgentOsAppServerRequest({
+    method: "GET",
+    path: "/agent-os/runs",
+    query: {
+      taskId: "task_001",
+      status: "queued",
+      limit: "2",
+      cursor: "agentos-list-runs:2"
+    }
+  }), {
+    toolName: "agentos.list_runs",
+    input: {
+      taskId: "task_001",
+      status: "queued",
+      limit: 2,
+      cursor: "agentos-list-runs:2"
+    }
+  });
 });
 
 test("Agent OS App Server wrapper blocks mutating requests by default", () => {

@@ -91,7 +91,8 @@ export function routeAgentOsAppServerRequest(
       input: queryToInput(request.query ?? {}, {
         taskId: "taskId",
         status: "status",
-        limit: "limit"
+        limit: "limit",
+        cursor: "cursor"
       })
     };
   }

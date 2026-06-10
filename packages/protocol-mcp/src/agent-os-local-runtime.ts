@@ -36,6 +36,7 @@ export const AGENT_OS_MCP_TOOL_CAPABILITY_MISSING =
   "agent_os_mcp_tool_capability_missing";
 export const AGENT_OS_MCP_APPROVAL_RUNTIME_NOT_IMPLEMENTED =
   "agent_os_mcp_approval_runtime_not_implemented";
+const AGENT_OS_LIST_RUNS_CURSOR_PREFIX = "agentos-list-runs:";
 
 export type AgentOsMcpLocalRuntimeOptions = {
   kernelStore: KernelStore;
@@ -313,13 +314,19 @@ export class AgentOsMcpLocalRuntime {
     gate: AgentOsMcpLocalRuntimeGate
   ): AgentOsMcpLocalRuntimeResult {
     const input = AgentOsListRunsInputSchema.parse(call.input ?? {});
-    const runs = this.kernelStore.listRuns({
+    const allRuns = this.kernelStore.listRuns({
       ...(input.taskId ? { taskId: input.taskId } : {}),
       ...(input.status ? { status: input.status } : {})
-    }).slice(0, input.limit);
+    });
+    const offset = parseListRunsCursor(input.cursor);
+    const runs = allRuns.slice(offset, offset + input.limit);
+    const nextOffset = offset + runs.length;
 
     return this.createResult("agentos.list_runs", [], {
-      runs
+      runs,
+      ...(nextOffset < allRuns.length ? {
+        nextCursor: formatListRunsCursor(nextOffset)
+      } : {})
     }, {
       localMutationAttempted: false,
       localMutationApplied: false,
@@ -628,6 +635,27 @@ function eventMatchesQuery(event: Event, query: string): boolean {
   return event.eventId.toLowerCase().includes(normalizedQuery)
     || event.eventType.toLowerCase().includes(normalizedQuery)
     || JSON.stringify(event.payload).toLowerCase().includes(normalizedQuery);
+}
+
+function parseListRunsCursor(cursor: string | undefined): number {
+  if (cursor === undefined) {
+    return 0;
+  }
+
+  if (!cursor.startsWith(AGENT_OS_LIST_RUNS_CURSOR_PREFIX)) {
+    throw new Error(`agent_os_list_runs_invalid_cursor:${cursor}`);
+  }
+
+  const offset = Number(cursor.slice(AGENT_OS_LIST_RUNS_CURSOR_PREFIX.length));
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new Error(`agent_os_list_runs_invalid_cursor:${cursor}`);
+  }
+
+  return offset;
+}
+
+function formatListRunsCursor(offset: number): string {
+  return `${AGENT_OS_LIST_RUNS_CURSOR_PREFIX}${offset}`;
 }
 
 function sanitizeIdPart(value: string): string {

@@ -184,6 +184,86 @@ test("Agent OS MCP local runtime default IDs do not collide for repeated titles"
   );
 });
 
+test("Agent OS MCP local runtime honors list runs cursor pagination", () => {
+  const kernelStore = new InMemoryKernelStore();
+  let sequence = 0;
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    principal: validPrincipal,
+    grantedCapabilities: ["task.create", "run.read"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    now: () => now,
+    createTaskId: () => {
+      sequence += 1;
+      return `task_agentos_mcp_runtime_page_${sequence}`;
+    },
+    createRunId: (task) => `run_${task.taskId}`
+  });
+
+  for (const title of ["First paged run", "Second paged run", "Third paged run"]) {
+    const createResult = runtime.handleToolCall({
+      toolName: "agentos.create_task",
+      input: {
+        title,
+        requestedAction: "Create a run for cursor pagination."
+      }
+    });
+    assert.equal(createResult.status, "succeeded");
+  }
+
+  const firstPage = runtime.handleToolCall({
+    toolName: "agentos.list_runs",
+    input: {
+      limit: 2
+    }
+  });
+  const firstPageRuns = firstPage.output.runs as Array<{ runId: string }>;
+  const nextCursor = firstPage.output.nextCursor;
+
+  assert.equal(firstPage.status, "succeeded");
+  assert.deepEqual(
+    firstPageRuns.map((run) => run.runId),
+    [
+      "run_task_agentos_mcp_runtime_page_1",
+      "run_task_agentos_mcp_runtime_page_2"
+    ]
+  );
+  assert.equal(typeof nextCursor, "string");
+
+  const secondPage = runtime.handleToolCall({
+    toolName: "agentos.list_runs",
+    input: {
+      limit: 2,
+      cursor: nextCursor
+    }
+  });
+  const secondPageRuns = secondPage.output.runs as Array<{ runId: string }>;
+
+  assert.equal(secondPage.status, "succeeded");
+  assert.deepEqual(
+    secondPageRuns.map((run) => run.runId),
+    ["run_task_agentos_mcp_runtime_page_3"]
+  );
+  assert.equal(secondPage.output.nextCursor, undefined);
+});
+
+test("Agent OS MCP local runtime rejects invalid list runs cursors", () => {
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["run.read"],
+    now: () => now
+  });
+
+  assert.throws(() => runtime.handleToolCall({
+    toolName: "agentos.list_runs",
+    input: {
+      cursor: "not-a-list-runs-cursor"
+    }
+  }), /agent_os_list_runs_invalid_cursor:not-a-list-runs-cursor/);
+});
+
 function createProviderRegistry(): ProviderRegistry {
   const registry = new ProviderRegistry();
   const provider = new CodexCliExecutorProvider();
