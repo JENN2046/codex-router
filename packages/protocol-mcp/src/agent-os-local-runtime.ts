@@ -38,6 +38,8 @@ export const AGENT_OS_MCP_APPROVAL_RUNTIME_NOT_IMPLEMENTED =
   "agent_os_mcp_approval_runtime_not_implemented";
 export const AGENT_OS_MCP_RUN_NOT_FOUND =
   "agent_os_run_not_found";
+export const AGENT_OS_MCP_ARTIFACT_NOT_FOUND =
+  "agent_os_artifact_not_found";
 const AGENT_OS_LIST_RUNS_CURSOR = {
   prefix: "agentos-list-runs:",
   invalidReason: "agent_os_list_runs_invalid_cursor"
@@ -361,7 +363,18 @@ export class AgentOsMcpLocalRuntime {
       store: this.kernelStore,
       now: this.now
     });
-    const run = manager.cancelRun(input.runId, input.reason);
+    const cancelResult = cancelRunSafely(manager, input.runId, input.reason);
+    if (cancelResult.status === "blocked") {
+      return this.createResult("agentos.cancel_run", [cancelResult.reason], {
+        status: "blocked"
+      }, {
+        localMutationAttempted: true,
+        localMutationApplied: false,
+        gate
+      });
+    }
+
+    const run = cancelResult.run;
     const event = this.kernelStore.listEvents({
       runId: run.runId,
       type: "kernel.run.cancelled"
@@ -424,8 +437,19 @@ export class AgentOsMcpLocalRuntime {
     gate: AgentOsMcpLocalRuntimeGate
   ): AgentOsMcpLocalRuntimeResult {
     const input = AgentOsGetArtifactInputSchema.parse(call.input ?? {});
+    const artifact = this.kernelStore.getArtifact(input.artifactId);
+    if (artifact === undefined) {
+      return this.createResult("agentos.get_artifact", [
+        `${AGENT_OS_MCP_ARTIFACT_NOT_FOUND}:${input.artifactId}`
+      ], {}, {
+        localMutationAttempted: false,
+        localMutationApplied: false,
+        gate
+      });
+    }
+
     return this.createResult("agentos.get_artifact", [], {
-      artifact: this.kernelStore.getArtifact(input.artifactId)
+      artifact
     }, {
       localMutationAttempted: false,
       localMutationApplied: false,
@@ -690,6 +714,51 @@ type AgentOsOffsetCursorConfig = {
   prefix: string;
   invalidReason: string;
 };
+
+type AgentOsCancelRunResult =
+  | {
+    status: "succeeded";
+    run: Run;
+  }
+  | {
+    status: "blocked";
+    reason: string;
+  };
+
+function cancelRunSafely(
+  manager: RunManager,
+  runId: string,
+  reason: string
+): AgentOsCancelRunResult {
+  try {
+    return {
+      status: "succeeded",
+      run: manager.cancelRun(runId, reason)
+    };
+  } catch (error) {
+    const blockedReason = cancelRunBlockedReason(error);
+    if (blockedReason !== undefined) {
+      return {
+        status: "blocked",
+        reason: blockedReason
+      };
+    }
+    throw error;
+  }
+}
+
+function cancelRunBlockedReason(error: unknown): string | undefined {
+  if (!(error instanceof Error)) {
+    return undefined;
+  }
+  if (error.message.startsWith("run_not_found:")) {
+    return error.message.replace(/^run_not_found:/, `${AGENT_OS_MCP_RUN_NOT_FOUND}:`);
+  }
+  return error.message.startsWith("run_terminal:")
+    || error.message.startsWith("invalid_run_transition:")
+    ? error.message
+    : undefined;
+}
 
 function parseOffsetCursor(cursor: string | undefined, config: AgentOsOffsetCursorConfig): number {
   if (cursor === undefined) {

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  AGENT_OS_MCP_ARTIFACT_NOT_FOUND,
   AGENT_OS_MCP_LOCAL_MUTATION_DISABLED,
   AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
@@ -214,6 +215,62 @@ test("Agent OS MCP local runtime returns not found for missing runs", () => {
   assert.equal(result.audit.localMutationApplied, false);
 });
 
+test("Agent OS MCP local runtime converts cancel failures into blocked results", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    principal: validPrincipal,
+    grantedCapabilities: ["task.create", "run.cancel"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.cancel_run"],
+    allowLocalMutations: true,
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId
+  });
+
+  const missing = runtime.handleToolCall({
+    toolName: "agentos.cancel_run",
+    input: {
+      runId: "run_agentos_mcp_runtime_missing",
+      reason: "missing run"
+    }
+  });
+  assert.equal(missing.status, "blocked");
+  assert.deepEqual(missing.reasons, [
+    `${AGENT_OS_MCP_RUN_NOT_FOUND}:run_agentos_mcp_runtime_missing`
+  ]);
+  assert.equal(missing.audit.localMutationAttempted, true);
+  assert.equal(missing.audit.localMutationApplied, false);
+
+  runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Cancel once",
+      requestedAction: "Create a run to cancel."
+    }
+  });
+  const firstCancel = runtime.handleToolCall({
+    toolName: "agentos.cancel_run",
+    input: {
+      runId,
+      reason: "first cancel"
+    }
+  });
+  const secondCancel = runtime.handleToolCall({
+    toolName: "agentos.cancel_run",
+    input: {
+      runId,
+      reason: "second cancel"
+    }
+  });
+
+  assert.equal(firstCancel.status, "succeeded");
+  assert.equal(firstCancel.audit.localMutationApplied, true);
+  assert.equal(secondCancel.status, "blocked");
+  assert.deepEqual(secondCancel.reasons, ["run_terminal:cancelled"]);
+  assert.equal(secondCancel.audit.localMutationApplied, false);
+});
+
 test("Agent OS MCP local runtime honors list runs cursor pagination", () => {
   const kernelStore = new InMemoryKernelStore();
   let sequence = 0;
@@ -343,6 +400,15 @@ test("Agent OS MCP local runtime honors artifact and event cursors", () => {
   );
   assert.equal(artifactSecondPage.output.nextCursor, undefined);
 
+  const artifact = runtime.handleToolCall({
+    toolName: "agentos.get_artifact",
+    input: {
+      artifactId: "artifact_agentos_mcp_runtime_001"
+    }
+  });
+  assert.equal(artifact.status, "succeeded");
+  assert.equal((artifact.output.artifact as { artifactId?: string }).artifactId, "artifact_agentos_mcp_runtime_001");
+
   const eventFirstPage = runtime.handleToolCall({
     toolName: "agentos.search_events",
     input: {
@@ -373,6 +439,29 @@ test("Agent OS MCP local runtime honors artifact and event cursors", () => {
     ["event_agentos_mcp_runtime_003"]
   );
   assert.equal(eventSecondPage.output.nextCursor, undefined);
+});
+
+test("Agent OS MCP local runtime returns not found for missing artifacts", () => {
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["artifact.read"],
+    now: () => now
+  });
+
+  const result = runtime.handleToolCall({
+    toolName: "agentos.get_artifact",
+    input: {
+      artifactId: "artifact_agentos_mcp_runtime_missing"
+    }
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    `${AGENT_OS_MCP_ARTIFACT_NOT_FOUND}:artifact_agentos_mcp_runtime_missing`
+  ]);
+  assert.deepEqual(result.output, {});
+  assert.equal(result.audit.localMutationApplied, false);
 });
 
 test("Agent OS MCP local runtime rejects invalid artifact and event cursors", () => {

@@ -24,6 +24,7 @@ import {
   type PolicyDecision
 } from "../packages/kernel-contracts/src/index.js";
 import {
+  AGENT_OS_MCP_ARTIFACT_NOT_FOUND,
   AGENT_OS_MCP_LOCAL_MUTATION_DISABLED,
   AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
@@ -334,6 +335,59 @@ test("Agent OS App Server wrapper returns not found for missing runs", () => {
     `${AGENT_OS_MCP_RUN_NOT_FOUND}:run_agentos_app_server_missing`
   ]);
   assert.deepEqual(result.output, {});
+});
+
+test("Agent OS App Server wrapper returns not found for missing artifacts", () => {
+  const response = handleAgentOsAppServerRequest({
+    ...createRuntimeInput(new InMemoryKernelStore()),
+    grantedCapabilities: ["artifact.read"],
+    request: {
+      method: "GET",
+      path: "/agent-os/artifacts/artifact_agentos_app_server_missing"
+    }
+  });
+  const result = response.body.result as {
+    status: string;
+    reasons: string[];
+    output: Record<string, unknown>;
+  };
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    `${AGENT_OS_MCP_ARTIFACT_NOT_FOUND}:artifact_agentos_app_server_missing`
+  ]);
+  assert.deepEqual(result.output, {});
+});
+
+test("Agent OS App Server wrapper returns blocked cancel failures", () => {
+  const response = handleAgentOsAppServerRequest({
+    ...createRuntimeInput(new InMemoryKernelStore()),
+    grantedCapabilities: ["run.cancel"],
+    approvedMutatingTools: ["agentos.cancel_run"],
+    allowLocalMutations: true,
+    request: {
+      method: "POST",
+      path: "/agent-os/runs/run_agentos_app_server_missing/cancel",
+      body: {
+        reason: "missing run"
+      }
+    }
+  });
+  const result = response.body.result as {
+    status: string;
+    reasons: string[];
+    output: Record<string, unknown>;
+  };
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    `${AGENT_OS_MCP_RUN_NOT_FOUND}:run_agentos_app_server_missing`
+  ]);
+  assert.deepEqual(result.output, {
+    status: "blocked"
+  });
 });
 
 test("Agent OS App Server wrapper creates local run and provider plan without network", () => {

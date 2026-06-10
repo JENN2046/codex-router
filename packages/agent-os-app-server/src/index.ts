@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  AGENT_OS_MCP_ARTIFACT_NOT_FOUND,
   AGENT_OS_MCP_RUN_NOT_FOUND,
   createAgentOsMcpLocalRuntime,
   type AgentOsMcpLocalRuntimeOptions,
@@ -213,10 +214,17 @@ function routeAgentOsAppServerRequestSafely(
 }
 
 function statusCodeForRuntimeResult(result: AgentOsMcpLocalRuntimeResult): number {
-  if (result.reasons.some((reason) => reason.startsWith(`${AGENT_OS_MCP_RUN_NOT_FOUND}:`))) {
+  if (
+    resultHasReasonPrefix(result, AGENT_OS_MCP_RUN_NOT_FOUND)
+    || resultHasReasonPrefix(result, AGENT_OS_MCP_ARTIFACT_NOT_FOUND)
+  ) {
     return 404;
   }
   return result.status === "succeeded" ? 200 : 403;
+}
+
+function resultHasReasonPrefix(result: AgentOsMcpLocalRuntimeResult, prefix: string): boolean {
+  return result.reasons.some((reason) => reason.startsWith(`${prefix}:`));
 }
 
 function createBadRequestResponse(reason: string): AgentOsAppServerResponse {
