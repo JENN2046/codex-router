@@ -22,6 +22,7 @@ import {
 } from "../../tool-registry/src/index.js";
 
 export * from "./agent-os-server-manifest.js";
+export * from "./agent-os-local-runtime.js";
 
 export type ToolManifest = RegisteredToolManifest;
 
