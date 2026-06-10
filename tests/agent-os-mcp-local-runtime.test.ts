@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   AGENT_OS_MCP_ARTIFACT_NOT_FOUND,
+  AGENT_OS_MCP_APPROVAL_RUNTIME_NOT_IMPLEMENTED,
   AGENT_OS_MCP_LOCAL_MUTATION_DISABLED,
   AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
@@ -269,6 +270,36 @@ test("Agent OS MCP local runtime converts cancel failures into blocked results",
   assert.equal(secondCancel.status, "blocked");
   assert.deepEqual(secondCancel.reasons, ["run_terminal:cancelled"]);
   assert.equal(secondCancel.audit.localMutationApplied, false);
+});
+
+test("Agent OS MCP local runtime returns manifest-aligned blocked approve_run output", () => {
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true,
+    now: () => now
+  });
+
+  const result = runtime.handleToolCall({
+    toolName: "agentos.approve_run",
+    input: {
+      runId,
+      capabilityScopes: ["fs.write:workspace/**"],
+      reason: "review approval"
+    }
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    AGENT_OS_MCP_APPROVAL_RUNTIME_NOT_IMPLEMENTED
+  ]);
+  assert.deepEqual(result.output, {
+    status: "blocked"
+  });
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
 });
 
 test("Agent OS MCP local runtime honors list runs cursor pagination", () => {

@@ -314,13 +314,29 @@ export const agentOsApproveRunMcpToolManifest = defineAgentOsMcpTool({
   },
   outputSchema: {
     type: "object",
-    required: ["permitId", "runId", "expiresAt"],
-    additionalProperties: false,
-    properties: {
-      permitId: { type: "string" },
-      runId: { type: "string" },
-      expiresAt: { type: "string" }
-    }
+    oneOf: [
+      {
+        type: "object",
+        required: ["permitId", "runId", "expiresAt"],
+        additionalProperties: false,
+        properties: {
+          permitId: { type: "string" },
+          runId: { type: "string" },
+          expiresAt: { type: "string" }
+        }
+      },
+      {
+        type: "object",
+        required: ["status"],
+        additionalProperties: false,
+        properties: {
+          status: {
+            type: "string",
+            enum: ["blocked"]
+          }
+        }
+      }
+    ]
   },
   sideEffectClass: "local_write",
   requiredCapabilities: ["approval.issue"],
