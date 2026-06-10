@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -323,6 +323,34 @@ test("file provider manifest store rejects duplicates and persists deletes", asy
     assert.equal(second.deleteManifest("codex-cli"), true);
     assert.equal(second.deleteManifest("codex-cli"), false);
     assert.equal(new FileSystemProviderManifestStore({ baseDir }).getManifest("codex-cli"), undefined);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file provider manifest store refuses mutations while another lock is present", async () => {
+  const baseDir = await createProviderRegistryTempDir();
+  try {
+    await writeFile(
+      join(baseDir, ".provider-manifest-store.lock"),
+      "{\"token\":\"held\"}\n",
+      "utf8"
+    );
+    const store = new FileSystemProviderManifestStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 60_000
+    });
+
+    assert.throws(
+      () => store.saveManifest(createCodexProvider().manifest),
+      /provider_manifest_store_lock_timeout:/
+    );
+    assert.throws(
+      () => store.deleteManifest("codex-cli"),
+      /provider_manifest_store_lock_timeout:/
+    );
   } finally {
     await rm(baseDir, { recursive: true, force: true });
   }

@@ -1,8 +1,12 @@
 import {
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readFileSync,
   renameSync,
+  statSync,
+  unlinkSync,
   writeFileSync
 } from "node:fs";
 import { join, resolve } from "node:path";
@@ -50,6 +54,9 @@ export type ProviderRegistryFilter = {
 export type FileSystemProviderManifestStoreOptions = {
   baseDir: string;
   stateFileName?: string;
+  lockTimeoutMs?: number;
+  lockRetryDelayMs?: number;
+  lockStaleMs?: number;
 };
 
 export interface ProviderManifestStore {
@@ -75,6 +82,10 @@ const ProviderManifestStoreStateSchema = z.object({
 });
 
 type ProviderManifestStoreState = z.infer<typeof ProviderManifestStoreStateSchema>;
+
+const defaultLockTimeoutMs = 1_000;
+const defaultLockRetryDelayMs = 10;
+const defaultLockStaleMs = 30_000;
 
 export class ProviderRegistry {
   private readonly entries = new Map<string, ProviderRegistryEntry>();
@@ -214,24 +225,34 @@ export class InMemoryProviderManifestStore implements ProviderManifestStore {
 export class FileSystemProviderManifestStore implements ProviderManifestStore {
   private readonly baseDir: string;
   private readonly statePath: string;
+  private readonly lockPath: string;
+  private readonly lockTimeoutMs: number;
+  private readonly lockRetryDelayMs: number;
+  private readonly lockStaleMs: number;
 
   constructor(options: FileSystemProviderManifestStoreOptions) {
     this.baseDir = resolve(options.baseDir);
     this.statePath = join(this.baseDir, options.stateFileName ?? "provider-manifests.json");
+    this.lockPath = join(this.baseDir, ".provider-manifest-store.lock");
+    this.lockTimeoutMs = options.lockTimeoutMs ?? defaultLockTimeoutMs;
+    this.lockRetryDelayMs = options.lockRetryDelayMs ?? defaultLockRetryDelayMs;
+    this.lockStaleMs = options.lockStaleMs ?? defaultLockStaleMs;
   }
 
   saveManifest(
     manifestInput: ProviderManifest | z.input<typeof ProviderManifestSchema>
   ): ProviderManifest {
     const manifest = parseProviderManifestForStorage(manifestInput);
-    const state = this.readState();
-    if (state.manifests.some((item) => item.providerId === manifest.providerId)) {
-      throw new Error(`duplicate_provider_manifest_id:${manifest.providerId}`);
-    }
+    return this.withLock(() => {
+      const state = this.readState();
+      if (state.manifests.some((item) => item.providerId === manifest.providerId)) {
+        throw new Error(`duplicate_provider_manifest_id:${manifest.providerId}`);
+      }
 
-    state.manifests.push(cloneManifest(manifest));
-    this.writeState(state);
-    return cloneManifest(manifest);
+      state.manifests.push(cloneManifest(manifest));
+      this.writeState(state);
+      return cloneManifest(manifest);
+    });
   }
 
   getManifest(providerId: string): ProviderManifest | undefined {
@@ -246,17 +267,86 @@ export class FileSystemProviderManifestStore implements ProviderManifestStore {
   }
 
   deleteManifest(providerId: string): boolean {
-    const state = this.readState();
-    const nextManifests = state.manifests.filter((manifest) => manifest.providerId !== providerId);
-    if (nextManifests.length === state.manifests.length) {
-      return false;
-    }
+    return this.withLock(() => {
+      const state = this.readState();
+      const nextManifests = state.manifests.filter((manifest) => manifest.providerId !== providerId);
+      if (nextManifests.length === state.manifests.length) {
+        return false;
+      }
 
-    this.writeState({
-      ...state,
-      manifests: nextManifests
+      this.writeState({
+        ...state,
+        manifests: nextManifests
+      });
+      return true;
     });
-    return true;
+  }
+
+  private withLock<T>(fn: () => T): T {
+    const token = createLockToken();
+    const startedAt = Date.now();
+
+    while (true) {
+      try {
+        this.ensureBaseDir();
+        const fd = openSync(this.lockPath, "wx");
+        try {
+          writeFileSync(fd, `${JSON.stringify({
+            token,
+            pid: process.pid,
+            createdAt: new Date().toISOString()
+          })}\n`, "utf8");
+        } finally {
+          closeSync(fd);
+        }
+
+        try {
+          return fn();
+        } finally {
+          this.releaseLock(token);
+        }
+      } catch (error) {
+        if (!isNodeError(error) || error.code !== "EEXIST") {
+          throw error;
+        }
+
+        this.removeStaleLock();
+        if (Date.now() - startedAt >= this.lockTimeoutMs) {
+          throw new Error(`provider_manifest_store_lock_timeout:${this.lockPath}`);
+        }
+
+        sleepSync(this.lockRetryDelayMs);
+      }
+    }
+  }
+
+  private releaseLock(token: string): void {
+    try {
+      const raw = readFileSync(this.lockPath, "utf8");
+      const parsed = JSON.parse(raw) as { token?: unknown };
+      if (parsed.token === token) {
+        unlinkSync(this.lockPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private removeStaleLock(): void {
+    try {
+      const lockStat = statSync(this.lockPath);
+      if (Date.now() - lockStat.mtimeMs >= this.lockStaleMs) {
+        unlinkSync(this.lockPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
   }
 
   private readState(): ProviderManifestStoreState {
@@ -534,4 +624,26 @@ function canonicalize(input: unknown): unknown {
 
 function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === "object" && input !== null && !Array.isArray(input);
+}
+
+function createLockToken(): string {
+  return [
+    process.pid,
+    Date.now(),
+    Math.random().toString(36).slice(2)
+  ].join(":");
+}
+
+function sleepSync(milliseconds: number): void {
+  if (milliseconds <= 0) {
+    return;
+  }
+
+  const shared = new SharedArrayBuffer(4);
+  const view = new Int32Array(shared);
+  Atomics.wait(view, 0, 0, milliseconds);
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }
