@@ -190,6 +190,12 @@ export type FakeA2ATransportSubmitInput = {
   authorization: A2ARemoteInvocationAuthorization;
 };
 
+export type FakeA2ATransportCancelInput = {
+  remoteTaskId: string;
+  reason?: string;
+  authorization: A2ARemoteInvocationAuthorization;
+};
+
 export type FakeA2ATransportEvent = {
   eventId: string;
   remoteTaskId: string;
@@ -206,7 +212,7 @@ export type FakeA2ATransport = {
   getAgentCard(): A2AAgentCardSkeleton;
   submitTask(input: FakeA2ATransportSubmitInput): A2ATaskSkeleton;
   getTask(remoteTaskId: string): A2ATaskSkeleton | undefined;
-  cancelTask(remoteTaskId: string, reason?: string): A2ATaskSkeleton;
+  cancelTask(input: FakeA2ATransportCancelInput): A2ATaskSkeleton;
   listEvents(remoteTaskId?: string): FakeA2ATransportEvent[];
 };
 
@@ -522,24 +528,27 @@ export function createFakeA2ATransport(
       return task === undefined ? undefined : cloneA2ATask(task);
     },
 
-    cancelTask(remoteTaskId: string, reason?: string): A2ATaskSkeleton {
+    cancelTask(cancelInput: FakeA2ATransportCancelInput): A2ATaskSkeleton {
+      assertA2ARemoteInvocationAuthorized(agentCard, cancelInput.authorization);
       if (!submitEnabled) {
         throw new A2AFakeTransportSubmitDisabledError();
       }
 
+      const remoteTaskId = cancelInput.remoteTaskId;
       const existing = tasks.get(remoteTaskId);
       if (existing === undefined) {
         throw new Error(`a2a_fake_task_not_found:${remoteTaskId}`);
       }
 
       const cancelledAt = now();
+      const reason = cancelInput.reason ?? "unspecified";
       const cancelled = A2ATaskSkeletonSchema.parse({
         ...existing,
         status: "cancelled",
         updatedAt: cancelledAt,
         metadata: {
           ...existing.metadata,
-          cancelReason: reason ?? "unspecified"
+          cancelReason: reason
         }
       });
 
@@ -550,7 +559,7 @@ export function createFakeA2ATransport(
         eventType: "a2a.fake.task.cancelled",
         createdAt: cancelledAt,
         payload: {
-          reason: reason ?? "unspecified",
+          reason,
           liveNetworkService: false
         }
       });
