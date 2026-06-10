@@ -165,6 +165,32 @@ export async function runProviderExecutionPlanDryRun(
     });
   }
 
+  const executorPlanInvariantReasons = collectExecutorPlanInvariantReasons({
+    providerExecutionPlan,
+    executorPlan
+  });
+  if (executorPlanInvariantReasons.length > 0) {
+    const validation = {
+      valid: false,
+      reasons: executorPlanInvariantReasons
+    };
+
+    return finalizeRunnerResult({
+      input,
+      providerExecutionPlan,
+      status: "validation_failed",
+      reasons: uniqueStrings([
+        "executor_plan_invariant_mismatch",
+        ...executorPlanInvariantReasons
+      ]),
+      eventIds,
+      artifactIds,
+      createdAt,
+      executorPlan,
+      validation
+    });
+  }
+
   let validation: ExecutionValidationResult;
   try {
     validation = await entry.provider.validateExecutionPlan(executorPlan);
@@ -264,6 +290,47 @@ function collectRunnerPreflightReasons(input: {
   } else if (entry.manifest.kind !== input.providerExecutionPlan.providerKind) {
     reasons.push(
       `provider_kind_mismatch:${entry.manifest.kind}:${input.providerExecutionPlan.providerKind}`
+    );
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function collectExecutorPlanInvariantReasons(input: {
+  providerExecutionPlan: ProviderExecutionPlan;
+  executorPlan: ExecutorExecutionPlan;
+}): string[] {
+  const reasons: string[] = [];
+  const { providerExecutionPlan, executorPlan } = input;
+
+  if (executorPlan.taskId !== providerExecutionPlan.taskId) {
+    reasons.push(`executor_plan_task_mismatch:${executorPlan.taskId}:${providerExecutionPlan.taskId}`);
+  }
+
+  if (executorPlan.runId !== providerExecutionPlan.runId) {
+    reasons.push(`executor_plan_run_mismatch:${executorPlan.runId}:${providerExecutionPlan.runId}`);
+  }
+
+  if (executorPlan.providerId !== providerExecutionPlan.providerId) {
+    reasons.push(
+      `executor_plan_provider_mismatch:${executorPlan.providerId}:${providerExecutionPlan.providerId}`
+    );
+  }
+
+  if (executorPlan.policyDecisionHash !== providerExecutionPlan.policyDecisionHash) {
+    reasons.push("executor_plan_policy_decision_hash_mismatch");
+  }
+
+  if (
+    hashProviderExecutionPlannerObject(executorPlan.sandboxProfile)
+    !== hashProviderExecutionPlannerObject(providerExecutionPlan.sandboxProfile)
+  ) {
+    reasons.push("executor_plan_sandbox_profile_mismatch");
+  }
+
+  if (executorPlan.sideEffectClass !== providerExecutionPlan.sideEffectClass) {
+    reasons.push(
+      `executor_plan_side_effect_class_mismatch:${executorPlan.sideEffectClass}:${providerExecutionPlan.sideEffectClass}`
     );
   }
 

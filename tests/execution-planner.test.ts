@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -142,6 +142,33 @@ test("file provider execution plan store rejects duplicate ids after reload", as
     assert.throws(
       () => second.savePlan(plan),
       /duplicate_provider_execution_plan_id:/
+    );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file provider execution plan store refuses state mutation while another lock is present", async () => {
+  const baseDir = await createExecutionPlannerTempDir();
+  try {
+    await writeFile(
+      join(baseDir, ".provider-execution-plan-store.lock"),
+      "{\"token\":\"held\"}\n",
+      "utf8"
+    );
+    const plan = planProviderExecution(createPlannerInput({
+      preferredProviderId: "codex-cli"
+    }));
+    const store = new FileSystemProviderExecutionPlanStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 60_000
+    });
+
+    assert.throws(
+      () => store.savePlan(plan),
+      /provider_execution_plan_store_lock_timeout:/
     );
   } finally {
     await rm(baseDir, { recursive: true, force: true });

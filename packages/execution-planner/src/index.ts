@@ -1,9 +1,13 @@
 import { createHash } from "node:crypto";
 import {
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readFileSync,
   renameSync,
+  statSync,
+  unlinkSync,
   writeFileSync
 } from "node:fs";
 import { join, resolve } from "node:path";
@@ -85,6 +89,9 @@ export type ProviderExecutionPlanFilter = {
 export type FileSystemProviderExecutionPlanStoreOptions = {
   baseDir: string;
   stateFileName?: string;
+  lockTimeoutMs?: number;
+  lockRetryDelayMs?: number;
+  lockStaleMs?: number;
 };
 
 export interface ProviderExecutionPlanStore {
@@ -107,6 +114,10 @@ const ProviderExecutionPlanStoreStateSchema = z.object({
 });
 
 type ProviderExecutionPlanStoreState = z.infer<typeof ProviderExecutionPlanStoreStateSchema>;
+
+const defaultLockTimeoutMs = 1_000;
+const defaultLockRetryDelayMs = 10;
+const defaultLockStaleMs = 30_000;
 
 export class InMemoryProviderExecutionPlanStore implements ProviderExecutionPlanStore {
   private readonly plans = new Map<string, ProviderExecutionPlan>();
@@ -136,6 +147,10 @@ export class InMemoryProviderExecutionPlanStore implements ProviderExecutionPlan
 export class FileSystemProviderExecutionPlanStore implements ProviderExecutionPlanStore {
   private readonly baseDir: string;
   private readonly statePath: string;
+  private readonly lockPath: string;
+  private readonly lockTimeoutMs: number;
+  private readonly lockRetryDelayMs: number;
+  private readonly lockStaleMs: number;
 
   constructor(options: FileSystemProviderExecutionPlanStoreOptions) {
     this.baseDir = resolve(options.baseDir);
@@ -143,18 +158,22 @@ export class FileSystemProviderExecutionPlanStore implements ProviderExecutionPl
       this.baseDir,
       options.stateFileName ?? "provider-execution-plans.json"
     );
+    this.lockPath = join(this.baseDir, ".provider-execution-plan-store.lock");
+    this.lockTimeoutMs = options.lockTimeoutMs ?? defaultLockTimeoutMs;
+    this.lockRetryDelayMs = options.lockRetryDelayMs ?? defaultLockRetryDelayMs;
+    this.lockStaleMs = options.lockStaleMs ?? defaultLockStaleMs;
   }
 
   savePlan(plan: ProviderExecutionPlan): ProviderExecutionPlan {
     const parsed = ProviderExecutionPlanSchema.parse(plan);
-    const state = this.readState();
-    if (state.plans.some((item) => item.planId === parsed.planId)) {
-      throw new Error(`duplicate_provider_execution_plan_id:${parsed.planId}`);
-    }
+    return this.withStateMutation((state) => {
+      if (state.plans.some((item) => item.planId === parsed.planId)) {
+        throw new Error(`duplicate_provider_execution_plan_id:${parsed.planId}`);
+      }
 
-    state.plans.push(cloneProviderExecutionPlan(parsed));
-    this.writeState(state);
-    return cloneProviderExecutionPlan(parsed);
+      state.plans.push(cloneProviderExecutionPlan(parsed));
+      return cloneProviderExecutionPlan(parsed);
+    });
   }
 
   getPlan(planId: string): ProviderExecutionPlan | undefined {
@@ -166,6 +185,82 @@ export class FileSystemProviderExecutionPlanStore implements ProviderExecutionPl
     return this.readState().plans
       .filter((plan) => matchesProviderExecutionPlan(plan, filter))
       .map(cloneProviderExecutionPlan);
+  }
+
+  private withStateMutation<T>(mutate: (state: ProviderExecutionPlanStoreState) => T): T {
+    return this.withLock(() => {
+      const state = this.readState();
+      const result = mutate(state);
+      this.writeState(state);
+      return result;
+    });
+  }
+
+  private withLock<T>(fn: () => T): T {
+    const token = createLockToken();
+    const startedAt = Date.now();
+
+    while (true) {
+      try {
+        this.ensureBaseDir();
+        const fd = openSync(this.lockPath, "wx");
+        try {
+          writeFileSync(fd, `${JSON.stringify({
+            token,
+            pid: process.pid,
+            createdAt: new Date().toISOString()
+          })}\n`, "utf8");
+        } finally {
+          closeSync(fd);
+        }
+
+        try {
+          return fn();
+        } finally {
+          this.releaseLock(token);
+        }
+      } catch (error) {
+        if (!isNodeError(error) || error.code !== "EEXIST") {
+          throw error;
+        }
+
+        this.removeStaleLock();
+        if (Date.now() - startedAt >= this.lockTimeoutMs) {
+          throw new Error(`provider_execution_plan_store_lock_timeout:${this.lockPath}`);
+        }
+
+        sleepSync(this.lockRetryDelayMs);
+      }
+    }
+  }
+
+  private releaseLock(token: string): void {
+    try {
+      const raw = readFileSync(this.lockPath, "utf8");
+      const parsed = JSON.parse(raw) as { token?: unknown };
+      if (parsed.token === token) {
+        unlinkSync(this.lockPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private removeStaleLock(): void {
+    try {
+      const lockStat = statSync(this.lockPath);
+      if (Date.now() - lockStat.mtimeMs >= this.lockStaleMs) {
+        unlinkSync(this.lockPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
   }
 
   private readState(): ProviderExecutionPlanStoreState {
@@ -627,4 +722,26 @@ function findDuplicateStrings(values: string[]): string[] {
   }
 
   return [...duplicates];
+}
+
+function createLockToken(): string {
+  return [
+    process.pid,
+    Date.now(),
+    Math.random().toString(36).slice(2)
+  ].join(":");
+}
+
+function sleepSync(milliseconds: number): void {
+  if (milliseconds <= 0) {
+    return;
+  }
+
+  const shared = new SharedArrayBuffer(4);
+  const view = new Int32Array(shared);
+  Atomics.wait(view, 0, 0, milliseconds);
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }

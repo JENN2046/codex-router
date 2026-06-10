@@ -233,6 +233,59 @@ test("provider execution runner reports validation failures without execution", 
   assert.equal(provider.calls.execute, 0);
 });
 
+test("provider execution runner enforces executor plan invariants before provider validation", async () => {
+  const provider = createFakeExecutorProvider({
+    executorPlanOverrides: {
+      taskId: "task_provider_execution_runner_other",
+      runId: "run_provider_execution_runner_other",
+      providerId: "other-executor",
+      policyDecisionHash: "0".repeat(64),
+      sandboxProfile: createWorkspaceWriteSandboxProfile(),
+      sideEffectClass: "workspace_write"
+    }
+  });
+  const registry = createRegistry(provider);
+  const task = createTask();
+  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const run = createRun(task, policyDecision, "running");
+  const providerExecutionPlan = planProviderExecution(createPlannerInput({
+    task,
+    run,
+    policyDecision,
+    providerRegistry: registry,
+    preferredProviderId: provider.manifest.providerId
+  }));
+
+  const result = await runProviderExecutionPlanDryRun({
+    providerExecutionPlan,
+    task,
+    run,
+    principal: validPrincipal,
+    policyDecision,
+    providerRegistry: registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "validation_failed");
+  assert.ok(result.reasons.includes("executor_plan_invariant_mismatch"));
+  assert.ok(result.reasons.includes(
+    "executor_plan_task_mismatch:task_provider_execution_runner_other:task_provider_execution_runner_001"
+  ));
+  assert.ok(result.reasons.includes(
+    "executor_plan_run_mismatch:run_provider_execution_runner_other:run_provider_execution_runner_001"
+  ));
+  assert.ok(result.reasons.includes("executor_plan_provider_mismatch:other-executor:fake-executor"));
+  assert.ok(result.reasons.includes("executor_plan_policy_decision_hash_mismatch"));
+  assert.ok(result.reasons.includes("executor_plan_sandbox_profile_mismatch"));
+  assert.ok(result.reasons.includes("executor_plan_side_effect_class_mismatch:workspace_write:read_only"));
+  assert.equal(provider.calls.planExecution, 1);
+  assert.equal(provider.calls.validateExecutionPlan, 0);
+  assert.equal(provider.calls.execute, 0);
+  assert.deepEqual(result.validation?.reasons, result.reasons.slice(1));
+});
+
 test("provider execution runner validates codex-cli dry-runs without invoking execute", async () => {
   const codexProvider = new CodexCliExecutorProvider();
   let executeCalls = 0;
@@ -400,6 +453,20 @@ function createSandboxProfile(): SandboxProfile {
   });
 }
 
+function createWorkspaceWriteSandboxProfile(): SandboxProfile {
+  return SandboxProfileSchema.parse({
+    schemaVersion: "sandbox-profile.v1",
+    sandboxId: "sandbox_provider_execution_runner_workspace_write",
+    mode: "workspace-write",
+    networkAccess: "none",
+    writableRoots: ["workspace"],
+    envPolicy: {
+      inheritProcessEnv: false,
+      allowlist: []
+    }
+  });
+}
+
 function createReadScope(): CapabilityScope {
   return CapabilityScopeSchema.parse({
     kind: "file",
@@ -418,6 +485,7 @@ type FakeExecutorProvider = ExecutorProvider & {
 
 function createFakeExecutorProvider(options: {
   validation?: ExecutionValidationResult;
+  executorPlanOverrides?: Partial<ExecutorExecutionPlan>;
 } = {}): FakeExecutorProvider {
   const calls = {
     planExecution: 0,
@@ -447,7 +515,8 @@ function createFakeExecutorProvider(options: {
         createdAt: input.now,
         metadata: {
           fakeExecutor: true
-        }
+        },
+        ...(options.executorPlanOverrides ?? {})
       });
     },
     validateExecutionPlan(_plan: ExecutorExecutionPlan): ExecutionValidationResult {
