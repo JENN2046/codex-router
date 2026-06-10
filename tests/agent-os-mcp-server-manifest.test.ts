@@ -5,6 +5,7 @@ import {
   AgentOsMcpServerManifestSchema,
   AgentOsMcpToolManifestSchema,
   agentOsApproveRunMcpToolManifest,
+  agentOsCreateTaskMcpToolManifest,
   agentOsMcpServerManifest,
   agentOsMcpToolManifests,
   listAgentOsMcpToolManifests
@@ -70,6 +71,35 @@ test("Agent OS MCP mutating tools have required capabilities and approval gates"
   assert.ok(getTool("agentos.create_task").requiredCapabilities.includes("task.create"));
   assert.ok(getTool("agentos.cancel_run").requiredCapabilities.includes("run.cancel"));
   assert.ok(getTool("agentos.approve_run").requiredCapabilities.includes("approval.issue"));
+});
+
+test("Agent OS MCP create_task output schema declares provider planning fields", () => {
+  const outputSchema = agentOsCreateTaskMcpToolManifest.outputSchema as {
+    additionalProperties?: unknown;
+    properties?: Record<string, unknown>;
+  };
+  const properties = outputSchema.properties ?? {};
+
+  assert.equal(outputSchema.additionalProperties, false);
+  for (const outputKey of [
+    "taskId",
+    "runId",
+    "status",
+    "createdAt",
+    "providerPlanId",
+    "providerPlanStatus",
+    "providerPlanningReasons"
+  ]) {
+    assert.ok(outputKey in properties, `missing create_task output property ${outputKey}`);
+  }
+  assert.deepEqual(properties.providerPlanStatus, {
+    type: "string",
+    enum: ["planned", "blocked", "waiting_approval"]
+  });
+  assert.deepEqual(properties.providerPlanningReasons, {
+    type: "array",
+    items: { type: "string" }
+  });
 });
 
 test("Agent OS MCP approve_run cannot be declared without approval.issue", () => {

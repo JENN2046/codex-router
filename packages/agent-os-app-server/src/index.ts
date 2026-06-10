@@ -45,12 +45,20 @@ export type AgentOsAppServerResponse = {
 const RUN_PATH_PATTERN = /^\/agent-os\/runs\/([^/]+)$/;
 const CANCEL_RUN_PATH_PATTERN = /^\/agent-os\/runs\/([^/]+)\/cancel$/;
 const ARTIFACT_PATH_PATTERN = /^\/agent-os\/artifacts\/([^/]+)$/;
+const AGENT_OS_APP_SERVER_INVALID_METHOD = "agent_os_app_server_invalid_method";
+const AGENT_OS_APP_SERVER_INVALID_PATH = "agent_os_app_server_invalid_path";
+const AGENT_OS_APP_SERVER_INVALID_REQUEST = "agent_os_app_server_invalid_request";
 
 export function handleAgentOsAppServerRequest(
   input: HandleAgentOsAppServerRequestInput
 ): AgentOsAppServerResponse {
   const { request, ...trustedRuntimeOptions } = input;
-  const route = routeAgentOsAppServerRequest(request);
+  const routeResult = routeAgentOsAppServerRequestSafely(request);
+  if (routeResult.status === "invalid") {
+    return createBadRequestResponse(routeResult.reason);
+  }
+
+  const route = routeResult.route;
   if (route === undefined) {
     return createAppServerResponse(404, {
       status: "blocked",
@@ -63,10 +71,19 @@ export function handleAgentOsAppServerRequest(
     publicSurface: "app_server"
   });
 
-  const result = runtime.handleToolCall({
-    toolName: route.toolName,
-    input: route.input
-  });
+  let result: AgentOsMcpLocalRuntimeResult;
+  try {
+    result = runtime.handleToolCall({
+      toolName: route.toolName,
+      input: route.input
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return createBadRequestResponse(AGENT_OS_APP_SERVER_INVALID_REQUEST);
+    }
+    throw error;
+  }
+
   return createAppServerResponse(statusCodeForRuntimeResult(result), {
     result
   });
@@ -75,7 +92,11 @@ export function handleAgentOsAppServerRequest(
 export function routeAgentOsAppServerRequest(
   request: AgentOsAppServerRequest
 ): AgentOsAppServerRoute | undefined {
-  const method = AgentOsAppServerMethodSchema.parse(request.method);
+  const methodResult = AgentOsAppServerMethodSchema.safeParse(request.method);
+  if (!methodResult.success) {
+    throw new Error(AGENT_OS_APP_SERVER_INVALID_METHOD);
+  }
+  const method = methodResult.data;
   const path = normalizePath(request.path);
 
   if (method === "POST" && path === "/agent-os/tasks") {
@@ -102,7 +123,7 @@ export function routeAgentOsAppServerRequest(
     return {
       toolName: "agentos.get_run",
       input: {
-        runId: decodeURIComponent(runMatch[1])
+        runId: decodePathSegment(runMatch[1])
       }
     };
   }
@@ -112,7 +133,7 @@ export function routeAgentOsAppServerRequest(
     return {
       toolName: "agentos.cancel_run",
       input: {
-        runId: decodeURIComponent(cancelRunMatch[1]),
+        runId: decodePathSegment(cancelRunMatch[1]),
         ...parseBodyRecord(request.body)
       }
     };
@@ -136,7 +157,7 @@ export function routeAgentOsAppServerRequest(
     return {
       toolName: "agentos.get_artifact",
       input: {
-        artifactId: decodeURIComponent(artifactMatch[1])
+        artifactId: decodePathSegment(artifactMatch[1])
       }
     };
   }
@@ -158,8 +179,41 @@ export function routeAgentOsAppServerRequest(
   return undefined;
 }
 
+type SafeRouteResult =
+  | {
+    status: "ok";
+    route: AgentOsAppServerRoute | undefined;
+  }
+  | {
+    status: "invalid";
+    reason: string;
+  };
+
+function routeAgentOsAppServerRequestSafely(
+  request: AgentOsAppServerRequest
+): SafeRouteResult {
+  try {
+    return {
+      status: "ok",
+      route: routeAgentOsAppServerRequest(request)
+    };
+  } catch (error) {
+    return {
+      status: "invalid",
+      reason: appServerRequestErrorReason(error)
+    };
+  }
+}
+
 function statusCodeForRuntimeResult(result: AgentOsMcpLocalRuntimeResult): number {
   return result.status === "succeeded" ? 200 : 403;
+}
+
+function createBadRequestResponse(reason: string): AgentOsAppServerResponse {
+  return createAppServerResponse(400, {
+    status: "blocked",
+    reasons: [reason]
+  });
 }
 
 function createAppServerResponse(
@@ -180,10 +234,33 @@ function createAppServerResponse(
 
 function normalizePath(path: string): string {
   const withoutQuery = path.split("?")[0] ?? path;
+  assertValidPathEncoding(withoutQuery);
   const normalized = withoutQuery.endsWith("/") && withoutQuery !== "/"
     ? withoutQuery.slice(0, -1)
     : withoutQuery;
   return normalized || "/";
+}
+
+function assertValidPathEncoding(path: string): void {
+  try {
+    decodeURI(path);
+  } catch (error) {
+    if (error instanceof URIError) {
+      throw new Error(AGENT_OS_APP_SERVER_INVALID_PATH);
+    }
+    throw error;
+  }
+}
+
+function decodePathSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch (error) {
+    if (error instanceof URIError) {
+      throw new Error(AGENT_OS_APP_SERVER_INVALID_PATH);
+    }
+    throw error;
+  }
 }
 
 function parseBodyRecord(body: unknown): Record<string, unknown> {
@@ -230,4 +307,11 @@ function parseQueryInteger(value: string, key: string): number {
     throw new Error(`agent_os_app_server_query_must_be_integer:${key}`);
   }
   return parsed;
+}
+
+function appServerRequestErrorReason(error: unknown): string {
+  if (error instanceof Error && error.message.startsWith("agent_os_app_server_")) {
+    return error.message;
+  }
+  return AGENT_OS_APP_SERVER_INVALID_REQUEST;
 }

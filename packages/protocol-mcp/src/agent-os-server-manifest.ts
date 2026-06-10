@@ -163,7 +163,16 @@ export const agentOsCreateTaskMcpToolManifest = defineAgentOsMcpTool({
         type: "string",
         enum: ["queued", "blocked"]
       },
-      createdAt: { type: "string" }
+      createdAt: { type: "string" },
+      providerPlanId: { type: "string" },
+      providerPlanStatus: {
+        type: "string",
+        enum: ["planned", "blocked", "waiting_approval"]
+      },
+      providerPlanningReasons: {
+        type: "array",
+        items: { type: "string" }
+      }
     }
   },
   sideEffectClass: "local_write",

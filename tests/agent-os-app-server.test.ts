@@ -195,6 +195,64 @@ test("Agent OS App Server wrapper ignores client-supplied gate fields", () => {
   assert.deepEqual(kernelStore.listRuns(), []);
 });
 
+test("Agent OS App Server wrapper returns audited bad requests for invalid client input", () => {
+  const cases: Array<{
+    request: AgentOsAppServerRequest;
+    reason: string;
+  }> = [
+    {
+      request: {
+        method: "PATCH",
+        path: "/agent-os/tasks"
+      },
+      reason: "agent_os_app_server_invalid_method"
+    },
+    {
+      request: {
+        method: "GET",
+        path: "/agent-os/runs/%E0%A4%A"
+      },
+      reason: "agent_os_app_server_invalid_path"
+    },
+    {
+      request: {
+        method: "POST",
+        path: "/agent-os/tasks",
+        body: "not an object"
+      },
+      reason: "agent_os_app_server_body_must_be_object"
+    },
+    {
+      request: {
+        method: "GET",
+        path: "/agent-os/runs",
+        query: {
+          limit: "not-an-integer"
+        }
+      },
+      reason: "agent_os_app_server_query_must_be_integer:limit"
+    }
+  ];
+
+  for (const item of cases) {
+    const kernelStore = new InMemoryKernelStore();
+    const response = handleAgentOsAppServerRequest({
+      ...createRuntimeInput(kernelStore),
+      request: item.request
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.deepEqual(response.body, {
+      status: "blocked",
+      reasons: [item.reason]
+    });
+    assert.equal(response.audit.liveHttpServerStarted, false);
+    assert.equal(response.audit.networkAccessed, false);
+    assert.equal(response.audit.realProviderExecutionInvoked, false);
+    assert.deepEqual(kernelStore.listRuns(), []);
+  }
+});
+
 test("Agent OS App Server wrapper creates local run and provider plan without network", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
