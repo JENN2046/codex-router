@@ -205,6 +205,37 @@ test("file provider execution plan store does not remove a fresh lock during sta
   }
 });
 
+test("file provider execution plan store does not remove a stale-looking lock owned by a live process", async () => {
+  const baseDir = await createExecutionPlannerTempDir();
+  try {
+    const lockPath = join(baseDir, ".provider-execution-plan-store.lock");
+    const lockPayload = `${JSON.stringify({
+      token: "live-owner",
+      pid: process.pid,
+      createdAt: "2000-01-01T00:00:00.000Z"
+    })}\n`;
+    await writeFile(lockPath, lockPayload, "utf8");
+    await utimes(lockPath, new Date(0), new Date(0));
+    const plan = planProviderExecution(createPlannerInput({
+      preferredProviderId: "codex-cli"
+    }));
+    const store = new FileSystemProviderExecutionPlanStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 1
+    });
+
+    assert.throws(
+      () => store.savePlan(plan),
+      /provider_execution_plan_store_lock_timeout:/
+    );
+    assert.equal(await readFile(lockPath, "utf8"), lockPayload);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
 test("execution planner emits canonical required capability scopes", () => {
   const sandboxProfile = createSandboxProfile("workspace-write");
   const policyDecision = createPolicyDecision({

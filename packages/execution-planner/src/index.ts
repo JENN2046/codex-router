@@ -121,6 +121,7 @@ type FileLockSnapshot = {
   ctimeMs: number;
   size: number;
   createdAtMs?: number;
+  pid?: number;
 };
 
 const defaultLockTimeoutMs = 1_000;
@@ -263,11 +264,15 @@ export class FileSystemProviderExecutionPlanStore implements ProviderExecutionPl
       if (!isFileLockSnapshotStale(staleCandidate, this.lockStaleMs)) {
         return;
       }
+      if (isFileLockOwnerAlive(staleCandidate)) {
+        return;
+      }
 
       const current = readFileLockSnapshot(this.lockPath);
       if (
         isSameFileLockSnapshot(staleCandidate, current)
         && isFileLockSnapshotStale(current, this.lockStaleMs)
+        && !isFileLockOwnerAlive(current)
       ) {
         unlinkSync(this.lockPath);
       }
@@ -735,7 +740,8 @@ function readFileLockSnapshot(lockPath: string): FileLockSnapshot {
     mtimeMs: lockStat.mtimeMs,
     ctimeMs: lockStat.ctimeMs,
     size: lockStat.size,
-    ...(metadata.createdAtMs !== undefined ? { createdAtMs: metadata.createdAtMs } : {})
+    ...(metadata.createdAtMs !== undefined ? { createdAtMs: metadata.createdAtMs } : {}),
+    ...(metadata.pid !== undefined ? { pid: metadata.pid } : {})
   };
 }
 
@@ -757,14 +763,42 @@ function isSameFileLockSnapshot(left: FileLockSnapshot, right: FileLockSnapshot)
     && left.size === right.size;
 }
 
-function parseFileLockMetadata(raw: string): { createdAtMs?: number } {
+function isFileLockOwnerAlive(snapshot: FileLockSnapshot): boolean {
+  if (snapshot.pid === undefined) {
+    return false;
+  }
+  if (snapshot.pid === process.pid) {
+    return true;
+  }
+
   try {
-    const parsed = JSON.parse(raw) as { createdAt?: unknown };
-    if (typeof parsed.createdAt !== "string") {
-      return {};
+    process.kill(snapshot.pid, 0);
+    return true;
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ESRCH") {
+      return false;
     }
-    const createdAtMs = Date.parse(parsed.createdAt);
-    return Number.isNaN(createdAtMs) ? {} : { createdAtMs };
+    return true;
+  }
+}
+
+function parseFileLockMetadata(raw: string): { createdAtMs?: number; pid?: number } {
+  try {
+    const parsed = JSON.parse(raw) as { createdAt?: unknown; pid?: unknown };
+    const result: { createdAtMs?: number; pid?: number } = {};
+
+    if (typeof parsed.createdAt === "string") {
+      const createdAtMs = Date.parse(parsed.createdAt);
+      if (!Number.isNaN(createdAtMs)) {
+        result.createdAtMs = createdAtMs;
+      }
+    }
+
+    if (typeof parsed.pid === "number" && Number.isSafeInteger(parsed.pid) && parsed.pid > 0) {
+      result.pid = parsed.pid;
+    }
+
+    return result;
   } catch {
     return {};
   }
