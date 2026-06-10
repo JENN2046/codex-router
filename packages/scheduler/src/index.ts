@@ -311,6 +311,7 @@ export class InMemoryScheduler implements Scheduler {
   }
 
   listQueue(): SchedulerQueueItem[] {
+    this.expireLeases();
     return this.queueOrder
       .map((runId) => this.queue.get(runId))
       .filter((item): item is SchedulerQueueItem => Boolean(item))

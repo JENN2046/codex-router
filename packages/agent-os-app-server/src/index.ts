@@ -141,8 +141,8 @@ export function routeAgentOsAppServerRequest(
     return {
       toolName: "agentos.cancel_run",
       input: {
-        runId: decodePathSegment(cancelRunMatch[1]),
-        ...parseBodyRecord(request.body)
+        ...parseBodyRecord(request.body),
+        runId: decodePathSegment(cancelRunMatch[1])
       }
     };
   }

@@ -67,6 +67,21 @@ test("Agent OS App Server router maps HTTP-like routes to governed tool calls", 
   });
 
   assert.deepEqual(routeAgentOsAppServerRequest({
+    method: "POST",
+    path: "/agent-os/runs/run_url_001/cancel",
+    body: {
+      runId: "run_body_001",
+      reason: "operator requested stop"
+    }
+  }), {
+    toolName: "agentos.cancel_run",
+    input: {
+      runId: "run_url_001",
+      reason: "operator requested stop"
+    }
+  });
+
+  assert.deepEqual(routeAgentOsAppServerRequest({
     method: "GET",
     path: "/agent-os/runs",
     query: {

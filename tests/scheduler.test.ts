@@ -104,7 +104,10 @@ test("scheduler rejects invalid clocks before expiring active leases", () => {
     () => scheduler.listLeases(),
     /invalid_clock_timestamp:not-a-timestamp/
   );
-  assert.equal(scheduler.listQueue()[0]?.status, "leased");
+  assert.throws(
+    () => scheduler.listQueue(),
+    /invalid_clock_timestamp:not-a-timestamp/
+  );
 
   assert.throws(
     () => scheduler.renewLease(lease.leaseId),
@@ -114,6 +117,21 @@ test("scheduler rejects invalid clocks before expiring active leases", () => {
   clock.set("2026-06-04T00:00:30.000Z");
   assert.equal(scheduler.listLeases()[0]?.status, "active");
   assert.equal(scheduler.listQueue()[0]?.status, "leased");
+});
+
+test("scheduler expires leases before listing the queue", () => {
+  const clock = createClock();
+  const scheduler = new InMemoryScheduler({ clock, defaultLeaseDurationMs: 60_000 });
+
+  scheduler.enqueueRun("run_scheduler_list_expired_001", { maxAttempts: 2 });
+  const lease = scheduler.acquireLease("worker_001");
+  assert.ok(lease);
+
+  clock.set("2026-06-04T00:01:01.000Z");
+  const queue = scheduler.listQueue();
+
+  assert.equal(queue[0]?.status, "queued");
+  assert.equal(scheduler.listLeases()[0]?.status, "expired");
 });
 
 test("scheduler retries failed leases while attempts remain", () => {
