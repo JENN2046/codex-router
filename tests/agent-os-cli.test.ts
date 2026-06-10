@@ -175,6 +175,76 @@ test("Agent OS CLI wrapper creates a local run and provider plan without spawnin
   );
 });
 
+test("Agent OS CLI parser accepts cursors on paginated commands", () => {
+  const listRuns = parseAgentOsCliArgv([
+    "list-runs",
+    "--task-id",
+    taskId,
+    "--status",
+    "queued",
+    "--limit",
+    "2",
+    "--cursor",
+    "agentos-list-runs:2"
+  ]);
+  assert.equal(listRuns.toolName, "agentos.list_runs");
+  assert.deepEqual(listRuns.toolInput, {
+    taskId,
+    status: "queued",
+    limit: 2,
+    cursor: "agentos-list-runs:2"
+  });
+
+  const listArtifacts = parseAgentOsCliArgv([
+    "list-artifacts",
+    "--task-id",
+    taskId,
+    "--run-id",
+    runId,
+    "--kind",
+    "evidence",
+    "--limit",
+    "2",
+    "--cursor",
+    "agentos-list-artifacts:2"
+  ]);
+  assert.equal(listArtifacts.toolName, "agentos.list_artifacts");
+  assert.deepEqual(listArtifacts.toolInput, {
+    taskId,
+    runId,
+    kind: "evidence",
+    limit: 2,
+    cursor: "agentos-list-artifacts:2"
+  });
+
+  const searchEvents = parseAgentOsCliArgv([
+    "search-events",
+    "--query",
+    "cursor-pagination",
+    "--task-id",
+    taskId,
+    "--run-id",
+    runId,
+    "--event-type",
+    "event.one",
+    "--event-type",
+    "event.two",
+    "--limit",
+    "2",
+    "--cursor",
+    "agentos-search-events:2"
+  ]);
+  assert.equal(searchEvents.toolName, "agentos.search_events");
+  assert.deepEqual(searchEvents.toolInput, {
+    query: "cursor-pagination",
+    taskId,
+    runId,
+    eventTypes: ["event.one", "event.two"],
+    limit: 2,
+    cursor: "agentos-search-events:2"
+  });
+});
+
 test("Agent OS CLI sanitizer redacts secret-like option values", () => {
   assert.deepEqual(
     sanitizeAgentOsCliArgv([

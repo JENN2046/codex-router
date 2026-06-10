@@ -275,6 +275,9 @@ function parseListRunsOptions(cursor: ArgCursor, common: CommonCliOptions): Reco
       case "--limit":
         input.limit = parseIntegerOption(nextArg(cursor, arg), arg);
         break;
+      case "--cursor":
+        input.cursor = nextArg(cursor, arg);
+        break;
       default:
         throw new Error(`agent_os_cli_unknown_option:${arg}`);
     }
@@ -389,6 +392,9 @@ function parseListArtifactsOptions(
       case "--limit":
         input.limit = parseIntegerOption(nextArg(cursor, arg), arg);
         break;
+      case "--cursor":
+        input.cursor = nextArg(cursor, arg);
+        break;
       default:
         throw new Error(`agent_os_cli_unknown_option:${arg}`);
     }
@@ -429,6 +435,7 @@ function parseSearchEventsOptions(
     runId?: string;
     eventTypes: string[];
     limit?: number;
+    cursor?: string;
   } = {
     eventTypes: []
   };
@@ -454,6 +461,9 @@ function parseSearchEventsOptions(
       case "--limit":
         input.limit = parseIntegerOption(nextArg(cursor, arg), arg);
         break;
+      case "--cursor":
+        input.cursor = nextArg(cursor, arg);
+        break;
       default:
         throw new Error(`agent_os_cli_unknown_option:${arg}`);
     }
@@ -464,7 +474,8 @@ function parseSearchEventsOptions(
     ...(input.taskId !== undefined ? { taskId: input.taskId } : {}),
     ...(input.runId !== undefined ? { runId: input.runId } : {}),
     eventTypes: input.eventTypes,
-    ...(input.limit !== undefined ? { limit: input.limit } : {})
+    ...(input.limit !== undefined ? { limit: input.limit } : {}),
+    ...(input.cursor !== undefined ? { cursor: input.cursor } : {})
   };
 }
 
