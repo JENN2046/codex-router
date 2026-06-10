@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -351,6 +351,33 @@ test("file provider manifest store refuses mutations while another lock is prese
       () => store.deleteManifest("codex-cli"),
       /provider_manifest_store_lock_timeout:/
     );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file provider manifest store does not remove a fresh lock during stale cleanup", async () => {
+  const baseDir = await createProviderRegistryTempDir();
+  try {
+    const lockPath = join(baseDir, ".provider-manifest-store.lock");
+    const lockPayload = `${JSON.stringify({
+      token: "fresh-owner",
+      createdAt: "2999-01-01T00:00:00.000Z"
+    })}\n`;
+    await writeFile(lockPath, lockPayload, "utf8");
+    await utimes(lockPath, new Date(0), new Date(0));
+    const store = new FileSystemProviderManifestStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 1
+    });
+
+    assert.throws(
+      () => store.saveManifest(createCodexProvider().manifest),
+      /provider_manifest_store_lock_timeout:/
+    );
+    assert.equal(await readFile(lockPath, "utf8"), lockPayload);
   } finally {
     await rm(baseDir, { recursive: true, force: true });
   }

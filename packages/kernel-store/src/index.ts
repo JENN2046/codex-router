@@ -99,6 +99,14 @@ const FileSystemKernelStoreStateSchema = z.object({
 
 type FileSystemKernelStoreState = z.infer<typeof FileSystemKernelStoreStateSchema>;
 
+type FileLockSnapshot = {
+  raw: string;
+  mtimeMs: number;
+  ctimeMs: number;
+  size: number;
+  createdAtMs?: number;
+};
+
 const defaultLockTimeoutMs = 1_000;
 const defaultLockRetryDelayMs = 10;
 const defaultLockStaleMs = 30_000;
@@ -434,8 +442,16 @@ export class FileSystemKernelStore implements KernelStore {
 
   private removeStaleLock(): void {
     try {
-      const lockStat = statSync(this.lockPath);
-      if (Date.now() - lockStat.mtimeMs >= this.lockStaleMs) {
+      const staleCandidate = readFileLockSnapshot(this.lockPath);
+      if (!isFileLockSnapshotStale(staleCandidate, this.lockStaleMs)) {
+        return;
+      }
+
+      const current = readFileLockSnapshot(this.lockPath);
+      if (
+        isSameFileLockSnapshot(staleCandidate, current)
+        && isFileLockSnapshotStale(current, this.lockStaleMs)
+      ) {
         unlinkSync(this.lockPath);
       }
     } catch (error) {
@@ -507,6 +523,50 @@ function createEmptyFileSystemKernelStoreState(): FileSystemKernelStoreState {
     events: [],
     artifacts: []
   };
+}
+
+function readFileLockSnapshot(lockPath: string): FileLockSnapshot {
+  const lockStat = statSync(lockPath);
+  const raw = readFileSync(lockPath, "utf8");
+  const metadata = parseFileLockMetadata(raw);
+  return {
+    raw,
+    mtimeMs: lockStat.mtimeMs,
+    ctimeMs: lockStat.ctimeMs,
+    size: lockStat.size,
+    ...(metadata.createdAtMs !== undefined ? { createdAtMs: metadata.createdAtMs } : {})
+  };
+}
+
+function isFileLockSnapshotStale(snapshot: FileLockSnapshot, lockStaleMs: number): boolean {
+  const now = Date.now();
+  if (now - snapshot.mtimeMs < lockStaleMs) {
+    return false;
+  }
+  if (snapshot.createdAtMs !== undefined && now - snapshot.createdAtMs < lockStaleMs) {
+    return false;
+  }
+  return true;
+}
+
+function isSameFileLockSnapshot(left: FileLockSnapshot, right: FileLockSnapshot): boolean {
+  return left.raw === right.raw
+    && left.mtimeMs === right.mtimeMs
+    && left.ctimeMs === right.ctimeMs
+    && left.size === right.size;
+}
+
+function parseFileLockMetadata(raw: string): { createdAtMs?: number } {
+  try {
+    const parsed = JSON.parse(raw) as { createdAt?: unknown };
+    if (typeof parsed.createdAt !== "string") {
+      return {};
+    }
+    const createdAtMs = Date.parse(parsed.createdAt);
+    return Number.isNaN(createdAtMs) ? {} : { createdAtMs };
+  } catch {
+    return {};
+  }
 }
 
 function addDuplicateIssues(

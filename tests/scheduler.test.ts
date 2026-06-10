@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -277,6 +277,34 @@ test("file scheduler refuses state mutation while another lock is present", asyn
       () => scheduler.enqueueRun("run_scheduler_file_locked_001"),
       /scheduler_lock_timeout:/
     );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file scheduler does not remove a fresh lock during stale cleanup", async () => {
+  const baseDir = await createSchedulerTempDir();
+  try {
+    const lockPath = join(baseDir, ".scheduler.lock");
+    const lockPayload = `${JSON.stringify({
+      token: "fresh-owner",
+      createdAt: "2999-01-01T00:00:00.000Z"
+    })}\n`;
+    await writeFile(lockPath, lockPayload, "utf8");
+    await utimes(lockPath, new Date(0), new Date(0));
+    const scheduler = new FileSystemScheduler({
+      baseDir,
+      clock: createClock(),
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 1
+    });
+
+    assert.throws(
+      () => scheduler.enqueueRun("run_scheduler_file_fresh_lock_001"),
+      /scheduler_lock_timeout:/
+    );
+    assert.equal(await readFile(lockPath, "utf8"), lockPayload);
   } finally {
     await rm(baseDir, { recursive: true, force: true });
   }
