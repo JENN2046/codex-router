@@ -24,6 +24,8 @@ export const A2A_REMOTE_AGENT_PROVIDER_DISABLED =
   "a2a_remote_agent_provider_disabled";
 export const A2A_ANONYMOUS_REMOTE_INVOCATION_REJECTED =
   "a2a_anonymous_remote_invocation_rejected";
+export const A2A_FAKE_TRANSPORT_SUBMIT_DISABLED =
+  "a2a_fake_transport_submit_disabled";
 
 export const A2AStatusSchema = z.enum([
   "queued",
@@ -182,10 +184,49 @@ export type A2ARemoteInvocationAuthorization = {
   principalId?: string;
 };
 
+export type FakeA2ATransportSubmitInput = {
+  task: Task | z.input<typeof TaskSchema>;
+  run: Run | z.input<typeof RunSchema>;
+  authorization: A2ARemoteInvocationAuthorization;
+};
+
+export type FakeA2ATransportEvent = {
+  eventId: string;
+  remoteTaskId: string;
+  eventType: string;
+  createdAt: string;
+  payload: Record<string, unknown>;
+};
+
+export type FakeA2ATransport = {
+  readonly fakeTransport: {
+    liveNetworkService: false;
+    submitEnabled: boolean;
+  };
+  getAgentCard(): A2AAgentCardSkeleton;
+  submitTask(input: FakeA2ATransportSubmitInput): A2ATaskSkeleton;
+  getTask(remoteTaskId: string): A2ATaskSkeleton | undefined;
+  cancelTask(remoteTaskId: string, reason?: string): A2ATaskSkeleton;
+  listEvents(remoteTaskId?: string): FakeA2ATransportEvent[];
+};
+
+export type CreateFakeA2ATransportInput = {
+  agentCard: A2AAgentCardSkeleton | z.input<typeof A2AAgentCardSkeletonSchema>;
+  submitEnabled?: boolean;
+  now?: () => string;
+};
+
 export class A2ARemoteAgentProviderDisabledError extends Error {
   constructor() {
     super(A2A_REMOTE_AGENT_PROVIDER_DISABLED);
     this.name = "A2ARemoteAgentProviderDisabledError";
+  }
+}
+
+export class A2AFakeTransportSubmitDisabledError extends Error {
+  constructor() {
+    super(A2A_FAKE_TRANSPORT_SUBMIT_DISABLED);
+    this.name = "A2AFakeTransportSubmitDisabledError";
   }
 }
 
@@ -419,6 +460,112 @@ export function createA2ARemoteAgentProviderSkeleton(
   };
 }
 
+export function createFakeA2ATransport(
+  input: CreateFakeA2ATransportInput
+): FakeA2ATransport {
+  const agentCard = A2AAgentCardSkeletonSchema.parse(input.agentCard);
+  const submitEnabled = input.submitEnabled ?? false;
+  const now = input.now ?? (() => new Date().toISOString());
+  const tasks = new Map<string, A2ATaskSkeleton>();
+  const events: FakeA2ATransportEvent[] = [];
+
+  return {
+    fakeTransport: {
+      liveNetworkService: false,
+      submitEnabled
+    },
+
+    getAgentCard(): A2AAgentCardSkeleton {
+      return cloneA2AAgentCard(agentCard);
+    },
+
+    submitTask(submitInput: FakeA2ATransportSubmitInput): A2ATaskSkeleton {
+      assertA2ARemoteInvocationAuthorized(agentCard, submitInput.authorization);
+      if (!submitEnabled) {
+        throw new A2AFakeTransportSubmitDisabledError();
+      }
+
+      const task = TaskSchema.parse(submitInput.task);
+      const run = RunSchema.parse(submitInput.run);
+      const submittedAt = now();
+      const a2aTask = A2ATaskSkeletonSchema.parse({
+        ...taskToA2ATaskSkeleton(task, run),
+        status: "queued",
+        createdAt: submittedAt,
+        updatedAt: submittedAt,
+        metadata: {
+          ...taskToA2ATaskSkeleton(task, run).metadata,
+          fakeTransport: true,
+          liveNetworkService: false,
+          remoteExecutionStarted: false
+        }
+      });
+
+      tasks.set(a2aTask.remoteTaskId, cloneA2ATask(a2aTask));
+      events.push({
+        eventId: `event.${a2aTask.remoteTaskId}.submitted`,
+        remoteTaskId: a2aTask.remoteTaskId,
+        eventType: "a2a.fake.task.submitted",
+        createdAt: submittedAt,
+        payload: {
+          localTaskId: task.taskId,
+          localRunId: run.runId,
+          liveNetworkService: false
+        }
+      });
+
+      return cloneA2ATask(a2aTask);
+    },
+
+    getTask(remoteTaskId: string): A2ATaskSkeleton | undefined {
+      const task = tasks.get(remoteTaskId);
+      return task === undefined ? undefined : cloneA2ATask(task);
+    },
+
+    cancelTask(remoteTaskId: string, reason?: string): A2ATaskSkeleton {
+      if (!submitEnabled) {
+        throw new A2AFakeTransportSubmitDisabledError();
+      }
+
+      const existing = tasks.get(remoteTaskId);
+      if (existing === undefined) {
+        throw new Error(`a2a_fake_task_not_found:${remoteTaskId}`);
+      }
+
+      const cancelledAt = now();
+      const cancelled = A2ATaskSkeletonSchema.parse({
+        ...existing,
+        status: "cancelled",
+        updatedAt: cancelledAt,
+        metadata: {
+          ...existing.metadata,
+          cancelReason: reason ?? "unspecified"
+        }
+      });
+
+      tasks.set(remoteTaskId, cloneA2ATask(cancelled));
+      events.push({
+        eventId: `event.${remoteTaskId}.cancelled`,
+        remoteTaskId,
+        eventType: "a2a.fake.task.cancelled",
+        createdAt: cancelledAt,
+        payload: {
+          reason: reason ?? "unspecified",
+          liveNetworkService: false
+        }
+      });
+
+      return cloneA2ATask(cancelled);
+    },
+
+    listEvents(remoteTaskId?: string): FakeA2ATransportEvent[] {
+      return events
+        .filter((event) => remoteTaskId === undefined || event.remoteTaskId === remoteTaskId)
+        .map(cloneFakeA2ATransportEvent);
+    }
+  };
+}
+
 function createA2AProviderManifest(agentManifest: AgentManifest): ProviderManifest {
   return parseProviderManifest({
     schemaVersion: "provider-manifest.v1",
@@ -504,6 +651,20 @@ function cloneA2AAgentCardForProvider(
   }
 
   return cloned;
+}
+
+function cloneA2AAgentCard(agentCard: A2AAgentCardSkeleton): A2AAgentCardSkeleton {
+  return A2AAgentCardSkeletonSchema.parse(structuredClone(agentCard));
+}
+
+function cloneA2ATask(task: A2ATaskSkeleton): A2ATaskSkeleton {
+  return A2ATaskSkeletonSchema.parse(structuredClone(task));
+}
+
+function cloneFakeA2ATransportEvent(
+  event: FakeA2ATransportEvent
+): FakeA2ATransportEvent {
+  return structuredClone(event) as FakeA2ATransportEvent;
 }
 
 function createA2ARemoteTaskId(localTaskId: string): string {
