@@ -1,4 +1,16 @@
 import { createHash } from "node:crypto";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync
+} from "node:fs";
+import { join, resolve } from "node:path";
 import { z } from "zod";
 import {
   capabilityScopeToCanonicalString
@@ -66,6 +78,248 @@ export const ProviderExecutionPlanSchema = z.object({
 export type ProviderExecutionPlanStatus = z.infer<typeof ProviderExecutionPlanStatusSchema>;
 export type ProviderExecutionPlanProviderKind = z.infer<typeof ProviderExecutionPlanProviderKindSchema>;
 export type ProviderExecutionPlan = z.infer<typeof ProviderExecutionPlanSchema>;
+
+export type ProviderExecutionPlanFilter = {
+  taskId?: string;
+  runId?: string;
+  providerId?: string;
+  status?: ProviderExecutionPlanStatus;
+};
+
+export type FileSystemProviderExecutionPlanStoreOptions = {
+  baseDir: string;
+  stateFileName?: string;
+  lockTimeoutMs?: number;
+  lockRetryDelayMs?: number;
+  lockStaleMs?: number;
+};
+
+export interface ProviderExecutionPlanStore {
+  savePlan(plan: ProviderExecutionPlan): ProviderExecutionPlan;
+  getPlan(planId: string): ProviderExecutionPlan | undefined;
+  listPlans(filter?: ProviderExecutionPlanFilter): ProviderExecutionPlan[];
+}
+
+const ProviderExecutionPlanStoreStateSchema = z.object({
+  schemaVersion: z.literal("provider-execution-plan-store.v1"),
+  plans: z.array(ProviderExecutionPlanSchema)
+}).superRefine((state, ctx) => {
+  for (const duplicate of findDuplicateStrings(state.plans.map((plan) => plan.planId))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `duplicate_provider_execution_plan_id:${duplicate}`,
+      path: ["plans"]
+    });
+  }
+});
+
+type ProviderExecutionPlanStoreState = z.infer<typeof ProviderExecutionPlanStoreStateSchema>;
+
+type FileLockSnapshot = {
+  raw: string;
+  mtimeMs: number;
+  ctimeMs: number;
+  size: number;
+  createdAtMs?: number;
+  pid?: number;
+};
+
+const defaultLockTimeoutMs = 1_000;
+const defaultLockRetryDelayMs = 10;
+const defaultLockStaleMs = 30_000;
+
+export class InMemoryProviderExecutionPlanStore implements ProviderExecutionPlanStore {
+  private readonly plans = new Map<string, ProviderExecutionPlan>();
+
+  savePlan(plan: ProviderExecutionPlan): ProviderExecutionPlan {
+    const parsed = ProviderExecutionPlanSchema.parse(plan);
+    if (this.plans.has(parsed.planId)) {
+      throw new Error(`duplicate_provider_execution_plan_id:${parsed.planId}`);
+    }
+
+    this.plans.set(parsed.planId, cloneProviderExecutionPlan(parsed));
+    return cloneProviderExecutionPlan(parsed);
+  }
+
+  getPlan(planId: string): ProviderExecutionPlan | undefined {
+    const plan = this.plans.get(planId);
+    return plan === undefined ? undefined : cloneProviderExecutionPlan(plan);
+  }
+
+  listPlans(filter: ProviderExecutionPlanFilter = {}): ProviderExecutionPlan[] {
+    return [...this.plans.values()]
+      .filter((plan) => matchesProviderExecutionPlan(plan, filter))
+      .map(cloneProviderExecutionPlan);
+  }
+}
+
+export class FileSystemProviderExecutionPlanStore implements ProviderExecutionPlanStore {
+  private readonly baseDir: string;
+  private readonly statePath: string;
+  private readonly lockPath: string;
+  private readonly lockTimeoutMs: number;
+  private readonly lockRetryDelayMs: number;
+  private readonly lockStaleMs: number;
+
+  constructor(options: FileSystemProviderExecutionPlanStoreOptions) {
+    this.baseDir = resolve(options.baseDir);
+    this.statePath = join(
+      this.baseDir,
+      options.stateFileName ?? "provider-execution-plans.json"
+    );
+    this.lockPath = join(this.baseDir, ".provider-execution-plan-store.lock");
+    this.lockTimeoutMs = options.lockTimeoutMs ?? defaultLockTimeoutMs;
+    this.lockRetryDelayMs = options.lockRetryDelayMs ?? defaultLockRetryDelayMs;
+    this.lockStaleMs = options.lockStaleMs ?? defaultLockStaleMs;
+  }
+
+  savePlan(plan: ProviderExecutionPlan): ProviderExecutionPlan {
+    const parsed = ProviderExecutionPlanSchema.parse(plan);
+    return this.withStateMutation((state) => {
+      if (state.plans.some((item) => item.planId === parsed.planId)) {
+        throw new Error(`duplicate_provider_execution_plan_id:${parsed.planId}`);
+      }
+
+      state.plans.push(cloneProviderExecutionPlan(parsed));
+      return cloneProviderExecutionPlan(parsed);
+    });
+  }
+
+  getPlan(planId: string): ProviderExecutionPlan | undefined {
+    const plan = this.readState().plans.find((item) => item.planId === planId);
+    return plan === undefined ? undefined : cloneProviderExecutionPlan(plan);
+  }
+
+  listPlans(filter: ProviderExecutionPlanFilter = {}): ProviderExecutionPlan[] {
+    return this.readState().plans
+      .filter((plan) => matchesProviderExecutionPlan(plan, filter))
+      .map(cloneProviderExecutionPlan);
+  }
+
+  private withStateMutation<T>(mutate: (state: ProviderExecutionPlanStoreState) => T): T {
+    return this.withLock(() => {
+      const state = this.readState();
+      const result = mutate(state);
+      this.writeState(state);
+      return result;
+    });
+  }
+
+  private withLock<T>(fn: () => T): T {
+    const token = createLockToken();
+    const startedAt = Date.now();
+
+    while (true) {
+      try {
+        this.ensureBaseDir();
+        const fd = openSync(this.lockPath, "wx");
+        try {
+          writeFileSync(fd, `${JSON.stringify({
+            token,
+            pid: process.pid,
+            createdAt: new Date().toISOString()
+          })}\n`, "utf8");
+        } finally {
+          closeSync(fd);
+        }
+
+        try {
+          return fn();
+        } finally {
+          this.releaseLock(token);
+        }
+      } catch (error) {
+        if (!isNodeError(error) || error.code !== "EEXIST") {
+          throw error;
+        }
+
+        this.removeStaleLock();
+        if (Date.now() - startedAt >= this.lockTimeoutMs) {
+          throw new Error(`provider_execution_plan_store_lock_timeout:${this.lockPath}`);
+        }
+
+        sleepSync(this.lockRetryDelayMs);
+      }
+    }
+  }
+
+  private releaseLock(token: string): void {
+    try {
+      const raw = readFileSync(this.lockPath, "utf8");
+      const parsed = JSON.parse(raw) as { token?: unknown };
+      if (parsed.token === token) {
+        unlinkSync(this.lockPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private removeStaleLock(): void {
+    try {
+      const staleCandidate = readFileLockSnapshot(this.lockPath);
+      if (!isFileLockSnapshotStale(staleCandidate, this.lockStaleMs)) {
+        return;
+      }
+      if (isFileLockOwnerAlive(staleCandidate)) {
+        return;
+      }
+
+      const current = readFileLockSnapshot(this.lockPath);
+      if (
+        isSameFileLockSnapshot(staleCandidate, current)
+        && isFileLockSnapshotStale(current, this.lockStaleMs)
+        && !isFileLockOwnerAlive(current)
+      ) {
+        unlinkSync(this.lockPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private readState(): ProviderExecutionPlanStoreState {
+    this.ensureBaseDir();
+    if (!existsSync(this.statePath)) {
+      return createEmptyProviderExecutionPlanStoreState();
+    }
+
+    return ProviderExecutionPlanStoreStateSchema.parse(
+      JSON.parse(readFileSync(this.statePath, "utf8"))
+    );
+  }
+
+  private writeState(state: ProviderExecutionPlanStoreState): void {
+    this.ensureBaseDir();
+    const parsed = ProviderExecutionPlanStoreStateSchema.parse(state);
+    const tempPath = join(
+      this.baseDir,
+      `provider-execution-plans.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+    );
+    writeFileSync(tempPath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+    renameSync(tempPath, this.statePath);
+  }
+
+  private ensureBaseDir(): void {
+    mkdirSync(this.baseDir, { recursive: true });
+  }
+}
+
+export function createInMemoryProviderExecutionPlanStore(): InMemoryProviderExecutionPlanStore {
+  return new InMemoryProviderExecutionPlanStore();
+}
+
+export function createFileSystemProviderExecutionPlanStore(
+  options: FileSystemProviderExecutionPlanStoreOptions
+): FileSystemProviderExecutionPlanStore {
+  return new FileSystemProviderExecutionPlanStore(options);
+}
 
 export type PlanProviderExecutionInput = {
   task: Task;
@@ -450,4 +704,138 @@ function toSafeIdPart(value: string): string {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function cloneProviderExecutionPlan(plan: ProviderExecutionPlan): ProviderExecutionPlan {
+  return ProviderExecutionPlanSchema.parse(structuredClone(plan));
+}
+
+function matchesProviderExecutionPlan(
+  plan: ProviderExecutionPlan,
+  filter: ProviderExecutionPlanFilter
+): boolean {
+  return matchesOptionalString(filter.taskId, plan.taskId)
+    && matchesOptionalString(filter.runId, plan.runId)
+    && matchesOptionalString(filter.providerId, plan.providerId)
+    && matchesOptionalString(filter.status, plan.status);
+}
+
+function matchesOptionalString<T extends string>(expected: T | undefined, actual: T): boolean {
+  return expected === undefined || actual === expected;
+}
+
+function createEmptyProviderExecutionPlanStoreState(): ProviderExecutionPlanStoreState {
+  return {
+    schemaVersion: "provider-execution-plan-store.v1",
+    plans: []
+  };
+}
+
+function readFileLockSnapshot(lockPath: string): FileLockSnapshot {
+  const lockStat = statSync(lockPath);
+  const raw = readFileSync(lockPath, "utf8");
+  const metadata = parseFileLockMetadata(raw);
+  return {
+    raw,
+    mtimeMs: lockStat.mtimeMs,
+    ctimeMs: lockStat.ctimeMs,
+    size: lockStat.size,
+    ...(metadata.createdAtMs !== undefined ? { createdAtMs: metadata.createdAtMs } : {}),
+    ...(metadata.pid !== undefined ? { pid: metadata.pid } : {})
+  };
+}
+
+function isFileLockSnapshotStale(snapshot: FileLockSnapshot, lockStaleMs: number): boolean {
+  const now = Date.now();
+  if (now - snapshot.mtimeMs < lockStaleMs) {
+    return false;
+  }
+  if (snapshot.createdAtMs !== undefined && now - snapshot.createdAtMs < lockStaleMs) {
+    return false;
+  }
+  return true;
+}
+
+function isSameFileLockSnapshot(left: FileLockSnapshot, right: FileLockSnapshot): boolean {
+  return left.raw === right.raw
+    && left.mtimeMs === right.mtimeMs
+    && left.ctimeMs === right.ctimeMs
+    && left.size === right.size;
+}
+
+function isFileLockOwnerAlive(snapshot: FileLockSnapshot): boolean {
+  if (snapshot.pid === undefined) {
+    return false;
+  }
+  if (snapshot.pid === process.pid) {
+    return true;
+  }
+
+  try {
+    process.kill(snapshot.pid, 0);
+    return true;
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ESRCH") {
+      return false;
+    }
+    return true;
+  }
+}
+
+function parseFileLockMetadata(raw: string): { createdAtMs?: number; pid?: number } {
+  try {
+    const parsed = JSON.parse(raw) as { createdAt?: unknown; pid?: unknown };
+    const result: { createdAtMs?: number; pid?: number } = {};
+
+    if (typeof parsed.createdAt === "string") {
+      const createdAtMs = Date.parse(parsed.createdAt);
+      if (!Number.isNaN(createdAtMs)) {
+        result.createdAtMs = createdAtMs;
+      }
+    }
+
+    if (typeof parsed.pid === "number" && Number.isSafeInteger(parsed.pid) && parsed.pid > 0) {
+      result.pid = parsed.pid;
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function findDuplicateStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+
+  for (const value of values) {
+    if (seen.has(value)) {
+      duplicates.add(value);
+    }
+    seen.add(value);
+  }
+
+  return [...duplicates];
+}
+
+function createLockToken(): string {
+  return [
+    process.pid,
+    Date.now(),
+    Math.random().toString(36).slice(2)
+  ].join(":");
+}
+
+function sleepSync(milliseconds: number): void {
+  if (milliseconds <= 0) {
+    return;
+  }
+
+  const shared = new SharedArrayBuffer(4);
+  const view = new Int32Array(shared);
+  Atomics.wait(view, 0, 0, milliseconds);
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }

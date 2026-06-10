@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import {
   McpServerRefSchema,
+  createFakeMcpToolProvider,
   createMcpToolProviderSkeleton,
   mcpToolToToolManifest,
   parseMcpServerRef,
@@ -338,6 +339,65 @@ test("protocol-mcp provider skeleton invoke is disabled", async () => {
   assert.equal(await provider.getTool(manifest.toolId), undefined);
   await assert.rejects(
     async () => provider.invoke(plan, {}),
+    /mcp_tool_provider_invoke_disabled/
+  );
+});
+
+test("protocol-mcp fake server exposes descriptors for local integration without invocation", async () => {
+  const serverRef = createServerRef({
+    allowedTools: ["repo_search", "repo_summary"]
+  });
+  const provider = createFakeMcpToolProvider({
+    serverRef,
+    tools: [
+      {
+        name: "repo_search",
+        title: "Repo Search",
+        inputSchema: {
+          type: "object",
+          required: ["query"],
+          properties: {
+            query: { type: "string" }
+          }
+        }
+      },
+      {
+        name: "repo_summary",
+        inputSchema: {
+          type: "object"
+        }
+      }
+    ],
+    sideEffectClasses: {
+      repo_search: "read",
+      repo_summary: "read"
+    }
+  });
+  const tools = await provider.listTools();
+  const searchTool = await provider.getTool("mcp.local-dev.repo_search");
+
+  assert.equal(provider.fakeServer.liveServerConnection, false);
+  assert.equal(provider.fakeServer.toolCount, 2);
+  assert.deepEqual(
+    tools.map((tool) => tool.toolId),
+    ["mcp.local-dev.repo_search", "mcp.local-dev.repo_summary"]
+  );
+  assert.ok(searchTool);
+  assert.equal(searchTool?.metadata.mcp !== undefined, true);
+
+  const plan = await provider.planInvocation(createToolInvocationInput({
+    toolManifest: searchTool,
+    proposedInput: {
+      query: "ProviderExecutionPlan"
+    }
+  }));
+
+  assert.equal(plan.providerId, "mcp.local-dev");
+  assert.equal(plan.toolId, "mcp.local-dev.repo_search");
+  assert.equal(plan.approvalRequired, false);
+  assert.equal((plan.metadata.mcp as Record<string, unknown>).liveServerConnection, false);
+  await assert.rejects(
+    async () => provider.invoke(plan, { dryRun: true }),
     /mcp_tool_provider_invoke_disabled/
   );
 });

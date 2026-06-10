@@ -22,6 +22,7 @@ import {
 } from "../../tool-registry/src/index.js";
 
 export * from "./agent-os-server-manifest.js";
+export * from "./agent-os-local-runtime.js";
 
 export type ToolManifest = RegisteredToolManifest;
 
@@ -102,6 +103,22 @@ export type McpToolToToolManifestInput = {
   sideEffectClass?: ToolSideEffectClass;
   defaultTimeoutMs?: number;
   requiredCapabilities?: string[];
+};
+
+export type FakeMcpToolProviderInput = {
+  serverRef: McpServerRef | z.input<typeof McpServerRefSchema>;
+  tools: Array<McpToolDescriptor | z.input<typeof McpToolDescriptorSchema>>;
+  sideEffectClasses?: Record<string, ToolSideEffectClass>;
+  defaultTimeoutMs?: number;
+  requiredCapabilities?: Record<string, string[]>;
+};
+
+export type FakeMcpToolProvider = ToolProvider & {
+  readonly fakeServer: {
+    serverId: string;
+    liveServerConnection: false;
+    toolCount: number;
+  };
 };
 
 export class McpToolProviderInvokeDisabledError extends Error {
@@ -254,6 +271,55 @@ export function createMcpToolProviderSkeleton(
       _context: ProviderToolInvocationContext
     ): ToolInvocationResult {
       throw new McpToolProviderInvokeDisabledError();
+    }
+  };
+}
+
+export function createFakeMcpToolProvider(
+  input: FakeMcpToolProviderInput
+): FakeMcpToolProvider {
+  const serverRef = parseMcpServerRef(input.serverRef);
+  const skeleton = createMcpToolProviderSkeleton(serverRef);
+  const manifests = input.tools.map((toolInput) => {
+    const tool = parseMcpToolDescriptor(toolInput);
+    return mcpToolToToolManifest({
+      serverRef,
+      tool,
+      ...(input.sideEffectClasses?.[tool.name] !== undefined
+        ? { sideEffectClass: input.sideEffectClasses[tool.name] }
+        : {}),
+      ...(input.defaultTimeoutMs !== undefined
+        ? { defaultTimeoutMs: input.defaultTimeoutMs }
+        : {}),
+      ...(input.requiredCapabilities?.[tool.name] !== undefined
+        ? { requiredCapabilities: input.requiredCapabilities[tool.name] }
+        : {})
+    });
+  });
+
+  return {
+    manifest: skeleton.manifest,
+    fakeServer: {
+      serverId: serverRef.serverId,
+      liveServerConnection: false,
+      toolCount: manifests.length
+    },
+
+    listTools(): ToolManifest[] {
+      return manifests.map(cloneToolManifest);
+    },
+
+    getTool(toolId: string): ToolManifest | undefined {
+      const manifest = manifests.find((candidate) => candidate.toolId === toolId);
+      return manifest === undefined ? undefined : cloneToolManifest(manifest);
+    },
+
+    planInvocation(input: ToolInvocationInput) {
+      return skeleton.planInvocation(input);
+    },
+
+    invoke(plan, context: ProviderToolInvocationContext) {
+      return skeleton.invoke(plan, context);
     }
   };
 }
@@ -506,6 +572,10 @@ function readRecord(input: unknown): Record<string, unknown> | undefined {
 
 function cloneRecord(input: Record<string, unknown>): Record<string, unknown> {
   return structuredClone(input) as Record<string, unknown>;
+}
+
+function cloneToolManifest(input: ToolManifest): ToolManifest {
+  return RegisteredToolManifestSchema.parse(structuredClone(input));
 }
 
 function getString(input: unknown): string | undefined {

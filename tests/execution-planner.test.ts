@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
+  FileSystemProviderExecutionPlanStore,
   hashProviderExecutionPlannerObject,
+  InMemoryProviderExecutionPlanStore,
   ProviderExecutionPlanSchema,
   planProviderExecution,
   type PlanProviderExecutionInput
@@ -74,6 +79,161 @@ test("execution planner creates a planned plan with codex-cli provider", () => {
   assert.equal(plan.reasons.includes("provider_planned"), true);
   assert.match(plan.inputHash, /^[a-f0-9]{64}$/);
   assert.match(plan.policyDecisionHash, /^[a-f0-9]{64}$/);
+});
+
+test("provider execution plan store saves and filters stable snapshots", () => {
+  const store = new InMemoryProviderExecutionPlanStore();
+  const plan = planProviderExecution(createPlannerInput({
+    preferredProviderId: "codex-cli"
+  }));
+
+  assert.deepEqual(store.savePlan(plan), plan);
+  assert.deepEqual(store.getPlan(plan.planId), plan);
+  assert.deepEqual(
+    store.listPlans({ runId: plan.runId }).map((item) => item.planId),
+    [plan.planId]
+  );
+  assert.deepEqual(
+    store.listPlans({ status: "planned" }).map((item) => item.planId),
+    [plan.planId]
+  );
+
+  const snapshot = store.listPlans()[0];
+  assert.ok(snapshot);
+  snapshot.reasons.push("mutated_snapshot");
+  assert.equal(store.getPlan(plan.planId)?.reasons.includes("mutated_snapshot"), false);
+});
+
+test("file provider execution plan store persists plans across instances", async () => {
+  const baseDir = await createExecutionPlannerTempDir();
+  try {
+    const first = new FileSystemProviderExecutionPlanStore({ baseDir });
+    const plan = planProviderExecution(createPlannerInput({
+      preferredProviderId: "codex-cli"
+    }));
+
+    first.savePlan(plan);
+    const second = new FileSystemProviderExecutionPlanStore({ baseDir });
+
+    assert.deepEqual(second.getPlan(plan.planId), plan);
+    assert.deepEqual(
+      second.listPlans({ taskId: plan.taskId }).map((item) => item.planId),
+      [plan.planId]
+    );
+    assert.deepEqual(
+      second.listPlans({ providerId: "codex-cli" }).map((item) => item.planId),
+      [plan.planId]
+    );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file provider execution plan store rejects duplicate ids after reload", async () => {
+  const baseDir = await createExecutionPlannerTempDir();
+  try {
+    const plan = planProviderExecution(createPlannerInput({
+      preferredProviderId: "codex-cli"
+    }));
+    new FileSystemProviderExecutionPlanStore({ baseDir }).savePlan(plan);
+
+    const second = new FileSystemProviderExecutionPlanStore({ baseDir });
+
+    assert.throws(
+      () => second.savePlan(plan),
+      /duplicate_provider_execution_plan_id:/
+    );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file provider execution plan store refuses state mutation while another lock is present", async () => {
+  const baseDir = await createExecutionPlannerTempDir();
+  try {
+    await writeFile(
+      join(baseDir, ".provider-execution-plan-store.lock"),
+      "{\"token\":\"held\"}\n",
+      "utf8"
+    );
+    const plan = planProviderExecution(createPlannerInput({
+      preferredProviderId: "codex-cli"
+    }));
+    const store = new FileSystemProviderExecutionPlanStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 60_000
+    });
+
+    assert.throws(
+      () => store.savePlan(plan),
+      /provider_execution_plan_store_lock_timeout:/
+    );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file provider execution plan store does not remove a fresh lock during stale cleanup", async () => {
+  const baseDir = await createExecutionPlannerTempDir();
+  try {
+    const lockPath = join(baseDir, ".provider-execution-plan-store.lock");
+    const lockPayload = `${JSON.stringify({
+      token: "fresh-owner",
+      createdAt: "2999-01-01T00:00:00.000Z"
+    })}\n`;
+    await writeFile(lockPath, lockPayload, "utf8");
+    await utimes(lockPath, new Date(0), new Date(0));
+    const plan = planProviderExecution(createPlannerInput({
+      preferredProviderId: "codex-cli"
+    }));
+    const store = new FileSystemProviderExecutionPlanStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 1
+    });
+
+    assert.throws(
+      () => store.savePlan(plan),
+      /provider_execution_plan_store_lock_timeout:/
+    );
+    assert.equal(await readFile(lockPath, "utf8"), lockPayload);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file provider execution plan store does not remove a stale-looking lock owned by a live process", async () => {
+  const baseDir = await createExecutionPlannerTempDir();
+  try {
+    const lockPath = join(baseDir, ".provider-execution-plan-store.lock");
+    const lockPayload = `${JSON.stringify({
+      token: "live-owner",
+      pid: process.pid,
+      createdAt: "2000-01-01T00:00:00.000Z"
+    })}\n`;
+    await writeFile(lockPath, lockPayload, "utf8");
+    await utimes(lockPath, new Date(0), new Date(0));
+    const plan = planProviderExecution(createPlannerInput({
+      preferredProviderId: "codex-cli"
+    }));
+    const store = new FileSystemProviderExecutionPlanStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 1
+    });
+
+    assert.throws(
+      () => store.savePlan(plan),
+      /provider_execution_plan_store_lock_timeout:/
+    );
+    assert.equal(await readFile(lockPath, "utf8"), lockPayload);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
 });
 
 test("execution planner emits canonical required capability scopes", () => {
@@ -576,4 +736,8 @@ function createWorkspaceSideEffectOnlyReadOnlySandboxProvider(): ExecutorProvide
       throw new Error("fake_provider_execute_should_not_be_called");
     }
   };
+}
+
+async function createExecutionPlannerTempDir(): Promise<string> {
+  return mkdtemp(join(tmpdir(), "codex-router-execution-planner-"));
 }

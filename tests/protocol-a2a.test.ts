@@ -4,12 +4,14 @@ import { z } from "zod";
 import {
   A2AEndpointReferenceSchema,
   A2AAgentCardSkeletonSchema,
+  A2A_FAKE_TRANSPORT_SUBMIT_DISABLED,
   a2aStatusToRunStatus,
   agentManifestToA2AAgentCard,
   artifactToA2AArtifactSkeleton,
   assertA2AAnonymousInvocationRejected,
   assertA2ARemoteInvocationAuthorized,
   createA2ARemoteAgentProviderSkeleton,
+  createFakeA2ATransport,
   runStatusToA2AStatus,
   taskToA2ATaskSkeleton,
   type A2AStatus
@@ -236,9 +238,152 @@ test("protocol-a2a endpoint refs reject raw URLs", () => {
   );
 });
 
+test("protocol-a2a fake transport blocks task submission by default", () => {
+  const card = agentManifestToA2AAgentCard(validAgentManifest);
+  const transport = createFakeA2ATransport({
+    agentCard: card,
+    now: createClock()
+  });
+  const task = createTask("task_protocol_a2a_fake_disabled");
+  const run = createRun(task.taskId, "run_protocol_a2a_fake_disabled");
+
+  assert.equal(transport.fakeTransport.liveNetworkService, false);
+  assert.equal(transport.fakeTransport.submitEnabled, false);
+  assert.equal(transport.getAgentCard().agentId, validAgentManifest.agentId);
+  assert.throws(
+    () => transport.submitTask({
+      task,
+      run,
+      authorization: {
+        authSchemeId: "agent-os-signed-request"
+      }
+    }),
+    new RegExp(A2A_FAKE_TRANSPORT_SUBMIT_DISABLED)
+  );
+  assert.equal(transport.listEvents().length, 0);
+});
+
+test("protocol-a2a fake transport queues and cancels local tasks without network", () => {
+  const card = agentManifestToA2AAgentCard(validAgentManifest);
+  const transport = createFakeA2ATransport({
+    agentCard: card,
+    submitEnabled: true,
+    now: createClock()
+  });
+  const task = createTask("task_protocol_a2a_fake_enabled");
+  const run = createRun(task.taskId, "run_protocol_a2a_fake_enabled");
+
+  const submitted = transport.submitTask({
+    task,
+    run,
+    authorization: {
+      authSchemeId: "agent-os-signed-request",
+      authSchemeType: "signed_request"
+    }
+  });
+  const stored = transport.getTask(submitted.remoteTaskId);
+  const cancelled = transport.cancelTask({
+    remoteTaskId: submitted.remoteTaskId,
+    reason: "operator_cancelled_fake_task",
+    authorization: {
+      authSchemeId: "agent-os-signed-request",
+      authSchemeType: "signed_request"
+    }
+  });
+
+  assert.equal(transport.fakeTransport.liveNetworkService, false);
+  assert.equal(submitted.status, "queued");
+  assert.equal(submitted.metadata.fakeTransport, true);
+  assert.equal(submitted.metadata.liveNetworkService, false);
+  assert.equal(stored?.remoteTaskId, submitted.remoteTaskId);
+  assert.equal(cancelled.status, "cancelled");
+  assert.equal(cancelled.metadata.cancelReason, "operator_cancelled_fake_task");
+  assert.deepEqual(
+    transport.listEvents(submitted.remoteTaskId).map((event) => event.eventType),
+    ["a2a.fake.task.submitted", "a2a.fake.task.cancelled"]
+  );
+  assert.throws(
+    () => transport.submitTask({
+      task,
+      run,
+      authorization: {
+        authSchemeType: "anonymous",
+        principalId: "anonymous"
+      }
+    }),
+    /a2a_anonymous_remote_invocation_rejected/
+  );
+});
+
+test("protocol-a2a fake transport requires authorization before cancelling tasks", () => {
+  const card = agentManifestToA2AAgentCard(validAgentManifest);
+  const transport = createFakeA2ATransport({
+    agentCard: card,
+    submitEnabled: true,
+    now: createClock()
+  });
+  const task = createTask("task_protocol_a2a_fake_cancel_auth");
+  const run = createRun(task.taskId, "run_protocol_a2a_fake_cancel_auth");
+  const submitted = transport.submitTask({
+    task,
+    run,
+    authorization: {
+      authSchemeId: "agent-os-signed-request",
+      authSchemeType: "signed_request"
+    }
+  });
+
+  assert.throws(
+    () => transport.cancelTask({
+      remoteTaskId: submitted.remoteTaskId,
+      reason: "unauthorized_cancel",
+      authorization: {
+        authSchemeType: "anonymous",
+        principalId: "anonymous"
+      }
+    }),
+    /a2a_anonymous_remote_invocation_rejected/
+  );
+
+  assert.equal(transport.getTask(submitted.remoteTaskId)?.status, "queued");
+  assert.deepEqual(
+    transport.listEvents(submitted.remoteTaskId).map((event) => event.eventType),
+    ["a2a.fake.task.submitted"]
+  );
+});
+
 function readA2AMetadata(input: { metadata: Record<string, unknown> }): Record<string, unknown> {
   const metadata = input.metadata.a2a;
   assert.equal(typeof metadata, "object");
   assert.notEqual(metadata, null);
   return metadata as Record<string, unknown>;
+}
+
+function createTask(taskId: string) {
+  return TaskSchema.parse({
+    ...validTask,
+    taskId,
+    requestedAction: "Queue a fake A2A task without network execution.",
+    createdAt: now
+  });
+}
+
+function createRun(taskId: string, runId: string) {
+  return RunSchema.parse({
+    ...validRun,
+    runId,
+    taskId,
+    status: "queued",
+    createdAt: now,
+    updatedAt: now
+  });
+}
+
+function createClock(): () => string {
+  let index = 0;
+  return () => {
+    const timestamp = `2026-06-04T01:00:0${index}.000Z`;
+    index += 1;
+    return timestamp;
+  };
 }

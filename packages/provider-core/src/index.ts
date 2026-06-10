@@ -113,6 +113,7 @@ export type ExecutionPlanInput = {
   run: Run;
   policyDecision: PolicyDecision;
   sandboxProfile: SandboxProfile;
+  inputHash?: string;
   proposedInput?: unknown;
   now: string;
 };

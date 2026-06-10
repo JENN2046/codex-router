@@ -1,3 +1,15 @@
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync
+} from "node:fs";
+import { join, resolve } from "node:path";
 import { z } from "zod";
 import {
   SandboxProfileSchema,
@@ -38,6 +50,51 @@ export type ProviderRegistryFilter = {
   sideEffectClass?: ProviderSideEffectClass;
   sandboxProfile?: SandboxProfile;
 };
+
+export type FileSystemProviderManifestStoreOptions = {
+  baseDir: string;
+  stateFileName?: string;
+  lockTimeoutMs?: number;
+  lockRetryDelayMs?: number;
+  lockStaleMs?: number;
+};
+
+export interface ProviderManifestStore {
+  saveManifest(
+    manifest: ProviderManifest | z.input<typeof ProviderManifestSchema>
+  ): ProviderManifest;
+  getManifest(providerId: string): ProviderManifest | undefined;
+  listManifests(filter?: ProviderRegistryFilter): ProviderManifest[];
+  deleteManifest(providerId: string): boolean;
+}
+
+const ProviderManifestStoreStateSchema = z.object({
+  schemaVersion: z.literal("provider-manifest-store.v1"),
+  manifests: z.array(ProviderManifestSchema)
+}).superRefine((state, ctx) => {
+  for (const duplicate of findDuplicateStrings(state.manifests.map((manifest) => manifest.providerId))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `duplicate_provider_manifest_id:${duplicate}`,
+      path: ["manifests"]
+    });
+  }
+});
+
+type ProviderManifestStoreState = z.infer<typeof ProviderManifestStoreStateSchema>;
+
+type FileLockSnapshot = {
+  raw: string;
+  mtimeMs: number;
+  ctimeMs: number;
+  size: number;
+  createdAtMs?: number;
+  pid?: number;
+};
+
+const defaultLockTimeoutMs = 1_000;
+const defaultLockRetryDelayMs = 10;
+const defaultLockStaleMs = 30_000;
 
 export class ProviderRegistry {
   private readonly entries = new Map<string, ProviderRegistryEntry>();
@@ -143,6 +200,203 @@ export class ProviderRegistry {
   }
 }
 
+export class InMemoryProviderManifestStore implements ProviderManifestStore {
+  private readonly manifests = new Map<string, ProviderManifest>();
+
+  saveManifest(
+    manifestInput: ProviderManifest | z.input<typeof ProviderManifestSchema>
+  ): ProviderManifest {
+    const manifest = parseProviderManifestForStorage(manifestInput);
+    if (this.manifests.has(manifest.providerId)) {
+      throw new Error(`duplicate_provider_manifest_id:${manifest.providerId}`);
+    }
+
+    this.manifests.set(manifest.providerId, cloneManifest(manifest));
+    return cloneManifest(manifest);
+  }
+
+  getManifest(providerId: string): ProviderManifest | undefined {
+    const manifest = this.manifests.get(providerId);
+    return manifest === undefined ? undefined : cloneManifest(manifest);
+  }
+
+  listManifests(filter: ProviderRegistryFilter = {}): ProviderManifest[] {
+    return [...this.manifests.values()]
+      .filter((manifest) => providerManifestMatchesFilter(manifest, filter))
+      .map(cloneManifest);
+  }
+
+  deleteManifest(providerId: string): boolean {
+    return this.manifests.delete(providerId);
+  }
+}
+
+export class FileSystemProviderManifestStore implements ProviderManifestStore {
+  private readonly baseDir: string;
+  private readonly statePath: string;
+  private readonly lockPath: string;
+  private readonly lockTimeoutMs: number;
+  private readonly lockRetryDelayMs: number;
+  private readonly lockStaleMs: number;
+
+  constructor(options: FileSystemProviderManifestStoreOptions) {
+    this.baseDir = resolve(options.baseDir);
+    this.statePath = join(this.baseDir, options.stateFileName ?? "provider-manifests.json");
+    this.lockPath = join(this.baseDir, ".provider-manifest-store.lock");
+    this.lockTimeoutMs = options.lockTimeoutMs ?? defaultLockTimeoutMs;
+    this.lockRetryDelayMs = options.lockRetryDelayMs ?? defaultLockRetryDelayMs;
+    this.lockStaleMs = options.lockStaleMs ?? defaultLockStaleMs;
+  }
+
+  saveManifest(
+    manifestInput: ProviderManifest | z.input<typeof ProviderManifestSchema>
+  ): ProviderManifest {
+    const manifest = parseProviderManifestForStorage(manifestInput);
+    return this.withLock(() => {
+      const state = this.readState();
+      if (state.manifests.some((item) => item.providerId === manifest.providerId)) {
+        throw new Error(`duplicate_provider_manifest_id:${manifest.providerId}`);
+      }
+
+      state.manifests.push(cloneManifest(manifest));
+      this.writeState(state);
+      return cloneManifest(manifest);
+    });
+  }
+
+  getManifest(providerId: string): ProviderManifest | undefined {
+    const manifest = this.readState().manifests.find((item) => item.providerId === providerId);
+    return manifest === undefined ? undefined : cloneManifest(manifest);
+  }
+
+  listManifests(filter: ProviderRegistryFilter = {}): ProviderManifest[] {
+    return this.readState().manifests
+      .filter((manifest) => providerManifestMatchesFilter(manifest, filter))
+      .map(cloneManifest);
+  }
+
+  deleteManifest(providerId: string): boolean {
+    return this.withLock(() => {
+      const state = this.readState();
+      const nextManifests = state.manifests.filter((manifest) => manifest.providerId !== providerId);
+      if (nextManifests.length === state.manifests.length) {
+        return false;
+      }
+
+      this.writeState({
+        ...state,
+        manifests: nextManifests
+      });
+      return true;
+    });
+  }
+
+  private withLock<T>(fn: () => T): T {
+    const token = createLockToken();
+    const startedAt = Date.now();
+
+    while (true) {
+      try {
+        this.ensureBaseDir();
+        const fd = openSync(this.lockPath, "wx");
+        try {
+          writeFileSync(fd, `${JSON.stringify({
+            token,
+            pid: process.pid,
+            createdAt: new Date().toISOString()
+          })}\n`, "utf8");
+        } finally {
+          closeSync(fd);
+        }
+
+        try {
+          return fn();
+        } finally {
+          this.releaseLock(token);
+        }
+      } catch (error) {
+        if (!isNodeError(error) || error.code !== "EEXIST") {
+          throw error;
+        }
+
+        this.removeStaleLock();
+        if (Date.now() - startedAt >= this.lockTimeoutMs) {
+          throw new Error(`provider_manifest_store_lock_timeout:${this.lockPath}`);
+        }
+
+        sleepSync(this.lockRetryDelayMs);
+      }
+    }
+  }
+
+  private releaseLock(token: string): void {
+    try {
+      const raw = readFileSync(this.lockPath, "utf8");
+      const parsed = JSON.parse(raw) as { token?: unknown };
+      if (parsed.token === token) {
+        unlinkSync(this.lockPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private removeStaleLock(): void {
+    try {
+      const staleCandidate = readFileLockSnapshot(this.lockPath);
+      if (!isFileLockSnapshotStale(staleCandidate, this.lockStaleMs)) {
+        return;
+      }
+      if (isFileLockOwnerAlive(staleCandidate)) {
+        return;
+      }
+
+      const current = readFileLockSnapshot(this.lockPath);
+      if (
+        isSameFileLockSnapshot(staleCandidate, current)
+        && isFileLockSnapshotStale(current, this.lockStaleMs)
+        && !isFileLockOwnerAlive(current)
+      ) {
+        unlinkSync(this.lockPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private readState(): ProviderManifestStoreState {
+    this.ensureBaseDir();
+    if (!existsSync(this.statePath)) {
+      return createEmptyProviderManifestStoreState();
+    }
+
+    return ProviderManifestStoreStateSchema.parse(
+      JSON.parse(readFileSync(this.statePath, "utf8"))
+    );
+  }
+
+  private writeState(state: ProviderManifestStoreState): void {
+    this.ensureBaseDir();
+    const parsed = ProviderManifestStoreStateSchema.parse(state);
+    const tempPath = join(
+      this.baseDir,
+      `provider-manifests.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+    );
+    writeFileSync(tempPath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+    renameSync(tempPath, this.statePath);
+  }
+
+  private ensureBaseDir(): void {
+    mkdirSync(this.baseDir, { recursive: true });
+  }
+}
+
 function assertProviderManifestMatches(
   manifest: ProviderManifest,
   providerManifest: ProviderManifest
@@ -156,6 +410,16 @@ export function createProviderRegistry(): ProviderRegistry {
   return new ProviderRegistry();
 }
 
+export function createInMemoryProviderManifestStore(): InMemoryProviderManifestStore {
+  return new InMemoryProviderManifestStore();
+}
+
+export function createFileSystemProviderManifestStore(
+  options: FileSystemProviderManifestStoreOptions
+): FileSystemProviderManifestStore {
+  return new FileSystemProviderManifestStore(options);
+}
+
 function providerMatchesEnabledFilter(
   entry: ProviderRegistryEntry,
   filter: ProviderRegistryFilter
@@ -165,6 +429,54 @@ function providerMatchesEnabledFilter(
   }
 
   return filter.includeDisabled === true || entry.manifest.enabled;
+}
+
+function providerManifestMatchesFilter(
+  manifest: ProviderManifest,
+  filter: ProviderRegistryFilter
+): boolean {
+  const kind = filter.kind === undefined
+    ? undefined
+    : ProviderKindSchema.parse(filter.kind);
+  const sideEffectClass = filter.sideEffectClass === undefined
+    ? undefined
+    : ProviderSideEffectClassSchema.parse(filter.sideEffectClass);
+  const sandboxProfile = filter.sandboxProfile === undefined
+    ? undefined
+    : SandboxProfileSchema.parse(filter.sandboxProfile);
+
+  return providerManifestMatchesEnabledFilter(manifest, filter)
+    && (kind === undefined || manifest.kind === kind)
+    && (
+      sideEffectClass === undefined
+      || providerSupportsSideEffectClass(manifest, sideEffectClass)
+    )
+    && (
+      sandboxProfile === undefined
+      || providerSupportsSandboxProfile(manifest, sandboxProfile)
+    );
+}
+
+function providerManifestMatchesEnabledFilter(
+  manifest: ProviderManifest,
+  filter: ProviderRegistryFilter
+): boolean {
+  if (filter.enabled !== undefined) {
+    return manifest.enabled === filter.enabled;
+  }
+
+  return filter.includeDisabled === true || manifest.enabled;
+}
+
+function parseProviderManifestForStorage(
+  manifestInput: ProviderManifest | z.input<typeof ProviderManifestSchema>
+): ProviderManifest {
+  assertSecurityBoundaryPresent(manifestInput);
+  const manifest = ProviderManifestSchema.parse(manifestInput);
+  if (manifest.kind === "remote_agent") {
+    assertRemoteAgentAuthSchemes(manifest);
+  }
+  return manifest;
 }
 
 function assertSecurityBoundaryPresent(
@@ -289,6 +601,100 @@ function cloneManifest(manifest: ProviderManifest): ProviderManifest {
   return structuredClone(manifest) as ProviderManifest;
 }
 
+function createEmptyProviderManifestStoreState(): ProviderManifestStoreState {
+  return {
+    schemaVersion: "provider-manifest-store.v1",
+    manifests: []
+  };
+}
+
+function readFileLockSnapshot(lockPath: string): FileLockSnapshot {
+  const lockStat = statSync(lockPath);
+  const raw = readFileSync(lockPath, "utf8");
+  const metadata = parseFileLockMetadata(raw);
+  return {
+    raw,
+    mtimeMs: lockStat.mtimeMs,
+    ctimeMs: lockStat.ctimeMs,
+    size: lockStat.size,
+    ...(metadata.createdAtMs !== undefined ? { createdAtMs: metadata.createdAtMs } : {}),
+    ...(metadata.pid !== undefined ? { pid: metadata.pid } : {})
+  };
+}
+
+function isFileLockSnapshotStale(snapshot: FileLockSnapshot, lockStaleMs: number): boolean {
+  const now = Date.now();
+  if (now - snapshot.mtimeMs < lockStaleMs) {
+    return false;
+  }
+  if (snapshot.createdAtMs !== undefined && now - snapshot.createdAtMs < lockStaleMs) {
+    return false;
+  }
+  return true;
+}
+
+function isSameFileLockSnapshot(left: FileLockSnapshot, right: FileLockSnapshot): boolean {
+  return left.raw === right.raw
+    && left.mtimeMs === right.mtimeMs
+    && left.ctimeMs === right.ctimeMs
+    && left.size === right.size;
+}
+
+function isFileLockOwnerAlive(snapshot: FileLockSnapshot): boolean {
+  if (snapshot.pid === undefined) {
+    return false;
+  }
+  if (snapshot.pid === process.pid) {
+    return true;
+  }
+
+  try {
+    process.kill(snapshot.pid, 0);
+    return true;
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ESRCH") {
+      return false;
+    }
+    return true;
+  }
+}
+
+function parseFileLockMetadata(raw: string): { createdAtMs?: number; pid?: number } {
+  try {
+    const parsed = JSON.parse(raw) as { createdAt?: unknown; pid?: unknown };
+    const result: { createdAtMs?: number; pid?: number } = {};
+
+    if (typeof parsed.createdAt === "string") {
+      const createdAtMs = Date.parse(parsed.createdAt);
+      if (!Number.isNaN(createdAtMs)) {
+        result.createdAtMs = createdAtMs;
+      }
+    }
+
+    if (typeof parsed.pid === "number" && Number.isSafeInteger(parsed.pid) && parsed.pid > 0) {
+      result.pid = parsed.pid;
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function findDuplicateStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+
+  for (const value of values) {
+    if (seen.has(value)) {
+      duplicates.add(value);
+    }
+    seen.add(value);
+  }
+
+  return [...duplicates];
+}
+
 function stableStringify(input: unknown): string {
   return JSON.stringify(canonicalize(input));
 }
@@ -312,4 +718,26 @@ function canonicalize(input: unknown): unknown {
 
 function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === "object" && input !== null && !Array.isArray(input);
+}
+
+function createLockToken(): string {
+  return [
+    process.pid,
+    Date.now(),
+    Math.random().toString(36).slice(2)
+  ].join(":");
+}
+
+function sleepSync(milliseconds: number): void {
+  if (milliseconds <= 0) {
+    return;
+  }
+
+  const shared = new SharedArrayBuffer(4);
+  const view = new Int32Array(shared);
+  Atomics.wait(view, 0, 0, milliseconds);
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }

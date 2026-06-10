@@ -5,6 +5,7 @@ import {
   AgentOsMcpServerManifestSchema,
   AgentOsMcpToolManifestSchema,
   agentOsApproveRunMcpToolManifest,
+  agentOsCreateTaskMcpToolManifest,
   agentOsMcpServerManifest,
   agentOsMcpToolManifests,
   listAgentOsMcpToolManifests
@@ -72,6 +73,35 @@ test("Agent OS MCP mutating tools have required capabilities and approval gates"
   assert.ok(getTool("agentos.approve_run").requiredCapabilities.includes("approval.issue"));
 });
 
+test("Agent OS MCP create_task output schema declares provider planning fields", () => {
+  const outputSchema = agentOsCreateTaskMcpToolManifest.outputSchema as {
+    additionalProperties?: unknown;
+    properties?: Record<string, unknown>;
+  };
+  const properties = outputSchema.properties ?? {};
+
+  assert.equal(outputSchema.additionalProperties, false);
+  for (const outputKey of [
+    "taskId",
+    "runId",
+    "status",
+    "createdAt",
+    "providerPlanId",
+    "providerPlanStatus",
+    "providerPlanningReasons"
+  ]) {
+    assert.ok(outputKey in properties, `missing create_task output property ${outputKey}`);
+  }
+  assert.deepEqual(properties.providerPlanStatus, {
+    type: "string",
+    enum: ["planned", "blocked", "waiting_approval"]
+  });
+  assert.deepEqual(properties.providerPlanningReasons, {
+    type: "array",
+    items: { type: "string" }
+  });
+});
+
 test("Agent OS MCP approve_run cannot be declared without approval.issue", () => {
   assert.throws(
     () => AgentOsMcpToolManifestSchema.parse({
@@ -88,6 +118,38 @@ test("Agent OS MCP approve_run cannot be declared without approval.issue", () =>
     }),
     /Agent OS MCP tool requires capability:approval\.issue/
   );
+});
+
+test("Agent OS MCP approve_run output schema declares permit and blocked result shapes", () => {
+  const outputSchema = agentOsApproveRunMcpToolManifest.outputSchema as {
+    type?: unknown;
+    oneOf?: unknown;
+  };
+
+  assert.equal(outputSchema.type, "object");
+  assert.deepEqual(outputSchema.oneOf, [
+    {
+      type: "object",
+      required: ["permitId", "runId", "expiresAt"],
+      additionalProperties: false,
+      properties: {
+        permitId: { type: "string" },
+        runId: { type: "string" },
+        expiresAt: { type: "string" }
+      }
+    },
+    {
+      type: "object",
+      required: ["status"],
+      additionalProperties: false,
+      properties: {
+        status: {
+          type: "string",
+          enum: ["blocked"]
+        }
+      }
+    }
+  ]);
 });
 
 test("Agent OS MCP list, get, and search tools are read side effect", () => {

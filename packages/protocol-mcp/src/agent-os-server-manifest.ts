@@ -163,7 +163,16 @@ export const agentOsCreateTaskMcpToolManifest = defineAgentOsMcpTool({
         type: "string",
         enum: ["queued", "blocked"]
       },
-      createdAt: { type: "string" }
+      createdAt: { type: "string" },
+      providerPlanId: { type: "string" },
+      providerPlanStatus: {
+        type: "string",
+        enum: ["planned", "blocked", "waiting_approval"]
+      },
+      providerPlanningReasons: {
+        type: "array",
+        items: { type: "string" }
+      }
     }
   },
   sideEffectClass: "local_write",
@@ -305,13 +314,29 @@ export const agentOsApproveRunMcpToolManifest = defineAgentOsMcpTool({
   },
   outputSchema: {
     type: "object",
-    required: ["permitId", "runId", "expiresAt"],
-    additionalProperties: false,
-    properties: {
-      permitId: { type: "string" },
-      runId: { type: "string" },
-      expiresAt: { type: "string" }
-    }
+    oneOf: [
+      {
+        type: "object",
+        required: ["permitId", "runId", "expiresAt"],
+        additionalProperties: false,
+        properties: {
+          permitId: { type: "string" },
+          runId: { type: "string" },
+          expiresAt: { type: "string" }
+        }
+      },
+      {
+        type: "object",
+        required: ["status"],
+        additionalProperties: false,
+        properties: {
+          status: {
+            type: "string",
+            enum: ["blocked"]
+          }
+        }
+      }
+    ]
   },
   sideEffectClass: "local_write",
   requiredCapabilities: ["approval.issue"],

@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryKernelStore } from "../packages/kernel-store/src/index.js";
+import { mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  FileSystemKernelStore,
+  InMemoryKernelStore
+} from "../packages/kernel-store/src/index.js";
 import {
   ArtifactSchema,
   EventSchema,
@@ -201,6 +207,151 @@ test("kernel store updates cannot change ids", () => {
   assert.equal(store.getStep(step.stepId)?.stepId, step.stepId);
 });
 
+test("file kernel store persists runs, steps, events, and artifacts across instances", async () => {
+  const baseDir = await createKernelStoreTempDir();
+  try {
+    const first = new FileSystemKernelStore({ baseDir });
+    const run = first.createRun(createRun());
+    const step = first.createStep(createStep({ runId: run.runId }));
+    const firstEvent = first.appendEvent(createEvent({
+      eventId: "event_kernel_store_file_001",
+      eventType: "kernel.run.created"
+    }));
+    const secondEvent = first.appendEvent(createEvent({
+      eventId: "event_kernel_store_file_002",
+      eventType: "kernel.step.created",
+      stepId: step.stepId
+    }));
+    const artifact = first.createArtifact(createArtifact({
+      artifactId: "artifact_kernel_store_file_001"
+    }));
+
+    first.updateRun(run.runId, {
+      status: "running",
+      updatedAt: "2026-06-04T01:10:00.000Z"
+    });
+    first.updateStep(step.stepId, {
+      status: "running",
+      updatedAt: "2026-06-04T01:11:00.000Z"
+    });
+
+    const second = new FileSystemKernelStore({ baseDir });
+
+    assert.equal(second.getRun(run.runId)?.status, "running");
+    assert.equal(second.getStep(step.stepId)?.status, "running");
+    assert.deepEqual(
+      second.listEvents().map((event) => event.eventId),
+      [firstEvent.eventId, secondEvent.eventId]
+    );
+    assert.deepEqual(
+      second.listEvents({ type: "kernel.run.created" }).map((event) => event.eventId),
+      [firstEvent.eventId]
+    );
+    assert.deepEqual(second.getArtifact(artifact.artifactId), artifact);
+    assert.deepEqual(
+      second.listArtifacts({ type: "evidence" }).map((item) => item.artifactId),
+      [artifact.artifactId]
+    );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file kernel store rejects duplicate ids after reload", async () => {
+  const baseDir = await createKernelStoreTempDir();
+  try {
+    const first = new FileSystemKernelStore({ baseDir });
+    const run = first.createRun(createRun());
+    const step = first.createStep(createStep({ runId: run.runId }));
+    const event = first.appendEvent(createEvent());
+    const artifact = first.createArtifact(createArtifact());
+
+    const second = new FileSystemKernelStore({ baseDir });
+
+    assert.throws(() => second.createRun(run), /duplicate_run_id/);
+    assert.throws(() => second.createStep(step), /duplicate_step_id/);
+    assert.throws(() => second.appendEvent(event), /duplicate_event_id/);
+    assert.throws(() => second.createArtifact(artifact), /duplicate_artifact_id/);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file kernel store refuses state mutation while another lock is present", async () => {
+  const baseDir = await createKernelStoreTempDir();
+  try {
+    await writeFile(join(baseDir, ".kernel-store.lock"), "{\"token\":\"held\"}\n", "utf8");
+    const store = new FileSystemKernelStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 60_000
+    });
+
+    assert.throws(
+      () => store.createRun(createRun()),
+      /kernel_store_lock_timeout:/
+    );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file kernel store does not remove a fresh lock during stale cleanup", async () => {
+  const baseDir = await createKernelStoreTempDir();
+  try {
+    const lockPath = join(baseDir, ".kernel-store.lock");
+    const lockPayload = `${JSON.stringify({
+      token: "fresh-owner",
+      createdAt: "2999-01-01T00:00:00.000Z"
+    })}\n`;
+    await writeFile(lockPath, lockPayload, "utf8");
+    await utimes(lockPath, new Date(0), new Date(0));
+    const store = new FileSystemKernelStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 1
+    });
+
+    assert.throws(
+      () => store.createRun(createRun({ runId: "run_kernel_store_fresh_lock_001" })),
+      /kernel_store_lock_timeout:/
+    );
+    assert.equal(await readFile(lockPath, "utf8"), lockPayload);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("file kernel store does not remove a stale-looking lock owned by a live process", async () => {
+  const baseDir = await createKernelStoreTempDir();
+  try {
+    const lockPath = join(baseDir, ".kernel-store.lock");
+    const lockPayload = `${JSON.stringify({
+      token: "live-owner",
+      pid: process.pid,
+      createdAt: "2000-01-01T00:00:00.000Z"
+    })}\n`;
+    await writeFile(lockPath, lockPayload, "utf8");
+    await utimes(lockPath, new Date(0), new Date(0));
+    const store = new FileSystemKernelStore({
+      baseDir,
+      lockTimeoutMs: 0,
+      lockRetryDelayMs: 0,
+      lockStaleMs: 1
+    });
+
+    assert.throws(
+      () => store.createRun(createRun({ runId: "run_kernel_store_live_lock_001" })),
+      /kernel_store_lock_timeout:/
+    );
+    assert.equal(await readFile(lockPath, "utf8"), lockPayload);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
 function createRun(overrides: Partial<Run> = {}): Run {
   return RunSchema.parse({
     ...validRun,
@@ -257,4 +408,8 @@ function createArtifact(overrides: Partial<Artifact> = {}): Artifact {
     metadata: {},
     ...overrides
   });
+}
+
+async function createKernelStoreTempDir(): Promise<string> {
+  return mkdtemp(join(tmpdir(), "codex-router-kernel-store-"));
 }
