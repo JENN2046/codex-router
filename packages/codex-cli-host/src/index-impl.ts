@@ -57,7 +57,20 @@ export interface CodexCliExecPlanOptions {
 }
 
 export interface CodexCliDecisionExecPlanOptions
-  extends Omit<CodexCliExecPlanOptions, "model" | "sandbox"> {
+  extends Omit<
+    CodexCliExecPlanOptions,
+    | "approvalFlagPlacement"
+    | "approvalPolicy"
+    | "codexCommand"
+    | "configOverrides"
+    | "cwd"
+    | "extraArgs"
+    | "ignoreRules"
+    | "ignoreUserConfig"
+    | "model"
+    | "profile"
+    | "sandbox"
+  > {
   modelSelection?: CodexCliModelSelection;
 }
 
@@ -925,6 +938,7 @@ export function createCodexCliExecPlan(
   }
 
   args.push(...(options.extraArgs ?? []), prompt);
+  assertNoDuplicateCodexCliSecurityArgs(args);
 
   return {
     command,
@@ -2964,10 +2978,69 @@ function assertNoDangerousCodexCliArgs(args: string[]): void {
   }
 }
 
+const CODEX_CLI_SECURITY_ARG_GROUPS = [
+  {
+    name: "approval",
+    flags: ["-a", "--ask-for-approval"]
+  },
+  {
+    name: "config",
+    flags: ["-c", "--config"]
+  },
+  {
+    name: "model",
+    flags: ["--model"]
+  },
+  {
+    name: "profile",
+    flags: ["--profile"]
+  },
+  {
+    name: "sandbox",
+    flags: ["--sandbox"]
+  }
+] as const;
+
+function assertNoDuplicateCodexCliSecurityArgs(args: string[]): void {
+  for (const group of CODEX_CLI_SECURITY_ARG_GROUPS) {
+    const matches = args
+      .map((arg) => matchCodexCliSecurityArg(arg, group.flags))
+      .filter((flag): flag is string => flag !== undefined);
+
+    if (matches.length > 1) {
+      throw new Error(
+        `codex_cli_duplicate_security_arg:${group.name}:${matches.join(",")}`
+      );
+    }
+  }
+}
+
+function matchCodexCliSecurityArg(
+  arg: string,
+  flags: readonly string[]
+): string | undefined {
+  return flags.find((flag) => (
+    arg === flag || (
+      flag.startsWith("--") && arg.startsWith(`${flag}=`)
+    )
+  ));
+}
+
 function assertNoCodexCliDecisionPolicyOverrides(
   options: CodexCliDecisionExecPlanOptions
 ): void {
   const rawOptions = options as CodexCliExecPlanOptions;
+  const disallowedOptions: Array<keyof CodexCliExecPlanOptions> = [
+    "approvalFlagPlacement",
+    "approvalPolicy",
+    "codexCommand",
+    "configOverrides",
+    "cwd",
+    "extraArgs",
+    "ignoreRules",
+    "ignoreUserConfig",
+    "profile"
+  ];
 
   if (rawOptions.model !== undefined) {
     throw new Error("codex_cli_decision_plan_disallows_policy_override:model");
@@ -2975,6 +3048,14 @@ function assertNoCodexCliDecisionPolicyOverrides(
 
   if (rawOptions.sandbox !== undefined) {
     throw new Error("codex_cli_decision_plan_disallows_policy_override:sandbox");
+  }
+
+  for (const option of disallowedOptions) {
+    if (rawOptions[option] !== undefined) {
+      throw new Error(
+        `codex_cli_decision_plan_disallows_policy_override:${option}`
+      );
+    }
   }
 }
 

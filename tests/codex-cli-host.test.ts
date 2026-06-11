@@ -1266,6 +1266,25 @@ test("codex cli decision plan rejects task mismatches and policy overrides", asy
     } as never),
     /codex_cli_decision_plan_disallows_policy_override:sandbox/
   );
+
+  for (const [option, value] of [
+    ["approvalFlagPlacement", "after-command"],
+    ["approvalPolicy", "never"],
+    ["codexCommand", "custom-codex"],
+    ["configOverrides", ["model=gpt-5.4"]],
+    ["cwd", "A:/other"],
+    ["extraArgs", ["--ask-for-approval", "never"]],
+    ["ignoreRules", true],
+    ["ignoreUserConfig", true],
+    ["profile", "custom-profile"]
+  ] as const) {
+    assert.throws(
+      () => createCodexCliExecPlanFromRoutingDecision(task, decision, {
+        [option]: value
+      } as never),
+      new RegExp(`codex_cli_decision_plan_disallows_policy_override:${option}`)
+    );
+  }
 });
 
 test("codex cli host keeps write and release tasks sandboxed without bypass flags", () => {
@@ -1316,6 +1335,36 @@ test("codex cli host keeps write and release tasks sandboxed without bypass flag
       extraArgs: ["--dangerously-bypass-approvals-and-sandbox"]
     }),
     /codex_cli_dangerous_arg_not_allowed/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlan(engineeringTask, {
+      extraArgs: ["--sandbox", "read-only"]
+    }),
+    /codex_cli_duplicate_security_arg:sandbox/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlan(engineeringTask, {
+      extraArgs: ["--ask-for-approval", "never"]
+    }),
+    /codex_cli_duplicate_security_arg:approval/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlan(engineeringTask, {
+      model: "gpt-5.4-mini",
+      extraArgs: ["--model", "gpt-5.3-codex"]
+    }),
+    /codex_cli_duplicate_security_arg:model/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlan(engineeringTask, {
+      configOverrides: ["sandbox.mode=workspace-write"],
+      extraArgs: ["-c", "sandbox.mode=read-only"]
+    }),
+    /codex_cli_duplicate_security_arg:config/
   );
 });
 
