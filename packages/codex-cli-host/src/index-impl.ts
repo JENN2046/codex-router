@@ -939,6 +939,7 @@ export function createCodexCliExecPlan(
 
   args.push(...(options.extraArgs ?? []), prompt);
   assertNoDuplicateCodexCliSecurityArgs(args);
+  assertNoCodexCliWorkspaceExpansionArgs(args);
   assertNoGovernedCodexCliConfigOverrides(args);
 
   return {
@@ -1664,8 +1665,20 @@ export function validateCodexCliExecPlanForRun(
     blockingReasons.push(`codex_cli_unsupported_approval_policy:${plan.approvalPolicy}`);
   }
 
+  const workdirArg = getCodexCliArgValue(plan.args, "--cd")
+    ?? getCodexCliArgValue(plan.args, "-C");
+  if (workdirArg !== undefined && workdirArg !== plan.workdir) {
+    blockingReasons.push(`codex_cli_workdir_arg_mismatch:${workdirArg}:${plan.workdir ?? "undefined"}`);
+  }
+
   try {
     assertNoDangerousCodexCliArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliWorkspaceExpansionArgs(plan.args);
   } catch (error) {
     blockingReasons.push(error instanceof Error ? error.message : String(error));
   }
@@ -2997,6 +3010,10 @@ const CODEX_CLI_SECURITY_ARG_GROUPS = [
     flags: ["-a", "--ask-for-approval"]
   },
   {
+    name: "workdir",
+    flags: ["-C", "--cd"]
+  },
+  {
     name: "model",
     flags: ["-m", "--model"]
   },
@@ -3020,6 +3037,18 @@ const CODEX_CLI_GOVERNED_CONFIG_KEYS = [
   "sandbox_mode",
   "sandbox_permissions"
 ] as const;
+
+function assertNoCodexCliWorkspaceExpansionArgs(args: string[]): void {
+  const expansionArg = args.find((arg) => (
+    arg === "--add-dir" || arg.startsWith("--add-dir=")
+  ));
+
+  if (expansionArg !== undefined) {
+    throw new Error(
+      `codex_cli_workspace_expansion_arg_not_allowed:${expansionArg}`
+    );
+  }
+}
 
 function assertNoDuplicateCodexCliSecurityArgs(args: string[]): void {
   for (const group of CODEX_CLI_SECURITY_ARG_GROUPS) {

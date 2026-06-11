@@ -1956,12 +1956,24 @@ test("codex cli host runner rejects forged duplicate security argv", async () =>
       plan.prompt
     ]
   };
+  const forgedWorkdirPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-C",
+      "A:/other",
+      plan.prompt
+    ]
+  };
 
   assert.ok(validateCodexCliExecPlanForRun(forgedSandboxPlan).some((reason) => (
     reason.includes("codex_cli_duplicate_security_arg:sandbox")
   )));
   assert.ok(validateCodexCliExecPlanForRun(forgedApprovalPlan).some((reason) => (
     reason.includes("codex_cli_duplicate_security_arg:approval")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedWorkdirPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:workdir")
   )));
   await assert.rejects(
     () => runCodexCliExecPlan(forgedSandboxPlan, {
@@ -1971,6 +1983,83 @@ test("codex cli host runner rejects forged duplicate security argv", async () =>
       })
     }),
     /codex_cli_duplicate_security_arg/
+  );
+});
+
+test("codex cli host runner rejects forged workspace root argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-workspace-root",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const workdirIndex = plan.args.indexOf("--cd") + 1;
+  const forgedWorkdirValuePlan = {
+    ...plan,
+    args: plan.args.map((arg, index) => (
+      index === workdirIndex ? "A:/other" : arg
+    ))
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedWorkdirValuePlan).includes(
+    "codex_cli_workdir_arg_mismatch:A:/other:A:/codex-router"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedWorkdirValuePlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_workdir_arg_mismatch/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--add-dir", "A:/other"]
+    }),
+    /codex_cli_workspace_expansion_arg_not_allowed:--add-dir/
+  );
+
+  const forgedAddDirPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--add-dir=A:/other",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedAddDirPlan).includes(
+    "codex_cli_workspace_expansion_arg_not_allowed:--add-dir=A:/other"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedAddDirPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_workspace_expansion_arg_not_allowed/
   );
 });
 
