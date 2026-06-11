@@ -586,6 +586,87 @@ test("Agent OS App Server wrapper issues an approval permit without network", ()
   );
 });
 
+test("Agent OS App Server wrapper default approval permit IDs are unique for repeated approvals", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const runtimeInput = {
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    approvalPermitStore: permitStore
+  };
+
+  const createResponse = handleAgentOsAppServerRequest({
+    ...runtimeInput,
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli",
+    request: {
+      method: "POST",
+      path: "/agent-os/tasks",
+      body: {
+        title: "App repeated approval task",
+        requestedAction: "Create a run before repeated App Server approval."
+      }
+    }
+  });
+  const createResult = createResponse.body.result as {
+    status: string;
+  };
+  assert.equal(createResponse.statusCode, 200);
+  assert.equal(createResult.status, "succeeded");
+
+  const firstResponse = handleAgentOsAppServerRequest({
+    ...runtimeInput,
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true,
+    request: {
+      method: "POST",
+      path: `/agent-os/runs/${runId}/approve`,
+      body: {
+        capabilityScopes: ["fs.read:workspace/docs/report.md"],
+        reason: "App Server approval"
+      }
+    }
+  });
+  const secondResponse = handleAgentOsAppServerRequest({
+    ...runtimeInput,
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true,
+    request: {
+      method: "POST",
+      path: `/agent-os/runs/${runId}/approve`,
+      body: {
+        capabilityScopes: ["fs.read:workspace/docs/report.md"],
+        reason: "App Server approval"
+      }
+    }
+  });
+  const firstResult = firstResponse.body.result as {
+    status: string;
+    output: Record<string, unknown>;
+  };
+  const secondResult = secondResponse.body.result as {
+    status: string;
+    output: Record<string, unknown>;
+  };
+  const firstPermitId = String(firstResult.output.permitId);
+  const secondPermitId = String(secondResult.output.permitId);
+
+  assert.equal(firstResponse.statusCode, 200);
+  assert.equal(secondResponse.statusCode, 200);
+  assert.equal(firstResult.status, "succeeded");
+  assert.equal(secondResult.status, "succeeded");
+  assert.match(firstPermitId, /^permit_agentos_mcp_run_agentos_app_server_001_/);
+  assert.match(secondPermitId, /^permit_agentos_mcp_run_agentos_app_server_001_/);
+  assert.notEqual(firstPermitId, secondPermitId);
+  assert.equal(permitStore.listPermits({ runId }).length, 2);
+});
+
 test("Agent OS App Server wrapper reports unknown local routes without starting a server", () => {
   const response = handleAgentOsAppServerRequest({
     ...createRuntimeInput(new InMemoryKernelStore()),

@@ -191,6 +191,57 @@ test("Agent OS SDK issues an approval permit through the shared local runtime", 
   );
 });
 
+test("Agent OS SDK default approval permit IDs are unique for repeated approvals", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const sdk = createAgentOsSdk({
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    approvalPermitStore: permitStore
+  });
+
+  const create = sdk.createTask({
+    title: "SDK repeated approval task",
+    requestedAction: "Create a run before repeated SDK approval."
+  }, {
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli"
+  });
+  assert.equal(create.status, "succeeded");
+
+  const first = sdk.approveRun({
+    runId,
+    capabilityScopes: ["fs.read:workspace/docs/report.md"],
+    reason: "SDK approval"
+  }, {
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true
+  });
+  const second = sdk.approveRun({
+    runId,
+    capabilityScopes: ["fs.read:workspace/docs/report.md"],
+    reason: "SDK approval"
+  }, {
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true
+  });
+  const firstPermitId = String(first.output.permitId);
+  const secondPermitId = String(second.output.permitId);
+
+  assert.equal(first.status, "succeeded");
+  assert.equal(second.status, "succeeded");
+  assert.match(firstPermitId, /^permit_agentos_mcp_run_agentos_sdk_001_/);
+  assert.match(secondPermitId, /^permit_agentos_mcp_run_agentos_sdk_001_/);
+  assert.notEqual(firstPermitId, secondPermitId);
+  assert.equal(permitStore.listPermits({ runId }).length, 2);
+});
+
 function createRuntimeInput(
   kernelStore: InMemoryKernelStore,
   planStore?: InMemoryProviderExecutionPlanStore,
