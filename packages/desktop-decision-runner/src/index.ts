@@ -145,7 +145,7 @@ export async function runDesktopDecision(
   });
 
   const status = resolveStatus(preflight, approval);
-  const executionPlan = status === "ready"
+  const executionPlan = status === "ready" && decision.hostRoute === "desktop"
     ? createDesktopExecutionPlan(decision, { authorized: true })
     : candidateExecutionPlan;
   const blockingReasons = collectBlockingReasons(preflight, approval);

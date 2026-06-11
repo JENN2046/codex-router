@@ -183,6 +183,9 @@ test("desktop decision runner does not require desktop write tools for codex-cli
   assert.equal(result.preflight.ok, true);
   assert.equal(result.preflight.errors.includes("missing_tool:shell_command"), false);
   assert.equal(result.preflight.errors.includes("missing_tool:apply_patch"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), false);
+  assert.ok(result.executionPlan.notes.includes("plan_mode:candidate"));
 });
 
 test("desktop decision runner folds memory overview warnings into preflight", async () => {
