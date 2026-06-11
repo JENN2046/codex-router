@@ -316,6 +316,50 @@ test("runDesktopTask dispatches codex-cli small edits instead of executing deskt
   assert.ok(result.executionResult.blockingReasons.includes("spawn sentinel"));
 });
 
+test("runDesktopTask returns blocked codex-cli decisions without desktop handlers", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  let spawned = false;
+
+  const result = await runDesktopTask({
+    task: {
+      taskId: "run-desktop-task-codex-cli-blocked",
+      source: "desktop-thread",
+      intent: {
+        summary: "apply a small fix",
+        requestedAction: "make a small fix in a single file",
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: { repoRoot: "A:/codex-router" },
+      target: { branches: [], files: ["README.md"], modules: [] },
+      constraints: {},
+      hints: { riskHints: [], tags: [] }
+    },
+    policy,
+    preflight: {
+      authAvailable: false,
+      availableTools: []
+    },
+    codexCliOptions: {
+      allowWriteSandbox: true,
+      skipExecutionModelProbe: true,
+      spawn: () => {
+        spawned = true;
+        throw new Error("spawn sentinel");
+      }
+    },
+    now: () => "2026-06-11T00:05:00.000Z"
+  });
+
+  assert.equal(result.decisionResult.status, "blocked_preflight");
+  assert.equal(result.decisionResult.decision.hostRoute, "codex-cli");
+  assert.equal(result.executionResult.status, "not_ready");
+  assert.deepEqual(result.executionResult.steps, []);
+  assert.ok(result.executionResult.blockingReasons.includes("auth_unavailable"));
+  assert.equal(result.hostDispatch, undefined);
+  assert.equal(spawned, false);
+});
+
 test("runDesktopTask preserves blocked_preflight results without executing handlers", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   let invoked = false;

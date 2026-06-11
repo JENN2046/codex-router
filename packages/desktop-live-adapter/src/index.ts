@@ -232,6 +232,19 @@ async function executeDesktopTaskFromDecision(
     };
   }
 
+  if (decisionResult.status !== "ready") {
+    const executionResult = await executeDesktopPlan({
+      ...executionCommonInput,
+      handlers: {},
+      ...(input.stopOnFailure !== undefined ? { stopOnFailure: input.stopOnFailure } : {})
+    });
+
+    return {
+      decisionResult,
+      executionResult
+    };
+  }
+
   if (decisionResult.status === "ready" && decisionResult.decision.hostRoute === "codex-cli") {
     const hostDispatch = await dispatchToHost({
       runnerResult: decisionResult,
