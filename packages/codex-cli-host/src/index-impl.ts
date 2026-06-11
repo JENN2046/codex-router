@@ -2998,15 +2998,15 @@ const CODEX_CLI_SECURITY_ARG_GROUPS = [
   },
   {
     name: "model",
-    flags: ["--model"]
+    flags: ["-m", "--model"]
   },
   {
     name: "profile",
-    flags: ["--profile"]
+    flags: ["-p", "--profile"]
   },
   {
     name: "sandbox",
-    flags: ["--sandbox"]
+    flags: ["-s", "--sandbox"]
   }
 ] as const;
 
@@ -3016,7 +3016,8 @@ const CODEX_CLI_GOVERNED_CONFIG_KEYS = [
   "ask_for_approval",
   "model",
   "profile",
-  "sandbox"
+  "sandbox",
+  "sandbox_mode"
 ] as const;
 
 function assertNoDuplicateCodexCliSecurityArgs(args: string[]): void {

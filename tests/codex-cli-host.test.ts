@@ -1937,7 +1937,7 @@ test("codex cli host runner rejects forged duplicate security argv", async () =>
       "--json",
       "--sandbox",
       "read-only",
-      "--sandbox",
+      "-s",
       "workspace-write",
       plan.prompt
     ]
@@ -2048,6 +2048,12 @@ test("codex cli host runner rejects governed config overrides", async () => {
     }),
     /codex_cli_governed_config_override_not_allowed:model/
   );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      configOverrides: ["sandbox_mode=danger-full-access"]
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox_mode/
+  );
 
   const plan = createCodexCliExecPlan(task);
   const forgedPlan = {
@@ -2070,6 +2076,29 @@ test("codex cli host runner rejects governed config overrides", async () => {
       })
     }),
     /codex_cli_governed_config_override_not_allowed:sandbox\.mode/
+  );
+
+  const forgedSandboxModePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-c",
+      "sandbox_mode=danger-full-access",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedSandboxModePlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox_mode"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedSandboxModePlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox_mode/
   );
 });
 
