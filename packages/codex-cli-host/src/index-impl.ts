@@ -1683,6 +1683,12 @@ export function validateCodexCliExecPlanForRun(
   }
 
   try {
+    assertNoCodexCliPolicyBypassArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
     assertNoDuplicateCodexCliSecurityArgs(plan.args);
   } catch (error) {
     blockingReasons.push(error instanceof Error ? error.message : String(error));
@@ -3045,6 +3051,16 @@ function assertNoCodexCliWorkspaceExpansionArgs(args: string[]): void {
   if (expansionArg !== undefined) {
     throw new Error(
       `codex_cli_workspace_expansion_arg_not_allowed:${expansionArg}`
+    );
+  }
+}
+
+function assertNoCodexCliPolicyBypassArgs(args: string[]): void {
+  const bypassArg = args.find((arg) => arg === "--ignore-rules");
+
+  if (bypassArg !== undefined) {
+    throw new Error(
+      `codex_cli_policy_bypass_arg_not_allowed:${bypassArg}`
     );
   }
 }

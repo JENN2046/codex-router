@@ -2128,6 +2128,50 @@ test("codex cli host runner rejects forged workspace root argv", async () => {
   );
 });
 
+test("codex cli host runner rejects forged policy bypass argv", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-forged-policy-bypass",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const forgedPlan = {
+    ...plan,
+    args: [...plan.args, "--ignore-rules"]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
+    "codex_cli_policy_bypass_arg_not_allowed:--ignore-rules"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_policy_bypass_arg_not_allowed:--ignore-rules/
+  );
+});
+
 test("codex cli host runner allows repeated non-governed config overrides", async () => {
   const plan = createCodexCliExecPlan({
     taskId: "cli-runner-repeated-non-governed-config",
