@@ -1364,7 +1364,15 @@ test("codex cli host keeps write and release tasks sandboxed without bypass flag
       configOverrides: ["sandbox.mode=workspace-write"],
       extraArgs: ["-c", "sandbox.mode=read-only"]
     }),
-    /codex_cli_duplicate_security_arg:config/
+    /codex_cli_governed_config_override_not_allowed:sandbox\.mode/
+  );
+
+  const multipleConfigPlan = createCodexCliExecPlan(engineeringTask, {
+    configOverrides: ["telemetry.enabled=false", "history.persistence=none"]
+  });
+  assert.deepEqual(
+    multipleConfigPlan.args.filter((arg) => arg === "-c"),
+    ["-c", "-c"]
   );
 });
 
@@ -1892,6 +1900,176 @@ test("codex cli host runner rejects forged sandbox argv mismatches", async () =>
       })
     }),
     /codex_cli_sandbox_arg_mismatch/
+  );
+});
+
+test("codex cli host runner rejects forged duplicate security argv", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-forged-duplicate-security-argv",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  });
+  const forgedSandboxPlan = {
+    ...plan,
+    args: [
+      "-a",
+      "on-request",
+      "exec",
+      "--json",
+      "--sandbox",
+      "read-only",
+      "--sandbox",
+      "workspace-write",
+      plan.prompt
+    ]
+  };
+  const forgedApprovalPlan = {
+    ...plan,
+    args: [
+      "-a",
+      "on-request",
+      "exec",
+      "--json",
+      "--sandbox",
+      "read-only",
+      "--ask-for-approval",
+      "never",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedSandboxPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:sandbox")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedApprovalPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:approval")
+  )));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedSandboxPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_duplicate_security_arg/
+  );
+});
+
+test("codex cli host runner allows repeated non-governed config overrides", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-repeated-non-governed-config",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    configOverrides: ["telemetry.enabled=false", "history.persistence=none"]
+  });
+
+  assert.deepEqual(
+    validateCodexCliExecPlanForRun(plan),
+    []
+  );
+  const result = await runCodexCliExecPlan(plan, {
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"allowed\"}\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(result.inspection.status, "completed");
+});
+
+test("codex cli host runner rejects governed config overrides", async () => {
+  const task = {
+    taskId: "cli-runner-governed-config",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      configOverrides: ["model=gpt-5.3-codex"]
+    }),
+    /codex_cli_governed_config_override_not_allowed:model/
+  );
+
+  const plan = createCodexCliExecPlan(task);
+  const forgedPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--config=sandbox.mode=workspace-write",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox.mode"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox\.mode/
   );
 });
 

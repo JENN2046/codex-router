@@ -939,6 +939,7 @@ export function createCodexCliExecPlan(
 
   args.push(...(options.extraArgs ?? []), prompt);
   assertNoDuplicateCodexCliSecurityArgs(args);
+  assertNoGovernedCodexCliConfigOverrides(args);
 
   return {
     command,
@@ -1665,6 +1666,18 @@ export function validateCodexCliExecPlanForRun(
 
   try {
     assertNoDangerousCodexCliArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoDuplicateCodexCliSecurityArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoGovernedCodexCliConfigOverrides(plan.args);
   } catch (error) {
     blockingReasons.push(error instanceof Error ? error.message : String(error));
   }
@@ -2984,10 +2997,6 @@ const CODEX_CLI_SECURITY_ARG_GROUPS = [
     flags: ["-a", "--ask-for-approval"]
   },
   {
-    name: "config",
-    flags: ["-c", "--config"]
-  },
-  {
     name: "model",
     flags: ["--model"]
   },
@@ -2999,6 +3008,15 @@ const CODEX_CLI_SECURITY_ARG_GROUPS = [
     name: "sandbox",
     flags: ["--sandbox"]
   }
+] as const;
+
+const CODEX_CLI_GOVERNED_CONFIG_KEYS = [
+  "approval",
+  "approval_policy",
+  "ask_for_approval",
+  "model",
+  "profile",
+  "sandbox"
 ] as const;
 
 function assertNoDuplicateCodexCliSecurityArgs(args: string[]): void {
@@ -3023,6 +3041,60 @@ function matchCodexCliSecurityArg(
     arg === flag || (
       flag.startsWith("--") && arg.startsWith(`${flag}=`)
     )
+  ));
+}
+
+function assertNoGovernedCodexCliConfigOverrides(args: string[]): void {
+  for (const override of extractCodexCliConfigOverrides(args)) {
+    const key = extractCodexCliConfigKey(override);
+
+    if (key !== undefined && isGovernedCodexCliConfigKey(key)) {
+      throw new Error(`codex_cli_governed_config_override_not_allowed:${key}`);
+    }
+  }
+}
+
+function extractCodexCliConfigOverrides(args: string[]): string[] {
+  const overrides: string[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === undefined) {
+      continue;
+    }
+
+    const nextArg = args[index + 1];
+    if ((arg === "-c" || arg === "--config") && nextArg !== undefined) {
+      overrides.push(nextArg);
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--config=")) {
+      overrides.push(arg.slice("--config=".length));
+    }
+  }
+
+  return overrides;
+}
+
+function extractCodexCliConfigKey(override: string): string | undefined {
+  const separatorIndex = override.indexOf("=");
+  const key = (
+    separatorIndex === -1
+      ? override
+      : override.slice(0, separatorIndex)
+  ).trim();
+
+  return key.length > 0 ? key : undefined;
+}
+
+function isGovernedCodexCliConfigKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+
+  return CODEX_CLI_GOVERNED_CONFIG_KEYS.some((governedKey) => (
+    normalized === governedKey || normalized.startsWith(`${governedKey}.`)
   ));
 }
 
