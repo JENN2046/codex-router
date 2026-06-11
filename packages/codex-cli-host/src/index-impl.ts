@@ -3089,21 +3089,10 @@ function extractCodexCliConfigOverrides(args: string[]): string[] {
   const overrides: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-
-    if (arg === undefined) {
-      continue;
-    }
-
-    const nextArg = args[index + 1];
-    if ((arg === "-c" || arg === "--config") && nextArg !== undefined) {
-      overrides.push(nextArg);
-      index += 1;
-      continue;
-    }
-
-    if (arg.startsWith("--config=")) {
-      overrides.push(arg.slice("--config=".length));
+    const parsed = getCodexCliArgValueAt(args, index, ["-c", "--config"]);
+    if (parsed !== undefined) {
+      overrides.push(parsed.value);
+      index += parsed.consumedNext ? 1 : 0;
     }
   }
 
@@ -3466,12 +3455,55 @@ function canAcceptModelDowngrade(
 }
 
 function getCodexCliArgValue(args: string[], flag: string): string | undefined {
-  const flagIndex = args.indexOf(flag);
-  if (flagIndex < 0) {
+  for (let index = 0; index < args.length; index += 1) {
+    const parsed = getCodexCliArgValueAt(args, index, [flag]);
+    if (parsed !== undefined) {
+      return parsed.value;
+    }
+  }
+
+  return undefined;
+}
+
+function getCodexCliArgValueAt(
+  args: string[],
+  index: number,
+  flags: readonly string[]
+): { value: string; consumedNext: boolean } | undefined {
+  const arg = args[index];
+  if (arg === undefined) {
     return undefined;
   }
 
-  return args[flagIndex + 1];
+  for (const flag of flags) {
+    if (arg === flag) {
+      const value = args[index + 1];
+      return value === undefined
+        ? undefined
+        : { value, consumedNext: true };
+    }
+
+    if (flag.startsWith("--") && arg.startsWith(`${flag}=`)) {
+      return { value: arg.slice(flag.length + 1), consumedNext: false };
+    }
+
+    if (
+      flag.startsWith("-") &&
+      !flag.startsWith("--") &&
+      arg.startsWith(flag) &&
+      arg.length > flag.length
+    ) {
+      const compactValue = arg.slice(flag.length);
+      return {
+        value: compactValue.startsWith("=")
+          ? compactValue.slice(1)
+          : compactValue,
+        consumedNext: false
+      };
+    }
+  }
+
+  return undefined;
 }
 
 function createCodexCliSanitizedCommandPreview(plan: CodexCliExecPlan): string {

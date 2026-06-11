@@ -2033,6 +2033,26 @@ test("codex cli host runner rejects forged workspace root argv", async () => {
     /codex_cli_workdir_arg_mismatch/
   );
 
+  const forgedInlineWorkdirPlan = {
+    ...plan,
+    args: plan.args.map((arg) => (
+      arg === "--cd" ? "--cd=A:/other" : arg
+    )).filter((arg) => arg !== "A:/codex-router")
+  };
+  const forgedCompactWorkdirPlan = {
+    ...plan,
+    args: plan.args.map((arg) => (
+      arg === "--cd" ? "-CA:/other" : arg
+    )).filter((arg) => arg !== "A:/codex-router")
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedInlineWorkdirPlan).includes(
+    "codex_cli_workdir_arg_mismatch:A:/other:A:/codex-router"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactWorkdirPlan).includes(
+    "codex_cli_workdir_arg_mismatch:A:/other:A:/codex-router"
+  ));
+
   assert.throws(
     () => createCodexCliExecPlan(task, {
       extraArgs: ["--add-dir", "A:/other"]
@@ -2217,6 +2237,30 @@ test("codex cli host runner rejects governed config overrides", async () => {
     }),
     /codex_cli_governed_config_override_not_allowed:sandbox_permissions/
   );
+
+  const forgedCompactConfigPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      '-csandbox_permissions=["disk-full-read-access"]',
+      plan.prompt
+    ]
+  };
+  const forgedEqualsCompactConfigPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-c=sandbox_mode=workspace-write",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactConfigPlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox_permissions"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedEqualsCompactConfigPlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox_mode"
+  ));
 });
 
 test("codex cli host runner reports timeout as failed evidence", async () => {
