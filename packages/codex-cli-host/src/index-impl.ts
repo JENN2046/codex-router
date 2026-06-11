@@ -939,6 +939,8 @@ export function createCodexCliExecPlan(
   args.push(...(options.extraArgs ?? []), prompt);
   assertNoDuplicateCodexCliSecurityArgs(args);
   assertNoCodexCliWorkspaceExpansionArgs(args);
+  assertNoCodexCliProviderOverrideArgs(args);
+  assertNoCodexCliOutputWriteArgs(args);
   assertNoGovernedCodexCliConfigOverrides(args);
 
   return {
@@ -1678,6 +1680,18 @@ export function validateCodexCliExecPlanForRun(
 
   try {
     assertNoCodexCliWorkspaceExpansionArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliProviderOverrideArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliOutputWriteArgs(plan.args);
   } catch (error) {
     blockingReasons.push(error instanceof Error ? error.message : String(error));
   }
@@ -3065,6 +3079,30 @@ function assertNoCodexCliPolicyBypassArgs(args: string[]): void {
   }
 }
 
+function assertNoCodexCliProviderOverrideArgs(args: string[]): void {
+  const ossArg = args.find((arg) => (
+    arg === "--oss" || arg.startsWith("--oss=")
+  ));
+  const localProviderArg = findCodexCliArgMatch(args, ["--local-provider"]);
+  const providerArg = ossArg ?? localProviderArg;
+
+  if (providerArg !== undefined) {
+    throw new Error(
+      `codex_cli_provider_override_arg_not_allowed:${providerArg}`
+    );
+  }
+}
+
+function assertNoCodexCliOutputWriteArgs(args: string[]): void {
+  const outputArg = findCodexCliArgMatch(args, ["-o", "--output-last-message"]);
+
+  if (outputArg !== undefined) {
+    throw new Error(
+      `codex_cli_output_write_arg_not_allowed:${outputArg}`
+    );
+  }
+}
+
 function assertNoDuplicateCodexCliSecurityArgs(args: string[]): void {
   for (const group of CODEX_CLI_SECURITY_ARG_GROUPS) {
     const matches = args
@@ -3093,6 +3131,13 @@ function matchCodexCliSecurityArg(
       arg.length > flag.length
     )
   ));
+}
+
+function findCodexCliArgMatch(
+  args: string[],
+  flags: readonly string[]
+): string | undefined {
+  return args.find((arg) => matchCodexCliSecurityArg(arg, flags) !== undefined);
 }
 
 function assertNoGovernedCodexCliConfigOverrides(args: string[]): void {

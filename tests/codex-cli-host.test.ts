@@ -2172,6 +2172,138 @@ test("codex cli host runner rejects forged policy bypass argv", async () => {
   );
 });
 
+test("codex cli host runner rejects forged provider override argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-provider-override",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const forgedOssPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--oss",
+      plan.prompt
+    ]
+  };
+  const forgedLocalProviderPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--local-provider=ollama",
+      plan.prompt
+    ]
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--local-provider", "lmstudio"]
+    }),
+    /codex_cli_provider_override_arg_not_allowed:--local-provider/
+  );
+  assert.ok(validateCodexCliExecPlanForRun(forgedOssPlan).includes(
+    "codex_cli_provider_override_arg_not_allowed:--oss"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedLocalProviderPlan).includes(
+    "codex_cli_provider_override_arg_not_allowed:--local-provider=ollama"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedOssPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_provider_override_arg_not_allowed:--oss/
+  );
+});
+
+test("codex cli host runner rejects forged output write argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-output-write",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const forgedLongOutputPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--output-last-message=A:/other/result.txt",
+      plan.prompt
+    ]
+  };
+  const forgedCompactOutputPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-oA:/other/result.txt",
+      plan.prompt
+    ]
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--output-last-message", "A:/other/result.txt"]
+    }),
+    /codex_cli_output_write_arg_not_allowed:--output-last-message/
+  );
+  assert.ok(validateCodexCliExecPlanForRun(forgedLongOutputPlan).includes(
+    "codex_cli_output_write_arg_not_allowed:--output-last-message=A:/other/result.txt"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactOutputPlan).includes(
+    "codex_cli_output_write_arg_not_allowed:-oA:/other/result.txt"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedLongOutputPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_output_write_arg_not_allowed:--output-last-message/
+  );
+});
+
 test("codex cli host runner allows repeated non-governed config overrides", async () => {
   const plan = createCodexCliExecPlan({
     taskId: "cli-runner-repeated-non-governed-config",
