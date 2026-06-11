@@ -2054,6 +2054,12 @@ test("codex cli host runner rejects governed config overrides", async () => {
     }),
     /codex_cli_governed_config_override_not_allowed:sandbox_mode/
   );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      configOverrides: ['sandbox_permissions=["disk-full-read-access"]']
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox_permissions/
+  );
 
   const plan = createCodexCliExecPlan(task);
   const forgedPlan = {
@@ -2099,6 +2105,28 @@ test("codex cli host runner rejects governed config overrides", async () => {
       })
     }),
     /codex_cli_governed_config_override_not_allowed:sandbox_mode/
+  );
+
+  const forgedSandboxPermissionsPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      '--config=sandbox_permissions=["disk-full-read-access"]',
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedSandboxPermissionsPlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox_permissions"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedSandboxPermissionsPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox_permissions/
   );
 });
 

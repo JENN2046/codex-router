@@ -3017,7 +3017,8 @@ const CODEX_CLI_GOVERNED_CONFIG_KEYS = [
   "model",
   "profile",
   "sandbox",
-  "sandbox_mode"
+  "sandbox_mode",
+  "sandbox_permissions"
 ] as const;
 
 function assertNoDuplicateCodexCliSecurityArgs(args: string[]): void {
