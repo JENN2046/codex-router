@@ -45,6 +45,61 @@ export type ApprovalPermitValidationResult = {
   matchedCapabilityScopes: string[];
 };
 
+export type ApprovalPermitFilter = {
+  taskId?: string;
+  runId?: string;
+  principalId?: string;
+  approverId?: string;
+  revoked?: boolean;
+};
+
+export interface ApprovalPermitStore {
+  savePermit(permit: ApprovalPermit): ApprovalPermit;
+  getPermit(permitId: string): ApprovalPermit | undefined;
+  listPermits(filter?: ApprovalPermitFilter): ApprovalPermit[];
+  revokePermit(permitId: string, revokedAt: string, reason: string): ApprovalPermit | undefined;
+}
+
+export class InMemoryApprovalPermitStore implements ApprovalPermitStore {
+  private readonly permits = new Map<string, ApprovalPermit>();
+
+  savePermit(permit: ApprovalPermit): ApprovalPermit {
+    const parsed = ApprovalPermitSchema.parse(permit);
+    if (this.permits.has(parsed.permitId)) {
+      throw new Error(`duplicate_approval_permit_id:${parsed.permitId}`);
+    }
+
+    this.permits.set(parsed.permitId, cloneApprovalPermit(parsed));
+    return cloneApprovalPermit(parsed);
+  }
+
+  getPermit(permitId: string): ApprovalPermit | undefined {
+    const permit = this.permits.get(permitId);
+    return permit === undefined ? undefined : cloneApprovalPermit(permit);
+  }
+
+  listPermits(filter: ApprovalPermitFilter = {}): ApprovalPermit[] {
+    return [...this.permits.values()]
+      .filter((permit) => matchesApprovalPermit(permit, filter))
+      .map(cloneApprovalPermit);
+  }
+
+  revokePermit(permitId: string, revokedAt: string, reason: string): ApprovalPermit | undefined {
+    const permit = this.permits.get(permitId);
+    if (permit === undefined) {
+      return undefined;
+    }
+
+    const revoked = revokeApprovalPermit(permit, revokedAt, reason);
+    this.permits.set(permitId, cloneApprovalPermit(revoked));
+    return cloneApprovalPermit(revoked);
+  }
+}
+
+export function createInMemoryApprovalPermitStore(): InMemoryApprovalPermitStore {
+  return new InMemoryApprovalPermitStore();
+}
+
 export function createApprovalPermit(input: CreateApprovalPermitInput): ApprovalPermit {
   const approver = input.approver ?? PrincipalSchema.parse({
     principalId: input.approverId,
@@ -290,4 +345,22 @@ function stableStringify(input: unknown): string {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function matchesApprovalPermit(
+  permit: ApprovalPermit,
+  filter: ApprovalPermitFilter
+): boolean {
+  return (filter.taskId === undefined || permit.taskId === filter.taskId)
+    && (filter.runId === undefined || permit.runId === filter.runId)
+    && (filter.principalId === undefined || permit.principalId === filter.principalId)
+    && (filter.approverId === undefined || permit.approverId === filter.approverId)
+    && (
+      filter.revoked === undefined
+      || (filter.revoked ? permit.revokedAt !== undefined : permit.revokedAt === undefined)
+    );
+}
+
+function cloneApprovalPermit(permit: ApprovalPermit): ApprovalPermit {
+  return ApprovalPermitSchema.parse(structuredClone(permit));
 }

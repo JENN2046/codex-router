@@ -427,6 +427,12 @@ For the prefilled working draft of that first target task sheet, see
 For the first direct MCP transport client, see
 [docs/transport-native-codex-memory-mcp-client.md](A:/codex-router/docs/transport-native-codex-memory-mcp-client.md).
 
+For the current Agent OS Phase 4-8 execution-foundation completion report, see
+[docs/agent-os-transformation/phase-4-8-completion-report.md](A:/codex-router/docs/agent-os-transformation/phase-4-8-completion-report.md).
+
+For the current Agent OS roadmap and the next approval-issuance phase, see
+[docs/agent-os-transformation/current-roadmap-20260610.md](A:/codex-router/docs/agent-os-transformation/current-roadmap-20260610.md).
+
 For the current V1 closeout snapshot, validated baseline, and remaining gaps,
 see [docs/v1-closeout-status-20260423.md](A:/codex-router/docs/v1-closeout-status-20260423.md).
 

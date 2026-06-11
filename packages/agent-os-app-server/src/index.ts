@@ -46,6 +46,7 @@ export type AgentOsAppServerResponse = {
 
 const RUN_PATH_PATTERN = /^\/agent-os\/runs\/([^/]+)$/;
 const CANCEL_RUN_PATH_PATTERN = /^\/agent-os\/runs\/([^/]+)\/cancel$/;
+const APPROVE_RUN_PATH_PATTERN = /^\/agent-os\/runs\/([^/]+)\/approve$/;
 const ARTIFACT_PATH_PATTERN = /^\/agent-os\/artifacts\/([^/]+)$/;
 const AGENT_OS_APP_SERVER_INVALID_METHOD = "agent_os_app_server_invalid_method";
 const AGENT_OS_APP_SERVER_INVALID_PATH = "agent_os_app_server_invalid_path";
@@ -143,6 +144,17 @@ export function routeAgentOsAppServerRequest(
       input: {
         ...parseBodyRecord(request.body),
         runId: decodePathSegment(cancelRunMatch[1])
+      }
+    };
+  }
+
+  const approveRunMatch = APPROVE_RUN_PATH_PATTERN.exec(path);
+  if (method === "POST" && approveRunMatch?.[1] !== undefined) {
+    return {
+      toolName: "agentos.approve_run",
+      input: {
+        ...parseBodyRecord(request.body),
+        runId: decodePathSegment(approveRunMatch[1])
       }
     };
   }

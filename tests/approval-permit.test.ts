@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createApprovalPermit,
   hashApprovalScope,
+  InMemoryApprovalPermitStore,
   revokeApprovalPermit,
   validateApprovalPermit
 } from "../packages/approval-permit/src/index.js";
@@ -106,6 +107,51 @@ test("approval permit rejects revoked permits", () => {
   assert.equal(result.valid, false);
   assert.ok(result.reasons.includes("permit_revoked"));
   assert.equal(permit.revokedReason, "operator revoked plan approval");
+});
+
+test("in-memory approval permit store saves, filters, clones, and revokes permits", () => {
+  const store = new InMemoryApprovalPermitStore();
+  const permit = createApprovalPermit(baseInput);
+  const saved = store.savePermit(permit);
+
+  assert.deepEqual(saved, permit);
+  assert.deepEqual(store.listPermits({ taskId: baseInput.taskId }).map((item) => item.permitId), [
+    baseInput.permitId
+  ]);
+  assert.deepEqual(store.listPermits({ runId: baseInput.runId }).map((item) => item.permitId), [
+    baseInput.permitId
+  ]);
+  assert.deepEqual(
+    store.listPermits({ principalId: baseInput.principalId }).map((item) => item.permitId),
+    [baseInput.permitId]
+  );
+  assert.deepEqual(store.listPermits({ approverId: baseInput.approverId }).map((item) => item.permitId), [
+    baseInput.permitId
+  ]);
+  assert.deepEqual(store.listPermits({ revoked: false }).map((item) => item.permitId), [
+    baseInput.permitId
+  ]);
+
+  const loaded = store.getPermit(baseInput.permitId);
+  assert.ok(loaded);
+  loaded.capabilityScopes.push("external.write:should_not_persist");
+  assert.deepEqual(store.getPermit(baseInput.permitId)?.capabilityScopes, baseInput.capabilityScopes);
+
+  assert.throws(() => {
+    store.savePermit(createApprovalPermit(baseInput));
+  }, /duplicate_approval_permit_id:permit_approval_fixture_001/);
+
+  const revoked = store.revokePermit(
+    baseInput.permitId,
+    "2026-06-04T00:20:00.000Z",
+    "operator revoked stored permit"
+  );
+  assert.equal(revoked?.revokedAt, "2026-06-04T00:20:00.000Z");
+  assert.equal(revoked?.revokedReason, "operator revoked stored permit");
+  assert.deepEqual(store.listPermits({ revoked: true }).map((item) => item.permitId), [
+    baseInput.permitId
+  ]);
+  assert.equal(store.revokePermit("permit_missing", now, "missing"), undefined);
 });
 
 test("approval permit rejects planHash mismatches", () => {

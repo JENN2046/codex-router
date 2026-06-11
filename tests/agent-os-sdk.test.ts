@@ -27,7 +27,8 @@ import {
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING
 } from "../packages/protocol-mcp/src/index.js";
 import {
-  hashApprovalScope
+  hashApprovalScope,
+  InMemoryApprovalPermitStore
 } from "../packages/approval-permit/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
@@ -132,6 +133,113 @@ test("Agent OS SDK creates a local run and provider plan without real execution"
     (searchEvents.output.events as Array<{ eventType: string }>).map((event) => event.eventType),
     ["kernel.public_surface.sdk.create_task"]
   );
+});
+
+test("Agent OS SDK issues an approval permit through the shared local runtime", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const sdk = createAgentOsSdk({
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    approvalPermitStore: permitStore,
+    createPermitId: () => "permit_agentos_sdk_001"
+  });
+
+  const create = sdk.createTask({
+    title: "SDK governed task",
+    requestedAction: "Create a run before SDK approval."
+  }, {
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli"
+  });
+  assert.equal(create.status, "succeeded");
+
+  const approve = sdk.approveRun({
+    runId,
+    capabilityScopes: ["fs.read:workspace/docs/report.md"],
+    reason: "SDK approval"
+  }, {
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true
+  });
+  const storedPermit = permitStore.getPermit("permit_agentos_sdk_001");
+
+  assert.equal(approve.status, "succeeded");
+  assert.equal(approve.surface, "sdk");
+  assert.equal(approve.operation, "approveRun");
+  assert.equal(approve.audit.publicSurface, "sdk");
+  assert.equal(approve.audit.localMutationApplied, true);
+  assert.deepEqual(approve.output, {
+    permitId: "permit_agentos_sdk_001",
+    runId,
+    expiresAt: "2026-06-10T04:00:00.000Z"
+  });
+  assert.equal(storedPermit?.runId, runId);
+  assert.deepEqual(storedPermit?.capabilityScopes, ["fs.read:workspace/docs/report.md"]);
+  assert.deepEqual(
+    kernelStore.listEvents({ runId }).map((event) => event.eventType),
+    [
+      "kernel.run.created",
+      "kernel.public_surface.sdk.create_task",
+      "kernel.approval.permit.issued"
+    ]
+  );
+});
+
+test("Agent OS SDK default approval permit IDs are unique for repeated approvals", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const sdk = createAgentOsSdk({
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    approvalPermitStore: permitStore
+  });
+
+  const create = sdk.createTask({
+    title: "SDK repeated approval task",
+    requestedAction: "Create a run before repeated SDK approval."
+  }, {
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli"
+  });
+  assert.equal(create.status, "succeeded");
+
+  const first = sdk.approveRun({
+    runId,
+    capabilityScopes: ["fs.read:workspace/docs/report.md"],
+    reason: "SDK approval"
+  }, {
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true
+  });
+  const second = sdk.approveRun({
+    runId,
+    capabilityScopes: ["fs.read:workspace/docs/report.md"],
+    reason: "SDK approval"
+  }, {
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true
+  });
+  const firstPermitId = String(first.output.permitId);
+  const secondPermitId = String(second.output.permitId);
+
+  assert.equal(first.status, "succeeded");
+  assert.equal(second.status, "succeeded");
+  assert.match(firstPermitId, /^permit_agentos_mcp_run_agentos_sdk_001_/);
+  assert.match(secondPermitId, /^permit_agentos_mcp_run_agentos_sdk_001_/);
+  assert.notEqual(firstPermitId, secondPermitId);
+  assert.equal(permitStore.listPermits({ runId }).length, 2);
 });
 
 function createRuntimeInput(
