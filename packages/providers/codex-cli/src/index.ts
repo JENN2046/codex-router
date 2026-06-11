@@ -169,7 +169,6 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
       taskEnvelope,
       parsedRoutingDecision,
       {
-        approvalPolicy: "on-request",
         ephemeral: true
       }
     );

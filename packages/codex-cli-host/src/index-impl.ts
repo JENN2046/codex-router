@@ -57,7 +57,19 @@ export interface CodexCliExecPlanOptions {
 }
 
 export interface CodexCliDecisionExecPlanOptions
-  extends Omit<CodexCliExecPlanOptions, "model" | "sandbox"> {
+  extends Omit<
+    CodexCliExecPlanOptions,
+    | "approvalFlagPlacement"
+    | "approvalPolicy"
+    | "codexCommand"
+    | "configOverrides"
+    | "cwd"
+    | "extraArgs"
+    | "ignoreRules"
+    | "model"
+    | "profile"
+    | "sandbox"
+  > {
   modelSelection?: CodexCliModelSelection;
 }
 
@@ -925,6 +937,14 @@ export function createCodexCliExecPlan(
   }
 
   args.push(...(options.extraArgs ?? []), prompt);
+  assertNoDuplicateCodexCliSecurityArgs(args);
+  assertNoCodexCliWorkspaceExpansionArgs(args);
+  assertNoCodexCliProviderOverrideArgs(args);
+  assertNoCodexCliOutputWriteArgs(args);
+  assertNoCodexCliOutputSchemaArgs(args);
+  assertNoCodexCliImageAttachmentArgs(args);
+  assertNoCodexCliExecSubcommandArgs(args, prompt);
+  assertNoGovernedCodexCliConfigOverrides(args);
 
   return {
     command,
@@ -1649,8 +1669,69 @@ export function validateCodexCliExecPlanForRun(
     blockingReasons.push(`codex_cli_unsupported_approval_policy:${plan.approvalPolicy}`);
   }
 
+  const workdirArg = getCodexCliArgValue(plan.args, "--cd")
+    ?? getCodexCliArgValue(plan.args, "--cwd")
+    ?? getCodexCliArgValue(plan.args, "-C");
+  if (workdirArg !== undefined && workdirArg !== plan.workdir) {
+    blockingReasons.push(`codex_cli_workdir_arg_mismatch:${workdirArg}:${plan.workdir ?? "undefined"}`);
+  }
+
   try {
     assertNoDangerousCodexCliArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliWorkspaceExpansionArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliProviderOverrideArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliOutputWriteArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliOutputSchemaArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliImageAttachmentArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliExecSubcommandArgs(plan.args, plan.prompt);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliPolicyBypassArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoDuplicateCodexCliSecurityArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoGovernedCodexCliConfigOverrides(plan.args);
   } catch (error) {
     blockingReasons.push(error instanceof Error ? error.message : String(error));
   }
@@ -2964,10 +3045,221 @@ function assertNoDangerousCodexCliArgs(args: string[]): void {
   }
 }
 
+const CODEX_CLI_SECURITY_ARG_GROUPS = [
+  {
+    name: "approval",
+    flags: ["-a", "--ask-for-approval"]
+  },
+  {
+    name: "workdir",
+    flags: ["-C", "--cd", "--cwd"]
+  },
+  {
+    name: "model",
+    flags: ["-m", "--model"]
+  },
+  {
+    name: "profile",
+    flags: ["-p", "--profile"]
+  },
+  {
+    name: "sandbox",
+    flags: ["-s", "--sandbox"]
+  }
+] as const;
+
+const CODEX_CLI_GOVERNED_CONFIG_KEYS = [
+  "approval",
+  "approval_policy",
+  "ask_for_approval",
+  "model",
+  "model_provider",
+  "profile",
+  "sandbox",
+  "sandbox_mode",
+  "sandbox_permissions",
+  "sandbox_workspace_write"
+] as const;
+
+const CODEX_CLI_EXEC_SUBCOMMANDS = [
+  "help",
+  "resume",
+  "review"
+] as const;
+
+function assertNoCodexCliWorkspaceExpansionArgs(args: string[]): void {
+  const expansionArg = args.find((arg) => (
+    arg === "--add-dir" || arg.startsWith("--add-dir=")
+  ));
+
+  if (expansionArg !== undefined) {
+    throw new Error(
+      `codex_cli_workspace_expansion_arg_not_allowed:${expansionArg}`
+    );
+  }
+}
+
+function assertNoCodexCliPolicyBypassArgs(args: string[]): void {
+  const bypassArg = args.find((arg) => arg === "--ignore-rules");
+
+  if (bypassArg !== undefined) {
+    throw new Error(
+      `codex_cli_policy_bypass_arg_not_allowed:${bypassArg}`
+    );
+  }
+}
+
+function assertNoCodexCliProviderOverrideArgs(args: string[]): void {
+  const ossArg = args.find((arg) => (
+    arg === "--oss" || arg.startsWith("--oss=")
+  ));
+  const localProviderArg = findCodexCliArgMatch(args, ["--local-provider"]);
+  const providerArg = ossArg ?? localProviderArg;
+
+  if (providerArg !== undefined) {
+    throw new Error(
+      `codex_cli_provider_override_arg_not_allowed:${providerArg}`
+    );
+  }
+}
+
+function assertNoCodexCliOutputWriteArgs(args: string[]): void {
+  const outputArg = findCodexCliArgMatch(args, ["-o", "--output-last-message"]);
+
+  if (outputArg !== undefined) {
+    throw new Error(
+      `codex_cli_output_write_arg_not_allowed:${outputArg}`
+    );
+  }
+}
+
+function assertNoCodexCliOutputSchemaArgs(args: string[]): void {
+  const outputSchemaArg = findCodexCliArgMatch(args, ["--output-schema"]);
+
+  if (outputSchemaArg !== undefined) {
+    throw new Error(
+      `codex_cli_output_schema_arg_not_allowed:${outputSchemaArg}`
+    );
+  }
+}
+
+function assertNoCodexCliImageAttachmentArgs(args: string[]): void {
+  const imageArg = findCodexCliArgMatch(args, ["-i", "--image", "--images"]);
+
+  if (imageArg !== undefined) {
+    throw new Error(
+      `codex_cli_image_attachment_arg_not_allowed:${imageArg}`
+    );
+  }
+}
+
+function assertNoCodexCliExecSubcommandArgs(args: string[], prompt: string): void {
+  const subcommandArg = args.find((arg) => (
+    arg !== prompt &&
+    CODEX_CLI_EXEC_SUBCOMMANDS.some((subcommand) => arg === subcommand)
+  ));
+
+  if (subcommandArg !== undefined) {
+    throw new Error(
+      `codex_cli_exec_subcommand_arg_not_allowed:${subcommandArg}`
+    );
+  }
+}
+
+function assertNoDuplicateCodexCliSecurityArgs(args: string[]): void {
+  for (const group of CODEX_CLI_SECURITY_ARG_GROUPS) {
+    const matches = args
+      .map((arg) => matchCodexCliSecurityArg(arg, group.flags))
+      .filter((flag): flag is string => flag !== undefined);
+
+    if (matches.length > 1) {
+      throw new Error(
+        `codex_cli_duplicate_security_arg:${group.name}:${matches.join(",")}`
+      );
+    }
+  }
+}
+
+function matchCodexCliSecurityArg(
+  arg: string,
+  flags: readonly string[]
+): string | undefined {
+  return flags.find((flag) => (
+    arg === flag || (
+      flag.startsWith("--") && arg.startsWith(`${flag}=`)
+    ) || (
+      flag.startsWith("-") &&
+      !flag.startsWith("--") &&
+      arg.startsWith(flag) &&
+      arg.length > flag.length
+    )
+  ));
+}
+
+function findCodexCliArgMatch(
+  args: string[],
+  flags: readonly string[]
+): string | undefined {
+  return args.find((arg) => matchCodexCliSecurityArg(arg, flags) !== undefined);
+}
+
+function assertNoGovernedCodexCliConfigOverrides(args: string[]): void {
+  for (const override of extractCodexCliConfigOverrides(args)) {
+    const key = extractCodexCliConfigKey(override);
+
+    if (key !== undefined && isGovernedCodexCliConfigKey(key)) {
+      throw new Error(`codex_cli_governed_config_override_not_allowed:${key}`);
+    }
+  }
+}
+
+function extractCodexCliConfigOverrides(args: string[]): string[] {
+  const overrides: string[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const parsed = getCodexCliArgValueAt(args, index, ["-c", "--config"]);
+    if (parsed !== undefined) {
+      overrides.push(parsed.value);
+      index += parsed.consumedNext ? 1 : 0;
+    }
+  }
+
+  return overrides;
+}
+
+function extractCodexCliConfigKey(override: string): string | undefined {
+  const separatorIndex = override.indexOf("=");
+  const key = (
+    separatorIndex === -1
+      ? override
+      : override.slice(0, separatorIndex)
+  ).trim();
+
+  return key.length > 0 ? key : undefined;
+}
+
+function isGovernedCodexCliConfigKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+
+  return CODEX_CLI_GOVERNED_CONFIG_KEYS.some((governedKey) => (
+    normalized === governedKey || normalized.startsWith(`${governedKey}.`)
+  ));
+}
+
 function assertNoCodexCliDecisionPolicyOverrides(
   options: CodexCliDecisionExecPlanOptions
 ): void {
   const rawOptions = options as CodexCliExecPlanOptions;
+  const disallowedOptions: Array<keyof CodexCliExecPlanOptions> = [
+    "approvalFlagPlacement",
+    "approvalPolicy",
+    "codexCommand",
+    "configOverrides",
+    "cwd",
+    "extraArgs",
+    "ignoreRules",
+    "profile"
+  ];
 
   if (rawOptions.model !== undefined) {
     throw new Error("codex_cli_decision_plan_disallows_policy_override:model");
@@ -2975,6 +3267,14 @@ function assertNoCodexCliDecisionPolicyOverrides(
 
   if (rawOptions.sandbox !== undefined) {
     throw new Error("codex_cli_decision_plan_disallows_policy_override:sandbox");
+  }
+
+  for (const option of disallowedOptions) {
+    if (rawOptions[option] !== undefined) {
+      throw new Error(
+        `codex_cli_decision_plan_disallows_policy_override:${option}`
+      );
+    }
   }
 }
 
@@ -3282,12 +3582,55 @@ function canAcceptModelDowngrade(
 }
 
 function getCodexCliArgValue(args: string[], flag: string): string | undefined {
-  const flagIndex = args.indexOf(flag);
-  if (flagIndex < 0) {
+  for (let index = 0; index < args.length; index += 1) {
+    const parsed = getCodexCliArgValueAt(args, index, [flag]);
+    if (parsed !== undefined) {
+      return parsed.value;
+    }
+  }
+
+  return undefined;
+}
+
+function getCodexCliArgValueAt(
+  args: string[],
+  index: number,
+  flags: readonly string[]
+): { value: string; consumedNext: boolean } | undefined {
+  const arg = args[index];
+  if (arg === undefined) {
     return undefined;
   }
 
-  return args[flagIndex + 1];
+  for (const flag of flags) {
+    if (arg === flag) {
+      const value = args[index + 1];
+      return value === undefined
+        ? undefined
+        : { value, consumedNext: true };
+    }
+
+    if (flag.startsWith("--") && arg.startsWith(`${flag}=`)) {
+      return { value: arg.slice(flag.length + 1), consumedNext: false };
+    }
+
+    if (
+      flag.startsWith("-") &&
+      !flag.startsWith("--") &&
+      arg.startsWith(flag) &&
+      arg.length > flag.length
+    ) {
+      const compactValue = arg.slice(flag.length);
+      return {
+        value: compactValue.startsWith("=")
+          ? compactValue.slice(1)
+          : compactValue,
+        consumedNext: false
+      };
+    }
+  }
+
+  return undefined;
 }
 
 function createCodexCliSanitizedCommandPreview(plan: CodexCliExecPlan): string {

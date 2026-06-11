@@ -1266,6 +1266,33 @@ test("codex cli decision plan rejects task mismatches and policy overrides", asy
     } as never),
     /codex_cli_decision_plan_disallows_policy_override:sandbox/
   );
+
+  for (const [option, value] of [
+    ["approvalFlagPlacement", "after-command"],
+    ["approvalPolicy", "never"],
+    ["codexCommand", "custom-codex"],
+    ["configOverrides", ["model=gpt-5.4"]],
+    ["cwd", "A:/other"],
+    ["extraArgs", ["--ask-for-approval", "never"]],
+    ["ignoreRules", true],
+    ["profile", "custom-profile"]
+  ] as const) {
+    assert.throws(
+      () => createCodexCliExecPlanFromRoutingDecision(task, decision, {
+        [option]: value
+      } as never),
+      new RegExp(`codex_cli_decision_plan_disallows_policy_override:${option}`)
+    );
+  }
+
+  const ignoreUserConfigPlan = createCodexCliExecPlanFromRoutingDecision(
+    task,
+    decision,
+    {
+      ignoreUserConfig: true
+    }
+  );
+  assert.ok(ignoreUserConfigPlan.args.includes("--ignore-user-config"));
 });
 
 test("codex cli host keeps write and release tasks sandboxed without bypass flags", () => {
@@ -1316,6 +1343,44 @@ test("codex cli host keeps write and release tasks sandboxed without bypass flag
       extraArgs: ["--dangerously-bypass-approvals-and-sandbox"]
     }),
     /codex_cli_dangerous_arg_not_allowed/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlan(engineeringTask, {
+      extraArgs: ["--sandbox", "read-only"]
+    }),
+    /codex_cli_duplicate_security_arg:sandbox/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlan(engineeringTask, {
+      extraArgs: ["--ask-for-approval", "never"]
+    }),
+    /codex_cli_duplicate_security_arg:approval/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlan(engineeringTask, {
+      model: "gpt-5.4-mini",
+      extraArgs: ["--model", "gpt-5.3-codex"]
+    }),
+    /codex_cli_duplicate_security_arg:model/
+  );
+
+  assert.throws(
+    () => createCodexCliExecPlan(engineeringTask, {
+      configOverrides: ["sandbox.mode=workspace-write"],
+      extraArgs: ["-c", "sandbox.mode=read-only"]
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox\.mode/
+  );
+
+  const multipleConfigPlan = createCodexCliExecPlan(engineeringTask, {
+    configOverrides: ["telemetry.enabled=false", "history.persistence=none"]
+  });
+  assert.deepEqual(
+    multipleConfigPlan.args.filter((arg) => arg === "-c"),
+    ["-c", "-c"]
   );
 });
 
@@ -1844,6 +1909,895 @@ test("codex cli host runner rejects forged sandbox argv mismatches", async () =>
     }),
     /codex_cli_sandbox_arg_mismatch/
   );
+});
+
+test("codex cli host runner rejects forged duplicate security argv", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-forged-duplicate-security-argv",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  });
+  const forgedSandboxPlan = {
+    ...plan,
+    args: [
+      "-a",
+      "on-request",
+      "exec",
+      "--json",
+      "--sandbox",
+      "read-only",
+      "-s",
+      "workspace-write",
+      plan.prompt
+    ]
+  };
+  const forgedApprovalPlan = {
+    ...plan,
+    args: [
+      "-a",
+      "on-request",
+      "exec",
+      "--json",
+      "--sandbox",
+      "read-only",
+      "--ask-for-approval",
+      "never",
+      plan.prompt
+    ]
+  };
+  const forgedWorkdirPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-C",
+      "A:/other",
+      plan.prompt
+    ]
+  };
+  const forgedCwdPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--cwd",
+      "A:/other",
+      plan.prompt
+    ]
+  };
+  const forgedCompactSandboxPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-sworkspace-write",
+      plan.prompt
+    ]
+  };
+  const forgedCompactModelPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--model",
+      "gpt-5.4-mini",
+      "-mgpt-5.3-codex",
+      plan.prompt
+    ]
+  };
+  const forgedCompactProfilePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--profile",
+      "safe-profile",
+      "-punsafe-profile",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedSandboxPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:sandbox")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedApprovalPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:approval")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedWorkdirPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:workdir")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCwdPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:workdir")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactSandboxPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:sandbox")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactModelPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:model")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactProfilePlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:profile")
+  )));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedSandboxPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_duplicate_security_arg/
+  );
+});
+
+test("codex cli host runner rejects forged workspace root argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-workspace-root",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const workdirIndex = plan.args.indexOf("--cd") + 1;
+  const forgedWorkdirValuePlan = {
+    ...plan,
+    args: plan.args.map((arg, index) => (
+      index === workdirIndex ? "A:/other" : arg
+    ))
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedWorkdirValuePlan).includes(
+    "codex_cli_workdir_arg_mismatch:A:/other:A:/codex-router"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedWorkdirValuePlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_workdir_arg_mismatch/
+  );
+
+  const forgedInlineWorkdirPlan = {
+    ...plan,
+    args: plan.args.map((arg) => (
+      arg === "--cd" ? "--cd=A:/other" : arg
+    )).filter((arg) => arg !== "A:/codex-router")
+  };
+  const forgedInlineCwdPlan = {
+    ...plan,
+    args: plan.args.map((arg) => (
+      arg === "--cd" ? "--cwd=A:/other" : arg
+    )).filter((arg) => arg !== "A:/codex-router")
+  };
+  const forgedCompactWorkdirPlan = {
+    ...plan,
+    args: plan.args.map((arg) => (
+      arg === "--cd" ? "-CA:/other" : arg
+    )).filter((arg) => arg !== "A:/codex-router")
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedInlineWorkdirPlan).includes(
+    "codex_cli_workdir_arg_mismatch:A:/other:A:/codex-router"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedInlineCwdPlan).includes(
+    "codex_cli_workdir_arg_mismatch:A:/other:A:/codex-router"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactWorkdirPlan).includes(
+    "codex_cli_workdir_arg_mismatch:A:/other:A:/codex-router"
+  ));
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--add-dir", "A:/other"]
+    }),
+    /codex_cli_workspace_expansion_arg_not_allowed:--add-dir/
+  );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--cwd", "A:/other"]
+    }),
+    /codex_cli_duplicate_security_arg:workdir/
+  );
+
+  const forgedAddDirPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--add-dir=A:/other",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedAddDirPlan).includes(
+    "codex_cli_workspace_expansion_arg_not_allowed:--add-dir=A:/other"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedAddDirPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_workspace_expansion_arg_not_allowed/
+  );
+});
+
+test("codex cli host runner rejects forged policy bypass argv", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-forged-policy-bypass",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const forgedPlan = {
+    ...plan,
+    args: [...plan.args, "--ignore-rules"]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
+    "codex_cli_policy_bypass_arg_not_allowed:--ignore-rules"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_policy_bypass_arg_not_allowed:--ignore-rules/
+  );
+});
+
+test("codex cli host runner rejects forged provider override argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-provider-override",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const forgedOssPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--oss",
+      plan.prompt
+    ]
+  };
+  const forgedLocalProviderPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--local-provider=ollama",
+      plan.prompt
+    ]
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--local-provider", "lmstudio"]
+    }),
+    /codex_cli_provider_override_arg_not_allowed:--local-provider/
+  );
+  assert.ok(validateCodexCliExecPlanForRun(forgedOssPlan).includes(
+    "codex_cli_provider_override_arg_not_allowed:--oss"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedLocalProviderPlan).includes(
+    "codex_cli_provider_override_arg_not_allowed:--local-provider=ollama"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedOssPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_provider_override_arg_not_allowed:--oss/
+  );
+});
+
+test("codex cli host runner rejects forged output write argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-output-write",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const forgedLongOutputPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--output-last-message=A:/other/result.txt",
+      plan.prompt
+    ]
+  };
+  const forgedCompactOutputPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-oA:/other/result.txt",
+      plan.prompt
+    ]
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--output-last-message", "A:/other/result.txt"]
+    }),
+    /codex_cli_output_write_arg_not_allowed:--output-last-message/
+  );
+  assert.ok(validateCodexCliExecPlanForRun(forgedLongOutputPlan).includes(
+    "codex_cli_output_write_arg_not_allowed:--output-last-message=A:/other/result.txt"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactOutputPlan).includes(
+    "codex_cli_output_write_arg_not_allowed:-oA:/other/result.txt"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedLongOutputPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_output_write_arg_not_allowed:--output-last-message/
+  );
+});
+
+test("codex cli host runner rejects forged output schema argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-output-schema",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const forgedOutputSchemaPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--output-schema=A:/outside/schema.json",
+      plan.prompt
+    ]
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--output-schema", "A:/outside/schema.json"]
+    }),
+    /codex_cli_output_schema_arg_not_allowed:--output-schema/
+  );
+  assert.ok(validateCodexCliExecPlanForRun(forgedOutputSchemaPlan).includes(
+    "codex_cli_output_schema_arg_not_allowed:--output-schema=A:/outside/schema.json"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedOutputSchemaPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_output_schema_arg_not_allowed:--output-schema/
+  );
+});
+
+test("codex cli host runner rejects forged image attachment argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-image-attachment",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const forgedLongImagePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--image=A:/outside/secret.png",
+      plan.prompt
+    ]
+  };
+  const forgedCompactImagePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-iA:/outside/secret.png",
+      plan.prompt
+    ]
+  };
+  const forgedImagesPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--images=A:/outside/secret.png",
+      plan.prompt
+    ]
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--image", "A:/outside/secret.png"]
+    }),
+    /codex_cli_image_attachment_arg_not_allowed:--image/
+  );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--images", "A:/outside/secret.png"]
+    }),
+    /codex_cli_image_attachment_arg_not_allowed:--images/
+  );
+  assert.ok(validateCodexCliExecPlanForRun(forgedLongImagePlan).includes(
+    "codex_cli_image_attachment_arg_not_allowed:--image=A:/outside/secret.png"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactImagePlan).includes(
+    "codex_cli_image_attachment_arg_not_allowed:-iA:/outside/secret.png"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedImagesPlan).includes(
+    "codex_cli_image_attachment_arg_not_allowed:--images=A:/outside/secret.png"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedLongImagePlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_image_attachment_arg_not_allowed:--image/
+  );
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedImagesPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_image_attachment_arg_not_allowed:--images/
+  );
+});
+
+test("codex cli host runner rejects forged exec subcommand argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-exec-subcommand",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const forgedResumePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "resume",
+      "--last",
+      "--all",
+      plan.prompt
+    ]
+  };
+  const forgedReviewPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "review",
+      "--uncommitted",
+      plan.prompt
+    ]
+  };
+  const forgedPostPromptResumePlan = {
+    ...plan,
+    args: [
+      ...plan.args,
+      "resume",
+      "--last",
+      "--all"
+    ]
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["resume", "--last", "--all"]
+    }),
+    /codex_cli_exec_subcommand_arg_not_allowed:resume/
+  );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["review", "--uncommitted"]
+    }),
+    /codex_cli_exec_subcommand_arg_not_allowed:review/
+  );
+  assert.ok(validateCodexCliExecPlanForRun(forgedResumePlan).includes(
+    "codex_cli_exec_subcommand_arg_not_allowed:resume"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedReviewPlan).includes(
+    "codex_cli_exec_subcommand_arg_not_allowed:review"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedPostPromptResumePlan).includes(
+    "codex_cli_exec_subcommand_arg_not_allowed:resume"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedReviewPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_exec_subcommand_arg_not_allowed:review/
+  );
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedPostPromptResumePlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_exec_subcommand_arg_not_allowed:resume/
+  );
+});
+
+test("codex cli host runner allows repeated non-governed config overrides", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-repeated-non-governed-config",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    configOverrides: ["telemetry.enabled=false", "history.persistence=none"]
+  });
+
+  assert.deepEqual(
+    validateCodexCliExecPlanForRun(plan),
+    []
+  );
+  const result = await runCodexCliExecPlan(plan, {
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"allowed\"}\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(result.inspection.status, "completed");
+});
+
+test("codex cli host runner rejects governed config overrides", async () => {
+  const task = {
+    taskId: "cli-runner-governed-config",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      configOverrides: ["model=gpt-5.3-codex"]
+    }),
+    /codex_cli_governed_config_override_not_allowed:model/
+  );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      configOverrides: ["model_provider=ollama"]
+    }),
+    /codex_cli_governed_config_override_not_allowed:model_provider/
+  );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      configOverrides: ["sandbox_mode=danger-full-access"]
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox_mode/
+  );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      configOverrides: ['sandbox_permissions=["disk-full-read-access"]']
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox_permissions/
+  );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      configOverrides: ["sandbox_workspace_write.network_access=true"]
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox_workspace_write\.network_access/
+  );
+
+  const plan = createCodexCliExecPlan(task);
+  const forgedPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--config=sandbox.mode=workspace-write",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox.mode"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox\.mode/
+  );
+
+  const forgedSandboxModePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-c",
+      "sandbox_mode=danger-full-access",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedSandboxModePlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox_mode"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedSandboxModePlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox_mode/
+  );
+
+  const forgedSandboxPermissionsPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      '--config=sandbox_permissions=["disk-full-read-access"]',
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedSandboxPermissionsPlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox_permissions"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedSandboxPermissionsPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox_permissions/
+  );
+
+  const forgedModelProviderPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--config=model_provider=ollama",
+      plan.prompt
+    ]
+  };
+  const forgedSandboxWorkspaceWritePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-c",
+      "sandbox_workspace_write.network_access=true",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedModelProviderPlan).includes(
+    "codex_cli_governed_config_override_not_allowed:model_provider"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedSandboxWorkspaceWritePlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox_workspace_write.network_access"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedModelProviderPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_governed_config_override_not_allowed:model_provider/
+  );
+
+  const forgedCompactConfigPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      '-csandbox_permissions=["disk-full-read-access"]',
+      plan.prompt
+    ]
+  };
+  const forgedEqualsCompactConfigPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-c=sandbox_mode=workspace-write",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactConfigPlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox_permissions"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedEqualsCompactConfigPlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox_mode"
+  ));
 });
 
 test("codex cli host runner reports timeout as failed evidence", async () => {
