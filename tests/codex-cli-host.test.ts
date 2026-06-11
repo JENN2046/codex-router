@@ -1973,6 +1973,15 @@ test("codex cli host runner rejects forged duplicate security argv", async () =>
       plan.prompt
     ]
   };
+  const forgedCwdPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--cwd",
+      "A:/other",
+      plan.prompt
+    ]
+  };
   const forgedCompactSandboxPlan = {
     ...plan,
     args: [
@@ -2009,6 +2018,9 @@ test("codex cli host runner rejects forged duplicate security argv", async () =>
     reason.includes("codex_cli_duplicate_security_arg:approval")
   )));
   assert.ok(validateCodexCliExecPlanForRun(forgedWorkdirPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:workdir")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCwdPlan).some((reason) => (
     reason.includes("codex_cli_duplicate_security_arg:workdir")
   )));
   assert.ok(validateCodexCliExecPlanForRun(forgedCompactSandboxPlan).some((reason) => (
@@ -2084,6 +2096,12 @@ test("codex cli host runner rejects forged workspace root argv", async () => {
       arg === "--cd" ? "--cd=A:/other" : arg
     )).filter((arg) => arg !== "A:/codex-router")
   };
+  const forgedInlineCwdPlan = {
+    ...plan,
+    args: plan.args.map((arg) => (
+      arg === "--cd" ? "--cwd=A:/other" : arg
+    )).filter((arg) => arg !== "A:/codex-router")
+  };
   const forgedCompactWorkdirPlan = {
     ...plan,
     args: plan.args.map((arg) => (
@@ -2092,6 +2110,9 @@ test("codex cli host runner rejects forged workspace root argv", async () => {
   };
 
   assert.ok(validateCodexCliExecPlanForRun(forgedInlineWorkdirPlan).includes(
+    "codex_cli_workdir_arg_mismatch:A:/other:A:/codex-router"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedInlineCwdPlan).includes(
     "codex_cli_workdir_arg_mismatch:A:/other:A:/codex-router"
   ));
   assert.ok(validateCodexCliExecPlanForRun(forgedCompactWorkdirPlan).includes(
@@ -2103,6 +2124,12 @@ test("codex cli host runner rejects forged workspace root argv", async () => {
       extraArgs: ["--add-dir", "A:/other"]
     }),
     /codex_cli_workspace_expansion_arg_not_allowed:--add-dir/
+  );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--cwd", "A:/other"]
+    }),
+    /codex_cli_duplicate_security_arg:workdir/
   );
 
   const forgedAddDirPlan = {
@@ -2401,6 +2428,14 @@ test("codex cli host runner rejects forged image attachment argv", async () => {
       plan.prompt
     ]
   };
+  const forgedImagesPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--images=A:/outside/secret.png",
+      plan.prompt
+    ]
+  };
 
   assert.throws(
     () => createCodexCliExecPlan(task, {
@@ -2408,11 +2443,20 @@ test("codex cli host runner rejects forged image attachment argv", async () => {
     }),
     /codex_cli_image_attachment_arg_not_allowed:--image/
   );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--images", "A:/outside/secret.png"]
+    }),
+    /codex_cli_image_attachment_arg_not_allowed:--images/
+  );
   assert.ok(validateCodexCliExecPlanForRun(forgedLongImagePlan).includes(
     "codex_cli_image_attachment_arg_not_allowed:--image=A:/outside/secret.png"
   ));
   assert.ok(validateCodexCliExecPlanForRun(forgedCompactImagePlan).includes(
     "codex_cli_image_attachment_arg_not_allowed:-iA:/outside/secret.png"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedImagesPlan).includes(
+    "codex_cli_image_attachment_arg_not_allowed:--images=A:/outside/secret.png"
   ));
   await assert.rejects(
     () => runCodexCliExecPlan(forgedLongImagePlan, {
@@ -2422,6 +2466,15 @@ test("codex cli host runner rejects forged image attachment argv", async () => {
       })
     }),
     /codex_cli_image_attachment_arg_not_allowed:--image/
+  );
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedImagesPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_image_attachment_arg_not_allowed:--images/
   );
 });
 

@@ -1670,6 +1670,7 @@ export function validateCodexCliExecPlanForRun(
   }
 
   const workdirArg = getCodexCliArgValue(plan.args, "--cd")
+    ?? getCodexCliArgValue(plan.args, "--cwd")
     ?? getCodexCliArgValue(plan.args, "-C");
   if (workdirArg !== undefined && workdirArg !== plan.workdir) {
     blockingReasons.push(`codex_cli_workdir_arg_mismatch:${workdirArg}:${plan.workdir ?? "undefined"}`);
@@ -3051,7 +3052,7 @@ const CODEX_CLI_SECURITY_ARG_GROUPS = [
   },
   {
     name: "workdir",
-    flags: ["-C", "--cd"]
+    flags: ["-C", "--cd", "--cwd"]
   },
   {
     name: "model",
@@ -3143,7 +3144,7 @@ function assertNoCodexCliOutputSchemaArgs(args: string[]): void {
 }
 
 function assertNoCodexCliImageAttachmentArgs(args: string[]): void {
-  const imageArg = findCodexCliArgMatch(args, ["-i", "--image"]);
+  const imageArg = findCodexCliArgMatch(args, ["-i", "--image", "--images"]);
 
   if (imageArg !== undefined) {
     throw new Error(
