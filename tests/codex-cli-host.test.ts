@@ -2380,6 +2380,12 @@ test("codex cli host runner rejects governed config overrides", async () => {
   );
   assert.throws(
     () => createCodexCliExecPlan(task, {
+      configOverrides: ["model_provider=ollama"]
+    }),
+    /codex_cli_governed_config_override_not_allowed:model_provider/
+  );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
       configOverrides: ["sandbox_mode=danger-full-access"]
     }),
     /codex_cli_governed_config_override_not_allowed:sandbox_mode/
@@ -2389,6 +2395,12 @@ test("codex cli host runner rejects governed config overrides", async () => {
       configOverrides: ['sandbox_permissions=["disk-full-read-access"]']
     }),
     /codex_cli_governed_config_override_not_allowed:sandbox_permissions/
+  );
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      configOverrides: ["sandbox_workspace_write.network_access=true"]
+    }),
+    /codex_cli_governed_config_override_not_allowed:sandbox_workspace_write\.network_access/
   );
 
   const plan = createCodexCliExecPlan(task);
@@ -2457,6 +2469,40 @@ test("codex cli host runner rejects governed config overrides", async () => {
       })
     }),
     /codex_cli_governed_config_override_not_allowed:sandbox_permissions/
+  );
+
+  const forgedModelProviderPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--config=model_provider=ollama",
+      plan.prompt
+    ]
+  };
+  const forgedSandboxWorkspaceWritePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-c",
+      "sandbox_workspace_write.network_access=true",
+      plan.prompt
+    ]
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedModelProviderPlan).includes(
+    "codex_cli_governed_config_override_not_allowed:model_provider"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedSandboxWorkspaceWritePlan).includes(
+    "codex_cli_governed_config_override_not_allowed:sandbox_workspace_write.network_access"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedModelProviderPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_governed_config_override_not_allowed:model_provider/
   );
 
   const forgedCompactConfigPlan = {

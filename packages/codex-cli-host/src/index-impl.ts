@@ -3051,10 +3051,12 @@ const CODEX_CLI_GOVERNED_CONFIG_KEYS = [
   "approval_policy",
   "ask_for_approval",
   "model",
+  "model_provider",
   "profile",
   "sandbox",
   "sandbox_mode",
-  "sandbox_permissions"
+  "sandbox_permissions",
+  "sandbox_workspace_write"
 ] as const;
 
 function assertNoCodexCliWorkspaceExpansionArgs(args: string[]): void {
