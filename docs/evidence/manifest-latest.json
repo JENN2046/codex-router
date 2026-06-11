@@ -1,6 +1,6 @@
 {
   "schemaVersion": "codex-router-evidence-manifest.v1",
-  "generatedAt": "2026-06-11T04:28:57.043Z",
+  "generatedAt": "2026-06-11T07:18:40.750Z",
   "totalFiles": 48,
   "totalSize": 122263,
   "byPhase": {
@@ -143,7 +143,7 @@
       {
         "file": "codex-cli-canary-latest.json",
         "schemaVersion": "codex-router-evidence.v1",
-        "generatedAt": "2026-06-11T04:28:43.954Z",
+        "generatedAt": "2026-06-11T07:18:31.844Z",
         "size": 475,
         "status": "passed"
       }
@@ -340,7 +340,7 @@
       {
         "file": "codex-cli-canary-latest.json",
         "schemaVersion": "codex-router-evidence.v1",
-        "generatedAt": "2026-06-11T04:28:43.954Z",
+        "generatedAt": "2026-06-11T07:18:31.844Z",
         "size": 475,
         "status": "passed"
       },
@@ -664,7 +664,7 @@
     {
       "file": "codex-cli-canary-latest.json",
       "schemaVersion": "codex-router-evidence.v1",
-      "generatedAt": "2026-06-11T04:28:43.954Z",
+      "generatedAt": "2026-06-11T07:18:31.844Z",
       "size": 475,
       "status": "passed"
     },
