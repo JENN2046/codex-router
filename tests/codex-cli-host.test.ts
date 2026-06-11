@@ -2304,6 +2304,72 @@ test("codex cli host runner rejects forged output write argv", async () => {
   );
 });
 
+test("codex cli host runner rejects forged image attachment argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-image-attachment",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const forgedLongImagePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--image=A:/outside/secret.png",
+      plan.prompt
+    ]
+  };
+  const forgedCompactImagePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-iA:/outside/secret.png",
+      plan.prompt
+    ]
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--image", "A:/outside/secret.png"]
+    }),
+    /codex_cli_image_attachment_arg_not_allowed:--image/
+  );
+  assert.ok(validateCodexCliExecPlanForRun(forgedLongImagePlan).includes(
+    "codex_cli_image_attachment_arg_not_allowed:--image=A:/outside/secret.png"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactImagePlan).includes(
+    "codex_cli_image_attachment_arg_not_allowed:-iA:/outside/secret.png"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedLongImagePlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_image_attachment_arg_not_allowed:--image/
+  );
+});
+
 test("codex cli host runner allows repeated non-governed config overrides", async () => {
   const plan = createCodexCliExecPlan({
     taskId: "cli-runner-repeated-non-governed-config",

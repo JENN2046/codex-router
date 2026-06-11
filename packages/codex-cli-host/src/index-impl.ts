@@ -941,6 +941,7 @@ export function createCodexCliExecPlan(
   assertNoCodexCliWorkspaceExpansionArgs(args);
   assertNoCodexCliProviderOverrideArgs(args);
   assertNoCodexCliOutputWriteArgs(args);
+  assertNoCodexCliImageAttachmentArgs(args);
   assertNoGovernedCodexCliConfigOverrides(args);
 
   return {
@@ -1692,6 +1693,12 @@ export function validateCodexCliExecPlanForRun(
 
   try {
     assertNoCodexCliOutputWriteArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliImageAttachmentArgs(plan.args);
   } catch (error) {
     blockingReasons.push(error instanceof Error ? error.message : String(error));
   }
@@ -3101,6 +3108,16 @@ function assertNoCodexCliOutputWriteArgs(args: string[]): void {
   if (outputArg !== undefined) {
     throw new Error(
       `codex_cli_output_write_arg_not_allowed:${outputArg}`
+    );
+  }
+}
+
+function assertNoCodexCliImageAttachmentArgs(args: string[]): void {
+  const imageArg = findCodexCliArgMatch(args, ["-i", "--image"]);
+
+  if (imageArg !== undefined) {
+    throw new Error(
+      `codex_cli_image_attachment_arg_not_allowed:${imageArg}`
     );
   }
 }
