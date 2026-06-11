@@ -1965,6 +1965,34 @@ test("codex cli host runner rejects forged duplicate security argv", async () =>
       plan.prompt
     ]
   };
+  const forgedCompactSandboxPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "-sworkspace-write",
+      plan.prompt
+    ]
+  };
+  const forgedCompactModelPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--model",
+      "gpt-5.4-mini",
+      "-mgpt-5.3-codex",
+      plan.prompt
+    ]
+  };
+  const forgedCompactProfilePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--profile",
+      "safe-profile",
+      "-punsafe-profile",
+      plan.prompt
+    ]
+  };
 
   assert.ok(validateCodexCliExecPlanForRun(forgedSandboxPlan).some((reason) => (
     reason.includes("codex_cli_duplicate_security_arg:sandbox")
@@ -1974,6 +2002,15 @@ test("codex cli host runner rejects forged duplicate security argv", async () =>
   )));
   assert.ok(validateCodexCliExecPlanForRun(forgedWorkdirPlan).some((reason) => (
     reason.includes("codex_cli_duplicate_security_arg:workdir")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactSandboxPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:sandbox")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactModelPlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:model")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(forgedCompactProfilePlan).some((reason) => (
+    reason.includes("codex_cli_duplicate_security_arg:profile")
   )));
   await assert.rejects(
     () => runCodexCliExecPlan(forgedSandboxPlan, {

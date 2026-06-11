@@ -3071,6 +3071,11 @@ function matchCodexCliSecurityArg(
   return flags.find((flag) => (
     arg === flag || (
       flag.startsWith("--") && arg.startsWith(`${flag}=`)
+    ) || (
+      flag.startsWith("-") &&
+      !flag.startsWith("--") &&
+      arg.startsWith(flag) &&
+      arg.length > flag.length
     )
   ));
 }
