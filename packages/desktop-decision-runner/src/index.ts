@@ -241,11 +241,15 @@ function deriveRequiredTools(
   decision: RoutingDecision,
   plan: DesktopExecutionPlan
 ): string[] {
+  if (decision.hostRoute !== "desktop") {
+    return [];
+  }
+
   return [...new Set(
     [
       ...plan.primitives.map((primitive) => primitive.primitive),
       ...(
-        decision.hostRoute === "desktop" && decision.execution.toolAccess !== "read_only"
+        decision.execution.toolAccess !== "read_only"
           ? ["shell_command" as const, "apply_patch" as const]
           : []
       )

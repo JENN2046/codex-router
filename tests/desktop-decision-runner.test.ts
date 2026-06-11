@@ -172,7 +172,7 @@ test("desktop decision runner respects neutral read-only hints without desktop w
     policy,
     preflight: {
       authAvailable: true,
-      availableTools: ["read_thread_terminal", "spawn_agent", "wait_agent"]
+      availableTools: []
     }
   });
 
@@ -181,6 +181,7 @@ test("desktop decision runner respects neutral read-only hints without desktop w
   assert.equal(result.decision.execution.toolAccess, "read_only");
   assert.equal(result.status, "ready");
   assert.equal(result.preflight.ok, true);
+  assert.equal(result.preflight.errors.some((error) => error.startsWith("missing_tool:")), false);
   assert.equal(result.preflight.errors.includes("missing_tool:shell_command"), false);
   assert.equal(result.preflight.errors.includes("missing_tool:apply_patch"), false);
   assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
@@ -208,7 +209,7 @@ test("desktop decision runner does not require desktop write tools for codex-cli
     policy,
     preflight: {
       authAvailable: true,
-      availableTools: ["read_thread_terminal", "send_input"]
+      availableTools: []
     }
   });
 
@@ -217,6 +218,7 @@ test("desktop decision runner does not require desktop write tools for codex-cli
   assert.equal(result.decision.execution.toolAccess, "local_write");
   assert.equal(result.status, "ready");
   assert.equal(result.preflight.ok, true);
+  assert.equal(result.preflight.errors.some((error) => error.startsWith("missing_tool:")), false);
   assert.equal(result.preflight.errors.includes("missing_tool:shell_command"), false);
   assert.equal(result.preflight.errors.includes("missing_tool:apply_patch"), false);
   assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
