@@ -15,6 +15,11 @@ import {
   type DesktopDecisionResumeInput,
   type DesktopDecisionRunnerResult
 } from "../../desktop-decision-runner/src/index.js";
+import type { CodexCliProcessRunOptions } from "../../codex-cli-host/src/index.js";
+import {
+  dispatchToHost,
+  type HostDispatcherResult
+} from "../../host-dispatcher/src/index.js";
 import type { MemoryCheckpointFrequency } from "../../policy-config/src/index.js";
 import {
   emitTelemetryEvents,
@@ -146,18 +151,21 @@ export interface DesktopLiveExecutionGovernance {
 export interface RunDesktopTaskInput extends DesktopDecisionRunnerInput {
   handlers?: Partial<Record<DesktopPrimitive, PrimitiveHandler>>;
   bridge?: DesktopHostBridge;
+  codexCliOptions?: CodexCliProcessRunOptions;
   stopOnFailure?: boolean;
 }
 
 export interface ResumeDesktopTaskInput extends DesktopDecisionResumeInput {
   handlers?: Partial<Record<DesktopPrimitive, PrimitiveHandler>>;
   bridge?: DesktopHostBridge;
+  codexCliOptions?: CodexCliProcessRunOptions;
   stopOnFailure?: boolean;
 }
 
 export interface RunDesktopTaskResult {
   decisionResult: DesktopDecisionRunnerResult;
   executionResult: DesktopLiveExecutionResult;
+  hostDispatch?: HostDispatcherResult;
 }
 
 export async function runDesktopTask(
@@ -198,11 +206,53 @@ async function executeDesktopTaskFromDecision(
     handlers?: Partial<Record<DesktopPrimitive, PrimitiveHandler>>;
     bridge?: DesktopHostBridge;
     stopOnFailure?: boolean;
+    codexCliOptions?: CodexCliProcessRunOptions;
     now?: () => string;
     persistence?: DesktopDecisionRunnerInput["persistence"];
   },
   decisionResult: DesktopDecisionRunnerResult
 ): Promise<RunDesktopTaskResult> {
+  const executionCommonInput: Pick<
+    DesktopLiveAdapterInput,
+    "runnerResult" | "auditStore" | "checkpointStore" | "memoryAdapter" | "telemetryStore" | "now"
+  > = {
+    runnerResult: decisionResult,
+    ...(input.now !== undefined ? { now: input.now } : {}),
+    ...(input.persistence?.auditStore !== undefined ? { auditStore: input.persistence.auditStore } : {}),
+    ...(input.persistence?.checkpointStore !== undefined ? { checkpointStore: input.persistence.checkpointStore } : {}),
+    ...(input.persistence?.memoryAdapter !== undefined ? { memoryAdapter: input.persistence.memoryAdapter } : {}),
+    ...(input.persistence?.telemetryStore !== undefined ? { telemetryStore: input.persistence.telemetryStore } : {})
+  };
+
+  const telemetryGate = await gateTelemetry(decisionResult, executionCommonInput);
+  if (telemetryGate) {
+    return {
+      decisionResult,
+      executionResult: telemetryGate
+    };
+  }
+
+  if (decisionResult.status === "ready" && decisionResult.decision.hostRoute === "codex-cli") {
+    const hostDispatch = await dispatchToHost({
+      runnerResult: decisionResult,
+      ...(input.codexCliOptions !== undefined ? { codexCliOptions: input.codexCliOptions } : {})
+    });
+    const executionResult = await createHostDispatchExecutionResult({
+      runnerResult: decisionResult,
+      hostDispatch,
+      ...(input.now !== undefined ? { now: input.now } : {}),
+      ...(input.persistence?.auditStore !== undefined ? { auditStore: input.persistence.auditStore } : {}),
+      ...(input.persistence?.checkpointStore !== undefined ? { checkpointStore: input.persistence.checkpointStore } : {}),
+      ...(input.persistence?.memoryAdapter !== undefined ? { memoryAdapter: input.persistence.memoryAdapter } : {})
+    });
+
+    return {
+      decisionResult,
+      executionResult,
+      hostDispatch
+    };
+  }
+
   const handlers = resolvePrimitiveHandlers(input.handlers, input.bridge);
   const adapterInput: DesktopLiveAdapterInput = {
     runnerResult: decisionResult,
@@ -215,20 +265,97 @@ async function executeDesktopTaskFromDecision(
     ...(input.persistence?.telemetryStore !== undefined ? { telemetryStore: input.persistence.telemetryStore } : {})
   };
 
-  const telemetryGate = await gateTelemetry(decisionResult, adapterInput);
-  if (telemetryGate) {
-    return {
-      decisionResult,
-      executionResult: telemetryGate
-    };
-  }
-
   const executionResult = await executeDesktopPlan(adapterInput);
 
   return {
     decisionResult,
     executionResult
   };
+}
+
+async function createHostDispatchExecutionResult(input: {
+  runnerResult: DesktopDecisionRunnerResult;
+  hostDispatch: HostDispatcherResult;
+  now?: () => string;
+  auditStore?: {
+    record(event: AuditEvent): Promise<void>;
+  };
+  checkpointStore?: {
+    record(checkpoint: CheckpointRef): Promise<void>;
+  };
+  memoryAdapter?: MemoryAdapter;
+}): Promise<DesktopLiveExecutionResult> {
+  const now = input.now ?? (() => new Date().toISOString());
+  const checkpointFrequency = input.runnerResult.preflight.memory.guidance?.checkpointFrequency ?? "minimal";
+  const blockingReasons = collectHostDispatchBlockingReasons(input.hostDispatch);
+  const status: DesktopLiveExecutionStatus = blockingReasons.length === 0 ? "completed" : "failed";
+  const auditEvents: AuditEvent[] = [{
+    type: "runner_dispatched",
+    taskId: input.runnerResult.task.taskId,
+    timestamp: now(),
+    details: {
+      hostRoute: input.hostDispatch.hostRoute,
+      executionProfile: input.runnerResult.executionPlan.executionProfile,
+      primitiveCount: 0,
+      dispatchTarget: "host_dispatcher",
+      cliStatus: input.hostDispatch.cliRun?.inspection.status ?? null,
+      timedOut: input.hostDispatch.cliRun?.timedOut ?? false,
+      killed: input.hostDispatch.cliRun?.killed ?? false
+    }
+  }];
+
+  auditEvents.push({
+    type: status === "completed" ? "task_completed" : "task_failed",
+    taskId: input.runnerResult.task.taskId,
+    timestamp: now(),
+    details: {
+      hostRoute: input.hostDispatch.hostRoute,
+      blockingReasons
+    }
+  });
+
+  await maybePersistExecutionCheckpoint({
+    taskId: input.runnerResult.task.taskId,
+    stage: status === "completed" ? "host-dispatch-completed" : "host-dispatch-failed",
+    summary: status === "completed"
+      ? "host dispatcher completed routed execution"
+      : `host dispatcher failed routed execution: ${blockingReasons.join(", ")}`,
+    frequency: checkpointFrequency,
+    trigger: "final",
+    now,
+    ...(input.checkpointStore ? { checkpointStore: input.checkpointStore } : {}),
+    ...(input.memoryAdapter ? { memoryAdapter: input.memoryAdapter } : {})
+  });
+  await persistAudit(auditEvents, input.auditStore);
+
+  return {
+    status,
+    taskId: input.runnerResult.task.taskId,
+    plan: input.runnerResult.executionPlan,
+    steps: [],
+    blockingReasons,
+    auditEvents
+  };
+}
+
+function collectHostDispatchBlockingReasons(
+  hostDispatch: HostDispatcherResult
+): string[] {
+  const reasons = [
+    hostDispatch.cliError,
+    hostDispatch.cliRun?.error,
+    ...(hostDispatch.cliRun?.inspection.blockingReasons ?? [])
+  ].filter((reason): reason is string => Boolean(reason));
+
+  if (hostDispatch.hostRoute === "codex-cli" && !hostDispatch.cliRun && !hostDispatch.cliError) {
+    reasons.push("host_dispatcher_missing_cli_run");
+  }
+
+  if (hostDispatch.cliRun && hostDispatch.cliRun.inspection.status !== "completed") {
+    reasons.push(`codex_cli_status:${hostDispatch.cliRun.inspection.status}`);
+  }
+
+  return [...new Set(reasons)];
 }
 
 function resolvePrimitiveHandlers(

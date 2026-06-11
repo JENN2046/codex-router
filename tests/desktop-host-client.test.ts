@@ -349,7 +349,7 @@ test("desktop host client resumes from memory recall when the memory adapter sup
     now
   });
 
-  await firstClient.run(createReadTask("desktop-host-resume-memory"));
+  await firstClient.run(createEngineeringTask("desktop-host-resume-memory"));
 
   const secondClient = createDesktopHostClient({
     policy,
@@ -377,7 +377,7 @@ test("desktop host client resumes from memory recall when the memory adapter sup
   });
 
   const resumed = await secondClient.resume(
-    createReadTask("desktop-host-resume-memory"),
+    createEngineeringTask("desktop-host-resume-memory"),
     { required: true }
   );
 
@@ -413,7 +413,7 @@ test("desktop host client resumes from checkpoint lookup when no memory recall i
     now: () => "2026-04-23T16:17:00.000Z"
   });
 
-  await firstClient.run(createReadTask("desktop-host-resume-checkpoint"));
+  await firstClient.run(createEngineeringTask("desktop-host-resume-checkpoint"));
 
   const secondClient = createDesktopHostClient({
     policy,
@@ -440,7 +440,7 @@ test("desktop host client resumes from checkpoint lookup when no memory recall i
   });
 
   const resumed = await secondClient.resume(
-    createReadTask("desktop-host-resume-checkpoint"),
+    createEngineeringTask("desktop-host-resume-checkpoint"),
     { required: true }
   );
 

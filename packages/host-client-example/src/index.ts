@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AuditEvent, MemoryOverviewProvider } from "../../audit-memory/src/index.js";
+import type { CodexCliProcessRunOptions } from "../../codex-cli-host/src/index.js";
 import { CodexMemoryAdapter, type CodexMemoryClient, type CodexMemorySearchInput, type CodexMemorySearchResponse, type CodexMemoryTarget, type CodexMemoryWriteInput, type CodexMemoryWriteResponse } from "../../codex-memory-adapter/src/index.js";
 import { FileCheckpointIndex } from "../../checkpoint-index/src/index.js";
 import type { CheckpointRef, DesktopPrimitive, RoutingDecision, TaskEnvelopeInput } from "../../contracts/src/index.js";
@@ -100,6 +101,7 @@ export interface ExampleHostClientOptions {
   availableAgents?: number;
   bridge?: DesktopHostBridge;
   bridgeBindings?: DesktopHostBindings;
+  codexCliOptions?: CodexCliProcessRunOptions;
   memoryClient?: CodexMemoryClient;
   disableTelemetry?: boolean;
   telemetrySink?: TelemetrySink | FanoutTelemetrySinkEntry;
@@ -351,6 +353,9 @@ export class ExampleDesktopHostClient {
       availableAgents: this.options.availableAgents ?? 2,
       persistence: this.buildPersistence(),
       bridge: this.bridge,
+      ...(this.options.codexCliOptions !== undefined
+        ? { codexCliOptions: this.options.codexCliOptions }
+        : {}),
       now: this.now
     });
 
@@ -376,6 +381,9 @@ export class ExampleDesktopHostClient {
         ...(options.preferredSource !== undefined ? { preferredSource: options.preferredSource } : {})
       },
       bridge: this.bridge,
+      ...(this.options.codexCliOptions !== undefined
+        ? { codexCliOptions: this.options.codexCliOptions }
+        : {}),
       now: this.now
     });
 

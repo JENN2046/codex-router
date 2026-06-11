@@ -10,6 +10,7 @@ import type {
   MemoryAdapter,
   MemoryOverviewProvider
 } from "../../audit-memory/src/index.js";
+import type { CodexCliProcessRunOptions } from "../../codex-cli-host/src/index.js";
 import type { TaskEnvelopeInput } from "../../contracts/src/index.js";
 import type { TelemetrySink } from "../../observability/src/index.js";
 import type { PolicySnapshot } from "../../policy-config/src/index.js";
@@ -38,6 +39,7 @@ export interface DesktopHostClientOptions {
   bridge?: DesktopHostBridge;
   bridgeBindings?: DesktopHostBindings;
   persistence?: DesktopHostClientPersistence;
+  codexCliOptions?: CodexCliProcessRunOptions;
   availableAgents?: number;
   stopOnFailure?: boolean;
   now?: () => string;
@@ -73,6 +75,9 @@ export class DesktopHostClient {
       ...(this.options.persistence !== undefined
         ? { persistence: buildRunnerPersistence(this.options.persistence) }
         : {}),
+      ...(this.options.codexCliOptions !== undefined
+        ? { codexCliOptions: this.options.codexCliOptions }
+        : {}),
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
     });
   }
@@ -106,6 +111,9 @@ export class DesktopHostClient {
         : {}),
       ...(this.options.persistence !== undefined
         ? { persistence: buildRunnerPersistence(this.options.persistence) }
+        : {}),
+      ...(this.options.codexCliOptions !== undefined
+        ? { codexCliOptions: this.options.codexCliOptions }
         : {}),
       ...(hasResumeConfig(resume) ? { resume } : {}),
       ...(this.options.now !== undefined ? { now: this.options.now } : {})

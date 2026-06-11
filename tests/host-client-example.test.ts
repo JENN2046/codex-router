@@ -107,13 +107,13 @@ test("example host client runs a task end-to-end and persists checkpoint state",
     taskId: "example-run",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -122,8 +122,8 @@ test("example host client runs a task end-to-end and persists checkpoint state",
 
   assert.equal(result.decisionResult.status, "ready");
   assert.equal(result.executionResult.status, "completed");
-  assert.equal(state.memoryEntries.length, 1);
-  assert.equal(state.checkpoints.length, 1);
+  assert.equal(state.memoryEntries.length, 3);
+  assert.equal(state.checkpoints.length, 3);
   assert.ok(state.auditEvents.some((event) => event.type === "runner_ready"));
   assert.ok(state.telemetryEvents.length >= 1);
 });
@@ -139,13 +139,13 @@ test("example host client resumes from memory and surfaces resume source", async
     taskId: "example-resume",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -154,13 +154,13 @@ test("example host client resumes from memory and surfaces resume source", async
     taskId: "example-resume",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   }, {
@@ -189,13 +189,13 @@ test("example host client resumes from shared memory across client instances", a
     taskId: "example-resume-cross-client-memory",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -210,13 +210,13 @@ test("example host client resumes from shared memory across client instances", a
     taskId: "example-resume-cross-client-memory",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   }, {
@@ -260,7 +260,7 @@ test("example host client can surface typed primitive failures through a failing
   const policy = await loadPolicyFromFile(policyPath);
   const client = createExampleDesktopHostClient({
     policy,
-    bridge: createFailingExampleHostBridge("spawn_agent", "example_agent_failure"),
+    bridge: createFailingExampleHostBridge("send_input", "example_agent_failure"),
     now: () => "2026-04-23T12:40:00.000Z"
   });
 
@@ -268,13 +268,13 @@ test("example host client can surface typed primitive failures through a failing
     taskId: "example-failure",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -329,13 +329,13 @@ test("example host client can fan out telemetry into a custom sink while preserv
     taskId: "example-fanout-telemetry",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -362,13 +362,13 @@ test("example host client exposes telemetry delivery metrics when a collector is
     taskId: "example-telemetry-metrics",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -417,13 +417,13 @@ test("example host client can surface telemetry delivery alerts from thresholds"
     taskId: "example-telemetry-alerts",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -461,13 +461,13 @@ test("example host client can resolve telemetry alert thresholds from a preset",
     taskId: "example-telemetry-alert-preset",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -511,13 +511,13 @@ test("example host client can fan out telemetry alerts into a custom sink while 
     taskId: "example-alert-fanout",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -575,13 +575,13 @@ test("example host client can continue when an external alert sink fails in best
     taskId: "example-alert-best-effort",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -635,13 +635,13 @@ test("example host client exposes telemetry alert delivery metrics when a collec
     taskId: "example-alert-delivery-metrics",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -696,13 +696,13 @@ test("example host client can resolve telemetry alert delivery thresholds from a
     taskId: "example-alert-delivery-preset",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -755,13 +755,13 @@ test("example host client suppresses repeated alert delivery within the configur
     taskId: "example-alert-window",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -771,13 +771,13 @@ test("example host client suppresses repeated alert delivery within the configur
     taskId: "example-alert-window",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -787,13 +787,13 @@ test("example host client suppresses repeated alert delivery within the configur
     taskId: "example-alert-window",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -839,13 +839,13 @@ test("example host client resolves alert delivery window policy from routing pre
     taskId: "example-alert-window-preset",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { taskClassHint: "small_edit", riskHints: [], tags: [] }
   });
@@ -855,13 +855,13 @@ test("example host client resolves alert delivery window policy from routing pre
     taskId: "example-alert-window-preset",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { taskClassHint: "small_edit", riskHints: [], tags: [] }
   });
@@ -911,13 +911,13 @@ test("example host client persists alert delivery window state to disk for resum
     taskId: "example-alert-window-session",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { taskClassHint: "small_edit", riskHints: [], tags: [] }
   });
@@ -950,13 +950,13 @@ test("example host client persists alert delivery window state to disk for resum
     taskId: "example-alert-window-session",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { taskClassHint: "small_edit", riskHints: [], tags: [] }
   });
@@ -985,13 +985,13 @@ test("example host client falls back to persisted checkpoint index across client
     taskId: "example-checkpoint-cross-client",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -1006,13 +1006,13 @@ test("example host client falls back to persisted checkpoint index across client
     taskId: "example-checkpoint-cross-client",
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   }, {
