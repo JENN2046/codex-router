@@ -2304,6 +2304,61 @@ test("codex cli host runner rejects forged output write argv", async () => {
   );
 });
 
+test("codex cli host runner rejects forged output schema argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-output-schema",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const forgedOutputSchemaPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--output-schema=A:/outside/schema.json",
+      plan.prompt
+    ]
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["--output-schema", "A:/outside/schema.json"]
+    }),
+    /codex_cli_output_schema_arg_not_allowed:--output-schema/
+  );
+  assert.ok(validateCodexCliExecPlanForRun(forgedOutputSchemaPlan).includes(
+    "codex_cli_output_schema_arg_not_allowed:--output-schema=A:/outside/schema.json"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedOutputSchemaPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_output_schema_arg_not_allowed:--output-schema/
+  );
+});
+
 test("codex cli host runner rejects forged image attachment argv", async () => {
   const task = {
     taskId: "cli-runner-forged-image-attachment",
@@ -2367,6 +2422,63 @@ test("codex cli host runner rejects forged image attachment argv", async () => {
       })
     }),
     /codex_cli_image_attachment_arg_not_allowed:--image/
+  );
+});
+
+test("codex cli host runner rejects forged exec subcommand argv", async () => {
+  const task = {
+    taskId: "cli-runner-forged-exec-subcommand",
+    source: "cli" as const,
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only" as const,
+      riskHints: [],
+      tags: []
+    }
+  };
+  const plan = createCodexCliExecPlan(task);
+  const forgedResumePlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "resume",
+      "--last",
+      "--all",
+      plan.prompt
+    ]
+  };
+
+  assert.throws(
+    () => createCodexCliExecPlan(task, {
+      extraArgs: ["resume", "--last", "--all"]
+    }),
+    /codex_cli_exec_subcommand_arg_not_allowed:resume/
+  );
+  assert.ok(validateCodexCliExecPlanForRun(forgedResumePlan).includes(
+    "codex_cli_exec_subcommand_arg_not_allowed:resume"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedResumePlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_exec_subcommand_arg_not_allowed:resume/
   );
 });
 

@@ -941,7 +941,9 @@ export function createCodexCliExecPlan(
   assertNoCodexCliWorkspaceExpansionArgs(args);
   assertNoCodexCliProviderOverrideArgs(args);
   assertNoCodexCliOutputWriteArgs(args);
+  assertNoCodexCliOutputSchemaArgs(args);
   assertNoCodexCliImageAttachmentArgs(args);
+  assertNoCodexCliExecSubcommandArgs(args, prompt);
   assertNoGovernedCodexCliConfigOverrides(args);
 
   return {
@@ -1698,7 +1700,19 @@ export function validateCodexCliExecPlanForRun(
   }
 
   try {
+    assertNoCodexCliOutputSchemaArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
     assertNoCodexCliImageAttachmentArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliExecSubcommandArgs(plan.args, plan.prompt);
   } catch (error) {
     blockingReasons.push(error instanceof Error ? error.message : String(error));
   }
@@ -3112,12 +3126,34 @@ function assertNoCodexCliOutputWriteArgs(args: string[]): void {
   }
 }
 
+function assertNoCodexCliOutputSchemaArgs(args: string[]): void {
+  const outputSchemaArg = findCodexCliArgMatch(args, ["--output-schema"]);
+
+  if (outputSchemaArg !== undefined) {
+    throw new Error(
+      `codex_cli_output_schema_arg_not_allowed:${outputSchemaArg}`
+    );
+  }
+}
+
 function assertNoCodexCliImageAttachmentArgs(args: string[]): void {
   const imageArg = findCodexCliArgMatch(args, ["-i", "--image"]);
 
   if (imageArg !== undefined) {
     throw new Error(
       `codex_cli_image_attachment_arg_not_allowed:${imageArg}`
+    );
+  }
+}
+
+function assertNoCodexCliExecSubcommandArgs(args: string[], prompt: string): void {
+  const promptIndex = args.lastIndexOf(prompt);
+  const commandArgs = promptIndex === -1 ? args : args.slice(0, promptIndex);
+  const resumeArg = commandArgs.find((arg) => arg === "resume");
+
+  if (resumeArg !== undefined) {
+    throw new Error(
+      `codex_cli_exec_subcommand_arg_not_allowed:${resumeArg}`
     );
   }
 }
