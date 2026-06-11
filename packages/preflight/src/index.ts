@@ -100,11 +100,11 @@ export function runPreflight(context: PreflightContext): PreflightResult {
   }
 
   if (context.workspaceClean === false && context.requestedToolAccess !== "read_only") {
-    warnings.push("workspace_dirty");
+    errors.push("workspace_dirty");
   }
 
   if (context.protectedBranch && context.requestedToolAccess !== "read_only") {
-    warnings.push("protected_branch_active");
+    errors.push("protected_branch_active");
   }
 
   const memory = buildMemoryPreflightState(context);

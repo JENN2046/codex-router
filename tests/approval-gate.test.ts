@@ -33,3 +33,35 @@ test("approval gate blocks protected actions", async () => {
   assert.match(approval.gateId ?? "", /^gate-/);
   assert.ok(approval.reasons.some((reason) => reason.includes("protected_branch")));
 });
+
+test("approval gate independently requires approval for protected write contexts", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = parseTaskEnvelope({
+    taskId: "gate-write-context",
+    source: "desktop-thread",
+    intent: {
+      summary: "small typo fix",
+      requestedAction: "single file typo fix in docs",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router",
+      branch: "feature/docs",
+      worktreeClean: false,
+      protectedBranch: true
+    },
+    target: { branches: [], files: ["README.md"], modules: [] },
+    constraints: {},
+    hints: { riskHints: [], tags: [] }
+  });
+
+  const decision = routeTask(task, classifyIntent(task), policy);
+  assert.equal(decision.approval.required, false);
+
+  const approval = evaluateApprovalRequirement(task, decision, policy);
+
+  assert.equal(approval.status, "pending");
+  assert.ok(approval.reasons.includes("repo_context:protected_branch"));
+  assert.ok(approval.reasons.includes("workspace:dirty"));
+});

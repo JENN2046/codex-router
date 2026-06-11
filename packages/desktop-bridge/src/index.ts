@@ -4,7 +4,14 @@ import type {
   RoutingDecision
 } from "../../contracts/src/index.js";
 
-export function createDesktopExecutionPlan(decision: RoutingDecision): DesktopExecutionPlan {
+export interface DesktopExecutionPlanOptions {
+  authorized?: boolean;
+}
+
+export function createDesktopExecutionPlan(
+  decision: RoutingDecision,
+  options: DesktopExecutionPlanOptions = {}
+): DesktopExecutionPlan {
   const primitives: DesktopOperation[] = [
     { primitive: "read_thread_terminal" as const, reason: "read current thread context before dispatch" }
   ];
@@ -16,7 +23,7 @@ export function createDesktopExecutionPlan(decision: RoutingDecision): DesktopEx
     primitives.push({ primitive: "send_input", reason: "continue within the current desktop conversation" });
   }
 
-  if (decision.execution.toolAccess !== "read_only") {
+  if (options.authorized === true && decision.execution.toolAccess !== "read_only") {
     primitives.push({ primitive: "shell_command", reason: "local execution is required for implementation or validation" });
     primitives.push({ primitive: "apply_patch", reason: "file edits must stay minimal and reversible" });
   }
@@ -31,7 +38,8 @@ export function createDesktopExecutionPlan(decision: RoutingDecision): DesktopEx
     notes: [
       `model:${decision.execution.selectedModel}`,
       `tool_access:${decision.execution.toolAccess}`,
-      `approval:${decision.approval.required ? "required" : "not_required"}`
+      `approval:${decision.approval.required ? "required" : "not_required"}`,
+      `plan_mode:${options.authorized === true ? "authorized" : "candidate"}`
     ]
   };
 }

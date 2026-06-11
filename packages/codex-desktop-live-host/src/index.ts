@@ -24,6 +24,7 @@ import {
   type DesktopHostClient,
   type DesktopHostClientPersistence
 } from "../../desktop-host-client/src/index.js";
+import type { CodexCliProcessRunOptions } from "../../codex-cli-host/src/index.js";
 import type { RunDesktopTaskResult } from "../../desktop-live-adapter/src/index.js";
 import type { EnvelopeSource, TaskEnvelopeInput } from "../../contracts/src/index.js";
 import type { TelemetrySink } from "../../observability/src/index.js";
@@ -84,6 +85,7 @@ export interface CodexDesktopLiveHostOptions {
     DesktopHostClientPersistence,
     "memoryAdapter" | "memoryRecall" | "memoryOverviewProvider"
   >;
+  codexCliOptions?: CodexCliProcessRunOptions;
   telemetryStore?: TelemetrySink;
   availableAgents?: number;
   stopOnFailure?: boolean;
@@ -265,6 +267,9 @@ export function createCodexDesktopLiveHostBundle(
       : {}),
     ...(options.stopOnFailure !== undefined
       ? { stopOnFailure: options.stopOnFailure }
+      : {}),
+    ...(options.codexCliOptions !== undefined
+      ? { codexCliOptions: options.codexCliOptions }
       : {}),
     persistence: {
       ...(options.persistence ?? {}),

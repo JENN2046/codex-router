@@ -70,11 +70,12 @@ function resolveHostRoute(
   taskClass: IntentClassification["taskClass"],
   policy: PolicySnapshot
 ): HostRoute {
-  const hostRoutes = (policy as { hostRoutes?: Record<string, HostRoute> }).hostRoutes;
-  if (hostRoutes && hostRoutes[taskClass]) {
-    return hostRoutes[taskClass];
+  const hostRoute = policy.hostRoutes[taskClass];
+  if (hostRoute) {
+    return hostRoute;
   }
-  return "desktop";
+
+  throw new Error(`Missing host route for task class: ${taskClass}`);
 }
 
 function scoreRisk(

@@ -36,6 +36,8 @@ test("desktop decision runner blocks on preflight failures", async () => {
 
   assert.equal(result.status, "blocked_preflight");
   assert.ok(result.blockingReasons.includes("auth_unavailable"));
+  assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), false);
   assert.equal(result.auditEvents.at(-1)?.type, "runner_blocked");
   assert.equal(result.observabilityEvents[0]?.level, "error");
 });
@@ -81,6 +83,8 @@ test("desktop decision runner blocks on approval after preflight passes", async 
 
   assert.equal(result.status, "blocked_approval");
   assert.equal(result.approval.status, "pending");
+  assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), false);
   assert.ok(result.blockingReasons.some((reason) => reason.includes("protected_branch")));
 });
 
@@ -145,6 +149,81 @@ test("desktop decision runner returns ready execution package for safe read-only
   assert.equal(result.preflight.memory.status, "unavailable");
   assert.equal(result.preflight.memory.guidance?.checkpointFrequency, "standard");
   assert.equal(result.observabilityEvents[1]?.message, "memory preflight unavailable");
+});
+
+test("desktop decision runner respects neutral read-only hints without desktop write tools", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+
+  const result = await runDesktopDecision({
+    task: parseTaskEnvelope({
+      taskId: "runner-neutral-read-only-hint",
+      source: "desktop-thread",
+      intent: {
+        summary: "Status update",
+        requestedAction: "Show current state",
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: {},
+      target: { branches: [], files: [], modules: [] },
+      constraints: {},
+      hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
+    }),
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    }
+  });
+
+  assert.equal(result.decision.classification.taskClass, "read_only");
+  assert.equal(result.decision.hostRoute, "codex-cli");
+  assert.equal(result.decision.execution.toolAccess, "read_only");
+  assert.equal(result.status, "ready");
+  assert.equal(result.preflight.ok, true);
+  assert.equal(result.preflight.errors.some((error) => error.startsWith("missing_tool:")), false);
+  assert.equal(result.preflight.errors.includes("missing_tool:shell_command"), false);
+  assert.equal(result.preflight.errors.includes("missing_tool:apply_patch"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), false);
+});
+
+test("desktop decision runner does not require desktop write tools for codex-cli small edits", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+
+  const result = await runDesktopDecision({
+    task: parseTaskEnvelope({
+      taskId: "runner-codex-cli-small-edit",
+      source: "desktop-thread",
+      intent: {
+        summary: "apply a small fix",
+        requestedAction: "make a small fix in a single file",
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: { repoRoot: "A:/codex-router" },
+      target: { branches: [], files: ["README.md"], modules: [] },
+      constraints: {},
+      hints: { riskHints: [], tags: [] }
+    }),
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    }
+  });
+
+  assert.equal(result.decision.classification.taskClass, "small_edit");
+  assert.equal(result.decision.hostRoute, "codex-cli");
+  assert.equal(result.decision.execution.toolAccess, "local_write");
+  assert.equal(result.status, "ready");
+  assert.equal(result.preflight.ok, true);
+  assert.equal(result.preflight.errors.some((error) => error.startsWith("missing_tool:")), false);
+  assert.equal(result.preflight.errors.includes("missing_tool:shell_command"), false);
+  assert.equal(result.preflight.errors.includes("missing_tool:apply_patch"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), false);
+  assert.ok(result.executionPlan.notes.includes("plan_mode:candidate"));
 });
 
 test("desktop decision runner folds memory overview warnings into preflight", async () => {
@@ -287,6 +366,8 @@ test("desktop decision runner degrades instead of blocking when engineering memo
   });
 
   assert.equal(result.status, "ready");
+  assert.equal(hasPrimitive(result.executionPlan, "shell_command"), true);
+  assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), true);
   assert.equal(result.preflight.memory.policyPack, "engineering");
   assert.equal(result.preflight.memory.status, "degraded");
   assert.ok(result.preflight.warnings.includes("memory_adapter_status:disabled"));
@@ -398,3 +479,10 @@ test("resumeDesktopDecision falls back to checkpoint store when memory recall mi
   assert.equal(result.resumeSource, "checkpoint");
   assert.equal(result.auditEvents[0]?.type, "task_resumed");
 });
+
+function hasPrimitive(
+  plan: { primitives: Array<{ primitive: string }> },
+  primitive: string
+): boolean {
+  return plan.primitives.some((operation) => operation.primitive === primitive);
+}

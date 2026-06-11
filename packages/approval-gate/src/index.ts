@@ -13,20 +13,14 @@ export function evaluateApprovalRequirement(
   policy: PolicySnapshot
 ): ApprovalDecision {
   const task: TaskEnvelope = parseTaskEnvelope(taskInput);
-  if (!decision.approval.required) {
-    return {
-      status: "not_required",
-      reasons: []
-    };
-  }
-
   const reasons = [...decision.approval.reasons];
+  const isWriteCapable = decision.execution.toolAccess !== "read_only";
 
-  if (task.repoContext.protectedBranch) {
+  if (isWriteCapable && task.repoContext.protectedBranch) {
     reasons.push("repo_context:protected_branch");
   }
 
-  if (!task.repoContext.worktreeClean && task.repoContext.worktreeClean !== undefined) {
+  if (isWriteCapable && !task.repoContext.worktreeClean && task.repoContext.worktreeClean !== undefined) {
     reasons.push("workspace:dirty");
   }
 

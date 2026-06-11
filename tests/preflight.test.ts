@@ -15,7 +15,7 @@ test("preflight catches missing auth and tools", () => {
   assert.ok(result.errors.includes("missing_tool:apply_patch"));
 });
 
-test("preflight warns on risky workspace state", () => {
+test("preflight blocks write-capable work on risky workspace state", () => {
   const result = runPreflight({
     authAvailable: true,
     requiredTools: [],
@@ -25,9 +25,24 @@ test("preflight warns on risky workspace state", () => {
     requestedToolAccess: "engineering_write"
   });
 
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.includes("workspace_dirty"));
+  assert.ok(result.errors.includes("protected_branch_active"));
+});
+
+test("preflight allows read-only work to inspect risky workspace state", () => {
+  const result = runPreflight({
+    authAvailable: true,
+    requiredTools: [],
+    availableTools: [],
+    workspaceClean: false,
+    protectedBranch: true,
+    requestedToolAccess: "read_only"
+  });
+
   assert.equal(result.ok, true);
-  assert.ok(result.warnings.includes("workspace_dirty"));
-  assert.ok(result.warnings.includes("protected_branch_active"));
+  assert.equal(result.errors.includes("workspace_dirty"), false);
+  assert.equal(result.errors.includes("protected_branch_active"), false);
 });
 
 test("preflight can require memory overview and surface memory health warnings", () => {

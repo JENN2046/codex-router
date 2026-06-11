@@ -184,48 +184,180 @@ test("desktop live adapter respects explicit failure envelopes from handlers", a
 test("runDesktopTask composes decision runner and live adapter", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const calls: string[] = [];
+  const telemetryEvents: unknown[] = [];
 
   const result = await runDesktopTask({
     task: {
       taskId: "run-desktop-task-ready",
       source: "desktop-thread",
       intent: {
-        summary: "review current config",
-        requestedAction: "inspect and summarize the current config state",
+        summary: "implement package",
+        requestedAction: "add multi-file TypeScript changes",
         successCriteria: [],
         outOfScope: []
       },
       repoContext: { repoRoot: "A:/codex-router" },
-      target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+      target: { branches: [], files: ["packages/contracts/src/index.ts"], modules: [] },
       constraints: {},
       hints: { riskHints: [], tags: [] }
     },
     policy,
     preflight: {
       authAvailable: true,
-      availableTools: ["read_thread_terminal", "spawn_agent", "wait_agent"]
+      availableTools: ["read_thread_terminal", "send_input", "shell_command", "apply_patch"],
+      memoryOverview: {
+        adapterStatus: {
+          codexMcp: "enabled"
+        },
+        summary: {
+          rejected: 0
+        },
+        shadowSync: {
+          reconcileCount: 0
+        },
+        recall: {
+          available: true,
+          status: "active"
+        }
+      }
     },
-    availableAgents: 3,
+    persistence: {
+      telemetryStore: {
+        record(event) {
+          telemetryEvents.push(event);
+        }
+      }
+    },
     handlers: {
       read_thread_terminal: () => {
         calls.push("read_thread_terminal");
         return "thread context";
       },
-      spawn_agent: () => {
-        calls.push("spawn_agent");
-        return { agentId: "agent-1" };
+      send_input: () => {
+        calls.push("send_input");
+        return { accepted: true };
       },
-      wait_agent: () => {
-        calls.push("wait_agent");
-        return { status: "completed" };
+      shell_command: () => {
+        calls.push("shell_command");
+        return { exitCode: 0, stdout: "ok" };
+      },
+      apply_patch: () => {
+        calls.push("apply_patch");
+        return { applied: true };
       }
     },
     now: () => "2026-04-23T12:10:00.000Z"
   });
 
   assert.equal(result.decisionResult.status, "ready");
+  assert.equal(result.decisionResult.decision.hostRoute, "desktop");
   assert.equal(result.executionResult.status, "completed");
-  assert.deepEqual(calls, ["read_thread_terminal", "spawn_agent", "wait_agent"]);
+  assert.deepEqual(calls, ["read_thread_terminal", "send_input", "shell_command", "apply_patch"]);
+  assert.equal(result.hostDispatch, undefined);
+  assert.ok(telemetryEvents.length > 0);
+});
+
+test("runDesktopTask dispatches codex-cli small edits instead of executing desktop primitives", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  let spawned = false;
+  let desktopPrimitiveInvoked = false;
+
+  const result = await runDesktopTask({
+    task: {
+      taskId: "run-desktop-task-codex-cli-small-edit",
+      source: "desktop-thread",
+      intent: {
+        summary: "apply a small fix",
+        requestedAction: "make a small fix in a single file",
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: { repoRoot: "A:/codex-router" },
+      target: { branches: [], files: ["README.md"], modules: [] },
+      constraints: {},
+      hints: { riskHints: [], tags: [] }
+    },
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: ["read_thread_terminal", "send_input"]
+    },
+    handlers: {
+      read_thread_terminal: () => {
+        desktopPrimitiveInvoked = true;
+        return "thread context";
+      },
+      send_input: () => {
+        desktopPrimitiveInvoked = true;
+        return { accepted: true };
+      }
+    },
+    codexCliOptions: {
+      allowWriteSandbox: true,
+      skipExecutionModelProbe: true,
+      spawn: () => {
+        spawned = true;
+        throw new Error("spawn sentinel");
+      }
+    },
+    now: () => "2026-06-11T00:00:00.000Z"
+  });
+
+  assert.equal(result.decisionResult.status, "ready");
+  assert.equal(result.decisionResult.decision.classification.taskClass, "small_edit");
+  assert.equal(result.decisionResult.decision.hostRoute, "codex-cli");
+  assert.equal(result.decisionResult.decision.execution.toolAccess, "local_write");
+  assert.equal(result.hostDispatch?.hostRoute, "codex-cli");
+  assert.equal(result.hostDispatch?.cliRun?.error, "spawn sentinel");
+  assert.equal(spawned, true);
+  assert.equal(desktopPrimitiveInvoked, false);
+  assert.equal(result.executionResult.status, "failed");
+  assert.deepEqual(result.executionResult.steps, []);
+  assert.ok(result.executionResult.blockingReasons.includes("spawn sentinel"));
+});
+
+test("runDesktopTask returns blocked codex-cli decisions without desktop handlers", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  let spawned = false;
+
+  const result = await runDesktopTask({
+    task: {
+      taskId: "run-desktop-task-codex-cli-blocked",
+      source: "desktop-thread",
+      intent: {
+        summary: "apply a small fix",
+        requestedAction: "make a small fix in a single file",
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: { repoRoot: "A:/codex-router" },
+      target: { branches: [], files: ["README.md"], modules: [] },
+      constraints: {},
+      hints: { riskHints: [], tags: [] }
+    },
+    policy,
+    preflight: {
+      authAvailable: false,
+      availableTools: []
+    },
+    codexCliOptions: {
+      allowWriteSandbox: true,
+      skipExecutionModelProbe: true,
+      spawn: () => {
+        spawned = true;
+        throw new Error("spawn sentinel");
+      }
+    },
+    now: () => "2026-06-11T00:05:00.000Z"
+  });
+
+  assert.equal(result.decisionResult.status, "blocked_preflight");
+  assert.equal(result.decisionResult.decision.hostRoute, "codex-cli");
+  assert.equal(result.executionResult.status, "not_ready");
+  assert.deepEqual(result.executionResult.steps, []);
+  assert.ok(result.executionResult.blockingReasons.includes("auth_unavailable"));
+  assert.equal(result.hostDispatch, undefined);
+  assert.equal(spawned, false);
 });
 
 test("runDesktopTask preserves blocked_preflight results without executing handlers", async () => {
@@ -269,38 +401,62 @@ test("runDesktopTask preserves blocked_preflight results without executing handl
 test("runDesktopTask accepts a host bridge instead of raw handlers", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const bridge = createRecordingHostBridge();
+  const telemetryEvents: unknown[] = [];
 
   const result = await runDesktopTask({
     task: {
       taskId: "run-desktop-task-bridge",
       source: "desktop-thread",
       intent: {
-        summary: "review current config",
-        requestedAction: "inspect and summarize the current config state",
+        summary: "implement package",
+        requestedAction: "add multi-file TypeScript changes",
         successCriteria: [],
         outOfScope: []
       },
       repoContext: { repoRoot: "A:/codex-router" },
-      target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+      target: { branches: [], files: ["packages/contracts/src/index.ts"], modules: [] },
       constraints: {},
       hints: { riskHints: [], tags: [] }
     },
     policy,
     preflight: {
       authAvailable: true,
-      availableTools: ["read_thread_terminal", "spawn_agent", "wait_agent"]
+      availableTools: ["read_thread_terminal", "send_input", "shell_command", "apply_patch"],
+      memoryOverview: {
+        adapterStatus: {
+          codexMcp: "enabled"
+        },
+        summary: {
+          rejected: 0
+        },
+        shadowSync: {
+          reconcileCount: 0
+        },
+        recall: {
+          available: true,
+          status: "active"
+        }
+      }
     },
-    availableAgents: 3,
+    persistence: {
+      telemetryStore: {
+        record(event) {
+          telemetryEvents.push(event);
+        }
+      }
+    },
     bridge,
     now: () => "2026-04-23T12:10:00.000Z"
   });
 
   assert.equal(result.decisionResult.status, "ready");
+  assert.equal(result.decisionResult.decision.hostRoute, "desktop");
   assert.equal(result.executionResult.status, "completed");
   assert.deepEqual(
     bridge.calls.map((call) => call.primitive),
-    ["read_thread_terminal", "spawn_agent", "wait_agent"]
+    ["read_thread_terminal", "send_input", "shell_command", "apply_patch"]
   );
+  assert.ok(telemetryEvents.length > 0);
 });
 
 test("host bridge bindings fail clearly when a primitive binding is missing", async () => {
@@ -335,28 +491,51 @@ test("host bridge bindings fail clearly when a primitive binding is missing", as
 test("resumeDesktopTask resumes from memory recall and still executes the plan", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const calls: string[] = [];
+  const telemetryEvents: unknown[] = [];
 
   const result = await resumeDesktopTask({
     task: {
       taskId: "resume-desktop-task-memory",
       source: "desktop-thread",
       intent: {
-        summary: "review current config",
-        requestedAction: "inspect and summarize the current config state",
+        summary: "implement package",
+        requestedAction: "add multi-file TypeScript changes",
         successCriteria: [],
         outOfScope: []
       },
       repoContext: { repoRoot: "A:/codex-router" },
-      target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+      target: { branches: [], files: ["packages/contracts/src/index.ts"], modules: [] },
       constraints: {},
       hints: { riskHints: [], tags: [] }
     },
     policy,
     preflight: {
       authAvailable: true,
-      availableTools: ["read_thread_terminal", "spawn_agent", "wait_agent"]
+      availableTools: ["read_thread_terminal", "send_input", "shell_command", "apply_patch"],
+      memoryOverview: {
+        adapterStatus: {
+          codexMcp: "enabled"
+        },
+        summary: {
+          rejected: 0
+        },
+        shadowSync: {
+          reconcileCount: 0
+        },
+        recall: {
+          available: true,
+          status: "active"
+        }
+      }
     },
     availableAgents: 2,
+    persistence: {
+      telemetryStore: {
+        record(event) {
+          telemetryEvents.push(event);
+        }
+      }
+    },
     resume: {
       memoryRecall: {
         async recallLatestCheckpointRef() {
@@ -375,13 +554,17 @@ test("resumeDesktopTask resumes from memory recall and still executes the plan",
         calls.push("read_thread_terminal");
         return "thread context";
       },
-      spawn_agent: () => {
-        calls.push("spawn_agent");
-        return { agentId: "agent-1" };
+      send_input: () => {
+        calls.push("send_input");
+        return { accepted: true };
       },
-      wait_agent: () => {
-        calls.push("wait_agent");
-        return { status: "completed" };
+      shell_command: () => {
+        calls.push("shell_command");
+        return { exitCode: 0, stdout: "ok" };
+      },
+      apply_patch: () => {
+        calls.push("apply_patch");
+        return { applied: true };
       }
     },
     now: () => "2026-04-23T12:10:00.000Z"
@@ -389,8 +572,10 @@ test("resumeDesktopTask resumes from memory recall and still executes the plan",
 
   assert.equal(result.decisionResult.resumeSource, "memory");
   assert.equal(result.decisionResult.resumedFrom?.checkpointId, "memory-cp-1");
+  assert.equal(result.decisionResult.decision.hostRoute, "desktop");
   assert.equal(result.executionResult.status, "completed");
-  assert.deepEqual(calls, ["read_thread_terminal", "spawn_agent", "wait_agent"]);
+  assert.deepEqual(calls, ["read_thread_terminal", "send_input", "shell_command", "apply_patch"]);
+  assert.ok(telemetryEvents.length > 0);
 });
 
 test("resumeDesktopTask fails clearly when resume is required but no checkpoint exists", async () => {

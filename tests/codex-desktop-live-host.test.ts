@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { fileURLToPath } from "node:url";
 import type { AuditEvent } from "../packages/audit-memory/src/index.js";
+import type {
+  CodexCliChildProcess,
+  CodexCliProcessRunOptions,
+  CodexCliProcessStream
+} from "../packages/codex-cli-host/src/index.js";
 import type { CheckpointRef, TaskEnvelopeInput } from "../packages/contracts/src/index.js";
 import {
   assertCodexDesktopLiveHostObject,
@@ -23,6 +29,36 @@ import { createRecordingTelemetrySink } from "../packages/observability/src/inde
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
+
+class FakeCodexCliStream extends EventEmitter implements CodexCliProcessStream {
+  setEncoding(_encoding: BufferEncoding): void {
+    return;
+  }
+}
+
+class FakeCodexCliChild extends EventEmitter implements CodexCliChildProcess {
+  readonly stdout = new FakeCodexCliStream();
+  readonly stderr = new FakeCodexCliStream();
+
+  constructor() {
+    super();
+    queueMicrotask(() => {
+      this.emit("close", 0, null);
+    });
+  }
+
+  kill(): boolean {
+    return false;
+  }
+}
+
+function createPassingCodexCliOptions(): CodexCliProcessRunOptions {
+  return {
+    allowWriteSandbox: true,
+    skipExecutionModelProbe: true,
+    spawn: () => new FakeCodexCliChild()
+  };
+}
 
 class InMemoryCheckpointStore {
   private readonly checkpoints: CheckpointRef[] = [];
@@ -88,6 +124,9 @@ test("codex desktop live host bundle composes runtime, memory tools, and host cl
   const policy = await loadPolicyFromFile(policyPath);
   const spawned: unknown[] = [];
   const waited: unknown[] = [];
+  const sent: unknown[] = [];
+  const shellRequests: unknown[] = [];
+  const patches: unknown[] = [];
   const runtime: CodexDesktopRuntime = {
     readThreadTerminal() {
       return "terminal snapshot";
@@ -99,7 +138,8 @@ test("codex desktop live host bundle composes runtime, memory tools, and host cl
         nickname: `Agent${spawned.length}`
       };
     },
-    sendInput() {
+    sendInput(input) {
+      sent.push(input);
       return { id: "message-1" };
     },
     waitAgent(input) {
@@ -119,14 +159,16 @@ test("codex desktop live host bundle composes runtime, memory tools, and host cl
         status: "ACTIVE"
       };
     },
-    shellCommand() {
+    shellCommand(input) {
+      shellRequests.push(input);
       return {
         exitCode: 0,
         stdout: "ok",
         stderr: ""
       };
     },
-    applyPatch() {
+    applyPatch(input) {
+      patches.push(input);
       return {
         changedFiles: 1,
         summary: "patched"
@@ -189,20 +231,32 @@ test("codex desktop live host bundle composes runtime, memory tools, and host cl
         }
       }
     },
+    directives: {
+      shellCommand(invocation) {
+        return {
+          command: `npm test -- ${invocation.task.taskId}`
+        };
+      },
+      applyPatch(invocation) {
+        return `*** Begin Patch\n*** Add File: ${invocation.task.taskId}.txt\n+ready\n*** End Patch\n`;
+      }
+    },
     availableAgents: 2,
+    telemetryStore: createRecordingTelemetrySink(),
     now: () => "2026-04-23T16:45:00.000Z"
   });
 
-  const runResult = await bundle.hostClient.run(createReadTask("live-host-read"));
-  const resumeResult = await bundle.hostClient.resume(createReadTask("live-host-read"), {
+  const runResult = await bundle.hostClient.run(createEngineeringTask("live-host-read"));
+  const resumeResult = await bundle.hostClient.resume(createEngineeringTask("live-host-read"), {
     required: true
   });
 
   assert.equal(runResult.executionResult.status, "completed");
   assert.equal(resumeResult.decisionResult.resumeSource, "memory");
-  assert.ok(spawned.length >= 1);
-  assert.ok(waited.length >= 1);
-  assert.equal(bundle.session.read("live-host-read").activeAgents.length, 2);
+  assert.equal(spawned.length, 0);
+  assert.equal(waited.length, 0);
+  assert.ok(shellRequests.length >= 1);
+  assert.ok(patches.length >= 1);
 });
 
 test("codex desktop live host bundle wires directive resolvers and persistence into engineering execution", async () => {
@@ -945,6 +999,7 @@ test("codex desktop live host smoke passes read-only, engineering, and release-p
       }
     },
     telemetryStore,
+    codexCliOptions: createPassingCodexCliOptions(),
     now: () => "2026-04-24T11:00:00.000Z"
   });
 
@@ -1112,6 +1167,7 @@ test("codex desktop live host smoke evidence summarizes passing checks for final
       }
     },
     telemetryStore: createRecordingTelemetrySink(),
+    codexCliOptions: createPassingCodexCliOptions(),
     now: () => "2026-04-24T12:00:00.000Z"
   });
 

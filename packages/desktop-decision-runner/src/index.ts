@@ -106,7 +106,7 @@ export async function runDesktopDecision(
   const now = input.now ?? (() => new Date().toISOString());
   const intent = classifyIntent(task);
   const decision = routeTask(task, intent, input.policy);
-  const executionPlan = createDesktopExecutionPlan(decision);
+  const candidateExecutionPlan = createDesktopExecutionPlan(decision);
   const memoryOverview = input.preflight.memoryOverview
     ?? await loadMemoryOverview(input.persistence?.memoryOverviewProvider);
   const explicitMemoryGuidance = input.preflight.memoryExecutionGuidance
@@ -134,7 +134,7 @@ export async function runDesktopDecision(
             : input.preflight.requireMemoryOverview
         }
       : {}),
-    requiredTools: deriveRequiredTools(executionPlan),
+    requiredTools: deriveRequiredTools(decision, candidateExecutionPlan),
     requestedToolAccess: decision.execution.toolAccess
   });
   const approval = evaluateApprovalRequirement(task, decision, input.policy);
@@ -145,6 +145,9 @@ export async function runDesktopDecision(
   });
 
   const status = resolveStatus(preflight, approval);
+  const executionPlan = status === "ready" && decision.hostRoute === "desktop"
+    ? createDesktopExecutionPlan(decision, { authorized: true })
+    : candidateExecutionPlan;
   const blockingReasons = collectBlockingReasons(preflight, approval);
   const checkpoint = buildCheckpoint(task.taskId, status, blockingReasons, now());
   const auditEvents = buildAuditEvents({
@@ -234,10 +237,23 @@ export async function resumeDesktopDecision(
   };
 }
 
-function deriveRequiredTools(plan: DesktopExecutionPlan): string[] {
+function deriveRequiredTools(
+  decision: RoutingDecision,
+  plan: DesktopExecutionPlan
+): string[] {
+  if (decision.hostRoute !== "desktop") {
+    return [];
+  }
+
   return [...new Set(
-    plan.primitives
-      .map((primitive) => primitive.primitive)
+    [
+      ...plan.primitives.map((primitive) => primitive.primitive),
+      ...(
+        decision.execution.toolAccess !== "read_only"
+          ? ["shell_command" as const, "apply_patch" as const]
+          : []
+      )
+    ]
       .filter((primitive) => primitive !== "automation_update")
   )];
 }
