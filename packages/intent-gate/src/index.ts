@@ -21,6 +21,7 @@ const HIGH_RISK_KEYWORDS = [
 ];
 
 const RELEASE_KEYWORDS = ["release", "merge", "push", "prod/stable", "main"];
+const ENGINEERING_KEYWORDS = ["implement", "multi-file", "refactor"];
 const SMALL_EDIT_KEYWORDS = ["rename", "typo", "copy", "comment", "single file", "small fix"];
 const READ_ONLY_KEYWORDS = ["explain", "review", "summarize", "inspect", "analyze", "read"];
 const AMBIGUOUS_SHORTCUTS = ["continue", "do it", "fix it", "that one", "same as before"];
@@ -37,15 +38,23 @@ export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassificati
   const haystack = `${task.intent.summary} ${task.intent.requestedAction}`.toLowerCase();
   const ambiguityReasons: string[] = [];
   let taskClass: TaskClass = "engineering";
+  let matchedTaskClass: TaskClass | undefined;
 
   if (RELEASE_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
     taskClass = "release_external_action";
+    matchedTaskClass = taskClass;
   } else if (HIGH_RISK_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
     taskClass = "high_risk";
+    matchedTaskClass = taskClass;
+  } else if (ENGINEERING_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
+    taskClass = "engineering";
+    matchedTaskClass = taskClass;
   } else if (SMALL_EDIT_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
     taskClass = "small_edit";
+    matchedTaskClass = taskClass;
   } else if (READ_ONLY_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
     taskClass = "read_only";
+    matchedTaskClass = taskClass;
   }
 
   if (task.intent.summary.trim().length < 12) {
@@ -58,9 +67,13 @@ export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassificati
 
   const hint = task.hints.taskClassHint;
   if (hint && hint !== taskClass) {
-    ambiguityReasons.push(`task_class_hint_conflict:${hint}:${taskClass}`);
-    if (TASK_CLASS_RANK[hint] > TASK_CLASS_RANK[taskClass]) {
+    if (!matchedTaskClass) {
       taskClass = hint;
+    } else {
+      ambiguityReasons.push(`task_class_hint_conflict:${hint}:${taskClass}`);
+      if (TASK_CLASS_RANK[hint] > TASK_CLASS_RANK[taskClass]) {
+        taskClass = hint;
+      }
     }
   }
 

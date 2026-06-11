@@ -52,6 +52,51 @@ test("routing engine covers read-only and small edit tasks", async () => {
   assert.equal(smallEditDecision.execution.toolAccess, "local_write");
 });
 
+test("routing engine respects low-risk taskClassHint when text is neutral", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+
+  const readOnlyTask = parseTaskEnvelope({
+    taskId: "neutral-read-only-hint",
+    source: "desktop-thread",
+    intent: {
+      summary: "Status update",
+      requestedAction: "Show current state",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {},
+    target: { branches: [], files: [], modules: [] },
+    constraints: {},
+    hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
+  });
+
+  const smallEditTask = parseTaskEnvelope({
+    taskId: "neutral-small-edit-hint",
+    source: "desktop-thread",
+    intent: {
+      summary: "Status update",
+      requestedAction: "Show current state",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: { branches: [], files: ["README.md"], modules: [] },
+    constraints: {},
+    hints: { taskClassHint: "small_edit", riskHints: [], tags: [] }
+  });
+
+  const readOnlyDecision = routeTask(readOnlyTask, classifyIntent(readOnlyTask), policy);
+  const smallEditDecision = routeTask(smallEditTask, classifyIntent(smallEditTask), policy);
+
+  assert.equal(readOnlyDecision.classification.taskClass, "read_only");
+  assert.equal(readOnlyDecision.execution.toolAccess, "read_only");
+  assert.equal(readOnlyDecision.hostRoute, "codex-cli");
+
+  assert.equal(smallEditDecision.classification.taskClass, "small_edit");
+  assert.equal(smallEditDecision.execution.toolAccess, "local_write");
+  assert.equal(smallEditDecision.hostRoute, "codex-cli");
+});
+
 test("routing engine covers engineering, high-risk, and release tasks", async () => {
   const policy = await loadPolicyFromFile(policyPath);
 

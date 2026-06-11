@@ -44,6 +44,68 @@ test("intent gate keeps explicit read-only requests out of clarification", () =>
   assert.equal(result.recommendedProfile, "recon-only");
 });
 
+test("intent gate respects low-risk hints when text has no classification keywords", () => {
+  const readOnlyResult = classifyIntent(parseTaskEnvelope({
+    taskId: "t-neutral-read-only-hint",
+    source: "desktop-thread",
+    intent: {
+      summary: "Status update",
+      requestedAction: "Show current state",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {},
+    target: { branches: [], files: [], modules: [] },
+    constraints: {},
+    hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
+  }));
+
+  assert.equal(readOnlyResult.taskClass, "read_only");
+  assert.equal(readOnlyResult.recommendedProfile, "recon-only");
+  assert.equal(readOnlyResult.clarificationRequired, false);
+  assert.deepEqual(readOnlyResult.ambiguityReasons, []);
+
+  const smallEditResult = classifyIntent(parseTaskEnvelope({
+    taskId: "t-neutral-small-edit-hint",
+    source: "desktop-thread",
+    intent: {
+      summary: "Status update",
+      requestedAction: "Show current state",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: { branches: [], files: ["README.md"], modules: [] },
+    constraints: {},
+    hints: { taskClassHint: "small_edit", riskHints: [], tags: [] }
+  }));
+
+  assert.equal(smallEditResult.taskClass, "small_edit");
+  assert.equal(smallEditResult.recommendedProfile, "engineering");
+  assert.equal(smallEditResult.clarificationRequired, false);
+  assert.deepEqual(smallEditResult.ambiguityReasons, []);
+});
+
+test("intent gate does not allow taskClassHint to down-classify engineering text", () => {
+  const result = classifyIntent(parseTaskEnvelope({
+    taskId: "t-engineering-hint-conflict",
+    source: "api",
+    intent: {
+      summary: "implement package module",
+      requestedAction: "refactor multi-file TypeScript module behavior",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: { branches: [], files: ["packages/intent-gate/src/index.ts"], modules: [] },
+    constraints: {},
+    hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
+  }));
+
+  assert.equal(result.taskClass, "engineering");
+  assert.ok(result.ambiguityReasons.includes("task_class_hint_conflict:read_only:engineering"));
+});
+
 test("intent gate does not allow taskClassHint to down-classify risky text", () => {
   const result = classifyIntent(parseTaskEnvelope({
     taskId: "t-malicious-hint",
