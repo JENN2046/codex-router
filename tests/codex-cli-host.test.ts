@@ -2523,6 +2523,15 @@ test("codex cli host runner rejects forged exec subcommand argv", async () => {
       plan.prompt
     ]
   };
+  const forgedPostPromptResumePlan = {
+    ...plan,
+    args: [
+      ...plan.args,
+      "resume",
+      "--last",
+      "--all"
+    ]
+  };
 
   assert.throws(
     () => createCodexCliExecPlan(task, {
@@ -2542,6 +2551,9 @@ test("codex cli host runner rejects forged exec subcommand argv", async () => {
   assert.ok(validateCodexCliExecPlanForRun(forgedReviewPlan).includes(
     "codex_cli_exec_subcommand_arg_not_allowed:review"
   ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedPostPromptResumePlan).includes(
+    "codex_cli_exec_subcommand_arg_not_allowed:resume"
+  ));
   await assert.rejects(
     () => runCodexCliExecPlan(forgedReviewPlan, {
       spawn: () => createFakeCodexCliChild({
@@ -2550,6 +2562,15 @@ test("codex cli host runner rejects forged exec subcommand argv", async () => {
       })
     }),
     /codex_cli_exec_subcommand_arg_not_allowed:review/
+  );
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedPostPromptResumePlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_exec_subcommand_arg_not_allowed:resume/
   );
 });
 

@@ -3154,9 +3154,8 @@ function assertNoCodexCliImageAttachmentArgs(args: string[]): void {
 }
 
 function assertNoCodexCliExecSubcommandArgs(args: string[], prompt: string): void {
-  const promptIndex = args.lastIndexOf(prompt);
-  const commandArgs = promptIndex === -1 ? args : args.slice(0, promptIndex);
-  const subcommandArg = commandArgs.find((arg) => (
+  const subcommandArg = args.find((arg) => (
+    arg !== prompt &&
     CODEX_CLI_EXEC_SUBCOMMANDS.some((subcommand) => arg === subcommand)
   ));
 
