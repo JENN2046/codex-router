@@ -3080,6 +3080,12 @@ const CODEX_CLI_GOVERNED_CONFIG_KEYS = [
   "sandbox_workspace_write"
 ] as const;
 
+const CODEX_CLI_EXEC_SUBCOMMANDS = [
+  "help",
+  "resume",
+  "review"
+] as const;
+
 function assertNoCodexCliWorkspaceExpansionArgs(args: string[]): void {
   const expansionArg = args.find((arg) => (
     arg === "--add-dir" || arg.startsWith("--add-dir=")
@@ -3149,11 +3155,13 @@ function assertNoCodexCliImageAttachmentArgs(args: string[]): void {
 function assertNoCodexCliExecSubcommandArgs(args: string[], prompt: string): void {
   const promptIndex = args.lastIndexOf(prompt);
   const commandArgs = promptIndex === -1 ? args : args.slice(0, promptIndex);
-  const resumeArg = commandArgs.find((arg) => arg === "resume");
+  const subcommandArg = commandArgs.find((arg) => (
+    CODEX_CLI_EXEC_SUBCOMMANDS.some((subcommand) => arg === subcommand)
+  ));
 
-  if (resumeArg !== undefined) {
+  if (subcommandArg !== undefined) {
     throw new Error(
-      `codex_cli_exec_subcommand_arg_not_allowed:${resumeArg}`
+      `codex_cli_exec_subcommand_arg_not_allowed:${subcommandArg}`
     );
   }
 }
