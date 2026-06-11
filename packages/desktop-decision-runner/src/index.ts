@@ -244,7 +244,11 @@ function deriveRequiredTools(
   return [...new Set(
     [
       ...plan.primitives.map((primitive) => primitive.primitive),
-      ...(decision.execution.toolAccess !== "read_only" ? ["shell_command" as const, "apply_patch" as const] : [])
+      ...(
+        decision.hostRoute === "desktop" && decision.execution.toolAccess !== "read_only"
+          ? ["shell_command" as const, "apply_patch" as const]
+          : []
+      )
     ]
       .filter((primitive) => primitive !== "automation_update")
   )];

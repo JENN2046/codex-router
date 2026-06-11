@@ -151,6 +151,40 @@ test("desktop decision runner returns ready execution package for safe read-only
   assert.equal(result.observabilityEvents[1]?.message, "memory preflight unavailable");
 });
 
+test("desktop decision runner does not require desktop write tools for codex-cli small edits", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+
+  const result = await runDesktopDecision({
+    task: parseTaskEnvelope({
+      taskId: "runner-codex-cli-small-edit",
+      source: "desktop-thread",
+      intent: {
+        summary: "apply a small fix",
+        requestedAction: "make a small fix in a single file",
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: { repoRoot: "A:/codex-router" },
+      target: { branches: [], files: ["README.md"], modules: [] },
+      constraints: {},
+      hints: { riskHints: [], tags: [] }
+    }),
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: ["read_thread_terminal", "send_input"]
+    }
+  });
+
+  assert.equal(result.decision.classification.taskClass, "small_edit");
+  assert.equal(result.decision.hostRoute, "codex-cli");
+  assert.equal(result.decision.execution.toolAccess, "local_write");
+  assert.equal(result.status, "ready");
+  assert.equal(result.preflight.ok, true);
+  assert.equal(result.preflight.errors.includes("missing_tool:shell_command"), false);
+  assert.equal(result.preflight.errors.includes("missing_tool:apply_patch"), false);
+});
+
 test("desktop decision runner folds memory overview warnings into preflight", async () => {
   const policy = await loadPolicyFromFile(policyPath);
 
