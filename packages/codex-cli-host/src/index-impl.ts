@@ -66,7 +66,6 @@ export interface CodexCliDecisionExecPlanOptions
     | "cwd"
     | "extraArgs"
     | "ignoreRules"
-    | "ignoreUserConfig"
     | "model"
     | "profile"
     | "sandbox"
@@ -3135,7 +3134,6 @@ function assertNoCodexCliDecisionPolicyOverrides(
     "cwd",
     "extraArgs",
     "ignoreRules",
-    "ignoreUserConfig",
     "profile"
   ];
 
