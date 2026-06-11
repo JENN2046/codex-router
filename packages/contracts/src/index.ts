@@ -174,7 +174,7 @@ export const RoutingDecisionSchema = z.object({
     maxAgents: z.number().int().positive(),
     mode: ParallelismModeSchema
   }),
-  hostRoute: HostRouteSchema.default("desktop")
+  hostRoute: HostRouteSchema
 });
 
 export const ApprovalDecisionSchema = z.object({

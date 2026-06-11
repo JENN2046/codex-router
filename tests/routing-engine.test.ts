@@ -117,3 +117,29 @@ test("routing engine covers engineering, high-risk, and release tasks", async ()
   assert.equal(releaseDecision.execution.executionProfile, "release-governance");
   assert.equal(releaseDecision.approval.required, true);
 });
+
+test("routing engine fails closed when a task class host route is missing", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const hostRoutes = { ...policy.hostRoutes } as Partial<typeof policy.hostRoutes>;
+  delete hostRoutes.high_risk;
+  const incompletePolicy = { ...policy, hostRoutes } as typeof policy;
+  const highRiskTask = parseTaskEnvelope({
+    taskId: "high-risk-missing-route",
+    source: "desktop-thread",
+    intent: {
+      summary: "update auth permission checks",
+      requestedAction: "change secret and permission handling",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: { branches: [], files: ["packages/approval-gate/src/index.ts"], modules: [] },
+    constraints: {},
+    hints: { riskHints: [], tags: [] }
+  });
+
+  assert.throws(
+    () => routeTask(highRiskTask, classifyIntent(highRiskTask), incompletePolicy),
+    /Missing host route for task class: high_risk/
+  );
+});

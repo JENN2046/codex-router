@@ -24,13 +24,16 @@ const RELEASE_KEYWORDS = ["release", "merge", "push", "prod/stable", "main"];
 const SMALL_EDIT_KEYWORDS = ["rename", "typo", "copy", "comment", "single file", "small fix"];
 const READ_ONLY_KEYWORDS = ["explain", "review", "summarize", "inspect", "analyze", "read"];
 const AMBIGUOUS_SHORTCUTS = ["continue", "do it", "fix it", "that one", "same as before"];
+const TASK_CLASS_RANK: Record<TaskClass, number> = {
+  read_only: 0,
+  small_edit: 1,
+  engineering: 2,
+  high_risk: 3,
+  release_external_action: 4
+};
 
 export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassification {
   const task: TaskEnvelope = parseTaskEnvelope(taskInput);
-  if (task.hints.taskClassHint) {
-    return buildClassification(task.hints.taskClassHint, 0, [], false);
-  }
-
   const haystack = `${task.intent.summary} ${task.intent.requestedAction}`.toLowerCase();
   const ambiguityReasons: string[] = [];
   let taskClass: TaskClass = "engineering";
@@ -51,6 +54,14 @@ export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassificati
 
   if (AMBIGUOUS_SHORTCUTS.some((keyword) => haystack.includes(keyword))) {
     ambiguityReasons.push("context_dependent_shortcut");
+  }
+
+  const hint = task.hints.taskClassHint;
+  if (hint && hint !== taskClass) {
+    ambiguityReasons.push(`task_class_hint_conflict:${hint}:${taskClass}`);
+    if (TASK_CLASS_RANK[hint] > TASK_CLASS_RANK[taskClass]) {
+      taskClass = hint;
+    }
   }
 
   if (taskClass !== "read_only" && task.target.files.length === 0 && !task.repoContext.repoRoot) {

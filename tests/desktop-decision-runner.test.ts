@@ -36,6 +36,8 @@ test("desktop decision runner blocks on preflight failures", async () => {
 
   assert.equal(result.status, "blocked_preflight");
   assert.ok(result.blockingReasons.includes("auth_unavailable"));
+  assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), false);
   assert.equal(result.auditEvents.at(-1)?.type, "runner_blocked");
   assert.equal(result.observabilityEvents[0]?.level, "error");
 });
@@ -81,6 +83,8 @@ test("desktop decision runner blocks on approval after preflight passes", async 
 
   assert.equal(result.status, "blocked_approval");
   assert.equal(result.approval.status, "pending");
+  assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), false);
   assert.ok(result.blockingReasons.some((reason) => reason.includes("protected_branch")));
 });
 
@@ -287,6 +291,8 @@ test("desktop decision runner degrades instead of blocking when engineering memo
   });
 
   assert.equal(result.status, "ready");
+  assert.equal(hasPrimitive(result.executionPlan, "shell_command"), true);
+  assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), true);
   assert.equal(result.preflight.memory.policyPack, "engineering");
   assert.equal(result.preflight.memory.status, "degraded");
   assert.ok(result.preflight.warnings.includes("memory_adapter_status:disabled"));
@@ -398,3 +404,10 @@ test("resumeDesktopDecision falls back to checkpoint store when memory recall mi
   assert.equal(result.resumeSource, "checkpoint");
   assert.equal(result.auditEvents[0]?.type, "task_resumed");
 });
+
+function hasPrimitive(
+  plan: { primitives: Array<{ primitive: string }> },
+  primitive: string
+): boolean {
+  return plan.primitives.some((operation) => operation.primitive === primitive);
+}

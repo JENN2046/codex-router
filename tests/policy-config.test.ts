@@ -1,11 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
 import {
   getTelemetryAlertDeliveryThresholdPreset,
   getTelemetryAlertDeliveryWindowPolicy,
   getTelemetryAlertThresholdPreset,
   loadPolicyFromFile,
+  loadPolicyFromString,
   resolveMemoryHealthPolicyPack,
   resolveTelemetryAlertDeliveryThresholdPreset,
   resolveTelemetryAlertDeliveryWindowPolicy,
@@ -96,4 +98,23 @@ test("policy config exposes telemetry alert delivery window presets aligned to t
   assert.equal(release.policy.cooldownWindowMs, 300000);
   assert.equal(localWritePreset.dedupeWindowMs, 30000);
   assert.equal(localWritePreset.cooldownWindowMs, 60000);
+});
+
+test("policy config requires explicit host routes for every task class", async () => {
+  const content = await readFile(policyPath, "utf8");
+
+  assert.throws(
+    () => loadPolicyFromString(content.replace('  high_risk: "desktop"\n', "")),
+    /Missing host route for task class: high_risk/
+  );
+});
+
+test("policy config rejects policies without hostRoutes", async () => {
+  const content = await readFile(policyPath, "utf8");
+  const withoutHostRoutes = content.replace(/hostRoutes:\r?\n(?:  .+\r?\n)+approvalRules:/, "approvalRules:");
+
+  assert.throws(
+    () => loadPolicyFromString(withoutHostRoutes),
+    /hostRoutes/
+  );
 });

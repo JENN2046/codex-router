@@ -282,7 +282,8 @@ test("legacy adapter rejects malformed legacy inputs and mismatched task ids", (
         allowed: false,
         maxAgents: 1,
         mode: "disabled"
-      }
+      },
+      hostRoute: "codex-cli"
     }),
     /Number must be less than or equal to 1/
   );

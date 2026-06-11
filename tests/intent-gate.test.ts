@@ -43,3 +43,65 @@ test("intent gate keeps explicit read-only requests out of clarification", () =>
   assert.equal(result.clarificationRequired, false);
   assert.equal(result.recommendedProfile, "recon-only");
 });
+
+test("intent gate does not allow taskClassHint to down-classify risky text", () => {
+  const result = classifyIntent(parseTaskEnvelope({
+    taskId: "t-malicious-hint",
+    source: "api",
+    intent: {
+      summary: "review production secret handling",
+      requestedAction: "delete production env secrets and update permission gates",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: { branches: [], files: ["packages/approval-gate/src/index.ts"], modules: [] },
+    constraints: {},
+    hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
+  }));
+
+  assert.equal(result.taskClass, "high_risk");
+  assert.ok(result.ambiguityReasons.includes("task_class_hint_conflict:read_only:high_risk"));
+});
+
+test("intent gate allows taskClassHint to raise risk", () => {
+  const result = classifyIntent(parseTaskEnvelope({
+    taskId: "t-risk-raising-hint",
+    source: "desktop-thread",
+    intent: {
+      summary: "small docs update",
+      requestedAction: "single file typo fix in README",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: { branches: [], files: ["README.md"], modules: [] },
+    constraints: {},
+    hints: { taskClassHint: "high_risk", riskHints: [], tags: [] }
+  }));
+
+  assert.equal(result.taskClass, "high_risk");
+  assert.ok(result.ambiguityReasons.includes("task_class_hint_conflict:high_risk:small_edit"));
+});
+
+test("intent gate rechecks target surface after taskClassHint raises risk", () => {
+  const result = classifyIntent(parseTaskEnvelope({
+    taskId: "t-risk-hint-missing-target",
+    source: "api",
+    intent: {
+      summary: "review current config",
+      requestedAction: "inspect and summarize the config",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {},
+    target: { branches: [], files: [], modules: [] },
+    constraints: {},
+    hints: { taskClassHint: "high_risk", riskHints: [], tags: [] }
+  }));
+
+  assert.equal(result.taskClass, "high_risk");
+  assert.ok(result.ambiguityReasons.includes("task_class_hint_conflict:high_risk:read_only"));
+  assert.ok(result.ambiguityReasons.includes("missing_target_surface"));
+  assert.equal(result.clarificationRequired, true);
+});

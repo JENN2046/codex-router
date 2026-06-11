@@ -65,7 +65,8 @@ function createDecision() {
       allowed: true,
       maxAgents: 2,
       mode: "read_only"
-    }
+    },
+    hostRoute: "codex-cli"
   });
 }
 
@@ -95,7 +96,8 @@ function createHighRiskDecision() {
       allowed: false,
       maxAgents: 1,
       mode: "disabled"
-    }
+    },
+    hostRoute: "desktop"
   });
 }
 

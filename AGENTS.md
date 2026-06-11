@@ -403,6 +403,8 @@ Do not mark known gaps as solved unless they have direct regression coverage.
 
 When a review finding is fixed, add a regression test unless the test would be unsafe or unreasonably expensive. If no regression test is added, state the reason and record a follow-up.
 
+After a vulnerability fix, run relevant tests once and perform one review pass before reporting completion.
+
 ---
 
 ## 14. Validation Claim Discipline

@@ -10,6 +10,14 @@ import {
   ModelIdSchema
 } from "../../contracts/src/index.js";
 
+const REQUIRED_TASK_CLASSES = [
+  "read_only",
+  "small_edit",
+  "engineering",
+  "high_risk",
+  "release_external_action"
+] as const;
+
 const MemoryHealthSeveritySchema = z.enum([
   "ignore",
   "warn",
@@ -91,7 +99,7 @@ const PolicySnapshotSchema = z.object({
   models: z.record(TaskClassSchema, ModelIdSchema),
   toolPolicies: z.record(TaskClassSchema, ToolAccessLevelSchema),
   executionProfiles: z.record(TaskClassSchema, ExecutionProfileNameSchema),
-  hostRoutes: z.record(TaskClassSchema, HostRouteSchema).optional(),
+  hostRoutes: z.record(TaskClassSchema, HostRouteSchema),
   approvalRules: z.object({
     protectedBranches: z.array(z.string().min(1)),
     protectedKeywords: z.array(z.string().min(1)),
@@ -122,6 +130,16 @@ const PolicySnapshotSchema = z.object({
     presetByToolAccess: z.record(ToolAccessLevelSchema, TelemetryAlertDeliveryWindowPresetNameSchema),
     presets: z.record(TelemetryAlertDeliveryWindowPresetNameSchema, TelemetryAlertDeliveryWindowPolicySchema)
   })
+}).superRefine((policy, ctx) => {
+  for (const taskClass of REQUIRED_TASK_CLASSES) {
+    if (policy.hostRoutes[taskClass] === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Missing host route for task class: ${taskClass}`,
+        path: ["hostRoutes", taskClass]
+      });
+    }
+  }
 });
 
 export type PolicySnapshot = z.infer<typeof PolicySnapshotSchema>;
