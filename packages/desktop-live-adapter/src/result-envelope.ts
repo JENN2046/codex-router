@@ -131,11 +131,11 @@ export function normalizePrimitiveHandlerOutput<P extends DesktopPrimitive>(
       return createPrimitiveFailureEnvelope(
         primitive,
         `primitive_result_mismatch:${primitive}:${output.primitive}`,
-        { payload: output }
+        { payload: redactPrimitiveResultEnvelope(output) }
       );
     }
 
-    return output as DesktopPrimitiveResultEnvelope<P>;
+    return redactPrimitiveResultEnvelope(output) as DesktopPrimitiveResultEnvelope<P>;
   }
 
   return inferPrimitiveSuccessEnvelope(primitive, output);
@@ -277,6 +277,18 @@ function redactSuccessDetails<P extends DesktopPrimitive>(
   return redactSecretLikeFields(details, {
     redactStrings: true
   }) as PrimitiveSuccessDetailsMap[P];
+}
+
+function redactPrimitiveResultEnvelope<P extends DesktopPrimitive>(
+  envelope: DesktopPrimitiveResultEnvelope<P>
+): DesktopPrimitiveResultEnvelope<P> {
+  if (envelope.primitive !== "shell_command") {
+    return envelope;
+  }
+
+  return redactSecretLikeFields(envelope, {
+    redactStrings: true
+  }) as DesktopPrimitiveResultEnvelope<P>;
 }
 
 function parseStructuredShellCommand(input: unknown): StructuredShellCommand | undefined {
