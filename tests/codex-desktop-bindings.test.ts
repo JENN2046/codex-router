@@ -293,9 +293,9 @@ test("codex desktop bindings pass structured shell commands and redact shell sec
           args: [
             "test",
             "--token",
-            "argv-token",
+            "-argv-token",
             "--password",
-            "argv-password",
+            "-argv-password",
             "--api-key=inline-api-key",
             "--safe",
             "ok"
@@ -315,9 +315,9 @@ test("codex desktop bindings pass structured shell commands and redact shell sec
       args: [
         "test",
         "--token",
-        "argv-token",
+        "-argv-token",
         "--password",
-        "argv-password",
+        "-argv-password",
         "--api-key=inline-api-key",
         "--safe",
         "ok"
@@ -347,7 +347,9 @@ test("codex desktop bindings pass structured shell commands and redact shell sec
   assert.equal(envelopeText.includes("json-password"), false);
   assert.equal(envelopeText.includes("raw-api-key"), false);
   assert.equal(envelopeText.includes("argv-token"), false);
+  assert.equal(envelopeText.includes("-argv-token"), false);
   assert.equal(envelopeText.includes("argv-password"), false);
+  assert.equal(envelopeText.includes("-argv-password"), false);
   assert.equal(envelopeText.includes("inline-api-key"), false);
   assert.deepEqual((result as { structuredCommand?: unknown }).structuredCommand, {
     executable: "npm",

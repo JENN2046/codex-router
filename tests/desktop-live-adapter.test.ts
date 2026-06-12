@@ -157,9 +157,9 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
       args: [
         "exec",
         "--token",
-        "argv-token",
+        "-argv-token",
         "--password",
-        "argv-password",
+        "-argv-password",
         "--api-key=inline-api-key",
         "--safe",
         "ok"
@@ -222,7 +222,9 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
   assert.equal(envelopeText.includes("payload-token"), false);
   assert.equal(envelopeText.includes("payload-api-key"), false);
   assert.equal(envelopeText.includes("argv-token"), false);
+  assert.equal(envelopeText.includes("-argv-token"), false);
   assert.equal(envelopeText.includes("argv-password"), false);
+  assert.equal(envelopeText.includes("-argv-password"), false);
   assert.equal(envelopeText.includes("inline-api-key"), false);
   assert.equal(envelopeText.includes("payload-secret"), false);
 });

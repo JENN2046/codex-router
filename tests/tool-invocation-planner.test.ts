@@ -344,7 +344,7 @@ test("tool invocation planner redacts proposed input preview", () => {
       head: "feature/test",
       base: "main",
       command: "gh pr create --token=fixture-command-token",
-      args: ["--password", "fixture-argv-password", "--safe", "visible"],
+      args: ["--password", "-fixture-argv-password", "--safe", "visible"],
       token: "fixture-token-value",
       nested: {
         authorization: "fixture-authorization-value"
@@ -373,6 +373,7 @@ test("tool invocation planner redacts proposed input preview", () => {
   assert.equal(JSON.stringify(plan).includes("fixture-authorization-value"), false);
   assert.equal(JSON.stringify(plan).includes("fixture-command-token"), false);
   assert.equal(JSON.stringify(plan).includes("fixture-argv-password"), false);
+  assert.equal(JSON.stringify(plan).includes("-fixture-argv-password"), false);
 
   assert.deepEqual(
     redactToolInvocationInput({

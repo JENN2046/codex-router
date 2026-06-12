@@ -135,7 +135,7 @@ test("jsonl event log redacts secret-like event payload fields before writing", 
       payload: {
         apiKey: "secret-api-key-value",
         command: "tool --token=secret-command-token",
-        args: ["--password", "secret-argv-password", "--safe", "visible"],
+        args: ["--password", "-secret-argv-password", "--safe", "visible"],
         nested: {
           token: "secret-token-value",
           safe: "visible"
@@ -158,7 +158,7 @@ test("jsonl event log redacts secret-like event payload fields before writing", 
     assert.equal(raw.includes("secret-api-key-value"), false);
     assert.equal(raw.includes("secret-token-value"), false);
     assert.equal(raw.includes("secret-command-token"), false);
-    assert.equal(raw.includes("secret-argv-password"), false);
+    assert.equal(raw.includes("-secret-argv-password"), false);
     assert.equal(raw.includes("<REDACTED_SECRET>"), true);
   });
 });

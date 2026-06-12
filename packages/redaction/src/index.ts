@@ -58,6 +58,13 @@ function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): st
         `${prefix}${flag}${spacing}${valueQuote}${REDACTED_SECRET}${valueQuote}`
     )
     .replace(
+      new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(-(?!-)(?:\\\\.|[^\\s"',;])+)`, "gi"),
+      (match: string, prefix: string, flag: string, _key: string, spacing: string, value: string) =>
+        isCanonicalSplitSecretArgvFlag(value, secretKeys)
+          ? match
+          : `${prefix}${flag}${spacing}${REDACTED_SECRET}`
+    )
+    .replace(
       new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(?!-)((?:\\\\.|[^\\s"',;])+)`, "gi"),
       (_match, prefix: string, flag: string, _key: string, spacing: string) =>
         `${prefix}${flag}${spacing}${REDACTED_SECRET}`
@@ -82,7 +89,7 @@ export function redactSecretLikeArgv(
   const redactedArgs: string[] = [];
 
   for (const arg of args) {
-    if (redactNext && !isPotentialArgvFlag(arg)) {
+    if (redactNext && !isCanonicalSplitSecretArgvFlag(arg, secretKeys)) {
       redactNext = false;
       redactedArgs.push(REDACTED_SECRET);
       continue;
@@ -178,8 +185,17 @@ function isSplitSecretArgvFlag(arg: string, secretKeys: Set<string>): boolean {
   return isSecretLikeKeyFromSet(key, secretKeys);
 }
 
-function isPotentialArgvFlag(arg: string): boolean {
-  return /^-{1,2}\S+/.test(arg);
+function isCanonicalSplitSecretArgvFlag(arg: string, secretKeys: Set<string>): boolean {
+  if (!isSplitSecretArgvFlag(arg, secretKeys)) {
+    return false;
+  }
+
+  const key = arg.replace(/^-+/, "").toLowerCase();
+  if (secretKeys.has(key)) {
+    return true;
+  }
+
+  return /^(?:api[-_]?key|authorization|credential|password|secret|token|access[-_]?token|client[-_]?secret)$/.test(key);
 }
 
 function redactInlineSecretArgvValue(arg: string, secretKeys: Set<string>): string {

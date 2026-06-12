@@ -40,6 +40,10 @@ test("redaction covers text, JSON, and split argv secret values", () => {
     "tool --token <REDACTED_SECRET> --safe ok"
   );
   assert.equal(
+    redactSecretLikeText("tool --token -string-token --safe ok"),
+    "tool --token <REDACTED_SECRET> --safe ok"
+  );
+  assert.equal(
     redactSecretLikeText("tool --token=inline\\ token --safe ok"),
     "tool --token=<REDACTED_SECRET> --safe ok"
   );
@@ -55,9 +59,9 @@ test("redaction covers text, JSON, and split argv secret values", () => {
     redactSecretLikeArgv([
       "exec",
       "--token",
-      "argv-token",
+      "-argv-token",
       "--password",
-      "argv-password",
+      "-argv-password",
       "--api-key=inline-api-key",
       "--session=inline-session",
       "--safe",
@@ -79,8 +83,20 @@ test("redaction covers text, JSON, and split argv secret values", () => {
     redactSecretLikeArgv([
       "exec",
       "--token",
+      "-secret-value"
+    ]),
+    [
+      "exec",
+      "--token",
+      "<REDACTED_SECRET>"
+    ]
+  );
+  assert.deepEqual(
+    redactSecretLikeArgv([
+      "exec",
+      "--token",
       "--password",
-      "real-password",
+      "-real-password",
       "--safe",
       "ok"
     ]),
@@ -97,7 +113,7 @@ test("redaction covers text, JSON, and split argv secret values", () => {
     redactSecretLikeFields({
       command: `tool --token split\\ string-token --safe ok`,
       payload: `{"access_token":"preview-token","safe":"visible"}`,
-      args: ["--token", "argv-token"],
+      args: ["--token", "-argv-token"],
       nested: {
         apiKey: "field-api-key"
       }
