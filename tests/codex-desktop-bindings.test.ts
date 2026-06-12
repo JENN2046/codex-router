@@ -273,8 +273,8 @@ test("codex desktop bindings pass structured shell commands and redact shell sec
       shellRequests.push(input);
       return {
         exitCode: 0,
-        stdout: "token=super-secret-token",
-        stderr: "Authorization: Bearer abc.def.ghi",
+        stdout: `token=super-secret-token\n{"token":"json-token","apiKey":"json-api-key","safe":"ok"}`,
+        stderr: `Authorization: Bearer abc.def.ghi\n{"authorization":"Bearer json-auth","password":"json-password"}`,
         nested: {
           apiKey: "raw-api-key"
         }
@@ -308,12 +308,26 @@ test("codex desktop bindings pass structured shell commands and redact shell sec
     },
     justification: "validate changes"
   }]);
-  assert.equal((result as { stdout?: string }).stdout, "token=<REDACTED_SECRET>");
-  assert.equal((result as { stderr?: string }).stderr, "Authorization: <REDACTED_SECRET>");
+  assert.equal(
+    (result as { stdout?: string }).stdout,
+    `token=<REDACTED_SECRET>\n{"token":"<REDACTED_SECRET>","apiKey":"<REDACTED_SECRET>","safe":"ok"}`
+  );
+  assert.equal(
+    (result as { stderr?: string }).stderr,
+    `Authorization: <REDACTED_SECRET>\n{"authorization":"<REDACTED_SECRET>","password":"<REDACTED_SECRET>"}`
+  );
   assert.equal(
     ((result as { payload?: { nested?: { apiKey?: string } } }).payload?.nested?.apiKey),
     "<REDACTED_SECRET>"
   );
+  const envelopeText = JSON.stringify(result);
+  assert.equal(envelopeText.includes("super-secret-token"), false);
+  assert.equal(envelopeText.includes("json-token"), false);
+  assert.equal(envelopeText.includes("json-api-key"), false);
+  assert.equal(envelopeText.includes("Bearer abc.def.ghi"), false);
+  assert.equal(envelopeText.includes("Bearer json-auth"), false);
+  assert.equal(envelopeText.includes("json-password"), false);
+  assert.equal(envelopeText.includes("raw-api-key"), false);
   assert.deepEqual((result as { structuredCommand?: unknown }).structuredCommand, {
     executable: "npm",
     args: ["test"],

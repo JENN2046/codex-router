@@ -21,6 +21,16 @@ export function redactSecretLikeFields(
 export function redactSecretLikeText(input: string): string {
   return input
     .replace(
+      /(["'])(api[-_]?key|authorization|credential|password|secret|token)\1(\s*:\s*)(["'])(?:\\.|(?!\4)[^\\\r\n])*\4/gi,
+      (_match, keyQuote: string, key: string, separator: string, valueQuote: string) =>
+        `${keyQuote}${key}${keyQuote}${separator}${valueQuote}${REDACTED_SECRET}${valueQuote}`
+    )
+    .replace(
+      /(["'])(api[-_]?key|authorization|credential|password|secret|token)\1(\s*:\s*)([^"',\s{}\[\]\r\n]+)/gi,
+      (_match, keyQuote: string, key: string, separator: string) =>
+        `${keyQuote}${key}${keyQuote}${separator}${REDACTED_SECRET}`
+    )
+    .replace(
       /(authorization)(\s*[:=]\s*)(["']?)[^\r\n]+/gi,
       `$1$2$3${REDACTED_SECRET}`
     )
