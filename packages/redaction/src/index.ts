@@ -58,7 +58,7 @@ function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): st
         `${prefix}${flag}${spacing}${valueQuote}${REDACTED_SECRET}${valueQuote}`
     )
     .replace(
-      new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)((?:\\\\.|[^\\s"',;])+)`, "gi"),
+      new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(?!-)((?:\\\\.|[^\\s"',;])+)`, "gi"),
       (_match, prefix: string, flag: string, _key: string, spacing: string) =>
         `${prefix}${flag}${spacing}${REDACTED_SECRET}`
     );
@@ -79,19 +79,27 @@ export function redactSecretLikeArgv(
 ): string[] {
   const secretKeys = createSecretKeySet(additionalSecretKeys);
   let redactNext = false;
-  return args.map((arg) => {
+  const redactedArgs: string[] = [];
+
+  for (const arg of args) {
+    if (redactNext && !isPotentialArgvFlag(arg)) {
+      redactNext = false;
+      redactedArgs.push(REDACTED_SECRET);
+      continue;
+    }
+
     if (redactNext) {
       redactNext = false;
-      return REDACTED_SECRET;
     }
 
     const redactedArg = redactInlineSecretArgvValue(redactSecretLikeTextWithSet(arg, secretKeys), secretKeys);
+    redactedArgs.push(redactedArg);
     if (isSplitSecretArgvFlag(arg, secretKeys)) {
       redactNext = true;
     }
+  }
 
-    return redactedArg;
-  });
+  return redactedArgs;
 }
 
 function redactSecretLikeValue(
@@ -168,6 +176,10 @@ function isSplitSecretArgvFlag(arg: string, secretKeys: Set<string>): boolean {
 
   const key = arg.replace(/^-+/, "");
   return isSecretLikeKeyFromSet(key, secretKeys);
+}
+
+function isPotentialArgvFlag(arg: string): boolean {
+  return /^-{1,2}\S+/.test(arg);
 }
 
 function redactInlineSecretArgvValue(arg: string, secretKeys: Set<string>): string {

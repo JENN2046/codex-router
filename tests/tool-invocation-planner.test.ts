@@ -384,11 +384,11 @@ test("tool invocation planner redacts proposed input preview", () => {
   );
   const customKeyPreview = redactToolInvocationInput({
     command: "tool --session fixture\\ session\\ value",
-    args: ["--session", "fixture-session-argv-value"]
+    args: ["--session", "--password", "fixture-session-argv-value"]
   }, ["session"]);
   assert.deepEqual(customKeyPreview, {
     command: "tool --session <REDACTED_SECRET>",
-    args: ["--session", "<REDACTED_SECRET>"]
+    args: ["--session", "--password", "<REDACTED_SECRET>"]
   });
   assert.equal(JSON.stringify(customKeyPreview).includes("fixture"), false);
   assert.equal(JSON.stringify(customKeyPreview).includes("session\\ value"), false);
