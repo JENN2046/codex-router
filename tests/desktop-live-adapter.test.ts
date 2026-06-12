@@ -170,6 +170,7 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
     payload: {
       token: "payload-token",
       command: "tool --token --refresh-token --abc123 --safe ok",
+      inlineCommand: "tool --token=payload-command-token,with-comma --safe ok",
       structuredCommand: {
         executable: "codex",
         args: ["--secret", "payload-secret"]
@@ -196,6 +197,10 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
   assert.equal(
     ((result as { payload?: { command?: string } }).payload?.command),
     "tool --token --refresh-token <REDACTED_SECRET> --safe ok"
+  );
+  assert.equal(
+    ((result as { payload?: { inlineCommand?: string } }).payload?.inlineCommand),
+    "tool --token=<REDACTED_SECRET> --safe ok"
   );
   assert.deepEqual((result as { structuredCommand?: unknown }).structuredCommand, {
     executable: "codex",

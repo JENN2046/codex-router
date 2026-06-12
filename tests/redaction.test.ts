@@ -52,6 +52,14 @@ test("redaction covers text, JSON, and split argv secret values", () => {
     "tool --token=<REDACTED_SECRET> --safe ok"
   );
   assert.equal(
+    redactSecretLikeText("tool --token=inline,token --safe ok"),
+    "tool --token=<REDACTED_SECRET> --safe ok"
+  );
+  assert.equal(
+    redactSecretLikeText("tool --session:comma,session --safe ok", ["session"]),
+    "tool --session:<REDACTED_SECRET> --safe ok"
+  );
+  assert.equal(
     redactSecretLikeText(`tool --session "split session value" --safe ok`, ["session"]),
     `tool --session "<REDACTED_SECRET>" --safe ok`
   );
@@ -210,6 +218,7 @@ test("redaction covers text, JSON, and split argv secret values", () => {
   assert.deepEqual(
     redactSecretLikeFields({
       command: `tool --token --string-token --safe ok`,
+      inlineCommand: `tool --token=field-token,with-comma --safe ok`,
       payload: `{"access_token":"preview-token","safe":"visible"}`,
       args: ["--token", "-argv-token"],
       nested: {
@@ -221,6 +230,7 @@ test("redaction covers text, JSON, and split argv secret values", () => {
     }),
     {
       command: `tool --token <REDACTED_SECRET> --safe ok`,
+      inlineCommand: `tool --token=<REDACTED_SECRET> --safe ok`,
       payload: `{"access_token":"<REDACTED_SECRET>","safe":"visible"}`,
       args: ["--token", "<REDACTED_SECRET>"],
       nested: {

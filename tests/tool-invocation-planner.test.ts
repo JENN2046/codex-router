@@ -344,6 +344,7 @@ test("tool invocation planner redacts proposed input preview", () => {
       head: "feature/test",
       base: "main",
       command: "gh pr create --token --github-token --abc123 --safe visible",
+      inlineCommand: "tool --token=fixture-command-token,with-comma --safe visible",
       args: ["--password", "-fixture-argv-password", "--safe", "visible"],
       token: "fixture-token-value",
       nested: {
@@ -363,6 +364,7 @@ test("tool invocation planner redacts proposed input preview", () => {
     head: "feature/test",
     base: "main",
     command: "gh pr create --token --github-token <REDACTED_SECRET> --safe visible",
+    inlineCommand: "tool --token=<REDACTED_SECRET> --safe visible",
     args: ["--password", "<REDACTED_SECRET>", "--safe", "visible"],
     token: "<REDACTED_SECRET>",
     nested: {
@@ -374,6 +376,8 @@ test("tool invocation planner redacts proposed input preview", () => {
   assert.equal(JSON.stringify(plan).includes("--abc123"), false);
   assert.equal(JSON.stringify(plan).includes("fixture-argv-password"), false);
   assert.equal(JSON.stringify(plan).includes("-fixture-argv-password"), false);
+  assert.equal(JSON.stringify(plan).includes("fixture-command-token"), false);
+  assert.equal(JSON.stringify(plan).includes("with-comma"), false);
 
   assert.deepEqual(
     redactToolInvocationInput({
