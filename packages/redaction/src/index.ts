@@ -58,7 +58,7 @@ function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): st
         `${prefix}${flag}${spacing}${valueQuote}${REDACTED_SECRET}${valueQuote}`
     )
     .replace(
-      new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(-(?!-)(?:\\\\.|[^\\s"',;])+)`, "gi"),
+      new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(-+(?:\\\\.|[^\\s"',;])+)`, "gi"),
       (match: string, prefix: string, flag: string, _key: string, spacing: string, value: string) =>
         isCanonicalSplitSecretArgvFlag(value, secretKeys)
           ? match

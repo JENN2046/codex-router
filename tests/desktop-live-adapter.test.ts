@@ -169,6 +169,7 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
     stderr: `Authorization: Bearer abc.def\n{"password":"json-password"}`,
     payload: {
       token: "payload-token",
+      command: "tool --token --payload-command-token --safe ok",
       structuredCommand: {
         executable: "codex",
         args: ["--secret", "payload-secret"]
@@ -191,6 +192,10 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
   assert.equal(
     ((result as { payload?: { nested?: { apiKey?: string } } }).payload?.nested?.apiKey),
     "<REDACTED_SECRET>"
+  );
+  assert.equal(
+    ((result as { payload?: { command?: string } }).payload?.command),
+    "tool --token <REDACTED_SECRET> --safe ok"
   );
   assert.deepEqual((result as { structuredCommand?: unknown }).structuredCommand, {
     executable: "codex",
@@ -220,6 +225,8 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
   assert.equal(envelopeText.includes("Bearer abc.def"), false);
   assert.equal(envelopeText.includes("json-password"), false);
   assert.equal(envelopeText.includes("payload-token"), false);
+  assert.equal(envelopeText.includes("payload-command-token"), false);
+  assert.equal(envelopeText.includes("--payload-command-token"), false);
   assert.equal(envelopeText.includes("payload-api-key"), false);
   assert.equal(envelopeText.includes("argv-token"), false);
   assert.equal(envelopeText.includes("-argv-token"), false);
