@@ -64,8 +64,20 @@ test("redaction covers text, JSON, and split argv secret values", () => {
     "tool --token --github-token <REDACTED_SECRET> --safe ok"
   );
   assert.equal(
+    redactSecretLikeText("tool --token --github-token --dash-github-token --safe ok"),
+    "tool --token --github-token <REDACTED_SECRET> --safe ok"
+  );
+  assert.equal(
     redactSecretLikeText("tool --token --refresh-token real-refresh-token --safe ok"),
     "tool --token --refresh-token <REDACTED_SECRET> --safe ok"
+  );
+  assert.equal(
+    redactSecretLikeText("tool --token --refresh-token --dash-refresh-token --safe ok"),
+    "tool --token --refresh-token <REDACTED_SECRET> --safe ok"
+  );
+  assert.equal(
+    redactSecretLikeText("tool --token --secret-value value-after-opaque --safe ok"),
+    "tool --token <REDACTED_SECRET> value-after-opaque --safe ok"
   );
   assert.deepEqual(
     redactSecretLikeArgv([
@@ -87,6 +99,46 @@ test("redaction covers text, JSON, and split argv secret values", () => {
       "<REDACTED_SECRET>",
       "--api-key=<REDACTED_SECRET>",
       "--session=<REDACTED_SECRET>",
+      "--safe",
+      "ok"
+    ]
+  );
+  assert.deepEqual(
+    redactSecretLikeArgv([
+      "exec",
+      "--token",
+      "--github-token",
+      "--dash-github-token",
+      "--refresh-token",
+      "--dash-refresh-token",
+      "--safe",
+      "ok"
+    ]),
+    [
+      "exec",
+      "--token",
+      "--github-token",
+      "<REDACTED_SECRET>",
+      "--refresh-token",
+      "<REDACTED_SECRET>",
+      "--safe",
+      "ok"
+    ]
+  );
+  assert.deepEqual(
+    redactSecretLikeArgv([
+      "exec",
+      "--token",
+      "--secret-value",
+      "value-after-opaque",
+      "--safe",
+      "ok"
+    ]),
+    [
+      "exec",
+      "--token",
+      "<REDACTED_SECRET>",
+      "value-after-opaque",
       "--safe",
       "ok"
     ]

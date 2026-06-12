@@ -343,7 +343,7 @@ test("tool invocation planner redacts proposed input preview", () => {
       title: "Open PR",
       head: "feature/test",
       base: "main",
-      command: "gh pr create --token --github-token fixture-command-token --safe visible",
+      command: "gh pr create --token --github-token --abc123 --safe visible",
       args: ["--password", "-fixture-argv-password", "--safe", "visible"],
       token: "fixture-token-value",
       nested: {
@@ -371,7 +371,7 @@ test("tool invocation planner redacts proposed input preview", () => {
   });
   assert.equal(JSON.stringify(plan).includes("fixture-token-value"), false);
   assert.equal(JSON.stringify(plan).includes("fixture-authorization-value"), false);
-  assert.equal(JSON.stringify(plan).includes("fixture-command-token"), false);
+  assert.equal(JSON.stringify(plan).includes("--abc123"), false);
   assert.equal(JSON.stringify(plan).includes("fixture-argv-password"), false);
   assert.equal(JSON.stringify(plan).includes("-fixture-argv-password"), false);
 

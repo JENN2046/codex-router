@@ -8,6 +8,7 @@ export type RedactSecretLikeFieldsOptions = {
 };
 
 const DEFAULT_SECRET_KEY_PATTERN = "[A-Za-z0-9_.-]*(?:api[-_]?key|authorization|credential|password|secret|token)[A-Za-z0-9_.-]*";
+const DEFAULT_CANONICAL_SECRET_OPTION_PATTERN = "api[-_]?key|authorization|credential|password|secret|token|access[-_]?token|client[-_]?secret|github[-_]?token|refresh[-_]?token";
 
 export function redactSecretLikeFields(
   input: unknown,
@@ -28,6 +29,7 @@ export function redactSecretLikeText(input: string, additionalSecretKeys: string
 
 function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): string {
   const secretKeyPattern = createSecretTextKeyPattern(secretKeys);
+  const canonicalSecretKeyPattern = createCanonicalSecretTextKeyPattern(secretKeys);
   return input
     .replace(
       new RegExp(`(["'])(${secretKeyPattern})\\1(\\s*:\\s*)(["'])(?:\\\\.|(?!\\4)[^\\\\\\r\\n])*\\4`, "gi"),
@@ -59,11 +61,11 @@ function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): st
     )
     .replace(
       new RegExp(
-        `(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(-+(${secretKeyPattern}))(\\s+)((?!--)(?:\\\\.|[^\\s"',;])+)`,
+        `(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(--+(${canonicalSecretKeyPattern}))(\\s+)((?!--)(?:\\\\.|[^\\s"',;])+)`,
         "gi"
       ),
       (
-        _match,
+        match,
         prefix: string,
         previousFlag: string,
         _previousKey: string,
@@ -71,17 +73,37 @@ function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): st
         boundaryFlag: string,
         _boundaryKey: string,
         valueSpacing: string
-      ) => `${prefix}${previousFlag}${previousSpacing}${boundaryFlag}${valueSpacing}${REDACTED_SECRET}`
+      ) =>
+        isCanonicalSplitSecretArgvFlag(boundaryFlag, secretKeys)
+          ? `${prefix}${previousFlag}${previousSpacing}${boundaryFlag}${valueSpacing}${REDACTED_SECRET}`
+          : match
     )
     .replace(
       new RegExp(
-        `(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(?!-+(?:${secretKeyPattern})\\s+(?!--))(-+(?:\\\\.|[^\\s"',;])+)`,
+        `(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(--+(${canonicalSecretKeyPattern}))(\\s+)(-+(?:\\\\.|[^\\s"',;])+)(?=$|[\\s;&|]-)`,
         "gi"
       ),
-      (match: string, prefix: string, flag: string, _key: string, spacing: string, value: string) =>
-        isCanonicalSplitSecretArgvFlag(value, secretKeys)
-          ? match
-          : `${prefix}${flag}${spacing}${REDACTED_SECRET}`
+      (
+        match,
+        prefix: string,
+        previousFlag: string,
+        _previousKey: string,
+        previousSpacing: string,
+        boundaryFlag: string,
+        _boundaryKey: string,
+        valueSpacing: string
+      ) =>
+        isCanonicalSplitSecretArgvFlag(boundaryFlag, secretKeys)
+          ? `${prefix}${previousFlag}${previousSpacing}${boundaryFlag}${valueSpacing}${REDACTED_SECRET}`
+          : match
+    )
+    .replace(
+      new RegExp(
+        `(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(?!-+(?:${canonicalSecretKeyPattern})\\s+(?!--))(-+(?:\\\\.|[^\\s"',;])+)`,
+        "gi"
+      ),
+      (_match, prefix: string, flag: string, _key: string, spacing: string) =>
+        `${prefix}${flag}${spacing}${REDACTED_SECRET}`
     )
     .replace(
       new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(?!-)((?:\\\\.|[^\\s"',;])+)`, "gi"),
@@ -192,6 +214,14 @@ function createSecretTextKeyPattern(secretKeys: Set<string>): string {
   return [DEFAULT_SECRET_KEY_PATTERN, ...additionalKeyPatterns].join("|");
 }
 
+function createCanonicalSecretTextKeyPattern(secretKeys: Set<string>): string {
+  const additionalKeyPatterns = [...secretKeys]
+    .filter((key) => key.length > 0)
+    .sort((left, right) => right.length - left.length)
+    .map(escapeRegExp);
+  return [DEFAULT_CANONICAL_SECRET_OPTION_PATTERN, ...additionalKeyPatterns].join("|");
+}
+
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -210,12 +240,12 @@ function isCanonicalSplitSecretArgvFlag(arg: string, secretKeys: Set<string>): b
     return false;
   }
 
-  const key = arg.replace(/^-+/, "").toLowerCase();
-  if (secretKeys.has(key)) {
-    return true;
+  if (!arg.startsWith("--")) {
+    return false;
   }
 
-  return /^(?:api[-_]?key|authorization|credential|password|secret|token|access[-_]?token|client[-_]?secret)$/.test(key);
+  const key = arg.replace(/^-+/, "").toLowerCase();
+  return isCanonicalSecretOptionKey(key, secretKeys);
 }
 
 function isSplitSecretArgvBoundaryAt(args: string[], index: number, secretKeys: Set<string>): boolean {
@@ -228,16 +258,33 @@ function isSplitSecretArgvBoundaryAt(args: string[], index: number, secretKeys: 
     return false;
   }
 
+  if (!isCanonicalSplitSecretArgvFlag(arg, secretKeys)) {
+    return false;
+  }
+
   const nextArg = args[index + 1];
   if (nextArg === undefined) {
     return false;
   }
 
-  if (isCanonicalSplitSecretArgvFlag(arg, secretKeys)) {
+  if (!nextArg.startsWith("--")) {
     return true;
   }
 
-  return !nextArg.startsWith("--") || isSplitSecretArgvFlag(nextArg, secretKeys);
+  if (isSplitSecretArgvFlag(nextArg, secretKeys)) {
+    return true;
+  }
+
+  const followingArg = args[index + 2];
+  return followingArg === undefined || followingArg.startsWith("--");
+}
+
+function isCanonicalSecretOptionKey(key: string, secretKeys: Set<string>): boolean {
+  if (secretKeys.has(key)) {
+    return true;
+  }
+
+  return new RegExp(`^(?:${DEFAULT_CANONICAL_SECRET_OPTION_PATTERN})$`).test(key);
 }
 
 function redactInlineSecretArgvValue(arg: string, secretKeys: Set<string>): string {

@@ -169,7 +169,7 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
     stderr: `Authorization: Bearer abc.def\n{"password":"json-password"}`,
     payload: {
       token: "payload-token",
-      command: "tool --token --refresh-token payload-command-token --safe ok",
+      command: "tool --token --refresh-token --abc123 --safe ok",
       structuredCommand: {
         executable: "codex",
         args: ["--secret", "payload-secret"]
@@ -225,8 +225,7 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
   assert.equal(envelopeText.includes("Bearer abc.def"), false);
   assert.equal(envelopeText.includes("json-password"), false);
   assert.equal(envelopeText.includes("payload-token"), false);
-  assert.equal(envelopeText.includes("payload-command-token"), false);
-  assert.equal(envelopeText.includes("--payload-command-token"), false);
+  assert.equal(envelopeText.includes("--abc123"), false);
   assert.equal(envelopeText.includes("payload-api-key"), false);
   assert.equal(envelopeText.includes("argv-token"), false);
   assert.equal(envelopeText.includes("-argv-token"), false);
