@@ -122,10 +122,19 @@ export const TaskConstraintsSchema = z.object({
   allowBackgroundAutomation: z.boolean().optional()
 });
 
+export const TaskHintProvenanceSchema = z.object({
+  field: z.enum(["taskClassHint", "riskHints", "tags"]),
+  value: z.string().min(1),
+  source: z.enum(["user", "agent", "system", "policy", "memory", "legacy", "unknown"]).default("unknown"),
+  reason: z.string().min(1).optional(),
+  createdAt: z.string().min(1).optional()
+});
+
 export const TaskHintsSchema = z.object({
   taskClassHint: TaskClassSchema.optional(),
   riskHints: z.array(z.string()).default([]),
-  tags: z.array(z.string()).default([])
+  tags: z.array(z.string()).default([]),
+  provenance: z.array(TaskHintProvenanceSchema).default([])
 });
 
 export const TaskEnvelopeSchema = z.object({
@@ -236,6 +245,7 @@ export type RepoContext = z.infer<typeof RepoContextSchema>;
 export type TaskIntent = z.infer<typeof TaskIntentSchema>;
 export type TaskTarget = z.infer<typeof TaskTargetSchema>;
 export type TaskConstraints = z.infer<typeof TaskConstraintsSchema>;
+export type TaskHintProvenance = z.infer<typeof TaskHintProvenanceSchema>;
 export type TaskHints = z.infer<typeof TaskHintsSchema>;
 export type TaskEnvelopeInput = z.input<typeof TaskEnvelopeSchema>;
 export type TaskEnvelope = z.infer<typeof TaskEnvelopeSchema>;

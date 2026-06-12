@@ -1,6 +1,6 @@
 {
   "schemaVersion": "codex-cli-contract-smoke-evidence.v1",
-  "generatedAt": "2026-04-28T14:07:48.277Z",
+  "generatedAt": "2026-06-12T05:53:13.811Z",
   "host": "Codex CLI contract smoke",
   "model": "gpt-5.4-mini",
   "summary": {
@@ -42,7 +42,41 @@
       "context": {
         "source": "codex-cli-host",
         "command": "codex-contract-smoke",
-        "cwd": "A:\\codex-router",
+        "cwd": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
+        "model": "gpt-5.4-mini",
+        "ttlMs": 300000
+      }
+    },
+    {
+      "level": "info",
+      "message": "codex cli model probe result",
+      "context": {
+        "source": "codex-cli-host",
+        "model": "gpt-5.4-mini",
+        "status": "passed",
+        "blockingReasons": [],
+        "run": {
+          "exitCode": 0,
+          "timedOut": false,
+          "killed": false,
+          "stdinClosed": true,
+          "stdinDestroyed": false,
+          "closeReceived": true,
+          "forcedSettled": false,
+          "stdioDestroyed": false,
+          "unrefCalled": false,
+          "terminationGraceMs": 5000,
+          "terminationEscalated": false
+        }
+      }
+    },
+    {
+      "level": "info",
+      "message": "codex cli model probe cache hit",
+      "context": {
+        "source": "codex-cli-host",
+        "command": "codex-contract-smoke",
+        "cwd": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
         "model": "gpt-5.4-mini",
         "ttlMs": 300000
       }
@@ -53,18 +87,7 @@
       "context": {
         "source": "codex-cli-host",
         "command": "codex-contract-smoke",
-        "cwd": "A:\\codex-router",
-        "model": "gpt-5.4-mini",
-        "ttlMs": 300000
-      }
-    },
-    {
-      "level": "info",
-      "message": "codex cli model probe cache hit",
-      "context": {
-        "source": "codex-cli-host",
-        "command": "codex-contract-smoke",
-        "cwd": "A:\\codex-router",
+        "cwd": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
         "model": "gpt-5.4-mini",
         "ttlMs": 300000
       }
@@ -74,7 +97,7 @@
     {
       "kind": "model-probe",
       "command": "codex-contract-smoke",
-      "cwd": "A:\\codex-router",
+      "cwd": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
       "approvalPolicy": "never",
       "sandbox": "read-only",
       "usesJson": true,
@@ -84,7 +107,7 @@
     {
       "kind": "smoke-run",
       "command": "codex-contract-smoke",
-      "cwd": "A:\\codex-router",
+      "cwd": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
       "approvalPolicy": "never",
       "sandbox": "read-only",
       "usesJson": true,
@@ -94,7 +117,7 @@
     {
       "kind": "smoke-run",
       "command": "codex-contract-smoke",
-      "cwd": "A:\\codex-router",
+      "cwd": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
       "approvalPolicy": "never",
       "sandbox": "read-only",
       "usesJson": true,
@@ -104,7 +127,7 @@
     {
       "kind": "smoke-run",
       "command": "codex-contract-smoke",
-      "cwd": "A:\\codex-router",
+      "cwd": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
       "approvalPolicy": "on-request",
       "sandbox": "workspace-write",
       "usesJson": true,
@@ -152,16 +175,16 @@
   "nestedEvidence": {
     "readOnlyFirst": {
       "schemaVersion": "codex-cli-readonly-smoke-evidence.v1",
-      "generatedAt": "2026-04-28T14:07:48.277Z",
+      "generatedAt": "2026-06-12T05:53:13.811Z",
       "host": "Codex CLI contract smoke",
-      "repoRoot": "A:\\codex-router",
+      "repoRoot": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
       "status": "passed",
       "taskId": "codex-cli-contract-smoke-readonly-first",
       "plan": {
         "command": "codex-contract-smoke",
         "sandbox": "read-only",
         "approvalPolicy": "never",
-        "workdir": "A:\\codex-router",
+        "workdir": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
         "usesJson": true,
         "skipGitRepoCheck": true,
         "ephemeral": true,
@@ -175,7 +198,15 @@
         "warnings": [],
         "blockingReasons": [],
         "timedOut": false,
-        "killed": false
+        "killed": false,
+        "stdinClosed": true,
+        "stdinDestroyed": false,
+        "closeReceived": true,
+        "forcedSettled": false,
+        "stdioDestroyed": false,
+        "unrefCalled": false,
+        "terminationGraceMs": 5000,
+        "terminationEscalated": false
       },
       "summary": {
         "passed": true,
@@ -189,7 +220,7 @@
         "anomalyCount": 0,
         "observationStatus": "succeeded",
         "observationSignals": [],
-        "ledgerId": "codex-cli-contract-smoke-readonly-first:codex-cli-ledger:2026-04-28T14:07:48.281Z"
+        "ledgerId": "codex-cli-contract-smoke-readonly-first:codex-cli-ledger:2026-06-12T05:53:13.817Z"
       },
       "notes": [
         "contract smoke uses a mock CodexCliProcessSpawner; real Codex CLI is not invoked"
@@ -197,16 +228,16 @@
     },
     "readOnlySecond": {
       "schemaVersion": "codex-cli-readonly-smoke-evidence.v1",
-      "generatedAt": "2026-04-28T14:07:48.277Z",
+      "generatedAt": "2026-06-12T05:53:13.811Z",
       "host": "Codex CLI contract smoke",
-      "repoRoot": "A:\\codex-router",
+      "repoRoot": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
       "status": "passed",
       "taskId": "codex-cli-contract-smoke-readonly-second",
       "plan": {
         "command": "codex-contract-smoke",
         "sandbox": "read-only",
         "approvalPolicy": "never",
-        "workdir": "A:\\codex-router",
+        "workdir": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
         "usesJson": true,
         "skipGitRepoCheck": true,
         "ephemeral": true,
@@ -220,7 +251,15 @@
         "warnings": [],
         "blockingReasons": [],
         "timedOut": false,
-        "killed": false
+        "killed": false,
+        "stdinClosed": true,
+        "stdinDestroyed": false,
+        "closeReceived": true,
+        "forcedSettled": false,
+        "stdioDestroyed": false,
+        "unrefCalled": false,
+        "terminationGraceMs": 5000,
+        "terminationEscalated": false
       },
       "summary": {
         "passed": true,
@@ -234,7 +273,7 @@
         "anomalyCount": 0,
         "observationStatus": "succeeded",
         "observationSignals": [],
-        "ledgerId": "codex-cli-contract-smoke-readonly-second:codex-cli-ledger:2026-04-28T14:07:48.281Z"
+        "ledgerId": "codex-cli-contract-smoke-readonly-second:codex-cli-ledger:2026-06-12T05:53:13.818Z"
       },
       "notes": [
         "second read-only run verifies model probe cache hit telemetry"
@@ -242,9 +281,9 @@
     },
     "workspaceWriteBlocked": {
       "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
-      "generatedAt": "2026-04-28T14:07:48.277Z",
+      "generatedAt": "2026-06-12T05:53:13.811Z",
       "host": "Codex CLI contract smoke",
-      "repoRoot": "A:\\codex-router",
+      "repoRoot": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
       "status": "blocked",
       "taskId": "codex-cli-contract-smoke-workspace-write-blocked",
       "requiredConfirmation": "ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE",
@@ -265,13 +304,13 @@
         "targetFiles": [
           "docs/evidence/codex-cli-contract-smoke-workspace-write.txt"
         ],
-        "commandPreview": "codex-contract-smoke -a on-request exec --json --sandbox workspace-write --model gpt-5.4-mini --cd \"A:\\codex-router\" --skip-git-repo-check --ephemeral \"<task-envelope-prompt omitted>\""
+        "commandPreview": "codex-contract-smoke -a on-request exec --json --sandbox workspace-write --model gpt-5.4-mini --cd \"A:\\AGENTS_OS_Workspace\\governance\\codex-router\" --skip-git-repo-check --ephemeral \"<task-envelope-prompt omitted>\""
       },
       "plan": {
         "command": "codex-contract-smoke",
         "sandbox": "workspace-write",
         "approvalPolicy": "on-request",
-        "workdir": "A:\\codex-router",
+        "workdir": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
         "usesJson": true,
         "skipGitRepoCheck": true,
         "ephemeral": true,
@@ -304,7 +343,7 @@
           "sandboxBlocked",
           "writeSandboxRequested"
         ],
-        "ledgerId": "codex-cli-contract-smoke-workspace-write-blocked:codex-cli-ledger:2026-04-28T14:07:48.282Z"
+        "ledgerId": "codex-cli-contract-smoke-workspace-write-blocked:codex-cli-ledger:2026-06-12T05:53:13.819Z"
       },
       "notes": [
         "blocked workspace-write contract smoke must not spawn"
@@ -312,9 +351,9 @@
     },
     "workspaceWriteReady": {
       "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
-      "generatedAt": "2026-04-28T14:07:48.277Z",
+      "generatedAt": "2026-06-12T05:53:13.811Z",
       "host": "Codex CLI contract smoke",
-      "repoRoot": "A:\\codex-router",
+      "repoRoot": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
       "status": "passed",
       "taskId": "codex-cli-contract-smoke-workspace-write-ready",
       "requiredConfirmation": "ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE",
@@ -329,13 +368,13 @@
         "targetFiles": [
           "docs/evidence/codex-cli-contract-smoke-workspace-write.txt"
         ],
-        "commandPreview": "codex-contract-smoke -a on-request exec --json --sandbox workspace-write --model gpt-5.4-mini --cd \"A:\\codex-router\" --skip-git-repo-check --ephemeral \"<task-envelope-prompt omitted>\""
+        "commandPreview": "codex-contract-smoke -a on-request exec --json --sandbox workspace-write --model gpt-5.4-mini --cd \"A:\\AGENTS_OS_Workspace\\governance\\codex-router\" --skip-git-repo-check --ephemeral \"<task-envelope-prompt omitted>\""
       },
       "plan": {
         "command": "codex-contract-smoke",
         "sandbox": "workspace-write",
         "approvalPolicy": "on-request",
-        "workdir": "A:\\codex-router",
+        "workdir": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
         "usesJson": true,
         "skipGitRepoCheck": true,
         "ephemeral": true,
@@ -349,7 +388,15 @@
         "warnings": [],
         "blockingReasons": [],
         "timedOut": false,
-        "killed": false
+        "killed": false,
+        "stdinClosed": true,
+        "stdinDestroyed": false,
+        "closeReceived": true,
+        "forcedSettled": false,
+        "stdioDestroyed": false,
+        "unrefCalled": false,
+        "terminationGraceMs": 5000,
+        "terminationEscalated": false
       },
       "summary": {
         "passed": true,
@@ -365,7 +412,7 @@
         "observationSignals": [
           "writeSandboxRequested"
         ],
-        "ledgerId": "codex-cli-contract-smoke-workspace-write-ready:codex-cli-ledger:2026-04-28T14:07:48.283Z"
+        "ledgerId": "codex-cli-contract-smoke-workspace-write-ready:codex-cli-ledger:2026-06-12T05:53:13.819Z"
       },
       "notes": [
         "ready workspace-write contract smoke uses a mock process, not a real file edit"

@@ -88,6 +88,14 @@ export const SandboxProfileSchema = z.object({
   }
 });
 
+export const TaskHintProvenanceSchema = z.object({
+  field: z.enum(["taskClass", "riskHints", "tags"]),
+  value: z.string().min(1),
+  source: z.enum(["user", "agent", "system", "policy", "memory", "legacy", "unknown"]).default("unknown"),
+  reason: z.string().min(1).optional(),
+  createdAt: KernelTimestampSchema.optional()
+});
+
 export const TaskSchema = z.object({
   schemaVersion: z.literal("kernel-task.v1").default("kernel-task.v1"),
   taskId: z.string().min(1),
@@ -124,7 +132,8 @@ export const TaskSchema = z.object({
   hints: z.object({
     taskClass: z.string().min(1).optional(),
     riskHints: z.array(z.string()).default([]),
-    tags: z.array(z.string()).default([])
+    tags: z.array(z.string()).default([]),
+    provenance: z.array(TaskHintProvenanceSchema).default([])
   }).default({ riskHints: [], tags: [] }),
   constraints: z.record(z.string(), z.unknown()).default({}),
   metadata: z.object({
@@ -394,6 +403,7 @@ export type CapabilityScopeKind = z.infer<typeof CapabilityScopeKindSchema>;
 export type CapabilityScope = z.infer<typeof CapabilityScopeSchema>;
 export type CapabilityGrant = z.infer<typeof CapabilityGrantSchema>;
 export type SandboxProfile = z.infer<typeof SandboxProfileSchema>;
+export type TaskHintProvenance = z.infer<typeof TaskHintProvenanceSchema>;
 export type AgentManifest = z.infer<typeof AgentManifestSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type RunStatus = z.infer<typeof RunStatusSchema>;

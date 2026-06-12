@@ -9,6 +9,7 @@ import codexCliHostPublicExportLockFixture from "../tests/fixtures/codex-cli-hos
 import codexCliHostGovernanceV2PublicExportLockFixture from "../tests/fixtures/codex-cli-host-governance-v2-public-export-lock.fixture.json" with { type: "json" };
 import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import {
+  CODEX_CLI_READONLY_SMOKE_OK,
   CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
   checkCodexCliExecPlanModelAvailability,
   checkCodexCliModelAvailability,
@@ -547,7 +548,7 @@ test("codex cli runner checks selected model against startup catalog before spaw
     model: "gpt-5.4-mini",
     skipGitRepoCheck: true
   });
-  let spawned = false;
+  let successfulRunCalls = 0;
 
   assert.deepEqual(
     checkCodexCliExecPlanModelAvailability(plan, {
@@ -564,25 +565,27 @@ test("codex cli runner checks selected model against startup catalog before spaw
     modelCatalog: ["gpt-5.4-mini"],
     requireModelCatalog: true,
     spawn: () => {
-      spawned = true;
+      successfulRunCalls += 1;
       return createFakeCodexCliChild({
-        stdout: "{\"type\":\"agent_message\",\"message\":\"model checked\"}\n",
+        stdout: successfulRunCalls === 1
+          ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
+          : "{\"type\":\"agent_message\",\"message\":\"model checked\"}\n",
         exitCode: 0
       });
     }
   });
 
-  assert.equal(spawned, true);
+  assert.equal(successfulRunCalls, 2);
   assert.equal(result.modelAvailability?.status, "available");
   assert.equal(result.inspection.status, "completed");
 
-  let calls = 0;
+  let blockedRunCalls = 0;
   await assert.rejects(
     () => runCodexCliExecPlan(plan, {
       modelCatalog: ["gpt-5.3-codex"],
       requireModelCatalog: true,
       spawn: () => {
-        calls += 1;
+        blockedRunCalls += 1;
         return createFakeCodexCliChild({
           stdout: "",
           exitCode: 0
@@ -591,7 +594,7 @@ test("codex cli runner checks selected model against startup catalog before spaw
     }),
     /codex_cli_model_unavailable:gpt-5\.4-mini/
   );
-  assert.equal(calls, 0);
+  assert.equal(blockedRunCalls, 0);
 });
 
 test("codex cli model probe evidence uses logged-in CLI path without API key", async () => {
@@ -630,6 +633,11 @@ test("codex cli model probe evidence uses logged-in CLI path without API key", a
   assert.equal(calls[0]?.cwd, "A:/codex-router");
   assert.equal(calls[0]?.args.includes("--model"), true);
   assert.equal(getArgValue(calls[0]?.args ?? [], "--model"), "gpt-5.4-mini");
+  const prompt = calls[0]?.args.at(-1) ?? "";
+  assert.equal(prompt.includes("Task envelope"), false);
+  assert.equal(prompt.includes("requestedAction"), false);
+  assert.ok(prompt.includes("CODEX_CLI_MODEL_PROBE_OK"));
+  assert.ok(prompt.includes("Do not run shell commands"));
 });
 
 test("codex cli model probe evidence can warn on CLI probe failure", async () => {
@@ -673,6 +681,135 @@ test("codex cli model probe evidence writes without raw prompt", async () => {
   assert.equal(written.source, "cli");
   assert.equal(content.includes("CODEX_CLI_MODEL_PROBE_OK"), false);
   assert.equal(content.includes("requestedAction"), false);
+});
+
+test("codex cli model probe accepts current item.completed agent message shape", async () => {
+  const evidence = await createCodexCliModelCliProbeEvidence({
+    generatedAt: "2026-04-25T14:05:30.000Z",
+    model: "gpt-5.4-mini",
+    codexCommand: "codex",
+    cwd: "A:/codex-router",
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"thread.started\",\"thread_id\":\"test\"}",
+        "{\"type\":\"turn.started\"}",
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\",\"text\":\"CODEX_CLI_MODEL_PROBE_OK\"}}",
+        "{\"type\":\"turn.completed\"}"
+      ].join("\n"),
+      exitCode: 0
+    })
+  });
+
+  assert.equal(evidence.status, "passed");
+  assert.equal(evidence.run?.eventCount, 4);
+});
+
+test("codex cli model probe fails on unexpected response even when process succeeds", async () => {
+  const evidence = await createCodexCliModelCliProbeEvidence({
+    generatedAt: "2026-04-25T14:05:40.000Z",
+    model: "gpt-5.4-mini",
+    codexCommand: "codex",
+    cwd: "A:/codex-router",
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"not ok\"}\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(evidence.status, "failed");
+  assert.ok(evidence.blockingReasons.includes(
+    "codex_cli_model_probe_unexpected_response"
+  ));
+});
+
+test("codex cli model probe warn mode records unexpected response without blocking", async () => {
+  const evidence = await createCodexCliModelCliProbeEvidence({
+    generatedAt: "2026-04-25T14:05:45.000Z",
+    model: "gpt-5.4-mini",
+    strict: false,
+    codexCommand: "codex",
+    cwd: "A:/codex-router",
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"not ok\"}\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(evidence.status, "unavailable");
+  assert.deepEqual(evidence.blockingReasons, []);
+  assert.ok(evidence.warnings.includes(
+    "codex_cli_model_probe_unexpected_response"
+  ));
+});
+
+test("codex cli model probe fails if the model tries to use commands", async () => {
+  const evidence = await createCodexCliModelCliProbeEvidence({
+    generatedAt: "2026-04-25T14:05:50.000Z",
+    model: "gpt-5.4-mini",
+    codexCommand: "codex",
+    cwd: "A:/codex-router",
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"thread.started\",\"thread_id\":\"test\"}",
+        "{\"type\":\"turn.started\"}",
+        "{\"type\":\"item.started\",\"item\":{\"id\":\"item_1\",\"type\":\"command_execution\",\"command\":\"codex exec --help\",\"status\":\"in_progress\"}}",
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"agent_message\",\"text\":\"CODEX_CLI_MODEL_PROBE_OK\"}}",
+        "{\"type\":\"turn.completed\"}"
+      ].join("\n"),
+      exitCode: 0
+    })
+  });
+
+  assert.equal(evidence.status, "failed");
+  assert.ok(evidence.blockingReasons.includes(
+    "codex_cli_model_probe_unexpected_tool_use:command_execution"
+  ));
+});
+
+test("codex cli runner blocks strict model probe unexpected response before main run", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-auto-probe-unexpected-response",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect repo without edits",
+      successCriteria: [],
+      outOfScope: ["file edits"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  }, {
+    model: "gpt-5.4-mini",
+    skipGitRepoCheck: true
+  });
+  let calls = 0;
+
+  await assert.rejects(
+    () => runCodexCliExecPlan(plan, {
+      spawn: () => {
+        calls += 1;
+        return createFakeCodexCliChild({
+          stdout: "{\"type\":\"agent_message\",\"message\":\"not ok\"}\n",
+          exitCode: 0
+        });
+      }
+    }),
+    /codex_cli_model_probe_unexpected_response/
+  );
+
+  assert.equal(calls, 1);
 });
 
 test("codex cli runner can require a cached model probe", () => {
@@ -1126,11 +1263,16 @@ test("codex cli runner emits telemetry for model probe cache miss and hit", asyn
 
   const events = await telemetryStore.loadAll();
   assert.equal(calls, 3);
-  assert.equal(events.length, 2);
+  assert.equal(events.length, 3);
   assert.equal(events[0]?.message, "codex cli model probe cache miss");
-  assert.equal(events[1]?.message, "codex cli model probe cache hit");
+  assert.equal(events[1]?.message, "codex cli model probe result");
+  assert.equal(events[2]?.message, "codex cli model probe cache hit");
   assert.equal(events[0]?.context?.source, "codex-cli-host");
   assert.equal(events[1]?.context?.model, "gpt-5.4-mini");
+  assert.equal(events[1]?.context?.status, "passed");
+  assert.equal((events[1]?.context?.run as Record<string, unknown> | undefined)?.stdinClosed, true);
+  assert.equal((events[1]?.context?.run as Record<string, unknown> | undefined)?.stdinDestroyed, true);
+  assert.equal(events[2]?.context?.model, "gpt-5.4-mini");
 });
 
 test("codex cli model check evidence records drift as strict failure", async () => {
@@ -1420,6 +1562,7 @@ test("codex cli host inspects command output without treating stderr warnings as
 
 test("codex cli host runner captures read-only process output through an injectable spawner", async () => {
   const calls: Array<{ command: string; args: string[]; cwd?: string; stdio?: unknown }> = [];
+  let child: FakeCodexCliChild | undefined;
   const spawner: CodexCliProcessSpawner = (command, args, options) => {
     calls.push({
       command,
@@ -1428,11 +1571,12 @@ test("codex cli host runner captures read-only process output through an injecta
       stdio: options.stdio
     });
 
-    return createFakeCodexCliChild({
+    child = createFakeCodexCliChild({
       stdout: "{\"type\":\"agent_message\",\"message\":\"ok\"}\n",
       stderr: "WARNING: diagnostic only\n",
       exitCode: 0
     });
+    return child;
   };
   const plan = createCodexCliExecPlan({
     taskId: "cli-runner-readonly",
@@ -1469,7 +1613,7 @@ test("codex cli host runner captures read-only process output through an injecta
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.command, "codex");
   assert.equal(calls[0]?.cwd, "A:/codex-router");
-  assert.deepEqual(calls[0]?.stdio, ["ignore", "pipe", "pipe"]);
+  assert.deepEqual(calls[0]?.stdio, ["pipe", "pipe", "pipe"]);
   assert.deepEqual(calls[0]?.args.slice(0, 4), [
     "-a",
     "on-request",
@@ -1479,6 +1623,12 @@ test("codex cli host runner captures read-only process output through an injecta
   assert.equal(result.output.exitCode, 0);
   assert.equal(result.inspection.status, "completed");
   assert.equal(result.inspection.events.length, 1);
+  assert.equal(child?.stdin.ended, true);
+  assert.equal(child?.stdin.destroyed, true);
+  assert.equal(result.lifecycle.stdin.closed, true);
+  assert.equal(result.lifecycle.stdin.destroyed, true);
+  assert.equal(result.lifecycle.termination.closeReceived, true);
+  assert.equal(result.lifecycle.termination.forcedSettled, false);
   assert.deepEqual(result.inspection.warnings, ["WARNING: diagnostic only"]);
 });
 
@@ -1659,15 +1809,19 @@ test("codex cli operator acceptance emits cache miss then hit across consecutive
     telemetryStore,
     spawn
   });
-  const messages = (await telemetryStore.loadAll()).map((event) => event.message);
+  const events = await telemetryStore.loadAll();
+  const messages = events.map((event) => event.message);
 
   assert.equal(first.status, "passed");
   assert.equal(second.status, "passed");
   assert.equal(calls, 3);
   assert.deepEqual(messages, [
     "codex cli model probe cache miss",
+    "codex cli model probe result",
     "codex cli model probe cache hit"
   ]);
+  assert.equal(events[1]?.context?.status, "passed");
+  assert.equal((events[1]?.context?.run as Record<string, unknown> | undefined)?.stdinClosed, true);
 });
 
 test("codex cli operator acceptance evidence writes without raw prompt or argv", async () => {
@@ -2842,6 +2996,123 @@ test("codex cli host runner reports timeout as failed evidence", async () => {
   assert.ok(result.inspection.blockingReasons.includes("codex_cli_process_timeout"));
 });
 
+test("codex cli host runner force-settles when timed-out child never closes", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-timeout-no-close",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const child = createFakeCodexCliChild({
+    stdout: "{\"type\":\"agent_message\",\"message\":\"slow\"}\n",
+    exitCode: 0,
+    autoClose: false,
+    closeOnKill: false
+  });
+
+  const result = await runCodexCliExecPlan(plan, {
+    timeoutMs: 1,
+    terminationGraceMs: 1,
+    spawn: () => child
+  });
+
+  assert.equal(result.timedOut, true);
+  assert.equal(result.killed, true);
+  assert.equal(result.inspection.status, "failed");
+  assert.equal(result.lifecycle.stdin.closed, true);
+  assert.equal(result.lifecycle.stdin.destroyed, true);
+  assert.equal(result.lifecycle.termination.closeReceived, false);
+  assert.equal(result.lifecycle.termination.forcedSettled, true);
+  assert.equal(result.lifecycle.termination.stdioDestroyed, true);
+  assert.equal(result.lifecycle.termination.unrefCalled, true);
+  assert.equal(result.lifecycle.termination.escalated, true);
+  assert.equal(result.lifecycle.termination.escalationKilled, true);
+  assert.equal(result.lifecycle.termination.graceMs, 1);
+  assert.ok(result.output.stderr?.includes("codex_cli_process_forced_settle_after_timeout"));
+  assert.ok(result.inspection.blockingReasons.includes("codex_cli_process_timeout"));
+});
+
+test("codex cli host runner force-settles immediately when timeout grace is disabled", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-timeout-zero-grace",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const child = createFakeCodexCliChild({
+    stdout: "{\"type\":\"agent_message\",\"message\":\"slow\"}\n",
+    exitCode: 0,
+    autoClose: false,
+    closeOnKill: false
+  });
+
+  let settleGuard: NodeJS.Timeout | undefined;
+  const result = await Promise.race([
+    runCodexCliExecPlan(plan, {
+      timeoutMs: 1,
+      terminationGraceMs: 0,
+      spawn: () => child
+    }),
+    new Promise<never>((_, reject) => {
+      settleGuard = setTimeout(() => {
+        reject(new Error("codex_cli_zero_grace_timeout_did_not_settle"));
+      }, 100);
+    })
+  ]).finally(() => {
+    if (settleGuard) {
+      clearTimeout(settleGuard);
+    }
+  });
+
+  assert.equal(result.timedOut, true);
+  assert.equal(result.killed, true);
+  assert.equal(result.inspection.status, "failed");
+  assert.equal(result.lifecycle.termination.closeReceived, false);
+  assert.equal(result.lifecycle.termination.forcedSettled, true);
+  assert.equal(result.lifecycle.termination.stdioDestroyed, true);
+  assert.equal(result.lifecycle.termination.unrefCalled, true);
+  assert.equal(result.lifecycle.termination.escalated, true);
+  assert.equal(result.lifecycle.termination.escalationKilled, true);
+  assert.ok(result.output.stderr?.includes("codex_cli_process_forced_settle_after_timeout"));
+  assert.ok(result.inspection.blockingReasons.includes("codex_cli_process_timeout"));
+});
+
 test("codex cli read-only smoke creates a fixed safe task envelope", () => {
   const task = createCodexCliReadOnlySmokeTask({
     taskId: "cli-smoke-safe",
@@ -2869,7 +3140,7 @@ test("codex cli read-only smoke runs through guarded runner and captures evidenc
     });
 
     return createFakeCodexCliChild({
-      stdout: "{\"type\":\"agent_message\",\"message\":\"read-only ok\"}\n",
+      stdout: `{"type":"agent_message","message":"${CODEX_CLI_READONLY_SMOKE_OK}"}\n`,
       stderr: "WARNING: diagnostic only\n",
       exitCode: 0
     });
@@ -2906,6 +3177,10 @@ test("codex cli read-only smoke runs through guarded runner and captures evidenc
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.cwd, "A:/codex-router");
   assert.equal(calls[0]?.args.includes("workspace-write"), false);
+  assert.equal(result.plan.prompt.includes("Task envelope"), false);
+  assert.equal(result.plan.prompt.includes("requestedAction"), false);
+  assert.ok(result.plan.prompt.includes(CODEX_CLI_READONLY_SMOKE_OK));
+  assert.ok(result.plan.prompt.includes("Do not run shell commands"));
 
   assert.equal(evidence.schemaVersion, "codex-cli-readonly-smoke-evidence.v1");
   assert.equal(evidence.status, "passed");
@@ -2925,6 +3200,53 @@ test("codex cli read-only smoke runs through guarded runner and captures evidenc
   assert.equal(evidence.governance?.anomalyCount, 0);
 });
 
+test("codex cli read-only smoke fails on unexpected response even when process succeeds", async () => {
+  const result = await runCodexCliReadOnlySmoke({
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"read-only ok\"}\n",
+      exitCode: 0
+    })
+  });
+  const evidence = createCodexCliReadOnlySmokeEvidence(result, {
+    generatedAt: "2026-04-25T14:10:00.000Z"
+  });
+
+  assert.equal(result.status, "failed");
+  assert.deepEqual(result.run?.inspection.blockingReasons, [
+    "codex_cli_readonly_smoke_unexpected_response"
+  ]);
+  assert.equal(result.governance?.observation.stage, "read-only-smoke-semantic-validation");
+  assert.equal(result.governance?.observation.status, "failed");
+  assert.equal(result.governance?.state.anomalies.count, 1);
+  assert.deepEqual(result.governance?.state.anomalies.entries.at(-1)?.reasons, [
+    "codex_cli_readonly_smoke_unexpected_response"
+  ]);
+  assert.equal(evidence.governance?.observationStatus, "failed");
+  assert.equal(evidence.governance?.anomalyCount, 1);
+});
+
+test("codex cli read-only smoke fails if the model tries to use commands", async () => {
+  const result = await runCodexCliReadOnlySmoke({
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"command_execution\"}}",
+        `{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"${CODEX_CLI_READONLY_SMOKE_OK}"}}`
+      ].join("\n") + "\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(result.status, "failed");
+  assert.ok(result.run?.inspection.blockingReasons.includes(
+    "codex_cli_readonly_smoke_unexpected_tool_use:command_execution"
+  ));
+  assert.equal(result.governance?.observation.stage, "read-only-smoke-semantic-validation");
+  assert.equal(result.governance?.observation.status, "failed");
+  assert.ok(result.governance?.observation.blockingReasons.includes(
+    "codex_cli_readonly_smoke_unexpected_tool_use:command_execution"
+  ));
+});
+
 test("codex cli read-only smoke forwards telemetryStore into probe cache telemetry", async () => {
   const telemetryStore = createRecordingTelemetrySink();
   let calls = 0;
@@ -2932,9 +3254,9 @@ test("codex cli read-only smoke forwards telemetryStore into probe cache telemet
   const spawner: CodexCliProcessSpawner = () => {
     calls += 1;
     return createFakeCodexCliChild({
-      stdout: calls === 1 || calls === 3
+      stdout: calls === 1
         ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
-        : "{\"type\":\"agent_message\",\"message\":\"smoke run ok\"}\n",
+        : `{"type":"agent_message","message":"${CODEX_CLI_READONLY_SMOKE_OK}"}\n`,
       exitCode: 0
     });
   };
@@ -3030,7 +3352,7 @@ test("codex cli read-only smoke evidence can be written to disk without raw prom
       taskId: "cli-smoke-write-file"
     },
     spawn: () => createFakeCodexCliChild({
-      stdout: "{\"type\":\"agent_message\",\"message\":\"ok\"}\n",
+      stdout: `{"type":"agent_message","message":"${CODEX_CLI_READONLY_SMOKE_OK}"}\n`,
       exitCode: 0
     })
   });
@@ -3089,6 +3411,28 @@ test("codex cli read-only smoke run-and-write persists failed validation evidenc
   assert.equal(persisted.write.path, path);
   assert.deepEqual(written.summary.blockingReasons, ["codex_cli_command_missing"]);
   assert.deepEqual(written.notes, ["failed pre-run validation"]);
+});
+
+test("codex cli read-only smoke run-and-write forwards lifecycle options", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-smoke-"));
+  const path = join(dir, "timeout", "evidence.json");
+  const persisted = await runAndWriteCodexCliReadOnlySmokeEvidence({
+    evidencePath: path,
+    timeoutMs: 1,
+    terminationGraceMs: 1,
+    spawn: () => createFakeCodexCliChild({
+      stdout: `{"type":"agent_message","message":"${CODEX_CLI_READONLY_SMOKE_OK}"}\n`,
+      exitCode: 0,
+      autoClose: false,
+      closeOnKill: false
+    })
+  });
+
+  assert.equal(persisted.result.status, "failed");
+  assert.equal(persisted.result.run?.lifecycle.termination.graceMs, 1);
+  assert.equal(persisted.result.run?.lifecycle.termination.forcedSettled, true);
+  assert.equal(persisted.evidence.run.terminationGraceMs, 1);
+  assert.equal(persisted.evidence.run.forcedSettled, true);
 });
 
 test("codex cli workspace-write smoke task is bounded to one local evidence file", () => {
@@ -3258,6 +3602,7 @@ test("codex cli workspace-write smoke runner does not spawn while gates are miss
 
 test("codex cli workspace-write smoke runner executes only after both gates", async () => {
   const calls: Array<{ command: string; args: string[]; cwd?: string; stdio?: unknown }> = [];
+  let child: FakeCodexCliChild | undefined;
   const spawner: CodexCliProcessSpawner = (command, args, options) => {
     calls.push({
       command,
@@ -3266,10 +3611,11 @@ test("codex cli workspace-write smoke runner executes only after both gates", as
       stdio: options.stdio
     });
 
-    return createFakeCodexCliChild({
+    child = createFakeCodexCliChild({
       stdout: "{\"type\":\"agent_message\",\"message\":\"workspace-write ok\"}\n",
       exitCode: 0
     });
+    return child;
   };
 
   const result = await runCodexCliWorkspaceWriteSmoke({
@@ -3292,7 +3638,7 @@ test("codex cli workspace-write smoke runner executes only after both gates", as
     assert.equal(calls[0]?.command, "codex");
   }
   assert.equal(calls[0]?.cwd, "A:/codex-router");
-  assert.deepEqual(calls[0]?.stdio, ["ignore", "pipe", "pipe"]);
+  assert.deepEqual(calls[0]?.stdio, ["pipe", "pipe", "pipe"]);
   assert.deepEqual(calls[0]?.args.slice(0, 6), [
     "-a",
     "on-request",
@@ -3303,6 +3649,10 @@ test("codex cli workspace-write smoke runner executes only after both gates", as
   ]);
   assert.equal(result.run?.inspection.status, "completed");
   assert.equal(result.run?.inspection.events.length, 1);
+  assert.equal(child?.stdin.ended, true);
+  assert.equal(child?.stdin.destroyed, true);
+  assert.equal(result.run?.lifecycle.stdin.closed, true);
+  assert.equal(result.run?.lifecycle.stdin.destroyed, true);
   assert.equal(result.governance?.observation.status, "succeeded");
   assert.equal(result.governance?.strategy.writeSandboxAllowed, true);
 });
@@ -3468,32 +3818,89 @@ test("codex cli workspace-write run-and-write persists blocked evidence without 
   ));
 });
 
+test("codex cli workspace-write smoke run-and-write forwards lifecycle options", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-write-persist-"));
+  const path = join(dir, "timeout", "evidence.json");
+  const persisted = await runAndWriteCodexCliWorkspaceWriteSmokeEvidence({
+    evidencePath: path,
+    allowWriteSandbox: true,
+    confirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
+    timeoutMs: 1,
+    terminationGraceMs: 1,
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"workspace-write ok\"}\n",
+      exitCode: 0,
+      autoClose: false,
+      closeOnKill: false
+    })
+  });
+
+  assert.equal(persisted.result.status, "failed");
+  assert.equal(persisted.result.run?.lifecycle.termination.graceMs, 1);
+  assert.equal(persisted.result.run?.lifecycle.termination.forcedSettled, true);
+  assert.equal(persisted.evidence.run.terminationGraceMs, 1);
+  assert.equal(persisted.evidence.run.forcedSettled, true);
+});
+
 function getArgValue(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
   return index >= 0 ? args[index + 1] : undefined;
 }
 
 class FakeCodexCliStream extends EventEmitter {
+  destroyed = false;
+
   setEncoding(_encoding: BufferEncoding): void {}
+
+  destroy(): void {
+    this.destroyed = true;
+  }
+}
+
+class FakeCodexCliWritableStream {
+  ended = false;
+  destroyed = false;
+
+  end(): void {
+    this.ended = true;
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+  }
 }
 
 class FakeCodexCliChild extends EventEmitter {
+  readonly stdin = new FakeCodexCliWritableStream();
   readonly stdout = new FakeCodexCliStream();
   readonly stderr = new FakeCodexCliStream();
+  unrefCalled = false;
   private readonly closeCode: number;
   private readonly closeSignal: NodeJS.Signals | null;
+  private readonly closeOnKill: boolean;
 
-  constructor(closeCode: number, closeSignal: NodeJS.Signals | null) {
+  constructor(
+    closeCode: number,
+    closeSignal: NodeJS.Signals | null,
+    closeOnKill: boolean
+  ) {
     super();
     this.closeCode = closeCode;
     this.closeSignal = closeSignal;
+    this.closeOnKill = closeOnKill;
   }
 
   kill(_signal?: NodeJS.Signals | number): boolean {
-    queueMicrotask(() => {
-      this.emit("close", this.closeCode, this.closeSignal);
-    });
+    if (this.closeOnKill) {
+      queueMicrotask(() => {
+        this.emit("close", this.closeCode, this.closeSignal);
+      });
+    }
     return true;
+  }
+
+  unref(): void {
+    this.unrefCalled = true;
   }
 }
 
@@ -3503,8 +3910,13 @@ function createFakeCodexCliChild(options: {
   exitCode: number;
   signal?: NodeJS.Signals | null;
   autoClose?: boolean;
+  closeOnKill?: boolean;
 }): FakeCodexCliChild {
-  const child = new FakeCodexCliChild(options.exitCode, options.signal ?? null);
+  const child = new FakeCodexCliChild(
+    options.exitCode,
+    options.signal ?? null,
+    options.closeOnKill ?? true
+  );
 
   if (options.autoClose !== false) {
     queueMicrotask(() => {

@@ -32,6 +32,7 @@ import {
 } from "../packages/protocol-a2a/src/index.js";
 import {
   parseProviderManifest,
+  hashProviderManifest,
   type ExecutionPlanInput,
   type ExecutionValidationResult,
   type ExecutorExecutionPlan,
@@ -79,6 +80,37 @@ test("execution planner creates a planned plan with codex-cli provider", () => {
   assert.equal(plan.reasons.includes("provider_planned"), true);
   assert.match(plan.inputHash, /^[a-f0-9]{64}$/);
   assert.match(plan.policyDecisionHash, /^[a-f0-9]{64}$/);
+  assert.equal(
+    plan.providerManifestHash,
+    hashProviderManifest(registry.getProvider("codex-cli")!.manifest)
+  );
+});
+
+test("execution planner includes provider manifest hash in plan identity", () => {
+  const first = planProviderExecution(createPlannerInput({
+    providerRegistry: createRegistryWithCodex(),
+    preferredProviderId: "codex-cli"
+  }));
+  const provider = new CodexCliExecutorProvider();
+  const changedManifest = parseProviderManifest({
+    ...provider.manifest,
+    version: "0.1.1"
+  });
+  const changedRegistry = new ProviderRegistry();
+  changedRegistry.registerProvider(
+    changedManifest,
+    new CodexCliExecutorProvider({ manifest: changedManifest })
+  );
+  const second = planProviderExecution(createPlannerInput({
+    providerRegistry: changedRegistry,
+    preferredProviderId: "codex-cli"
+  }));
+
+  assert.equal(first.providerId, second.providerId);
+  assert.equal(first.runId, second.runId);
+  assert.notEqual(first.providerManifestHash, second.providerManifestHash);
+  assert.notEqual(first.inputHash, second.inputHash);
+  assert.notEqual(first.planId, second.planId);
 });
 
 test("provider execution plan store saves and filters stable snapshots", () => {

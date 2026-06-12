@@ -109,6 +109,12 @@ test("legacy adapter maps each legacy task class into kernel Task and PolicyDeci
     assert.equal(task.metadata?.legacySource, taskEnvelope.source);
     assert.deepEqual(task.metadata?.legacy?.intent, taskEnvelope.intent);
     assert.deepEqual(task.metadata?.legacy?.repoContext, taskEnvelope.repoContext);
+    assert.deepEqual(task.hints.provenance, [{
+      field: "taskClass",
+      value: scenario.taskClass,
+      source: "legacy",
+      reason: "legacy taskClassHint"
+    }]);
 
     assert.equal(decision.decisionId, decisionInput.decisionId);
     assert.equal(decision.taskId, taskEnvelope.taskId);
@@ -241,7 +247,7 @@ test("legacy adapter maps task envelopes when optional fields are omitted", () =
   assert.deepEqual(task.intent?.successCriteria, []);
   assert.deepEqual(task.target.files, []);
   assert.deepEqual(task.constraints, {});
-  assert.deepEqual(task.metadata?.legacyHints, { riskHints: [], tags: [] });
+  assert.deepEqual(task.metadata?.legacyHints, { riskHints: [], tags: [], provenance: [] });
 });
 
 test("legacy adapter rejects malformed legacy inputs and mismatched task ids", () => {
@@ -326,7 +332,13 @@ function createTaskEnvelope(taskClass: TaskClass): TaskEnvelopeInput {
     hints: {
       taskClassHint: taskClass,
       riskHints: [`risk_${taskClass}`],
-      tags: ["legacy_adapter", taskClass]
+      tags: ["legacy_adapter", taskClass],
+      provenance: [{
+        field: "taskClassHint",
+        value: taskClass,
+        source: "legacy",
+        reason: "legacy taskClassHint"
+      }]
     }
   };
 }

@@ -37,7 +37,8 @@ function createInvocation(
       constraints: {},
       hints: {
         riskHints: [],
-        tags: []
+        tags: [],
+        provenance: []
       }
     },
     decision: {
@@ -245,6 +246,170 @@ test("codex desktop bindings use explicit shell and patch directives for concret
   assert.equal(patches[0], "*** Begin Patch\n*** Add File: demo.txt\n+hello\n*** End Patch\n");
   assert.equal((shellResult as { exitCode?: number }).exitCode, 0);
   assert.equal((patchResult as { changedFiles?: number }).changedFiles, 2);
+});
+
+test("codex desktop bindings pass structured shell commands and redact shell secrets", async () => {
+  const shellRequests: unknown[] = [];
+  const runtime: CodexDesktopRuntime = {
+    readThreadTerminal() {
+      return "terminal snapshot";
+    },
+    spawnAgent() {
+      return { agentId: "agent-1" };
+    },
+    sendInput() {
+      return { id: "message-1" };
+    },
+    waitAgent() {
+      return { status: "completed" };
+    },
+    closeAgent() {
+      return { status: "completed" };
+    },
+    automationUpdate() {
+      return { status: "ACTIVE" };
+    },
+    shellCommand(input) {
+      shellRequests.push(input);
+      return {
+        exitCode: 0,
+        stdout: `token=super-secret-token\n{"token":"json-token","apiKey":"json-api-key","safe":"ok"}`,
+        stderr: `Authorization: Bearer abc.def.ghi\n{"authorization":"Bearer json-auth","password":"json-password"}`,
+        nested: {
+          apiKey: "raw-api-key"
+        }
+      };
+    },
+    applyPatch() {
+      return { changedFiles: 1 };
+    }
+  };
+
+  const bindings = createCodexDesktopBindings(runtime, {
+    shellCommand() {
+      return {
+        structuredCommand: {
+          executable: "npm",
+          args: [
+            "test",
+            "--token",
+            "argv-token",
+            "--password",
+            "argv-password",
+            "--api-key=inline-api-key",
+            "--safe",
+            "ok"
+          ],
+          shell: false
+        },
+        justification: "validate changes"
+      };
+    }
+  });
+
+  const result = await bindings.shell_command?.(createInvocation("shell_command"));
+
+  assert.deepEqual(shellRequests, [{
+    structuredCommand: {
+      executable: "npm",
+      args: [
+        "test",
+        "--token",
+        "argv-token",
+        "--password",
+        "argv-password",
+        "--api-key=inline-api-key",
+        "--safe",
+        "ok"
+      ],
+      shell: false
+    },
+    justification: "validate changes"
+  }]);
+  assert.equal(
+    (result as { stdout?: string }).stdout,
+    `token=<REDACTED_SECRET>\n{"token":"<REDACTED_SECRET>","apiKey":"<REDACTED_SECRET>","safe":"ok"}`
+  );
+  assert.equal(
+    (result as { stderr?: string }).stderr,
+    `Authorization: <REDACTED_SECRET>\n{"authorization":"<REDACTED_SECRET>","password":"<REDACTED_SECRET>"}`
+  );
+  assert.equal(
+    ((result as { payload?: { nested?: { apiKey?: string } } }).payload?.nested?.apiKey),
+    "<REDACTED_SECRET>"
+  );
+  const envelopeText = JSON.stringify(result);
+  assert.equal(envelopeText.includes("super-secret-token"), false);
+  assert.equal(envelopeText.includes("json-token"), false);
+  assert.equal(envelopeText.includes("json-api-key"), false);
+  assert.equal(envelopeText.includes("Bearer abc.def.ghi"), false);
+  assert.equal(envelopeText.includes("Bearer json-auth"), false);
+  assert.equal(envelopeText.includes("json-password"), false);
+  assert.equal(envelopeText.includes("raw-api-key"), false);
+  assert.equal(envelopeText.includes("argv-token"), false);
+  assert.equal(envelopeText.includes("argv-password"), false);
+  assert.equal(envelopeText.includes("inline-api-key"), false);
+  assert.deepEqual((result as { structuredCommand?: unknown }).structuredCommand, {
+    executable: "npm",
+    args: [
+      "test",
+      "--token",
+      "<REDACTED_SECRET>",
+      "--password",
+      "<REDACTED_SECRET>",
+      "--api-key=<REDACTED_SECRET>",
+      "--safe",
+      "ok"
+    ],
+    shell: false
+  });
+});
+
+test("tool-style runtime forwards structured shell commands", async () => {
+  const shellCalls: unknown[] = [];
+  const runtime = createToolStyleCodexDesktopRuntime({
+    read_thread_terminal() {
+      return "terminal snapshot";
+    },
+    spawn_agent() {
+      return { agentId: "agent-1" };
+    },
+    send_input() {
+      return { id: "message-1" };
+    },
+    wait_agent() {
+      return { status: "completed" };
+    },
+    close_agent() {
+      return { status: "completed" };
+    },
+    automation_update() {
+      return { status: "ACTIVE" };
+    },
+    shell_command(input) {
+      shellCalls.push(input);
+      return { exitCode: 0 };
+    },
+    apply_patch() {
+      return { changedFiles: 1 };
+    }
+  });
+
+  await runtime.shellCommand({
+    structuredCommand: {
+      executable: "node",
+      args: ["--test"],
+      shell: false
+    }
+  });
+
+  assert.deepEqual(shellCalls, [{
+    structured_command: {
+      executable: "node",
+      args: ["--test"],
+      shell: false
+    }
+  }]);
 });
 
 test("codex desktop bindings fail clearly when send_input has no agent target in strict mode", async () => {

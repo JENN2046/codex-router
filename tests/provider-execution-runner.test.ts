@@ -206,6 +206,43 @@ test("provider execution runner blocks disabled providers before provider hooks"
   assert.equal(disabledProvider.calls.execute, 0);
 });
 
+test("provider execution runner blocks provider manifest hash drift before provider hooks", async () => {
+  const provider = createFakeExecutorProvider();
+  const registry = createRegistry(provider);
+  const task = createTask();
+  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const run = createRun(task, policyDecision, "running");
+  const planned = planProviderExecution(createPlannerInput({
+    task,
+    run,
+    policyDecision,
+    providerRegistry: registry,
+    preferredProviderId: provider.manifest.providerId
+  }));
+  const tamperedPlan = ProviderExecutionPlanSchema.parse({
+    ...planned,
+    providerManifestHash: "0".repeat(64)
+  });
+
+  const result = await runProviderExecutionPlanDryRun({
+    providerExecutionPlan: tamperedPlan,
+    task,
+    run,
+    principal: validPrincipal,
+    policyDecision,
+    providerRegistry: registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("provider_plan_manifest_hash_mismatch"));
+  assert.equal(provider.calls.planExecution, 0);
+  assert.equal(provider.calls.validateExecutionPlan, 0);
+  assert.equal(provider.calls.execute, 0);
+});
+
 test("provider execution runner requires the parent run to be running", async () => {
   const provider = createFakeExecutorProvider();
   const registry = createRegistry(provider);
@@ -482,6 +519,54 @@ test("provider execution runner validates codex-cli dry-runs without invoking ex
   assert.equal(executeCalls, 0);
   assert.ok(result.executorPlan);
   assert.equal(result.executorPlan.metadata.codexCliProvider !== undefined, true);
+});
+
+test("provider execution runner records provider attestation in dry-run evidence", async () => {
+  const provider = createFakeExecutorProvider();
+  const registry = createRegistry(provider);
+  const task = createTask();
+  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const run = createRun(task, policyDecision, "running");
+  const providerExecutionPlan = planProviderExecution(createPlannerInput({
+    task,
+    run,
+    policyDecision,
+    providerRegistry: registry,
+    preferredProviderId: provider.manifest.providerId
+  }));
+  const kernelStore = new InMemoryKernelStore();
+  const artifactStore = new InMemoryArtifactStore({ now: createClock() });
+
+  const result = await runProviderExecutionPlanDryRun({
+    providerExecutionPlan,
+    task,
+    run,
+    principal: validPrincipal,
+    policyDecision,
+    providerRegistry: registry,
+    kernelStore,
+    artifactStore,
+    now: createClock()
+  });
+
+  assert.equal(result.providerAttestation?.schemaVersion, "provider-attestation.v1");
+  assert.equal(result.providerAttestation.providerId, provider.manifest.providerId);
+  assert.equal(result.providerAttestation.kind, "executor");
+  assert.equal(result.providerAttestation.version, provider.manifest.version);
+  assert.match(result.providerAttestation.manifestHash, /^[a-f0-9]{64}$/);
+  assert.deepEqual(result.providerAttestation.securityBoundary, provider.manifest.securityBoundary);
+
+  assert.equal(
+    result.reportArtifact?.metadata.providerAttestationManifestHash,
+    result.providerAttestation.manifestHash
+  );
+
+  const completedEvent = kernelStore.listEvents({ runId: run.runId }).at(-1);
+  const eventPayload = completedEvent?.payload as {
+    providerAttestation?: { providerId?: string; manifestHash?: string };
+  };
+  assert.equal(eventPayload.providerAttestation?.providerId, provider.manifest.providerId);
+  assert.equal(eventPayload.providerAttestation?.manifestHash, result.providerAttestation.manifestHash);
 });
 
 function createPlannerInput(

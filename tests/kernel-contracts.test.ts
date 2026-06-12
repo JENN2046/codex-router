@@ -40,6 +40,18 @@ test("kernel contracts parse core principal and task payloads", () => {
     requestedAction: "Review the current workspace",
     createdBy: principal,
     repo: { root: "A:/codex-router", branch: "main" },
+    hints: {
+      taskClass: "read_only",
+      riskHints: ["low-risk"],
+      tags: ["contract"],
+      provenance: [{
+        field: "taskClass",
+        value: "read_only",
+        source: "user",
+        reason: "explicit operator hint",
+        createdAt: now
+      }]
+    },
     createdAt: now
   });
 
@@ -49,6 +61,14 @@ test("kernel contracts parse core principal and task payloads", () => {
   assert.deepEqual(task.successCriteria, []);
   assert.deepEqual(task.target.files, []);
   assert.equal(task.createdBy?.principalId, "user-1");
+  assert.equal(task.hints.taskClass, "read_only");
+  assert.deepEqual(task.hints.provenance, [{
+    field: "taskClass",
+    value: "read_only",
+    source: "user",
+    reason: "explicit operator hint",
+    createdAt: now
+  }]);
 });
 
 test("kernel contracts reject invalid core payloads", () => {

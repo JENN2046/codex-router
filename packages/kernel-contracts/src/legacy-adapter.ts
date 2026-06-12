@@ -79,7 +79,11 @@ export function legacyTaskEnvelopeToKernelTask(
     hints: {
       taskClass: legacy.hints.taskClassHint,
       riskHints: legacy.hints.riskHints,
-      tags: legacy.hints.tags
+      tags: legacy.hints.tags,
+      provenance: legacy.hints.provenance.map((entry) => ({
+        ...entry,
+        field: entry.field === "taskClassHint" ? "taskClass" : entry.field
+      }))
     },
     constraints: legacy.constraints,
     metadata: {

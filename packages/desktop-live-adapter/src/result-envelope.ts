@@ -1,4 +1,9 @@
 import type { DesktopPrimitive } from "../../contracts/src/index.js";
+import {
+  isSecretLikeKey,
+  REDACTED_SECRET,
+  redactSecretLikeFields
+} from "../../redaction/src/index.js";
 
 interface PrimitiveSuccessEnvelopeBase<P extends DesktopPrimitive> {
   primitive: P;
@@ -35,9 +40,16 @@ export interface AutomationUpdateSuccessEnvelope extends PrimitiveSuccessEnvelop
 }
 
 export interface ShellCommandSuccessEnvelope extends PrimitiveSuccessEnvelopeBase<"shell_command"> {
+  structuredCommand?: StructuredShellCommand;
   exitCode?: number;
   stdout?: string;
   stderr?: string;
+}
+
+export interface StructuredShellCommand {
+  executable: string;
+  args?: string[];
+  shell?: boolean;
 }
 
 export interface ApplyPatchSuccessEnvelope extends PrimitiveSuccessEnvelopeBase<"apply_patch"> {
@@ -97,7 +109,7 @@ export function createPrimitiveSuccessEnvelope<P extends DesktopPrimitive>(
   return {
     primitive,
     ok: true,
-    ...details
+    ...redactSuccessDetails(primitive, details)
   } as PrimitiveSuccessEnvelopeMap[P];
 }
 
@@ -123,11 +135,11 @@ export function normalizePrimitiveHandlerOutput<P extends DesktopPrimitive>(
       return createPrimitiveFailureEnvelope(
         primitive,
         `primitive_result_mismatch:${primitive}:${output.primitive}`,
-        { payload: output }
+        { payload: redactPrimitiveResultEnvelope(output) }
       );
     }
 
-    return output as DesktopPrimitiveResultEnvelope<P>;
+    return redactPrimitiveResultEnvelope(output) as DesktopPrimitiveResultEnvelope<P>;
   }
 
   return inferPrimitiveSuccessEnvelope(primitive, output);
@@ -201,7 +213,10 @@ function inferPrimitiveSuccessEnvelope<P extends DesktopPrimitive>(
       const exitCode = asNumber(record?.exitCode) ?? asNumber(record?.code);
       const stdout = typeof output === "string" ? output : asString(record?.stdout);
       const stderr = asString(record?.stderr);
+      const structuredCommand = parseStructuredShellCommand(record?.structuredCommand)
+        ?? parseStructuredShellCommand(record?.structured_command);
       return createPrimitiveSuccessEnvelope("shell_command", {
+        ...(structuredCommand !== undefined ? { structuredCommand } : {}),
         ...(exitCode !== undefined ? { exitCode } : {}),
         ...(stdout !== undefined ? { stdout } : {}),
         ...(stderr !== undefined ? { stderr } : {}),
@@ -253,6 +268,109 @@ function asBoolean(value: unknown): boolean | undefined {
 
 function asNumber(value: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
+}
+
+function redactSuccessDetails<P extends DesktopPrimitive>(
+  primitive: P,
+  details: PrimitiveSuccessDetailsMap[P]
+): PrimitiveSuccessDetailsMap[P] {
+  if (primitive !== "shell_command") {
+    return details;
+  }
+
+  return redactShellCommandValue(details) as PrimitiveSuccessDetailsMap[P];
+}
+
+function redactPrimitiveResultEnvelope<P extends DesktopPrimitive>(
+  envelope: DesktopPrimitiveResultEnvelope<P>
+): DesktopPrimitiveResultEnvelope<P> {
+  if (envelope.primitive !== "shell_command") {
+    return envelope;
+  }
+
+  return redactShellCommandValue(envelope) as DesktopPrimitiveResultEnvelope<P>;
+}
+
+function redactShellCommandValue(value: unknown): unknown {
+  const redacted = redactSecretLikeFields(value, {
+    redactStrings: true
+  });
+
+  return redactStructuredCommandArgs(redacted);
+}
+
+function redactStructuredCommandArgs(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactStructuredCommandArgs(item));
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  const output: Record<string, unknown> = {};
+  for (const [entryKey, entryValue] of Object.entries(value)) {
+    output[entryKey] = redactStructuredCommandArgs(entryValue);
+  }
+
+  if (
+    typeof output.executable === "string"
+    && Array.isArray(output.args)
+    && output.args.every((arg): arg is string => typeof arg === "string")
+  ) {
+    output.args = redactStructuredCommandArgv(output.args);
+  }
+
+  return output;
+}
+
+function redactStructuredCommandArgv(args: string[]): string[] {
+  let redactNext = false;
+  return args.map((arg) => {
+    if (redactNext) {
+      redactNext = false;
+      return REDACTED_SECRET;
+    }
+
+    const splitSecretFlag = isSplitSecretArgvFlag(arg);
+    if (splitSecretFlag) {
+      redactNext = true;
+    }
+
+    return arg;
+  });
+}
+
+function isSplitSecretArgvFlag(arg: string): boolean {
+  if (!arg.startsWith("-") || arg.includes("=") || arg.includes(":")) {
+    return false;
+  }
+
+  const key = arg.replace(/^-+/, "");
+  return key.length > 0 && isSecretLikeKey(key);
+}
+
+function parseStructuredShellCommand(input: unknown): StructuredShellCommand | undefined {
+  if (!isRecord(input)) {
+    return undefined;
+  }
+
+  const executable = asString(input.executable);
+  if (!executable) {
+    return undefined;
+  }
+
+  const rawArgs = Array.isArray(input.args) ? input.args : [];
+  if (!rawArgs.every((arg): arg is string => typeof arg === "string")) {
+    return undefined;
+  }
+
+  const shell = asBoolean(input.shell);
+  return {
+    executable,
+    ...(rawArgs.length > 0 ? { args: [...rawArgs] } : {}),
+    ...(shell !== undefined ? { shell } : {})
+  };
 }
 
 function assertNever(value: never): never {

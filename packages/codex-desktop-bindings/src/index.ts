@@ -35,11 +35,18 @@ export interface CodexDesktopCloseAgentRequest {
 }
 
 export interface CodexDesktopShellCommandRequest {
-  command: string;
+  command?: string;
+  structuredCommand?: CodexDesktopStructuredShellCommand;
   justification?: string;
   timeoutMs?: number;
   workdir?: string;
   login?: boolean;
+}
+
+export interface CodexDesktopStructuredShellCommand {
+  executable: string;
+  args?: string[];
+  shell?: boolean;
 }
 
 export type CodexDesktopAutomationUpdateRequest = Record<string, unknown>;
@@ -78,7 +85,8 @@ export interface CodexDesktopToolRuntimeOperations {
   }): Promise<unknown> | unknown;
   automation_update(input: CodexDesktopAutomationUpdateRequest): Promise<unknown> | unknown;
   shell_command(input: {
-    command: string;
+    command?: string;
+    structured_command?: CodexDesktopStructuredShellCommand;
     justification?: string;
     timeout_ms?: number;
     workdir?: string;
@@ -336,7 +344,7 @@ export function createCodexDesktopBindings(
 
     async shell_command(invocation) {
       const request = resolvers.shellCommand?.(invocation);
-      if (!request) {
+      if (!request || !hasShellCommandRequestTarget(request)) {
         return createPrimitiveFailureEnvelope("shell_command", "codex_desktop_shell_command_requires_command");
       }
 
@@ -345,7 +353,11 @@ export function createCodexDesktopBindings(
       const exitCode = asNumber(normalized?.exitCode) ?? asNumber(normalized?.code);
       const stdout = typeof output === "string" ? output : asString(normalized?.stdout);
       const stderr = asString(normalized?.stderr);
+      const structuredCommand = request.structuredCommand
+        ?? parseToolStyleStructuredCommand(normalized?.structured_command)
+        ?? parseToolStyleStructuredCommand(normalized?.structuredCommand);
       return createPrimitiveSuccessEnvelope("shell_command", {
+        ...(structuredCommand !== undefined ? { structuredCommand } : {}),
         ...(exitCode !== undefined ? { exitCode } : {}),
         ...(stdout !== undefined ? { stdout } : {}),
         ...(stderr !== undefined ? { stderr } : {}),
@@ -428,7 +440,10 @@ export function createToolStyleCodexDesktopRuntime(
     },
     shellCommand(input) {
       return operations.shell_command({
-        command: input.command,
+        ...(input.command !== undefined ? { command: input.command } : {}),
+        ...(input.structuredCommand !== undefined
+          ? { structured_command: input.structuredCommand }
+          : {}),
         ...(input.justification !== undefined
           ? { justification: input.justification }
           : {}),
@@ -574,4 +589,31 @@ function asString(value: unknown): string | undefined {
 
 function asNumber(value: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
+}
+
+function hasShellCommandRequestTarget(request: CodexDesktopShellCommandRequest): boolean {
+  return Boolean(request.command?.trim()) || request.structuredCommand !== undefined;
+}
+
+function parseToolStyleStructuredCommand(input: unknown): CodexDesktopStructuredShellCommand | undefined {
+  const record = asRecord(input);
+  if (!record) {
+    return undefined;
+  }
+
+  const executable = asString(record.executable);
+  if (!executable) {
+    return undefined;
+  }
+
+  const args = Array.isArray(record.args) && record.args.every((arg): arg is string => typeof arg === "string")
+    ? [...record.args]
+    : undefined;
+  const shell = typeof record.shell === "boolean" ? record.shell : undefined;
+
+  return {
+    executable,
+    ...(args !== undefined ? { args } : {}),
+    ...(shell !== undefined ? { shell } : {})
+  };
 }

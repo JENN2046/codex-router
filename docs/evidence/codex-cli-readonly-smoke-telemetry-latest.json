@@ -1,6 +1,6 @@
 {
   "schemaVersion": "codex-cli-readonly-smoke-telemetry-acceptance.v1",
-  "generatedAt": "2026-04-27T09:49:28.507Z",
+  "generatedAt": "2026-06-12T03:53:17.841Z",
   "model": "gpt-5.4-mini",
   "summary": {
     "firstRunStatus": "passed",
@@ -13,10 +13,33 @@
       "message": "codex cli model probe cache miss",
       "context": {
         "source": "codex-cli-host",
-        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
-        "cwd": "A:/codex-router",
+        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe",
+        "cwd": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
         "model": "gpt-5.4-mini",
         "ttlMs": 300000
+      }
+    },
+    {
+      "level": "info",
+      "message": "codex cli model probe result",
+      "context": {
+        "source": "codex-cli-host",
+        "model": "gpt-5.4-mini",
+        "status": "passed",
+        "blockingReasons": [],
+        "run": {
+          "exitCode": 0,
+          "timedOut": false,
+          "killed": false,
+          "stdinClosed": true,
+          "stdinDestroyed": true,
+          "closeReceived": true,
+          "forcedSettled": false,
+          "stdioDestroyed": false,
+          "unrefCalled": false,
+          "terminationGraceMs": 1000,
+          "terminationEscalated": false
+        }
       }
     },
     {
@@ -24,8 +47,8 @@
       "message": "codex cli model probe cache hit",
       "context": {
         "source": "codex-cli-host",
-        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
-        "cwd": "A:/codex-router",
+        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe",
+        "cwd": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
         "model": "gpt-5.4-mini",
         "ttlMs": 300000
       }
@@ -37,6 +60,14 @@
       "status": "passed",
       "executionStatus": "completed",
       "exitCode": 0,
+      "stdinClosed": true,
+      "stdinDestroyed": true,
+      "closeReceived": true,
+      "forcedSettled": false,
+      "stdioDestroyed": false,
+      "unrefCalled": false,
+      "terminationGraceMs": 1000,
+      "terminationEscalated": false,
       "blockingReasons": []
     },
     {
@@ -44,6 +75,14 @@
       "status": "passed",
       "executionStatus": "completed",
       "exitCode": 0,
+      "stdinClosed": true,
+      "stdinDestroyed": true,
+      "closeReceived": true,
+      "forcedSettled": false,
+      "stdioDestroyed": false,
+      "unrefCalled": false,
+      "terminationGraceMs": 1000,
+      "terminationEscalated": false,
       "blockingReasons": []
     }
   ]
