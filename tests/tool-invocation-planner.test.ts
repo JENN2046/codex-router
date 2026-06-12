@@ -343,6 +343,8 @@ test("tool invocation planner redacts proposed input preview", () => {
       title: "Open PR",
       head: "feature/test",
       base: "main",
+      command: "gh pr create --token=fixture-command-token",
+      args: ["--password", "fixture-argv-password", "--safe", "visible"],
       token: "fixture-token-value",
       nested: {
         authorization: "fixture-authorization-value"
@@ -360,6 +362,8 @@ test("tool invocation planner redacts proposed input preview", () => {
     title: "Open PR",
     head: "feature/test",
     base: "main",
+    command: "gh pr create --token=<REDACTED_SECRET>",
+    args: ["--password", "<REDACTED_SECRET>", "--safe", "visible"],
     token: "<REDACTED_SECRET>",
     nested: {
       authorization: "<REDACTED_SECRET>"
@@ -367,6 +371,8 @@ test("tool invocation planner redacts proposed input preview", () => {
   });
   assert.equal(JSON.stringify(plan).includes("fixture-token-value"), false);
   assert.equal(JSON.stringify(plan).includes("fixture-authorization-value"), false);
+  assert.equal(JSON.stringify(plan).includes("fixture-command-token"), false);
+  assert.equal(JSON.stringify(plan).includes("fixture-argv-password"), false);
 
   assert.deepEqual(
     redactToolInvocationInput({
@@ -376,6 +382,16 @@ test("tool invocation planner redacts proposed input preview", () => {
       apiKey: "<REDACTED_SECRET>"
     }
   );
+  const customKeyPreview = redactToolInvocationInput({
+    command: "tool --session=fixture-session-value",
+    args: ["--session", "fixture-session-argv-value"]
+  }, ["session"]);
+  assert.deepEqual(customKeyPreview, {
+    command: "tool --session=<REDACTED_SECRET>",
+    args: ["--session", "<REDACTED_SECRET>"]
+  });
+  assert.equal(JSON.stringify(customKeyPreview).includes("fixture-session-value"), false);
+  assert.equal(JSON.stringify(customKeyPreview).includes("fixture-session-argv-value"), false);
 });
 
 function createInput(overrides: Partial<{

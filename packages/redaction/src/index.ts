@@ -2,9 +2,12 @@ export const REDACTED_SECRET = "<REDACTED_SECRET>";
 
 export type RedactSecretLikeFieldsOptions = {
   additionalSecretKeys?: string[];
+  redactArgvSecrets?: boolean;
   redactStrings?: boolean;
   stripUndefined?: boolean;
 };
+
+const DEFAULT_SECRET_KEY_PATTERN = "api[-_]?key|authorization|credential|password|secret|token";
 
 export function redactSecretLikeFields(
   input: unknown,
@@ -13,20 +16,26 @@ export function redactSecretLikeFields(
   const secretKeys = createSecretKeySet(options.additionalSecretKeys ?? []);
   return redactSecretLikeValue(input, "", {
     secretKeys,
+    redactArgvSecrets: options.redactArgvSecrets ?? false,
     redactStrings: options.redactStrings ?? false,
     stripUndefined: options.stripUndefined ?? true
   });
 }
 
-export function redactSecretLikeText(input: string): string {
+export function redactSecretLikeText(input: string, additionalSecretKeys: string[] = []): string {
+  return redactSecretLikeTextWithSet(input, createSecretKeySet(additionalSecretKeys));
+}
+
+function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): string {
+  const secretKeyPattern = createSecretTextKeyPattern(secretKeys);
   return input
     .replace(
-      /(["'])(api[-_]?key|authorization|credential|password|secret|token)\1(\s*:\s*)(["'])(?:\\.|(?!\4)[^\\\r\n])*\4/gi,
+      new RegExp(`(["'])(${secretKeyPattern})\\1(\\s*:\\s*)(["'])(?:\\\\.|(?!\\4)[^\\\\\\r\\n])*\\4`, "gi"),
       (_match, keyQuote: string, key: string, separator: string, valueQuote: string) =>
         `${keyQuote}${key}${keyQuote}${separator}${valueQuote}${REDACTED_SECRET}${valueQuote}`
     )
     .replace(
-      /(["'])(api[-_]?key|authorization|credential|password|secret|token)\1(\s*:\s*)([^"',\s{}\[\]\r\n]+)/gi,
+      new RegExp(`(["'])(${secretKeyPattern})\\1(\\s*:\\s*)([^"',\\s{}\\[\\]\\r\\n]+)`, "gi"),
       (_match, keyQuote: string, key: string, separator: string) =>
         `${keyQuote}${key}${keyQuote}${separator}${REDACTED_SECRET}`
     )
@@ -35,7 +44,7 @@ export function redactSecretLikeText(input: string): string {
       `$1$2$3${REDACTED_SECRET}`
     )
     .replace(
-      /(api[-_]?key|credential|password|secret|token)(\s*[:=]\s*)(["']?)[^\s"',;]+/gi,
+      new RegExp(`(${secretKeyPattern})(\\s*[:=]\\s*)(["']?)[^\\s"',;]+`, "gi"),
       `$1$2$3${REDACTED_SECRET}`
     );
 }
@@ -46,7 +55,28 @@ export function isSecretLikeKey(key: string, additionalSecretKeys: string[] = []
     return true;
   }
 
-  return /api[-_]?key|authorization|credential|password|secret|token/i.test(key);
+  return new RegExp(DEFAULT_SECRET_KEY_PATTERN, "i").test(key);
+}
+
+export function redactSecretLikeArgv(
+  args: string[],
+  additionalSecretKeys: string[] = []
+): string[] {
+  const secretKeys = createSecretKeySet(additionalSecretKeys);
+  let redactNext = false;
+  return args.map((arg) => {
+    if (redactNext) {
+      redactNext = false;
+      return REDACTED_SECRET;
+    }
+
+    const redactedArg = redactInlineSecretArgvValue(redactSecretLikeTextWithSet(arg, secretKeys), secretKeys);
+    if (isSplitSecretArgvFlag(arg, secretKeys)) {
+      redactNext = true;
+    }
+
+    return redactedArg;
+  });
 }
 
 function redactSecretLikeValue(
@@ -54,6 +84,7 @@ function redactSecretLikeValue(
   key: string,
   options: {
     secretKeys: Set<string>;
+    redactArgvSecrets: boolean;
     redactStrings: boolean;
     stripUndefined: boolean;
   }
@@ -63,12 +94,15 @@ function redactSecretLikeValue(
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => redactSecretLikeValue(item, "", options));
+    const redactedItems = value.map((item) => redactSecretLikeValue(item, "", options));
+    return options.redactArgvSecrets && redactedItems.every((item): item is string => typeof item === "string")
+      ? redactSecretLikeArgv(redactedItems, [...options.secretKeys])
+      : redactedItems;
   }
 
   if (!isRecord(value)) {
     return typeof value === "string" && options.redactStrings
-      ? redactSecretLikeText(value)
+      ? redactSecretLikeTextWithSet(value, options.secretKeys)
       : value;
   }
 
@@ -93,11 +127,54 @@ function isSecretLikeKeyFromSet(key: string, secretKeys: Set<string>): boolean {
     return true;
   }
 
-  return /api[-_]?key|authorization|credential|password|secret|token/i.test(key);
+  return new RegExp(DEFAULT_SECRET_KEY_PATTERN, "i").test(key);
 }
 
 function createSecretKeySet(additionalSecretKeys: string[]): Set<string> {
   return new Set(additionalSecretKeys.map((key) => key.toLowerCase()));
+}
+
+function createSecretTextKeyPattern(secretKeys: Set<string>): string {
+  const additionalKeyPatterns = [...secretKeys]
+    .filter((key) => key.length > 0)
+    .sort((left, right) => right.length - left.length)
+    .map(escapeRegExp);
+  return [DEFAULT_SECRET_KEY_PATTERN, ...additionalKeyPatterns].join("|");
+}
+
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isSplitSecretArgvFlag(arg: string, secretKeys: Set<string>): boolean {
+  if (!arg.startsWith("-") || arg.includes("=") || arg.includes(":")) {
+    return false;
+  }
+
+  const key = arg.replace(/^-+/, "");
+  return isSecretLikeKeyFromSet(key, secretKeys);
+}
+
+function redactInlineSecretArgvValue(arg: string, secretKeys: Set<string>): string {
+  if (!arg.startsWith("-")) {
+    return arg;
+  }
+
+  const match = /^(-+)([^=:]+)([=:])(.*)$/.exec(arg);
+  if (!match) {
+    return arg;
+  }
+
+  const prefix = match[1];
+  const key = match[2];
+  const separator = match[3];
+  if (prefix === undefined || key === undefined || separator === undefined) {
+    return arg;
+  }
+
+  return isSecretLikeKeyFromSet(key, secretKeys)
+    ? `${prefix}${key}${separator}${REDACTED_SECRET}`
+    : arg;
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {

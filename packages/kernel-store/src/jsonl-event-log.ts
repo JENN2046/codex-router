@@ -108,7 +108,10 @@ export class JsonlEventLog {
 }
 
 export function redactEventSecrets(event: Event): Event {
-  return EventSchema.parse(redactSecretLikeFields(event));
+  return EventSchema.parse(redactSecretLikeFields(event, {
+    redactArgvSecrets: true,
+    redactStrings: true
+  }));
 }
 
 function parseJsonlEvents(content: string): Event[] {

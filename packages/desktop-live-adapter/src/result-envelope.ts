@@ -1,9 +1,5 @@
 import type { DesktopPrimitive } from "../../contracts/src/index.js";
-import {
-  isSecretLikeKey,
-  REDACTED_SECRET,
-  redactSecretLikeFields
-} from "../../redaction/src/index.js";
+import { redactSecretLikeFields } from "../../redaction/src/index.js";
 
 interface PrimitiveSuccessEnvelopeBase<P extends DesktopPrimitive> {
   primitive: P;
@@ -292,62 +288,10 @@ function redactPrimitiveResultEnvelope<P extends DesktopPrimitive>(
 }
 
 function redactShellCommandValue(value: unknown): unknown {
-  const redacted = redactSecretLikeFields(value, {
+  return redactSecretLikeFields(value, {
+    redactArgvSecrets: true,
     redactStrings: true
   });
-
-  return redactStructuredCommandArgs(redacted);
-}
-
-function redactStructuredCommandArgs(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => redactStructuredCommandArgs(item));
-  }
-
-  if (!isRecord(value)) {
-    return value;
-  }
-
-  const output: Record<string, unknown> = {};
-  for (const [entryKey, entryValue] of Object.entries(value)) {
-    output[entryKey] = redactStructuredCommandArgs(entryValue);
-  }
-
-  if (
-    typeof output.executable === "string"
-    && Array.isArray(output.args)
-    && output.args.every((arg): arg is string => typeof arg === "string")
-  ) {
-    output.args = redactStructuredCommandArgv(output.args);
-  }
-
-  return output;
-}
-
-function redactStructuredCommandArgv(args: string[]): string[] {
-  let redactNext = false;
-  return args.map((arg) => {
-    if (redactNext) {
-      redactNext = false;
-      return REDACTED_SECRET;
-    }
-
-    const splitSecretFlag = isSplitSecretArgvFlag(arg);
-    if (splitSecretFlag) {
-      redactNext = true;
-    }
-
-    return arg;
-  });
-}
-
-function isSplitSecretArgvFlag(arg: string): boolean {
-  if (!arg.startsWith("-") || arg.includes("=") || arg.includes(":")) {
-    return false;
-  }
-
-  const key = arg.replace(/^-+/, "");
-  return key.length > 0 && isSecretLikeKey(key);
 }
 
 function parseStructuredShellCommand(input: unknown): StructuredShellCommand | undefined {
