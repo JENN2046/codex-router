@@ -3350,6 +3350,28 @@ test("codex cli read-only smoke run-and-write persists failed validation evidenc
   assert.deepEqual(written.notes, ["failed pre-run validation"]);
 });
 
+test("codex cli read-only smoke run-and-write forwards lifecycle options", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-smoke-"));
+  const path = join(dir, "timeout", "evidence.json");
+  const persisted = await runAndWriteCodexCliReadOnlySmokeEvidence({
+    evidencePath: path,
+    timeoutMs: 1,
+    terminationGraceMs: 1,
+    spawn: () => createFakeCodexCliChild({
+      stdout: `{"type":"agent_message","message":"${CODEX_CLI_READONLY_SMOKE_OK}"}\n`,
+      exitCode: 0,
+      autoClose: false,
+      closeOnKill: false
+    })
+  });
+
+  assert.equal(persisted.result.status, "failed");
+  assert.equal(persisted.result.run?.lifecycle.termination.graceMs, 1);
+  assert.equal(persisted.result.run?.lifecycle.termination.forcedSettled, true);
+  assert.equal(persisted.evidence.run.terminationGraceMs, 1);
+  assert.equal(persisted.evidence.run.forcedSettled, true);
+});
+
 test("codex cli workspace-write smoke task is bounded to one local evidence file", () => {
   const task = createCodexCliWorkspaceWriteSmokeTask({
     taskId: "cli-write-smoke-task",
@@ -3731,6 +3753,30 @@ test("codex cli workspace-write run-and-write persists blocked evidence without 
   assert.ok(written.summary.blockingReasons.includes(
     "codex_cli_write_sandbox_requires_explicit_allowance"
   ));
+});
+
+test("codex cli workspace-write smoke run-and-write forwards lifecycle options", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-cli-write-persist-"));
+  const path = join(dir, "timeout", "evidence.json");
+  const persisted = await runAndWriteCodexCliWorkspaceWriteSmokeEvidence({
+    evidencePath: path,
+    allowWriteSandbox: true,
+    confirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
+    timeoutMs: 1,
+    terminationGraceMs: 1,
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"workspace-write ok\"}\n",
+      exitCode: 0,
+      autoClose: false,
+      closeOnKill: false
+    })
+  });
+
+  assert.equal(persisted.result.status, "failed");
+  assert.equal(persisted.result.run?.lifecycle.termination.graceMs, 1);
+  assert.equal(persisted.result.run?.lifecycle.termination.forcedSettled, true);
+  assert.equal(persisted.evidence.run.terminationGraceMs, 1);
+  assert.equal(persisted.evidence.run.forcedSettled, true);
 });
 
 function getArgValue(args: string[], flag: string): string | undefined {

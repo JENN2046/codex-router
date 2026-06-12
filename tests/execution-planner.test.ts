@@ -86,6 +86,33 @@ test("execution planner creates a planned plan with codex-cli provider", () => {
   );
 });
 
+test("execution planner includes provider manifest hash in plan identity", () => {
+  const first = planProviderExecution(createPlannerInput({
+    providerRegistry: createRegistryWithCodex(),
+    preferredProviderId: "codex-cli"
+  }));
+  const provider = new CodexCliExecutorProvider();
+  const changedManifest = parseProviderManifest({
+    ...provider.manifest,
+    version: "0.1.1"
+  });
+  const changedRegistry = new ProviderRegistry();
+  changedRegistry.registerProvider(
+    changedManifest,
+    new CodexCliExecutorProvider({ manifest: changedManifest })
+  );
+  const second = planProviderExecution(createPlannerInput({
+    providerRegistry: changedRegistry,
+    preferredProviderId: "codex-cli"
+  }));
+
+  assert.equal(first.providerId, second.providerId);
+  assert.equal(first.runId, second.runId);
+  assert.notEqual(first.providerManifestHash, second.providerManifestHash);
+  assert.notEqual(first.inputHash, second.inputHash);
+  assert.notEqual(first.planId, second.planId);
+});
+
 test("provider execution plan store saves and filters stable snapshots", () => {
   const store = new InMemoryProviderExecutionPlanStore();
   const plan = planProviderExecution(createPlannerInput({

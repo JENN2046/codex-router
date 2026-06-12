@@ -2913,6 +2913,12 @@ export async function runAndWriteCodexCliWorkspaceWriteSmokeEvidence(
     ...(options.allowWriteSandbox !== undefined ? { allowWriteSandbox: options.allowWriteSandbox } : {}),
     ...(options.confirmation !== undefined ? { confirmation: options.confirmation } : {}),
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+    ...(options.modelProbeTimeoutMs !== undefined
+      ? { modelProbeTimeoutMs: options.modelProbeTimeoutMs }
+      : {}),
+    ...(options.terminationGraceMs !== undefined
+      ? { terminationGraceMs: options.terminationGraceMs }
+      : {}),
     ...(options.env !== undefined ? { env: options.env } : {}),
     ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
     ...(options.telemetryStore !== undefined
@@ -3017,6 +3023,12 @@ export async function runAndWriteCodexCliReadOnlySmokeEvidence(
     ...(options.taskOptions !== undefined ? { taskOptions: options.taskOptions } : {}),
     ...(options.planOptions !== undefined ? { planOptions: options.planOptions } : {}),
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+    ...(options.modelProbeTimeoutMs !== undefined
+      ? { modelProbeTimeoutMs: options.modelProbeTimeoutMs }
+      : {}),
+    ...(options.terminationGraceMs !== undefined
+      ? { terminationGraceMs: options.terminationGraceMs }
+      : {}),
     ...(options.env !== undefined ? { env: options.env } : {}),
     ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
     ...(options.telemetryStore !== undefined

@@ -366,6 +366,7 @@ export function planProviderExecution(
     principalId: principal.principalId,
     providerId,
     providerKind,
+    providerManifestHash,
     policyDecisionHash,
     eligibilityStatus: eligibility.status,
     sideEffectClass,

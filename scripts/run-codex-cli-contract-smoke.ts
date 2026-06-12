@@ -5,6 +5,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import {
+  CODEX_CLI_MODEL_PROBE_OK,
+  CODEX_CLI_READONLY_SMOKE_OK,
   CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
   DEFAULT_CODEX_CLI_MODEL_PROBE_MODEL,
   clearCodexCliModelProbeCache,
@@ -224,7 +226,7 @@ async function main(): Promise<void> {
 
 function createContractSpawner(calls: ContractSpawnCall[]): CodexCliProcessSpawner {
   return (command, args, options) => {
-    const isModelProbe = args.some((arg) => arg.includes("CODEX_CLI_MODEL_PROBE_OK"));
+    const isModelProbe = args.some((arg) => arg.includes(CODEX_CLI_MODEL_PROBE_OK));
     const approvalPolicy = getArgValue(args, "-a");
     calls.push({
       kind: isModelProbe ? "model-probe" : "smoke-run",
@@ -239,8 +241,8 @@ function createContractSpawner(calls: ContractSpawnCall[]): CodexCliProcessSpawn
 
     return createFakeCodexCliChild({
       stdout: isModelProbe
-        ? "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n"
-        : "{\"type\":\"agent_message\",\"message\":\"contract smoke ok\"}\n",
+        ? `{"type":"agent_message","message":"${CODEX_CLI_MODEL_PROBE_OK}"}\n`
+        : `{"type":"agent_message","message":"${CODEX_CLI_READONLY_SMOKE_OK}"}\n`,
       exitCode: 0
     });
   };
