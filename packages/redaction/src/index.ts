@@ -58,7 +58,26 @@ function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): st
         `${prefix}${flag}${spacing}${valueQuote}${REDACTED_SECRET}${valueQuote}`
     )
     .replace(
-      new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(-+(?:\\\\.|[^\\s"',;])+)`, "gi"),
+      new RegExp(
+        `(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(-+(${secretKeyPattern}))(\\s+)((?!--)(?:\\\\.|[^\\s"',;])+)`,
+        "gi"
+      ),
+      (
+        _match,
+        prefix: string,
+        previousFlag: string,
+        _previousKey: string,
+        previousSpacing: string,
+        boundaryFlag: string,
+        _boundaryKey: string,
+        valueSpacing: string
+      ) => `${prefix}${previousFlag}${previousSpacing}${boundaryFlag}${valueSpacing}${REDACTED_SECRET}`
+    )
+    .replace(
+      new RegExp(
+        `(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)(?!-+(?:${secretKeyPattern})\\s+(?!--))(-+(?:\\\\.|[^\\s"',;])+)`,
+        "gi"
+      ),
       (match: string, prefix: string, flag: string, _key: string, spacing: string, value: string) =>
         isCanonicalSplitSecretArgvFlag(value, secretKeys)
           ? match
@@ -88,8 +107,9 @@ export function redactSecretLikeArgv(
   let redactNext = false;
   const redactedArgs: string[] = [];
 
-  for (const arg of args) {
-    if (redactNext && !isCanonicalSplitSecretArgvFlag(arg, secretKeys)) {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index] ?? "";
+    if (redactNext && !isSplitSecretArgvBoundaryAt(args, index, secretKeys)) {
       redactNext = false;
       redactedArgs.push(REDACTED_SECRET);
       continue;
@@ -196,6 +216,28 @@ function isCanonicalSplitSecretArgvFlag(arg: string, secretKeys: Set<string>): b
   }
 
   return /^(?:api[-_]?key|authorization|credential|password|secret|token|access[-_]?token|client[-_]?secret)$/.test(key);
+}
+
+function isSplitSecretArgvBoundaryAt(args: string[], index: number, secretKeys: Set<string>): boolean {
+  const arg = args[index];
+  if (arg === undefined || !isSplitSecretArgvFlag(arg, secretKeys)) {
+    return false;
+  }
+
+  if (!arg.startsWith("--")) {
+    return false;
+  }
+
+  const nextArg = args[index + 1];
+  if (nextArg === undefined) {
+    return false;
+  }
+
+  if (isCanonicalSplitSecretArgvFlag(arg, secretKeys)) {
+    return true;
+  }
+
+  return !nextArg.startsWith("--") || isSplitSecretArgvFlag(nextArg, secretKeys);
 }
 
 function redactInlineSecretArgvValue(arg: string, secretKeys: Set<string>): string {

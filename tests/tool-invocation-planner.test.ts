@@ -343,7 +343,7 @@ test("tool invocation planner redacts proposed input preview", () => {
       title: "Open PR",
       head: "feature/test",
       base: "main",
-      command: "gh pr create --token --fixture-command-token --safe visible",
+      command: "gh pr create --token --github-token fixture-command-token --safe visible",
       args: ["--password", "-fixture-argv-password", "--safe", "visible"],
       token: "fixture-token-value",
       nested: {
@@ -362,7 +362,7 @@ test("tool invocation planner redacts proposed input preview", () => {
     title: "Open PR",
     head: "feature/test",
     base: "main",
-    command: "gh pr create --token <REDACTED_SECRET> --safe visible",
+    command: "gh pr create --token --github-token <REDACTED_SECRET> --safe visible",
     args: ["--password", "<REDACTED_SECRET>", "--safe", "visible"],
     token: "<REDACTED_SECRET>",
     nested: {

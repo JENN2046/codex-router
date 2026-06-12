@@ -169,7 +169,7 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
     stderr: `Authorization: Bearer abc.def\n{"password":"json-password"}`,
     payload: {
       token: "payload-token",
-      command: "tool --token --payload-command-token --safe ok",
+      command: "tool --token --refresh-token payload-command-token --safe ok",
       structuredCommand: {
         executable: "codex",
         args: ["--secret", "payload-secret"]
@@ -195,7 +195,7 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
   );
   assert.equal(
     ((result as { payload?: { command?: string } }).payload?.command),
-    "tool --token <REDACTED_SECRET> --safe ok"
+    "tool --token --refresh-token <REDACTED_SECRET> --safe ok"
   );
   assert.deepEqual((result as { structuredCommand?: unknown }).structuredCommand, {
     executable: "codex",

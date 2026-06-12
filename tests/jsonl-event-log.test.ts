@@ -134,7 +134,7 @@ test("jsonl event log redacts secret-like event payload fields before writing", 
       eventId: "event_jsonl_redaction_001",
       payload: {
         apiKey: "secret-api-key-value",
-        command: "tool --token --secret-command-token --safe visible",
+        command: "tool --token --refresh-token secret-command-token --safe visible",
         args: ["--password", "-secret-argv-password", "--safe", "visible"],
         nested: {
           token: "secret-token-value",
@@ -145,7 +145,7 @@ test("jsonl event log redacts secret-like event payload fields before writing", 
 
     const redacted = redactEventSecrets(event);
     assert.equal(redacted.payload.apiKey, "<REDACTED_SECRET>");
-    assert.equal(redacted.payload.command, "tool --token <REDACTED_SECRET> --safe visible");
+    assert.equal(redacted.payload.command, "tool --token --refresh-token <REDACTED_SECRET> --safe visible");
     assert.deepEqual(redacted.payload.args, ["--password", "<REDACTED_SECRET>", "--safe", "visible"]);
     assert.deepEqual(redacted.payload.nested, {
       token: "<REDACTED_SECRET>",
