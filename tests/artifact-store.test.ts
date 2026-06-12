@@ -205,6 +205,9 @@ test("artifact metadata redaction removes nested secret-like fields", () => {
         password: "fixture-password-value",
         safe: "visible"
       },
+      command: "tool --token --github-token --abc123 --safe visible",
+      inlineCommand: "tool --token=artifact-token,with-comma --safe visible",
+      args: ["--secret", "-fixture-argv-secret", "--safe", "visible"],
       list: [
         {
           authorization: "fixture-authorization-value"
@@ -216,6 +219,9 @@ test("artifact metadata redaction removes nested secret-like fields", () => {
         password: "<REDACTED_SECRET>",
         safe: "visible"
       },
+      command: "tool --token --github-token <REDACTED_SECRET> --safe visible",
+      inlineCommand: "tool --token=<REDACTED_SECRET> --safe visible",
+      args: ["--secret", "<REDACTED_SECRET>", "--safe", "visible"],
       list: [
         {
           authorization: "<REDACTED_SECRET>"

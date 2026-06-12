@@ -257,7 +257,10 @@ export class FileSystemArtifactStore implements ArtifactStore {
 }
 
 export function redactArtifactMetadata(input: Record<string, unknown>): Record<string, unknown> {
-  return redactSecretLikeFields(input) as Record<string, unknown>;
+  return redactSecretLikeFields(input, {
+    redactArgvSecrets: true,
+    redactStrings: true
+  }) as Record<string, unknown>;
 }
 
 export function hashArtifactPayload(payload: ArtifactPayload, type: ArtifactStoreType): string {

@@ -189,7 +189,9 @@ export function redactToolInvocationInput(
   additionalSecretKeys: string[] = []
 ): unknown {
   return redactSecretLikeFields(input, {
-    additionalSecretKeys
+    additionalSecretKeys,
+    redactArgvSecrets: true,
+    redactStrings: true
   });
 }
 

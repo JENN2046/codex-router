@@ -1,8 +1,8 @@
 {
   "schemaVersion": "codex-router-evidence-manifest.v1",
-  "generatedAt": "2026-06-11T07:18:40.750Z",
+  "generatedAt": "2026-06-12T06:58:40.835Z",
   "totalFiles": 48,
-  "totalSize": 122263,
+  "totalSize": 125932,
   "byPhase": {
     "unknown": [
       {
@@ -143,8 +143,8 @@
       {
         "file": "codex-cli-canary-latest.json",
         "schemaVersion": "codex-router-evidence.v1",
-        "generatedAt": "2026-06-11T07:18:31.844Z",
-        "size": 475,
+        "generatedAt": "2026-06-12T06:58:40.700Z",
+        "size": 481,
         "status": "passed"
       }
     ],
@@ -152,8 +152,8 @@
       {
         "file": "codex-cli-contract-smoke-latest.json",
         "schemaVersion": "codex-cli-contract-smoke-evidence.v1",
-        "generatedAt": "2026-04-28T14:07:48.277Z",
-        "size": 11750
+        "generatedAt": "2026-06-12T05:53:13.811Z",
+        "size": 13726
       },
       {
         "file": "codex-cli-model-check-cli-mode-offline-smoke-20260425.json",
@@ -186,8 +186,8 @@
       {
         "file": "codex-cli-readonly-smoke-telemetry-latest.json",
         "schemaVersion": "codex-cli-readonly-smoke-telemetry-acceptance.v1",
-        "generatedAt": "2026-04-27T09:49:28.507Z",
-        "size": 1433
+        "generatedAt": "2026-06-12T03:53:17.841Z",
+        "size": 2614
       },
       {
         "file": "codex-cli-smoke-telemetry-forwarding-20260425.json",
@@ -240,8 +240,8 @@
       {
         "file": "codex-cli-workspace-write-smoke-telemetry-latest.json",
         "schemaVersion": "codex-cli-workspace-write-smoke-telemetry-acceptance.v1",
-        "generatedAt": "2026-04-27T09:52:15.868Z",
-        "size": 1440
+        "generatedAt": "2026-06-12T02:21:55.992Z",
+        "size": 1946
       },
       {
         "file": "codex-cli-workspace-write-smoke.txt",
@@ -340,8 +340,8 @@
       {
         "file": "codex-cli-canary-latest.json",
         "schemaVersion": "codex-router-evidence.v1",
-        "generatedAt": "2026-06-11T07:18:31.844Z",
-        "size": 475,
+        "generatedAt": "2026-06-12T06:58:40.700Z",
+        "size": 481,
         "status": "passed"
       },
       {
@@ -461,8 +461,8 @@
       {
         "file": "codex-cli-contract-smoke-latest.json",
         "schemaVersion": "codex-cli-contract-smoke-evidence.v1",
-        "generatedAt": "2026-04-28T14:07:48.277Z",
-        "size": 11750
+        "generatedAt": "2026-06-12T05:53:13.811Z",
+        "size": 13726
       },
       {
         "file": "codex-cli-model-probe-cache-20260425.json",
@@ -491,8 +491,8 @@
       {
         "file": "codex-cli-readonly-smoke-telemetry-latest.json",
         "schemaVersion": "codex-cli-readonly-smoke-telemetry-acceptance.v1",
-        "generatedAt": "2026-04-27T09:49:28.507Z",
-        "size": 1433
+        "generatedAt": "2026-06-12T03:53:17.841Z",
+        "size": 2614
       },
       {
         "file": "codex-cli-smoke-telemetry-forwarding-20260425.json",
@@ -503,8 +503,8 @@
       {
         "file": "codex-cli-workspace-write-smoke-telemetry-latest.json",
         "schemaVersion": "codex-cli-workspace-write-smoke-telemetry-acceptance.v1",
-        "generatedAt": "2026-04-27T09:52:15.868Z",
-        "size": 1440
+        "generatedAt": "2026-06-12T02:21:55.992Z",
+        "size": 1946
       },
       {
         "file": "codex-cli-workspace-write-smoke.txt",
@@ -664,15 +664,15 @@
     {
       "file": "codex-cli-canary-latest.json",
       "schemaVersion": "codex-router-evidence.v1",
-      "generatedAt": "2026-06-11T07:18:31.844Z",
-      "size": 475,
+      "generatedAt": "2026-06-12T06:58:40.700Z",
+      "size": 481,
       "status": "passed"
     },
     {
       "file": "codex-cli-contract-smoke-latest.json",
       "schemaVersion": "codex-cli-contract-smoke-evidence.v1",
-      "generatedAt": "2026-04-28T14:07:48.277Z",
-      "size": 11750
+      "generatedAt": "2026-06-12T05:53:13.811Z",
+      "size": 13726
     },
     {
       "file": "codex-cli-decision-model-routing-closure-20260425.json",
@@ -806,8 +806,8 @@
     {
       "file": "codex-cli-readonly-smoke-telemetry-latest.json",
       "schemaVersion": "codex-cli-readonly-smoke-telemetry-acceptance.v1",
-      "generatedAt": "2026-04-27T09:49:28.507Z",
-      "size": 1433
+      "generatedAt": "2026-06-12T03:53:17.841Z",
+      "size": 2614
     },
     {
       "file": "codex-cli-refined-model-strength-ranking-20260425.json",
@@ -874,8 +874,8 @@
     {
       "file": "codex-cli-workspace-write-smoke-telemetry-latest.json",
       "schemaVersion": "codex-cli-workspace-write-smoke-telemetry-acceptance.v1",
-      "generatedAt": "2026-04-27T09:52:15.868Z",
-      "size": 1440
+      "generatedAt": "2026-06-12T02:21:55.992Z",
+      "size": 1946
     },
     {
       "file": "codex-cli-workspace-write-smoke.txt",

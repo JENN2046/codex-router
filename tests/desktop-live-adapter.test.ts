@@ -157,9 +157,9 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
       args: [
         "exec",
         "--token",
-        "argv-token",
+        "-argv-token",
         "--password",
-        "argv-password",
+        "-argv-password",
         "--api-key=inline-api-key",
         "--safe",
         "ok"
@@ -169,6 +169,8 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
     stderr: `Authorization: Bearer abc.def\n{"password":"json-password"}`,
     payload: {
       token: "payload-token",
+      command: "tool --token --refresh-token --abc123 --safe ok",
+      inlineCommand: "tool --token=payload-command-token,with-comma --safe ok",
       structuredCommand: {
         executable: "codex",
         args: ["--secret", "payload-secret"]
@@ -191,6 +193,14 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
   assert.equal(
     ((result as { payload?: { nested?: { apiKey?: string } } }).payload?.nested?.apiKey),
     "<REDACTED_SECRET>"
+  );
+  assert.equal(
+    ((result as { payload?: { command?: string } }).payload?.command),
+    "tool --token --refresh-token <REDACTED_SECRET> --safe ok"
+  );
+  assert.equal(
+    ((result as { payload?: { inlineCommand?: string } }).payload?.inlineCommand),
+    "tool --token=<REDACTED_SECRET> --safe ok"
   );
   assert.deepEqual((result as { structuredCommand?: unknown }).structuredCommand, {
     executable: "codex",
@@ -220,9 +230,12 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
   assert.equal(envelopeText.includes("Bearer abc.def"), false);
   assert.equal(envelopeText.includes("json-password"), false);
   assert.equal(envelopeText.includes("payload-token"), false);
+  assert.equal(envelopeText.includes("--abc123"), false);
   assert.equal(envelopeText.includes("payload-api-key"), false);
   assert.equal(envelopeText.includes("argv-token"), false);
+  assert.equal(envelopeText.includes("-argv-token"), false);
   assert.equal(envelopeText.includes("argv-password"), false);
+  assert.equal(envelopeText.includes("-argv-password"), false);
   assert.equal(envelopeText.includes("inline-api-key"), false);
   assert.equal(envelopeText.includes("payload-secret"), false);
 });
