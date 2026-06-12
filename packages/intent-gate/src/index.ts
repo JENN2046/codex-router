@@ -32,6 +32,7 @@ const TASK_CLASS_RANK: Record<TaskClass, number> = {
   high_risk: 3,
   release_external_action: 4
 };
+const TRUSTED_HINT_SOURCES = new Set(["user", "system", "policy"]);
 
 export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassification {
   const task: TaskEnvelope = parseTaskEnvelope(taskInput);
@@ -67,8 +68,13 @@ export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassificati
 
   const hint = task.hints.taskClassHint;
   if (hint && hint !== taskClass) {
+    const hintTrust = classifyTaskClassHintTrust(task, hint);
     if (!matchedTaskClass) {
-      taskClass = hint;
+      if (hintTrust.canSetNeutralClass || TASK_CLASS_RANK[hint] > TASK_CLASS_RANK[taskClass]) {
+        taskClass = hint;
+      } else {
+        ambiguityReasons.push(`task_class_hint_untrusted:${hintTrust.sources.join("+")}:${hint}`);
+      }
     } else {
       ambiguityReasons.push(`task_class_hint_conflict:${hint}:${taskClass}`);
       if (TASK_CLASS_RANK[hint] > TASK_CLASS_RANK[taskClass]) {
@@ -85,6 +91,28 @@ export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassificati
   const clarificationRequired = ambiguityScore >= 0.5;
 
   return buildClassification(taskClass, ambiguityScore, ambiguityReasons, clarificationRequired);
+}
+
+function classifyTaskClassHintTrust(
+  task: TaskEnvelope,
+  hint: TaskClass
+): { canSetNeutralClass: boolean; sources: string[] } {
+  const provenance = task.hints.provenance.filter((entry) => (
+    entry.field === "taskClassHint" && entry.value === hint
+  ));
+
+  if (provenance.length === 0) {
+    return {
+      canSetNeutralClass: true,
+      sources: ["unspecified"]
+    };
+  }
+
+  const sources = [...new Set(provenance.map((entry) => entry.source))].sort();
+  return {
+    canSetNeutralClass: sources.some((source) => TRUSTED_HINT_SOURCES.has(source)),
+    sources
+  };
 }
 
 function buildClassification(

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { posix as pathPosix } from "node:path";
 import type {
@@ -70,6 +71,20 @@ export const ProviderManifestSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).default({})
 });
 
+export const ProviderAttestationSchema = z.object({
+  schemaVersion: z.literal("provider-attestation.v1").default("provider-attestation.v1"),
+  providerId: z.string().min(1),
+  kind: ProviderKindSchema,
+  displayName: z.string().min(1),
+  version: z.string().min(1),
+  manifestHash: z.string().regex(/^[a-f0-9]{64}$/),
+  capabilities: z.array(z.string().min(1)).default([]),
+  securityBoundary: ProviderSecurityBoundarySchema,
+  supportedSandboxProfiles: z.array(SandboxProfileSchema).default([]),
+  supportedSideEffectClasses: z.array(ProviderSideEffectClassSchema).default([]),
+  attestedAt: z.string().min(1)
+});
+
 export const ProviderPlanBaseSchema = z.object({
   planId: z.string().min(1),
   runId: z.string().min(1),
@@ -104,6 +119,7 @@ export type ProviderSideEffectClass = z.infer<typeof ProviderSideEffectClassSche
 export type ProviderSecurityBoundary = z.infer<typeof ProviderSecurityBoundarySchema>;
 export type ProviderRequiredConfig = z.infer<typeof ProviderRequiredConfigSchema>;
 export type ProviderManifest = z.infer<typeof ProviderManifestSchema>;
+export type ProviderAttestation = z.infer<typeof ProviderAttestationSchema>;
 export type ProviderPlanBase = z.infer<typeof ProviderPlanBaseSchema>;
 export type ExecutorExecutionPlan = z.infer<typeof ExecutorExecutionPlanSchema>;
 export type ToolProviderInvocationPlan = z.infer<typeof ToolProviderInvocationPlanSchema>;
@@ -244,6 +260,39 @@ export function parseProviderManifest(input: z.input<typeof ProviderManifestSche
   return ProviderManifestSchema.parse(input);
 }
 
+export function parseProviderAttestation(
+  input: z.input<typeof ProviderAttestationSchema>
+): ProviderAttestation {
+  return ProviderAttestationSchema.parse(input);
+}
+
+export function createProviderAttestation(
+  manifest: ProviderManifest,
+  attestedAt: string
+): ProviderAttestation {
+  const parsed = ProviderManifestSchema.parse(manifest);
+
+  return ProviderAttestationSchema.parse({
+    schemaVersion: "provider-attestation.v1",
+    providerId: parsed.providerId,
+    kind: parsed.kind,
+    displayName: parsed.displayName,
+    version: parsed.version,
+    manifestHash: hashProviderManifest(parsed),
+    capabilities: parsed.capabilities,
+    securityBoundary: parsed.securityBoundary,
+    supportedSandboxProfiles: parsed.supportedSandboxProfiles,
+    supportedSideEffectClasses: parsed.supportedSideEffectClasses,
+    attestedAt
+  });
+}
+
+export function hashProviderManifest(manifest: ProviderManifest): string {
+  return createHash("sha256")
+    .update(stableStringifyProviderObject(ProviderManifestSchema.parse(manifest)))
+    .digest("hex");
+}
+
 export function parseExecutorExecutionPlan(
   input: z.input<typeof ExecutorExecutionPlanSchema>
 ): ExecutorExecutionPlan {
@@ -377,4 +426,27 @@ function envPolicyImplies(
   }
 
   return requested.allowlist.every((key) => granted.allowlist.includes(key));
+}
+
+function stableStringifyProviderObject(input: unknown): string {
+  if (input === undefined) {
+    return "null";
+  }
+
+  if (input === null || typeof input !== "object") {
+    return JSON.stringify(input) ?? "null";
+  }
+
+  if (Array.isArray(input)) {
+    return `[${input.map((item) => stableStringifyProviderObject(item)).join(",")}]`;
+  }
+
+  const record = input as Record<string, unknown>;
+  const keys = Object.keys(record)
+    .filter((key) => record[key] !== undefined)
+    .sort();
+
+  return `{${keys.map((key) => (
+    `${JSON.stringify(key)}:${stableStringifyProviderObject(record[key])}`
+  )).join(",")}}`;
 }

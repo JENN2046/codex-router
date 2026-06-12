@@ -1,11 +1,11 @@
 {
   "schemaVersion": "codex-cli-workspace-write-smoke-telemetry-acceptance.v1",
-  "generatedAt": "2026-04-27T09:52:15.868Z",
+  "generatedAt": "2026-06-12T02:21:55.992Z",
   "model": "gpt-5.4-mini",
   "summary": {
-    "firstRunStatus": "passed",
-    "secondRunStatus": "passed",
-    "passed": true
+    "firstRunStatus": "failed",
+    "secondRunStatus": "failed",
+    "passed": false
   },
   "telemetry": [
     {
@@ -13,7 +13,7 @@
       "message": "codex cli model probe cache miss",
       "context": {
         "source": "codex-cli-host",
-        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
+        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe",
         "cwd": "A:/codex-router",
         "model": "gpt-5.4-mini",
         "ttlMs": 300000
@@ -21,10 +21,10 @@
     },
     {
       "level": "info",
-      "message": "codex cli model probe cache hit",
+      "message": "codex cli model probe cache miss",
       "context": {
         "source": "codex-cli-host",
-        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe",
+        "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe",
         "cwd": "A:/codex-router",
         "model": "gpt-5.4-mini",
         "ttlMs": 300000
@@ -34,17 +34,17 @@
   "runs": [
     {
       "label": "first",
-      "status": "passed",
-      "executionStatus": "completed",
-      "exitCode": 0,
-      "blockingReasons": []
+      "status": "failed",
+      "blockingReasons": [
+        "codex_cli_process_error:codex_cli_plan_not_runnable:codex_cli_model_probe_failed,codex_cli_exit_code:1,codex_cli_process_error:spawn C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe ENOENT"
+      ]
     },
     {
       "label": "second",
-      "status": "passed",
-      "executionStatus": "completed",
-      "exitCode": 0,
-      "blockingReasons": []
+      "status": "failed",
+      "blockingReasons": [
+        "codex_cli_process_error:codex_cli_plan_not_runnable:codex_cli_model_probe_failed,codex_cli_exit_code:1,codex_cli_process_error:spawn C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe ENOENT"
+      ]
     }
   ]
 }

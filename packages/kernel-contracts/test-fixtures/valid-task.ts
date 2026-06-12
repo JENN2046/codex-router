@@ -31,7 +31,8 @@ export const validTask = {
   hints: {
     taskClass: "engineering",
     riskHints: ["local_contracts"],
-    tags: ["phase_1", "fixture"]
+    tags: ["phase_1", "fixture"],
+    provenance: []
   },
   constraints: {
     requiresNetwork: false

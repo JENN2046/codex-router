@@ -24,6 +24,7 @@ import {
   type ToolProvider,
   type ToolSideEffectClass
 } from "../../tool-registry/src/index.js";
+import { redactSecretLikeFields } from "../../redaction/src/index.js";
 
 export type ToolInvocationPlanStatus =
   | "planned"
@@ -187,15 +188,9 @@ export function redactToolInvocationInput(
   input: unknown,
   additionalSecretKeys: string[] = []
 ): unknown {
-  return redactSecretLikeFields(input, new Set([
-    "apiKey",
-    "authorization",
-    "credential",
-    "password",
-    "secret",
-    "token",
-    ...additionalSecretKeys
-  ]));
+  return redactSecretLikeFields(input, {
+    additionalSecretKeys
+  });
 }
 
 function createBasePlan(
@@ -442,37 +437,6 @@ function isDangerousSideEffectClass(sideEffectClass: ToolSideEffectClass): boole
     || sideEffectClass === "destructive"
     || sideEffectClass === "secret_access"
     || sideEffectClass === "unknown";
-}
-
-function redactSecretLikeFields(input: unknown, secretKeys: Set<string>): unknown {
-  if (Array.isArray(input)) {
-    return input.map((item) => redactSecretLikeFields(item, secretKeys));
-  }
-
-  if (!isRecord(input)) {
-    return input;
-  }
-
-  const output: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(input)) {
-    if (value === undefined) {
-      continue;
-    }
-
-    output[key] = isSecretLikeKey(key, secretKeys)
-      ? "<REDACTED_SECRET>"
-      : redactSecretLikeFields(value, secretKeys);
-  }
-
-  return output;
-}
-
-function isSecretLikeKey(key: string, secretKeys: Set<string>): boolean {
-  if (secretKeys.has(key)) {
-    return true;
-  }
-
-  return /api[-_]?key|authorization|credential|password|secret|token/i.test(key);
 }
 
 function stableStringify(input: unknown): string {

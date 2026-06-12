@@ -4,6 +4,7 @@ import {
   EventSchema,
   type Event
 } from "../../kernel-contracts/src/index.js";
+import { redactSecretLikeFields } from "../../redaction/src/index.js";
 
 export type JsonlEventLogReadIssue = {
   lineNumber: number;
@@ -107,7 +108,7 @@ export class JsonlEventLog {
 }
 
 export function redactEventSecrets(event: Event): Event {
-  return EventSchema.parse(redactSecretLikeValue(event, ""));
+  return EventSchema.parse(redactSecretLikeFields(event));
 }
 
 function parseJsonlEvents(content: string): Event[] {
@@ -154,34 +155,6 @@ function parseJsonlEvents(content: string): Event[] {
   }
 
   return events;
-}
-
-function redactSecretLikeValue(value: unknown, key: string): unknown {
-  if (isSecretLikeKey(key)) {
-    return "<REDACTED_SECRET>";
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => redactSecretLikeValue(item, ""));
-  }
-
-  if (value && typeof value === "object") {
-    const result: Record<string, unknown> = {};
-    for (const [entryKey, entryValue] of Object.entries(value)) {
-      if (entryValue === undefined) {
-        continue;
-      }
-
-      result[entryKey] = redactSecretLikeValue(entryValue, entryKey);
-    }
-    return result;
-  }
-
-  return value;
-}
-
-function isSecretLikeKey(key: string): boolean {
-  return /api[-_]?key|authorization|credential|password|secret|token/i.test(key);
 }
 
 function normalizeErrorMessage(error: unknown): string {

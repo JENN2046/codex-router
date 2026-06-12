@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { Buffer } from "node:buffer";
+import { redactSecretLikeFields } from "../../redaction/src/index.js";
 
 export const artifactStoreTypes = [
   "text",
@@ -387,33 +388,6 @@ function matchesOptional<T>(expected: T | undefined, actual: T | undefined): boo
 
 function sha256(payload: Buffer): string {
   return createHash("sha256").update(payload).digest("hex");
-}
-
-function redactSecretLikeFields(input: unknown): unknown {
-  if (Array.isArray(input)) {
-    return input.map(redactSecretLikeFields);
-  }
-
-  if (!isRecord(input)) {
-    return input;
-  }
-
-  const output: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(input)) {
-    if (value === undefined) {
-      continue;
-    }
-
-    output[key] = isSecretLikeKey(key)
-      ? "<REDACTED_SECRET>"
-      : redactSecretLikeFields(value);
-  }
-
-  return output;
-}
-
-function isSecretLikeKey(key: string): boolean {
-  return /api[-_]?key|authorization|credential|password|secret|token/i.test(key);
 }
 
 function stripUndefined(input: unknown): unknown {

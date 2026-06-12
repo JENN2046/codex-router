@@ -37,6 +37,9 @@ export const DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TIMEOUT_MS = 180_000;
 export const DEFAULT_CODEX_CLI_MODEL_PROBE_TIMEOUT_MS = 180_000;
 export const DEFAULT_CODEX_CLI_MODEL_PROBE_CACHE_TTL_MS = 300_000;
 export const DEFAULT_CODEX_CLI_MODEL_PROBE_MODEL = "gpt-5.4-mini";
+export const DEFAULT_CODEX_CLI_TERMINATION_GRACE_MS = 5_000;
+export const CODEX_CLI_MODEL_PROBE_OK = "CODEX_CLI_MODEL_PROBE_OK";
+export const CODEX_CLI_READONLY_SMOKE_OK = "CODEX_CLI_READONLY_SMOKE_OK";
 export const CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION =
   "ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE";
 
@@ -235,6 +238,7 @@ export interface CodexCliModelCliProbeEvidenceOptions {
   cwd?: string;
   strict?: boolean;
   timeoutMs?: number;
+  terminationGraceMs?: number;
   spawn?: CodexCliProcessSpawner;
 }
 
@@ -261,6 +265,14 @@ export interface CodexCliModelCliProbeEvidence {
     parseErrorCount: number;
     timedOut: boolean;
     killed: boolean;
+    stdinClosed?: boolean;
+    stdinDestroyed?: boolean;
+    closeReceived?: boolean;
+    forcedSettled?: boolean;
+    stdioDestroyed?: boolean;
+    unrefCalled?: boolean;
+    terminationGraceMs?: number;
+    terminationEscalated?: boolean;
     warnings: string[];
     blockingReasons: string[];
     error?: string;
@@ -382,7 +394,33 @@ export interface CodexCliProcessRunOptions {
   modelCatalogKnownModels?: ModelId[];
   modelCatalogRelevance?: (modelId: string) => boolean;
   skipExecutionModelProbe?: boolean;
+  terminationGraceMs?: number;
   governance?: CodexCliGovernanceRunOptions;
+}
+
+export interface CodexCliProcessLifecycle {
+  stdin: {
+    mode: "pipe";
+    closed: boolean;
+    destroyed: boolean;
+    error?: string;
+  };
+  termination: {
+    closeReceived: boolean;
+    forcedSettled: boolean;
+    stdioDestroyed: boolean;
+    unrefCalled: boolean;
+    timedOut: boolean;
+    killRequested: boolean;
+    killed: boolean;
+    killSignal?: NodeJS.Signals;
+    escalated: boolean;
+    escalationSignal?: NodeJS.Signals;
+    escalationKilled?: boolean;
+    graceMs?: number;
+    closeCode?: number | null;
+    closeSignal?: NodeJS.Signals | null;
+  };
 }
 
 export interface CodexCliProcessRunResult {
@@ -391,6 +429,7 @@ export interface CodexCliProcessRunResult {
   inspection: CodexCliCommandInspection;
   timedOut: boolean;
   killed: boolean;
+  lifecycle: CodexCliProcessLifecycle;
   modelAvailability?: CodexCliModelAvailabilityCheck;
   modelProbe?: CodexCliModelCliProbeEvidence;
   governance?: CodexCliGovernanceBundle;
@@ -411,16 +450,24 @@ export type CodexCliProcessSpawner = (
 ) => CodexCliChildProcess;
 
 export interface CodexCliChildProcess {
+  stdin?: CodexCliProcessWritableStream | null;
   stdout?: CodexCliProcessStream | null;
   stderr?: CodexCliProcessStream | null;
   on(event: "close", listener: (code: number | null, signal: NodeJS.Signals | null) => void): this;
   on(event: "error", listener: (error: Error) => void): this;
   kill(signal?: NodeJS.Signals | number): boolean;
+  unref?(): void;
+}
+
+export interface CodexCliProcessWritableStream {
+  end(): void;
+  destroy?(error?: Error): void;
 }
 
 export interface CodexCliProcessStream {
   setEncoding(encoding: BufferEncoding): void;
   on(event: "data", listener: (chunk: string | Buffer) => void): this;
+  destroy?(error?: Error): void;
 }
 
 const codexCliModelProbeCache = new Map<string, CodexCliModelProbeCacheEntry>();
@@ -454,6 +501,8 @@ export interface CodexCliReadOnlySmokeRunOptions {
   taskOptions?: CodexCliReadOnlySmokeTaskOptions;
   planOptions?: CodexCliReadOnlySmokePlanOptions;
   timeoutMs?: number;
+  modelProbeTimeoutMs?: number;
+  terminationGraceMs?: number;
   env?: NodeJS.ProcessEnv;
   spawn?: CodexCliProcessSpawner;
   telemetryStore?: TelemetrySink;
@@ -503,6 +552,14 @@ export interface CodexCliReadOnlySmokeEvidence {
     blockingReasons: string[];
     timedOut?: boolean;
     killed?: boolean;
+    stdinClosed?: boolean;
+    stdinDestroyed?: boolean;
+    closeReceived?: boolean;
+    forcedSettled?: boolean;
+    stdioDestroyed?: boolean;
+    unrefCalled?: boolean;
+    terminationGraceMs?: number;
+    terminationEscalated?: boolean;
     error?: string;
   };
   summary: {
@@ -535,6 +592,7 @@ export interface CodexCliOperatorAcceptanceRunOptions {
   task: TaskEnvelopeInput;
   planOptions?: CodexCliExecPlanOptions;
   timeoutMs?: number;
+  terminationGraceMs?: number;
   modelProbeTimeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   spawn?: CodexCliProcessSpawner;
@@ -595,6 +653,14 @@ export interface CodexCliOperatorAcceptanceEvidence {
     blockingReasons: string[];
     timedOut?: boolean;
     killed?: boolean;
+    stdinClosed?: boolean;
+    stdinDestroyed?: boolean;
+    closeReceived?: boolean;
+    forcedSettled?: boolean;
+    stdioDestroyed?: boolean;
+    unrefCalled?: boolean;
+    terminationGraceMs?: number;
+    terminationEscalated?: boolean;
     error?: string;
   };
   telemetry: Array<{
@@ -641,6 +707,8 @@ export interface CodexCliWorkspaceWriteSmokePreflightOptions {
 export interface CodexCliWorkspaceWriteSmokeRunOptions
   extends CodexCliWorkspaceWriteSmokePreflightOptions {
   timeoutMs?: number;
+  modelProbeTimeoutMs?: number;
+  terminationGraceMs?: number;
   env?: NodeJS.ProcessEnv;
   spawn?: CodexCliProcessSpawner;
   telemetryStore?: TelemetrySink;
@@ -711,6 +779,14 @@ export interface CodexCliWorkspaceWriteSmokeEvidence {
     blockingReasons: string[];
     timedOut?: boolean;
     killed?: boolean;
+    stdinClosed?: boolean;
+    stdinDestroyed?: boolean;
+    closeReceived?: boolean;
+    forcedSettled?: boolean;
+    stdioDestroyed?: boolean;
+    unrefCalled?: boolean;
+    terminationGraceMs?: number;
+    terminationEscalated?: boolean;
     error?: string;
   };
   summary: {
@@ -1295,36 +1371,35 @@ export async function createCodexCliModelCliProbeEvidence(
     };
   }
 
-  const task = createCodexCliModelProbeTask({
+  const task = parseTaskEnvelope(createCodexCliModelProbeTask({
     model,
     repoRoot: workdir
-  });
-  const plan = createCodexCliExecPlan(task, {
+  }));
+  const plan = createCodexCliModelProbeExecPlan(task, {
     codexCommand: command,
     cwd: workdir,
-    model,
-    sandbox: "read-only",
-    approvalPolicy: "never",
-    skipGitRepoCheck: true,
-    ephemeral: true
+    model
   });
 
   try {
     const run = await runCodexCliExecPlan(plan, {
       timeoutMs: options.timeoutMs ?? DEFAULT_CODEX_CLI_MODEL_PROBE_TIMEOUT_MS,
+      ...(options.terminationGraceMs !== undefined
+        ? { terminationGraceMs: options.terminationGraceMs }
+        : {}),
       skipExecutionModelProbe: true,
       ...(options.spawn ? { spawn: options.spawn } : {})
     });
-    const blockingReasons = run.inspection.status === "completed"
-      ? []
-      : ["codex_cli_model_probe_failed", ...run.inspection.blockingReasons];
+    const probeInspection = inspectCodexCliModelProbeRun(run);
+    const blockingReasons = probeInspection.blockingReasons;
     const status = blockingReasons.length === 0
       ? "passed"
       : strict ? "failed" : "unavailable";
     const warnings = blockingReasons.length === 0
-      ? run.inspection.warnings
+      ? [...run.inspection.warnings, ...probeInspection.warnings]
       : uniqueStrings([
           ...run.inspection.warnings,
+          ...probeInspection.warnings,
           ...blockingReasons
         ]);
 
@@ -1343,6 +1418,7 @@ export async function createCodexCliModelCliProbeEvidence(
         parseErrorCount: run.inspection.parseErrors.length,
         timedOut: run.timedOut,
         killed: run.killed,
+        ...createCodexCliProcessLifecycleEvidence(run),
         warnings: run.inspection.warnings,
         blockingReasons: run.inspection.blockingReasons,
         ...(run.error ? { error: run.error } : {})
@@ -1778,6 +1854,22 @@ export async function runCodexCliExecPlan(
   let stderr = "";
   let timedOut = false;
   let killed = false;
+  let stdinClosed = false;
+  let stdinDestroyed = false;
+  let stdinError: string | undefined;
+  let closeReceived = false;
+  let forcedSettled = false;
+  let stdioDestroyed = false;
+  let unrefCalled = false;
+  let killRequested = false;
+  let killSignal: NodeJS.Signals | undefined;
+  let escalated = false;
+  let escalationSignal: NodeJS.Signals | undefined;
+  let escalationKilled: boolean | undefined;
+  let closeCode: number | null | undefined;
+  let closeSignal: NodeJS.Signals | null | undefined;
+  const terminationGraceMs = resolvedOptions.terminationGraceMs
+    ?? DEFAULT_CODEX_CLI_TERMINATION_GRACE_MS;
 
   const createResult = (
     output: CodexCliCommandOutput,
@@ -1830,6 +1922,30 @@ export async function runCodexCliExecPlan(
       inspection: inspectionWithRuntime,
       timedOut,
       killed,
+      lifecycle: {
+        stdin: {
+          mode: "pipe",
+          closed: stdinClosed,
+          destroyed: stdinDestroyed,
+          ...(stdinError ? { error: stdinError } : {})
+        },
+        termination: {
+          closeReceived,
+          forcedSettled,
+          stdioDestroyed,
+          unrefCalled,
+          timedOut,
+          killRequested,
+          killed,
+          ...(killSignal ? { killSignal } : {}),
+          escalated,
+          ...(escalationSignal ? { escalationSignal } : {}),
+          ...(escalationKilled !== undefined ? { escalationKilled } : {}),
+          ...(terminationGraceMs > 0 ? { graceMs: terminationGraceMs } : {}),
+          ...(closeCode !== undefined ? { closeCode } : {}),
+          ...(closeSignal !== undefined ? { closeSignal } : {})
+        }
+      },
       modelAvailability,
       ...(modelProbe ? { modelProbe } : {}),
       ...(governance ? { governance } : {}),
@@ -1843,7 +1959,7 @@ export async function runCodexCliExecPlan(
     child = spawn(plan.command, plan.args, {
       ...(plan.workdir ? { cwd: plan.workdir } : {}),
       ...(spawnEnv ? { env: spawnEnv } : {}),
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true
     });
   } catch (error) {
@@ -1857,6 +1973,17 @@ export async function runCodexCliExecPlan(
     }, normalizeCodexCliSpawnError(error));
   }
 
+  try {
+    child.stdin?.end();
+    stdinClosed = true;
+    if (child.stdin?.destroy !== undefined) {
+      child.stdin.destroy();
+      stdinDestroyed = true;
+    }
+  } catch (error) {
+    stdinError = normalizeCodexCliSpawnError(error);
+  }
+
   child.stdout?.setEncoding("utf8");
   child.stderr?.setEncoding("utf8");
   child.stdout?.on("data", (chunk) => {
@@ -1866,15 +1993,9 @@ export async function runCodexCliExecPlan(
     stderr += chunk.toString();
   });
 
-  const timeout = resolvedOptions.timeoutMs && resolvedOptions.timeoutMs > 0
-    ? setTimeout(() => {
-      timedOut = true;
-      killed = child.kill("SIGTERM");
-    }, resolvedOptions.timeoutMs)
-    : undefined;
-
   return await new Promise<CodexCliProcessRunResult>((resolve) => {
     let settled = false;
+    let terminationGraceTimeout: NodeJS.Timeout | undefined;
     const settle = (output: CodexCliCommandOutput, error?: string) => {
       if (settled) {
         return;
@@ -1884,9 +2005,47 @@ export async function runCodexCliExecPlan(
       if (timeout) {
         clearTimeout(timeout);
       }
+      if (terminationGraceTimeout) {
+        clearTimeout(terminationGraceTimeout);
+      }
 
       resolve(createResult(output, error));
     };
+
+    const timeout = resolvedOptions.timeoutMs && resolvedOptions.timeoutMs > 0
+      ? setTimeout(() => {
+        timedOut = true;
+        killRequested = true;
+        killSignal = "SIGTERM";
+        killed = child.kill(killSignal);
+
+        if (terminationGraceMs <= 0) {
+          return;
+        }
+
+        terminationGraceTimeout = setTimeout(() => {
+          if (settled) {
+            return;
+          }
+
+          forcedSettled = true;
+          escalated = true;
+          escalationSignal = "SIGKILL";
+          escalationKilled = child.kill(escalationSignal);
+          const cleanup = releaseCodexCliChildHandles(child);
+          stdioDestroyed = cleanup.stdioDestroyed;
+          unrefCalled = cleanup.unrefCalled;
+          settle({
+            exitCode: 1,
+            stdout,
+            stderr: [
+              stderr,
+              "codex_cli_process_forced_settle_after_timeout"
+            ].filter(Boolean).join("\n")
+          });
+        }, terminationGraceMs);
+      }, resolvedOptions.timeoutMs)
+      : undefined;
 
     child.on("error", (error) => {
       settle({
@@ -1897,6 +2056,9 @@ export async function runCodexCliExecPlan(
     });
 
     child.on("close", (code, signal) => {
+      closeReceived = true;
+      closeCode = code;
+      closeSignal = signal;
       settle({
         exitCode: code ?? 1,
         stdout,
@@ -2018,20 +2180,21 @@ function createCodexCliModelProbeTask(
     intent: {
       summary: "probe Codex CLI model availability",
       requestedAction: [
-        `Use model ${options.model} through the logged-in Codex CLI session.`,
-        "Reply exactly CODEX_CLI_MODEL_PROBE_OK.",
-        "Do not inspect, create, update, or delete files."
+        `The host runner is probing model ${options.model}.`,
+        `Reply exactly ${CODEX_CLI_MODEL_PROBE_OK}.`,
+        "Do not inspect, create, update, delete, or run shell commands."
       ].join(" "),
       successCriteria: [
-        "Codex CLI accepts the selected model",
-        "Codex CLI emits JSONL output",
-        "no file edits or external writes are requested by the prompt"
+        `final agent message is exactly ${CODEX_CLI_MODEL_PROBE_OK}`,
+        "no shell commands, tool calls, file edits, or external writes are attempted"
       ],
       outOfScope: [
         "file edits",
         "workspace-write sandbox",
         "external writes",
-        "release actions"
+        "release actions",
+        "shell commands",
+        "nested Codex CLI execution"
       ]
     },
     repoContext: {
@@ -2225,7 +2388,7 @@ export async function runCodexCliReadOnlySmoke(
   if (smokeCwd !== undefined) {
     planOptions.cwd = smokeCwd;
   }
-  const plan = createCodexCliExecPlan(task, planOptions);
+  const plan = createCodexCliReadOnlySmokeExecPlan(task, planOptions);
   const validationBlockers = validateCodexCliExecPlanForRun(plan);
 
   if (validationBlockers.length > 0) {
@@ -2256,6 +2419,12 @@ export async function runCodexCliReadOnlySmoke(
       ?? DEFAULT_CODEX_CLI_READ_ONLY_SMOKE_TIMEOUT_MS;
     const run = await runCodexCliExecPlan(plan, {
       timeoutMs,
+      ...(options.modelProbeTimeoutMs !== undefined
+        ? { modelProbeTimeoutMs: options.modelProbeTimeoutMs }
+        : {}),
+      ...(options.terminationGraceMs !== undefined
+        ? { terminationGraceMs: options.terminationGraceMs }
+        : {}),
       ...(options.env !== undefined ? { env: options.env } : {}),
       ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
       ...(options.telemetryStore !== undefined
@@ -2264,13 +2433,49 @@ export async function runCodexCliReadOnlySmoke(
       ...(options.governance !== undefined ? { governance: options.governance } : {})
     });
 
+    const smokeInspection = inspectCodexCliReadOnlySmokeRun(run);
+    const runWithSmokeInspection: CodexCliProcessRunResult = {
+      ...run,
+      inspection: {
+        ...run.inspection,
+        status: smokeInspection.blockingReasons.length === 0 ? "completed" : "failed",
+        blockingReasons: smokeInspection.blockingReasons
+      }
+    };
+    const previousGovernanceState = run.governance?.state
+      ?? options.governance?.previousState;
+    const semanticGovernance = smokeInspection.blockingReasons.length === 0
+      ? run.governance
+      : options.governance?.enabled === false
+        ? undefined
+        : createCodexCliGovernanceBundle({
+          task,
+          plan,
+          stage: "read-only-smoke-semantic-validation",
+          status: "failed",
+          eventCount: run.inspection.events.length,
+          parseErrorCount: run.inspection.parseErrors.length,
+          blockingReasons: smokeInspection.blockingReasons,
+          warnings: run.inspection.warnings,
+          ...(run.error ? { error: run.error } : {}),
+          timedOut: run.timedOut,
+          killed: run.killed,
+          ...(options.governance?.evidenceRef
+            ? { evidenceRef: options.governance.evidenceRef }
+            : {}),
+          ...(previousGovernanceState
+            ? { previousState: previousGovernanceState }
+            : {}),
+          ...(options.governance?.now ? { now: options.governance.now } : {})
+        });
+
     return {
-      status: run.inspection.status === "completed" ? "passed" : "failed",
+      status: smokeInspection.blockingReasons.length === 0 ? "passed" : "failed",
       task,
       plan,
       validationBlockers,
-      run,
-      ...(run.governance ? { governance: run.governance } : {})
+      run: runWithSmokeInspection,
+      ...(semanticGovernance ? { governance: semanticGovernance } : {})
     };
   } catch (error) {
     const governance = options.governance?.enabled === false
@@ -2333,6 +2538,12 @@ export async function runCodexCliWorkspaceWriteSmoke(
     const run = await runCodexCliExecPlan(preflight.plan, {
       allowWriteSandbox: true,
       timeoutMs,
+      ...(options.modelProbeTimeoutMs !== undefined
+        ? { modelProbeTimeoutMs: options.modelProbeTimeoutMs }
+        : {}),
+      ...(options.terminationGraceMs !== undefined
+        ? { terminationGraceMs: options.terminationGraceMs }
+        : {}),
       ...(options.env !== undefined ? { env: options.env } : {}),
       ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
       ...(options.telemetryStore !== undefined
@@ -2434,6 +2645,9 @@ export async function runCodexCliOperatorAcceptance(
     const run = await runCodexCliExecPlan(plan, {
       ...(plan.sandbox === "workspace-write" ? { allowWriteSandbox: options.allowWriteSandbox } : {}),
       ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+      ...(options.terminationGraceMs !== undefined
+        ? { terminationGraceMs: options.terminationGraceMs }
+        : {}),
       ...(options.modelProbeTimeoutMs !== undefined ? { modelProbeTimeoutMs: options.modelProbeTimeoutMs } : {}),
       ...(options.env !== undefined ? { env: options.env } : {}),
       ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
@@ -2524,6 +2738,7 @@ export function createCodexCliOperatorAcceptanceEvidence(
       blockingReasons,
       ...(result.run?.timedOut !== undefined ? { timedOut: result.run.timedOut } : {}),
       ...(result.run?.killed !== undefined ? { killed: result.run.killed } : {}),
+      ...createCodexCliProcessLifecycleEvidence(result.run),
       ...(error !== undefined ? { error } : {})
     },
     telemetry: result.telemetryEvents.map((event) => ({
@@ -2658,6 +2873,7 @@ export function createCodexCliWorkspaceWriteSmokeEvidence(
       blockingReasons,
       ...(result.run !== undefined ? { timedOut: result.run.timedOut } : {}),
       ...(result.run !== undefined ? { killed: result.run.killed } : {}),
+      ...createCodexCliProcessLifecycleEvidence(result.run),
       ...(error !== undefined ? { error } : {})
     },
     summary: {
@@ -2763,6 +2979,7 @@ export function createCodexCliReadOnlySmokeEvidence(
       blockingReasons,
       ...(result.run !== undefined ? { timedOut: result.run.timedOut } : {}),
       ...(result.run !== undefined ? { killed: result.run.killed } : {}),
+      ...createCodexCliProcessLifecycleEvidence(result.run),
       ...(error !== undefined ? { error } : {})
     },
     summary: {
@@ -2828,6 +3045,277 @@ export function extractCodexCliWarnings(stderr: string): string[] {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.startsWith("WARNING:"));
+}
+
+function releaseCodexCliChildHandles(child: CodexCliChildProcess): {
+  stdioDestroyed: boolean;
+  unrefCalled: boolean;
+} {
+  let stdioDestroyed = false;
+
+  for (const stream of [child.stdin, child.stdout, child.stderr]) {
+    if (stream?.destroy === undefined) {
+      continue;
+    }
+
+    try {
+      stream.destroy();
+      stdioDestroyed = true;
+    } catch {
+      // Best-effort cleanup after timeout; the timeout result remains authoritative.
+    }
+  }
+
+  if (child.unref === undefined) {
+    return {
+      stdioDestroyed,
+      unrefCalled: false
+    };
+  }
+
+  try {
+    child.unref();
+    return {
+      stdioDestroyed,
+      unrefCalled: true
+    };
+  } catch {
+    return {
+      stdioDestroyed,
+      unrefCalled: false
+    };
+  }
+}
+
+function createCodexCliProcessLifecycleEvidence(
+  run: CodexCliProcessRunResult | undefined
+): {
+  stdinClosed?: boolean;
+  stdinDestroyed?: boolean;
+  closeReceived?: boolean;
+  forcedSettled?: boolean;
+  stdioDestroyed?: boolean;
+  unrefCalled?: boolean;
+  terminationGraceMs?: number;
+  terminationEscalated?: boolean;
+} {
+  if (run === undefined) {
+    return {};
+  }
+
+  return {
+    stdinClosed: run.lifecycle.stdin.closed,
+    stdinDestroyed: run.lifecycle.stdin.destroyed,
+    closeReceived: run.lifecycle.termination.closeReceived,
+    forcedSettled: run.lifecycle.termination.forcedSettled,
+    stdioDestroyed: run.lifecycle.termination.stdioDestroyed,
+    unrefCalled: run.lifecycle.termination.unrefCalled,
+    ...(run.lifecycle.termination.graceMs !== undefined
+      ? { terminationGraceMs: run.lifecycle.termination.graceMs }
+      : {}),
+    terminationEscalated: run.lifecycle.termination.escalated
+  };
+}
+
+function createCodexCliReadOnlySmokeExecPlan(
+  task: TaskEnvelope,
+  options: CodexCliExecPlanOptions
+): CodexCliExecPlan {
+  const basePlan = createCodexCliExecPlan(task, {
+    ...options,
+    sandbox: "read-only",
+    approvalPolicy: options.approvalPolicy ?? "never"
+  });
+  const prompt = createCodexCliReadOnlySmokePrompt();
+  const args = [...basePlan.args];
+  const promptIndex = args.lastIndexOf(basePlan.prompt);
+
+  if (promptIndex < 0) {
+    throw new Error("codex_cli_readonly_smoke_prompt_arg_missing");
+  }
+
+  args[promptIndex] = prompt;
+
+  return {
+    ...basePlan,
+    args,
+    prompt,
+    sandbox: "read-only",
+    approvalPolicy: options.approvalPolicy ?? "never",
+    warnings: []
+  };
+}
+
+function createCodexCliReadOnlySmokePrompt(): string {
+  return [
+    `Reply exactly ${CODEX_CLI_READONLY_SMOKE_OK}.`,
+    "Do not run shell commands, inspect files, call tools, edit files, or perform any other action."
+  ].join(" ");
+}
+
+function createCodexCliModelProbeExecPlan(
+  task: TaskEnvelope,
+  options: {
+    codexCommand: string;
+    cwd: string;
+    model: string;
+  }
+): CodexCliExecPlan {
+  const basePlan = createCodexCliExecPlan(task, {
+    codexCommand: options.codexCommand,
+    cwd: options.cwd,
+    model: options.model,
+    sandbox: "read-only",
+    approvalPolicy: "never",
+    skipGitRepoCheck: true,
+    ephemeral: true
+  });
+  const prompt = createCodexCliModelProbePrompt();
+  const args = basePlan.args.map((arg) => (
+    arg === basePlan.prompt ? prompt : arg
+  ));
+
+  return {
+    ...basePlan,
+    args,
+    prompt,
+    warnings: []
+  };
+}
+
+function createCodexCliModelProbePrompt(): string {
+  return [
+    `Reply exactly ${CODEX_CLI_MODEL_PROBE_OK}.`,
+    "Do not run shell commands, inspect files, call tools, or perform any other action."
+  ].join(" ");
+}
+
+function inspectCodexCliReadOnlySmokeRun(run: CodexCliProcessRunResult): {
+  blockingReasons: string[];
+} {
+  const blockingReasons = run.inspection.status === "completed"
+    ? []
+    : [...run.inspection.blockingReasons];
+  const agentMessages = extractCodexCliAgentMessages(run.inspection.events);
+  const exactResponse = agentMessages.some((message) => (
+    message.trim() === CODEX_CLI_READONLY_SMOKE_OK
+  ));
+  const unexpectedToolUses = extractCodexCliUnexpectedProbeToolUses(
+    run.inspection.events
+  );
+
+  if (!exactResponse) {
+    blockingReasons.push("codex_cli_readonly_smoke_unexpected_response");
+  }
+
+  blockingReasons.push(
+    ...unexpectedToolUses.map((kind) => (
+      `codex_cli_readonly_smoke_unexpected_tool_use:${kind}`
+    ))
+  );
+
+  return {
+    blockingReasons: uniqueStrings(blockingReasons)
+  };
+}
+
+function inspectCodexCliModelProbeRun(run: CodexCliProcessRunResult): {
+  blockingReasons: string[];
+  warnings: string[];
+} {
+  const blockingReasons = run.inspection.status === "completed"
+    ? []
+    : ["codex_cli_model_probe_failed", ...run.inspection.blockingReasons];
+  const agentMessages = extractCodexCliAgentMessages(run.inspection.events);
+  const exactResponse = agentMessages.some((message) => (
+    message.trim() === CODEX_CLI_MODEL_PROBE_OK
+  ));
+  const unexpectedToolUses = extractCodexCliUnexpectedProbeToolUses(
+    run.inspection.events
+  );
+
+  if (!exactResponse) {
+    blockingReasons.push("codex_cli_model_probe_unexpected_response");
+  }
+
+  blockingReasons.push(
+    ...unexpectedToolUses.map((kind) => (
+      `codex_cli_model_probe_unexpected_tool_use:${kind}`
+    ))
+  );
+
+  return {
+    blockingReasons: uniqueStrings(blockingReasons),
+    warnings: []
+  };
+}
+
+function extractCodexCliAgentMessages(events: CodexCliJsonlEvent[]): string[] {
+  const messages: string[] = [];
+
+  for (const event of events) {
+    const payload = event.event;
+    if (payload.type === "agent_message") {
+      const message = typeof payload.message === "string"
+        ? payload.message
+        : typeof payload.text === "string"
+          ? payload.text
+          : undefined;
+      if (message !== undefined) {
+        messages.push(message);
+      }
+      continue;
+    }
+
+    const item = isRecord(payload.item) ? payload.item : undefined;
+    if (item?.type !== "agent_message") {
+      continue;
+    }
+
+    const text = typeof item.text === "string"
+      ? item.text
+      : typeof item.message === "string"
+        ? item.message
+        : undefined;
+    if (text !== undefined) {
+      messages.push(text);
+    }
+  }
+
+  return messages;
+}
+
+function extractCodexCliUnexpectedProbeToolUses(
+  events: CodexCliJsonlEvent[]
+): string[] {
+  const kinds: string[] = [];
+
+  for (const event of events) {
+    const payload = event.event;
+    const item = isRecord(payload.item) ? payload.item : undefined;
+    const typeCandidates = [
+      typeof payload.type === "string" ? payload.type : undefined,
+      typeof item?.type === "string" ? item.type : undefined
+    ].filter((value): value is string => value !== undefined);
+
+    for (const type of typeCandidates) {
+      if (isCodexCliProbeToolLikeEventType(type)) {
+        kinds.push(type);
+      }
+    }
+  }
+
+  return uniqueStrings(kinds);
+}
+
+function isCodexCliProbeToolLikeEventType(type: string): boolean {
+  const normalized = type.toLowerCase();
+  return normalized === "command_execution"
+    || normalized === "tool_call"
+    || normalized === "mcp_tool_call"
+    || normalized === "function_call"
+    || normalized.endsWith("_tool_call")
+    || normalized.includes("command_execution");
 }
 
 function defaultCodexCliProcessSpawner(
@@ -3442,6 +3930,43 @@ async function emitCodexCliModelProbeCacheTelemetry(input: {
   }
 }
 
+async function emitCodexCliModelProbeResultTelemetry(input: {
+  telemetryStore: TelemetrySink | undefined;
+  evidence: CodexCliModelCliProbeEvidence;
+}): Promise<void> {
+  if (!input.telemetryStore) {
+    return;
+  }
+
+  try {
+    await emitTelemetryEvents(input.telemetryStore, [
+      createLogEvent("info", "codex cli model probe result", {
+        source: "codex-cli-host",
+        model: input.evidence.model,
+        status: input.evidence.status,
+        blockingReasons: input.evidence.blockingReasons,
+        run: input.evidence.run === undefined
+          ? undefined
+          : {
+              exitCode: input.evidence.run.exitCode,
+              timedOut: input.evidence.run.timedOut,
+              killed: input.evidence.run.killed,
+              stdinClosed: input.evidence.run.stdinClosed,
+              stdinDestroyed: input.evidence.run.stdinDestroyed,
+              closeReceived: input.evidence.run.closeReceived,
+              forcedSettled: input.evidence.run.forcedSettled,
+              stdioDestroyed: input.evidence.run.stdioDestroyed,
+              unrefCalled: input.evidence.run.unrefCalled,
+              terminationGraceMs: input.evidence.run.terminationGraceMs,
+              terminationEscalated: input.evidence.run.terminationEscalated
+            }
+      })
+    ]);
+  } catch {
+    // Best-effort observability only; probe execution should not fail on telemetry.
+  }
+}
+
 async function resolveCodexCliModelProbeForRun(
   plan: CodexCliExecPlan,
   options: CodexCliProcessRunOptions
@@ -3503,7 +4028,14 @@ async function resolveCodexCliModelProbeForRun(
     ...(options.modelProbeTimeoutMs !== undefined
       ? { timeoutMs: options.modelProbeTimeoutMs }
       : {}),
+    ...(options.terminationGraceMs !== undefined
+      ? { terminationGraceMs: options.terminationGraceMs }
+      : {}),
     ...(options.spawn ? { spawn: options.spawn } : {})
+  });
+  await emitCodexCliModelProbeResultTelemetry({
+    telemetryStore: options.telemetryStore,
+    evidence
   });
 
   if (options.disableModelProbeCache !== true) {

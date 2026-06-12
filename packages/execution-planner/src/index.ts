@@ -32,6 +32,7 @@ import {
   ProviderSideEffectClassSchema,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass,
+  hashProviderManifest,
   type ProviderKind,
   type ProviderSideEffectClass
 } from "../../provider-core/src/index.js";
@@ -64,6 +65,7 @@ export const ProviderExecutionPlanSchema = z.object({
   runId: z.string().min(1),
   providerId: z.string().min(1),
   providerKind: ProviderExecutionPlanProviderKindSchema,
+  providerManifestHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   status: ProviderExecutionPlanStatusSchema,
   inputHash: z.string().regex(/^[a-f0-9]{64}$/),
   policyDecisionHash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -355,6 +357,9 @@ export function planProviderExecution(
   });
   const providerId = providerResolution.providerId;
   const providerKind = providerResolution.providerKind;
+  const providerManifestHash = providerResolution.entry
+    ? hashProviderManifest(providerResolution.entry.manifest)
+    : undefined;
   const inputHash = createInputHash({
     taskId: task.taskId,
     runId: run.runId,
@@ -374,6 +379,7 @@ export function planProviderExecution(
     runId: run.runId,
     providerId,
     providerKind,
+    ...(providerManifestHash !== undefined ? { providerManifestHash } : {}),
     inputHash,
     policyDecisionHash,
     requiredCapabilities,

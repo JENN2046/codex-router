@@ -30,10 +30,13 @@ import type {
   KernelStore
 } from "../../kernel-store/src/index.js";
 import {
+  createProviderAttestation,
   ExecutorExecutionPlanSchema,
+  hashProviderManifest,
   type ExecutionValidationResult,
   type ExecutorExecutionPlan,
   type ExecutorProvider,
+  type ProviderAttestation,
   type ProviderSideEffectClass
 } from "../../provider-core/src/index.js";
 import type {
@@ -79,6 +82,7 @@ export type ProviderExecutionRunnerResult = {
   artifactIds: string[];
   createdAt: string;
   completedAt: string;
+  providerAttestation?: ProviderAttestation;
   executorPlan?: ExecutorExecutionPlan;
   validation?: ExecutionValidationResult;
   reportArtifact?: StoredArtifact;
@@ -97,6 +101,10 @@ export async function runProviderExecutionPlanDryRun(
   const eventIds: string[] = [];
   const artifactIds: string[] = [];
   const mode = (input as { mode?: unknown }).mode ?? "dry-run";
+  const providerEntry = input.providerRegistry.getProvider(providerExecutionPlan.providerId);
+  const providerAttestation = providerEntry === undefined
+    ? undefined
+    : createProviderAttestation(providerEntry.manifest, createdAt);
   const preflightReasons = collectRunnerPreflightReasons({
     mode,
     providerExecutionPlan,
@@ -114,12 +122,12 @@ export async function runProviderExecutionPlanDryRun(
       reasons: preflightReasons,
       eventIds,
       artifactIds,
-      createdAt
+      createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {})
     });
   }
 
-  const entry = input.providerRegistry.getProvider(providerExecutionPlan.providerId);
-  if (entry === undefined || !isExecutorProvider(entry.provider)) {
+  if (providerEntry === undefined || !isExecutorProvider(providerEntry.provider)) {
     return finalizeRunnerResult({
       input,
       providerExecutionPlan,
@@ -127,7 +135,8 @@ export async function runProviderExecutionPlanDryRun(
       reasons: [`provider_not_executable:${providerExecutionPlan.providerId}`],
       eventIds,
       artifactIds,
-      createdAt
+      createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {})
     });
   }
 
@@ -149,7 +158,7 @@ export async function runProviderExecutionPlanDryRun(
 
   let executorPlan: ExecutorExecutionPlan;
   try {
-    executorPlan = ExecutorExecutionPlanSchema.parse(await entry.provider.planExecution({
+    executorPlan = ExecutorExecutionPlanSchema.parse(await providerEntry.provider.planExecution({
       task,
       run,
       policyDecision,
@@ -166,7 +175,8 @@ export async function runProviderExecutionPlanDryRun(
       reasons: [`provider_plan_failed:${normalizeErrorMessage(error)}`],
       eventIds,
       artifactIds,
-      createdAt
+      createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {})
     });
   }
 
@@ -191,6 +201,7 @@ export async function runProviderExecutionPlanDryRun(
       eventIds,
       artifactIds,
       createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {}),
       executorPlan,
       validation
     });
@@ -198,7 +209,7 @@ export async function runProviderExecutionPlanDryRun(
 
   let validation: ExecutionValidationResult;
   try {
-    validation = await entry.provider.validateExecutionPlan(executorPlan);
+    validation = await providerEntry.provider.validateExecutionPlan(executorPlan);
   } catch (error) {
     validation = {
       valid: false,
@@ -215,6 +226,7 @@ export async function runProviderExecutionPlanDryRun(
       eventIds,
       artifactIds,
       createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {}),
       executorPlan,
       validation
     });
@@ -228,6 +240,7 @@ export async function runProviderExecutionPlanDryRun(
     eventIds,
     artifactIds,
     createdAt,
+    ...(providerAttestation !== undefined ? { providerAttestation } : {}),
     executorPlan,
     validation
   });
@@ -303,6 +316,11 @@ function collectRunnerPreflightReasons(input: {
     reasons.push(
       `provider_kind_mismatch:${entry.manifest.kind}:${input.providerExecutionPlan.providerKind}`
     );
+  } else if (
+    input.providerExecutionPlan.providerManifestHash !== undefined
+    && input.providerExecutionPlan.providerManifestHash !== hashProviderManifest(entry.manifest)
+  ) {
+    reasons.push("provider_plan_manifest_hash_mismatch");
   }
 
   return uniqueStrings(reasons);
@@ -396,6 +414,7 @@ async function finalizeRunnerResult(input: {
   eventIds: string[];
   artifactIds: string[];
   createdAt: string;
+  providerAttestation?: ProviderAttestation;
   executorPlan?: ExecutorExecutionPlan;
   validation?: ExecutionValidationResult;
 }): Promise<ProviderExecutionRunnerResult> {
@@ -408,6 +427,7 @@ async function finalizeRunnerResult(input: {
     eventIds: input.eventIds,
     createdAt: input.createdAt,
     completedAt,
+    ...(input.providerAttestation !== undefined ? { providerAttestation: input.providerAttestation } : {}),
     ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
     ...(input.validation !== undefined ? { validation: input.validation } : {})
   });
@@ -433,6 +453,9 @@ async function finalizeRunnerResult(input: {
       executeInvoked: false,
       reasons: input.reasons,
       artifactIds: input.artifactIds,
+      ...(input.providerAttestation !== undefined
+        ? { providerAttestation: summarizeProviderAttestation(input.providerAttestation) }
+        : {}),
       ...(input.validation !== undefined ? { validation: input.validation } : {}),
       ...(input.executorPlan !== undefined
         ? { executorPlan: summarizeExecutorPlan(input.executorPlan) }
@@ -458,6 +481,9 @@ async function finalizeRunnerResult(input: {
     completedAt,
     reportArtifact,
     kernelArtifact,
+    ...(input.providerAttestation !== undefined
+      ? { providerAttestation: input.providerAttestation }
+      : {}),
     ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
     ...(input.validation !== undefined ? { validation: input.validation } : {})
   };
@@ -471,6 +497,7 @@ async function writeRunnerReportArtifact(input: {
   eventIds: string[];
   createdAt: string;
   completedAt: string;
+  providerAttestation?: ProviderAttestation;
   executorPlan?: ExecutorExecutionPlan;
   validation?: ExecutionValidationResult;
 }): Promise<StoredArtifact> {
@@ -493,6 +520,9 @@ async function writeRunnerReportArtifact(input: {
       reasons: input.reasons,
       eventIds: input.eventIds,
       providerExecutionPlan: summarizeProviderExecutionPlan(input.providerExecutionPlan),
+      ...(input.providerAttestation !== undefined
+        ? { providerAttestation: summarizeProviderAttestation(input.providerAttestation) }
+        : {}),
       ...(input.executorPlan !== undefined
         ? { executorPlan: summarizeExecutorPlan(input.executorPlan) }
         : {}),
@@ -502,7 +532,10 @@ async function writeRunnerReportArtifact(input: {
       providerId: input.providerExecutionPlan.providerId,
       providerKind: input.providerExecutionPlan.providerKind,
       status: input.status,
-      dryRun: true
+      dryRun: true,
+      ...(input.providerAttestation !== undefined
+        ? { providerAttestationManifestHash: input.providerAttestation.manifestHash }
+        : {})
     },
     provenance: {
       principalId: input.input.principal.principalId,
@@ -586,6 +619,7 @@ function summarizeProviderExecutionPlan(plan: ProviderExecutionPlan): Record<str
     runId: plan.runId,
     providerId: plan.providerId,
     providerKind: plan.providerKind,
+    providerManifestHash: plan.providerManifestHash ?? null,
     status: plan.status,
     inputHash: plan.inputHash,
     policyDecisionHash: plan.policyDecisionHash,
@@ -613,6 +647,22 @@ function summarizeExecutorPlan(plan: ExecutorExecutionPlan): Record<string, unkn
     sandboxProfile: plan.sandboxProfile,
     sideEffectClass: plan.sideEffectClass,
     createdAt: plan.createdAt
+  };
+}
+
+function summarizeProviderAttestation(attestation: ProviderAttestation): Record<string, unknown> {
+  return {
+    schemaVersion: attestation.schemaVersion,
+    providerId: attestation.providerId,
+    kind: attestation.kind,
+    displayName: attestation.displayName,
+    version: attestation.version,
+    manifestHash: attestation.manifestHash,
+    capabilities: [...attestation.capabilities],
+    securityBoundary: attestation.securityBoundary,
+    supportedSandboxProfiles: attestation.supportedSandboxProfiles,
+    supportedSideEffectClasses: [...attestation.supportedSideEffectClasses],
+    attestedAt: attestation.attestedAt
   };
 }
 

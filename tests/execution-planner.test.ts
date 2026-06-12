@@ -32,6 +32,7 @@ import {
 } from "../packages/protocol-a2a/src/index.js";
 import {
   parseProviderManifest,
+  hashProviderManifest,
   type ExecutionPlanInput,
   type ExecutionValidationResult,
   type ExecutorExecutionPlan,
@@ -79,6 +80,10 @@ test("execution planner creates a planned plan with codex-cli provider", () => {
   assert.equal(plan.reasons.includes("provider_planned"), true);
   assert.match(plan.inputHash, /^[a-f0-9]{64}$/);
   assert.match(plan.policyDecisionHash, /^[a-f0-9]{64}$/);
+  assert.equal(
+    plan.providerManifestHash,
+    hashProviderManifest(registry.getProvider("codex-cli")!.manifest)
+  );
 });
 
 test("provider execution plan store saves and filters stable snapshots", () => {
