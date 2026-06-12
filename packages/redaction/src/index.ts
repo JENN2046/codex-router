@@ -49,7 +49,7 @@ function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): st
       `$1$2${REDACTED_SECRET}`
     )
     .replace(
-      new RegExp(`(${secretKeyPattern})(\\s*[:=]\\s*)(["']?)[^\\s"',;]+`, "gi"),
+      new RegExp(`(${secretKeyPattern})(\\s*[:=]\\s*)(["']?)(?:\\\\.|[^\\s"',;])+`, "gi"),
       `$1$2$3${REDACTED_SECRET}`
     )
     .replace(
@@ -58,7 +58,7 @@ function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): st
         `${prefix}${flag}${spacing}${valueQuote}${REDACTED_SECRET}${valueQuote}`
     )
     .replace(
-      new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)([^\\s"',;]+)`, "gi"),
+      new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s+)((?:\\\\.|[^\\s"',;])+)`, "gi"),
       (_match, prefix: string, flag: string, _key: string, spacing: string) =>
         `${prefix}${flag}${spacing}${REDACTED_SECRET}`
     );
