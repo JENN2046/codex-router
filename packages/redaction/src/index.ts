@@ -7,7 +7,7 @@ export type RedactSecretLikeFieldsOptions = {
   stripUndefined?: boolean;
 };
 
-const DEFAULT_SECRET_KEY_PATTERN = "api[-_]?key|authorization|credential|password|secret|token";
+const DEFAULT_SECRET_KEY_PATTERN = "[A-Za-z0-9_.-]*(?:api[-_]?key|authorization|credential|password|secret|token)[A-Za-z0-9_.-]*";
 
 export function redactSecretLikeFields(
   input: unknown,
