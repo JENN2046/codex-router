@@ -290,7 +290,16 @@ test("codex desktop bindings pass structured shell commands and redact shell sec
       return {
         structuredCommand: {
           executable: "npm",
-          args: ["test"],
+          args: [
+            "test",
+            "--token",
+            "argv-token",
+            "--password",
+            "argv-password",
+            "--api-key=inline-api-key",
+            "--safe",
+            "ok"
+          ],
           shell: false
         },
         justification: "validate changes"
@@ -303,7 +312,16 @@ test("codex desktop bindings pass structured shell commands and redact shell sec
   assert.deepEqual(shellRequests, [{
     structuredCommand: {
       executable: "npm",
-      args: ["test"],
+      args: [
+        "test",
+        "--token",
+        "argv-token",
+        "--password",
+        "argv-password",
+        "--api-key=inline-api-key",
+        "--safe",
+        "ok"
+      ],
       shell: false
     },
     justification: "validate changes"
@@ -328,9 +346,21 @@ test("codex desktop bindings pass structured shell commands and redact shell sec
   assert.equal(envelopeText.includes("Bearer json-auth"), false);
   assert.equal(envelopeText.includes("json-password"), false);
   assert.equal(envelopeText.includes("raw-api-key"), false);
+  assert.equal(envelopeText.includes("argv-token"), false);
+  assert.equal(envelopeText.includes("argv-password"), false);
+  assert.equal(envelopeText.includes("inline-api-key"), false);
   assert.deepEqual((result as { structuredCommand?: unknown }).structuredCommand, {
     executable: "npm",
-    args: ["test"],
+    args: [
+      "test",
+      "--token",
+      "<REDACTED_SECRET>",
+      "--password",
+      "<REDACTED_SECRET>",
+      "--api-key=<REDACTED_SECRET>",
+      "--safe",
+      "ok"
+    ],
     shell: false
   });
 });

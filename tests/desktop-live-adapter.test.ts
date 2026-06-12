@@ -152,10 +152,27 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
     primitive: "shell_command",
     ok: true,
     exitCode: 0,
+    structuredCommand: {
+      executable: "codex",
+      args: [
+        "exec",
+        "--token",
+        "argv-token",
+        "--password",
+        "argv-password",
+        "--api-key=inline-api-key",
+        "--safe",
+        "ok"
+      ]
+    },
     stdout: `token=plain-token\n{"apiKey":"json-api-key"}`,
     stderr: `Authorization: Bearer abc.def\n{"password":"json-password"}`,
     payload: {
       token: "payload-token",
+      structuredCommand: {
+        executable: "codex",
+        args: ["--secret", "payload-secret"]
+      },
       nested: {
         apiKey: "payload-api-key"
       }
@@ -175,6 +192,28 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
     ((result as { payload?: { nested?: { apiKey?: string } } }).payload?.nested?.apiKey),
     "<REDACTED_SECRET>"
   );
+  assert.deepEqual((result as { structuredCommand?: unknown }).structuredCommand, {
+    executable: "codex",
+    args: [
+      "exec",
+      "--token",
+      "<REDACTED_SECRET>",
+      "--password",
+      "<REDACTED_SECRET>",
+      "--api-key=<REDACTED_SECRET>",
+      "--safe",
+      "ok"
+    ]
+  });
+  assert.deepEqual(
+    ((result as {
+      payload?: { structuredCommand?: unknown };
+    }).payload?.structuredCommand),
+    {
+      executable: "codex",
+      args: ["--secret", "<REDACTED_SECRET>"]
+    }
+  );
   const envelopeText = JSON.stringify(result);
   assert.equal(envelopeText.includes("plain-token"), false);
   assert.equal(envelopeText.includes("json-api-key"), false);
@@ -182,6 +221,10 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
   assert.equal(envelopeText.includes("json-password"), false);
   assert.equal(envelopeText.includes("payload-token"), false);
   assert.equal(envelopeText.includes("payload-api-key"), false);
+  assert.equal(envelopeText.includes("argv-token"), false);
+  assert.equal(envelopeText.includes("argv-password"), false);
+  assert.equal(envelopeText.includes("inline-api-key"), false);
+  assert.equal(envelopeText.includes("payload-secret"), false);
 });
 
 test("desktop live adapter fails fast on missing handler", async () => {
