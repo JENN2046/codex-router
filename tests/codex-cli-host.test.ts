@@ -3050,6 +3050,69 @@ test("codex cli host runner force-settles when timed-out child never closes", as
   assert.ok(result.inspection.blockingReasons.includes("codex_cli_process_timeout"));
 });
 
+test("codex cli host runner force-settles immediately when timeout grace is disabled", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-timeout-zero-grace",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const child = createFakeCodexCliChild({
+    stdout: "{\"type\":\"agent_message\",\"message\":\"slow\"}\n",
+    exitCode: 0,
+    autoClose: false,
+    closeOnKill: false
+  });
+
+  let settleGuard: NodeJS.Timeout | undefined;
+  const result = await Promise.race([
+    runCodexCliExecPlan(plan, {
+      timeoutMs: 1,
+      terminationGraceMs: 0,
+      spawn: () => child
+    }),
+    new Promise<never>((_, reject) => {
+      settleGuard = setTimeout(() => {
+        reject(new Error("codex_cli_zero_grace_timeout_did_not_settle"));
+      }, 100);
+    })
+  ]).finally(() => {
+    if (settleGuard) {
+      clearTimeout(settleGuard);
+    }
+  });
+
+  assert.equal(result.timedOut, true);
+  assert.equal(result.killed, true);
+  assert.equal(result.inspection.status, "failed");
+  assert.equal(result.lifecycle.termination.closeReceived, false);
+  assert.equal(result.lifecycle.termination.forcedSettled, true);
+  assert.equal(result.lifecycle.termination.stdioDestroyed, true);
+  assert.equal(result.lifecycle.termination.unrefCalled, true);
+  assert.equal(result.lifecycle.termination.escalated, true);
+  assert.equal(result.lifecycle.termination.escalationKilled, true);
+  assert.ok(result.output.stderr?.includes("codex_cli_process_forced_settle_after_timeout"));
+  assert.ok(result.inspection.blockingReasons.includes("codex_cli_process_timeout"));
+});
+
 test("codex cli read-only smoke creates a fixed safe task envelope", () => {
   const task = createCodexCliReadOnlySmokeTask({
     taskId: "cli-smoke-safe",

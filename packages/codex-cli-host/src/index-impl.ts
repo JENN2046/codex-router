@@ -2011,6 +2011,27 @@ export async function runCodexCliExecPlan(
 
       resolve(createResult(output, error));
     };
+    const forceSettleAfterTimeout = () => {
+      if (settled) {
+        return;
+      }
+
+      forcedSettled = true;
+      escalated = true;
+      escalationSignal = "SIGKILL";
+      escalationKilled = child.kill(escalationSignal);
+      const cleanup = releaseCodexCliChildHandles(child);
+      stdioDestroyed = cleanup.stdioDestroyed;
+      unrefCalled = cleanup.unrefCalled;
+      settle({
+        exitCode: 1,
+        stdout,
+        stderr: [
+          stderr,
+          "codex_cli_process_forced_settle_after_timeout"
+        ].filter(Boolean).join("\n")
+      });
+    };
 
     const timeout = resolvedOptions.timeoutMs && resolvedOptions.timeoutMs > 0
       ? setTimeout(() => {
@@ -2020,29 +2041,12 @@ export async function runCodexCliExecPlan(
         killed = child.kill(killSignal);
 
         if (terminationGraceMs <= 0) {
+          forceSettleAfterTimeout();
           return;
         }
 
         terminationGraceTimeout = setTimeout(() => {
-          if (settled) {
-            return;
-          }
-
-          forcedSettled = true;
-          escalated = true;
-          escalationSignal = "SIGKILL";
-          escalationKilled = child.kill(escalationSignal);
-          const cleanup = releaseCodexCliChildHandles(child);
-          stdioDestroyed = cleanup.stdioDestroyed;
-          unrefCalled = cleanup.unrefCalled;
-          settle({
-            exitCode: 1,
-            stdout,
-            stderr: [
-              stderr,
-              "codex_cli_process_forced_settle_after_timeout"
-            ].filter(Boolean).join("\n")
-          });
+          forceSettleAfterTimeout();
         }, terminationGraceMs);
       }, resolvedOptions.timeoutMs)
       : undefined;
