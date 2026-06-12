@@ -40,8 +40,13 @@ function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): st
         `${keyQuote}${key}${keyQuote}${separator}${REDACTED_SECRET}`
     )
     .replace(
-      /(authorization)(\s*[:=]\s*)(["']?)[^\r\n]+/gi,
-      `$1$2$3${REDACTED_SECRET}`
+      new RegExp(`(${secretKeyPattern})(\\s*[:=]\\s*)(["'])(?:\\\\.|(?!\\3)[^\\\\\\r\\n])*\\3`, "gi"),
+      (_match, key: string, separator: string, valueQuote: string) =>
+        `${key}${separator}${valueQuote}${REDACTED_SECRET}${valueQuote}`
+    )
+    .replace(
+      /(authorization)(\s*[:=]\s*)(?!["'])[^\r\n]+/gi,
+      `$1$2${REDACTED_SECRET}`
     )
     .replace(
       new RegExp(`(${secretKeyPattern})(\\s*[:=]\\s*)(["']?)[^\\s"',;]+`, "gi"),

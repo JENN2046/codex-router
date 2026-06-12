@@ -19,6 +19,14 @@ test("redaction covers text, JSON, and split argv secret values", () => {
     redactSecretLikeText("tool --session=string-session", ["session"]),
     "tool --session=<REDACTED_SECRET>"
   );
+  assert.equal(
+    redactSecretLikeText(`tool --token="quoted token value"`),
+    `tool --token="<REDACTED_SECRET>"`
+  );
+  assert.equal(
+    redactSecretLikeText("tool --session='quoted session value'", ["session"]),
+    "tool --session='<REDACTED_SECRET>'"
+  );
   assert.deepEqual(
     redactSecretLikeArgv([
       "exec",
@@ -45,7 +53,7 @@ test("redaction covers text, JSON, and split argv secret values", () => {
   );
   assert.deepEqual(
     redactSecretLikeFields({
-      command: "tool --token=string-token",
+      command: `tool --token="quoted string token"`,
       args: ["--token", "argv-token"],
       nested: {
         apiKey: "field-api-key"
@@ -55,7 +63,7 @@ test("redaction covers text, JSON, and split argv secret values", () => {
       redactStrings: true
     }),
     {
-      command: "tool --token=<REDACTED_SECRET>",
+      command: `tool --token="<REDACTED_SECRET>"`,
       args: ["--token", "<REDACTED_SECRET>"],
       nested: {
         apiKey: "<REDACTED_SECRET>"
