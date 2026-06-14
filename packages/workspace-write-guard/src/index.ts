@@ -6,6 +6,8 @@ import {
   type WorkspaceWriteProviderExecutionPermit
 } from "../../provider-core/src/index.js";
 
+export const DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE = "tmp/codex-cli-write-canary.txt";
+
 export const WorkspaceWriteDiffFileSummarySchema = z.object({
   path: z.string().min(1),
   addedLines: z.number().int().nonnegative(),
@@ -75,11 +77,42 @@ export const WorkspaceWriteRollbackPlanEvidenceSchema = z.object({
   blockingReasons: z.array(z.string())
 });
 
+export const WorkspaceWriteCanaryReadinessResultSchema = z.object({
+  ok: z.boolean(),
+  status: z.enum(["ready", "blocked"]),
+  reasons: z.array(z.string()),
+  summary: z.object({
+    targetFile: z.string().min(1),
+    allowedTargetFile: z.string().min(1),
+    providerId: z.string().min(1),
+    permitId: z.string().min(1),
+    planId: z.string().min(1).optional(),
+    sideEffectClass: z.literal("workspace_write"),
+    sandboxMode: z.literal("workspace-write"),
+    maxChangedFiles: z.number().int().positive(),
+    maxDiffLines: z.number().int().positive(),
+    fixedTarget: z.boolean(),
+    operatorGateEnabled: z.boolean(),
+    permitApproved: z.boolean(),
+    patchGuardPassed: z.boolean(),
+    rollbackReady: z.boolean(),
+    protectedBranch: z.boolean(),
+    worktreeClean: z.boolean(),
+    providerExecuteCalls: z.literal(0),
+    realCodexCliCalls: z.literal(0),
+    workspaceWriteExecuteCalls: z.literal(0),
+    canaryFileWrites: z.literal(0)
+  })
+});
+
 export type WorkspaceWriteDiffFileSummary = z.infer<typeof WorkspaceWriteDiffFileSummarySchema>;
 export type WorkspaceWriteDiffInspection = z.infer<typeof WorkspaceWriteDiffInspectionSchema>;
 export type WorkspaceWritePatchGuardResult = z.infer<typeof WorkspaceWritePatchGuardResultSchema>;
 export type WorkspaceWriteRollbackPlanEvidence = z.infer<
   typeof WorkspaceWriteRollbackPlanEvidenceSchema
+>;
+export type WorkspaceWriteCanaryReadinessResult = z.infer<
+  typeof WorkspaceWriteCanaryReadinessResultSchema
 >;
 
 export type WorkspaceWritePatchGuardInput = {
@@ -92,6 +125,15 @@ export type WorkspaceWriteRollbackPlanEvidenceInput = {
   guardResult: WorkspaceWritePatchGuardResult;
   beforeCommit?: string;
   generatedAt: string;
+};
+
+export type WorkspaceWriteCanaryReadinessInput = {
+  permit: WorkspaceWriteProviderExecutionPermit;
+  guardResult: WorkspaceWritePatchGuardResult;
+  rollbackEvidence: WorkspaceWriteRollbackPlanEvidence;
+  targetFile: string;
+  allowedTargetFile?: string;
+  operatorGateEnabled: boolean;
 };
 
 export function inspectWorkspaceWriteUnifiedDiff(unifiedDiff: string): WorkspaceWriteDiffInspection {
@@ -268,6 +310,87 @@ export function createWorkspaceWriteRollbackPlanEvidence(
       noRawPatch: true
     },
     blockingReasons: uniqueReasons
+  });
+}
+
+export function evaluateWorkspaceWriteCanaryReadiness(
+  input: WorkspaceWriteCanaryReadinessInput
+): WorkspaceWriteCanaryReadinessResult {
+  const permit = WorkspaceWriteProviderExecutionPermitSchema.parse(input.permit);
+  const guardResult = WorkspaceWritePatchGuardResultSchema.parse(input.guardResult);
+  const rollbackEvidence = WorkspaceWriteRollbackPlanEvidenceSchema.parse(input.rollbackEvidence);
+  const allowedTargetFile = input.allowedTargetFile ?? DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE;
+  const fixedTarget = input.targetFile === allowedTargetFile
+    && permit.targetFiles.length === 1
+    && permit.targetFiles[0] === allowedTargetFile
+    && guardResult.summary.changedFiles.length === 1
+    && guardResult.summary.changedFiles[0]?.path === allowedTargetFile;
+  const reasons = [
+    ...(input.operatorGateEnabled
+      ? []
+      : ["workspace_write_canary_readiness_operator_gate_required"]),
+    ...(fixedTarget
+      ? []
+      : ["workspace_write_canary_readiness_fixed_target_required"]),
+    ...(permit.status === "approved"
+      ? []
+      : [`workspace_write_canary_readiness_permit_not_approved:${permit.status}`]),
+    ...(permit.sideEffectClass === "workspace_write"
+      ? []
+      : ["workspace_write_canary_readiness_requires_workspace_write_side_effect"]),
+    ...(permit.sandboxMode === "workspace-write"
+      ? []
+      : ["workspace_write_canary_readiness_requires_workspace_write_sandbox"]),
+    ...(permit.maxChangedFiles === 1
+      ? []
+      : ["workspace_write_canary_readiness_single_file_only"]),
+    ...(permit.maxDiffLines <= 2
+      ? []
+      : ["workspace_write_canary_readiness_diff_cap_too_large"]),
+    ...(permit.operatorAuthorizationId !== undefined
+      ? []
+      : ["workspace_write_canary_readiness_operator_authorization_required"]),
+    ...(permit.repositoryState.protectedBranch
+      ? ["workspace_write_canary_readiness_protected_branch_forbidden"]
+      : []),
+    ...(permit.repositoryState.worktreeClean
+      ? []
+      : ["workspace_write_canary_readiness_dirty_worktree_forbidden"]),
+    ...(guardResult.ok
+      ? []
+      : ["workspace_write_canary_readiness_patch_guard_not_passed", ...guardResult.reasons]),
+    ...(rollbackEvidence.status === "ready" && rollbackEvidence.rollback.available
+      ? []
+      : ["workspace_write_canary_readiness_rollback_not_ready", ...rollbackEvidence.blockingReasons])
+  ];
+  const uniqueReasons = uniqueStrings(reasons);
+
+  return WorkspaceWriteCanaryReadinessResultSchema.parse({
+    ok: uniqueReasons.length === 0,
+    status: uniqueReasons.length === 0 ? "ready" : "blocked",
+    reasons: uniqueReasons,
+    summary: {
+      targetFile: input.targetFile,
+      allowedTargetFile,
+      providerId: permit.providerId,
+      permitId: permit.permitId,
+      ...(permit.planId !== undefined ? { planId: permit.planId } : {}),
+      sideEffectClass: permit.sideEffectClass,
+      sandboxMode: permit.sandboxMode,
+      maxChangedFiles: permit.maxChangedFiles,
+      maxDiffLines: permit.maxDiffLines,
+      fixedTarget,
+      operatorGateEnabled: input.operatorGateEnabled,
+      permitApproved: permit.status === "approved",
+      patchGuardPassed: guardResult.ok,
+      rollbackReady: rollbackEvidence.status === "ready" && rollbackEvidence.rollback.available,
+      protectedBranch: permit.repositoryState.protectedBranch,
+      worktreeClean: permit.repositoryState.worktreeClean,
+      providerExecuteCalls: 0,
+      realCodexCliCalls: 0,
+      workspaceWriteExecuteCalls: 0,
+      canaryFileWrites: 0
+    }
   });
 }
 

@@ -11,7 +11,9 @@ import {
 } from "../packages/provider-core/src/index.js";
 import { SandboxProfileSchema, type SandboxProfile } from "../packages/kernel-contracts/src/index.js";
 import {
+  DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
   createWorkspaceWriteRollbackPlanEvidence,
+  evaluateWorkspaceWriteCanaryReadiness,
   evaluateWorkspaceWritePatchGuard,
   inspectWorkspaceWriteUnifiedDiff
 } from "../packages/workspace-write-guard/src/index.js";
@@ -265,6 +267,120 @@ test("workspace-write rollback evidence stays sanitized after secret-like guard 
   assert.equal(serialized.includes("raw patch"), false);
 });
 
+test("workspace-write canary readiness blocks without explicit operator gate", () => {
+  const permit = createWorkspaceWritePermit({
+    targetFiles: [DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE],
+    maxChangedFiles: 1,
+    maxDiffLines: 2
+  });
+  const guardResult = evaluateWorkspaceWritePatchGuard({
+    permit,
+    unifiedDiff: createCanaryDiff()
+  });
+  const rollbackEvidence = createWorkspaceWriteRollbackPlanEvidence({
+    permit,
+    guardResult,
+    beforeCommit: "abc123def456",
+    generatedAt: "2026-06-14T00:00:00.000Z"
+  });
+  const readiness = evaluateWorkspaceWriteCanaryReadiness({
+    permit,
+    guardResult,
+    rollbackEvidence,
+    targetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+    operatorGateEnabled: false
+  });
+
+  assert.equal(readiness.ok, false);
+  assert.equal(readiness.status, "blocked");
+  assert.ok(readiness.reasons.includes("workspace_write_canary_readiness_operator_gate_required"));
+  assert.equal(readiness.summary.fixedTarget, true);
+  assert.equal(readiness.summary.providerExecuteCalls, 0);
+  assert.equal(readiness.summary.realCodexCliCalls, 0);
+  assert.equal(readiness.summary.workspaceWriteExecuteCalls, 0);
+  assert.equal(readiness.summary.canaryFileWrites, 0);
+});
+
+test("workspace-write canary readiness can become ready for a fixed fake target", () => {
+  const permit = createWorkspaceWritePermit({
+    targetFiles: [DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE],
+    maxChangedFiles: 1,
+    maxDiffLines: 2
+  });
+  const guardResult = evaluateWorkspaceWritePatchGuard({
+    permit,
+    unifiedDiff: createCanaryDiff()
+  });
+  const rollbackEvidence = createWorkspaceWriteRollbackPlanEvidence({
+    permit,
+    guardResult,
+    beforeCommit: "abc123def456",
+    generatedAt: "2026-06-14T00:00:00.000Z"
+  });
+  const readiness = evaluateWorkspaceWriteCanaryReadiness({
+    permit,
+    guardResult,
+    rollbackEvidence,
+    targetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+    operatorGateEnabled: true
+  });
+  const serialized = JSON.stringify(readiness);
+
+  assert.equal(readiness.ok, true);
+  assert.equal(readiness.status, "ready");
+  assert.deepEqual(readiness.reasons, []);
+  assert.equal(readiness.summary.targetFile, DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE);
+  assert.equal(readiness.summary.fixedTarget, true);
+  assert.equal(readiness.summary.operatorGateEnabled, true);
+  assert.equal(readiness.summary.permitApproved, true);
+  assert.equal(readiness.summary.patchGuardPassed, true);
+  assert.equal(readiness.summary.rollbackReady, true);
+  assert.equal(readiness.summary.providerExecuteCalls, 0);
+  assert.equal(readiness.summary.realCodexCliCalls, 0);
+  assert.equal(readiness.summary.workspaceWriteExecuteCalls, 0);
+  assert.equal(readiness.summary.canaryFileWrites, 0);
+  assert.equal(serialized.includes("canary=ready"), false);
+});
+
+test("workspace-write canary readiness blocks non-canary targets and broad caps", () => {
+  const permit = createWorkspaceWritePermit({
+    targetFiles: ["tmp/not-the-canary.txt"],
+    maxChangedFiles: 1,
+    maxDiffLines: 8
+  });
+  const guardResult = evaluateWorkspaceWritePatchGuard({
+    permit,
+    unifiedDiff: [
+      "diff --git a/tmp/not-the-canary.txt b/tmp/not-the-canary.txt",
+      "--- a/tmp/not-the-canary.txt",
+      "+++ b/tmp/not-the-canary.txt",
+      "@@",
+      "+canary=wrong-target"
+    ].join("\n")
+  });
+  const rollbackEvidence = createWorkspaceWriteRollbackPlanEvidence({
+    permit,
+    guardResult,
+    beforeCommit: "abc123def456",
+    generatedAt: "2026-06-14T00:00:00.000Z"
+  });
+  const readiness = evaluateWorkspaceWriteCanaryReadiness({
+    permit,
+    guardResult,
+    rollbackEvidence,
+    targetFile: "tmp/not-the-canary.txt",
+    operatorGateEnabled: true
+  });
+  const serialized = JSON.stringify(readiness);
+
+  assert.equal(readiness.ok, false);
+  assert.equal(readiness.status, "blocked");
+  assert.ok(readiness.reasons.includes("workspace_write_canary_readiness_fixed_target_required"));
+  assert.ok(readiness.reasons.includes("workspace_write_canary_readiness_diff_cap_too_large"));
+  assert.equal(readiness.summary.fixedTarget, false);
+  assert.equal(serialized.includes("canary=wrong-target"), false);
+});
+
 function createSafeDiff(): string {
   return [
     "diff --git a/workspace/packages/provider-core/src/index.ts b/workspace/packages/provider-core/src/index.ts",
@@ -273,6 +389,16 @@ function createSafeDiff(): string {
     "@@",
     "-old line",
     "+new line"
+  ].join("\n");
+}
+
+function createCanaryDiff(): string {
+  return [
+    `diff --git a/${DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE} b/${DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE}`,
+    `--- a/${DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE}`,
+    `+++ b/${DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE}`,
+    "@@",
+    "+canary=ready"
   ].join("\n");
 }
 

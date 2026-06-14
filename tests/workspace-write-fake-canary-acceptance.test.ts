@@ -44,6 +44,8 @@ test("workspace-write fake canary acceptance proves fixed target without executi
     patchGuardPassedForCanaryDiff: true,
     patchGuardBlocksNonCanaryDiff: true,
     rollbackEvidenceReady: true,
+    canaryReadinessBlocksWithoutOperatorGate: true,
+    canaryReadinessReadyWithFakeGate: true,
     canaryFileAbsentBeforeAndAfter: true,
     noProviderExecute: true,
     noRealCodexCli: true,
@@ -61,6 +63,7 @@ test("workspace-write fake canary acceptance proves fixed target without executi
   assert.equal(evidence.summary.changedFileCount, 1);
   assert.equal(evidence.summary.diffLineCount, 1);
   assert.equal(evidence.summary.rollbackAvailable, true);
+  assert.equal(evidence.summary.readinessStatus, "ready");
   assert.deepEqual(evidence.counters, {
     providerExecuteCalls: 0,
     realCodexCliCalls: 0,
@@ -70,6 +73,9 @@ test("workspace-write fake canary acceptance proves fixed target without executi
   assert.ok(evidence.blockingReasons.includes("workspace_write_fake_canary_target_mismatch"));
   assert.ok(evidence.blockingReasons.includes(
     "workspace_write_patch_guard_changed_file_not_permitted:tmp/not-the-canary.txt"
+  ));
+  assert.ok(evidence.blockingReasons.includes(
+    "workspace_write_canary_readiness_operator_gate_required"
   ));
   assertSafeEvidence(evidence);
 });
@@ -88,6 +94,8 @@ test("workspace-write fake canary acceptance writer persists safe json", async (
 
   assert.equal(parsed.schemaVersion, "workspace-write-fake-canary-acceptance.v1");
   assert.equal(parsed.checks.fixedCanaryTarget, true);
+  assert.equal(parsed.checks.canaryReadinessBlocksWithoutOperatorGate, true);
+  assert.equal(parsed.checks.canaryReadinessReadyWithFakeGate, true);
   assert.equal(parsed.checks.noWorkspaceWriteExecute, true);
   assert.equal(parsed.checks.noRealCodexCli, true);
   assert.equal(parsed.checks.leakCheckPassed, true);

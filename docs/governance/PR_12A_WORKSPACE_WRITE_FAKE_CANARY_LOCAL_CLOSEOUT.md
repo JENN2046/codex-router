@@ -17,6 +17,7 @@ Implemented:
 - Patch guard over a synthetic canary diff.
 - Negative guard for a non-canary target.
 - Rollback evidence using a recorded before commit.
+- Canary readiness preflight proving the default missing operator gate is blocked.
 - Sanitized evidence at `docs/evidence/workspace-write-fake-canary-acceptance.json`.
 - Acceptance script: `npm run acceptance:workspace-write-fake-canary`.
 
@@ -28,6 +29,7 @@ Verified boundary behavior:
 - No real Codex CLI call.
 - No workspace-write execute call.
 - No canary file write.
+- Readiness preflight remains local-only and records zero execution counters.
 - No release, tag, or push performed as part of this local closeout.
 
 The acceptance path uses only local schema helpers, patch guard helpers, and synthetic unified diffs.

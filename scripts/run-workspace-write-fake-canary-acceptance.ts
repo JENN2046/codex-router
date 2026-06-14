@@ -15,7 +15,9 @@ import {
   type ProviderManifest
 } from "../packages/provider-core/src/index.js";
 import {
+  DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
   createWorkspaceWriteRollbackPlanEvidence,
+  evaluateWorkspaceWriteCanaryReadiness,
   evaluateWorkspaceWritePatchGuard
 } from "../packages/workspace-write-guard/src/index.js";
 
@@ -28,7 +30,7 @@ const DEFAULT_EVIDENCE_PATH = join(
   "workspace-write-fake-canary-acceptance.json"
 );
 const DEFAULT_GENERATED_AT = "2026-06-14T00:00:00.000Z";
-const CANARY_TARGET_FILE = "tmp/codex-cli-write-canary.txt";
+const CANARY_TARGET_FILE = DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE;
 
 export interface WorkspaceWriteFakeCanaryAcceptanceEvidence {
   schemaVersion: "workspace-write-fake-canary-acceptance.v1";
@@ -42,6 +44,8 @@ export interface WorkspaceWriteFakeCanaryAcceptanceEvidence {
     patchGuardPassedForCanaryDiff: boolean;
     patchGuardBlocksNonCanaryDiff: boolean;
     rollbackEvidenceReady: boolean;
+    canaryReadinessBlocksWithoutOperatorGate: boolean;
+    canaryReadinessReadyWithFakeGate: boolean;
     canaryFileAbsentBeforeAndAfter: boolean;
     noProviderExecute: boolean;
     noRealCodexCli: boolean;
@@ -62,6 +66,7 @@ export interface WorkspaceWriteFakeCanaryAcceptanceEvidence {
     changedFileCount: number;
     diffLineCount: number;
     rollbackAvailable: boolean;
+    readinessStatus: "ready" | "blocked";
   };
   counters: {
     providerExecuteCalls: number;
@@ -136,6 +141,20 @@ export async function runWorkspaceWriteFakeCanaryAcceptance(
     beforeCommit: "abc123def456",
     generatedAt
   });
+  const readinessBlocked = evaluateWorkspaceWriteCanaryReadiness({
+    permit: approvedPermit,
+    guardResult: canaryGuard,
+    rollbackEvidence: rollbackReady,
+    targetFile: CANARY_TARGET_FILE,
+    operatorGateEnabled: false
+  });
+  const readinessReady = evaluateWorkspaceWriteCanaryReadiness({
+    permit: approvedPermit,
+    guardResult: canaryGuard,
+    rollbackEvidence: rollbackReady,
+    targetFile: CANARY_TARGET_FILE,
+    operatorGateEnabled: true
+  });
   const counters = {
     providerExecuteCalls: 0,
     realCodexCliCalls: 0,
@@ -173,6 +192,15 @@ export async function runWorkspaceWriteFakeCanaryAcceptance(
         ),
       rollbackEvidenceReady: rollbackReady.status === "ready"
         && rollbackReady.rollback.available === true,
+      canaryReadinessBlocksWithoutOperatorGate: readinessBlocked.status === "blocked"
+        && readinessBlocked.reasons.includes(
+          "workspace_write_canary_readiness_operator_gate_required"
+        ),
+      canaryReadinessReadyWithFakeGate: readinessReady.status === "ready"
+        && readinessReady.summary.providerExecuteCalls === 0
+        && readinessReady.summary.realCodexCliCalls === 0
+        && readinessReady.summary.workspaceWriteExecuteCalls === 0
+        && readinessReady.summary.canaryFileWrites === 0,
       canaryFileAbsentBeforeAndAfter: !canaryFileExistsBefore && !canaryFileExistsAfter,
       noProviderExecute: counters.providerExecuteCalls === 0,
       noRealCodexCli: counters.realCodexCliCalls === 0,
@@ -191,10 +219,15 @@ export async function runWorkspaceWriteFakeCanaryAcceptance(
       patchHash: canaryGuard.summary.patchHash,
       changedFileCount: canaryGuard.summary.changedFileCount,
       diffLineCount: canaryGuard.summary.diffLineCount,
-      rollbackAvailable: rollbackReady.rollback.available
+      rollbackAvailable: rollbackReady.rollback.available,
+      readinessStatus: readinessReady.status
     },
     counters,
-    blockingReasons
+    blockingReasons: uniqueStrings([
+      ...blockingReasons,
+      ...readinessBlocked.reasons,
+      ...readinessReady.reasons
+    ])
   };
   const leakCheckPassed = !containsForbiddenMarkers(evidenceWithoutLeakCheck);
 
@@ -347,6 +380,7 @@ async function main(): Promise<void> {
   console.log(`fixed canary target: ${evidence.checks.fixedCanaryTarget}`);
   console.log(`patch guard passed: ${evidence.checks.patchGuardPassedForCanaryDiff}`);
   console.log(`rollback ready: ${evidence.checks.rollbackEvidenceReady}`);
+  console.log(`readiness default blocked: ${evidence.checks.canaryReadinessBlocksWithoutOperatorGate}`);
   console.log(`workspace-write execute: ${evidence.counters.workspaceWriteExecuteCalls}`);
   console.log(`leak check: ${evidence.checks.leakCheckPassed}`);
   console.log(`evidence: ${write.path}`);
