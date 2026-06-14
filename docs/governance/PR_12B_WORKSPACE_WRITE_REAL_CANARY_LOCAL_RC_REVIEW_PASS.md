@@ -123,7 +123,24 @@ This bundle is suitable as local candidate material for a future human review.
 It is not a push-readiness decision and does not authorize any remote action or
 workspace-write execution.
 
-## 8. Non-authorization
+## 8. Roadmap Position Note
+
+Current local evidence is ahead of the older transformation roadmap pointer.
+The active local position is PR-12B workspace-write real canary
+pre-execution review material.
+
+Completed local route now includes:
+
+- PR-10 guarded read-only real-mode dispatch evidence with fake process only
+- PR-11 workspace-write governance primitives without execution enablement
+- PR-12A workspace-write fake canary governance material
+- PR-12B workspace-write real canary pre-execution local RC review material
+
+This note changes no runtime behavior and does not cross into execution.
+The next safe local step remains bounded review or audit hardening until a
+separate operator task authorizes another phase.
+
+## 9. Non-authorization
 
 This review pass does not authorize:
 
@@ -135,7 +152,7 @@ This review pass does not authorize:
 - release
 - tag
 
-## 9. Result
+## 10. Result
 
 Result:
 
