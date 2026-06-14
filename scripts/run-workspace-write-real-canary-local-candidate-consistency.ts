@@ -395,6 +395,7 @@ async function main(): Promise<void> {
   console.log(`branch: ${review.summary.branch}`);
   console.log(`ahead / behind: ${review.summary.ahead} / ${review.summary.behind}`);
   console.log(`changed files: ${review.summary.changedFileCount}`);
+  console.log(`unexpected changed files: ${review.summary.unexpectedChangedFileCount}`);
   console.log(`provider execute calls: ${review.summary.providerExecuteCalls}`);
   console.log(`real Codex CLI calls: ${review.summary.realCodexCliCalls}`);
   console.log(`workspace-write execute calls: ${review.summary.workspaceWriteExecuteCalls}`);
