@@ -56,6 +56,7 @@ The candidate consistency audit checks:
 - execution counters are zero
 - evidence is sanitized
 - governance docs remain non-authorizing
+- final audit JSON contract is valid and sanitized
 - fixed canary target file is absent
 
 ## 4. Expected Safe Output
@@ -88,6 +89,7 @@ Expected safe JSON audit properties:
 - `checks.changedFilesWithinPr12bScope` is `true`
 - `checks.evidenceNoExecution` is `true`
 - `checks.evidenceSanitized` is `true`
+- `checks.finalAuditJsonContractValid` is `true`
 - `checks.canaryFileAbsent` is `true`
 - `summary.unexpectedChangedFileCount` is `0`
 - `summary.providerExecuteCalls` is `0`
@@ -97,6 +99,11 @@ Expected safe JSON audit properties:
 - `reasons` is empty
 
 The JSON output is for local automation and review tooling. It must remain sanitized and must not be treated as permission to execute workspace-write.
+
+The candidate audit validates the final local audit JSON contract without
+running the final local audit recursively. It checks a synthetic zero-execution
+final audit result through the real formatter and requires command entries to
+contain only command id, status, and exit code.
 
 ## 5. Non-authorization
 
