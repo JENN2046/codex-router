@@ -35,6 +35,7 @@ test("real read-only smoke local closeout audit passes for the committed PR-13A 
     worktreeClean: true,
     branchMain: true,
     packageScriptsPresent: true,
+    auditIndexRecorded: true,
     closeoutRecorded: true,
     receiptRecorded: true,
     taskbookStillGated: true,
@@ -60,6 +61,7 @@ test("real read-only smoke local closeout audit blocks stale or broadened inputs
     gitStatusShort: " M package.json\n",
     branch: "feature",
     packageJsonText: JSON.stringify({ scripts: {} }),
+    auditIndexText: "missing index",
     closeoutText: "missing closeout",
     smokeEvidenceText: JSON.stringify({
       schemaVersion: "codex-cli-real-readonly-smoke-gate.v1",
@@ -92,6 +94,7 @@ test("real read-only smoke local closeout audit blocks stale or broadened inputs
   assert.ok(review.reasons.includes("real_readonly_smoke_audit_worktree_dirty"));
   assert.ok(review.reasons.includes("real_readonly_smoke_audit_branch_not_main"));
   assert.ok(review.reasons.includes("real_readonly_smoke_audit_package_scripts_missing"));
+  assert.ok(review.reasons.includes("real_readonly_smoke_audit_index_missing"));
   assert.ok(review.reasons.includes("real_readonly_smoke_audit_closeout_missing"));
   assert.ok(review.reasons.includes("real_readonly_smoke_audit_smoke_evidence_not_passed"));
   assert.ok(review.reasons.includes("real_readonly_smoke_audit_evidence_leak_marker"));
@@ -148,6 +151,7 @@ async function createInputFromWorkspace(
 ): Promise<RealReadonlySmokeLocalCloseoutAuditInput> {
   const [
     packageJsonText,
+    auditIndexText,
     closeoutText,
     receiptText,
     taskbookText,
@@ -156,6 +160,7 @@ async function createInputFromWorkspace(
     authEvidenceText
   ] = await Promise.all([
     readFile("package.json", "utf8"),
+    readFile("docs/governance/PR_13A_REAL_READONLY_SMOKE_LOCAL_AUDIT_INDEX.md", "utf8"),
     readFile("docs/governance/PR_13A_REAL_READONLY_SMOKE_LOCAL_CLOSEOUT.md", "utf8"),
     readFile("docs/governance/PR_13A_REAL_READONLY_SMOKE_RECEIPT.md", "utf8"),
     readFile("docs/governance/PR_13A_READONLY_REAL_CLI_PREFLIGHT_TASKBOOK.md", "utf8"),
@@ -174,6 +179,7 @@ async function createInputFromWorkspace(
     gitStatusShort: "",
     branch: "main",
     packageJsonText,
+    auditIndexText,
     closeoutText,
     receiptText,
     taskbookText,

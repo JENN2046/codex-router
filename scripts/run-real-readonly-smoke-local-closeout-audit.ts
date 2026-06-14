@@ -17,6 +17,7 @@ const REQUIRED_PACKAGE_SCRIPTS = {
 } as const;
 
 const REQUIRED_DOCS = {
+  auditIndex: "docs/governance/PR_13A_REAL_READONLY_SMOKE_LOCAL_AUDIT_INDEX.md",
   closeout: "docs/governance/PR_13A_REAL_READONLY_SMOKE_LOCAL_CLOSEOUT.md",
   receipt: "docs/governance/PR_13A_REAL_READONLY_SMOKE_RECEIPT.md",
   taskbook: "docs/governance/PR_13A_READONLY_REAL_CLI_PREFLIGHT_TASKBOOK.md",
@@ -48,6 +49,7 @@ export interface RealReadonlySmokeLocalCloseoutAuditInput {
   gitStatusShort: string;
   branch: string;
   packageJsonText: string;
+  auditIndexText: string;
   closeoutText: string;
   receiptText: string;
   taskbookText: string;
@@ -62,6 +64,7 @@ export interface RealReadonlySmokeLocalCloseoutAuditResult {
     worktreeClean: boolean;
     branchMain: boolean;
     packageScriptsPresent: boolean;
+    auditIndexRecorded: boolean;
     closeoutRecorded: boolean;
     receiptRecorded: boolean;
     taskbookStillGated: boolean;
@@ -100,6 +103,7 @@ export async function collectRealReadonlySmokeLocalCloseoutAuditInput(
     gitStatusShort,
     branch: branch.trim(),
     packageJsonText: await readFile(join(cwd, "package.json"), "utf8"),
+    auditIndexText: await readFile(join(cwd, REQUIRED_DOCS.auditIndex), "utf8"),
     closeoutText: await readFile(join(cwd, REQUIRED_DOCS.closeout), "utf8"),
     receiptText: await readFile(join(cwd, REQUIRED_DOCS.receipt), "utf8"),
     taskbookText: await readFile(join(cwd, REQUIRED_DOCS.taskbook), "utf8"),
@@ -125,6 +129,7 @@ export function reviewRealReadonlySmokeLocalCloseoutAudit(
     worktreeClean: input.gitStatusShort.trim() === "",
     branchMain: input.branch === "main",
     packageScriptsPresent: packageScriptReview.mismatchCount === 0,
+    auditIndexRecorded: auditIndexIsRecorded(input.auditIndexText),
     closeoutRecorded: closeoutIsRecorded(input.closeoutText),
     receiptRecorded: receiptIsRecorded(input.receiptText),
     taskbookStillGated: taskbookIsStillGated(input.taskbookText),
@@ -141,6 +146,11 @@ export function reviewRealReadonlySmokeLocalCloseoutAudit(
     reasons,
     checks.packageScriptsPresent,
     "real_readonly_smoke_audit_package_scripts_missing"
+  );
+  addReasonIfFalse(
+    reasons,
+    checks.auditIndexRecorded,
+    "real_readonly_smoke_audit_index_missing"
   );
   addReasonIfFalse(
     reasons,
@@ -251,6 +261,17 @@ function reviewPackageScripts(packageJson: Record<string, unknown> | undefined):
         !isRecord(scripts) || scripts[scriptName] !== expectedCommand
     ).length
   };
+}
+
+function auditIndexIsRecorded(text: string): boolean {
+  return text.includes("PR_13A_REAL_READONLY_SMOKE_LOCAL_AUDIT_INDEX_RECORDED")
+    && text.includes("npm run audit:real-readonly-smoke-local -- --json")
+    && text.includes("packageScriptTargetCount is `3`")
+    && /This index does not authorize:[\s\S]*real Codex CLI invocation/.test(text)
+    && /This index does not authorize:[\s\S]*workspace-write execute/.test(text)
+    && /This index does not authorize:[\s\S]*remote push/.test(text)
+    && /Still closed:[\s\S]*workspace-write execute/.test(text)
+    && /Still closed:[\s\S]*broad real provider execution/.test(text);
 }
 
 function closeoutIsRecorded(text: string): boolean {
