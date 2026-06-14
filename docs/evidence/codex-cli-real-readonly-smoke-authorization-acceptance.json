@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "codex-cli-real-readonly-smoke-authorization-acceptance.v1",
+  "generatedAt": "2026-06-14T00:00:00.000Z",
+  "mode": "real-readonly-smoke-authorization-local-only",
+  "taskId": "codex-cli-real-readonly-smoke-authorization-acceptance",
+  "checks": {
+    "exactAuthorizationAccepted": true,
+    "missingAuthorizationBlocked": true,
+    "broadenedAuthorizationBlocked": true,
+    "pushReleaseTagRejected": true,
+    "noProviderExecute": true,
+    "noRealCodexCli": true,
+    "noWorkspaceWriteExecute": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "requiredSandbox": "read-only",
+    "requiredApprovalPolicy": "never",
+    "evidencePathChoiceRequired": true,
+    "workspaceWriteMustRemainClosed": true,
+    "pushReleaseTagMustBeSeparate": true,
+    "exactTokenMatched": true,
+    "exactCommandMatched": true
+  },
+  "counters": {
+    "providerExecuteCalls": 0,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0
+  },
+  "blockingReasons": [
+    "codex_cli_real_readonly_smoke_authorization_exact_token_required",
+    "codex_cli_real_readonly_smoke_authorization_exact_command_required",
+    "codex_cli_real_readonly_smoke_authorization_read_only_sandbox_required",
+    "codex_cli_real_readonly_smoke_authorization_approval_never_required",
+    "codex_cli_real_readonly_smoke_authorization_evidence_path_choice_required",
+    "codex_cli_real_readonly_smoke_authorization_workspace_write_must_remain_closed",
+    "codex_cli_real_readonly_smoke_authorization_push_must_be_separate",
+    "codex_cli_real_readonly_smoke_authorization_release_must_be_separate",
+    "codex_cli_real_readonly_smoke_authorization_tag_must_be_separate"
+  ]
+}
