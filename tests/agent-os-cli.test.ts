@@ -279,6 +279,79 @@ test("Agent OS CLI wrapper issues an approval permit without spawning CLI", () =
   );
 });
 
+test("Agent OS CLI wrapper consumes approval permits without spawning CLI", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const runtimeInput = {
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    executionEligibility: createWaitingEligibility(policyDecision),
+    approvalPermitStore: permitStore,
+    createPermitId: () => "permit_agentos_cli_consumed"
+  };
+
+  const create = runAgentOsCliCommand({
+    ...runtimeInput,
+    argv: [
+      "create-task",
+      "--title",
+      "CLI approval consumption task",
+      "--requested-action",
+      "Create a run that waits for CLI approval consumption.",
+      "--grant",
+      "task.create",
+      "--approve-tool",
+      "agentos.create_task",
+      "--allow-local-mutation",
+      "--preferred-provider",
+      "codex-cli"
+    ]
+  });
+  assert.equal(create.status, "succeeded");
+  assert.equal(create.output.providerPlanStatus, "waiting_approval");
+
+  const approve = runAgentOsCliCommand({
+    ...runtimeInput,
+    argv: [
+      "approve-run",
+      "--run-id",
+      runId,
+      "--capability-scope",
+      "fs.read:workspace/**",
+      "--reason",
+      "CLI approval consumption",
+      "--grant",
+      "approval.issue",
+      "--approve-tool",
+      "agentos.approve_run",
+      "--allow-local-mutation"
+    ]
+  });
+  const plans = planStore.listPlans({ runId });
+  const latestPlan = plans.at(-1);
+
+  assert.equal(approve.status, "succeeded");
+  assert.equal(approve.output.consumedProviderPlanId, latestPlan?.planId);
+  assert.deepEqual(approve.output.approvalConsumptionReasons, [
+    "approval_permit_consumed"
+  ]);
+  assert.equal(plans.length, 2);
+  assert.equal(plans[0]?.status, "waiting_approval");
+  assert.equal(latestPlan?.status, "planned");
+  assert.equal(approve.audit.realProviderExecutionInvoked, false);
+  assert.deepEqual(
+    kernelStore.listEvents({ runId }).map((event) => event.eventType),
+    [
+      "kernel.run.created",
+      "kernel.public_surface.cli.create_task",
+      "kernel.approval.permit.issued",
+      "kernel.approval.permit.consumed"
+    ]
+  );
+});
+
 test("Agent OS CLI parser accepts cursors on paginated commands", () => {
   const listRuns = parseAgentOsCliArgv([
     "list-runs",
@@ -475,6 +548,22 @@ function createEligibility(policyDecision: PolicyDecision) {
     reasons: ["capability_grants_satisfied"],
     missingCapabilities: [],
     requiredApprovals: [],
+    acceptedPermits: [],
+    rejectedPermits: [],
+    createdAt: now
+  };
+}
+
+function createWaitingEligibility(policyDecision: PolicyDecision) {
+  const missingScope = "fs.read:workspace/docs/report.md";
+  return {
+    status: "waiting_approval" as const,
+    taskId,
+    runId,
+    policyDecisionHash: hashApprovalScope(policyDecision),
+    reasons: ["missing_capability"],
+    missingCapabilities: [missingScope],
+    requiredApprovals: [`approval:${missingScope}`],
     acceptedPermits: [],
     rejectedPermits: [],
     createdAt: now

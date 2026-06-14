@@ -28,7 +28,8 @@ import {
   AGENT_OS_MCP_LOCAL_MUTATION_DISABLED,
   AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
-  AGENT_OS_MCP_TOOL_CAPABILITY_MISSING
+  AGENT_OS_MCP_TOOL_CAPABILITY_MISSING,
+  type AgentOsMcpToolName
 } from "../packages/protocol-mcp/src/index.js";
 import {
   hashApprovalScope,
@@ -586,6 +587,88 @@ test("Agent OS App Server wrapper issues an approval permit without network", ()
   );
 });
 
+test("Agent OS App Server wrapper consumes approval permits without network", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const approvedMutatingTools: AgentOsMcpToolName[] = [
+    "agentos.create_task",
+    "agentos.approve_run"
+  ];
+  const runtimeInput = {
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    executionEligibility: createWaitingEligibility(policyDecision),
+    approvalPermitStore: permitStore,
+    createPermitId: () => "permit_agentos_app_server_consumed",
+    grantedCapabilities: ["task.create", "approval.issue"],
+    approvedMutatingTools,
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli"
+  };
+
+  const createResponse = handleAgentOsAppServerRequest({
+    ...runtimeInput,
+    request: {
+      method: "POST",
+      path: "/agent-os/tasks",
+      body: {
+        title: "App approval consumption task",
+        requestedAction: "Create a run that waits for App Server approval consumption."
+      }
+    }
+  });
+  const createResult = createResponse.body.result as {
+    status: string;
+    output: Record<string, unknown>;
+  };
+  assert.equal(createResponse.statusCode, 200);
+  assert.equal(createResult.status, "succeeded");
+  assert.equal(createResult.output.providerPlanStatus, "waiting_approval");
+
+  const approveResponse = handleAgentOsAppServerRequest({
+    ...runtimeInput,
+    request: {
+      method: "POST",
+      path: `/agent-os/runs/${runId}/approve`,
+      body: {
+        capabilityScopes: ["fs.read:workspace/**"],
+        reason: "App Server approval consumption"
+      }
+    }
+  });
+  const approveResult = approveResponse.body.result as {
+    status: string;
+    output: Record<string, unknown>;
+    audit: { realProviderExecutionInvoked: boolean };
+  };
+  const plans = planStore.listPlans({ runId });
+  const latestPlan = plans.at(-1);
+
+  assert.equal(approveResponse.statusCode, 200);
+  assert.equal(approveResponse.audit.liveHttpServerStarted, false);
+  assert.equal(approveResponse.audit.networkAccessed, false);
+  assert.equal(approveResult.status, "succeeded");
+  assert.equal(approveResult.output.consumedProviderPlanId, latestPlan?.planId);
+  assert.deepEqual(approveResult.output.approvalConsumptionReasons, [
+    "approval_permit_consumed"
+  ]);
+  assert.equal(plans.length, 2);
+  assert.equal(plans[0]?.status, "waiting_approval");
+  assert.equal(latestPlan?.status, "planned");
+  assert.equal(approveResult.audit.realProviderExecutionInvoked, false);
+  assert.deepEqual(
+    kernelStore.listEvents({ runId }).map((event) => event.eventType),
+    [
+      "kernel.run.created",
+      "kernel.public_surface.app_server.create_task",
+      "kernel.approval.permit.issued",
+      "kernel.approval.permit.consumed"
+    ]
+  );
+});
+
 test("Agent OS App Server wrapper default approval permit IDs are unique for repeated approvals", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
@@ -763,6 +846,22 @@ function createEligibility(policyDecision: PolicyDecision) {
     reasons: ["capability_grants_satisfied"],
     missingCapabilities: [],
     requiredApprovals: [],
+    acceptedPermits: [],
+    rejectedPermits: [],
+    createdAt: now
+  };
+}
+
+function createWaitingEligibility(policyDecision: PolicyDecision) {
+  const missingScope = "fs.read:workspace/docs/report.md";
+  return {
+    status: "waiting_approval" as const,
+    taskId,
+    runId,
+    policyDecisionHash: hashApprovalScope(policyDecision),
+    reasons: ["missing_capability"],
+    missingCapabilities: [missingScope],
+    requiredApprovals: [`approval:${missingScope}`],
     acceptedPermits: [],
     rejectedPermits: [],
     createdAt: now

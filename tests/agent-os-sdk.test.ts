@@ -191,6 +191,63 @@ test("Agent OS SDK issues an approval permit through the shared local runtime", 
   );
 });
 
+test("Agent OS SDK consumes approval permits through the shared local runtime", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const sdk = createAgentOsSdk({
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    executionEligibility: createWaitingEligibility(policyDecision),
+    approvalPermitStore: permitStore,
+    createPermitId: () => "permit_agentos_sdk_consumed"
+  });
+
+  const create = sdk.createTask({
+    title: "SDK approval consumption task",
+    requestedAction: "Create a run that waits for SDK approval consumption."
+  }, {
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli"
+  });
+  assert.equal(create.status, "succeeded");
+  assert.equal(create.output.providerPlanStatus, "waiting_approval");
+
+  const approve = sdk.approveRun({
+    runId,
+    capabilityScopes: ["fs.read:workspace/**"],
+    reason: "SDK approval consumption"
+  }, {
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true
+  });
+  const plans = planStore.listPlans({ runId });
+  const latestPlan = plans.at(-1);
+
+  assert.equal(approve.status, "succeeded");
+  assert.equal(approve.output.consumedProviderPlanId, latestPlan?.planId);
+  assert.deepEqual(approve.output.approvalConsumptionReasons, [
+    "approval_permit_consumed"
+  ]);
+  assert.equal(plans.length, 2);
+  assert.equal(plans[0]?.status, "waiting_approval");
+  assert.equal(latestPlan?.status, "planned");
+  assert.equal(approve.audit.realProviderExecutionInvoked, false);
+  assert.deepEqual(
+    kernelStore.listEvents({ runId }).map((event) => event.eventType),
+    [
+      "kernel.run.created",
+      "kernel.public_surface.sdk.create_task",
+      "kernel.approval.permit.issued",
+      "kernel.approval.permit.consumed"
+    ]
+  );
+});
+
 test("Agent OS SDK default approval permit IDs are unique for repeated approvals", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
@@ -324,6 +381,22 @@ function createEligibility(policyDecision: PolicyDecision) {
     reasons: ["capability_grants_satisfied"],
     missingCapabilities: [],
     requiredApprovals: [],
+    acceptedPermits: [],
+    rejectedPermits: [],
+    createdAt: now
+  };
+}
+
+function createWaitingEligibility(policyDecision: PolicyDecision) {
+  const missingScope = "fs.read:workspace/docs/report.md";
+  return {
+    status: "waiting_approval" as const,
+    taskId,
+    runId,
+    policyDecisionHash: hashApprovalScope(policyDecision),
+    reasons: ["missing_capability"],
+    missingCapabilities: [missingScope],
+    requiredApprovals: [`approval:${missingScope}`],
     acceptedPermits: [],
     rejectedPermits: [],
     createdAt: now
