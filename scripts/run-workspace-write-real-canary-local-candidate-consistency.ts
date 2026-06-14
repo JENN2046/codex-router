@@ -130,6 +130,7 @@ export interface WorkspaceWriteRealCanaryLocalCandidateConsistencyResult {
     changedFileCount: number;
     unexpectedChangedFileCount: number;
     canaryTargetFile: string;
+    finalAuditNoForbiddenCommands: boolean;
     providerExecuteCalls: number;
     realCodexCliCalls: number;
     workspaceWriteExecuteCalls: number;
@@ -274,6 +275,7 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
         !ALLOWED_RANGE_FILES.has(file)
       ).length,
       canaryTargetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+      finalAuditNoForbiddenCommands: finalAuditNoForbiddenCommands(),
       ...executionCounters
     },
     reasons
@@ -295,6 +297,7 @@ export function formatWorkspaceWriteRealCanaryLocalCandidateConsistencyReview(
     `ahead / behind: ${review.summary.ahead} / ${review.summary.behind}`,
     `changed files: ${review.summary.changedFileCount}`,
     `unexpected changed files: ${review.summary.unexpectedChangedFileCount}`,
+    `final audit forbidden commands: ${!review.summary.finalAuditNoForbiddenCommands}`,
     `provider execute calls: ${review.summary.providerExecuteCalls}`,
     `real Codex CLI calls: ${review.summary.realCodexCliCalls}`,
     `workspace-write execute calls: ${review.summary.workspaceWriteExecuteCalls}`,
@@ -394,6 +397,33 @@ function governanceDocsAreNonAuthorizing(governanceDocs: Record<string, string>)
 }
 
 function finalAuditJsonContractIsValid(): boolean {
+  const parsed = parseFinalAuditJsonContract();
+
+  if (parsed === undefined) {
+    return false;
+  }
+  const commands = Array.isArray(parsed.commands) ? parsed.commands : [];
+
+  return getString(parsed, ["status"]) === "passed"
+    && getBoolean(parsed, ["checks", "noForbiddenCommands"]) === true
+    && getBoolean(parsed, ["checks", "canaryFileAbsent"]) === true
+    && getBoolean(parsed, ["checks", "noWorkspaceWriteExecute"]) === true
+    && getBoolean(parsed, ["checks", "noRealCodexCli"]) === true
+    && getBoolean(parsed, ["checks", "noProviderExecute"]) === true
+    && getNumber(parsed, ["summary", "commandCount"]) === WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.length
+    && getNumber(parsed, ["summary", "failedCommandCount"]) === 0
+    && getNumber(parsed, ["summary", "workspaceWriteExecuteCalls"]) === 0
+    && getNumber(parsed, ["summary", "realCodexCliCalls"]) === 0
+    && getNumber(parsed, ["summary", "providerExecuteCalls"]) === 0
+    && commands.every(commandResultHasOnlySanitizedFields)
+    && !containsForbiddenMarker(JSON.stringify(parsed, null, 2));
+}
+
+function finalAuditNoForbiddenCommands(): boolean {
+  return getBoolean(parseFinalAuditJsonContract(), ["checks", "noForbiddenCommands"]) === true;
+}
+
+function parseFinalAuditJsonContract(): Record<string, unknown> | undefined {
   const result: WorkspaceWriteRealCanaryFinalLocalAuditResult = {
     status: "passed",
     checks: {
@@ -420,23 +450,8 @@ function finalAuditJsonContractIsValid(): boolean {
     reasons: []
   };
   const output = formatWorkspaceWriteRealCanaryFinalLocalAuditResult(result, "json");
-  const parsed = parseObject(output);
-  const commands = Array.isArray(parsed?.commands) ? parsed.commands : [];
 
-  return parsed !== undefined
-    && getString(parsed, ["status"]) === "passed"
-    && getBoolean(parsed, ["checks", "noForbiddenCommands"]) === true
-    && getBoolean(parsed, ["checks", "canaryFileAbsent"]) === true
-    && getBoolean(parsed, ["checks", "noWorkspaceWriteExecute"]) === true
-    && getBoolean(parsed, ["checks", "noRealCodexCli"]) === true
-    && getBoolean(parsed, ["checks", "noProviderExecute"]) === true
-    && getNumber(parsed, ["summary", "commandCount"]) === WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.length
-    && getNumber(parsed, ["summary", "failedCommandCount"]) === 0
-    && getNumber(parsed, ["summary", "workspaceWriteExecuteCalls"]) === 0
-    && getNumber(parsed, ["summary", "realCodexCliCalls"]) === 0
-    && getNumber(parsed, ["summary", "providerExecuteCalls"]) === 0
-    && commands.every(commandResultHasOnlySanitizedFields)
-    && !containsForbiddenMarker(output);
+  return parseObject(output);
 }
 
 function commandResultHasOnlySanitizedFields(value: unknown): boolean {

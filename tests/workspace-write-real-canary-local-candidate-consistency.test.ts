@@ -101,6 +101,7 @@ test("workspace-write real canary local candidate consistency passes for local-o
   assert.equal(review.summary.ahead, 8);
   assert.equal(review.summary.behind, 0);
   assert.equal(review.summary.unexpectedChangedFileCount, 0);
+  assert.equal(review.summary.finalAuditNoForbiddenCommands, true);
   assert.equal(review.summary.providerExecuteCalls, 0);
   assert.equal(review.summary.realCodexCliCalls, 0);
   assert.equal(review.summary.workspaceWriteExecuteCalls, 0);
@@ -241,9 +242,11 @@ test("workspace-write real canary local candidate consistency formats text and j
 
   assert.match(text, /status: passed/);
   assert.match(text, /unexpected changed files: 0/);
+  assert.match(text, /final audit forbidden commands: false/);
   assert.equal(parsed.status, "passed");
   assert.equal(parsed.checks.finalAuditJsonContractValid, true);
   assert.equal(parsed.summary.unexpectedChangedFileCount, 0);
+  assert.equal(parsed.summary.finalAuditNoForbiddenCommands, true);
   assert.equal(parsed.summary.providerExecuteCalls, 0);
 
   for (const marker of forbiddenMarkers) {
