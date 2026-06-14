@@ -26,6 +26,7 @@
     "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
     "audit:real-readonly-smoke-local": "tsx scripts/run-real-readonly-smoke-local-closeout-audit.ts",
     "audit:formal-readonly-integration-local": "tsx scripts/run-formal-readonly-cli-integration-local-closeout-audit.ts",
+    "audit:formal-readonly-provider-integration-local": "tsx scripts/run-formal-readonly-provider-integration-local-closeout-audit.ts",
     "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
     "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
     "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts",
