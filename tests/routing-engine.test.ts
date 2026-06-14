@@ -47,9 +47,24 @@ test("routing engine covers read-only and small edit tasks", async () => {
   assert.equal(readOnlyDecision.execution.selectedModel, "gpt-5.4-mini");
   assert.equal(readOnlyDecision.execution.toolAccess, "read_only");
   assert.equal(readOnlyDecision.parallelism.mode, "read_only");
+  assert.deepEqual(readOnlyDecision.providerGrant, {
+    schemaVersion: "provider-grant.v1",
+    grantId: "read-only:2026-04-23.desktop-first.v1.1:codex-cli:read_only",
+    providerId: "codex-cli",
+    providerKind: "executor",
+    sideEffectClass: "read_only",
+    toolAccess: "read_only",
+    sandboxMode: "read-only",
+    approvalRequired: false,
+    requiredApprovals: [],
+    reasons: ["host_route:codex-cli", "tool_access:read_only"]
+  });
 
   assert.equal(smallEditDecision.execution.selectedModel, "gpt-5.3-codex-spark");
   assert.equal(smallEditDecision.execution.toolAccess, "local_write");
+  assert.equal(smallEditDecision.providerGrant?.providerId, "codex-cli");
+  assert.equal(smallEditDecision.providerGrant?.sideEffectClass, "workspace_write");
+  assert.equal(smallEditDecision.providerGrant?.sandboxMode, "workspace-write");
 });
 
 test("routing engine respects low-risk taskClassHint when text is neutral", async () => {
@@ -173,12 +188,18 @@ test("routing engine covers engineering, high-risk, and release tasks", async ()
 
   assert.equal(engineeringDecision.execution.selectedModel, "gpt-5.3-codex");
   assert.equal(engineeringDecision.classification.riskLevel, "medium");
+  assert.equal(engineeringDecision.providerGrant?.providerId, "codex-desktop");
+  assert.equal(engineeringDecision.providerGrant?.sideEffectClass, "local_command");
 
   assert.equal(highRiskDecision.execution.selectedModel, "gpt-5.1-codex-max");
   assert.equal(highRiskDecision.approval.required, true);
+  assert.equal(highRiskDecision.providerGrant?.approvalRequired, true);
+  assert.ok(highRiskDecision.providerGrant?.requiredApprovals.includes("keyword:permission"));
 
   assert.equal(releaseDecision.execution.executionProfile, "release-governance");
   assert.equal(releaseDecision.approval.required, true);
+  assert.equal(releaseDecision.providerGrant?.sideEffectClass, "protected_remote");
+  assert.equal(releaseDecision.providerGrant?.approvalRequired, true);
 });
 
 test("routing engine fails closed when a task class host route is missing", async () => {

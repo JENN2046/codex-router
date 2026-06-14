@@ -123,7 +123,8 @@ export function legacyRoutingDecisionToPolicyDecision(
       clarificationRequired: legacy.classification.clarificationRequired
     },
     execution: {
-      executor: legacy.hostRoute === "codex-cli" ? "codex-cli" : "codex-desktop",
+      executor: legacy.providerGrant?.providerId
+        ?? (legacy.hostRoute === "codex-cli" ? "codex-cli" : "codex-desktop"),
       model: legacy.execution.selectedModel,
       profile: legacy.execution.executionProfile,
       reasoningEffort: legacy.execution.reasoningEffort,

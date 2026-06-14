@@ -138,7 +138,18 @@ test("kernel compatibility maps legacy write access into workspace sandbox and s
       maxAgents: 1,
       mode: "disabled"
     },
-    hostRoute: "desktop"
+    hostRoute: "desktop",
+    providerGrant: {
+      grantId: "grant-legacy-desktop",
+      providerId: "codex-desktop",
+      providerKind: "executor",
+      sideEffectClass: "local_command",
+      toolAccess: "engineering_write",
+      sandboxMode: "workspace-write",
+      approvalRequired: false,
+      requiredApprovals: [],
+      reasons: ["host_route:desktop"]
+    }
   }, { createdAt: now });
 
   assert.equal(decision.execution.executor, "codex-desktop");
@@ -165,6 +176,50 @@ test("kernel compatibility maps legacy write access into workspace sandbox and s
     && scope.access === "execute"
   )));
   assert.equal(decision.legacy.taskClass, "engineering");
+});
+
+test("kernel compatibility prefers provider grant executor when present", () => {
+  const decision = createPolicyDecisionFromLegacyRoutingDecision({
+    decisionId: "decision-provider-grant",
+    taskId: "legacy-task-provider-grant",
+    policyVersion: "policy.v1",
+    classification: {
+      taskClass: "read_only",
+      riskLevel: "low",
+      ambiguityScore: 0.1,
+      clarificationRequired: false,
+      riskFactors: []
+    },
+    execution: {
+      selectedModel: "gpt-5.4-mini",
+      toolAccess: "read_only",
+      executionProfile: "recon-only",
+      reasoningEffort: "low"
+    },
+    approval: {
+      required: false,
+      reasons: []
+    },
+    parallelism: {
+      allowed: true,
+      maxAgents: 2,
+      mode: "read_only"
+    },
+    hostRoute: "codex-cli",
+    providerGrant: {
+      grantId: "grant-custom-executor",
+      providerId: "custom-executor",
+      providerKind: "executor",
+      sideEffectClass: "read_only",
+      toolAccess: "read_only",
+      sandboxMode: "read-only",
+      approvalRequired: false,
+      requiredApprovals: [],
+      reasons: ["host_route:codex-cli"]
+    }
+  }, { createdAt: now });
+
+  assert.equal(decision.execution.executor, "custom-executor");
 });
 
 test("kernel compatibility elevates legacy release decisions to critical policy risk", () => {

@@ -5,6 +5,7 @@ import type {
   ReasoningEffort,
   RiskLevel,
   RoutingDecision,
+  ProviderGrant,
   TaskEnvelope,
   TaskEnvelopeInput,
   ToolAccessLevel
@@ -34,6 +35,7 @@ export function routeTask(
     : toolAccess === "read_only"
       ? "read_only"
       : "owned_write";
+  const hostRoute = resolveHostRoute(taskClass, policy);
 
   return {
     schemaVersion: "routing-decision.v1",
@@ -62,8 +64,56 @@ export function routeTask(
       maxAgents: profile.maxParallelAgents,
       mode: parallelismMode
     },
-    hostRoute: resolveHostRoute(taskClass, policy)
+    hostRoute,
+    providerGrant: createProviderGrant({
+      task,
+      policyVersion: policy.policyVersion,
+      hostRoute,
+      toolAccess,
+      approvalReasons
+    })
   };
+}
+
+function createProviderGrant(input: {
+  task: TaskEnvelope;
+  policyVersion: string;
+  hostRoute: HostRoute;
+  toolAccess: ToolAccessLevel;
+  approvalReasons: string[];
+}): ProviderGrant {
+  const providerId = input.hostRoute === "codex-cli" ? "codex-cli" : "codex-desktop";
+
+  return {
+    schemaVersion: "provider-grant.v1",
+    grantId: `${input.task.taskId}:${input.policyVersion}:${providerId}:${input.toolAccess}`,
+    providerId,
+    providerKind: "executor",
+    sideEffectClass: resolveProviderSideEffectClass(input.toolAccess),
+    toolAccess: input.toolAccess,
+    sandboxMode: input.toolAccess === "read_only" ? "read-only" : "workspace-write",
+    approvalRequired: input.approvalReasons.length > 0,
+    requiredApprovals: [...input.approvalReasons],
+    reasons: [
+      `host_route:${input.hostRoute}`,
+      `tool_access:${input.toolAccess}`
+    ]
+  };
+}
+
+function resolveProviderSideEffectClass(
+  toolAccess: ToolAccessLevel
+): ProviderGrant["sideEffectClass"] {
+  switch (toolAccess) {
+    case "read_only":
+      return "read_only";
+    case "local_write":
+      return "workspace_write";
+    case "engineering_write":
+      return "local_command";
+    case "protected_remote":
+      return "protected_remote";
+  }
 }
 
 function resolveHostRoute(

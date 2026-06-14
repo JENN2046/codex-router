@@ -474,6 +474,7 @@ function policyDecisionToRoutingDecision(
     throw new Error("codex_cli_provider_policy_model_missing");
   }
   const parsedModel = ModelIdSchema.parse(selectedModel);
+  const toolAccess = resolveToolAccess(policyDecision, effectiveSandbox);
 
   return {
     schemaVersion: "routing-decision.v1",
@@ -492,7 +493,7 @@ function policyDecisionToRoutingDecision(
     },
     execution: {
       selectedModel: parsedModel,
-      toolAccess: resolveToolAccess(policyDecision, effectiveSandbox),
+      toolAccess,
       executionProfile: resolveExecutionProfile(policyDecision, taskClass),
       reasoningEffort: policyDecision.execution.reasoningEffort
         ?? resolveReasoningEffort(policyDecision)
@@ -506,7 +507,22 @@ function policyDecisionToRoutingDecision(
       maxAgents: policyDecision.parallelism.maxAgents,
       mode: resolveParallelismMode(policyDecision.parallelism.mode)
     },
-    hostRoute: "codex-cli"
+    hostRoute: "codex-cli",
+    providerGrant: {
+      schemaVersion: "provider-grant.v1",
+      grantId: `provider_grant_${policyDecision.decisionId}_${CODEX_CLI_PROVIDER_ID}`,
+      providerId: CODEX_CLI_PROVIDER_ID,
+      providerKind: "executor",
+      sideEffectClass: resolveProviderGrantSideEffectClass(policyDecision, effectiveSandbox),
+      toolAccess,
+      sandboxMode: effectiveSandbox,
+      approvalRequired: policyDecision.approval.required,
+      requiredApprovals: [...policyDecision.approval.reasons],
+      reasons: [
+        "host_route:codex-cli",
+        `tool_access:${toolAccess}`
+      ]
+    }
   };
 }
 
@@ -581,6 +597,33 @@ function resolveToolAccess(
   }
 
   return "local_write";
+}
+
+function resolveProviderGrantSideEffectClass(
+  policyDecision: PolicyDecision,
+  effectiveSandbox: CodexCliSandboxMode
+): ProviderSideEffectClass {
+  if (hasProtectedRemoteSideEffect(policyDecision)) {
+    return "protected_remote";
+  }
+
+  if (hasExternalSideEffect(policyDecision)) {
+    return "external_side_effects";
+  }
+
+  if (hasSecretAccess(policyDecision)) {
+    return "secret_access";
+  }
+
+  if (hasLocalCommand(policyDecision)) {
+    return "local_command";
+  }
+
+  if (effectiveSandbox === "workspace-write") {
+    return "workspace_write";
+  }
+
+  return "read_only";
 }
 
 function resolveExecutionProfile(

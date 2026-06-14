@@ -96,6 +96,42 @@ export const ParallelismModeSchema = z.enum([
   "owned_write"
 ]);
 
+export const ProviderGrantProviderKindSchema = z.enum([
+  "model",
+  "executor",
+  "tool",
+  "remote_agent",
+  "unknown"
+]);
+
+export const ProviderSideEffectClassSchema = z.enum([
+  "none",
+  "read",
+  "read_only",
+  "local_write",
+  "workspace_write",
+  "local_command",
+  "external_write",
+  "external_side_effects",
+  "protected_remote",
+  "destructive",
+  "secret_access",
+  "unknown"
+]);
+
+export const ProviderGrantSchema = z.object({
+  schemaVersion: z.literal("provider-grant.v1").default("provider-grant.v1"),
+  grantId: z.string().min(1),
+  providerId: z.string().min(1),
+  providerKind: ProviderGrantProviderKindSchema,
+  sideEffectClass: ProviderSideEffectClassSchema,
+  toolAccess: ToolAccessLevelSchema,
+  sandboxMode: z.enum(["read-only", "workspace-write"]),
+  approvalRequired: z.boolean(),
+  requiredApprovals: z.array(z.string().min(1)).default([]),
+  reasons: z.array(z.string().min(1)).default([])
+});
+
 export const RepoContextSchema = z.object({
   repoRoot: z.string().min(1).optional(),
   branch: z.string().min(1).optional(),
@@ -183,7 +219,8 @@ export const RoutingDecisionSchema = z.object({
     maxAgents: z.number().int().positive(),
     mode: ParallelismModeSchema
   }),
-  hostRoute: HostRouteSchema
+  hostRoute: HostRouteSchema,
+  providerGrant: ProviderGrantSchema.optional()
 });
 
 export const ApprovalDecisionSchema = z.object({
@@ -241,6 +278,9 @@ export type DesktopPrimitive = z.infer<typeof DesktopPrimitiveSchema>;
 export type EnvelopeSource = z.infer<typeof EnvelopeSourceSchema>;
 export type ParallelismMode = z.infer<typeof ParallelismModeSchema>;
 export type HostRoute = z.infer<typeof HostRouteSchema>;
+export type ProviderGrantProviderKind = z.infer<typeof ProviderGrantProviderKindSchema>;
+export type ProviderSideEffectClass = z.infer<typeof ProviderSideEffectClassSchema>;
+export type ProviderGrant = z.infer<typeof ProviderGrantSchema>;
 export type RepoContext = z.infer<typeof RepoContextSchema>;
 export type TaskIntent = z.infer<typeof TaskIntentSchema>;
 export type TaskTarget = z.infer<typeof TaskTargetSchema>;
