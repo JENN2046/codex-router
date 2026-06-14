@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "workspace-write-real-canary-authorization-acceptance.v1",
+  "generatedAt": "2026-06-14T00:00:00.000Z",
+  "mode": "workspace-write-real-canary-authorization-local-only",
+  "taskId": "workspace-write-real-canary-authorization-acceptance",
+  "checks": {
+    "exactAuthorizationAccepted": true,
+    "missingAuthorizationBlocked": true,
+    "broadenedAuthorizationBlocked": true,
+    "pushAuthorizationRejected": true,
+    "canaryFileAbsentBeforeAndAfter": true,
+    "noProviderExecute": true,
+    "noRealCodexCli": true,
+    "noWorkspaceWriteExecute": true,
+    "noCanaryFileWrite": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "targetFile": "tmp/codex-cli-write-canary.txt",
+    "branch": "main",
+    "requiredSandbox": "workspace-write",
+    "requiredRollback": true,
+    "pushMustBeSeparate": true,
+    "exactPhraseMatched": true,
+    "workspaceMatched": true,
+    "fixedTargetMatched": true,
+    "boundedActionMatched": true
+  },
+  "counters": {
+    "providerExecuteCalls": 0,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0,
+    "canaryFileWrites": 0
+  },
+  "blockingReasons": [
+    "workspace_write_real_canary_authorization_exact_phrase_required",
+    "workspace_write_real_canary_authorization_workspace_mismatch",
+    "workspace_write_real_canary_authorization_main_branch_required",
+    "workspace_write_real_canary_authorization_fixed_target_required",
+    "workspace_write_real_canary_authorization_bounded_action_required",
+    "workspace_write_real_canary_authorization_workspace_write_sandbox_required",
+    "workspace_write_real_canary_authorization_rollback_required",
+    "workspace_write_real_canary_authorization_push_must_be_separate"
+  ]
+}
