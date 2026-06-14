@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "workspace-write-fake-canary-acceptance.v1",
+  "generatedAt": "2026-06-14T00:00:00.000Z",
+  "mode": "workspace-write-fake-canary-local-only",
+  "taskId": "workspace-write-fake-canary-acceptance",
+  "checks": {
+    "fixedCanaryTarget": true,
+    "approvedPermitCreated": true,
+    "nonCanaryTargetRejected": true,
+    "patchGuardPassedForCanaryDiff": true,
+    "patchGuardBlocksNonCanaryDiff": true,
+    "rollbackEvidenceReady": true,
+    "canaryFileAbsentBeforeAndAfter": true,
+    "noProviderExecute": true,
+    "noRealCodexCli": true,
+    "noWorkspaceWriteExecute": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "providerId": "codex-cli",
+    "manifestHash": "a9a575b2828011ae80f3118952078b164d51e1c1c9e8958d3e4238f2a5754803",
+    "planId": "plan_workspace_write_fake_canary_acceptance",
+    "permitId": "workspace_write_permit_plan_workspace_write_fake_canary_acceptance",
+    "targetFile": "tmp/codex-cli-write-canary.txt",
+    "sideEffectClass": "workspace_write",
+    "sandbox": "workspace-write",
+    "maxChangedFiles": 1,
+    "maxDiffLines": 2,
+    "patchHash": "3171e194ec7c1902c0d01eeca1660c28eaf3f19f66c362d0460d3748ec890967",
+    "changedFileCount": 1,
+    "diffLineCount": 1,
+    "rollbackAvailable": true
+  },
+  "counters": {
+    "providerExecuteCalls": 0,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0,
+    "canaryFileWrites": 0
+  },
+  "blockingReasons": [
+    "workspace_write_fake_canary_target_mismatch",
+    "workspace_write_patch_guard_changed_file_not_permitted:tmp/not-the-canary.txt"
+  ]
+}
