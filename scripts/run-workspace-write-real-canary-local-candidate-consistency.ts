@@ -12,6 +12,11 @@ import {
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
   PR_12B_REAL_CANARY_WORKSPACE
 } from "../packages/workspace-write-guard/src/index.js";
+import {
+  WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS,
+  formatWorkspaceWriteRealCanaryFinalLocalAuditResult,
+  type WorkspaceWriteRealCanaryFinalLocalAuditResult
+} from "./run-workspace-write-real-canary-final-local-audit.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -98,6 +103,7 @@ export interface WorkspaceWriteRealCanaryLocalCandidateConsistencyResult {
     evidenceNoExecution: boolean;
     evidenceSanitized: boolean;
     governanceDocsNonAuthorizing: boolean;
+    finalAuditJsonContractValid: boolean;
     canaryFileAbsent: boolean;
   };
   summary: {
@@ -187,6 +193,7 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     evidenceSanitized: !containsForbiddenMarker(input.authorizationEvidenceText)
       && !containsForbiddenMarker(input.preExecutionEvidenceText),
     governanceDocsNonAuthorizing: governanceDocsAreNonAuthorizing(input.governanceDocs),
+    finalAuditJsonContractValid: finalAuditJsonContractIsValid(),
     canaryFileAbsent: !input.canaryFileExists
   };
 
@@ -228,6 +235,11 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     reasons,
     checks.governanceDocsNonAuthorizing,
     "workspace_write_real_canary_candidate_docs_authorize_execution"
+  );
+  addReasonIfFalse(
+    reasons,
+    checks.finalAuditJsonContractValid,
+    "workspace_write_real_canary_candidate_final_audit_json_contract_invalid"
   );
   addReasonIfFalse(
     reasons,
@@ -366,6 +378,62 @@ function governanceDocsAreNonAuthorizing(governanceDocs: Record<string, string>)
       && deniesWorkspaceWriteExecute(text)
       && deniesCanaryFileWrite(text);
   });
+}
+
+function finalAuditJsonContractIsValid(): boolean {
+  const result: WorkspaceWriteRealCanaryFinalLocalAuditResult = {
+    status: "passed",
+    checks: {
+      allCommandsPassed: true,
+      canaryFileAbsent: true,
+      noWorkspaceWriteExecute: true,
+      noRealCodexCli: true,
+      noProviderExecute: true
+    },
+    commands: WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.map((command) => ({
+      id: command.id,
+      status: "passed" as const,
+      exitCode: 0
+    })),
+    summary: {
+      commandCount: WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.length,
+      failedCommandCount: 0,
+      canaryTargetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+      workspaceWriteExecuteCalls: 0,
+      realCodexCliCalls: 0,
+      providerExecuteCalls: 0
+    },
+    reasons: []
+  };
+  const output = formatWorkspaceWriteRealCanaryFinalLocalAuditResult(result, "json");
+  const parsed = parseObject(output);
+  const commands = Array.isArray(parsed?.commands) ? parsed.commands : [];
+
+  return parsed !== undefined
+    && getString(parsed, ["status"]) === "passed"
+    && getBoolean(parsed, ["checks", "canaryFileAbsent"]) === true
+    && getBoolean(parsed, ["checks", "noWorkspaceWriteExecute"]) === true
+    && getBoolean(parsed, ["checks", "noRealCodexCli"]) === true
+    && getBoolean(parsed, ["checks", "noProviderExecute"]) === true
+    && getNumber(parsed, ["summary", "commandCount"]) === WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.length
+    && getNumber(parsed, ["summary", "failedCommandCount"]) === 0
+    && getNumber(parsed, ["summary", "workspaceWriteExecuteCalls"]) === 0
+    && getNumber(parsed, ["summary", "realCodexCliCalls"]) === 0
+    && getNumber(parsed, ["summary", "providerExecuteCalls"]) === 0
+    && commands.every(commandResultHasOnlySanitizedFields)
+    && !containsForbiddenMarker(output);
+}
+
+function commandResultHasOnlySanitizedFields(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const keys = Object.keys(value).sort();
+
+  return keys.length === 3
+    && keys[0] === "exitCode"
+    && keys[1] === "id"
+    && keys[2] === "status";
 }
 
 function hasNonAuthorizationStatement(text: string): boolean {

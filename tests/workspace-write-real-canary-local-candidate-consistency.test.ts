@@ -86,6 +86,7 @@ test("workspace-write real canary local candidate consistency passes for local-o
     evidenceNoExecution: true,
     evidenceSanitized: true,
     governanceDocsNonAuthorizing: true,
+    finalAuditJsonContractValid: true,
     canaryFileAbsent: true
   });
   assert.equal(review.summary.branch, "main");
@@ -210,6 +211,7 @@ test("workspace-write real canary local candidate consistency formats text and j
   assert.match(text, /status: passed/);
   assert.match(text, /unexpected changed files: 0/);
   assert.equal(parsed.status, "passed");
+  assert.equal(parsed.checks.finalAuditJsonContractValid, true);
   assert.equal(parsed.summary.unexpectedChangedFileCount, 0);
   assert.equal(parsed.summary.providerExecuteCalls, 0);
 
