@@ -26,6 +26,12 @@ const requiredChangedFiles = [
   "package.json"
 ];
 
+const allowedChangedFiles = [
+  ...requiredChangedFiles,
+  "scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
+  "tests/workspace-write-real-canary-local-candidate-consistency.test.ts"
+];
+
 const governanceDocPaths = [
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_LOCAL_CLOSEOUT.md",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET_COMPATIBILITY.md",
@@ -66,6 +72,7 @@ test("workspace-write real canary local candidate consistency passes for local-o
     branchMain: true,
     localAheadOnly: true,
     requiredRangeFilesPresent: true,
+    changedFilesWithinPr12bScope: true,
     packageScriptsPresent: true,
     evidenceParseable: true,
     evidenceLocalOnly: true,
@@ -77,10 +84,26 @@ test("workspace-write real canary local candidate consistency passes for local-o
   assert.equal(review.summary.branch, "main");
   assert.equal(review.summary.ahead, 8);
   assert.equal(review.summary.behind, 0);
+  assert.equal(review.summary.unexpectedChangedFileCount, 0);
   assert.equal(review.summary.providerExecuteCalls, 0);
   assert.equal(review.summary.realCodexCliCalls, 0);
   assert.equal(review.summary.workspaceWriteExecuteCalls, 0);
   assert.equal(review.summary.canaryFileWrites, 0);
+});
+
+test("workspace-write real canary local candidate consistency blocks unexpected files", () => {
+  const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
+    createConsistentInput({
+      changedFiles: [
+        ...allowedChangedFiles,
+        "packages/providers/codex-cli/src/index.ts"
+      ]
+    })
+  );
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("workspace_write_real_canary_candidate_unexpected_files"));
+  assert.equal(review.summary.unexpectedChangedFileCount, 1);
 });
 
 test("workspace-write real canary local candidate consistency blocks stale or unsafe state", () => {
@@ -137,7 +160,7 @@ function createConsistentInput(
     branch: "main",
     ahead: 8,
     behind: 0,
-    changedFiles: requiredChangedFiles,
+    changedFiles: allowedChangedFiles,
     packageJsonText: JSON.stringify({
       scripts: {
         "acceptance:workspace-write-real-canary-auth": "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",

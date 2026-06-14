@@ -31,6 +31,12 @@ const REQUIRED_RANGE_FILES = [
   "package.json"
 ] as const;
 
+const ALLOWED_RANGE_FILES = new Set<string>([
+  ...REQUIRED_RANGE_FILES,
+  "scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
+  "tests/workspace-write-real-canary-local-candidate-consistency.test.ts"
+]);
+
 const REQUIRED_DOC_FILES = [
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_LOCAL_CLOSEOUT.md",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET_COMPATIBILITY.md",
@@ -79,6 +85,7 @@ export interface WorkspaceWriteRealCanaryLocalCandidateConsistencyResult {
     branchMain: boolean;
     localAheadOnly: boolean;
     requiredRangeFilesPresent: boolean;
+    changedFilesWithinPr12bScope: boolean;
     packageScriptsPresent: boolean;
     evidenceParseable: boolean;
     evidenceLocalOnly: boolean;
@@ -92,6 +99,7 @@ export interface WorkspaceWriteRealCanaryLocalCandidateConsistencyResult {
     ahead: number;
     behind: number;
     changedFileCount: number;
+    unexpectedChangedFileCount: number;
     canaryTargetFile: string;
     providerExecuteCalls: number;
     realCodexCliCalls: number;
@@ -149,6 +157,9 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     requiredRangeFilesPresent: REQUIRED_RANGE_FILES.every((file) =>
       input.changedFiles.includes(file)
     ),
+    changedFilesWithinPr12bScope: input.changedFiles.every((file) =>
+      ALLOWED_RANGE_FILES.has(file)
+    ),
     packageScriptsPresent: hasPackageScript(
       packageJson,
       "acceptance:workspace-write-real-canary-auth"
@@ -176,6 +187,11 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     reasons,
     checks.requiredRangeFilesPresent,
     "workspace_write_real_canary_candidate_required_files_missing"
+  );
+  addReasonIfFalse(
+    reasons,
+    checks.changedFilesWithinPr12bScope,
+    "workspace_write_real_canary_candidate_unexpected_files"
   );
   addReasonIfFalse(
     reasons,
@@ -219,6 +235,9 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
       ahead: input.ahead,
       behind: input.behind,
       changedFileCount: input.changedFiles.length,
+      unexpectedChangedFileCount: input.changedFiles.filter((file) =>
+        !ALLOWED_RANGE_FILES.has(file)
+      ).length,
       canaryTargetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
       ...executionCounters
     },
