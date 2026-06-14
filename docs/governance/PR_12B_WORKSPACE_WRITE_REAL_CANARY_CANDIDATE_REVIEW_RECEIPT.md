@@ -90,6 +90,9 @@ Expected safe final local audit properties:
 - commands: `10`
 - failed commands: `0`
 - `checks.noForbiddenCommands` is `true`
+- `checks.sensitiveScanJsonContractValid` is `true`
+- sensitive scan targets: `14`
+- sensitive scan marker hits: `0`
 - canary file absent: `true`
 - provider execute calls: `0`
 - real Codex CLI calls: `0`
@@ -158,6 +161,8 @@ Latest verified boundary:
 - final local audit status: `passed`
 - final local audit commands: `10`
 - final local audit failed commands: `0`
+- final local audit sensitive scan targets: `14`
+- final local audit sensitive scan marker hits: `0`
 - candidate audit finalAuditNoForbiddenCommands: `true`
 - candidate audit packageScriptTargetCount: `6`
 - candidate audit packageScriptTargetMismatchCount: `0`

@@ -104,6 +104,9 @@ Expected safe results:
 - final local audit commands are `10`
 - final local audit failed commands are `0`
 - final local audit noForbiddenCommands is `true`
+- final local audit sensitiveScanJsonContractValid is `true`
+- final local audit sensitive scan target count is `14`
+- final local audit sensitive scan marker hit count is `0`
 - candidate audit finalAuditNoForbiddenCommands is `true`
 - unexpected changed files are `0`
 - provider execute calls are `0`
@@ -142,6 +145,7 @@ Stop and report blocked if any of these are observed:
 - final local audit status is not `passed`
 - evidence or receipts contain forbidden sensitive markers
 - final local audit noForbiddenCommands is not `true`
+- final local audit sensitiveScanJsonContractValid is not `true`
 - candidate audit finalAuditNoForbiddenCommands is not `true`
 - fixed canary target file exists
 - provider execute count is nonzero

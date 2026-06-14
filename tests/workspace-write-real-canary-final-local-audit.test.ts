@@ -74,6 +74,7 @@ test("workspace-write real canary final local audit runs the fixed local validat
   assert.equal(result.status, "passed");
   assert.equal(result.checks.allCommandsPassed, true);
   assert.equal(result.checks.noForbiddenCommands, true);
+  assert.equal(result.checks.sensitiveScanJsonContractValid, true);
   assert.equal(result.checks.canaryFileAbsent, true);
   assert.equal(result.checks.noProviderExecute, true);
   assert.equal(result.checks.noRealCodexCli, true);
@@ -85,6 +86,8 @@ test("workspace-write real canary final local audit runs the fixed local validat
   assert.equal(result.summary.providerExecuteCalls, 0);
   assert.equal(result.summary.realCodexCliCalls, 0);
   assert.equal(result.summary.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.summary.sensitiveScanTargetCount, 14);
+  assert.equal(result.summary.sensitiveScanMarkerHitCount, 0);
   assert.deepEqual(result.reasons, []);
 });
 
@@ -189,6 +192,23 @@ test("workspace-write real canary final local audit blocks if canary file exists
   ));
 });
 
+test("workspace-write real canary final local audit blocks invalid sensitive scan json", async () => {
+  const result = await runWorkspaceWriteRealCanaryFinalLocalAudit({
+    runner: async (command) => command.id === "real-canary-sensitive-scan-json"
+      ? { ...passed(command), stdout: "not json" }
+      : passed(command),
+    canaryFileExists: () => false
+  });
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.checks.sensitiveScanJsonContractValid, false);
+  assert.equal(result.summary.sensitiveScanTargetCount, -1);
+  assert.equal(result.summary.sensitiveScanMarkerHitCount, -1);
+  assert.ok(result.reasons.includes(
+    "workspace_write_real_canary_final_local_audit_sensitive_scan_json_invalid"
+  ));
+});
+
 test("workspace-write real canary final local audit output is summarized", async () => {
   const result = await runWorkspaceWriteRealCanaryFinalLocalAudit({
     runner: async (command) => passed(command),
@@ -197,6 +217,8 @@ test("workspace-write real canary final local audit output is summarized", async
   const output = formatWorkspaceWriteRealCanaryFinalLocalAuditResult(result);
 
   assert.match(output, /status: passed/);
+  assert.match(output, /sensitive scan targets: 14/);
+  assert.match(output, /sensitive scan marker hits: 0/);
   assert.match(output, /provider execute calls: 0/);
   assert.equal(output.includes("stdout"), false);
   assert.equal(output.includes("stderr"), false);
@@ -215,6 +237,8 @@ test("workspace-write real canary final local audit json output is sanitized", a
   assert.equal(parsed.status, "passed");
   assert.equal(parsed.summary.commandCount, WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.length);
   assert.equal(parsed.summary.failedCommandCount, 0);
+  assert.equal(parsed.summary.sensitiveScanTargetCount, 14);
+  assert.equal(parsed.summary.sensitiveScanMarkerHitCount, 0);
   assert.equal(parsed.summary.providerExecuteCalls, 0);
   assert.equal(parsed.summary.realCodexCliCalls, 0);
   assert.equal(parsed.summary.workspaceWriteExecuteCalls, 0);
@@ -244,9 +268,31 @@ test("workspace-write real canary final local audit json output is sanitized", a
 function passed(
   command: WorkspaceWriteRealCanaryFinalLocalAuditCommand
 ) {
-  return {
+  const result = {
     id: command.id,
     status: "passed" as const,
     exitCode: 0
+  };
+
+  if (command.id !== "real-canary-sensitive-scan-json") {
+    return result;
+  }
+
+  return {
+    ...result,
+    stdout: JSON.stringify({
+      status: "passed",
+      checks: {
+        allTargetsPresent: true,
+        noSensitiveMarkers: true
+      },
+      summary: {
+        targetCount: 14,
+        missingTargetCount: 0,
+        leakingTargetCount: 0,
+        markerHitCount: 0
+      },
+      reasons: []
+    })
   };
 }

@@ -46,6 +46,9 @@ shows:
 - final local audit command count is `10`
 - final local audit failed command count is `0`
 - final local audit noForbiddenCommands is `true`
+- final local audit sensitiveScanJsonContractValid is `true`
+- final local audit sensitive scan target count is `14`
+- final local audit sensitive scan marker hit count is `0`
 - final local audit provider execute calls are `0`
 - final local audit real Codex CLI calls are `0`
 - final local audit workspace-write execute calls are `0`

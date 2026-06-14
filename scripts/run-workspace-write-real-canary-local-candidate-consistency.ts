@@ -17,6 +17,9 @@ import {
   formatWorkspaceWriteRealCanaryFinalLocalAuditResult,
   type WorkspaceWriteRealCanaryFinalLocalAuditResult
 } from "./run-workspace-write-real-canary-final-local-audit.js";
+import {
+  WORKSPACE_WRITE_REAL_CANARY_SENSITIVE_SCAN_TARGETS
+} from "./run-workspace-write-real-canary-sensitive-scan.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -83,6 +86,7 @@ const REQUIRED_AUDIT_FIELD_VALUES = [
   ["packageScriptTargetCount", "6"],
   ["packageScriptTargetMismatchCount", "0"],
   ["finalAuditNoForbiddenCommands", "true"],
+  ["sensitiveScanJsonContractValid", "true"],
   ["noForbiddenCommands", "true"]
 ] as const;
 
@@ -453,12 +457,16 @@ function finalAuditJsonContractIsValid(): boolean {
 
   return getString(parsed, ["status"]) === "passed"
     && getBoolean(parsed, ["checks", "noForbiddenCommands"]) === true
+    && getBoolean(parsed, ["checks", "sensitiveScanJsonContractValid"]) === true
     && getBoolean(parsed, ["checks", "canaryFileAbsent"]) === true
     && getBoolean(parsed, ["checks", "noWorkspaceWriteExecute"]) === true
     && getBoolean(parsed, ["checks", "noRealCodexCli"]) === true
     && getBoolean(parsed, ["checks", "noProviderExecute"]) === true
     && getNumber(parsed, ["summary", "commandCount"]) === WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.length
     && getNumber(parsed, ["summary", "failedCommandCount"]) === 0
+    && getNumber(parsed, ["summary", "sensitiveScanTargetCount"])
+      === WORKSPACE_WRITE_REAL_CANARY_SENSITIVE_SCAN_TARGETS.length
+    && getNumber(parsed, ["summary", "sensitiveScanMarkerHitCount"]) === 0
     && getNumber(parsed, ["summary", "workspaceWriteExecuteCalls"]) === 0
     && getNumber(parsed, ["summary", "realCodexCliCalls"]) === 0
     && getNumber(parsed, ["summary", "providerExecuteCalls"]) === 0
@@ -476,6 +484,7 @@ function parseFinalAuditJsonContract(): Record<string, unknown> | undefined {
     checks: {
       allCommandsPassed: true,
       noForbiddenCommands: true,
+      sensitiveScanJsonContractValid: true,
       canaryFileAbsent: true,
       noWorkspaceWriteExecute: true,
       noRealCodexCli: true,
@@ -489,6 +498,8 @@ function parseFinalAuditJsonContract(): Record<string, unknown> | undefined {
     summary: {
       commandCount: WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.length,
       failedCommandCount: 0,
+      sensitiveScanTargetCount: WORKSPACE_WRITE_REAL_CANARY_SENSITIVE_SCAN_TARGETS.length,
+      sensitiveScanMarkerHitCount: 0,
       canaryTargetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
       workspaceWriteExecuteCalls: 0,
       realCodexCliCalls: 0,
