@@ -119,3 +119,46 @@ Run PR-11 push-readiness review for the local range.
 Do not push until Commander grants explicit push authorization.
 Do not open workspace-write execute.
 Do not run workspace-write smoke or canary without a separate explicit operator task.
+
+## 12. PR-11D Acceptance Evidence Addendum
+
+After the initial local closeout, PR-11D added local-only acceptance evidence for the workspace-write governance primitives.
+
+Additional local commit:
+
+- `test(acceptance): add workspace-write governance evidence`
+
+Additional files:
+
+- `docs/evidence/workspace-write-governance-acceptance.json`
+- `scripts/run-workspace-write-governance-acceptance.ts`
+- `tests/workspace-write-governance-acceptance.test.ts`
+- `package.json`
+
+Additional validation:
+
+| Check | Result |
+| --- | --- |
+| `npm run acceptance:workspace-write-governance` | pass |
+| `npx tsx --test tests\workspace-write-governance-acceptance.test.ts` | pass, 2 tests |
+| `npm run typecheck` | pass |
+| `npm test` | pass, 837 tests |
+| Evidence leak search | pass, no matches |
+
+Acceptance evidence confirms:
+
+- approved workspace-write governance permit can be created locally
+- blocked workspace-write permit records missing hard gates
+- legacy read-only execution permit still rejects workspace-write
+- patch guard passes bounded permitted diff summaries
+- patch guard blocks file count, diff line count, out-of-bounds paths, and secret-like content
+- rollback evidence requires before commit and records patch hash
+- provider execute calls: 0
+- real Codex CLI calls: 0
+- workspace-write execute calls: 0
+
+This addendum does not change the execution boundary:
+
+- workspace-write execute remains closed
+- real Codex CLI remains closed
+- no release, tag, or push is included

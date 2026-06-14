@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "workspace-write-governance-acceptance.v1",
+  "generatedAt": "2026-06-14T00:00:00.000Z",
+  "mode": "workspace-write-governance-local-only",
+  "taskId": "workspace-write-governance-acceptance",
+  "checks": {
+    "approvedPermitCreated": true,
+    "blockedPermitRejected": true,
+    "legacyReadOnlyPermitStillRejectsWorkspaceWrite": true,
+    "patchGuardPassed": true,
+    "patchGuardBlocksFileCount": true,
+    "patchGuardBlocksDiffLines": true,
+    "patchGuardBlocksOutOfBounds": true,
+    "patchGuardBlocksSecretLikeContent": true,
+    "rollbackEvidenceReady": true,
+    "rollbackEvidenceBlocksMissingBeforeCommit": true,
+    "noProviderExecute": true,
+    "noRealCodexCli": true,
+    "noWorkspaceWriteExecute": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "providerId": "codex-cli",
+    "manifestHash": "29f521991d112de5f49ffbc455b55ea4cf8f43728f3c39e33088aad32492b54f",
+    "permitId": "workspace_write_permit_plan_workspace_write_governance_acceptance",
+    "planId": "plan_workspace_write_governance_acceptance",
+    "sideEffectClass": "workspace_write",
+    "sandbox": "workspace-write",
+    "targetFileCount": 1,
+    "maxChangedFiles": 1,
+    "maxDiffLines": 4,
+    "patchHash": "6f092dae4798dbbf88019adb900f155714fc30073e15b6239d49f28bc65172c0",
+    "changedFileCount": 1,
+    "diffLineCount": 2,
+    "rollbackAvailable": true
+  },
+  "counters": {
+    "providerExecuteCalls": 0,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0
+  },
+  "blockingReasons": [
+    "workspace_write_provider_execution_permit_approval_required",
+    "workspace_write_provider_execution_permit_operator_authorization_required",
+    "workspace_write_provider_execution_permit_target_file_out_of_bounds",
+    "workspace_write_provider_execution_permit_rollback_required",
+    "workspace_write_provider_execution_permit_protected_branch_forbidden",
+    "workspace_write_provider_execution_permit_dirty_worktree_forbidden",
+    "workspace_write_patch_guard_changed_files_exceed_max",
+    "workspace_write_patch_guard_diff_lines_exceed_max",
+    "workspace_write_patch_guard_changed_file_not_permitted:workspace/tests/provider-core.test.ts",
+    "workspace_write_patch_guard_changed_file_out_of_bounds",
+    "workspace_write_patch_guard_changed_file_not_permitted:../outside.ts",
+    "workspace_write_patch_guard_secret_like_content",
+    "workspace_write_rollback_plan_before_commit_required"
+  ]
+}
