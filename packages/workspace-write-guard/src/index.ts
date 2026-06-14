@@ -37,13 +37,61 @@ export const WorkspaceWritePatchGuardResultSchema = z.object({
   })
 });
 
+export const WorkspaceWriteRollbackPlanEvidenceSchema = z.object({
+  schemaVersion: z.literal("workspace-write-rollback-plan-evidence.v1").default(
+    "workspace-write-rollback-plan-evidence.v1"
+  ),
+  generatedAt: z.string().min(1),
+  status: z.enum(["ready", "blocked"]),
+  permit: z.object({
+    permitId: z.string().min(1),
+    providerId: z.string().min(1),
+    taskId: z.string().min(1),
+    runId: z.string().min(1).optional(),
+    planId: z.string().min(1).optional(),
+    status: z.enum(["candidate", "approved", "blocked"]),
+    sideEffectClass: z.literal("workspace_write"),
+    sandboxMode: z.literal("workspace-write")
+  }),
+  beforeCommit: z.string().min(1).optional(),
+  patchHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  changedFiles: z.array(WorkspaceWriteDiffFileSummarySchema),
+  rollback: z.object({
+    required: z.boolean(),
+    available: z.boolean(),
+    command: z.string().min(1).optional(),
+    affectedFiles: z.array(z.string()),
+    strategy: z.string().min(1)
+  }),
+  checks: z.object({
+    permitApproved: z.boolean(),
+    guardPassed: z.boolean(),
+    beforeCommitRecorded: z.boolean(),
+    patchHashRecorded: z.boolean(),
+    changedFilesRecorded: z.boolean(),
+    rollbackCommandRecorded: z.boolean(),
+    noRawPatch: z.literal(true)
+  }),
+  blockingReasons: z.array(z.string())
+});
+
 export type WorkspaceWriteDiffFileSummary = z.infer<typeof WorkspaceWriteDiffFileSummarySchema>;
 export type WorkspaceWriteDiffInspection = z.infer<typeof WorkspaceWriteDiffInspectionSchema>;
 export type WorkspaceWritePatchGuardResult = z.infer<typeof WorkspaceWritePatchGuardResultSchema>;
+export type WorkspaceWriteRollbackPlanEvidence = z.infer<
+  typeof WorkspaceWriteRollbackPlanEvidenceSchema
+>;
 
 export type WorkspaceWritePatchGuardInput = {
   permit: WorkspaceWriteProviderExecutionPermit;
   unifiedDiff: string;
+};
+
+export type WorkspaceWriteRollbackPlanEvidenceInput = {
+  permit: WorkspaceWriteProviderExecutionPermit;
+  guardResult: WorkspaceWritePatchGuardResult;
+  beforeCommit?: string;
+  generatedAt: string;
 };
 
 export function inspectWorkspaceWriteUnifiedDiff(unifiedDiff: string): WorkspaceWriteDiffInspection {
@@ -153,6 +201,76 @@ export function evaluateWorkspaceWritePatchGuard(
   });
 }
 
+export function createWorkspaceWriteRollbackPlanEvidence(
+  input: WorkspaceWriteRollbackPlanEvidenceInput
+): WorkspaceWriteRollbackPlanEvidence {
+  const permit = WorkspaceWriteProviderExecutionPermitSchema.parse(input.permit);
+  const guardResult = WorkspaceWritePatchGuardResultSchema.parse(input.guardResult);
+  const beforeCommit = normalizeOptionalString(input.beforeCommit);
+  const changedFiles = guardResult.summary.changedFiles;
+  const affectedFiles = changedFiles.map((file) => file.path);
+  const reasons = [
+    ...(permit.status === "approved"
+      ? []
+      : [`workspace_write_rollback_plan_permit_not_approved:${permit.status}`]),
+    ...(guardResult.ok
+      ? []
+      : ["workspace_write_rollback_plan_guard_not_passed", ...guardResult.reasons]),
+    ...(beforeCommit !== undefined
+      ? []
+      : ["workspace_write_rollback_plan_before_commit_required"]),
+    ...(guardResult.summary.patchHash.length > 0
+      ? []
+      : ["workspace_write_rollback_plan_patch_hash_required"]),
+    ...(changedFiles.length > 0
+      ? []
+      : ["workspace_write_rollback_plan_changed_files_required"]),
+    ...(permit.rollbackRequired
+      ? []
+      : ["workspace_write_rollback_plan_rollback_required"])
+  ];
+  const uniqueReasons = uniqueStrings(reasons);
+  const command = beforeCommit === undefined || affectedFiles.length === 0
+    ? undefined
+    : createGitRestoreRollbackCommand(beforeCommit, affectedFiles);
+
+  return WorkspaceWriteRollbackPlanEvidenceSchema.parse({
+    schemaVersion: "workspace-write-rollback-plan-evidence.v1",
+    generatedAt: input.generatedAt,
+    status: uniqueReasons.length === 0 ? "ready" : "blocked",
+    permit: {
+      permitId: permit.permitId,
+      providerId: permit.providerId,
+      taskId: permit.taskId,
+      ...(permit.runId !== undefined ? { runId: permit.runId } : {}),
+      ...(permit.planId !== undefined ? { planId: permit.planId } : {}),
+      status: permit.status,
+      sideEffectClass: permit.sideEffectClass,
+      sandboxMode: permit.sandboxMode
+    },
+    ...(beforeCommit !== undefined ? { beforeCommit } : {}),
+    patchHash: guardResult.summary.patchHash,
+    changedFiles,
+    rollback: {
+      required: permit.rollbackRequired,
+      available: uniqueReasons.length === 0,
+      ...(command !== undefined ? { command } : {}),
+      affectedFiles,
+      strategy: "Restore affected files from the recorded beforeCommit without moving branches or touching remote state."
+    },
+    checks: {
+      permitApproved: permit.status === "approved",
+      guardPassed: guardResult.ok,
+      beforeCommitRecorded: beforeCommit !== undefined,
+      patchHashRecorded: guardResult.summary.patchHash.length > 0,
+      changedFilesRecorded: changedFiles.length > 0,
+      rollbackCommandRecorded: command !== undefined,
+      noRawPatch: true
+    },
+    blockingReasons: uniqueReasons
+  });
+}
+
 function ensureDiffFile(
   files: Map<string, WorkspaceWriteDiffFileSummary>,
   path: string
@@ -197,6 +315,34 @@ function normalizeDiffPath(path: string): string | undefined {
 
 function lineHasSecretLikeContent(line: string): boolean {
   return redactText(line) !== line;
+}
+
+function createGitRestoreRollbackCommand(beforeCommit: string, affectedFiles: string[]): string {
+  return [
+    "git",
+    "restore",
+    "--source",
+    beforeCommit,
+    "--",
+    ...affectedFiles
+  ].map(quoteCommandToken).join(" ");
+}
+
+function quoteCommandToken(token: string): string {
+  if (/^[A-Za-z0-9_./:@-]+$/.test(token)) {
+    return token;
+  }
+
+  return `"${token.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+}
+
+function normalizeOptionalString(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
 }
 
 function isSafeWorkspaceRelativeFilePath(path: string): boolean {

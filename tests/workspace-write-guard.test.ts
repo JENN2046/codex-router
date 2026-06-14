@@ -11,6 +11,7 @@ import {
 } from "../packages/provider-core/src/index.js";
 import { SandboxProfileSchema, type SandboxProfile } from "../packages/kernel-contracts/src/index.js";
 import {
+  createWorkspaceWriteRollbackPlanEvidence,
   evaluateWorkspaceWritePatchGuard,
   inspectWorkspaceWriteUnifiedDiff
 } from "../packages/workspace-write-guard/src/index.js";
@@ -141,6 +142,139 @@ test("workspace-write guard inspects unified diff summaries without raw content"
   assert.equal(inspection.changedFiles[0]?.removedLines, 1);
   assert.match(inspection.patchHash, /^[a-f0-9]{64}$/);
 });
+
+test("workspace-write rollback evidence records before commit and patch hash", () => {
+  const permit = createWorkspaceWritePermit({
+    targetFiles: ["workspace/packages/provider-core/src/index.ts"],
+    maxChangedFiles: 1,
+    maxDiffLines: 4
+  });
+  const guardResult = evaluateWorkspaceWritePatchGuard({
+    permit,
+    unifiedDiff: createSafeDiff()
+  });
+  const evidence = createWorkspaceWriteRollbackPlanEvidence({
+    permit,
+    guardResult,
+    beforeCommit: "abc123def456",
+    generatedAt: "2026-06-14T00:00:00.000Z"
+  });
+  const serialized = JSON.stringify(evidence);
+
+  assert.equal(evidence.schemaVersion, "workspace-write-rollback-plan-evidence.v1");
+  assert.equal(evidence.status, "ready");
+  assert.equal(evidence.beforeCommit, "abc123def456");
+  assert.equal(evidence.patchHash, guardResult.summary.patchHash);
+  assert.deepEqual(evidence.changedFiles.map((file) => file.path), [
+    "workspace/packages/provider-core/src/index.ts"
+  ]);
+  assert.equal(evidence.rollback.available, true);
+  assert.equal(
+    evidence.rollback.command,
+    "git restore --source abc123def456 -- workspace/packages/provider-core/src/index.ts"
+  );
+  assert.deepEqual(evidence.blockingReasons, []);
+  assert.equal(evidence.checks.noRawPatch, true);
+  assert.equal(serialized.includes("old line"), false);
+  assert.equal(serialized.includes("new line"), false);
+});
+
+test("workspace-write rollback evidence blocks when guard failed", () => {
+  const permit = createWorkspaceWritePermit({
+    targetFiles: ["workspace/packages/provider-core/src/index.ts"],
+    maxChangedFiles: 1,
+    maxDiffLines: 4
+  });
+  const guardResult = evaluateWorkspaceWritePatchGuard({
+    permit,
+    unifiedDiff: [
+      "diff --git a/workspace/tests/provider-core.test.ts b/workspace/tests/provider-core.test.ts",
+      "--- a/workspace/tests/provider-core.test.ts",
+      "+++ b/workspace/tests/provider-core.test.ts",
+      "@@",
+      "+unpermitted"
+    ].join("\n")
+  });
+  const evidence = createWorkspaceWriteRollbackPlanEvidence({
+    permit,
+    guardResult,
+    beforeCommit: "abc123def456",
+    generatedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(evidence.status, "blocked");
+  assert.equal(evidence.rollback.available, false);
+  assert.ok(evidence.blockingReasons.includes("workspace_write_rollback_plan_guard_not_passed"));
+  assert.ok(evidence.blockingReasons.includes(
+    "workspace_write_patch_guard_changed_file_not_permitted:workspace/tests/provider-core.test.ts"
+  ));
+});
+
+test("workspace-write rollback evidence requires before commit", () => {
+  const permit = createWorkspaceWritePermit({
+    targetFiles: ["workspace/packages/provider-core/src/index.ts"],
+    maxChangedFiles: 1,
+    maxDiffLines: 4
+  });
+  const guardResult = evaluateWorkspaceWritePatchGuard({
+    permit,
+    unifiedDiff: createSafeDiff()
+  });
+  const evidence = createWorkspaceWriteRollbackPlanEvidence({
+    permit,
+    guardResult,
+    beforeCommit: "   ",
+    generatedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(evidence.status, "blocked");
+  assert.equal(evidence.checks.beforeCommitRecorded, false);
+  assert.equal(evidence.checks.rollbackCommandRecorded, false);
+  assert.equal(evidence.rollback.command, undefined);
+  assert.ok(evidence.blockingReasons.includes("workspace_write_rollback_plan_before_commit_required"));
+});
+
+test("workspace-write rollback evidence stays sanitized after secret-like guard input", () => {
+  const permit = createWorkspaceWritePermit({
+    targetFiles: ["workspace/packages/provider-core/src/index.ts"],
+    maxChangedFiles: 1,
+    maxDiffLines: 4
+  });
+  const guardResult = evaluateWorkspaceWritePatchGuard({
+    permit,
+    unifiedDiff: [
+      "diff --git a/workspace/packages/provider-core/src/index.ts b/workspace/packages/provider-core/src/index.ts",
+      "--- a/workspace/packages/provider-core/src/index.ts",
+      "+++ b/workspace/packages/provider-core/src/index.ts",
+      "@@",
+      "+const fixture = \"sk-proj-123456789\";"
+    ].join("\n")
+  });
+  const evidence = createWorkspaceWriteRollbackPlanEvidence({
+    permit,
+    guardResult,
+    beforeCommit: "abc123def456",
+    generatedAt: "2026-06-14T00:00:00.000Z"
+  });
+  const serialized = JSON.stringify(evidence);
+
+  assert.equal(evidence.status, "blocked");
+  assert.ok(evidence.blockingReasons.includes("workspace_write_patch_guard_secret_like_content"));
+  assert.equal(serialized.includes("sk-proj-123456789"), false);
+  assert.equal(serialized.includes("const fixture"), false);
+  assert.equal(serialized.includes("raw patch"), false);
+});
+
+function createSafeDiff(): string {
+  return [
+    "diff --git a/workspace/packages/provider-core/src/index.ts b/workspace/packages/provider-core/src/index.ts",
+    "--- a/workspace/packages/provider-core/src/index.ts",
+    "+++ b/workspace/packages/provider-core/src/index.ts",
+    "@@",
+    "-old line",
+    "+new line"
+  ].join("\n");
+}
 
 function createWorkspaceWritePermit(options: {
   approved?: boolean;
