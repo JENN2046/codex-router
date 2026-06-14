@@ -63,6 +63,15 @@ const REQUIRED_DOC_FILES = [
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_RC_REVIEW_PASS.md"
 ] as const;
 
+const REQUIRED_PACKAGE_SCRIPTS = [
+  "typecheck",
+  "acceptance:workspace-write-real-canary-auth",
+  "acceptance:workspace-write-real-canary-pre-execution",
+  "audit:workspace-write-real-canary-candidate",
+  "audit:workspace-write-real-canary-sensitive-scan",
+  "audit:workspace-write-real-canary-final-local"
+] as const;
+
 const FORBIDDEN_MARKERS = [
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
   PR_12B_REAL_CANARY_WORKSPACE,
@@ -184,15 +193,8 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     changedFilesWithinPr12bScope: input.changedFiles.every((file) =>
       ALLOWED_RANGE_FILES.has(file)
     ),
-    packageScriptsPresent: hasPackageScript(
-      packageJson,
-      "acceptance:workspace-write-real-canary-auth"
-    ) && hasPackageScript(
-      packageJson,
-      "acceptance:workspace-write-real-canary-pre-execution"
-    ) && hasPackageScript(
-      packageJson,
-      "audit:workspace-write-real-canary-sensitive-scan"
+    packageScriptsPresent: REQUIRED_PACKAGE_SCRIPTS.every((scriptName) =>
+      hasPackageScript(packageJson, scriptName)
     ),
     evidenceParseable: authorizationEvidence !== undefined && preExecutionEvidence !== undefined,
     evidenceLocalOnly: getString(authorizationEvidence, ["mode"])
@@ -224,7 +226,7 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
   addReasonIfFalse(
     reasons,
     checks.packageScriptsPresent,
-    "workspace_write_real_canary_candidate_acceptance_scripts_missing"
+    "workspace_write_real_canary_candidate_package_scripts_missing"
   );
   addReasonIfFalse(reasons, checks.evidenceParseable, "workspace_write_real_canary_candidate_evidence_invalid");
   addReasonIfFalse(
