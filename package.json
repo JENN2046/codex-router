@@ -35,6 +35,7 @@
     "audit:formal-readonly-dispatch-boundary-local": "tsx scripts/run-formal-readonly-dispatch-boundary-local-closeout-audit.ts",
     "audit:formal-real-readonly-smoke-local": "tsx scripts/run-formal-real-readonly-smoke-local-closeout-audit.ts",
     "audit:formal-real-readonly-smoke-execution-local": "tsx scripts/run-formal-real-readonly-smoke-execution-local-closeout-audit.ts",
+    "audit:formal-real-readonly-smoke-receipt-local": "tsx scripts/run-formal-real-readonly-smoke-receipt-local-audit.ts",
     "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
     "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
     "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts",
