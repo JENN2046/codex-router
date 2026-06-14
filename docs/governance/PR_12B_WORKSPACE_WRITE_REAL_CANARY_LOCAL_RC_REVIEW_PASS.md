@@ -100,7 +100,30 @@ Consistency decision:
 
 - `PR_12B_CLOSEOUT_INDEX_CONSISTENCY_PASS`
 
-## 7. Non-authorization
+## 7. Local RC Bundle Review Receipt
+
+Reviewed bundle entry points:
+
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_AUDIT_INDEX.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_RC_RECEIPT.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_RC_REVIEW_PASS.md`
+
+Bundle review method:
+
+- read-only local document review
+- machine-readable sensitive scan review
+- machine-readable candidate audit review
+- machine-readable final local audit review
+
+Bundle review conclusion:
+
+- `PR_12B_LOCAL_RC_BUNDLE_REVIEWED`
+
+This bundle is suitable as local candidate material for a future human review.
+It is not a push-readiness decision and does not authorize any remote action or
+workspace-write execution.
+
+## 8. Non-authorization
 
 This review pass does not authorize:
 
@@ -112,7 +135,7 @@ This review pass does not authorize:
 - release
 - tag
 
-## 8. Result
+## 9. Result
 
 Result:
 
