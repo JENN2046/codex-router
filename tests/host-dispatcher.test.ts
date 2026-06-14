@@ -4,7 +4,9 @@ import { EventEmitter } from "node:events";
 import { fileURLToPath } from "node:url";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
+import type { CodexCliProcessSpawner } from "../packages/codex-cli-host/src/index.js";
 import {
+  dispatchFormalReadOnlyRunnerResultToProvider,
   dispatchReadOnlyProviderPlan,
   dispatchReadOnlyRunnerResultToProvider,
   dispatchToHost
@@ -12,10 +14,12 @@ import {
 import { runDesktopDecision } from "../packages/desktop-decision-runner/src/index.js";
 import {
   CodexCliExecutorProvider,
-  codexCliProviderManifest
+  codexCliProviderManifest,
+  type CodexCliProviderRealExecutionGuard
 } from "../packages/providers/codex-cli/src/index.js";
 import { createProviderRegistry, type ProviderRegistry } from "../packages/provider-registry/src/index.js";
 import {
+  hashProviderManifest,
   ProviderManifestSchema,
   type ExecutionPlanInput
 } from "../packages/provider-core/src/index.js";
@@ -392,6 +396,92 @@ test("host dispatcher validates provider registry selection before read-only run
   assertSafeDispatch(serialized);
 });
 
+test("host dispatcher formal read-only dispatch requires registry and metadata before spawn", async () => {
+  const runnerResult = await createReadOnlyRunnerResult(
+    "host-dispatcher-formal-readonly-required-fields"
+  );
+  const registry = createRegistryWithCodexCatalog();
+  let spawnCalls = 0;
+  let planCalls = 0;
+  const provider = createRealModeProvider(() => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    });
+  });
+  const originalPlanExecution = provider.planExecution.bind(provider);
+  provider.planExecution = ((input: ExecutionPlanInput) => {
+    planCalls += 1;
+    return originalPlanExecution(input);
+  }) as typeof provider.planExecution;
+
+  const missingRegistry = await dispatchFormalReadOnlyRunnerResultToProvider({
+    runnerResult,
+    provider,
+    providerRegistry: undefined,
+    now,
+    providerExecutionMetadata: {
+      codexCliProviderRealExecutionGuard: createRealExecutionGuard()
+    }
+  } as unknown as Parameters<typeof dispatchFormalReadOnlyRunnerResultToProvider>[0]);
+  const missingMetadata = await dispatchFormalReadOnlyRunnerResultToProvider({
+    runnerResult,
+    provider,
+    providerRegistry: registry,
+    now,
+    providerExecutionMetadata: undefined
+  } as unknown as Parameters<typeof dispatchFormalReadOnlyRunnerResultToProvider>[0]);
+
+  assert.equal(missingRegistry.ok, false);
+  assert.equal(missingRegistry.status, "blocked");
+  assert.ok(missingRegistry.blockingReasons?.includes(
+    "host_dispatcher_formal_read_only_provider_registry_required"
+  ));
+  assert.equal(missingMetadata.ok, false);
+  assert.equal(missingMetadata.status, "blocked");
+  assert.ok(missingMetadata.blockingReasons?.includes(
+    "host_dispatcher_formal_read_only_provider_metadata_required"
+  ));
+  assert.equal(planCalls, 0);
+  assert.equal(spawnCalls, 0);
+});
+
+test("host dispatcher formal read-only dispatch executes only through guarded fake spawner", async () => {
+  const runnerResult = await createReadOnlyRunnerResult(
+    "host-dispatcher-formal-readonly-success"
+  );
+  const registry = createRegistryWithCodexCatalog();
+  let spawnCalls = 0;
+  const provider = createRealModeProvider(() => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"formal completed\"}\n",
+      exitCode: 0
+    });
+  });
+
+  const result = await dispatchFormalReadOnlyRunnerResultToProvider({
+    runnerResult,
+    provider,
+    providerRegistry: registry,
+    now,
+    providerExecutionMetadata: {
+      codexCliProviderRealExecutionGuard: createRealExecutionGuard()
+    }
+  });
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "completed");
+  assert.equal(spawnCalls, 1);
+  assert.equal(result.providerSelection?.selected, true);
+  assert.equal(result.permit?.status, "approved");
+  assert.equal(result.sideEffectClass, "read_only");
+  assert.equal(result.sandbox, "read-only");
+  assertSafeDispatch(serialized);
+});
+
 test("host dispatcher dry-runs read-only runner provider dispatch without spawn", async () => {
   const runnerResult = await createReadOnlyRunnerResult("host-dispatcher-runner-provider-dry-run");
   let spawnCalls = 0;
@@ -742,6 +832,47 @@ function createRegistryWithCodexCatalog(): ProviderRegistry {
     registeredAt: now
   });
   return registry;
+}
+
+function createRealModeProvider(
+  spawn: CodexCliProcessSpawner
+): CodexCliExecutorProvider {
+  return new CodexCliExecutorProvider({
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: true,
+    timeoutMs: 1_000,
+    spawn
+  });
+}
+
+function createRealExecutionGuard(
+  manifestHash = hashProviderManifest(codexCliProviderManifest)
+): CodexCliProviderRealExecutionGuard {
+  return {
+    schemaVersion: "codex-cli-provider-real-execution-guard.v1",
+    realExecutionAllowed: true,
+    providerRegistrySelection: {
+      selected: true,
+      providerId: "codex-cli",
+      manifestHash,
+      kind: "executor",
+      enabled: true
+    },
+    environmentPreflight: {
+      status: "ready",
+      checks: {
+        injectedSpawner: true,
+        realCliAllowed: true,
+        versionProbe: "passed",
+        noTaskEnvelope: true,
+        noPromptSent: true,
+        noWorkspaceWrite: true,
+        noRealCliFallback: true
+      },
+      blockingReasons: []
+    }
+  };
 }
 
 function assertSafeDispatch(serialized: string): void {

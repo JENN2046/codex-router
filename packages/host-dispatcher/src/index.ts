@@ -84,6 +84,15 @@ export interface ReadOnlyRunnerProviderDispatchInput {
   providerExecutionMetadata?: Record<string, unknown>;
 }
 
+export interface FormalReadOnlyRunnerProviderDispatchInput {
+  runnerResult: DesktopDecisionRunnerResult;
+  provider: CodexCliExecutorProvider;
+  providerRegistry: ProviderRegistry;
+  now: string;
+  dryRun?: boolean;
+  providerExecutionMetadata: Record<string, unknown>;
+}
+
 export async function dispatchToHost(
   input: HostDispatcherInput
 ): Promise<HostDispatcherResult> {
@@ -236,6 +245,41 @@ export async function dispatchReadOnlyRunnerResultToProvider(
     dryRun: input.dryRun === true,
     ...(providerSelection !== undefined ? { providerSelection } : {})
   };
+}
+
+export async function dispatchFormalReadOnlyRunnerResultToProvider(
+  input: FormalReadOnlyRunnerProviderDispatchInput
+): Promise<ReadOnlyProviderDispatchResult> {
+  const looseInput = input as FormalReadOnlyRunnerProviderDispatchInput & {
+    providerRegistry?: ProviderRegistry;
+    providerExecutionMetadata?: Record<string, unknown>;
+  };
+  const reasons = [
+    ...(looseInput.providerRegistry === undefined
+      ? ["host_dispatcher_formal_read_only_provider_registry_required"]
+      : []),
+    ...(!isRecord(looseInput.providerExecutionMetadata)
+      ? ["host_dispatcher_formal_read_only_provider_metadata_required"]
+      : [])
+  ];
+
+  if (reasons.length > 0) {
+    return createReadOnlyRunnerDispatchBlockedResult(
+      input.runnerResult,
+      "host_dispatcher_formal_read_only_provider_dispatch_rejected",
+      reasons,
+      input.dryRun === true
+    );
+  }
+
+  return dispatchReadOnlyRunnerResultToProvider({
+    runnerResult: input.runnerResult,
+    provider: input.provider,
+    providerRegistry: looseInput.providerRegistry,
+    now: input.now,
+    ...(input.dryRun === true ? { dryRun: true } : {}),
+    providerExecutionMetadata: looseInput.providerExecutionMetadata
+  });
 }
 
 async function dispatchToCliHost(
@@ -502,9 +546,12 @@ function sanitizeProviderExecutionError(
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
+    && Object.getPrototypeOf(value) === Object.prototype;
 }
 
 function readNumber(value: unknown): number | undefined {

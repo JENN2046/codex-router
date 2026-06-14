@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "codex-cli-formal-readonly-dispatch-boundary-acceptance.v1",
+  "generatedAt": "2026-06-15T00:00:00.000Z",
+  "mode": "formal-readonly-dispatch-boundary-local-only",
+  "taskId": "codex-cli-formal-readonly-dispatch-boundary-acceptance",
+  "checks": {
+    "runnerReady": true,
+    "formalWrapperRequiresRegistry": true,
+    "formalWrapperRequiresMetadata": true,
+    "registrySelectionOk": true,
+    "permitIssued": true,
+    "formalDispatchOk": true,
+    "fakeSpawnerUsed": true,
+    "guardMismatchBlocked": true,
+    "writeAccessBlocked": true,
+    "noRealCodexCli": true,
+    "noWorkspaceWriteExecute": true,
+    "noLocalCommandExecute": true,
+    "noProtectedRemoteExecute": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "providerId": "codex-cli",
+    "sideEffectClass": "read_only",
+    "sandbox": "read-only",
+    "status": "completed",
+    "formalDispatchCalls": 1,
+    "fakeSpawnerCalls": 1,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0,
+    "localCommandExecuteCalls": 0,
+    "protectedRemoteExecuteCalls": 0
+  },
+  "counters": {
+    "successSpawnCalls": 1,
+    "missingRegistrySpawnCalls": 0,
+    "missingMetadataSpawnCalls": 0,
+    "guardMismatchSpawnCalls": 0,
+    "writeAccessSpawnCalls": 0,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0,
+    "localCommandExecuteCalls": 0,
+    "protectedRemoteExecuteCalls": 0
+  },
+  "blockingReasons": [
+    "host_dispatcher_formal_read_only_provider_registry_required",
+    "host_dispatcher_formal_read_only_provider_metadata_required",
+    "codex_cli_provider_real_execute_registry_manifest_mismatch",
+    "runner_result_tool_access_not_read_only",
+    "runner_result_provider_grant_side_effect_not_read_only",
+    "runner_result_provider_grant_sandbox_not_read_only"
+  ]
+}
