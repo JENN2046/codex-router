@@ -6,6 +6,7 @@ import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
 import {
   dispatchReadOnlyProviderPlan,
+  dispatchReadOnlyRunnerResultToProvider,
   dispatchToHost
 } from "../packages/host-dispatcher/src/index.js";
 import { runDesktopDecision } from "../packages/desktop-decision-runner/src/index.js";
@@ -316,6 +317,199 @@ test("host dispatcher rejects invalid provider plans before permit issuance", as
   assert.equal(result.error?.code, "host_dispatcher_provider_plan_invalid");
 });
 
+test("host dispatcher dispatches ready read-only runner results through provider permits", async () => {
+  const runnerResult = await createReadOnlyRunnerResult("host-dispatcher-runner-provider-success");
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"completed\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+
+  const result = await dispatchReadOnlyRunnerResultToProvider({
+    runnerResult,
+    provider,
+    now
+  });
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "completed");
+  assert.equal(spawnCalls, 1);
+  assert.equal(result.taskId, runnerResult.task.taskId);
+  assert.equal(result.decisionId, runnerResult.decision.decisionId);
+  assert.equal(result.providerId, "codex-cli");
+  assert.equal(result.sideEffectClass, "read_only");
+  assert.equal(result.sandbox, "read-only");
+  assert.equal(result.permit?.status, "approved");
+  assert.equal(serialized.includes("prompt"), false);
+  assert.equal(serialized.includes("args"), false);
+  assert.equal(serialized.includes("stdout"), false);
+  assert.equal(serialized.includes("stderr"), false);
+});
+
+test("host dispatcher dry-runs read-only runner provider dispatch without spawn", async () => {
+  const runnerResult = await createReadOnlyRunnerResult("host-dispatcher-runner-provider-dry-run");
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+
+  const result = await dispatchReadOnlyRunnerResultToProvider({
+    runnerResult,
+    provider,
+    now,
+    dryRun: true
+  });
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "dry_run");
+  assert.equal(result.dryRun, true);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.permit?.status, "approved");
+  assert.equal(serialized.includes("prompt"), false);
+  assert.equal(serialized.includes("args"), false);
+  assert.equal(serialized.includes("stdout"), false);
+  assert.equal(serialized.includes("stderr"), false);
+});
+
+test("host dispatcher rejects invalid runner result states before provider dispatch", async () => {
+  const runnerResult = await createReadOnlyRunnerResult("host-dispatcher-runner-provider-blocked");
+
+  await assertRunnerDispatchRejected({
+    runnerResult: {
+      ...runnerResult,
+      preflight: {
+        ...runnerResult.preflight,
+        ok: false,
+        errors: ["auth_unavailable"]
+      }
+    },
+    expectedReason: "runner_result_preflight_failed"
+  });
+
+  await assertRunnerDispatchRejected({
+    runnerResult: {
+      ...runnerResult,
+      status: "blocked_approval",
+      approval: {
+        status: "pending",
+        reasons: ["approval_required"],
+        gateId: "gate_test"
+      }
+    },
+    expectedReason: "runner_result_not_ready"
+  });
+
+  await assertRunnerDispatchRejected({
+    runnerResult: {
+      ...runnerResult,
+      approval: {
+        status: "pending",
+        reasons: ["approval_required"],
+        gateId: "gate_test"
+      }
+    },
+    expectedReason: "runner_result_approval_unresolved"
+  });
+
+  await assertRunnerDispatchRejected({
+    runnerResult: {
+      ...runnerResult,
+      decision: {
+        ...runnerResult.decision,
+        hostRoute: "desktop"
+      }
+    },
+    expectedReason: "runner_result_host_route_not_codex_cli"
+  });
+
+  await assertRunnerDispatchRejected({
+    runnerResult: {
+      ...runnerResult,
+      decision: {
+        ...runnerResult.decision,
+        execution: {
+          ...runnerResult.decision.execution,
+          toolAccess: "local_write"
+        }
+      }
+    },
+    expectedReason: "runner_result_tool_access_not_read_only"
+  });
+});
+
+test("host dispatcher rejects invalid provider grants before spawn", async () => {
+  const runnerResult = await createReadOnlyRunnerResult("host-dispatcher-runner-provider-grants");
+  const decisionWithoutGrant = {
+    ...runnerResult.decision
+  };
+  delete (decisionWithoutGrant as { providerGrant?: unknown }).providerGrant;
+
+  await assertRunnerDispatchRejected({
+    runnerResult: {
+      ...runnerResult,
+      decision: decisionWithoutGrant
+    },
+    expectedReason: "runner_result_provider_grant_missing"
+  });
+
+  await assertRunnerDispatchRejected({
+    runnerResult: {
+      ...runnerResult,
+      decision: {
+        ...runnerResult.decision,
+        providerGrant: {
+          ...runnerResult.decision.providerGrant!,
+          providerId: "other-provider"
+        }
+      }
+    },
+    expectedReason: "runner_result_provider_grant_provider_mismatch"
+  });
+
+  await assertRunnerDispatchRejected({
+    runnerResult: {
+      ...runnerResult,
+      decision: {
+        ...runnerResult.decision,
+        providerGrant: {
+          ...runnerResult.decision.providerGrant!,
+          sideEffectClass: "workspace_write"
+        }
+      }
+    },
+    expectedReason: "runner_result_provider_grant_side_effect_not_read_only"
+  });
+
+  await assertRunnerDispatchRejected({
+    runnerResult: {
+      ...runnerResult,
+      decision: {
+        ...runnerResult.decision,
+        providerGrant: {
+          ...runnerResult.decision.providerGrant!,
+          sandboxMode: "workspace-write"
+        }
+      }
+    },
+    expectedReason: "runner_result_provider_grant_sandbox_not_read_only"
+  });
+});
+
 function createReadOnlyTask(taskId: string) {
   return parseTaskEnvelope({
     taskId,
@@ -331,6 +525,63 @@ function createReadOnlyTask(taskId: string) {
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
+}
+
+async function createReadOnlyRunnerResult(taskId: string) {
+  const policy = await loadPolicyFromFile(policyPath);
+  const runnerResult = await runDesktopDecision({
+    task: createReadOnlyTask(taskId),
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    now: () => now
+  });
+
+  assert.equal(runnerResult.status, "ready");
+  assert.equal(runnerResult.preflight.ok, true);
+  assert.equal(runnerResult.approval.status, "not_required");
+  assert.equal(runnerResult.decision.hostRoute, "codex-cli");
+  assert.equal(runnerResult.decision.execution.toolAccess, "read_only");
+  assert.equal(runnerResult.decision.providerGrant?.providerId, "codex-cli");
+  assert.equal(runnerResult.decision.providerGrant?.sideEffectClass, "read_only");
+  assert.equal(runnerResult.decision.providerGrant?.sandboxMode, "read-only");
+
+  return runnerResult;
+}
+
+async function assertRunnerDispatchRejected(options: {
+  runnerResult: Awaited<ReturnType<typeof createReadOnlyRunnerResult>>;
+  expectedReason: string;
+}): Promise<void> {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+
+  const result = await dispatchReadOnlyRunnerResultToProvider({
+    runnerResult: options.runnerResult,
+    provider,
+    now
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked");
+  assert.equal(spawnCalls, 0);
+  assert.ok(result.blockingReasons?.includes(options.expectedReason));
+  const serialized = JSON.stringify(result);
+  assert.equal(serialized.includes("prompt"), false);
+  assert.equal(serialized.includes("args"), false);
+  assert.equal(serialized.includes("stdout"), false);
+  assert.equal(serialized.includes("stderr"), false);
 }
 
 function createProviderExecutionInput(options: {

@@ -7,6 +7,8 @@ import {
   resumeDesktopDecision,
   runDesktopDecision
 } from "../packages/desktop-decision-runner/src/index.js";
+import { dispatchReadOnlyRunnerResultToProvider } from "../packages/host-dispatcher/src/index.js";
+import { CodexCliExecutorProvider } from "../packages/providers/codex-cli/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
 
@@ -195,6 +197,65 @@ test("desktop decision runner respects neutral read-only hints without desktop w
   assert.equal(result.preflight.errors.includes("missing_tool:apply_patch"), false);
   assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
   assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), false);
+});
+
+test("desktop decision runner read-only result can dry-run provider dispatch", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      throw new Error("dry run must not spawn");
+    }
+  });
+
+  const result = await runDesktopDecision({
+    task: parseTaskEnvelope({
+      taskId: "runner-provider-dispatch-dry-run",
+      source: "desktop-thread",
+      intent: {
+        summary: "Status update",
+        requestedAction: "Show current state",
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: {},
+      target: { branches: [], files: [], modules: [] },
+      constraints: {},
+      hints: {
+        taskClassHint: "read_only",
+        riskHints: [],
+        tags: [],
+        provenance: [{
+          field: "taskClassHint",
+          value: "read_only",
+          source: "system"
+        }]
+      }
+    }),
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    now: () => "2026-06-14T00:00:00.000Z"
+  });
+
+  const dispatch = await dispatchReadOnlyRunnerResultToProvider({
+    runnerResult: result,
+    provider,
+    now: "2026-06-14T00:00:00.000Z",
+    dryRun: true
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.decision.hostRoute, "codex-cli");
+  assert.equal(result.decision.execution.toolAccess, "read_only");
+  assert.equal(dispatch.ok, true);
+  assert.equal(dispatch.status, "dry_run");
+  assert.equal(dispatch.dryRun, true);
+  assert.equal(spawnCalls, 0);
 });
 
 test("desktop decision runner does not require desktop write tools for codex-cli small edits", async () => {

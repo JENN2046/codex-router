@@ -10,9 +10,15 @@ import {
   createBlockedProviderExecutionPermit,
   parseExecutorExecutionPlan,
   type ExecutorExecutionPlan,
+  type ExecutionPlanInput,
   type ProviderExecutionPermit,
   type ProviderExecutionResult
 } from "../../provider-core/src/index.js";
+import {
+  legacyRoutingDecisionToPolicyDecision,
+  legacyTaskAndRoutingToRunSeed,
+  legacyTaskEnvelopeToKernelTask
+} from "../../kernel-contracts/src/legacy-adapter.js";
 import type { DesktopDecisionRunnerResult } from "../../desktop-decision-runner/src/index.js";
 
 export type { HostRoute };
@@ -44,8 +50,10 @@ export interface ReadOnlyProviderDispatchResult {
   permitId?: string;
   taskId?: string;
   runId?: string;
+  decisionId?: string;
   sideEffectClass?: string;
   sandbox?: string;
+  dryRun?: boolean;
   eventCount?: number;
   parseErrorCount?: number;
   warningCount?: number;
@@ -57,6 +65,13 @@ export interface ReadOnlyProviderDispatchResult {
     code: string;
     reasons: string[];
   };
+}
+
+export interface ReadOnlyRunnerProviderDispatchInput {
+  runnerResult: DesktopDecisionRunnerResult;
+  provider: CodexCliExecutorProvider;
+  now: string;
+  dryRun?: boolean;
 }
 
 export async function dispatchToHost(
@@ -159,6 +174,38 @@ export async function dispatchReadOnlyProviderPlan(
   return createReadOnlyProviderDispatchExecutionResult(plan, permit, execution);
 }
 
+export async function dispatchReadOnlyRunnerResultToProvider(
+  input: ReadOnlyRunnerProviderDispatchInput
+): Promise<ReadOnlyProviderDispatchResult> {
+  const reasons = validateReadOnlyRunnerResultForProviderDispatch(input.runnerResult);
+  if (reasons.length > 0) {
+    return createReadOnlyRunnerDispatchBlockedResult(
+      input.runnerResult,
+      "host_dispatcher_read_only_runner_result_rejected",
+      reasons,
+      input.dryRun === true
+    );
+  }
+
+  const planInput = createProviderPlanInputFromRunnerResult(
+    input.runnerResult,
+    input.now
+  );
+  const plan = await input.provider.planExecution(planInput);
+  const result = await dispatchReadOnlyProviderPlan({
+    provider: input.provider,
+    plan,
+    now: input.now,
+    ...(input.dryRun === true ? { dryRun: true } : {})
+  });
+
+  return {
+    ...result,
+    decisionId: input.runnerResult.decision.decisionId,
+    dryRun: input.dryRun === true
+  };
+}
+
 async function dispatchToCliHost(
   input: HostDispatcherInput
 ): Promise<HostDispatcherResult> {
@@ -221,6 +268,85 @@ function verifyRunnerResult(
   return undefined;
 }
 
+function validateReadOnlyRunnerResultForProviderDispatch(
+  runnerResult: DesktopDecisionRunnerResult
+): string[] {
+  const reasons: string[] = [];
+
+  if (runnerResult.status !== "ready") {
+    reasons.push("runner_result_not_ready");
+  }
+
+  if (!runnerResult.preflight.ok) {
+    reasons.push("runner_result_preflight_failed");
+  }
+
+  if (
+    runnerResult.approval.status !== "not_required"
+    && runnerResult.approval.status !== "approved"
+  ) {
+    reasons.push("runner_result_approval_unresolved");
+  }
+
+  if (runnerResult.decision.hostRoute !== "codex-cli") {
+    reasons.push("runner_result_host_route_not_codex_cli");
+  }
+
+  if (runnerResult.decision.execution.toolAccess !== "read_only") {
+    reasons.push("runner_result_tool_access_not_read_only");
+  }
+
+  const providerGrant = runnerResult.decision.providerGrant;
+  if (providerGrant === undefined) {
+    reasons.push("runner_result_provider_grant_missing");
+    return uniqueHostDispatcherStrings(reasons);
+  }
+
+  if (providerGrant.providerId !== "codex-cli") {
+    reasons.push("runner_result_provider_grant_provider_mismatch");
+  }
+
+  if (providerGrant.sideEffectClass !== "read_only") {
+    reasons.push("runner_result_provider_grant_side_effect_not_read_only");
+  }
+
+  if (providerGrant.sandboxMode !== "read-only") {
+    reasons.push("runner_result_provider_grant_sandbox_not_read_only");
+  }
+
+  return uniqueHostDispatcherStrings(reasons);
+}
+
+function createProviderPlanInputFromRunnerResult(
+  runnerResult: DesktopDecisionRunnerResult,
+  now: string
+): ExecutionPlanInput {
+  const task = legacyTaskEnvelopeToKernelTask(runnerResult.task, {
+    createdAt: now
+  });
+  const policyDecision = legacyRoutingDecisionToPolicyDecision(
+    runnerResult.decision,
+    {
+      createdAt: now
+    }
+  );
+  const run = legacyTaskAndRoutingToRunSeed(
+    runnerResult.task,
+    runnerResult.decision,
+    {
+      createdAt: now
+    }
+  );
+
+  return {
+    task,
+    run,
+    policyDecision,
+    sandboxProfile: policyDecision.execution.sandbox,
+    now
+  };
+}
+
 function createReadOnlyProviderDispatchExecutionResult(
   plan: ExecutorExecutionPlan,
   permit: ProviderExecutionPermit,
@@ -248,6 +374,7 @@ function createReadOnlyProviderDispatchExecutionResult(
     runId: plan.runId,
     sideEffectClass: plan.sideEffectClass,
     sandbox: plan.sandboxProfile.mode,
+    dryRun: status === "dry_run",
     ...(eventCount !== undefined ? { eventCount } : {}),
     ...(parseErrorCount !== undefined ? { parseErrorCount } : {}),
     ...(warningCount !== undefined ? { warningCount } : {}),
@@ -256,6 +383,35 @@ function createReadOnlyProviderDispatchExecutionResult(
     ...(killed !== undefined ? { killed } : {}),
     permit,
     ...(execution.error ? { error: sanitizeProviderExecutionError(execution.error) } : {})
+  };
+}
+
+function createReadOnlyRunnerDispatchBlockedResult(
+  runnerResult: DesktopDecisionRunnerResult,
+  code: string,
+  reasons: string[],
+  dryRun: boolean
+): ReadOnlyProviderDispatchResult {
+  const providerGrant = runnerResult.decision.providerGrant;
+
+  return {
+    ok: false,
+    status: "blocked",
+    taskId: runnerResult.task.taskId,
+    decisionId: runnerResult.decision.decisionId,
+    ...(providerGrant !== undefined
+      ? {
+          providerId: providerGrant.providerId,
+          sideEffectClass: providerGrant.sideEffectClass,
+          sandbox: providerGrant.sandboxMode
+        }
+      : {}),
+    dryRun,
+    blockingReasons: [...reasons],
+    error: {
+      code,
+      reasons: [...reasons]
+    }
   };
 }
 
@@ -329,6 +485,10 @@ function readStringArray(value: unknown): string[] | undefined {
   return Array.isArray(value) && value.every((item) => typeof item === "string")
     ? [...value]
     : undefined;
+}
+
+function uniqueHostDispatcherStrings(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function normalizeHostDispatcherError(error: unknown): string {
