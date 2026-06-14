@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "workspace-write-real-canary-pre-execution-acceptance.v1",
+  "generatedAt": "2026-06-14T00:00:00.000Z",
+  "mode": "workspace-write-real-canary-pre-execution-local-only",
+  "taskId": "workspace-write-real-canary-pre-execution-acceptance",
+  "checks": {
+    "authorizationAccepted": true,
+    "canaryReadinessReady": true,
+    "preExecutionGateReady": true,
+    "authorizationFailureBlocksGate": true,
+    "readinessFailureBlocksGate": true,
+    "existingCanaryFileBlocksGate": true,
+    "canaryFileAbsentBeforeAndAfter": true,
+    "noProviderExecute": true,
+    "noRealCodexCli": true,
+    "noWorkspaceWriteExecute": true,
+    "noCanaryFileWrite": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "providerId": "codex-cli",
+    "manifestHash": "56415e596a944193c59c3bc48bf182224e4cb3c91ebc217ca554852e9e751e53",
+    "planId": "plan_workspace_write_real_canary_pre_execution_acceptance",
+    "permitId": "workspace_write_permit_plan_workspace_write_real_canary_pre_execution_acceptance",
+    "targetFile": "tmp/codex-cli-write-canary.txt",
+    "sideEffectClass": "workspace_write",
+    "sandbox": "workspace-write",
+    "authorizationStatus": "authorized",
+    "readinessStatus": "ready",
+    "gateStatus": "ready",
+    "pushDisallowed": true,
+    "rollbackReady": true
+  },
+  "counters": {
+    "providerExecuteCalls": 0,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0,
+    "canaryFileWrites": 0
+  },
+  "blockingReasons": [
+    "workspace_write_real_canary_pre_execution_authorization_blocked",
+    "workspace_write_real_canary_authorization_exact_phrase_required",
+    "workspace_write_real_canary_pre_execution_readiness_blocked",
+    "workspace_write_canary_readiness_operator_gate_required",
+    "workspace_write_real_canary_pre_execution_canary_file_must_be_absent"
+  ]
+}

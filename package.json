@@ -18,6 +18,7 @@
     "acceptance:workspace-write-governance": "tsx scripts/run-workspace-write-governance-acceptance.ts",
     "acceptance:workspace-write-fake-canary": "tsx scripts/run-workspace-write-fake-canary-acceptance.ts",
     "acceptance:workspace-write-real-canary-auth": "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
+    "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
     "preflight:codex-cli-env": "tsx scripts/run-codex-cli-environment-preflight.ts",
     "smoke:contract": "tsx scripts/run-codex-cli-contract-smoke.ts",
     "smoke:readonly:real": "tsx scripts/run-codex-cli-real-readonly-smoke.ts",
