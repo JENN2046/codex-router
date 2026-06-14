@@ -129,6 +129,8 @@ export interface WorkspaceWriteRealCanaryLocalCandidateConsistencyResult {
     behind: number;
     changedFileCount: number;
     unexpectedChangedFileCount: number;
+    packageScriptTargetCount: number;
+    packageScriptTargetMismatchCount: number;
     canaryTargetFile: string;
     finalAuditNoForbiddenCommands: boolean;
     providerExecuteCalls: number;
@@ -183,6 +185,7 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
   const packageJson = parseObject(input.packageJsonText);
   const authorizationEvidence = parseObject(input.authorizationEvidenceText);
   const preExecutionEvidence = parseObject(input.preExecutionEvidenceText);
+  const packageScriptTargetReview = reviewPackageScriptTargets(packageJson);
 
   const checks = {
     worktreeClean: input.gitStatusShort.trim() === "",
@@ -194,10 +197,7 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     changedFilesWithinPr12bScope: input.changedFiles.every((file) =>
       ALLOWED_RANGE_FILES.has(file)
     ),
-    packageScriptsPresent: Object.entries(REQUIRED_PACKAGE_SCRIPTS).every(
-      ([scriptName, expectedCommand]) =>
-        hasPackageScript(packageJson, scriptName, expectedCommand)
-    ),
+    packageScriptsPresent: packageScriptTargetReview.mismatchCount === 0,
     evidenceParseable: authorizationEvidence !== undefined && preExecutionEvidence !== undefined,
     evidenceLocalOnly: getString(authorizationEvidence, ["mode"])
       === "workspace-write-real-canary-authorization-local-only"
@@ -275,6 +275,8 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
       unexpectedChangedFileCount: input.changedFiles.filter((file) =>
         !ALLOWED_RANGE_FILES.has(file)
       ).length,
+      packageScriptTargetCount: packageScriptTargetReview.targetCount,
+      packageScriptTargetMismatchCount: packageScriptTargetReview.mismatchCount,
       canaryTargetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
       finalAuditNoForbiddenCommands: finalAuditNoForbiddenCommands(),
       ...executionCounters
@@ -298,6 +300,8 @@ export function formatWorkspaceWriteRealCanaryLocalCandidateConsistencyReview(
     `ahead / behind: ${review.summary.ahead} / ${review.summary.behind}`,
     `changed files: ${review.summary.changedFileCount}`,
     `unexpected changed files: ${review.summary.unexpectedChangedFileCount}`,
+    `package script targets: ${review.summary.packageScriptTargetCount}`,
+    `package script target mismatches: ${review.summary.packageScriptTargetMismatchCount}`,
     `final audit forbidden commands: ${!review.summary.finalAuditNoForbiddenCommands}`,
     `provider execute calls: ${review.summary.providerExecuteCalls}`,
     `real Codex CLI calls: ${review.summary.realCodexCliCalls}`,
@@ -338,13 +342,20 @@ function parseObject(value: string): Record<string, unknown> | undefined {
   }
 }
 
-function hasPackageScript(
-  packageJson: Record<string, unknown> | undefined,
-  scriptName: string,
-  expectedCommand: string
-): boolean {
+function reviewPackageScriptTargets(packageJson: Record<string, unknown> | undefined): {
+  targetCount: number;
+  mismatchCount: number;
+} {
   const scripts = packageJson?.scripts;
-  return isRecord(scripts) && scripts[scriptName] === expectedCommand;
+  const entries = Object.entries(REQUIRED_PACKAGE_SCRIPTS);
+
+  return {
+    targetCount: entries.length,
+    mismatchCount: entries.filter(
+      ([scriptName, expectedCommand]) =>
+        !isRecord(scripts) || scripts[scriptName] !== expectedCommand
+    ).length
+  };
 }
 
 function evidenceHasNoExecution(evidence: Record<string, unknown> | undefined): boolean {
