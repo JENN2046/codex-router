@@ -1,10 +1,17 @@
 export const REDACTED_SECRET = "<REDACTED_SECRET>";
+export const DEFAULT_SAFE_FIELD_MAX_CHARS = 4096;
+export const DEFAULT_SAFE_RECORD_MAX_CHARS = 32768;
 
 export type RedactSecretLikeFieldsOptions = {
   additionalSecretKeys?: string[];
   redactArgvSecrets?: boolean;
   redactStrings?: boolean;
   stripUndefined?: boolean;
+};
+
+export type SafeRedactionOptions = RedactSecretLikeFieldsOptions & {
+  maxFieldChars?: number;
+  maxRecordChars?: number;
 };
 
 const DEFAULT_SECRET_KEY_PATTERN = "[A-Za-z0-9_.-]*(?:api[-_]?key|authorization|credential|password|secret|token)[A-Za-z0-9_.-]*";
@@ -25,6 +32,57 @@ export function redactSecretLikeFields(
 
 export function redactSecretLikeText(input: string, additionalSecretKeys: string[] = []): string {
   return redactSecretLikeTextWithSet(input, createSecretKeySet(additionalSecretKeys));
+}
+
+export function redactText(input: string, options: SafeRedactionOptions = {}): string {
+  return capString(
+    redactSecretLikeText(input, options.additionalSecretKeys ?? []),
+    options.maxFieldChars ?? DEFAULT_SAFE_FIELD_MAX_CHARS
+  );
+}
+
+export function redactValue(input: unknown, options: SafeRedactionOptions = {}): unknown {
+  const redactOptions: RedactSecretLikeFieldsOptions = {
+    redactArgvSecrets: options.redactArgvSecrets ?? true,
+    redactStrings: options.redactStrings ?? true
+  };
+
+  if (options.additionalSecretKeys !== undefined) {
+    redactOptions.additionalSecretKeys = options.additionalSecretKeys;
+  }
+
+  if (options.stripUndefined !== undefined) {
+    redactOptions.stripUndefined = options.stripUndefined;
+  }
+
+  const redacted = redactSecretLikeFields(input, redactOptions);
+
+  return capValue(redacted, options.maxFieldChars ?? DEFAULT_SAFE_FIELD_MAX_CHARS);
+}
+
+export function redactRecord(
+  input: Record<string, unknown>,
+  options: SafeRedactionOptions = {}
+): Record<string, unknown> {
+  const redacted = redactValue(input, options);
+  return isRecord(redacted) ? redacted : {};
+}
+
+export function createSafeAuditDetails(
+  input: Record<string, unknown>,
+  options: SafeRedactionOptions = {}
+): Record<string, unknown> {
+  const record = redactRecord(input, options);
+  const maxRecordChars = options.maxRecordChars ?? DEFAULT_SAFE_RECORD_MAX_CHARS;
+  const serialized = JSON.stringify(record);
+
+  if (serialized.length <= maxRecordChars) {
+    return record;
+  }
+
+  return {
+    omitted: createOmittedMarker(serialized.length)
+  };
 }
 
 function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): string {
@@ -49,6 +107,14 @@ function redactSecretLikeTextWithSet(input: string, secretKeys: Set<string>): st
     .replace(
       /(authorization)(\s*[:=]\s*)(?!["'])[^\r\n]+/gi,
       `$1$2${REDACTED_SECRET}`
+    )
+    .replace(
+      /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi,
+      `Bearer ${REDACTED_SECRET}`
+    )
+    .replace(
+      /\bsk-(?:proj-)?[A-Za-z0-9_-]{8,}\b/g,
+      REDACTED_SECRET
     )
     .replace(
       new RegExp(`(^|[\\s;&|])(-+(${secretKeyPattern}))(\\s*[:=]\\s*)(?!["'])(?:\\\\.|[^\\s"';])+`, "gi"),
@@ -312,6 +378,47 @@ function redactInlineSecretArgvValue(arg: string, secretKeys: Set<string>): stri
   return isSecretLikeKeyFromSet(key, secretKeys)
     ? `${prefix}${key}${separator}${REDACTED_SECRET}`
     : arg;
+}
+
+function capValue(input: unknown, maxFieldChars: number): unknown {
+  if (typeof input === "string") {
+    return capString(input, maxFieldChars);
+  }
+
+  if (Array.isArray(input)) {
+    return input.map((item) => capValue(item, maxFieldChars));
+  }
+
+  if (!isRecord(input)) {
+    return input;
+  }
+
+  const output: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value === undefined) {
+      continue;
+    }
+
+    output[key] = capValue(value, maxFieldChars);
+  }
+
+  return output;
+}
+
+function capString(input: string, maxChars: number): string {
+  if (input === REDACTED_SECRET) {
+    return input;
+  }
+
+  if (maxChars < 1 || input.length <= maxChars) {
+    return input;
+  }
+
+  return createOmittedMarker(input.length);
+}
+
+function createOmittedMarker(size: number): string {
+  return `<omitted:${size}>`;
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {

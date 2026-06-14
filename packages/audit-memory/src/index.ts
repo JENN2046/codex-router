@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { CheckpointRef } from "../../contracts/src/index.js";
+import { createSafeAuditDetails } from "../../redaction/src/index.js";
 
 export interface AuditEvent {
   type:
@@ -61,7 +62,7 @@ export class FileAuditStore {
 
   async record(event: AuditEvent): Promise<void> {
     const events = await this.loadAll();
-    events.push(event);
+    events.push(sanitizeAuditEvent(event));
     await mkdir(dirname(this.path), { recursive: true });
     await writeFile(this.path, JSON.stringify(events, null, 2), "utf8");
   }
@@ -78,6 +79,13 @@ export class FileAuditStore {
       throw error;
     }
   }
+}
+
+export function sanitizeAuditEvent(event: AuditEvent): AuditEvent {
+  return {
+    ...event,
+    details: createSafeAuditDetails(event.details)
+  };
 }
 
 export async function checkpointAndAudit(

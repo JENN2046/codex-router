@@ -1,9 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  createSafeAuditDetails,
   redactSecretLikeArgv,
   redactSecretLikeFields,
-  redactSecretLikeText
+  redactSecretLikeText,
+  redactText,
+  redactValue
 } from "../packages/redaction/src/index.js";
 
 test("redaction covers text, JSON, and split argv secret values", () => {
@@ -238,4 +241,45 @@ test("redaction covers text, JSON, and split argv secret values", () => {
       }
     }
   );
+});
+
+test("safe audit redaction helpers redact and cap payloads", () => {
+  assert.equal(
+    redactText("Authorization: Bearer abc.def.ghi"),
+    "Authorization: <REDACTED_SECRET>"
+  );
+  assert.equal(
+    redactText("proxy returned Bearer abc.def.ghi"),
+    "proxy returned Bearer <REDACTED_SECRET>"
+  );
+  assert.equal(
+    redactText("OPENAI_API_KEY=sk-proj-123456789"),
+    "OPENAI_API_KEY=<REDACTED_SECRET>"
+  );
+  assert.equal(
+    redactText("x".repeat(12), { maxFieldChars: 8 }),
+    "<omitted:12>"
+  );
+  assert.deepEqual(
+    redactValue({
+      stdout: "x".repeat(12),
+      nested: {
+        token: "raw-token"
+      }
+    }, { maxFieldChars: 8 }),
+    {
+      stdout: "<omitted:12>",
+      nested: {
+        token: "<REDACTED_SECRET>"
+      }
+    }
+  );
+  const oversizedDetails = createSafeAuditDetails({
+    stdout: "x".repeat(12),
+    safe: "visible"
+  }, {
+    maxFieldChars: 20,
+    maxRecordChars: 10
+  });
+  assert.match(String(oversizedDetails.omitted), /^<omitted:\d+>$/);
 });
