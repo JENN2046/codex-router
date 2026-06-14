@@ -29,6 +29,7 @@ import {
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING
 } from "../packages/protocol-mcp/src/index.js";
 import {
+  createApprovalPermit,
   hashApprovalScope,
   InMemoryApprovalPermitStore
 } from "../packages/approval-permit/src/index.js";
@@ -350,6 +351,92 @@ test("Agent OS CLI wrapper consumes approval permits without spawning CLI", () =
       "kernel.approval.permit.consumed"
     ]
   );
+});
+
+test("Agent OS CLI wrapper preserves rejected permit audit without spawning CLI", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const runtimeInput = {
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    executionEligibility: createWaitingEligibility(policyDecision),
+    approvalPermitStore: permitStore,
+    createPermitId: () => "permit_agentos_cli_valid_after_rejected"
+  };
+
+  const create = runAgentOsCliCommand({
+    ...runtimeInput,
+    argv: [
+      "create-task",
+      "--title",
+      "CLI rejected permit audit task",
+      "--requested-action",
+      "Create a run with rejected CLI approval candidates.",
+      "--grant",
+      "task.create",
+      "--approve-tool",
+      "agentos.create_task",
+      "--allow-local-mutation",
+      "--preferred-provider",
+      "codex-cli"
+    ]
+  });
+  assert.equal(create.status, "succeeded");
+  assert.equal(create.output.providerPlanStatus, "waiting_approval");
+
+  const waitingPlan = planStore.listPlans({ runId }).at(-1);
+  assert.ok(waitingPlan);
+  permitStore.savePermit(createApprovalPermit({
+    permitId: "permit_agentos_cli_expired_candidate",
+    taskId,
+    runId,
+    principalId: validPrincipal.principalId,
+    approverId: validPrincipal.principalId,
+    policyDecisionHash: waitingPlan.policyDecisionHash,
+    planHash: hashApprovalScope(waitingPlan),
+    capabilityScopes: ["fs.read:workspace/**"],
+    createdAt: "2026-06-09T00:00:00.000Z",
+    expiresAt: "2026-06-09T00:05:00.000Z"
+  }));
+
+  const approve = runAgentOsCliCommand({
+    ...runtimeInput,
+    argv: [
+      "approve-run",
+      "--run-id",
+      runId,
+      "--capability-scope",
+      "fs.read:workspace/**",
+      "--reason",
+      "CLI replacement approval",
+      "--grant",
+      "approval.issue",
+      "--approve-tool",
+      "agentos.approve_run",
+      "--allow-local-mutation"
+    ]
+  });
+  const consumedEvent = kernelStore.listEvents({
+    runId,
+    type: "kernel.approval.permit.consumed"
+  }).at(-1);
+  const payload = consumedEvent?.payload as {
+    acceptedPermits?: string[];
+    rejectedPermits?: string[];
+  } | undefined;
+
+  assert.equal(approve.status, "succeeded");
+  assert.deepEqual(payload?.acceptedPermits, [
+    "permit_agentos_cli_valid_after_rejected"
+  ]);
+  assert.ok(payload?.rejectedPermits?.some((reason) => (
+    reason.includes("permit_agentos_cli_expired_candidate")
+    && reason.includes("permit_expired")
+  )));
+  assert.equal(approve.audit.realProviderExecutionInvoked, false);
+  assert.equal(planStore.listPlans({ runId }).at(-1)?.status, "planned");
 });
 
 test("Agent OS CLI parser accepts cursors on paginated commands", () => {

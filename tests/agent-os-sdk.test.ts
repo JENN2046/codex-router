@@ -27,6 +27,7 @@ import {
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING
 } from "../packages/protocol-mcp/src/index.js";
 import {
+  createApprovalPermit,
   hashApprovalScope,
   InMemoryApprovalPermitStore
 } from "../packages/approval-permit/src/index.js";
@@ -246,6 +247,76 @@ test("Agent OS SDK consumes approval permits through the shared local runtime", 
       "kernel.approval.permit.consumed"
     ]
   );
+});
+
+test("Agent OS SDK preserves rejected permit audit during approval consumption", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const sdk = createAgentOsSdk({
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    executionEligibility: createWaitingEligibility(policyDecision),
+    approvalPermitStore: permitStore,
+    createPermitId: () => "permit_agentos_sdk_valid_after_rejected"
+  });
+
+  const create = sdk.createTask({
+    title: "SDK rejected permit audit task",
+    requestedAction: "Create a run with rejected approval candidates."
+  }, {
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli"
+  });
+  assert.equal(create.status, "succeeded");
+  assert.equal(create.output.providerPlanStatus, "waiting_approval");
+
+  const waitingPlan = planStore.listPlans({ runId }).at(-1);
+  assert.ok(waitingPlan);
+  permitStore.savePermit(createApprovalPermit({
+    permitId: "permit_agentos_sdk_expired_candidate",
+    taskId,
+    runId,
+    principalId: validPrincipal.principalId,
+    approverId: validPrincipal.principalId,
+    policyDecisionHash: waitingPlan.policyDecisionHash,
+    planHash: hashApprovalScope(waitingPlan),
+    capabilityScopes: ["fs.read:workspace/**"],
+    createdAt: "2026-06-09T00:00:00.000Z",
+    expiresAt: "2026-06-09T00:05:00.000Z"
+  }));
+
+  const approve = sdk.approveRun({
+    runId,
+    capabilityScopes: ["fs.read:workspace/**"],
+    reason: "SDK replacement approval"
+  }, {
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true
+  });
+  const consumedEvent = kernelStore.listEvents({
+    runId,
+    type: "kernel.approval.permit.consumed"
+  }).at(-1);
+  const payload = consumedEvent?.payload as {
+    acceptedPermits?: string[];
+    rejectedPermits?: string[];
+  } | undefined;
+
+  assert.equal(approve.status, "succeeded");
+  assert.deepEqual(payload?.acceptedPermits, [
+    "permit_agentos_sdk_valid_after_rejected"
+  ]);
+  assert.ok(payload?.rejectedPermits?.some((reason) => (
+    reason.includes("permit_agentos_sdk_expired_candidate")
+    && reason.includes("permit_expired")
+  )));
+  assert.equal(approve.audit.realProviderExecutionInvoked, false);
+  assert.equal(planStore.listPlans({ runId }).at(-1)?.status, "planned");
 });
 
 test("Agent OS SDK default approval permit IDs are unique for repeated approvals", () => {

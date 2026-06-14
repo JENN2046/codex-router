@@ -32,6 +32,7 @@ import {
   type AgentOsMcpToolName
 } from "../packages/protocol-mcp/src/index.js";
 import {
+  createApprovalPermit,
   hashApprovalScope,
   InMemoryApprovalPermitStore
 } from "../packages/approval-permit/src/index.js";
@@ -667,6 +668,100 @@ test("Agent OS App Server wrapper consumes approval permits without network", ()
       "kernel.approval.permit.consumed"
     ]
   );
+});
+
+test("Agent OS App Server wrapper preserves rejected permit audit without network", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const approvedMutatingTools: AgentOsMcpToolName[] = [
+    "agentos.create_task",
+    "agentos.approve_run"
+  ];
+  const runtimeInput = {
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    executionEligibility: createWaitingEligibility(policyDecision),
+    approvalPermitStore: permitStore,
+    createPermitId: () => "permit_agentos_app_server_valid_after_rejected",
+    grantedCapabilities: ["task.create", "approval.issue"],
+    approvedMutatingTools,
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli"
+  };
+
+  const createResponse = handleAgentOsAppServerRequest({
+    ...runtimeInput,
+    request: {
+      method: "POST",
+      path: "/agent-os/tasks",
+      body: {
+        title: "App rejected permit audit task",
+        requestedAction: "Create a run with rejected App Server approval candidates."
+      }
+    }
+  });
+  const createResult = createResponse.body.result as {
+    status: string;
+    output: Record<string, unknown>;
+  };
+  assert.equal(createResponse.statusCode, 200);
+  assert.equal(createResult.status, "succeeded");
+  assert.equal(createResult.output.providerPlanStatus, "waiting_approval");
+
+  const waitingPlan = planStore.listPlans({ runId }).at(-1);
+  assert.ok(waitingPlan);
+  permitStore.savePermit(createApprovalPermit({
+    permitId: "permit_agentos_app_server_expired_candidate",
+    taskId,
+    runId,
+    principalId: validPrincipal.principalId,
+    approverId: validPrincipal.principalId,
+    policyDecisionHash: waitingPlan.policyDecisionHash,
+    planHash: hashApprovalScope(waitingPlan),
+    capabilityScopes: ["fs.read:workspace/**"],
+    createdAt: "2026-06-09T00:00:00.000Z",
+    expiresAt: "2026-06-09T00:05:00.000Z"
+  }));
+
+  const approveResponse = handleAgentOsAppServerRequest({
+    ...runtimeInput,
+    request: {
+      method: "POST",
+      path: `/agent-os/runs/${runId}/approve`,
+      body: {
+        capabilityScopes: ["fs.read:workspace/**"],
+        reason: "App Server replacement approval"
+      }
+    }
+  });
+  const approveResult = approveResponse.body.result as {
+    status: string;
+    audit: { realProviderExecutionInvoked: boolean };
+  };
+  const consumedEvent = kernelStore.listEvents({
+    runId,
+    type: "kernel.approval.permit.consumed"
+  }).at(-1);
+  const payload = consumedEvent?.payload as {
+    acceptedPermits?: string[];
+    rejectedPermits?: string[];
+  } | undefined;
+
+  assert.equal(approveResponse.statusCode, 200);
+  assert.equal(approveResponse.audit.liveHttpServerStarted, false);
+  assert.equal(approveResponse.audit.networkAccessed, false);
+  assert.equal(approveResult.status, "succeeded");
+  assert.deepEqual(payload?.acceptedPermits, [
+    "permit_agentos_app_server_valid_after_rejected"
+  ]);
+  assert.ok(payload?.rejectedPermits?.some((reason) => (
+    reason.includes("permit_agentos_app_server_expired_candidate")
+    && reason.includes("permit_expired")
+  )));
+  assert.equal(approveResult.audit.realProviderExecutionInvoked, false);
+  assert.equal(planStore.listPlans({ runId }).at(-1)?.status, "planned");
 });
 
 test("Agent OS App Server wrapper default approval permit IDs are unique for repeated approvals", () => {
