@@ -12,6 +12,7 @@ import {
   ProviderManifestSchema,
   createApprovedProviderExecutionPermit,
   createBlockedProviderExecutionPermit,
+  hashProviderManifest,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass,
   type ExecutionPlanInput,
@@ -664,6 +665,162 @@ test("codex cli provider read-only execute succeeds with approved permit and fak
   assert.equal(serialized.includes("prompt"), false);
 });
 
+test("codex cli provider real read-only mode requires explicit allowance before spawn", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: false,
+    timeoutMs: 1_000,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_real_execute_allowance_required",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {
+    permit: createApprovedPermitForPlan(plan),
+    metadata: {
+      codexCliProviderRealExecutionGuard: createRealExecutionGuard()
+    }
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.error?.code, "codex_cli_provider_real_execute_rejected");
+  assert.ok((result.error?.reasons as string[]).includes(
+    "codex_cli_provider_real_execute_requires_explicit_allowance"
+  ));
+});
+
+test("codex cli provider real read-only mode requires guard metadata before spawn", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: true,
+    timeoutMs: 1_000,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_real_execute_guard_required",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {
+    permit: createApprovedPermitForPlan(plan)
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.error?.code, "codex_cli_provider_real_execute_rejected");
+  assert.deepEqual(result.error?.reasons, [
+    "codex_cli_provider_real_execute_guard_missing"
+  ]);
+});
+
+test("codex cli provider real read-only mode rejects registry and preflight mismatches before spawn", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: true,
+    timeoutMs: 1_000,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_real_execute_guard_mismatch",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {
+    permit: createApprovedPermitForPlan(plan),
+    metadata: {
+      codexCliProviderRealExecutionGuard: createRealExecutionGuard({
+        providerId: "other-provider",
+        manifestHash: "b".repeat(64),
+        preflightStatus: "blocked",
+        preflightBlockingReasons: ["codex_cli_environment_preflight_version_probe_failed"],
+        realCliAllowed: false
+      })
+    }
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.error?.code, "codex_cli_provider_real_execute_rejected");
+  const reasons = result.error?.reasons as string[];
+  assert.ok(reasons.includes("codex_cli_provider_real_execute_registry_provider_mismatch"));
+  assert.ok(reasons.includes("codex_cli_provider_real_execute_registry_manifest_mismatch"));
+  assert.ok(reasons.includes("codex_cli_provider_real_execute_preflight_not_ready"));
+  assert.ok(reasons.includes("codex_cli_provider_real_execute_preflight_blocked"));
+  assert.ok(reasons.includes("codex_cli_provider_real_execute_preflight_requires_real_cli_allowance"));
+});
+
+test("codex cli provider real read-only guard can pass with fake spawner in tests", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: true,
+    timeoutMs: 1_000,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"completed\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_real_execute_guard_success",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {
+    permit: createApprovedPermitForPlan(plan),
+    metadata: {
+      codexCliProviderRealExecutionGuard: createRealExecutionGuard()
+    }
+  });
+  const summary = result.artifacts?.[0]?.metadata.summary as any;
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.ok, true);
+  assert.equal(spawnCalls, 1);
+  assert.equal(summary.status, "completed");
+  assert.equal(summary.inspection.status, "completed");
+  assert.equal(serialized.includes("agent_message"), false);
+  assert.equal(serialized.includes("requestedAction"), false);
+  assert.equal(serialized.includes("args"), false);
+  assert.equal(serialized.includes("stdout"), false);
+  assert.equal(serialized.includes("stderr"), false);
+  assert.equal(serialized.includes("prompt"), false);
+});
+
 test("codex cli provider execute rejects workspace-write plans before spawn", async () => {
   let spawnCalls = 0;
   const provider = new CodexCliExecutorProvider({
@@ -927,6 +1084,39 @@ function createApprovedPermitForPlan(
     permitId: `permit-${plan.planId}`,
     issuedAt: now
   });
+}
+
+function createRealExecutionGuard(options: {
+  providerId?: string;
+  manifestHash?: string;
+  preflightStatus?: "ready" | "blocked";
+  preflightBlockingReasons?: string[];
+  realCliAllowed?: boolean;
+} = {}) {
+  return {
+    schemaVersion: "codex-cli-provider-real-execution-guard.v1",
+    realExecutionAllowed: true,
+    providerRegistrySelection: {
+      selected: true,
+      providerId: options.providerId ?? "codex-cli",
+      manifestHash: options.manifestHash ?? hashProviderManifest(codexCliProviderManifest),
+      kind: "executor",
+      enabled: true
+    },
+    environmentPreflight: {
+      status: options.preflightStatus ?? "ready",
+      checks: {
+        injectedSpawner: false,
+        realCliAllowed: options.realCliAllowed ?? true,
+        versionProbe: "passed",
+        noTaskEnvelope: true,
+        noPromptSent: true,
+        noWorkspaceWrite: true,
+        noRealCliFallback: true
+      },
+      blockingReasons: options.preflightBlockingReasons ?? []
+    }
+  };
 }
 
 async function assertPermitRejection(options: {

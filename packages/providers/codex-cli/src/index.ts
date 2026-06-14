@@ -39,6 +39,7 @@ import {
   parseExecutorExecutionPlan,
   parseProviderManifest,
   validateProviderExecutionPermitForPlan,
+  hashProviderManifest,
   type ExecutionPlanInput,
   type ExecutionValidationResult,
   type ExecutorExecutionPlan,
@@ -58,10 +59,39 @@ export const CODEX_CLI_PROVIDER_PROMPT_OMITTED =
 export interface CodexCliExecutorProviderOptions {
   manifest?: ProviderManifest;
   executionEnabled?: boolean;
+  executionMode?: CodexCliProviderExecutionMode;
+  realExecutionAllowed?: boolean;
   spawn?: CodexCliProcessSpawner;
   timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   skipExecutionModelProbe?: boolean;
+}
+
+export type CodexCliProviderExecutionMode = "fake" | "real";
+
+export interface CodexCliProviderRealExecutionGuard {
+  schemaVersion: "codex-cli-provider-real-execution-guard.v1";
+  realExecutionAllowed: true;
+  providerRegistrySelection: {
+    selected: true;
+    providerId: string;
+    manifestHash: string;
+    kind?: string;
+    enabled?: boolean;
+  };
+  environmentPreflight: {
+    status: "ready" | "blocked";
+    checks: {
+      injectedSpawner: boolean;
+      realCliAllowed: boolean;
+      versionProbe: "passed" | "failed" | "skipped";
+      noTaskEnvelope: boolean;
+      noPromptSent: boolean;
+      noWorkspaceWrite: boolean;
+      noRealCliFallback: boolean;
+    };
+    blockingReasons: string[];
+  };
 }
 
 export interface CodexCliProviderSanitizedPlan {
@@ -147,6 +177,8 @@ export const codexCliProviderManifest = parseProviderManifest({
 export class CodexCliExecutorProvider implements ExecutorProvider {
   readonly manifest: ProviderManifest;
   private readonly executionEnabled: boolean;
+  private readonly executionMode: CodexCliProviderExecutionMode;
+  private readonly realExecutionAllowed: boolean;
   private readonly spawn: CodexCliProcessSpawner | undefined;
   private readonly timeoutMs: number | undefined;
   private readonly env: NodeJS.ProcessEnv | undefined;
@@ -155,6 +187,8 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
   constructor(options: CodexCliExecutorProviderOptions = {}) {
     this.manifest = options.manifest ?? codexCliProviderManifest;
     this.executionEnabled = options.executionEnabled ?? false;
+    this.executionMode = options.executionMode ?? "fake";
+    this.realExecutionAllowed = options.realExecutionAllowed ?? false;
     this.spawn = options.spawn;
     this.timeoutMs = options.timeoutMs;
     this.env = options.env;
@@ -338,6 +372,21 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
           ? "codex_cli_provider_execution_permit_required"
           : "codex_cli_provider_execution_permit_invalid",
         permitRejectionReasons
+      );
+    }
+
+    const realExecutionRejectionReasons = collectRealExecutionRejectionReasons({
+      plan: parsedPlan,
+      context,
+      manifest: this.manifest,
+      executionMode: this.executionMode,
+      realExecutionAllowed: this.realExecutionAllowed,
+      timeoutMs: this.timeoutMs
+    });
+    if (realExecutionRejectionReasons.length > 0) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_real_execute_rejected",
+        realExecutionRejectionReasons
       );
     }
 
@@ -984,6 +1033,162 @@ function validateCodexCliProviderExecutionPermit(
       reasonPrefix: "codex_cli_provider_execution_permit"
     }
   );
+}
+
+function collectRealExecutionRejectionReasons(input: {
+  plan: ExecutorExecutionPlan;
+  context: ProviderExecutionContext;
+  manifest: ProviderManifest;
+  executionMode: CodexCliProviderExecutionMode;
+  realExecutionAllowed: boolean;
+  timeoutMs: number | undefined;
+}): string[] {
+  if (input.executionMode !== "real") {
+    return [];
+  }
+
+  const reasons: string[] = [];
+
+  if (!input.realExecutionAllowed) {
+    reasons.push("codex_cli_provider_real_execute_requires_explicit_allowance");
+  }
+
+  if (input.timeoutMs === undefined || input.timeoutMs <= 0) {
+    reasons.push("codex_cli_provider_real_execute_requires_timeout");
+  }
+
+  const guard = readCodexCliProviderRealExecutionGuard(input.context);
+  if (!guard) {
+    reasons.push("codex_cli_provider_real_execute_guard_missing");
+    return uniqueStrings(reasons);
+  }
+
+  const expectedManifestHash = hashProviderManifest(input.manifest);
+  const selection = guard.providerRegistrySelection;
+  if (guard.realExecutionAllowed !== true) {
+    reasons.push("codex_cli_provider_real_execute_guard_not_allowed");
+  }
+
+  if (selection.selected !== true) {
+    reasons.push("codex_cli_provider_real_execute_registry_selection_required");
+  }
+
+  if (selection.providerId !== input.plan.providerId) {
+    reasons.push("codex_cli_provider_real_execute_registry_provider_mismatch");
+  }
+
+  if (selection.manifestHash !== expectedManifestHash) {
+    reasons.push("codex_cli_provider_real_execute_registry_manifest_mismatch");
+  }
+
+  if (selection.kind !== undefined && selection.kind !== "executor") {
+    reasons.push("codex_cli_provider_real_execute_registry_kind_mismatch");
+  }
+
+  if (selection.enabled !== undefined && selection.enabled !== true) {
+    reasons.push("codex_cli_provider_real_execute_registry_provider_disabled");
+  }
+
+  const preflight = guard.environmentPreflight;
+  if (preflight.status !== "ready") {
+    reasons.push("codex_cli_provider_real_execute_preflight_not_ready");
+  }
+
+  if (preflight.blockingReasons.length > 0) {
+    reasons.push("codex_cli_provider_real_execute_preflight_blocked");
+  }
+
+  if (preflight.checks.realCliAllowed !== true) {
+    reasons.push("codex_cli_provider_real_execute_preflight_requires_real_cli_allowance");
+  }
+
+  if (preflight.checks.noWorkspaceWrite !== true) {
+    reasons.push("codex_cli_provider_real_execute_preflight_requires_no_workspace_write");
+  }
+
+  if (preflight.checks.noPromptSent !== true || preflight.checks.noTaskEnvelope !== true) {
+    reasons.push("codex_cli_provider_real_execute_preflight_must_not_send_prompt");
+  }
+
+  if (preflight.checks.noRealCliFallback !== true) {
+    reasons.push("codex_cli_provider_real_execute_preflight_disallows_fallback");
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function readCodexCliProviderRealExecutionGuard(
+  context: ProviderExecutionContext
+): CodexCliProviderRealExecutionGuard | undefined {
+  const guard = context.metadata?.codexCliProviderRealExecutionGuard;
+
+  if (!isRecord(guard)) {
+    return undefined;
+  }
+
+  const selection = guard.providerRegistrySelection;
+  const preflight = guard.environmentPreflight;
+  if (!isRecord(selection) || !isRecord(preflight)) {
+    return undefined;
+  }
+
+  const checks = preflight.checks;
+  if (!isRecord(checks) || !Array.isArray(preflight.blockingReasons)) {
+    return undefined;
+  }
+
+  if (
+    guard.schemaVersion !== "codex-cli-provider-real-execution-guard.v1"
+    || guard.realExecutionAllowed !== true
+    || selection.selected !== true
+    || typeof selection.providerId !== "string"
+    || typeof selection.manifestHash !== "string"
+    || (selection.kind !== undefined && typeof selection.kind !== "string")
+    || (selection.enabled !== undefined && typeof selection.enabled !== "boolean")
+    || preflight.status !== "ready" && preflight.status !== "blocked"
+    || !preflight.blockingReasons.every((reason) => typeof reason === "string")
+  ) {
+    return undefined;
+  }
+
+  const requiredChecks = [
+    "injectedSpawner",
+    "realCliAllowed",
+    "noTaskEnvelope",
+    "noPromptSent",
+    "noWorkspaceWrite",
+    "noRealCliFallback"
+  ];
+  if (!requiredChecks.every((key) => typeof checks[key] === "boolean")) {
+    return undefined;
+  }
+
+  return {
+    schemaVersion: "codex-cli-provider-real-execution-guard.v1",
+    realExecutionAllowed: true,
+    providerRegistrySelection: {
+      selected: true,
+      providerId: selection.providerId,
+      manifestHash: selection.manifestHash,
+      ...(typeof selection.kind === "string" ? { kind: selection.kind } : {}),
+      ...(typeof selection.enabled === "boolean" ? { enabled: selection.enabled } : {})
+    },
+    environmentPreflight: {
+      status: preflight.status,
+      checks: {
+        injectedSpawner: checks.injectedSpawner === true,
+        realCliAllowed: checks.realCliAllowed === true,
+        versionProbe: checks.versionProbe === "passed" || checks.versionProbe === "failed"
+          ? checks.versionProbe
+          : "skipped",
+        noTaskEnvelope: checks.noTaskEnvelope === true,
+        noPromptSent: checks.noPromptSent === true,
+        noWorkspaceWrite: checks.noWorkspaceWrite === true,
+        noRealCliFallback: checks.noRealCliFallback === true
+      },
+      blockingReasons: [...preflight.blockingReasons]
+    }
+  };
 }
 
 function createCodexCliProviderDryRunSummary(
