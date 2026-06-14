@@ -97,6 +97,7 @@ test("codex cli environment preflight requires an injected spawner", async () =>
 
   assert.equal(result.status, "blocked");
   assert.equal(result.checks.injectedSpawner, false);
+  assert.equal(result.checks.realCliAllowed, false);
   assert.equal(result.checks.versionProbe, "skipped");
   assert.deepEqual(result.blockingReasons, [
     "codex_cli_environment_preflight_requires_injected_spawn"
@@ -129,6 +130,7 @@ test("codex cli environment preflight summarizes fake version output without raw
   assert.deepEqual(calls[0]?.stdio, ["ignore", "pipe", "pipe"]);
   assert.equal(result.status, "ready");
   assert.equal(result.checks.injectedSpawner, true);
+  assert.equal(result.checks.realCliAllowed, false);
   assert.equal(result.checks.versionProbe, "passed");
   assert.equal(result.cli.version, "codex-cli 1.2.3");
   assert.equal(result.cli.exitCode, 0);

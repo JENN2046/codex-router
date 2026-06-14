@@ -443,6 +443,7 @@ export interface CodexCliEnvironmentPreflightOptions {
   timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   spawn?: CodexCliProcessSpawner;
+  allowRealCodexCli?: boolean;
 }
 
 export interface CodexCliEnvironmentPreflightResult {
@@ -451,6 +452,7 @@ export interface CodexCliEnvironmentPreflightResult {
   status: "ready" | "blocked";
   checks: {
     injectedSpawner: boolean;
+    realCliAllowed: boolean;
     versionProbe: "passed" | "failed" | "skipped";
     noTaskEnvelope: true;
     noPromptSent: true;
@@ -1633,14 +1635,17 @@ export async function checkCodexCliEnvironmentPreflight(
 ): Promise<CodexCliEnvironmentPreflightResult> {
   const generatedAt = options.generatedAt ?? new Date().toISOString();
   const command = options.codexCommand ?? resolveCodexCliRuntimeCommand();
+  const realCliAllowed = options.allowRealCodexCli === true;
+  const spawn = options.spawn ?? (realCliAllowed ? defaultCodexCliProcessSpawner : undefined);
 
-  if (!options.spawn) {
+  if (!spawn) {
     return {
       schemaVersion: "codex-cli-environment-preflight.v1",
       generatedAt,
       status: "blocked",
       checks: {
         injectedSpawner: false,
+        realCliAllowed,
         versionProbe: "skipped",
         noTaskEnvelope: true,
         noPromptSent: true,
@@ -1684,7 +1689,8 @@ export async function checkCodexCliEnvironmentPreflight(
       generatedAt,
       status: blockingReasons.length === 0 ? "ready" : "blocked",
       checks: {
-        injectedSpawner: true,
+        injectedSpawner: options.spawn !== undefined,
+        realCliAllowed,
         versionProbe,
         noTaskEnvelope: true,
         noPromptSent: true,
@@ -1708,7 +1714,7 @@ export async function checkCodexCliEnvironmentPreflight(
   let child: CodexCliChildProcess;
   try {
     const spawnEnv = resolveCodexCliSpawnEnv(command, options.env);
-    child = options.spawn(command, ["--version"], {
+    child = spawn(command, ["--version"], {
       ...(options.cwd ? { cwd: options.cwd } : {}),
       ...(spawnEnv ? { env: spawnEnv } : {}),
       stdio: ["ignore", "pipe", "pipe"],
