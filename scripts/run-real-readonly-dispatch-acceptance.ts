@@ -42,6 +42,7 @@ export interface RealReadOnlyDispatchAcceptanceEvidence {
     permitIssued: boolean;
     dispatchOk: boolean;
     fakeSpawnerUsed: boolean;
+    injectedSpawnerGuarded: boolean;
     guardMissingBlocked: boolean;
     registryMismatchBlocked: boolean;
     workspaceWriteBlocked: boolean;
@@ -200,6 +201,8 @@ export async function runRealReadOnlyDispatchAcceptance(
       permitIssued: dispatch.permit?.status === "approved",
       dispatchOk: dispatch.ok === true && dispatch.status === "completed",
       fakeSpawnerUsed: successSpawnCalls === 1,
+      injectedSpawnerGuarded: guard.environmentPreflight.checks.injectedSpawner === true
+        && successSpawnCalls === 1,
       guardMissingBlocked: guardMissingDispatch.ok === false
         && guardMissingSpawnCalls === 0
         && collectDispatchReasons(guardMissingDispatch).includes(
@@ -305,7 +308,7 @@ function createRealExecutionGuard(
     environmentPreflight: {
       status: "ready",
       checks: {
-        injectedSpawner: false,
+        injectedSpawner: true,
         realCliAllowed: true,
         versionProbe: "passed",
         noTaskEnvelope: true,

@@ -779,6 +779,44 @@ test("codex cli provider real read-only mode rejects registry and preflight mism
   assert.ok(reasons.includes("codex_cli_provider_real_execute_preflight_requires_real_cli_allowance"));
 });
 
+test("codex cli provider real read-only mode requires injected spawner preflight before spawn", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: true,
+    timeoutMs: 1_000,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_real_execute_injected_spawner_guard",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {
+    permit: createApprovedPermitForPlan(plan),
+    metadata: {
+      codexCliProviderRealExecutionGuard: createRealExecutionGuard({
+        injectedSpawner: false
+      })
+    }
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.error?.code, "codex_cli_provider_real_execute_rejected");
+  assert.ok((result.error?.reasons as string[]).includes(
+    "codex_cli_provider_real_execute_preflight_requires_injected_spawner"
+  ));
+});
+
 test("codex cli provider real read-only guard can pass with fake spawner in tests", async () => {
   let spawnCalls = 0;
   const provider = new CodexCliExecutorProvider({
@@ -1091,6 +1129,7 @@ function createRealExecutionGuard(options: {
   manifestHash?: string;
   preflightStatus?: "ready" | "blocked";
   preflightBlockingReasons?: string[];
+  injectedSpawner?: boolean;
   realCliAllowed?: boolean;
 } = {}) {
   return {
@@ -1106,7 +1145,7 @@ function createRealExecutionGuard(options: {
     environmentPreflight: {
       status: options.preflightStatus ?? "ready",
       checks: {
-        injectedSpawner: false,
+        injectedSpawner: options.injectedSpawner ?? true,
         realCliAllowed: options.realCliAllowed ?? true,
         versionProbe: "passed",
         noTaskEnvelope: true,

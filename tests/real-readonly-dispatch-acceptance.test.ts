@@ -42,6 +42,7 @@ test("real read-only dispatch acceptance produces safe fake-only evidence", asyn
     permitIssued: true,
     dispatchOk: true,
     fakeSpawnerUsed: true,
+    injectedSpawnerGuarded: true,
     guardMissingBlocked: true,
     registryMismatchBlocked: true,
     workspaceWriteBlocked: true,

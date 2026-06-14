@@ -1098,6 +1098,10 @@ function collectRealExecutionRejectionReasons(input: {
     reasons.push("codex_cli_provider_real_execute_preflight_blocked");
   }
 
+  if (preflight.checks.injectedSpawner !== true) {
+    reasons.push("codex_cli_provider_real_execute_preflight_requires_injected_spawner");
+  }
+
   if (preflight.checks.realCliAllowed !== true) {
     reasons.push("codex_cli_provider_real_execute_preflight_requires_real_cli_allowance");
   }
