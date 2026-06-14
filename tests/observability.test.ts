@@ -7,6 +7,7 @@ import {
   createFanoutTelemetryAlertSink,
   createRecordingTelemetryAlertDeliveryWindowStore,
   createRecordingTelemetryAlertDeliveryMetricsCollector,
+  createLogEvent,
   createLoggerTelemetryAlertSink,
   createTelemetryDeliveryAlertLogEvents,
   createFanoutTelemetrySink,
@@ -94,6 +95,27 @@ test("observability includes explicit memory state in preflight log events", () 
   assert.equal((event.context?.memory as { status?: string })?.status, "degraded");
 });
 
+test("observability redacts log event context", () => {
+  const event = createLogEvent("info", "secret context", {
+    apiKey: "raw-api-key",
+    stdout: "x".repeat(5000),
+    message: "provider returned sk-proj-123456789",
+    nested: {
+      authorization: "Bearer abc.def.ghi"
+    }
+  });
+
+  assert.equal(event.context?.apiKey, "<REDACTED_SECRET>");
+  assert.equal(event.context?.stdout, "<omitted:5000>");
+  assert.equal(event.context?.message, "provider returned <REDACTED_SECRET>");
+  assert.deepEqual(event.context?.nested, {
+    authorization: "<REDACTED_SECRET>"
+  });
+  assert.equal(JSON.stringify(event).includes("raw-api-key"), false);
+  assert.equal(JSON.stringify(event).includes("sk-proj-123456789"), false);
+  assert.equal(JSON.stringify(event).includes("abc.def.ghi"), false);
+});
+
 test("recording telemetry sink stores emitted events", async () => {
   const sink = createRecordingTelemetrySink();
   const events = [
@@ -117,6 +139,31 @@ test("recording telemetry sink stores emitted events", async () => {
 
   assert.equal(sink.events.length, 1);
   assert.equal(sink.events[0]?.context?.taskId, "obs-3");
+});
+
+test("recording telemetry sink sanitizes manually constructed events", async () => {
+  const sink = createRecordingTelemetrySink([{
+    level: "info",
+    message: "initial",
+    correlationId: "initial",
+    context: {
+      token: "initial-token"
+    }
+  }]);
+
+  await sink.record({
+    level: "error",
+    message: "manual",
+    correlationId: "manual",
+    context: {
+      stderr: "Authorization: Bearer abc.def.ghi",
+      args: ["--password", "raw-password", "--safe", "ok"]
+    }
+  });
+
+  assert.equal(sink.events[0]?.context?.token, "<REDACTED_SECRET>");
+  assert.equal(sink.events[1]?.context?.stderr, "Authorization: <REDACTED_SECRET>");
+  assert.deepEqual(sink.events[1]?.context?.args, ["--password", "<REDACTED_SECRET>", "--safe", "ok"]);
 });
 
 test("recording telemetry alert sink stores emitted alerts", async () => {
@@ -173,6 +220,34 @@ test("logger telemetry sink maps log levels to backend methods", async () => {
     "warn:warn-event",
     "error:error-event"
   ]);
+});
+
+test("logger telemetry sink receives sanitized context", async () => {
+  const contexts: Array<Record<string, unknown> | undefined> = [];
+  const sink = createLoggerTelemetrySink({
+    info(_message, context) {
+      contexts.push(context);
+    },
+    warn() {
+      throw new Error("unexpected_warn");
+    },
+    error() {
+      throw new Error("unexpected_error");
+    }
+  });
+
+  await sink.record({
+    level: "info",
+    message: "manual",
+    correlationId: "manual",
+    context: {
+      token: "raw-token",
+      stdout: "x".repeat(5000)
+    }
+  });
+
+  assert.equal(contexts[0]?.token, "<REDACTED_SECRET>");
+  assert.equal(contexts[0]?.stdout, "<omitted:5000>");
 });
 
 test("logger telemetry alert sink maps alert levels to backend methods", async () => {

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { PreflightResult } from "../../preflight/src/index.js";
+import { createSafeAuditDetails } from "../../redaction/src/index.js";
 
 export interface LogEvent {
   level: "info" | "warn" | "error";
@@ -327,10 +328,21 @@ export function createLogEvent(
   };
 
   if (context) {
-    event.context = context;
+    event.context = createSafeAuditDetails(context);
   }
 
   return event;
+}
+
+export function sanitizeLogEvent(event: LogEvent): LogEvent {
+  if (!event.context) {
+    return { ...event };
+  }
+
+  return {
+    ...event,
+    context: createSafeAuditDetails(event.context)
+  };
 }
 
 export function createPreflightLogEvent(
@@ -375,12 +387,12 @@ export function createMemoryPreflightLogEvent(
 export function createRecordingTelemetrySink(
   initialEvents: LogEvent[] = []
 ): RecordingTelemetrySink {
-  const events = [...initialEvents];
+  const events = initialEvents.map(sanitizeLogEvent);
 
   return {
     events,
     async record(event: LogEvent): Promise<void> {
-      events.push(event);
+      events.push(sanitizeLogEvent(event));
     },
     async loadAll(): Promise<LogEvent[]> {
       return [...events];
@@ -409,18 +421,19 @@ export function createLoggerTelemetrySink(
 ): TelemetrySink {
   return {
     async record(event: LogEvent): Promise<void> {
-      const context = event.context;
+      const sanitized = sanitizeLogEvent(event);
+      const context = sanitized.context;
 
-      switch (event.level) {
+      switch (sanitized.level) {
         case "warn":
-          await backend.warn(event.message, context);
+          await backend.warn(sanitized.message, context);
           return;
         case "error":
-          await backend.error(event.message, context);
+          await backend.error(sanitized.message, context);
           return;
         case "info":
         default:
-          await backend.info(event.message, context);
+          await backend.info(sanitized.message, context);
       }
     }
   };
@@ -961,13 +974,14 @@ export function createFanoutTelemetrySink(
 
   return {
     async record(event: LogEvent): Promise<void> {
+      const sanitized = sanitizeLogEvent(event);
       await options.metricsCollector?.recordEventDispatch({
         sinkCount: activeSinks.length
       });
 
       for (const [sinkIndex, sinkEntry] of activeSinks.entries()) {
         try {
-          await recordTelemetryWithPolicy(sinkEntry, event, options, sinkIndex);
+          await recordTelemetryWithPolicy(sinkEntry, sanitized, options, sinkIndex);
         } catch (error) {
           if (failurePolicy === "best_effort") {
             continue;
