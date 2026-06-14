@@ -80,6 +80,7 @@ Sensitive marker scan targets:
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT.md`
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_AUDIT_INDEX.md`
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_RC_RECEIPT.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_RC_REVIEW_PASS.md`
 
 The sensitive marker scan output is intentionally summarized. It reports target
 counts, missing-target counts, leaking-target counts, marker-hit counts, and
@@ -92,7 +93,7 @@ Expected safe results:
 - final local audit status is `passed`
 - sensitive marker scan status is `passed`
 - sensitive marker scan marker hits are `0`
-- sensitive marker scan target count is `10`
+- sensitive marker scan target count is `11`
 - final local audit commands are `10`
 - final local audit failed commands are `0`
 - unexpected changed files are `0`

@@ -34,7 +34,7 @@ The local RC surface is internally consistent only when fresh command output
 shows:
 
 - sensitive scan status is `passed`
-- sensitive scan target count is `10`
+- sensitive scan target count is `11`
 - sensitive scan marker hit count is `0`
 - candidate audit status is `passed`
 - candidate audit unexpected changed file count is `0`
