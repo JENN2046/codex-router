@@ -313,6 +313,105 @@ test("Agent OS MCP local runtime records revoked permits during approval consump
   assert.equal(permitStore.listPermits({ runId }).length, 2);
 });
 
+test("Agent OS MCP local runtime rejects stale permits during approval consumption", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    providerExecutionPlanStore: planStore,
+    approvalPermitStore: permitStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createWaitingEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "approval.issue"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.approve_run"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli",
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId,
+    createPermitId: () => "permit_agentos_mcp_runtime_valid_after_stale"
+  });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Create governed task",
+      requestedAction: "Create a run with stale approval candidates."
+    }
+  });
+  assert.equal(create.status, "succeeded");
+  assert.equal(create.output.providerPlanStatus, "waiting_approval");
+
+  const waitingPlan = planStore.listPlans({ runId }).at(-1);
+  assert.ok(waitingPlan);
+  permitStore.savePermit(createApprovalPermit({
+    permitId: "permit_agentos_mcp_runtime_expired_candidate",
+    taskId,
+    runId,
+    principalId: validPrincipal.principalId,
+    approverId: validPrincipal.principalId,
+    policyDecisionHash: waitingPlan.policyDecisionHash,
+    planHash: hashApprovalScope(waitingPlan),
+    capabilityScopes: ["fs.read:workspace/**"],
+    createdAt: "2026-06-09T00:00:00.000Z",
+    expiresAt: "2026-06-09T00:05:00.000Z"
+  }));
+  permitStore.savePermit(createApprovalPermit({
+    permitId: "permit_agentos_mcp_runtime_plan_mismatch_candidate",
+    taskId,
+    runId,
+    principalId: validPrincipal.principalId,
+    approverId: validPrincipal.principalId,
+    policyDecisionHash: waitingPlan.policyDecisionHash,
+    planHash: "old_provider_plan_hash",
+    capabilityScopes: ["fs.read:workspace/**"],
+    createdAt: "2026-06-10T00:00:00.000Z",
+    expiresAt: "2026-06-10T01:00:00.000Z"
+  }));
+
+  const approve = runtime.handleToolCall({
+    toolName: "agentos.approve_run",
+    input: {
+      runId,
+      capabilityScopes: ["fs.read:workspace/**"],
+      reason: "replacement approval for stale candidates"
+    }
+  });
+
+  const plans = planStore.listPlans({ runId });
+  const latestPlan = plans.at(-1);
+  const consumedEvent = kernelStore.listEvents({
+    runId,
+    type: "kernel.approval.permit.consumed"
+  }).at(-1);
+  const payload = consumedEvent?.payload as {
+    acceptedPermits?: string[];
+    rejectedPermits?: string[];
+  } | undefined;
+
+  assert.equal(approve.status, "succeeded");
+  assert.equal(approve.output.consumedProviderPlanId, latestPlan?.planId);
+  assert.equal(plans.length, 2);
+  assert.equal(latestPlan?.status, "planned");
+  assert.deepEqual(payload?.acceptedPermits, [
+    "permit_agentos_mcp_runtime_valid_after_stale"
+  ]);
+  assert.ok(payload?.rejectedPermits?.some((reason) => (
+    reason.includes("permit_agentos_mcp_runtime_expired_candidate")
+    && reason.includes("permit_expired")
+  )));
+  assert.ok(payload?.rejectedPermits?.some((reason) => (
+    reason.includes("permit_agentos_mcp_runtime_plan_mismatch_candidate")
+    && reason.includes("plan_hash_mismatch")
+  )));
+  assert.equal(permitStore.listPermits({ runId }).length, 3);
+});
+
 test("Agent OS MCP local runtime does not consume permits without planning context", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
