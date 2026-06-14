@@ -167,6 +167,30 @@ test("workspace-write real canary local candidate consistency requires full audi
   ));
 });
 
+test("workspace-write real canary local candidate consistency blocks changed audit script targets", () => {
+  const packageJson = {
+    scripts: {
+      typecheck: "tsc -p tsconfig.json --noEmit",
+      "acceptance:workspace-write-real-canary-auth": "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
+      "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
+      "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
+      "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
+      "audit:workspace-write-real-canary-final-local": "npm run smoke:readonly:real"
+    }
+  };
+  const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
+    createConsistentInput({
+      packageJsonText: JSON.stringify(packageJson)
+    })
+  );
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.packageScriptsPresent, false);
+  assert.ok(review.reasons.includes(
+    "workspace_write_real_canary_candidate_package_scripts_missing"
+  ));
+});
+
 test("workspace-write real canary local candidate consistency reviews later governance receipts", () => {
   const governanceDocs = createGovernanceDocs();
   governanceDocs["docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT.md"] = [

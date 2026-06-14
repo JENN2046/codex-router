@@ -63,14 +63,14 @@ const REQUIRED_DOC_FILES = [
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_RC_REVIEW_PASS.md"
 ] as const;
 
-const REQUIRED_PACKAGE_SCRIPTS = [
-  "typecheck",
-  "acceptance:workspace-write-real-canary-auth",
-  "acceptance:workspace-write-real-canary-pre-execution",
-  "audit:workspace-write-real-canary-candidate",
-  "audit:workspace-write-real-canary-sensitive-scan",
-  "audit:workspace-write-real-canary-final-local"
-] as const;
+const REQUIRED_PACKAGE_SCRIPTS = {
+  typecheck: "tsc -p tsconfig.json --noEmit",
+  "acceptance:workspace-write-real-canary-auth": "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
+  "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
+  "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
+  "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
+  "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts"
+} as const;
 
 const FORBIDDEN_MARKERS = [
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
@@ -194,8 +194,9 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     changedFilesWithinPr12bScope: input.changedFiles.every((file) =>
       ALLOWED_RANGE_FILES.has(file)
     ),
-    packageScriptsPresent: REQUIRED_PACKAGE_SCRIPTS.every((scriptName) =>
-      hasPackageScript(packageJson, scriptName)
+    packageScriptsPresent: Object.entries(REQUIRED_PACKAGE_SCRIPTS).every(
+      ([scriptName, expectedCommand]) =>
+        hasPackageScript(packageJson, scriptName, expectedCommand)
     ),
     evidenceParseable: authorizationEvidence !== undefined && preExecutionEvidence !== undefined,
     evidenceLocalOnly: getString(authorizationEvidence, ["mode"])
@@ -339,10 +340,11 @@ function parseObject(value: string): Record<string, unknown> | undefined {
 
 function hasPackageScript(
   packageJson: Record<string, unknown> | undefined,
-  scriptName: string
+  scriptName: string,
+  expectedCommand: string
 ): boolean {
   const scripts = packageJson?.scripts;
-  return isRecord(scripts) && typeof scripts[scriptName] === "string";
+  return isRecord(scripts) && scripts[scriptName] === expectedCommand;
 }
 
 function evidenceHasNoExecution(evidence: Record<string, unknown> | undefined): boolean {
