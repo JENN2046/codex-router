@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "provider-registry-selection-acceptance.v1",
+  "generatedAt": "2026-06-14T00:00:00.000Z",
+  "mode": "read-only-registry-selection",
+  "providerCount": 2,
+  "enabledProviderCount": 1,
+  "checks": {
+    "codexCliRegistered": true,
+    "attestationHashRecorded": true,
+    "snapshotGenerated": true,
+    "selectByProviderIdOk": true,
+    "selectByGrantOk": true,
+    "missingProviderBlocked": true,
+    "disabledProviderBlockedByDefault": true,
+    "manifestMismatchBlocked": true,
+    "missingCapabilityBlocked": true,
+    "unsupportedSandboxBlocked": true,
+    "unsupportedSideEffectBlocked": true,
+    "noRunPath": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "providerId": "codex-cli",
+    "kind": "executor",
+    "manifestHash": "fb6c7a17b6da1986983a06a3c8e7d4fc2992674baab0ce84ee5816b988b4012b",
+    "capabilityCount": 3,
+    "sandboxProfileCount": 2,
+    "sideEffectClassCount": 3
+  },
+  "blockingReasons": [
+    "provider_selection_provider_missing:missing-provider",
+    "provider_selection_provider_disabled:codex-cli-disabled",
+    "provider_selection_manifest_hash_mismatch",
+    "provider_selection_missing_capability:missing.capability",
+    "provider_selection_unsupported_sandbox:sandbox_provider_registry_selection_full_network",
+    "provider_selection_unsupported_side_effect:protected_remote",
+    "provider_selection_manifest_hash_mismatch"
+  ]
+}
