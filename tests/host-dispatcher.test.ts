@@ -595,6 +595,32 @@ test("host dispatcher rejects registry manifest mismatches before permit and exe
   });
 });
 
+test("host dispatcher rejects registry capability mismatches before permit and execute", async () => {
+  const runnerResult = await createReadOnlyRunnerResult(
+    "host-dispatcher-runner-provider-registry-capability-mismatch"
+  );
+  const registry = createRegistryWithCodexCatalog();
+  const providerGrantWithCapabilityMismatch = {
+    ...runnerResult.decision.providerGrant!,
+    capabilities: [
+      ...((runnerResult.decision.providerGrant as { capabilities?: string[] }).capabilities ?? []),
+      "fs.read:outside-registry/**"
+    ]
+  };
+
+  await assertRegistryDispatchRejected({
+    runnerResult: {
+      ...runnerResult,
+      decision: {
+        ...runnerResult.decision,
+        providerGrant: providerGrantWithCapabilityMismatch
+      }
+    },
+    providerRegistry: registry,
+    expectedReason: "provider_selection_missing_capability:fs.read:outside-registry/**"
+  });
+});
+
 function createReadOnlyTask(taskId: string) {
   return parseTaskEnvelope({
     taskId,
