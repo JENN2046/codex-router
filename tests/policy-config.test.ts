@@ -104,7 +104,7 @@ test("policy config requires explicit host routes for every task class", async (
   const content = await readFile(policyPath, "utf8");
 
   assert.throws(
-    () => loadPolicyFromString(content.replace('  high_risk: "desktop"\n', "")),
+    () => loadPolicyFromString(content.replace(/  high_risk: "desktop"\r?\n/, "")),
     /Missing host route for task class: high_risk/
   );
 });
