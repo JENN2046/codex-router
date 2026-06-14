@@ -50,6 +50,7 @@ export interface StructuredShellCommand {
 
 export interface ApplyPatchSuccessEnvelope extends PrimitiveSuccessEnvelopeBase<"apply_patch"> {
   changedFiles?: number;
+  patchHash?: string;
 }
 
 export interface ReadThreadTerminalSuccessEnvelope extends PrimitiveSuccessEnvelopeBase<"read_thread_terminal"> {
@@ -222,10 +223,17 @@ function inferPrimitiveSuccessEnvelope<P extends DesktopPrimitive>(
     case "apply_patch": {
       const changedFiles = asNumber(record?.changedFiles);
       const summary = typeof output === "string" ? output : asString(record?.summary);
+      const patchHash = asString(record?.patchHash);
       return createPrimitiveSuccessEnvelope("apply_patch", {
         ...(changedFiles !== undefined ? { changedFiles } : {}),
         ...(summary !== undefined ? { summary } : {}),
-        payload: output
+        ...(patchHash !== undefined ? { patchHash } : {}),
+        payload: createSafeApplyPatchPayload({
+          changedFiles,
+          summary,
+          patchHash,
+          payload: output
+        })
       }) as DesktopPrimitiveResultEnvelope<P>;
     }
     case "read_thread_terminal": {
@@ -270,21 +278,32 @@ function redactSuccessDetails<P extends DesktopPrimitive>(
   primitive: P,
   details: PrimitiveSuccessDetailsMap[P]
 ): PrimitiveSuccessDetailsMap[P] {
-  if (primitive !== "shell_command") {
-    return details;
+  if (primitive === "apply_patch") {
+    return sanitizeApplyPatchDetails(details as PrimitiveSuccessDetailsMap["apply_patch"]) as PrimitiveSuccessDetailsMap[P];
   }
 
-  return redactShellCommandValue(details) as PrimitiveSuccessDetailsMap[P];
+  if (primitive === "shell_command") {
+    return redactShellCommandValue(details) as PrimitiveSuccessDetailsMap[P];
+  }
+
+  return details;
 }
 
 function redactPrimitiveResultEnvelope<P extends DesktopPrimitive>(
   envelope: DesktopPrimitiveResultEnvelope<P>
 ): DesktopPrimitiveResultEnvelope<P> {
-  if (envelope.primitive !== "shell_command") {
-    return envelope;
+  if (envelope.primitive === "apply_patch" && envelope.ok) {
+    return {
+      ...envelope,
+      ...sanitizeApplyPatchDetails(envelope)
+    } as DesktopPrimitiveResultEnvelope<P>;
   }
 
-  return redactShellCommandValue(envelope) as DesktopPrimitiveResultEnvelope<P>;
+  if (envelope.primitive === "shell_command") {
+    return redactShellCommandValue(envelope) as DesktopPrimitiveResultEnvelope<P>;
+  }
+
+  return envelope;
 }
 
 function redactShellCommandValue(value: unknown): unknown {
@@ -292,6 +311,45 @@ function redactShellCommandValue(value: unknown): unknown {
     redactArgvSecrets: true,
     redactStrings: true
   });
+}
+
+function sanitizeApplyPatchDetails(
+  details: PrimitiveSuccessDetailsMap["apply_patch"]
+): PrimitiveSuccessDetailsMap["apply_patch"] {
+  const payload = asRecord(details.payload);
+  const changedFiles = details.changedFiles ?? asNumber(payload?.changedFiles);
+  const summary = details.summary ?? asString(payload?.summary);
+  const patchHash = details.patchHash ?? asString(payload?.patchHash);
+
+  return {
+    ...(changedFiles !== undefined ? { changedFiles } : {}),
+    ...(summary !== undefined ? { summary } : {}),
+    ...(patchHash !== undefined ? { patchHash } : {}),
+    payload: createSafeApplyPatchPayload({
+      changedFiles,
+      summary,
+      patchHash,
+      payload: details.payload
+    })
+  };
+}
+
+function createSafeApplyPatchPayload(input: {
+  changedFiles: number | undefined;
+  summary: string | undefined;
+  patchHash: string | undefined;
+  payload?: unknown;
+}): Record<string, unknown> {
+  const payload = asRecord(input.payload);
+  const changedFiles = input.changedFiles ?? asNumber(payload?.changedFiles);
+  const summary = input.summary ?? asString(payload?.summary);
+  const patchHash = input.patchHash ?? asString(payload?.patchHash);
+
+  return {
+    ...(changedFiles !== undefined ? { changedFiles } : {}),
+    ...(summary !== undefined ? { summary } : {}),
+    ...(patchHash !== undefined ? { patchHash } : {})
+  };
 }
 
 function parseStructuredShellCommand(input: unknown): StructuredShellCommand | undefined {

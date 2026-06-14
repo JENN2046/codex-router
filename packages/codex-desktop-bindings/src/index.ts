@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { AgentRole } from "../../contracts/src/index.js";
 import {
   createHostBridgeFromBindings,
@@ -375,12 +376,15 @@ export function createCodexDesktopBindings(
       const normalized = asRecord(output);
       const changedFiles = asNumber(normalized?.changedFiles);
       const summary = typeof output === "string" ? output : asString(normalized?.summary);
+      const patchHash = hashPatch(patch);
       return createPrimitiveSuccessEnvelope("apply_patch", {
         ...(changedFiles !== undefined ? { changedFiles } : {}),
         ...(summary !== undefined ? { summary } : {}),
+        patchHash,
         payload: {
-          patch,
-          output
+          ...(changedFiles !== undefined ? { changedFiles } : {}),
+          ...(summary !== undefined ? { summary } : {}),
+          patchHash
         }
       });
     }
@@ -593,6 +597,10 @@ function asNumber(value: unknown): number | undefined {
 
 function hasShellCommandRequestTarget(request: CodexDesktopShellCommandRequest): boolean {
   return Boolean(request.command?.trim()) || request.structuredCommand !== undefined;
+}
+
+function hashPatch(patch: string): string {
+  return createHash("sha256").update(patch).digest("hex");
 }
 
 function parseToolStyleStructuredCommand(input: unknown): CodexDesktopStructuredShellCommand | undefined {

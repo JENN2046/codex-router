@@ -240,6 +240,35 @@ test("desktop live adapter redacts already-shaped shell command envelopes", () =
   assert.equal(envelopeText.includes("payload-secret"), false);
 });
 
+test("desktop live adapter omits raw patch payloads", () => {
+  const result = normalizePrimitiveHandlerOutput("apply_patch", {
+    primitive: "apply_patch",
+    ok: true,
+    changedFiles: 1,
+    summary: "patched files",
+    patchHash: "abc123",
+    payload: {
+      patch: "*** Begin Patch\n*** Add File: secret.txt\n+token=raw-token\n*** End Patch\n",
+      output: {
+        changedFiles: 1,
+        summary: "patched files"
+      }
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal((result as { changedFiles?: number }).changedFiles, 1);
+  assert.equal((result as { summary?: string }).summary, "patched files");
+  assert.equal((result as { patchHash?: string }).patchHash, "abc123");
+  assert.deepEqual((result as { payload?: unknown }).payload, {
+    changedFiles: 1,
+    summary: "patched files",
+    patchHash: "abc123"
+  });
+  assert.equal(JSON.stringify(result).includes("Begin Patch"), false);
+  assert.equal(JSON.stringify(result).includes("raw-token"), false);
+});
+
 test("desktop live adapter fails fast on missing handler", async () => {
   const ready = await createReadyRunnerResult();
 

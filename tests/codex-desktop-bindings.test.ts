@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   createCodexDesktopBindings,
   createCodexDesktopBridge,
@@ -214,9 +215,11 @@ test("codex desktop bindings use explicit shell and patch directives for concret
       };
     },
     applyPatch() {
-      return "*** Begin Patch\n*** Add File: demo.txt\n+hello\n*** End Patch\n";
+      return patch;
     }
   });
+  const patch = "*** Begin Patch\n*** Add File: demo.txt\n+hello\n*** End Patch\n";
+  const patchHash = createHash("sha256").update(patch).digest("hex");
 
   const shellResult = await bindings.shell_command?.(createInvocation("shell_command", {
     decision: {
@@ -243,9 +246,17 @@ test("codex desktop bindings use explicit shell and patch directives for concret
     command: "echo codex-desktop-task",
     workdir: "A:/codex-router"
   }]);
-  assert.equal(patches[0], "*** Begin Patch\n*** Add File: demo.txt\n+hello\n*** End Patch\n");
+  assert.equal(patches[0], patch);
   assert.equal((shellResult as { exitCode?: number }).exitCode, 0);
   assert.equal((patchResult as { changedFiles?: number }).changedFiles, 2);
+  assert.equal((patchResult as { patchHash?: string }).patchHash, patchHash);
+  assert.deepEqual((patchResult as { payload?: unknown }).payload, {
+    changedFiles: 2,
+    summary: "patched files",
+    patchHash
+  });
+  assert.equal(JSON.stringify(patchResult).includes("Begin Patch"), false);
+  assert.equal(JSON.stringify(patchResult).includes("hello"), false);
 });
 
 test("codex desktop bindings pass structured shell commands and redact shell secrets", async () => {
