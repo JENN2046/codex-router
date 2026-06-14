@@ -135,7 +135,12 @@ test("Agent OS MCP approve_run output schema declares permit and blocked result 
       properties: {
         permitId: { type: "string" },
         runId: { type: "string" },
-        expiresAt: { type: "string" }
+        expiresAt: { type: "string" },
+        consumedProviderPlanId: { type: "string" },
+        approvalConsumptionReasons: {
+          type: "array",
+          items: { type: "string" }
+        }
       }
     },
     {

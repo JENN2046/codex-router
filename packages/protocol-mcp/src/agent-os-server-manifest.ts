@@ -322,7 +322,12 @@ export const agentOsApproveRunMcpToolManifest = defineAgentOsMcpTool({
         properties: {
           permitId: { type: "string" },
           runId: { type: "string" },
-          expiresAt: { type: "string" }
+          expiresAt: { type: "string" },
+          consumedProviderPlanId: { type: "string" },
+          approvalConsumptionReasons: {
+            type: "array",
+            items: { type: "string" }
+          }
         }
       },
       {
