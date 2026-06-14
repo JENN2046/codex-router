@@ -82,12 +82,12 @@ const auditFieldConsistencyDocs = [
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_RC_REVIEW_PASS.md"
 ] as const;
 
-const requiredAuditFieldNames = [
-  "packageScriptsPresent",
-  "packageScriptTargetCount",
-  "packageScriptTargetMismatchCount",
-  "finalAuditNoForbiddenCommands",
-  "noForbiddenCommands"
+const requiredAuditFieldValues = [
+  ["packageScriptsPresent", "true"],
+  ["packageScriptTargetCount", "6"],
+  ["packageScriptTargetMismatchCount", "0"],
+  ["finalAuditNoForbiddenCommands", "true"],
+  ["noForbiddenCommands", "true"]
 ] as const;
 
 test("workspace-write real canary local candidate consistency passes for local-only candidate", () => {
@@ -301,15 +301,15 @@ test("workspace-write real canary local candidate consistency formats text and j
   }
 });
 
-test("workspace-write real canary local candidate consistency docs record audit field names", async () => {
+test("workspace-write real canary local candidate consistency docs record audit field values", async () => {
   for (const docPath of auditFieldConsistencyDocs) {
     const docText = await readFile(docPath, "utf8");
 
-    for (const fieldName of requiredAuditFieldNames) {
-      assert.equal(
-        docText.includes(fieldName),
-        true,
-        `${docPath} must record ${fieldName}`
+    for (const [fieldName, expectedValue] of requiredAuditFieldValues) {
+      assert.match(
+        docText,
+        new RegExp(`${fieldName}[^\\n]*\`${expectedValue}\``),
+        `${docPath} must record ${fieldName} as ${expectedValue}`
       );
     }
   }
