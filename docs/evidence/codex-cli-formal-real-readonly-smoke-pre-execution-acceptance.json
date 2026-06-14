@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "codex-cli-formal-real-readonly-smoke-pre-execution-acceptance.v1",
+  "generatedAt": "2026-06-15T00:00:00.000Z",
+  "mode": "formal-real-readonly-smoke-pre-execution-local-only",
+  "taskId": "codex-cli-formal-real-readonly-smoke-pre-execution-acceptance",
+  "checks": {
+    "taskbookGateAccepted": true,
+    "taskbookEvidencePresent": true,
+    "taskbookDocPresent": true,
+    "smokeScriptDefaultEvidencePath": true,
+    "smokeScriptBlocksWithoutOperatorFlag": true,
+    "blockedSmokeDoesNotInvokeRunner": true,
+    "blockedSmokeWritesSanitizedEvidence": true,
+    "exactFutureCommandRequired": true,
+    "defaultEvidencePathRequired": true,
+    "formalDispatchBoundaryRequired": true,
+    "providerExecuteStillSeparate": true,
+    "noProviderExecute": true,
+    "noRealCodexCli": true,
+    "noWorkspaceWriteExecute": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "requiredProviderId": "codex-cli",
+    "requiredSandbox": "read-only",
+    "requiredSideEffectClass": "read_only",
+    "requiredApprovalPolicy": "never",
+    "requiredEvidencePathChoice": "default",
+    "realSmokeDefaultEvidencePath": "docs/evidence/codex-cli-real-readonly-smoke.json",
+    "taskbookAcceptanceStatus": "accepted",
+    "blockedSmokeStatus": "blocked",
+    "blockedSmokeExitCode": 1,
+    "localPreExecutionOnly": true,
+    "futureRealCliInvocationRequiresSeparateAuthorization": true,
+    "providerExecuteRequiresSeparateAuthorization": true,
+    "workspaceWriteMustRemainClosed": true,
+    "pushReleaseTagMustBeSeparate": true
+  },
+  "counters": {
+    "providerExecuteCalls": 0,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0,
+    "blockedSmokeRunnerCalls": 0
+  },
+  "blockingReasons": [
+    "codex_cli_real_readonly_smoke_requires_operator_flag"
+  ]
+}
