@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const taskbookPath = "docs/governance/PR_13A_READONLY_REAL_CLI_PREFLIGHT_TASKBOOK.md";
+const realReadonlySmokeEvidencePath = "docs/evidence/codex-cli-real-readonly-smoke.json";
 
 test("PR-13A real read-only preflight taskbook keeps the exact future authorization gate", async () => {
   const [taskbook, packageJsonText] = await Promise.all([
@@ -74,5 +75,50 @@ test("PR-13A real read-only preflight taskbook preserves the required fresh loca
       taskbook.includes(requiredResult),
       `expected preflight result ${requiredResult}`
     );
+  }
+});
+
+test("PR-13A committed real read-only smoke evidence stays sanitized and read-only", async () => {
+  const serialized = await readFile(realReadonlySmokeEvidencePath, "utf8");
+  const evidence = JSON.parse(serialized) as {
+    schemaVersion?: string;
+    mode?: string;
+    checks?: Record<string, unknown>;
+    plan?: Record<string, unknown>;
+    run?: Record<string, unknown>;
+  };
+
+  assert.equal(evidence.schemaVersion, "codex-cli-real-readonly-smoke-gate.v1");
+  assert.equal(evidence.mode, "real-readonly-smoke");
+  assert.equal(evidence.checks?.readOnlySandbox, true);
+  assert.equal(evidence.checks?.approvalPolicyNever, true);
+  assert.equal(evidence.checks?.noWorkspaceWrite, true);
+  assert.equal(evidence.checks?.noFileWrite, true);
+  assert.equal(evidence.checks?.timeoutConfigured, true);
+  assert.equal(evidence.checks?.sanitizedEvidence, true);
+  assert.equal(evidence.plan?.sandbox, "read-only");
+  assert.equal(evidence.plan?.approvalPolicy, "never");
+  assert.equal(evidence.plan?.usesJson, true);
+  assert.equal(evidence.plan?.skipGitRepoCheck, true);
+  assert.equal(evidence.plan?.ephemeral, true);
+  assert.ok(Number.isInteger(evidence.run?.eventCount));
+  assert.ok(Number.isInteger(evidence.run?.parseErrorCount));
+  assert.ok(Number.isInteger(evidence.run?.warningCount));
+
+  for (const forbidden of [
+    "prompt",
+    "args",
+    "stdout",
+    "stderr",
+    "raw command",
+    "raw task envelope",
+    "raw env",
+    "raw token",
+    "raw patch",
+    "OPENAI_API_KEY",
+    "sk-",
+    "Bearer"
+  ]) {
+    assert.equal(serialized.includes(forbidden), false, forbidden);
   }
 });
