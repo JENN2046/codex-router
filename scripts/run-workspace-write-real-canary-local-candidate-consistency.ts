@@ -110,6 +110,10 @@ export interface WorkspaceWriteRealCanaryLocalCandidateConsistencyResult {
   reasons: string[];
 }
 
+export type WorkspaceWriteRealCanaryLocalCandidateConsistencyOutputFormat =
+  | "text"
+  | "json";
+
 export async function collectWorkspaceWriteRealCanaryLocalCandidateConsistencyInput(
   cwd = process.cwd()
 ): Promise<WorkspaceWriteRealCanaryLocalCandidateConsistencyInput> {
@@ -244,6 +248,29 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     },
     reasons
   };
+}
+
+export function formatWorkspaceWriteRealCanaryLocalCandidateConsistencyReview(
+  review: WorkspaceWriteRealCanaryLocalCandidateConsistencyResult,
+  format: WorkspaceWriteRealCanaryLocalCandidateConsistencyOutputFormat = "text"
+): string {
+  if (format === "json") {
+    return JSON.stringify(review, null, 2);
+  }
+
+  return [
+    "Workspace-write real canary local candidate consistency",
+    `status: ${review.status}`,
+    `branch: ${review.summary.branch}`,
+    `ahead / behind: ${review.summary.ahead} / ${review.summary.behind}`,
+    `changed files: ${review.summary.changedFileCount}`,
+    `unexpected changed files: ${review.summary.unexpectedChangedFileCount}`,
+    `provider execute calls: ${review.summary.providerExecuteCalls}`,
+    `real Codex CLI calls: ${review.summary.realCodexCliCalls}`,
+    `workspace-write execute calls: ${review.summary.workspaceWriteExecuteCalls}`,
+    `canary file writes: ${review.summary.canaryFileWrites}`,
+    ...(review.reasons.length > 0 ? [`reasons: ${review.reasons.join(",")}`] : [])
+  ].join("\n");
 }
 
 async function readGovernanceDocs(cwd: string): Promise<Record<string, string>> {
@@ -390,21 +417,9 @@ function addReasonIfFalse(reasons: string[], condition: boolean, reason: string)
 async function main(): Promise<void> {
   const input = await collectWorkspaceWriteRealCanaryLocalCandidateConsistencyInput();
   const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(input);
+  const format = process.argv.includes("--json") ? "json" : "text";
 
-  console.log("Workspace-write real canary local candidate consistency");
-  console.log(`status: ${review.status}`);
-  console.log(`branch: ${review.summary.branch}`);
-  console.log(`ahead / behind: ${review.summary.ahead} / ${review.summary.behind}`);
-  console.log(`changed files: ${review.summary.changedFileCount}`);
-  console.log(`unexpected changed files: ${review.summary.unexpectedChangedFileCount}`);
-  console.log(`provider execute calls: ${review.summary.providerExecuteCalls}`);
-  console.log(`real Codex CLI calls: ${review.summary.realCodexCliCalls}`);
-  console.log(`workspace-write execute calls: ${review.summary.workspaceWriteExecuteCalls}`);
-  console.log(`canary file writes: ${review.summary.canaryFileWrites}`);
-
-  if (review.reasons.length > 0) {
-    console.log(`reasons: ${review.reasons.join(",")}`);
-  }
+  console.log(formatWorkspaceWriteRealCanaryLocalCandidateConsistencyReview(review, format));
 
   if (review.status !== "passed") {
     process.exitCode = 1;

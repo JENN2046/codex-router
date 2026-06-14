@@ -6,6 +6,7 @@ import {
   PR_12B_REAL_CANARY_WORKSPACE
 } from "../packages/workspace-write-guard/src/index.js";
 import {
+  formatWorkspaceWriteRealCanaryLocalCandidateConsistencyReview,
   reviewWorkspaceWriteRealCanaryLocalCandidateConsistency,
   type WorkspaceWriteRealCanaryLocalCandidateConsistencyInput
 } from "../scripts/run-workspace-write-real-canary-local-candidate-consistency.js";
@@ -150,6 +151,28 @@ test("workspace-write real canary local candidate consistency omits raw sensitiv
       false,
       `review result must omit ${marker}`
     );
+  }
+});
+
+test("workspace-write real canary local candidate consistency formats text and json output", () => {
+  const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
+    createConsistentInput()
+  );
+  const text = formatWorkspaceWriteRealCanaryLocalCandidateConsistencyReview(review);
+  const json = formatWorkspaceWriteRealCanaryLocalCandidateConsistencyReview(
+    review,
+    "json"
+  );
+  const parsed = JSON.parse(json) as typeof review;
+
+  assert.match(text, /status: passed/);
+  assert.match(text, /unexpected changed files: 0/);
+  assert.equal(parsed.status, "passed");
+  assert.equal(parsed.summary.unexpectedChangedFileCount, 0);
+  assert.equal(parsed.summary.providerExecuteCalls, 0);
+
+  for (const marker of forbiddenMarkers) {
+    assert.equal(json.includes(marker), false, `json output must omit ${marker}`);
   }
 });
 
