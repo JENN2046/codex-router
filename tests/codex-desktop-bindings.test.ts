@@ -5,6 +5,8 @@ import {
   createCodexDesktopBindings,
   createCodexDesktopBridge,
   createToolStyleCodexDesktopRuntime,
+  type CodexDesktopShellGovernancePolicy,
+  type CodexDesktopShellCommandRequest,
   type CodexDesktopRuntime
 } from "../packages/codex-desktop-bindings/src/index.js";
 import type { DesktopPrimitiveInvocation } from "../packages/desktop-live-adapter/src/index.js";
@@ -91,6 +93,35 @@ function createInvocation(
     },
     stepIndex: 0,
     ...overrides
+  };
+}
+
+function createShellRuntime(
+  shellCommand: CodexDesktopRuntime["shellCommand"]
+): CodexDesktopRuntime {
+  return {
+    readThreadTerminal() {
+      return "terminal snapshot";
+    },
+    spawnAgent() {
+      return { agentId: "agent-1" };
+    },
+    sendInput() {
+      return { id: "message-1" };
+    },
+    waitAgent() {
+      return { status: "completed" };
+    },
+    closeAgent() {
+      return { status: "completed" };
+    },
+    automationUpdate() {
+      return { status: "ACTIVE" };
+    },
+    shellCommand,
+    applyPatch() {
+      return { changedFiles: 1 };
+    }
   };
 }
 
@@ -248,6 +279,9 @@ test("codex desktop bindings use explicit shell and patch directives for concret
   }]);
   assert.equal(patches[0], patch);
   assert.equal((shellResult as { exitCode?: number }).exitCode, 0);
+  assert.deepEqual((shellResult as { warnings?: string[] }).warnings, [
+    "codex_desktop_shell_raw_command_deprecated"
+  ]);
   assert.equal((patchResult as { changedFiles?: number }).changedFiles, 2);
   assert.equal((patchResult as { patchHash?: string }).patchHash, patchHash);
   assert.deepEqual((patchResult as { payload?: unknown }).payload, {
@@ -376,6 +410,149 @@ test("codex desktop bindings pass structured shell commands and redact shell sec
     ],
     shell: false
   });
+});
+
+test("codex desktop bindings enforce governed shell command policy", async () => {
+  const shellRequests: CodexDesktopShellCommandRequest[] = [];
+  const runtime = createShellRuntime((input) => {
+    shellRequests.push(input);
+    return {
+      exitCode: 0,
+      stdout: "ok"
+    };
+  });
+
+  const rawBindings = createCodexDesktopBindings(runtime, {
+    shellCommand() {
+      return {
+        command: "echo raw-secret-token"
+      };
+    }
+  }, {
+    shellPolicy: {
+      governedMode: true
+    }
+  });
+  const rawResult = await rawBindings.shell_command?.(createInvocation("shell_command"));
+
+  assert.equal((rawResult as { ok?: boolean }).ok, false);
+  assert.equal((rawResult as { error?: string }).error, "codex_desktop_shell_raw_command_disallowed");
+  assert.equal(JSON.stringify(rawResult).includes("raw-secret-token"), false);
+  assert.deepEqual(shellRequests, []);
+
+  const structuredBindings = createCodexDesktopBindings(runtime, {
+    shellCommand() {
+      return {
+        structuredCommand: {
+          executable: "node",
+          args: ["--version"],
+          shell: false
+        }
+      };
+    }
+  }, {
+    shellPolicy: {
+      governedMode: true
+    }
+  });
+  const structuredResult = await structuredBindings.shell_command?.(createInvocation("shell_command"));
+
+  assert.equal((structuredResult as { ok?: boolean }).ok, true);
+  assert.deepEqual(shellRequests, [{
+    structuredCommand: {
+      executable: "node",
+      args: ["--version"],
+      shell: false
+    }
+  }]);
+  assert.deepEqual((structuredResult as { structuredCommand?: unknown }).structuredCommand, {
+    executable: "node",
+    args: ["--version"],
+    shell: false
+  });
+});
+
+test("codex desktop bindings reject governed shell policy violations", async () => {
+  const shellRequests: CodexDesktopShellCommandRequest[] = [];
+  const runtime = createShellRuntime((input) => {
+    shellRequests.push(input);
+    return { exitCode: 0 };
+  });
+
+  async function runShellRequest(
+    request: CodexDesktopShellCommandRequest,
+    shellPolicy: CodexDesktopShellGovernancePolicy = {
+      governedMode: true
+    }
+  ): Promise<unknown> {
+    const bindings = createCodexDesktopBindings(runtime, {
+      shellCommand() {
+        return request;
+      }
+    }, {
+      shellPolicy
+    });
+
+    return bindings.shell_command?.(createInvocation("shell_command"));
+  }
+
+  const shellTrue = await runShellRequest({
+    structuredCommand: {
+      executable: "node",
+      args: ["--version"],
+      shell: true
+    }
+  });
+  assert.equal((shellTrue as { error?: string }).error, "codex_desktop_shell_true_disallowed");
+
+  const shellAllowed = await runShellRequest({
+    structuredCommand: {
+      executable: "node",
+      args: ["--version"],
+      shell: true
+    }
+  }, {
+    governedMode: true,
+    allowShell: true
+  });
+  assert.equal((shellAllowed as { ok?: boolean }).ok, true);
+
+  const missingExecutable = await runShellRequest({
+    structuredCommand: {
+      executable: "",
+      args: []
+    }
+  });
+  assert.equal((missingExecutable as { error?: string }).error, "codex_desktop_shell_executable_missing");
+
+  const missingArgs = await runShellRequest({
+    structuredCommand: {
+      executable: "node"
+    }
+  });
+  assert.equal((missingArgs as { error?: string }).error, "codex_desktop_shell_args_must_be_array");
+
+  const disallowedExecutable = await runShellRequest({
+    structuredCommand: {
+      executable: "powershell",
+      args: []
+    }
+  }, {
+    governedMode: true,
+    allowedExecutables: ["git", "npm", "node"]
+  });
+  assert.equal(
+    (disallowedExecutable as { error?: string }).error,
+    "codex_desktop_shell_executable_not_allowed:powershell"
+  );
+
+  assert.deepEqual(shellRequests, [{
+    structuredCommand: {
+      executable: "node",
+      args: ["--version"],
+      shell: true
+    }
+  }]);
 });
 
 test("tool-style runtime forwards structured shell commands", async () => {

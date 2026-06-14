@@ -50,6 +50,13 @@ export interface CodexDesktopStructuredShellCommand {
   shell?: boolean;
 }
 
+export interface CodexDesktopShellGovernancePolicy {
+  governedMode?: boolean;
+  allowRawCommand?: boolean;
+  allowShell?: boolean;
+  allowedExecutables?: string[];
+}
+
 export type CodexDesktopAutomationUpdateRequest = Record<string, unknown>;
 
 export interface CodexDesktopRuntime {
@@ -160,6 +167,7 @@ export interface CodexDesktopDirectiveResolvers {
 export interface CodexDesktopBindingOptions {
   session?: CodexDesktopBindingSession;
   sendInputWithoutAgentMode?: "fail" | "noop";
+  shellPolicy?: CodexDesktopShellGovernancePolicy;
 }
 
 export function createCodexDesktopBindings(
@@ -169,6 +177,7 @@ export function createCodexDesktopBindings(
 ): DesktopHostBindings {
   const session = options.session ?? createCodexDesktopBindingSession();
   const sendInputWithoutAgentMode = options.sendInputWithoutAgentMode ?? "noop";
+  const shellPolicy = options.shellPolicy ?? {};
 
   const bindings: DesktopHostBindings = {
     async read_thread_terminal() {
@@ -349,12 +358,23 @@ export function createCodexDesktopBindings(
         return createPrimitiveFailureEnvelope("shell_command", "codex_desktop_shell_command_requires_command");
       }
 
-      const output = await runtime.shellCommand(request);
+      const validationReasons = validateShellCommandRequest(request, shellPolicy);
+      if (validationReasons[0] !== undefined) {
+        return createPrimitiveFailureEnvelope("shell_command", validationReasons[0], {
+          payload: {
+            reasons: validationReasons
+          }
+        });
+      }
+
+      const warnings = createShellCommandWarnings(request, shellPolicy);
+      const normalizedRequest = normalizeShellCommandRequest(request, shellPolicy);
+      const output = await runtime.shellCommand(normalizedRequest);
       const normalized = asRecord(output);
       const exitCode = asNumber(normalized?.exitCode) ?? asNumber(normalized?.code);
       const stdout = typeof output === "string" ? output : asString(normalized?.stdout);
       const stderr = asString(normalized?.stderr);
-      const structuredCommand = request.structuredCommand
+      const structuredCommand = normalizedRequest.structuredCommand
         ?? parseToolStyleStructuredCommand(normalized?.structured_command)
         ?? parseToolStyleStructuredCommand(normalized?.structuredCommand);
       return createPrimitiveSuccessEnvelope("shell_command", {
@@ -362,6 +382,7 @@ export function createCodexDesktopBindings(
         ...(exitCode !== undefined ? { exitCode } : {}),
         ...(stdout !== undefined ? { stdout } : {}),
         ...(stderr !== undefined ? { stderr } : {}),
+        ...(warnings.length > 0 ? { warnings } : {}),
         payload: output
       });
     },
@@ -597,6 +618,86 @@ function asNumber(value: unknown): number | undefined {
 
 function hasShellCommandRequestTarget(request: CodexDesktopShellCommandRequest): boolean {
   return Boolean(request.command?.trim()) || request.structuredCommand !== undefined;
+}
+
+function validateShellCommandRequest(
+  request: CodexDesktopShellCommandRequest,
+  policy: CodexDesktopShellGovernancePolicy
+): string[] {
+  const reasons: string[] = [];
+  const hasRawCommand = Boolean(request.command?.trim());
+  const structuredCommand = request.structuredCommand;
+
+  if (!hasRawCommand && structuredCommand === undefined) {
+    reasons.push("codex_desktop_shell_command_requires_command");
+    return reasons;
+  }
+
+  if (hasRawCommand && (policy.governedMode || policy.allowRawCommand === false)) {
+    reasons.push("codex_desktop_shell_raw_command_disallowed");
+  }
+
+  if (policy.governedMode && structuredCommand === undefined) {
+    reasons.push("codex_desktop_shell_structured_command_required");
+    return uniqueStrings(reasons);
+  }
+
+  if (structuredCommand !== undefined) {
+    if (!structuredCommand.executable?.trim()) {
+      reasons.push("codex_desktop_shell_executable_missing");
+    }
+
+    if (policy.governedMode && !Array.isArray(structuredCommand.args)) {
+      reasons.push("codex_desktop_shell_args_must_be_array");
+    }
+
+    if (policy.governedMode && structuredCommand.shell === true && policy.allowShell !== true) {
+      reasons.push("codex_desktop_shell_true_disallowed");
+    }
+
+    const allowedExecutables = policy.allowedExecutables;
+    if (
+      allowedExecutables !== undefined
+      && allowedExecutables.length > 0
+      && !allowedExecutables.includes(structuredCommand.executable)
+    ) {
+      reasons.push(`codex_desktop_shell_executable_not_allowed:${structuredCommand.executable}`);
+    }
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function normalizeShellCommandRequest(
+  request: CodexDesktopShellCommandRequest,
+  policy: CodexDesktopShellGovernancePolicy
+): CodexDesktopShellCommandRequest {
+  if (!policy.governedMode || request.structuredCommand === undefined) {
+    return request;
+  }
+
+  return {
+    ...request,
+    structuredCommand: {
+      ...request.structuredCommand,
+      shell: request.structuredCommand.shell ?? false
+    }
+  };
+}
+
+function createShellCommandWarnings(
+  request: CodexDesktopShellCommandRequest,
+  policy: CodexDesktopShellGovernancePolicy
+): string[] {
+  if (policy.governedMode || !request.command?.trim()) {
+    return [];
+  }
+
+  return ["codex_desktop_shell_raw_command_deprecated"];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function hashPatch(patch: string): string {

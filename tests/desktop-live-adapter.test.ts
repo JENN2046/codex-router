@@ -5,6 +5,7 @@ import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
 import { runDesktopDecision } from "../packages/desktop-decision-runner/src/index.js";
 import {
+  createPrimitiveHandlersFromBridge,
   createHostBridgeFromBindings,
   createPrimitiveFailureEnvelope,
   createRecordingHostBridge,
@@ -17,6 +18,10 @@ import {
   createRecordingExecutionObservationStore,
   parseExecutionObservation
 } from "../packages/execution-observation/src/index.js";
+import {
+  createCodexDesktopBindings,
+  type CodexDesktopRuntime
+} from "../packages/codex-desktop-bindings/src/index.js";
 import {
   type GovernanceState
 } from "../packages/state-manager/src/index.js";
@@ -48,6 +53,79 @@ async function createReadyRunnerResult() {
     availableAgents: 3,
     now: () => "2026-04-23T12:10:00.000Z"
   });
+}
+
+async function createReadyShellRunnerResult() {
+  const policy = await loadPolicyFromFile(policyPath);
+  return runDesktopDecision({
+    task: parseTaskEnvelope({
+      taskId: "live-adapter-governed-shell",
+      source: "desktop-thread",
+      intent: {
+        summary: "implement package",
+        requestedAction: "add multi-file TypeScript changes",
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: { repoRoot: "A:/codex-router" },
+      target: { branches: [], files: ["packages/contracts/src/index.ts"], modules: [] },
+      constraints: {},
+      hints: { riskHints: [], tags: [] }
+    }),
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: ["read_thread_terminal", "send_input", "shell_command", "apply_patch"],
+      memoryOverview: {
+        adapterStatus: {
+          codexMcp: "enabled"
+        },
+        summary: {
+          rejected: 0
+        },
+        shadowSync: {
+          reconcileCount: 0
+        },
+        recall: {
+          available: true,
+          status: "active"
+        }
+      }
+    },
+    now: () => "2026-04-23T12:10:00.000Z"
+  });
+}
+
+function createDesktopShellRuntime(
+  shellCommand: CodexDesktopRuntime["shellCommand"]
+): CodexDesktopRuntime {
+  return {
+    readThreadTerminal() {
+      return "thread context";
+    },
+    spawnAgent() {
+      return { agentId: "agent-1" };
+    },
+    sendInput() {
+      return { accepted: true };
+    },
+    waitAgent() {
+      return { status: "completed" };
+    },
+    closeAgent() {
+      return { status: "completed" };
+    },
+    automationUpdate() {
+      return { status: "ACTIVE" };
+    },
+    shellCommand,
+    applyPatch() {
+      return {
+        changedFiles: 1,
+        summary: "patched files"
+      };
+    }
+  };
 }
 
 test("desktop live adapter does not execute blocked runner results", async () => {
@@ -267,6 +345,87 @@ test("desktop live adapter omits raw patch payloads", () => {
   });
   assert.equal(JSON.stringify(result).includes("Begin Patch"), false);
   assert.equal(JSON.stringify(result).includes("raw-token"), false);
+});
+
+test("desktop live adapter executes governed structured shell through bridge", async () => {
+  const ready = await createReadyShellRunnerResult();
+  const shellRequests: unknown[] = [];
+  const runtime = createDesktopShellRuntime((input) => {
+    shellRequests.push(input);
+    return {
+      exitCode: 0,
+      stdout: "ok"
+    };
+  });
+  const bridge = createHostBridgeFromBindings(createCodexDesktopBindings(runtime, {
+    shellCommand() {
+      return {
+        structuredCommand: {
+          executable: "node",
+          args: ["--version"]
+        }
+      };
+    },
+    applyPatch() {
+      return "*** Begin Patch\n*** End Patch\n";
+    }
+  }, {
+    shellPolicy: {
+      governedMode: true
+    }
+  }));
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: createPrimitiveHandlersFromBridge(bridge),
+    now: () => "2026-04-23T12:10:00.000Z"
+  });
+
+  assert.equal(execution.status, "completed");
+  assert.deepEqual(shellRequests, [{
+    structuredCommand: {
+      executable: "node",
+      args: ["--version"],
+      shell: false
+    }
+  }]);
+});
+
+test("desktop live adapter fails safely for governed raw shell through bridge", async () => {
+  const ready = await createReadyShellRunnerResult();
+  const shellRequests: unknown[] = [];
+  const runtime = createDesktopShellRuntime((input) => {
+    shellRequests.push(input);
+    return {
+      exitCode: 0,
+      stdout: "should not run"
+    };
+  });
+  const bridge = createHostBridgeFromBindings(createCodexDesktopBindings(runtime, {
+    shellCommand() {
+      return {
+        command: "echo raw-secret-token"
+      };
+    },
+    applyPatch() {
+      return "*** Begin Patch\n*** End Patch\n";
+    }
+  }, {
+    shellPolicy: {
+      governedMode: true
+    }
+  }));
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: createPrimitiveHandlersFromBridge(bridge),
+    now: () => "2026-04-23T12:10:00.000Z"
+  });
+
+  assert.equal(execution.status, "failed");
+  assert.equal(execution.blockingReasons[0], "codex_desktop_shell_raw_command_disallowed");
+  assert.deepEqual(shellRequests, []);
+  assert.equal(JSON.stringify(execution).includes("raw-secret-token"), false);
 });
 
 test("desktop live adapter fails fast on missing handler", async () => {

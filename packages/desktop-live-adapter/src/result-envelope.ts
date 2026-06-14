@@ -40,6 +40,7 @@ export interface ShellCommandSuccessEnvelope extends PrimitiveSuccessEnvelopeBas
   exitCode?: number;
   stdout?: string;
   stderr?: string;
+  warnings?: string[];
 }
 
 export interface StructuredShellCommand {
