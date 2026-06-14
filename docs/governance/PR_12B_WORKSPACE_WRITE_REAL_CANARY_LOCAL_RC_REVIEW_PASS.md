@@ -45,6 +45,7 @@ Observed summarized results:
 - final local audit status: `passed`
 - final local audit commands: `10`
 - final local audit failed commands: `0`
+- final local audit noForbiddenCommands: `true`
 - final local audit provider execute calls: `0`
 - final local audit real Codex CLI calls: `0`
 - final local audit workspace-write execute calls: `0`
@@ -84,6 +85,7 @@ Consistency checks:
 - local audit index final local audit command count: `10`
 - local RC receipt final local audit command count: `10`
 - review pass final local audit command count: `10`
+- final local audit noForbiddenCommands: `true`
 - candidate audit unexpected changed file count: `0`
 - sensitive scan marker hit count: `0`
 - canary target file absent: `true`

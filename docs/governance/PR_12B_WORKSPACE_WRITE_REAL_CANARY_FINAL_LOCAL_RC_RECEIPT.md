@@ -45,6 +45,7 @@ shows:
 - final local audit status is `passed`
 - final local audit command count is `10`
 - final local audit failed command count is `0`
+- final local audit noForbiddenCommands is `true`
 - final local audit provider execute calls are `0`
 - final local audit real Codex CLI calls are `0`
 - final local audit workspace-write execute calls are `0`

@@ -96,6 +96,7 @@ Expected safe results:
 - sensitive marker scan target count is `11`
 - final local audit commands are `10`
 - final local audit failed commands are `0`
+- final local audit noForbiddenCommands is `true`
 - unexpected changed files are `0`
 - provider execute calls are `0`
 - real Codex CLI calls are `0`
@@ -129,6 +130,7 @@ Stop and report blocked if any of these are observed:
 - candidate audit status is not `passed`
 - final local audit status is not `passed`
 - evidence or receipts contain forbidden sensitive markers
+- final local audit noForbiddenCommands is not `true`
 - fixed canary target file exists
 - provider execute count is nonzero
 - real Codex CLI count is nonzero
