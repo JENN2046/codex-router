@@ -7,6 +7,12 @@ import {
 } from "../../provider-core/src/index.js";
 
 export const DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE = "tmp/codex-cli-write-canary.txt";
+export const PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE =
+  "APPROVE_PR_12B_REAL_WORKSPACE_WRITE_CANARY";
+export const PR_12B_REAL_CANARY_WORKSPACE =
+  "A:\\AGENTS_OS_Workspace\\governance\\codex-router\\repo";
+export const PR_12B_REAL_CANARY_BRANCH = "main";
+export const PR_12B_REAL_CANARY_ALLOWED_ACTION = "one bounded local canary write";
 
 export const WorkspaceWriteDiffFileSummarySchema = z.object({
   path: z.string().min(1),
@@ -105,6 +111,26 @@ export const WorkspaceWriteCanaryReadinessResultSchema = z.object({
   })
 });
 
+export const WorkspaceWriteRealCanaryAuthorizationResultSchema = z.object({
+  ok: z.boolean(),
+  status: z.enum(["authorized", "blocked"]),
+  reasons: z.array(z.string()),
+  summary: z.object({
+    exactPhraseMatched: z.boolean(),
+    workspaceMatched: z.boolean(),
+    branchMatched: z.boolean(),
+    fixedTargetMatched: z.boolean(),
+    allowedActionMatched: z.boolean(),
+    sandboxMatched: z.boolean(),
+    rollbackRequired: z.boolean(),
+    pushDisallowed: z.boolean(),
+    providerExecuteCalls: z.literal(0),
+    realCodexCliCalls: z.literal(0),
+    workspaceWriteExecuteCalls: z.literal(0),
+    canaryFileWrites: z.literal(0)
+  })
+});
+
 export type WorkspaceWriteDiffFileSummary = z.infer<typeof WorkspaceWriteDiffFileSummarySchema>;
 export type WorkspaceWriteDiffInspection = z.infer<typeof WorkspaceWriteDiffInspectionSchema>;
 export type WorkspaceWritePatchGuardResult = z.infer<typeof WorkspaceWritePatchGuardResultSchema>;
@@ -113,6 +139,9 @@ export type WorkspaceWriteRollbackPlanEvidence = z.infer<
 >;
 export type WorkspaceWriteCanaryReadinessResult = z.infer<
   typeof WorkspaceWriteCanaryReadinessResultSchema
+>;
+export type WorkspaceWriteRealCanaryAuthorizationResult = z.infer<
+  typeof WorkspaceWriteRealCanaryAuthorizationResultSchema
 >;
 
 export type WorkspaceWritePatchGuardInput = {
@@ -134,6 +163,17 @@ export type WorkspaceWriteCanaryReadinessInput = {
   targetFile: string;
   allowedTargetFile?: string;
   operatorGateEnabled: boolean;
+};
+
+export type WorkspaceWriteRealCanaryAuthorizationInput = {
+  authorizationPhrase?: string;
+  workspace?: string;
+  branch?: string;
+  targetFile?: string;
+  allowedAction?: string;
+  sandboxMode?: string;
+  rollbackRequired?: boolean;
+  pushAuthorized?: boolean;
 };
 
 export function inspectWorkspaceWriteUnifiedDiff(unifiedDiff: string): WorkspaceWriteDiffInspection {
@@ -394,6 +434,68 @@ export function evaluateWorkspaceWriteCanaryReadiness(
   });
 }
 
+export function evaluateWorkspaceWriteRealCanaryAuthorization(
+  input: WorkspaceWriteRealCanaryAuthorizationInput
+): WorkspaceWriteRealCanaryAuthorizationResult {
+  const exactPhraseMatched = input.authorizationPhrase === PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE;
+  const workspaceMatched = normalizeWorkspacePath(input.workspace) === normalizeWorkspacePath(
+    PR_12B_REAL_CANARY_WORKSPACE
+  );
+  const branchMatched = input.branch === PR_12B_REAL_CANARY_BRANCH;
+  const fixedTargetMatched = input.targetFile === DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE;
+  const allowedActionMatched = input.allowedAction === PR_12B_REAL_CANARY_ALLOWED_ACTION;
+  const sandboxMatched = input.sandboxMode === "workspace-write";
+  const rollbackRequired = input.rollbackRequired === true;
+  const pushDisallowed = input.pushAuthorized !== true;
+  const reasons = [
+    ...(exactPhraseMatched
+      ? []
+      : ["workspace_write_real_canary_authorization_exact_phrase_required"]),
+    ...(workspaceMatched
+      ? []
+      : ["workspace_write_real_canary_authorization_workspace_mismatch"]),
+    ...(branchMatched
+      ? []
+      : ["workspace_write_real_canary_authorization_main_branch_required"]),
+    ...(fixedTargetMatched
+      ? []
+      : ["workspace_write_real_canary_authorization_fixed_target_required"]),
+    ...(allowedActionMatched
+      ? []
+      : ["workspace_write_real_canary_authorization_bounded_action_required"]),
+    ...(sandboxMatched
+      ? []
+      : ["workspace_write_real_canary_authorization_workspace_write_sandbox_required"]),
+    ...(rollbackRequired
+      ? []
+      : ["workspace_write_real_canary_authorization_rollback_required"]),
+    ...(pushDisallowed
+      ? []
+      : ["workspace_write_real_canary_authorization_push_must_be_separate"])
+  ];
+  const uniqueReasons = uniqueStrings(reasons);
+
+  return WorkspaceWriteRealCanaryAuthorizationResultSchema.parse({
+    ok: uniqueReasons.length === 0,
+    status: uniqueReasons.length === 0 ? "authorized" : "blocked",
+    reasons: uniqueReasons,
+    summary: {
+      exactPhraseMatched,
+      workspaceMatched,
+      branchMatched,
+      fixedTargetMatched,
+      allowedActionMatched,
+      sandboxMatched,
+      rollbackRequired,
+      pushDisallowed,
+      providerExecuteCalls: 0,
+      realCodexCliCalls: 0,
+      workspaceWriteExecuteCalls: 0,
+      canaryFileWrites: 0
+    }
+  });
+}
+
 function ensureDiffFile(
   files: Map<string, WorkspaceWriteDiffFileSummary>,
   path: string
@@ -466,6 +568,11 @@ function normalizeOptionalString(value: string | undefined): string | undefined 
 
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function normalizeWorkspacePath(value: string | undefined): string | undefined {
+  const trimmed = normalizeOptionalString(value);
+  return trimmed === undefined ? undefined : trimmed.replace(/\//g, "\\").replace(/\\+$/g, "");
 }
 
 function isSafeWorkspaceRelativeFilePath(path: string): boolean {

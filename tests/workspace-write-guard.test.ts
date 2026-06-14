@@ -12,8 +12,13 @@ import {
 import { SandboxProfileSchema, type SandboxProfile } from "../packages/kernel-contracts/src/index.js";
 import {
   DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+  PR_12B_REAL_CANARY_ALLOWED_ACTION,
+  PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
+  PR_12B_REAL_CANARY_BRANCH,
+  PR_12B_REAL_CANARY_WORKSPACE,
   createWorkspaceWriteRollbackPlanEvidence,
   evaluateWorkspaceWriteCanaryReadiness,
+  evaluateWorkspaceWriteRealCanaryAuthorization,
   evaluateWorkspaceWritePatchGuard,
   inspectWorkspaceWriteUnifiedDiff
 } from "../packages/workspace-write-guard/src/index.js";
@@ -379,6 +384,102 @@ test("workspace-write canary readiness blocks non-canary targets and broad caps"
   assert.ok(readiness.reasons.includes("workspace_write_canary_readiness_diff_cap_too_large"));
   assert.equal(readiness.summary.fixedTarget, false);
   assert.equal(serialized.includes("canary=wrong-target"), false);
+});
+
+test("workspace-write real canary authorization accepts only the PR-12B exact packet", () => {
+  const authorization = evaluateWorkspaceWriteRealCanaryAuthorization({
+    authorizationPhrase: PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
+    workspace: PR_12B_REAL_CANARY_WORKSPACE,
+    branch: PR_12B_REAL_CANARY_BRANCH,
+    targetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+    allowedAction: PR_12B_REAL_CANARY_ALLOWED_ACTION,
+    sandboxMode: "workspace-write",
+    rollbackRequired: true,
+    pushAuthorized: false
+  });
+
+  assert.equal(authorization.ok, true);
+  assert.equal(authorization.status, "authorized");
+  assert.deepEqual(authorization.reasons, []);
+  assert.deepEqual(authorization.summary, {
+    exactPhraseMatched: true,
+    workspaceMatched: true,
+    branchMatched: true,
+    fixedTargetMatched: true,
+    allowedActionMatched: true,
+    sandboxMatched: true,
+    rollbackRequired: true,
+    pushDisallowed: true,
+    providerExecuteCalls: 0,
+    realCodexCliCalls: 0,
+    workspaceWriteExecuteCalls: 0,
+    canaryFileWrites: 0
+  });
+});
+
+test("workspace-write real canary authorization fails closed on missing or broadened fields", () => {
+  const authorization = evaluateWorkspaceWriteRealCanaryAuthorization({
+    authorizationPhrase: "APPROVE_WORKSPACE_WRITE",
+    workspace: "A:/other/repo",
+    branch: "release",
+    targetFile: "tmp/not-the-canary.txt",
+    allowedAction: "general workspace write",
+    sandboxMode: "danger-full-access",
+    rollbackRequired: false,
+    pushAuthorized: true
+  });
+
+  assert.equal(authorization.ok, false);
+  assert.equal(authorization.status, "blocked");
+  assert.ok(authorization.reasons.includes(
+    "workspace_write_real_canary_authorization_exact_phrase_required"
+  ));
+  assert.ok(authorization.reasons.includes(
+    "workspace_write_real_canary_authorization_workspace_mismatch"
+  ));
+  assert.ok(authorization.reasons.includes(
+    "workspace_write_real_canary_authorization_main_branch_required"
+  ));
+  assert.ok(authorization.reasons.includes(
+    "workspace_write_real_canary_authorization_fixed_target_required"
+  ));
+  assert.ok(authorization.reasons.includes(
+    "workspace_write_real_canary_authorization_bounded_action_required"
+  ));
+  assert.ok(authorization.reasons.includes(
+    "workspace_write_real_canary_authorization_workspace_write_sandbox_required"
+  ));
+  assert.ok(authorization.reasons.includes(
+    "workspace_write_real_canary_authorization_rollback_required"
+  ));
+  assert.ok(authorization.reasons.includes(
+    "workspace_write_real_canary_authorization_push_must_be_separate"
+  ));
+  assert.equal(authorization.summary.providerExecuteCalls, 0);
+  assert.equal(authorization.summary.realCodexCliCalls, 0);
+  assert.equal(authorization.summary.workspaceWriteExecuteCalls, 0);
+  assert.equal(authorization.summary.canaryFileWrites, 0);
+});
+
+test("workspace-write real canary authorization result stays sanitized", () => {
+  const authorization = evaluateWorkspaceWriteRealCanaryAuthorization({
+    authorizationPhrase: PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
+    workspace: "A:/other/repo",
+    branch: "feature/unsafe",
+    targetFile: "tmp/not-the-canary.txt",
+    allowedAction: "general unbounded write",
+    sandboxMode: "workspace-write",
+    rollbackRequired: true,
+    pushAuthorized: false
+  });
+  const serialized = JSON.stringify(authorization);
+
+  assert.equal(authorization.ok, false);
+  assert.equal(serialized.includes(PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE), false);
+  assert.equal(serialized.includes("A:/other/repo"), false);
+  assert.equal(serialized.includes("feature/unsafe"), false);
+  assert.equal(serialized.includes("tmp/not-the-canary.txt"), false);
+  assert.equal(serialized.includes("general unbounded write"), false);
 });
 
 function createSafeDiff(): string {
