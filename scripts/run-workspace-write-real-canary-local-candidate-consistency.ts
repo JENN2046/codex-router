@@ -87,6 +87,8 @@ const REQUIRED_AUDIT_FIELD_VALUES = [
   ["packageScriptTargetMismatchCount", "0"],
   ["finalAuditNoForbiddenCommands", "true"],
   ["sensitiveScanJsonContractValid", "true"],
+  ["sensitiveScanTargetCount", "14"],
+  ["sensitiveScanMarkerHitCount", "0"],
   ["noForbiddenCommands", "true"]
 ] as const;
 

@@ -105,8 +105,8 @@ Expected safe results:
 - final local audit failed commands are `0`
 - final local audit noForbiddenCommands is `true`
 - final local audit sensitiveScanJsonContractValid is `true`
-- final local audit sensitive scan target count is `14`
-- final local audit sensitive scan marker hit count is `0`
+- final local audit sensitiveScanTargetCount is `14`
+- final local audit sensitiveScanMarkerHitCount is `0`
 - candidate audit finalAuditNoForbiddenCommands is `true`
 - unexpected changed files are `0`
 - provider execute calls are `0`

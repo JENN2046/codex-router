@@ -88,6 +88,8 @@ const requiredAuditFieldValues = [
   ["packageScriptTargetMismatchCount", "0"],
   ["finalAuditNoForbiddenCommands", "true"],
   ["sensitiveScanJsonContractValid", "true"],
+  ["sensitiveScanTargetCount", "14"],
+  ["sensitiveScanMarkerHitCount", "0"],
   ["noForbiddenCommands", "true"]
 ] as const;
 
@@ -331,6 +333,8 @@ test("workspace-write real canary local candidate consistency blocks stale audit
     "- candidate audit packageScriptTargetMismatchCount: `1`",
     "- candidate audit finalAuditNoForbiddenCommands: `true`",
     "- final local audit sensitiveScanJsonContractValid: `true`",
+    "- final local audit sensitiveScanTargetCount: `14`",
+    "- final local audit sensitiveScanMarkerHitCount: `0`",
     "- final local audit noForbiddenCommands: `true`"
   ].join("\n");
 
@@ -388,6 +392,8 @@ function createGovernanceDocs(): Record<string, string> {
       "- candidate audit packageScriptTargetMismatchCount: `0`",
       "- candidate audit finalAuditNoForbiddenCommands: `true`",
       "- final local audit sensitiveScanJsonContractValid: `true`",
+      "- final local audit sensitiveScanTargetCount: `14`",
+      "- final local audit sensitiveScanMarkerHitCount: `0`",
       "- final local audit noForbiddenCommands: `true`"
     ].join("\n")])
   );

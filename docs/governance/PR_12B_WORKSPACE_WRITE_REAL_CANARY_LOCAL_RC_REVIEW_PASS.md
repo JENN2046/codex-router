@@ -52,8 +52,8 @@ Observed summarized results:
 - final local audit failed commands: `0`
 - final local audit noForbiddenCommands: `true`
 - final local audit sensitiveScanJsonContractValid: `true`
-- final local audit sensitive scan target count: `14`
-- final local audit sensitive scan marker hit count: `0`
+- final local audit sensitiveScanTargetCount: `14`
+- final local audit sensitiveScanMarkerHitCount: `0`
 - final local audit provider execute calls: `0`
 - final local audit real Codex CLI calls: `0`
 - final local audit workspace-write execute calls: `0`
@@ -95,8 +95,8 @@ Consistency checks:
 - review pass final local audit command count: `10`
 - final local audit noForbiddenCommands: `true`
 - final local audit sensitiveScanJsonContractValid: `true`
-- final local audit sensitive scan target count: `14`
-- final local audit sensitive scan marker hit count: `0`
+- final local audit sensitiveScanTargetCount: `14`
+- final local audit sensitiveScanMarkerHitCount: `0`
 - candidate audit packageScriptsPresent: `true`
 - candidate audit packageScriptTargetCount: `6`
 - candidate audit packageScriptTargetMismatchCount: `0`
