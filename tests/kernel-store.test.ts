@@ -12,15 +12,44 @@ import {
   EventSchema,
   RunSchema,
   StepSchema,
+  TaskSchema,
   type Artifact,
   type Event,
   type Run,
-  type Step
+  type Step,
+  type Task
 } from "../packages/kernel-contracts/src/index.js";
 import { validArtifact } from "../packages/kernel-contracts/test-fixtures/valid-artifact.js";
 import { validEvent } from "../packages/kernel-contracts/test-fixtures/valid-event.js";
 import { validRun } from "../packages/kernel-contracts/test-fixtures/valid-run.js";
 import { validStep } from "../packages/kernel-contracts/test-fixtures/valid-step.js";
+import { validTask } from "../packages/kernel-contracts/test-fixtures/valid-task.js";
+
+test("kernel store supports task CRUD and filters", () => {
+  const store = new InMemoryKernelStore();
+  const firstTask = createTask();
+  const createdByPrincipalId = firstTask.createdBy?.principalId;
+  const secondTask = createTask({
+    taskId: "task_kernel_store_002",
+    source: "cli"
+  });
+  assert.ok(createdByPrincipalId);
+
+  assert.deepEqual(store.createTask(firstTask), firstTask);
+  assert.deepEqual(store.getTask(firstTask.taskId), firstTask);
+  assert.equal(store.getTask("missing_task"), undefined);
+
+  store.createTask(secondTask);
+
+  assert.deepEqual(
+    store.listTasks({ source: "api" }).map((task) => task.taskId),
+    [firstTask.taskId]
+  );
+  assert.deepEqual(
+    store.listTasks({ createdByPrincipalId }).map((task) => task.taskId),
+    [firstTask.taskId, secondTask.taskId]
+  );
+});
 
 test("kernel store supports run CRUD and filters", () => {
   const store = new InMemoryKernelStore();
@@ -171,10 +200,14 @@ test("kernel store supports artifact CRUD and filters", () => {
 
 test("kernel store rejects duplicate ids", () => {
   const store = new InMemoryKernelStore();
+  const task = createTask();
   const run = createRun();
   const step = createStep();
   const event = createEvent();
   const artifact = createArtifact();
+
+  store.createTask(task);
+  assert.throws(() => store.createTask(task), /duplicate_task_id/);
 
   store.createRun(run);
   assert.throws(() => store.createRun(run), /duplicate_run_id/);
@@ -211,6 +244,7 @@ test("file kernel store persists runs, steps, events, and artifacts across insta
   const baseDir = await createKernelStoreTempDir();
   try {
     const first = new FileSystemKernelStore({ baseDir });
+    const task = first.createTask(createTask());
     const run = first.createRun(createRun());
     const step = first.createStep(createStep({ runId: run.runId }));
     const firstEvent = first.appendEvent(createEvent({
@@ -237,6 +271,11 @@ test("file kernel store persists runs, steps, events, and artifacts across insta
 
     const second = new FileSystemKernelStore({ baseDir });
 
+    assert.deepEqual(second.getTask(task.taskId), task);
+    assert.deepEqual(
+      second.listTasks({ source: "api" }).map((item) => item.taskId),
+      [task.taskId]
+    );
     assert.equal(second.getRun(run.runId)?.status, "running");
     assert.equal(second.getStep(step.stepId)?.status, "running");
     assert.deepEqual(
@@ -261,6 +300,7 @@ test("file kernel store rejects duplicate ids after reload", async () => {
   const baseDir = await createKernelStoreTempDir();
   try {
     const first = new FileSystemKernelStore({ baseDir });
+    const task = first.createTask(createTask());
     const run = first.createRun(createRun());
     const step = first.createStep(createStep({ runId: run.runId }));
     const event = first.appendEvent(createEvent());
@@ -268,6 +308,7 @@ test("file kernel store rejects duplicate ids after reload", async () => {
 
     const second = new FileSystemKernelStore({ baseDir });
 
+    assert.throws(() => second.createTask(task), /duplicate_task_id/);
     assert.throws(() => second.createRun(run), /duplicate_run_id/);
     assert.throws(() => second.createStep(step), /duplicate_step_id/);
     assert.throws(() => second.appendEvent(event), /duplicate_event_id/);
@@ -360,6 +401,26 @@ function createRun(overrides: Partial<Run> = {}): Run {
     status: "queued",
     createdAt: "2026-06-04T00:00:00.000Z",
     updatedAt: "2026-06-04T00:00:00.000Z",
+    ...overrides
+  });
+}
+
+function createTask(overrides: Partial<Task> = {}): Task {
+  return TaskSchema.parse({
+    ...validTask,
+    taskId: "task_kernel_store_001",
+    source: "api",
+    title: "Kernel store task fixture",
+    requestedAction: "Read kernel store fixture state.",
+    successCriteria: ["task is persisted"],
+    outOfScope: [],
+    intent: {
+      summary: "Kernel store task fixture",
+      requestedAction: "Read kernel store fixture state.",
+      successCriteria: ["task is persisted"],
+      outOfScope: []
+    },
+    createdAt: "2026-06-04T00:00:00.000Z",
     ...overrides
   });
 }

@@ -122,7 +122,10 @@ test("Agent OS MCP local runtime creates a governed run and provider plan withou
   assert.equal(result.audit.localMutationApplied, true);
   assert.equal(typeof providerPlanId, "string");
 
+  const storedTask = kernelStore.getTask(taskId);
   const storedRun = kernelStore.getRun(runId);
+  assert.equal(storedTask?.taskId, taskId);
+  assert.equal(storedTask?.requestedAction, "Create a task through the local MCP wrapper.");
   assert.equal(storedRun?.taskId, taskId);
   assert.equal(storedRun?.policyDecisionId, policyDecision.decisionId);
   assert.equal(planStore.getPlan(String(providerPlanId))?.providerId, "codex-cli");
@@ -151,6 +154,73 @@ test("Agent OS MCP local runtime creates a governed run and provider plan withou
   assert.deepEqual(
     (searchEvents.output.events as Array<{ eventType: string }>).map((event) => event.eventType),
     ["kernel.public_surface.mcp.create_task"]
+  );
+});
+
+test("Agent OS MCP local runtime consumes approval permits into a planned provider plan", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    providerExecutionPlanStore: planStore,
+    approvalPermitStore: permitStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createWaitingEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "approval.issue"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.approve_run"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli",
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId,
+    createPermitId: () => "permit_agentos_mcp_runtime_consumed"
+  });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Create governed task",
+      requestedAction: "Create a run that waits for approval."
+    }
+  });
+  assert.equal(create.status, "succeeded");
+  assert.equal(create.output.providerPlanStatus, "waiting_approval");
+  assert.equal(planStore.listPlans({ runId }).length, 1);
+
+  const approve = runtime.handleToolCall({
+    toolName: "agentos.approve_run",
+    input: {
+      runId,
+      capabilityScopes: ["fs.read:workspace/**"],
+      reason: "review approval"
+    }
+  });
+
+  const plans = planStore.listPlans({ runId });
+  const latestPlan = plans.at(-1);
+  assert.equal(approve.status, "succeeded");
+  assert.equal(approve.output.consumedProviderPlanId, latestPlan?.planId);
+  assert.deepEqual(approve.output.approvalConsumptionReasons, [
+    "approval_permit_consumed"
+  ]);
+  assert.equal(plans.length, 2);
+  assert.equal(plans[0]?.status, "waiting_approval");
+  assert.equal(latestPlan?.status, "planned");
+  assert.ok(latestPlan?.reasons.includes("valid_approval_permit"));
+  assert.equal(approve.audit.realProviderExecutionInvoked, false);
+  assert.deepEqual(
+    kernelStore.listEvents({ runId }).map((event) => event.eventType),
+    [
+      "kernel.run.created",
+      "kernel.public_surface.mcp.create_task",
+      "kernel.approval.permit.issued",
+      "kernel.approval.permit.consumed"
+    ]
   );
 });
 
@@ -857,6 +927,22 @@ function createEligibility(policyDecision: PolicyDecision) {
     reasons: ["capability_grants_satisfied"],
     missingCapabilities: [],
     requiredApprovals: [],
+    acceptedPermits: [],
+    rejectedPermits: [],
+    createdAt: now
+  };
+}
+
+function createWaitingEligibility(policyDecision: PolicyDecision) {
+  const missingScope = "fs.read:workspace/docs/report.md";
+  return {
+    status: "waiting_approval" as const,
+    taskId,
+    runId,
+    policyDecisionHash: hashApprovalScope(policyDecision),
+    reasons: ["missing_capability"],
+    missingCapabilities: [missingScope],
+    requiredApprovals: [`approval:${missingScope}`],
     acceptedPermits: [],
     rejectedPermits: [],
     createdAt: now

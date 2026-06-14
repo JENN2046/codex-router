@@ -26,6 +26,9 @@ import {
   type ApprovalPermitStore
 } from "../../approval-permit/src/index.js";
 import {
+  evaluateExecutionEligibilityWithPermitStore
+} from "../../execution-eligibility/src/index.js";
+import {
   capabilityImplies
 } from "../../capability/src/index.js";
 import type { ProviderRegistry } from "../../provider-registry/src/index.js";
@@ -293,6 +296,12 @@ export class AgentOsMcpLocalRuntime {
       requestedAction: input.requestedAction,
       successCriteria: input.successCriteria,
       outOfScope: input.outOfScope,
+      intent: {
+        summary: input.title,
+        requestedAction: input.requestedAction,
+        successCriteria: input.successCriteria,
+        outOfScope: input.outOfScope
+      },
       createdBy: principal,
       repo: {
         ...(input.repoRoot ? { root: input.repoRoot } : {}),
@@ -319,6 +328,7 @@ export class AgentOsMcpLocalRuntime {
       createdAt
     });
     const policyDecision = this.resolvePolicyDecision(call);
+    this.kernelStore.createTask(task);
     const manager = new RunManager({
       store: this.kernelStore,
       now: this.now
@@ -589,16 +599,111 @@ export class AgentOsMcpLocalRuntime {
       planHash,
       capabilityScopes: [...savedPermit.capabilityScopes]
     });
+    const consumption = this.maybeConsumeApprovalPermit({
+      run,
+      call,
+      permitStore,
+      plan,
+      consumedAt: createdAt
+    });
 
     return this.createResult("agentos.approve_run", [], {
       permitId: savedPermit.permitId,
       runId: savedPermit.runId,
-      expiresAt: savedPermit.expiresAt
+      expiresAt: savedPermit.expiresAt,
+      ...(consumption.plan !== undefined ? {
+        consumedProviderPlanId: consumption.plan.planId
+      } : {}),
+      ...(consumption.reasons.length > 0 ? {
+        approvalConsumptionReasons: consumption.reasons
+      } : {})
     }, {
       localMutationAttempted: true,
       localMutationApplied: true,
       gate
     });
+  }
+
+  private maybeConsumeApprovalPermit(input: {
+    run: Run;
+    call: AgentOsMcpLocalToolCall;
+    permitStore: ApprovalPermitStore;
+    plan: ProviderExecutionPlan;
+    consumedAt: string;
+  }): {
+    plan?: ProviderExecutionPlan;
+    reasons: string[];
+  } {
+    if (input.plan.status !== "waiting_approval") {
+      return {
+        reasons: []
+      };
+    }
+
+    const task = this.kernelStore.getTask(input.run.taskId);
+    const policyDecision = this.resolvePolicyDecision(input.call);
+    const providerRegistry = this.providerRegistry;
+    const providerExecutionPlanStore = this.providerExecutionPlanStore;
+
+    if (
+      task === undefined
+      || policyDecision === undefined
+      || providerRegistry === undefined
+      || providerExecutionPlanStore === undefined
+    ) {
+      return {
+        reasons: ["approval_permit_consumption_context_missing"]
+      };
+    }
+
+    const principal = this.resolvePrincipal(input.call);
+    const executionEligibility = evaluateExecutionEligibilityWithPermitStore({
+      task,
+      run: input.run,
+      principal,
+      policyDecision,
+      capabilityGrants: [],
+      requestedScopes: input.plan.requiredCapabilities,
+      planHash: hashApprovalScope(input.plan),
+      now: input.consumedAt,
+      approvalPermitStore: input.permitStore
+    });
+
+    if (executionEligibility.status !== "eligible") {
+      return {
+        reasons: [
+          `approval_permit_consumption_not_eligible:${executionEligibility.status}`
+        ]
+      };
+    }
+
+    const plan = planProviderExecution({
+      task,
+      run: input.run,
+      principal,
+      policyDecision,
+      executionEligibility,
+      providerRegistry,
+      preferredProviderId: input.plan.providerId,
+      now: input.consumedAt
+    });
+    providerExecutionPlanStore.savePlan(plan);
+
+    this.appendRuntimeEvent("kernel.approval.permit.consumed", input.run, {
+      publicSurface: this.publicSurface,
+      toolName: "agentos.approve_run",
+      providerPlanId: plan.planId,
+      previousProviderPlanId: input.plan.planId,
+      acceptedPermits: [...executionEligibility.acceptedPermits],
+      rejectedPermits: [...executionEligibility.rejectedPermits],
+      eligibilityStatus: executionEligibility.status,
+      providerPlanStatus: plan.status
+    });
+
+    return {
+      plan,
+      reasons: ["approval_permit_consumed"]
+    };
   }
 
   private handleListArtifacts(

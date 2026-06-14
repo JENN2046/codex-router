@@ -16,10 +16,12 @@ import {
   EventSchema,
   RunSchema,
   StepSchema,
+  TaskSchema,
   type Artifact,
   type Event,
   type Run,
-  type Step
+  type Step,
+  type Task
 } from "../../kernel-contracts/src/index.js";
 
 export * from "./jsonl-event-log.js";
@@ -29,6 +31,12 @@ export type KernelRunFilter = {
   runId?: string;
   status?: Run["status"];
   type?: string;
+};
+
+export type KernelTaskFilter = {
+  taskId?: string;
+  source?: Task["source"];
+  createdByPrincipalId?: string;
 };
 
 export type KernelStepFilter = {
@@ -64,6 +72,9 @@ export type FileSystemKernelStoreOptions = {
 };
 
 export interface KernelStore {
+  createTask(task: Task): Task;
+  getTask(taskId: string): Task | undefined;
+  listTasks(filter?: KernelTaskFilter): Task[];
   createRun(run: Run): Run;
   getRun(runId: string): Run | undefined;
   updateRun(runId: string, patch: RunPatch): Run;
@@ -81,11 +92,13 @@ export interface KernelStore {
 
 const FileSystemKernelStoreStateSchema = z.object({
   schemaVersion: z.literal("kernel-store-state.v1"),
+  tasks: z.array(TaskSchema).default([]),
   runs: z.array(RunSchema),
   steps: z.array(StepSchema),
   events: z.array(EventSchema),
   artifacts: z.array(ArtifactSchema)
 }).superRefine((state, ctx) => {
+  addDuplicateIssues(ctx, "tasks", state.tasks.map((task) => task.taskId), "task");
   addDuplicateIssues(ctx, "runs", state.runs.map((run) => run.runId), "run");
   addDuplicateIssues(ctx, "steps", state.steps.map((step) => step.stepId), "step");
   addDuplicateIssues(ctx, "events", state.events.map((event) => event.eventId), "event");
@@ -113,11 +126,30 @@ const defaultLockRetryDelayMs = 10;
 const defaultLockStaleMs = 30_000;
 
 export class InMemoryKernelStore implements KernelStore {
+  private readonly tasks = new Map<string, Task>();
   private readonly runs = new Map<string, Run>();
   private readonly steps = new Map<string, Step>();
   private readonly events: Event[] = [];
   private readonly eventIds = new Set<string>();
   private readonly artifacts = new Map<string, Artifact>();
+
+  createTask(task: Task): Task {
+    const parsed = TaskSchema.parse(task);
+    rejectDuplicate(this.tasks, parsed.taskId, "task");
+    this.tasks.set(parsed.taskId, cloneTask(parsed));
+    return cloneTask(parsed);
+  }
+
+  getTask(taskId: string): Task | undefined {
+    const task = this.tasks.get(taskId);
+    return task ? cloneTask(task) : undefined;
+  }
+
+  listTasks(filter: KernelTaskFilter = {}): Task[] {
+    return [...this.tasks.values()]
+      .filter((task) => matchesTask(task, filter))
+      .map(cloneTask);
+  }
 
   createRun(run: Run): Run {
     const parsed = RunSchema.parse(run);
@@ -245,6 +277,26 @@ export class FileSystemKernelStore implements KernelStore {
     this.lockTimeoutMs = options.lockTimeoutMs ?? defaultLockTimeoutMs;
     this.lockRetryDelayMs = options.lockRetryDelayMs ?? defaultLockRetryDelayMs;
     this.lockStaleMs = options.lockStaleMs ?? defaultLockStaleMs;
+  }
+
+  createTask(task: Task): Task {
+    return this.withStateMutation((state) => {
+      const parsed = TaskSchema.parse(task);
+      rejectDuplicateId(state.tasks.map((item) => item.taskId), parsed.taskId, "task");
+      state.tasks.push(cloneTask(parsed));
+      return cloneTask(parsed);
+    });
+  }
+
+  getTask(taskId: string): Task | undefined {
+    const task = this.readState().tasks.find((item) => item.taskId === taskId);
+    return task ? cloneTask(task) : undefined;
+  }
+
+  listTasks(filter: KernelTaskFilter = {}): Task[] {
+    return this.readState().tasks
+      .filter((task) => matchesTask(task, filter))
+      .map(cloneTask);
   }
 
   createRun(run: Run): Run {
@@ -503,7 +555,7 @@ export function createFileSystemKernelStore(
 function rejectDuplicate<T>(
   map: Map<string, T>,
   id: string,
-  kind: "run" | "step" | "artifact"
+  kind: "task" | "run" | "step" | "artifact"
 ): void {
   if (map.has(id)) {
     throw new Error(`duplicate_${kind}_id:${id}`);
@@ -513,7 +565,7 @@ function rejectDuplicate<T>(
 function rejectDuplicateId(
   values: string[],
   id: string,
-  kind: "run" | "step" | "event" | "artifact"
+  kind: "task" | "run" | "step" | "event" | "artifact"
 ): void {
   if (values.includes(id)) {
     throw new Error(`duplicate_${kind}_id:${id}`);
@@ -523,6 +575,7 @@ function rejectDuplicateId(
 function createEmptyFileSystemKernelStoreState(): FileSystemKernelStoreState {
   return {
     schemaVersion: "kernel-store-state.v1",
+    tasks: [],
     runs: [],
     steps: [],
     events: [],
@@ -630,6 +683,12 @@ function addDuplicateIssues(
   }
 }
 
+function matchesTask(task: Task, filter: KernelTaskFilter): boolean {
+  return matchesOptional(filter.taskId, task.taskId)
+    && matchesOptional(filter.source, task.source)
+    && matchesOptional(filter.createdByPrincipalId, task.createdBy?.principalId);
+}
+
 function matchesRun(run: Run, filter: KernelRunFilter): boolean {
   return matchesOptional(filter.taskId, run.taskId)
     && matchesOptional(filter.runId, run.runId)
@@ -657,6 +716,10 @@ function matchesArtifact(artifact: Artifact, filter: KernelArtifactFilter): bool
 
 function matchesOptional<T>(expected: T | undefined, actual: T | undefined): boolean {
   return expected === undefined || actual === expected;
+}
+
+function cloneTask(task: Task): Task {
+  return TaskSchema.parse(structuredClone(task));
 }
 
 function cloneRun(run: Run): Run {
