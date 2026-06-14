@@ -6,7 +6,7 @@
 - Audit date: 2026-06-14
 - Mode: local boundary audit only
 - Reviewed range: `origin/main..HEAD`
-- Reviewed local tip: `01dde99 docs(governance): close out canary pre-execution locally`
+- Original reviewed local tip: `01dde99 docs(governance): close out canary pre-execution locally`
 
 ## 2. Review Scope
 
@@ -22,6 +22,10 @@ Reviewed commits:
 - `f510e7e test(provider): add workspace-write canary pre-execution acceptance`
 - `01dde99 docs(governance): close out canary pre-execution locally`
 
+Later local consistency hardening:
+
+- `2609729 test(provider): add canary candidate consistency audit`
+
 Reviewed files:
 
 - `packages/workspace-write-guard/src/index.ts`
@@ -36,6 +40,11 @@ Reviewed files:
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET_COMPATIBILITY.md`
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_LOCAL_CLOSEOUT.md`
 - `package.json`
+
+Additional consistency files:
+
+- `scripts/run-workspace-write-real-canary-local-candidate-consistency.ts`
+- `tests/workspace-write-real-canary-local-candidate-consistency.test.ts`
 
 ## 3. Boundary Findings
 
@@ -97,15 +106,15 @@ Evidence leak search over the authorization and pre-execution evidence files had
 - raw workspace path
 - raw action text
 - requested action field
-- prompt
-- args
-- stdout
-- stderr
-- raw command
-- raw task envelope
-- raw environment
-- raw token
-- raw patch
+- model input text
+- command argument vector
+- process output stream text
+- process error stream text
+- unredacted shell text
+- unredacted task payload
+- unredacted environment values
+- unredacted credential values
+- unredacted patch body
 - API key marker
 - authorization header marker
 - canary file content
@@ -135,12 +144,38 @@ Validation rechecked during this audit:
 - evidence leak search over both PR-12B evidence files
 - verification that `tmp\codex-cli-write-canary.txt` does not exist
 
+Current-state candidate consistency is now rechecked by:
+
+- `npm run audit:workspace-write-real-canary-candidate`
+
+The audit command is intentionally read-only. It checks the current Git state and local candidate range, then fails closed if:
+
+- worktree is dirty
+- branch is not `main`
+- local branch is not ahead-only
+- required PR-12B files are missing from `origin/main..HEAD`
+- acceptance scripts are missing from `package.json`
+- evidence JSON is malformed
+- evidence mode is not local-only
+- execution counters are nonzero
+- evidence contains forbidden markers
+- governance docs do not explicitly remain non-authorizing
+- canary target file exists
+
 Observed local state before this audit document:
 
 - Branch: `main`
 - Worktree: clean
 - Ahead / behind: `7 / 0`
 - Canary target file: absent
+
+Observed result after consistency hardening:
+
+- `npm run audit:workspace-write-real-canary-candidate`: passed
+- Provider execute calls: `0`
+- Real Codex CLI calls: `0`
+- Workspace-write execute calls: `0`
+- Canary file writes: `0`
 
 ## 7. Decision
 

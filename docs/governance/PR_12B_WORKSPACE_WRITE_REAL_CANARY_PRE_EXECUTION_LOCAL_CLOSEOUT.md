@@ -6,7 +6,7 @@
 - Audit date: 2026-06-14
 - Mode: local pre-execution closeout
 - Base: `e63b672 docs(governance): review workspace-write real canary taskbook`
-- Local candidate tip: `f510e7e test(provider): add workspace-write canary pre-execution acceptance`
+- Original pre-execution acceptance tip: `f510e7e test(provider): add workspace-write canary pre-execution acceptance`
 
 ## 2. Scope
 
@@ -23,6 +23,11 @@ Changed local commits in this stage:
 - `c17936d feat(provider): gate workspace-write canary pre-execution`
 - `f510e7e test(provider): add workspace-write canary pre-execution acceptance`
 
+Later local consistency hardening for this stage:
+
+- `135738d docs(governance): audit canary pre-execution boundary`
+- `2609729 test(provider): add canary candidate consistency audit`
+
 Changed files in the pre-execution gate and acceptance layer:
 
 - `packages/workspace-write-guard/src/index.ts`
@@ -31,6 +36,12 @@ Changed files in the pre-execution gate and acceptance layer:
 - `tests/workspace-write-real-canary-pre-execution-acceptance.test.ts`
 - `docs/evidence/workspace-write-real-canary-pre-execution-acceptance.json`
 - `package.json`
+
+Additional local consistency files:
+
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_BOUNDARY_AUDIT.md`
+- `scripts/run-workspace-write-real-canary-local-candidate-consistency.ts`
+- `tests/workspace-write-real-canary-local-candidate-consistency.test.ts`
 
 ## 3. Boundary Confirmed
 
@@ -114,12 +125,29 @@ Validation run for this local stage:
 - `git diff --cached --check`
 - verification that `tmp\codex-cli-write-canary.txt` does not exist
 
+Current local candidate consistency should be checked with:
+
+- `npm run audit:workspace-write-real-canary-candidate`
+
+This command is the current-state check for:
+
+- clean worktree
+- `main` branch
+- local-ahead-only candidate
+- required PR-12B files present in `origin/main..HEAD`
+- local-only evidence modes
+- zero provider / Codex CLI / workspace-write / canary-write counters
+- sanitized evidence
+- non-authorizing governance docs
+- absent canary target file
+
 Observed result:
 
 - pre-execution acceptance tests passed: `2 / 2`
 - workspace-write guard tests passed: `18 / 18`
 - authorization acceptance tests passed: `2 / 2`
 - full test suite passed: `852 / 852`
+- latest candidate consistency audit passed after `2609729`
 
 ## 7. Result
 
