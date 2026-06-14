@@ -131,6 +131,27 @@ export const WorkspaceWriteRealCanaryAuthorizationResultSchema = z.object({
   })
 });
 
+export const WorkspaceWriteRealCanaryPreExecutionGateResultSchema = z.object({
+  ok: z.boolean(),
+  status: z.enum(["ready", "blocked"]),
+  reasons: z.array(z.string()),
+  summary: z.object({
+    targetFile: z.string().min(1),
+    authorizationAccepted: z.boolean(),
+    canaryReadinessReady: z.boolean(),
+    canaryFileAbsent: z.boolean(),
+    fixedTargetMatched: z.boolean(),
+    branchMatched: z.boolean(),
+    workspaceMatched: z.boolean(),
+    pushDisallowed: z.boolean(),
+    rollbackReady: z.boolean(),
+    providerExecuteCalls: z.literal(0),
+    realCodexCliCalls: z.literal(0),
+    workspaceWriteExecuteCalls: z.literal(0),
+    canaryFileWrites: z.literal(0)
+  })
+});
+
 export type WorkspaceWriteDiffFileSummary = z.infer<typeof WorkspaceWriteDiffFileSummarySchema>;
 export type WorkspaceWriteDiffInspection = z.infer<typeof WorkspaceWriteDiffInspectionSchema>;
 export type WorkspaceWritePatchGuardResult = z.infer<typeof WorkspaceWritePatchGuardResultSchema>;
@@ -142,6 +163,9 @@ export type WorkspaceWriteCanaryReadinessResult = z.infer<
 >;
 export type WorkspaceWriteRealCanaryAuthorizationResult = z.infer<
   typeof WorkspaceWriteRealCanaryAuthorizationResultSchema
+>;
+export type WorkspaceWriteRealCanaryPreExecutionGateResult = z.infer<
+  typeof WorkspaceWriteRealCanaryPreExecutionGateResultSchema
 >;
 
 export type WorkspaceWritePatchGuardInput = {
@@ -174,6 +198,12 @@ export type WorkspaceWriteRealCanaryAuthorizationInput = {
   sandboxMode?: string;
   rollbackRequired?: boolean;
   pushAuthorized?: boolean;
+};
+
+export type WorkspaceWriteRealCanaryPreExecutionGateInput = {
+  authorization: WorkspaceWriteRealCanaryAuthorizationResult;
+  readiness: WorkspaceWriteCanaryReadinessResult;
+  canaryFileExists: boolean;
 };
 
 export function inspectWorkspaceWriteUnifiedDiff(unifiedDiff: string): WorkspaceWriteDiffInspection {
@@ -488,6 +518,54 @@ export function evaluateWorkspaceWriteRealCanaryAuthorization(
       sandboxMatched,
       rollbackRequired,
       pushDisallowed,
+      providerExecuteCalls: 0,
+      realCodexCliCalls: 0,
+      workspaceWriteExecuteCalls: 0,
+      canaryFileWrites: 0
+    }
+  });
+}
+
+export function evaluateWorkspaceWriteRealCanaryPreExecutionGate(
+  input: WorkspaceWriteRealCanaryPreExecutionGateInput
+): WorkspaceWriteRealCanaryPreExecutionGateResult {
+  const authorization = WorkspaceWriteRealCanaryAuthorizationResultSchema.parse(input.authorization);
+  const readiness = WorkspaceWriteCanaryReadinessResultSchema.parse(input.readiness);
+  const canaryFileAbsent = !input.canaryFileExists;
+  const reasons = [
+    ...(authorization.ok
+      ? []
+      : [
+          "workspace_write_real_canary_pre_execution_authorization_blocked",
+          ...authorization.reasons
+        ]),
+    ...(readiness.ok
+      ? []
+      : [
+          "workspace_write_real_canary_pre_execution_readiness_blocked",
+          ...readiness.reasons
+        ]),
+    ...(canaryFileAbsent
+      ? []
+      : ["workspace_write_real_canary_pre_execution_canary_file_must_be_absent"])
+  ];
+  const uniqueReasons = uniqueStrings(reasons);
+
+  return WorkspaceWriteRealCanaryPreExecutionGateResultSchema.parse({
+    ok: uniqueReasons.length === 0,
+    status: uniqueReasons.length === 0 ? "ready" : "blocked",
+    reasons: uniqueReasons,
+    summary: {
+      targetFile: readiness.summary.targetFile,
+      authorizationAccepted: authorization.ok,
+      canaryReadinessReady: readiness.ok,
+      canaryFileAbsent,
+      fixedTargetMatched: authorization.summary.fixedTargetMatched
+        && readiness.summary.fixedTarget,
+      branchMatched: authorization.summary.branchMatched,
+      workspaceMatched: authorization.summary.workspaceMatched,
+      pushDisallowed: authorization.summary.pushDisallowed,
+      rollbackReady: readiness.summary.rollbackReady,
       providerExecuteCalls: 0,
       realCodexCliCalls: 0,
       workspaceWriteExecuteCalls: 0,
