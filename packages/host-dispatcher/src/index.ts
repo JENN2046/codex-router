@@ -46,6 +46,7 @@ export interface ReadOnlyProviderDispatchInput {
   plan: ExecutorExecutionPlan;
   now: string;
   dryRun?: boolean;
+  providerExecutionMetadata?: Record<string, unknown>;
 }
 
 export interface ReadOnlyProviderDispatchResult {
@@ -80,6 +81,7 @@ export interface ReadOnlyRunnerProviderDispatchInput {
   providerRegistry?: ProviderRegistry;
   now: string;
   dryRun?: boolean;
+  providerExecutionMetadata?: Record<string, unknown>;
 }
 
 export async function dispatchToHost(
@@ -175,9 +177,12 @@ export async function dispatchReadOnlyProviderPlan(
     );
   }
 
-  const execution = await input.provider.execute(plan, input.dryRun === true
-    ? { dryRun: true }
-    : { permit });
+  const execution = await input.provider.execute(plan, {
+    ...(input.dryRun === true ? { dryRun: true } : { permit }),
+    ...(input.providerExecutionMetadata !== undefined
+      ? { metadata: input.providerExecutionMetadata }
+      : {})
+  });
 
   return createReadOnlyProviderDispatchExecutionResult(plan, permit, execution);
 }
@@ -219,7 +224,10 @@ export async function dispatchReadOnlyRunnerResultToProvider(
     provider: input.provider,
     plan,
     now: input.now,
-    ...(input.dryRun === true ? { dryRun: true } : {})
+    ...(input.dryRun === true ? { dryRun: true } : {}),
+    ...(input.providerExecutionMetadata !== undefined
+      ? { providerExecutionMetadata: input.providerExecutionMetadata }
+      : {})
   });
 
   return {

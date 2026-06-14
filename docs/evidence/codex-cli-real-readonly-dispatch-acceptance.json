@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "codex-cli-real-readonly-dispatch-acceptance.v1",
+  "generatedAt": "2026-06-14T00:00:00.000Z",
+  "mode": "real-readonly-provider-dispatch-fake",
+  "taskId": "codex-cli-real-readonly-dispatch-acceptance",
+  "checks": {
+    "runnerReady": true,
+    "registrySelectionOk": true,
+    "realModeGuardProvided": true,
+    "permitIssued": true,
+    "dispatchOk": true,
+    "fakeSpawnerUsed": true,
+    "guardMissingBlocked": true,
+    "registryMismatchBlocked": true,
+    "workspaceWriteBlocked": true,
+    "noRealCodexCli": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "providerId": "codex-cli",
+    "manifestHash": "fb6c7a17b6da1986983a06a3c8e7d4fc2992674baab0ce84ee5816b988b4012b",
+    "sideEffectClass": "read_only",
+    "sandbox": "read-only",
+    "status": "completed",
+    "eventCount": 1,
+    "parseErrorCount": 0,
+    "warningCount": 0,
+    "timedOut": false,
+    "killed": false
+  },
+  "counters": {
+    "successSpawnCalls": 1,
+    "guardMissingSpawnCalls": 0,
+    "registryMismatchSpawnCalls": 0,
+    "workspaceWriteSpawnCalls": 0
+  },
+  "blockingReasons": [
+    "codex_cli_provider_real_execute_guard_missing",
+    "codex_cli_provider_real_execute_registry_manifest_mismatch",
+    "runner_result_tool_access_not_read_only",
+    "runner_result_provider_grant_side_effect_not_read_only",
+    "runner_result_provider_grant_sandbox_not_read_only"
+  ]
+}

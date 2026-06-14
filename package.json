@@ -14,6 +14,7 @@
     "acceptance:readonly-chain": "tsx scripts/run-readonly-control-chain-acceptance.ts",
     "acceptance:provider-registry": "tsx scripts/run-provider-registry-selection-acceptance.ts",
     "acceptance:policy-registry-selection": "tsx scripts/run-policy-registry-selection-acceptance.ts",
+    "acceptance:real-readonly-dispatch": "tsx scripts/run-real-readonly-dispatch-acceptance.ts",
     "preflight:codex-cli-env": "tsx scripts/run-codex-cli-environment-preflight.ts",
     "smoke:contract": "tsx scripts/run-codex-cli-contract-smoke.ts",
     "smoke:readonly:real": "tsx scripts/run-codex-cli-real-readonly-smoke.ts",
