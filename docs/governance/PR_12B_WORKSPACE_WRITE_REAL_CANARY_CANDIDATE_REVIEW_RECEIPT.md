@@ -8,6 +8,7 @@ It is intentionally not a point-in-time push receipt. It does not rely on a fixe
 
 Current state must be rechecked with:
 
+- `npm run audit:workspace-write-real-canary-final-local`
 - `npm run audit:workspace-write-real-canary-candidate`
 - `npm run audit:workspace-write-real-canary-candidate -- --json`
 
@@ -25,11 +26,24 @@ The candidate remains limited to:
 
 ## 3. Required Dynamic Review
 
-The dynamic audit command is the authoritative local consistency check.
+The final local audit command is the authoritative local review entry point.
 
-It must pass before treating the local candidate as internally consistent.
+It must pass before treating the local candidate as internally consistent:
 
-The command checks:
+- `npm run audit:workspace-write-real-canary-final-local`
+
+The final local audit runs the fixed PR-12B validation set:
+
+- `npm run typecheck`
+- `npx tsx --test tests\workspace-write-guard.test.ts`
+- `npx tsx --test tests\workspace-write-real-canary-authorization-acceptance.test.ts`
+- `npx tsx --test tests\workspace-write-real-canary-pre-execution-acceptance.test.ts`
+- `npx tsx --test tests\workspace-write-real-canary-local-candidate-consistency.test.ts`
+- `npm run acceptance:workspace-write-real-canary-auth`
+- `npm run acceptance:workspace-write-real-canary-pre-execution`
+- `npm run audit:workspace-write-real-canary-candidate -- --json`
+
+The candidate consistency audit checks:
 
 - worktree is clean
 - branch is `main`
@@ -45,6 +59,16 @@ The command checks:
 - fixed canary target file is absent
 
 ## 4. Expected Safe Output
+
+Expected safe final local audit properties:
+
+- `status`: `passed`
+- commands: `8`
+- failed commands: `0`
+- canary file absent: `true`
+- provider execute calls: `0`
+- real Codex CLI calls: `0`
+- workspace-write execute calls: `0`
 
 Expected safe text audit properties:
 
