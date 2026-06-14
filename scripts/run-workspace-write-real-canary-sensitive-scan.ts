@@ -7,6 +7,9 @@ import { pathToFileURL } from "node:url";
 export const WORKSPACE_WRITE_REAL_CANARY_SENSITIVE_SCAN_TARGETS = [
   "docs/evidence/workspace-write-real-canary-authorization-acceptance.json",
   "docs/evidence/workspace-write-real-canary-pre-execution-acceptance.json",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_TASKBOOK.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_TASKBOOK_REVIEW.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_TASKBOOK_LOCAL_CLOSEOUT.md",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_LOCAL_CLOSEOUT.md",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET_COMPATIBILITY.md",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_LOCAL_CLOSEOUT.md",

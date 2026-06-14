@@ -72,6 +72,9 @@ Sensitive marker scan targets:
 
 - `docs/evidence/workspace-write-real-canary-authorization-acceptance.json`
 - `docs/evidence/workspace-write-real-canary-pre-execution-acceptance.json`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_TASKBOOK.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_TASKBOOK_REVIEW.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_TASKBOOK_LOCAL_CLOSEOUT.md`
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_LOCAL_CLOSEOUT.md`
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET_COMPATIBILITY.md`
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_LOCAL_CLOSEOUT.md`
@@ -97,7 +100,7 @@ Expected safe results:
 - final local audit status is `passed`
 - sensitive marker scan status is `passed`
 - sensitive marker scan marker hits are `0`
-- sensitive marker scan target count is `11`
+- sensitive marker scan target count is `14`
 - final local audit commands are `10`
 - final local audit failed commands are `0`
 - final local audit noForbiddenCommands is `true`

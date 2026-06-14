@@ -22,6 +22,12 @@ const forbiddenMarkers = [
   "Bearer"
 ];
 
+const taskbookBoundaryTargets = [
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_TASKBOOK.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_TASKBOOK_REVIEW.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_TASKBOOK_LOCAL_CLOSEOUT.md"
+] as const;
+
 test("workspace-write real canary sensitive scan passes sanitized targets", () => {
   const result = reviewWorkspaceWriteRealCanarySensitiveScan(createInput());
 
@@ -35,6 +41,16 @@ test("workspace-write real canary sensitive scan passes sanitized targets", () =
   assert.equal(result.summary.leakingTargetCount, 0);
   assert.equal(result.summary.markerHitCount, 0);
   assert.deepEqual(result.reasons, []);
+});
+
+test("workspace-write real canary sensitive scan covers taskbook boundary docs", () => {
+  for (const target of taskbookBoundaryTargets) {
+    assert.equal(
+      WORKSPACE_WRITE_REAL_CANARY_SENSITIVE_SCAN_TARGETS.includes(target),
+      true,
+      `${target} must remain in the sensitive scan surface`
+    );
+  }
 });
 
 test("workspace-write real canary sensitive scan blocks missing targets", () => {

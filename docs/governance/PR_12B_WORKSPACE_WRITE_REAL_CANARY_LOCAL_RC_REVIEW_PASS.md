@@ -33,7 +33,7 @@ Commands run:
 Observed summarized results:
 
 - sensitive scan status: `passed`
-- sensitive scan target count: `11`
+- sensitive scan target count: `14`
 - sensitive scan missing targets: `0`
 - sensitive scan marker hits: `0`
 - candidate audit status: `passed`
@@ -83,9 +83,9 @@ consistent under the current local machine-readable checks.
 
 Consistency checks:
 
-- local audit index sensitive scan target count: `11`
-- local RC receipt sensitive scan target count: `11`
-- review pass sensitive scan target count: `11`
+- local audit index sensitive scan target count: `14`
+- local RC receipt sensitive scan target count: `14`
+- review pass sensitive scan target count: `14`
 - final local audit required command count: `10`
 - local audit index final local audit command count: `10`
 - local RC receipt final local audit command count: `10`
