@@ -38,6 +38,8 @@ Observed summarized results:
 - sensitive scan marker hits: `0`
 - candidate audit status: `passed`
 - candidate audit packageScriptsPresent: `true`
+- candidate audit packageScriptTargetCount: `6`
+- candidate audit packageScriptTargetMismatchCount: `0`
 - candidate audit unexpected changed files: `0`
 - candidate audit finalAuditNoForbiddenCommands: `true`
 - candidate audit provider execute calls: `0`
@@ -89,6 +91,8 @@ Consistency checks:
 - review pass final local audit command count: `10`
 - final local audit noForbiddenCommands: `true`
 - candidate audit packageScriptsPresent: `true`
+- candidate audit packageScriptTargetCount: `6`
+- candidate audit packageScriptTargetMismatchCount: `0`
 - candidate audit finalAuditNoForbiddenCommands: `true`
 - candidate audit unexpected changed file count: `0`
 - sensitive scan marker hit count: `0`

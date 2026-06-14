@@ -117,6 +117,8 @@ Expected safe JSON audit properties:
 - `checks.finalAuditJsonContractValid` is `true`
 - `checks.canaryFileAbsent` is `true`
 - `summary.unexpectedChangedFileCount` is `0`
+- `summary.packageScriptTargetCount` is `6`
+- `summary.packageScriptTargetMismatchCount` is `0`
 - `summary.finalAuditNoForbiddenCommands` is `true`
 - `summary.providerExecuteCalls` is `0`
 - `summary.realCodexCliCalls` is `0`
@@ -155,6 +157,8 @@ Latest verified boundary:
 - final local audit commands: `10`
 - final local audit failed commands: `0`
 - candidate audit finalAuditNoForbiddenCommands: `true`
+- candidate audit packageScriptTargetCount: `6`
+- candidate audit packageScriptTargetMismatchCount: `0`
 - unexpected changed files: `0`
 - provider execute calls: `0`
 - real Codex CLI calls: `0`

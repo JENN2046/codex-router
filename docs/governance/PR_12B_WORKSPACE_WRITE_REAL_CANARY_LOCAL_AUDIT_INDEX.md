@@ -91,6 +91,8 @@ Expected safe results:
 
 - candidate audit status is `passed`
 - candidate audit packageScriptsPresent is `true`
+- candidate audit packageScriptTargetCount is `6`
+- candidate audit packageScriptTargetMismatchCount is `0`
 - final local audit status is `passed`
 - sensitive marker scan status is `passed`
 - sensitive marker scan marker hits are `0`
@@ -131,6 +133,7 @@ Stop and report blocked if any of these are observed:
 - local branch is behind or diverged from `origin/main`
 - candidate audit status is not `passed`
 - candidate audit packageScriptsPresent is not `true`
+- candidate audit packageScriptTargetMismatchCount is nonzero
 - final local audit status is not `passed`
 - evidence or receipts contain forbidden sensitive markers
 - final local audit noForbiddenCommands is not `true`
