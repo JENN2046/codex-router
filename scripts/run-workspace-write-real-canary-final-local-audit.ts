@@ -160,6 +160,7 @@ async function runCommand(
   try {
     await execFileAsync(command.command, command.args, {
       encoding: "utf8",
+      shell: process.platform === "win32",
       windowsHide: true
     });
     return {
