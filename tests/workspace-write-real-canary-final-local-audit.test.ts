@@ -86,6 +86,43 @@ test("workspace-write real canary final local audit output is summarized", async
   assert.equal(output.includes("args"), false);
 });
 
+test("workspace-write real canary final local audit json output is sanitized", async () => {
+  const result = await runWorkspaceWriteRealCanaryFinalLocalAudit({
+    runner: async (command) => passed(command),
+    canaryFileExists: () => false
+  });
+  const output = formatWorkspaceWriteRealCanaryFinalLocalAuditResult(result, "json");
+  const parsed = JSON.parse(output) as typeof result;
+
+  assert.equal(parsed.status, "passed");
+  assert.equal(parsed.summary.commandCount, WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.length);
+  assert.equal(parsed.summary.failedCommandCount, 0);
+  assert.equal(parsed.summary.providerExecuteCalls, 0);
+  assert.equal(parsed.summary.realCodexCliCalls, 0);
+  assert.equal(parsed.summary.workspaceWriteExecuteCalls, 0);
+  assert.deepEqual(
+    parsed.commands.map((command) => Object.keys(command).sort()),
+    parsed.commands.map(() => ["exitCode", "id", "status"])
+  );
+
+  for (const marker of [
+    "prompt",
+    "args",
+    "stdout",
+    "stderr",
+    "raw command",
+    "raw task envelope",
+    "raw env",
+    "raw token",
+    "raw patch",
+    "OPENAI_API_KEY",
+    "sk-",
+    "Bearer"
+  ]) {
+    assert.equal(output.includes(marker), false, `json output must omit ${marker}`);
+  }
+});
+
 function passed(
   command: WorkspaceWriteRealCanaryFinalLocalAuditCommand
 ) {

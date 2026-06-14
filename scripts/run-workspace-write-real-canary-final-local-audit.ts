@@ -45,6 +45,8 @@ export type WorkspaceWriteRealCanaryFinalLocalAuditRunner = (
   command: WorkspaceWriteRealCanaryFinalLocalAuditCommand
 ) => Promise<WorkspaceWriteRealCanaryFinalLocalAuditCommandResult>;
 
+export type WorkspaceWriteRealCanaryFinalLocalAuditOutputFormat = "text" | "json";
+
 export const WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS: readonly WorkspaceWriteRealCanaryFinalLocalAuditCommand[] = [
   {
     id: "typecheck",
@@ -139,8 +141,13 @@ export async function runWorkspaceWriteRealCanaryFinalLocalAudit(options: {
 }
 
 export function formatWorkspaceWriteRealCanaryFinalLocalAuditResult(
-  result: WorkspaceWriteRealCanaryFinalLocalAuditResult
+  result: WorkspaceWriteRealCanaryFinalLocalAuditResult,
+  format: WorkspaceWriteRealCanaryFinalLocalAuditOutputFormat = "text"
 ): string {
+  if (format === "json") {
+    return JSON.stringify(result, null, 2);
+  }
+
   return [
     "Workspace-write real canary final local audit",
     `status: ${result.status}`,
@@ -216,7 +223,9 @@ function npxExecutable(): string {
 
 async function main(): Promise<void> {
   const result = await runWorkspaceWriteRealCanaryFinalLocalAudit();
-  console.log(formatWorkspaceWriteRealCanaryFinalLocalAuditResult(result));
+  const format = process.argv.includes("--json") ? "json" : "text";
+
+  console.log(formatWorkspaceWriteRealCanaryFinalLocalAuditResult(result, format));
 
   if (result.status !== "passed") {
     process.exitCode = 1;

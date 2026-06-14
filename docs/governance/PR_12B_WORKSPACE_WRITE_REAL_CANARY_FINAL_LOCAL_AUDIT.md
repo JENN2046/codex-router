@@ -12,6 +12,10 @@ The authoritative local check is:
 
 - `npm run audit:workspace-write-real-canary-final-local`
 
+Machine-readable local review output is available with:
+
+- `npm run audit:workspace-write-real-canary-final-local -- --json`
+
 The command must be run from:
 
 - `A:\AGENTS_OS_Workspace\governance\codex-router\repo`
@@ -48,6 +52,11 @@ The final local audit runs:
 - `npm run acceptance:workspace-write-real-canary-auth`
 - `npm run acceptance:workspace-write-real-canary-pre-execution`
 - `npm run audit:workspace-write-real-canary-candidate -- --json`
+
+The JSON output is sanitized. It includes command ids, statuses, exit codes,
+checks, summary counters, and reason codes only. It does not include command
+arguments, process output, prompts, task envelopes, environment values, tokens,
+or patch bodies.
 
 ## 5. Boundary Conclusion
 
