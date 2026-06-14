@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "codex-cli-formal-readonly-integration-readiness.v1",
+  "generatedAt": "2026-06-15T00:00:00.000Z",
+  "mode": "formal-readonly-integration-readiness-local-only",
+  "status": "passed",
+  "checks": {
+    "packageScriptsPresent": true,
+    "pr13aSmokePassed": true,
+    "pr13aAuthorizationLocalOnly": true,
+    "pr13bDispatchControlRecorded": true,
+    "dispatchEvidenceGuarded": true,
+    "providerRequiresInjectedSpawner": true,
+    "providerDefaultExecuteDisabled": true,
+    "pr14aPreflightRecorded": true,
+    "noProviderExecute": true,
+    "noRealCodexCli": true,
+    "noWorkspaceWriteExecute": true,
+    "evidenceSanitized": true
+  },
+  "summary": {
+    "readiness": "formal_readonly_integration_preflight_ready",
+    "providerId": "codex-cli",
+    "requiredSandbox": "read-only",
+    "requiredSideEffectClass": "read_only",
+    "requiredApprovalPolicy": "never",
+    "injectedSpawnerRequired": true,
+    "permitRequired": true,
+    "registrySelectionRequired": true,
+    "workspaceWriteAllowed": false,
+    "formalIntegrationAuthorized": false,
+    "providerExecuteCalls": 0,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0
+  },
+  "blockingReasons": []
+}
