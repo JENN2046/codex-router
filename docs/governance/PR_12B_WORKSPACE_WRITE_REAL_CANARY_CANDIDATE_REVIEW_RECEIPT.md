@@ -46,9 +46,10 @@ The final local audit runs the fixed PR-12B validation set:
 - `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
 
 The fixed validation set is covered by tests that bind the command ids,
-command arguments, and required `package.json` script names. A script rename or
-command-set drift should therefore fail the local final audit test before the
-candidate is treated as ready.
+command arguments, and required `package.json` script names and exact command
+targets. A script rename, retarget, or command-set drift should therefore fail
+the local final audit or candidate audit before the candidate is treated as
+ready.
 
 The candidate consistency audit checks:
 
@@ -57,7 +58,8 @@ The candidate consistency audit checks:
 - local branch is ahead-only
 - required PR-12B files are present in `origin/main..HEAD`
 - no unexpected files are present in `origin/main..HEAD`
-- acceptance scripts are present in `package.json`
+- acceptance and audit scripts are present in `package.json` with exact local
+  TypeScript command targets
 - evidence JSON is parseable
 - evidence mode is local-only
 - execution counters are zero
@@ -109,6 +111,7 @@ Expected safe JSON audit properties:
 - `status` is `passed`
 - `checks.worktreeClean` is `true`
 - `checks.changedFilesWithinPr12bScope` is `true`
+- `checks.packageScriptsPresent` is `true`
 - `checks.evidenceNoExecution` is `true`
 - `checks.evidenceSanitized` is `true`
 - `checks.finalAuditJsonContractValid` is `true`
