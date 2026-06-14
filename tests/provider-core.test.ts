@@ -9,11 +9,14 @@ import {
   assertProviderSupportsSandboxProfile,
   assertProviderSupportsSideEffectClass,
   createApprovedProviderExecutionPermit,
+  createApprovedWorkspaceWriteProviderExecutionPermit,
   createBlockedProviderExecutionPermit,
+  createBlockedWorkspaceWriteProviderExecutionPermit,
   hashProviderManifest,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass,
   validateProviderExecutionPermitForPlan,
+  validateWorkspaceWriteProviderExecutionPermitForPlan,
   type ExecutorExecutionPlan,
   type ProviderManifest
 } from "../packages/provider-core/src/index.js";
@@ -140,11 +143,12 @@ test("provider-core rejects provider execution permit mismatches", () => {
 });
 
 test("provider-core blocks non-read-only provider execution permits", () => {
-  const blocked = createBlockedProviderExecutionPermit({
-    plan: createExecutorPlan({
+  const workspaceWritePlan = createExecutorPlan({
       sandboxProfile: createSandboxProfile("workspace-write"),
       sideEffectClass: "workspace_write"
-    }),
+  });
+  const blocked = createBlockedProviderExecutionPermit({
+    plan: workspaceWritePlan,
     manifest: createProviderManifest(),
     issuedAt: "2026-06-14T00:00:00.000Z"
   });
@@ -152,6 +156,141 @@ test("provider-core blocks non-read-only provider execution permits", () => {
   assert.equal(blocked.status, "blocked");
   assert.ok(blocked.reasons.includes("provider_execution_permit_read_only_only"));
   assert.ok(blocked.reasons.includes("provider_execution_permit_requires_read_only_sandbox"));
+  assert.throws(
+    () => createApprovedProviderExecutionPermit({
+      plan: workspaceWritePlan,
+      manifest: createProviderManifest(),
+      issuedAt: "2026-06-14T00:00:00.000Z"
+    }),
+    /provider_execution_permit_not_approvable:/
+  );
+});
+
+test("provider-core validates approved workspace-write governance permits", () => {
+  const manifest = createProviderManifest();
+  const plan = createExecutorPlan({
+    approvalRequired: true,
+    sandboxProfile: createSandboxProfile("workspace-write"),
+    sideEffectClass: "workspace_write"
+  });
+  const permit = createApprovedWorkspaceWriteProviderExecutionPermit({
+    plan,
+    manifest,
+    approvalStatus: "approved",
+    operatorAuthorizationId: "operator_auth_workspace_write_001",
+    targetFiles: ["workspace/packages/provider-core/src/index.ts"],
+    maxChangedFiles: 1,
+    maxDiffLines: 120,
+    rollbackRequired: true,
+    protectedBranchForbidden: true,
+    dirtyWorktreeForbidden: true,
+    repositoryState: {
+      branch: "codex/workspace-write-governance",
+      protectedBranch: false,
+      worktreeClean: true,
+      headCommit: "abc123"
+    },
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(permit.schemaVersion, "provider-workspace-write-execution-permit.v1");
+  assert.equal(permit.status, "approved");
+  assert.equal(permit.sideEffectClass, "workspace_write");
+  assert.equal(permit.sandboxMode, "workspace-write");
+  assert.equal(permit.operatorAuthorizationId, "operator_auth_workspace_write_001");
+  assert.deepEqual(permit.targetFiles, ["workspace/packages/provider-core/src/index.ts"]);
+  assert.deepEqual(validateWorkspaceWriteProviderExecutionPermitForPlan(
+    permit,
+    plan,
+    manifest
+  ), []);
+});
+
+test("provider-core blocks workspace-write governance permits without hard gates", () => {
+  const plan = createExecutorPlan({
+    approvalRequired: true,
+    sandboxProfile: createSandboxProfile("workspace-write"),
+    sideEffectClass: "workspace_write"
+  });
+  const blocked = createBlockedWorkspaceWriteProviderExecutionPermit({
+    plan,
+    manifest: createProviderManifest(),
+    approvalStatus: "pending",
+    targetFiles: [
+      "../outside.ts",
+      "workspace/packages/provider-core/src/index.ts",
+      "workspace/tests/provider-core.test.ts"
+    ],
+    maxChangedFiles: 1,
+    maxDiffLines: 120,
+    rollbackRequired: false,
+    protectedBranchForbidden: true,
+    dirtyWorktreeForbidden: true,
+    repositoryState: {
+      branch: "main",
+      protectedBranch: true,
+      worktreeClean: false
+    },
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(blocked.status, "blocked");
+  assert.ok(blocked.reasons.includes("workspace_write_provider_execution_permit_approval_required"));
+  assert.ok(blocked.reasons.includes("workspace_write_provider_execution_permit_operator_authorization_required"));
+  assert.ok(blocked.reasons.includes("workspace_write_provider_execution_permit_target_file_count_exceeds_max"));
+  assert.ok(blocked.reasons.includes("workspace_write_provider_execution_permit_target_file_out_of_bounds"));
+  assert.ok(blocked.reasons.includes("workspace_write_provider_execution_permit_rollback_required"));
+  assert.ok(blocked.reasons.includes("workspace_write_provider_execution_permit_protected_branch_forbidden"));
+  assert.ok(blocked.reasons.includes("workspace_write_provider_execution_permit_dirty_worktree_forbidden"));
+  assert.ok(validateWorkspaceWriteProviderExecutionPermitForPlan(
+    blocked,
+    plan,
+    createProviderManifest()
+  ).includes("workspace_write_provider_execution_permit_not_approved:blocked"));
+});
+
+test("provider-core rejects workspace-write governance permit mismatches", () => {
+  const manifest = createProviderManifest();
+  const plan = createExecutorPlan({
+    approvalRequired: true,
+    sandboxProfile: createSandboxProfile("workspace-write"),
+    sideEffectClass: "workspace_write"
+  });
+  const permit = createApprovedWorkspaceWriteProviderExecutionPermit({
+    plan,
+    manifest,
+    approvalStatus: "approved",
+    operatorAuthorizationId: "operator_auth_workspace_write_001",
+    targetFiles: ["workspace/packages/provider-core/src/index.ts"],
+    maxChangedFiles: 1,
+    maxDiffLines: 120,
+    rollbackRequired: true,
+    protectedBranchForbidden: true,
+    dirtyWorktreeForbidden: true,
+    repositoryState: {
+      branch: "codex/workspace-write-governance",
+      protectedBranch: false,
+      worktreeClean: true
+    },
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.ok(validateWorkspaceWriteProviderExecutionPermitForPlan({
+    ...permit,
+    providerId: "other-provider"
+  }, plan, manifest).some((reason) => (
+    reason.startsWith("workspace_write_provider_execution_permit_provider_mismatch:")
+  )));
+  assert.ok(validateWorkspaceWriteProviderExecutionPermitForPlan({
+    ...permit,
+    planId: "plan_other"
+  }, plan, manifest).some((reason) => (
+    reason.startsWith("workspace_write_provider_execution_permit_plan_mismatch:")
+  )));
+  assert.ok(validateWorkspaceWriteProviderExecutionPermitForPlan({
+    ...permit,
+    providerManifestHash: "b".repeat(64)
+  }, plan, manifest).includes("workspace_write_provider_execution_permit_manifest_mismatch"));
 });
 
 test("provider-core validates tool invocation plans", () => {

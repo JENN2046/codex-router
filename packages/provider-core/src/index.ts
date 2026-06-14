@@ -108,6 +108,39 @@ export const ProviderExecutionPermitSchema = z.object({
   issuedAt: z.string().min(1)
 });
 
+export const WorkspaceWriteProviderExecutionPermitSchema = z.object({
+  schemaVersion: z.literal("provider-workspace-write-execution-permit.v1").default(
+    "provider-workspace-write-execution-permit.v1"
+  ),
+  permitId: z.string().min(1),
+  taskId: z.string().min(1),
+  runId: z.string().min(1).optional(),
+  planId: z.string().min(1).optional(),
+  providerId: z.string().min(1),
+  providerManifestHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  policyDecisionHash: z.string().min(1).optional(),
+  sideEffectClass: z.literal("workspace_write"),
+  sandboxProfileId: z.string().min(1),
+  sandboxMode: z.literal("workspace-write"),
+  status: z.enum(["candidate", "approved", "blocked"]),
+  approvalStatus: z.enum(["approved", "pending", "rejected", "expired"]),
+  operatorAuthorizationId: z.string().min(1).optional(),
+  targetFiles: z.array(z.string().min(1)).default([]),
+  maxChangedFiles: z.number().int().positive(),
+  maxDiffLines: z.number().int().positive(),
+  rollbackRequired: z.boolean(),
+  protectedBranchForbidden: z.boolean(),
+  dirtyWorktreeForbidden: z.boolean(),
+  repositoryState: z.object({
+    branch: z.string().min(1),
+    protectedBranch: z.boolean(),
+    worktreeClean: z.boolean(),
+    headCommit: z.string().min(1).optional()
+  }),
+  reasons: z.array(z.string()).default([]),
+  issuedAt: z.string().min(1)
+});
+
 export const ProviderPlanBaseSchema = z.object({
   planId: z.string().min(1),
   runId: z.string().min(1),
@@ -144,6 +177,9 @@ export type ProviderRequiredConfig = z.infer<typeof ProviderRequiredConfigSchema
 export type ProviderManifest = z.infer<typeof ProviderManifestSchema>;
 export type ProviderAttestation = z.infer<typeof ProviderAttestationSchema>;
 export type ProviderExecutionPermit = z.infer<typeof ProviderExecutionPermitSchema>;
+export type WorkspaceWriteProviderExecutionPermit = z.infer<
+  typeof WorkspaceWriteProviderExecutionPermitSchema
+>;
 export type ProviderExecutionPermitApprovalStatus = NonNullable<
   ProviderExecutionPermit["approvalStatus"]
 >;
@@ -156,6 +192,23 @@ export type ProviderExecutionPermitIssueInput = {
   manifest: ProviderManifest;
   permitId?: string;
   approvalStatus?: ProviderExecutionPermitApprovalStatus;
+  reasons?: string[];
+  issuedAt: string;
+};
+
+export type WorkspaceWriteProviderExecutionPermitIssueInput = {
+  plan: ExecutorExecutionPlan;
+  manifest: ProviderManifest;
+  permitId?: string;
+  approvalStatus?: WorkspaceWriteProviderExecutionPermit["approvalStatus"];
+  operatorAuthorizationId?: string;
+  targetFiles: string[];
+  maxChangedFiles: number;
+  maxDiffLines: number;
+  rollbackRequired: boolean;
+  protectedBranchForbidden: boolean;
+  dirtyWorktreeForbidden: boolean;
+  repositoryState: WorkspaceWriteProviderExecutionPermit["repositoryState"];
   reasons?: string[];
   issuedAt: string;
 };
@@ -313,6 +366,12 @@ export function parseProviderExecutionPermit(
   return ProviderExecutionPermitSchema.parse(input);
 }
 
+export function parseWorkspaceWriteProviderExecutionPermit(
+  input: z.input<typeof WorkspaceWriteProviderExecutionPermitSchema>
+): WorkspaceWriteProviderExecutionPermit {
+  return WorkspaceWriteProviderExecutionPermitSchema.parse(input);
+}
+
 export function createProviderAttestation(
   manifest: ProviderManifest,
   attestedAt: string
@@ -360,6 +419,36 @@ export function createBlockedProviderExecutionPermit(
   );
 
   return createProviderExecutionPermit(input, "blocked", reasons);
+}
+
+export function createApprovedWorkspaceWriteProviderExecutionPermit(
+  input: WorkspaceWriteProviderExecutionPermitIssueInput
+): WorkspaceWriteProviderExecutionPermit {
+  const plan = ExecutorExecutionPlanSchema.parse(input.plan);
+  const reasons = getWorkspaceWriteProviderExecutionPermitIssuanceBlockers(
+    plan,
+    ProviderManifestSchema.parse(input.manifest),
+    input
+  );
+
+  if (reasons.length > 0) {
+    throw new Error(`workspace_write_provider_execution_permit_not_approvable:${reasons.join(",")}`);
+  }
+
+  return createWorkspaceWriteProviderExecutionPermit(input, "approved", []);
+}
+
+export function createBlockedWorkspaceWriteProviderExecutionPermit(
+  input: WorkspaceWriteProviderExecutionPermitIssueInput
+): WorkspaceWriteProviderExecutionPermit {
+  const plan = ExecutorExecutionPlanSchema.parse(input.plan);
+  const reasons = input.reasons ?? getWorkspaceWriteProviderExecutionPermitIssuanceBlockers(
+    plan,
+    ProviderManifestSchema.parse(input.manifest),
+    input
+  );
+
+  return createWorkspaceWriteProviderExecutionPermit(input, "blocked", reasons);
 }
 
 export function validateProviderExecutionPermitForPlan(
@@ -421,6 +510,79 @@ export function validateProviderExecutionPermitForPlan(
   ) {
     reasons.push(`${prefix}_policy_mismatch`);
   }
+
+  return uniqueProviderCoreStrings(reasons);
+}
+
+export function validateWorkspaceWriteProviderExecutionPermitForPlan(
+  permitInput: WorkspaceWriteProviderExecutionPermit,
+  planInput: ExecutorExecutionPlan,
+  manifestInput: ProviderManifest,
+  options: ProviderExecutionPermitValidationOptions = {}
+): string[] {
+  const parsedPermit = WorkspaceWriteProviderExecutionPermitSchema.safeParse(permitInput);
+  const prefix = options.reasonPrefix ?? "workspace_write_provider_execution_permit";
+
+  if (!parsedPermit.success) {
+    return [`${prefix}_invalid:${normalizeProviderCoreError(parsedPermit.error)}`];
+  }
+
+  const permit = parsedPermit.data;
+  const plan = ExecutorExecutionPlanSchema.parse(planInput);
+  const manifest = ProviderManifestSchema.parse(manifestInput);
+  const reasons: string[] = [];
+
+  if (permit.status !== "approved") {
+    reasons.push(`${prefix}_not_approved:${permit.status}`);
+  }
+
+  if (permit.providerId !== plan.providerId) {
+    reasons.push(`${prefix}_provider_mismatch:${permit.providerId}:${plan.providerId}`);
+  }
+
+  if (permit.taskId !== plan.taskId) {
+    reasons.push(`${prefix}_task_mismatch:${permit.taskId}:${plan.taskId}`);
+  }
+
+  if (permit.runId !== undefined && permit.runId !== plan.runId) {
+    reasons.push(`${prefix}_run_mismatch:${permit.runId}:${plan.runId}`);
+  }
+
+  if (permit.planId !== undefined && permit.planId !== plan.planId) {
+    reasons.push(`${prefix}_plan_mismatch:${permit.planId}:${plan.planId}`);
+  }
+
+  if (permit.sideEffectClass !== plan.sideEffectClass) {
+    reasons.push(`${prefix}_side_effect_mismatch:${permit.sideEffectClass}:${plan.sideEffectClass}`);
+  }
+
+  if (plan.sideEffectClass !== "workspace_write") {
+    reasons.push(`${prefix}_requires_workspace_write_side_effect`);
+  }
+
+  if (permit.sandboxProfileId !== plan.sandboxProfile.sandboxId) {
+    reasons.push(`${prefix}_sandbox_mismatch:${permit.sandboxProfileId}:${plan.sandboxProfile.sandboxId}`);
+  }
+
+  if (plan.sandboxProfile.mode !== "workspace-write") {
+    reasons.push(`${prefix}_requires_workspace_write_sandbox`);
+  }
+
+  if (
+    permit.providerManifestHash !== undefined
+    && permit.providerManifestHash !== hashProviderManifest(manifest)
+  ) {
+    reasons.push(`${prefix}_manifest_mismatch`);
+  }
+
+  if (
+    permit.policyDecisionHash !== undefined
+    && permit.policyDecisionHash !== plan.policyDecisionHash
+  ) {
+    reasons.push(`${prefix}_policy_mismatch`);
+  }
+
+  reasons.push(...getWorkspaceWriteProviderExecutionPermitGovernanceBlockers(permit));
 
   return uniqueProviderCoreStrings(reasons);
 }
@@ -564,6 +726,45 @@ function createProviderExecutionPermit(
   });
 }
 
+function createWorkspaceWriteProviderExecutionPermit(
+  input: WorkspaceWriteProviderExecutionPermitIssueInput,
+  status: "approved" | "blocked",
+  reasons: string[]
+): WorkspaceWriteProviderExecutionPermit {
+  const plan = ExecutorExecutionPlanSchema.parse(input.plan);
+  const manifest = ProviderManifestSchema.parse(input.manifest);
+
+  return WorkspaceWriteProviderExecutionPermitSchema.parse({
+    schemaVersion: "provider-workspace-write-execution-permit.v1",
+    permitId: input.permitId ?? `workspace_write_permit_${plan.planId}`,
+    taskId: plan.taskId,
+    runId: plan.runId,
+    planId: plan.planId,
+    providerId: plan.providerId,
+    providerManifestHash: hashProviderManifest(manifest),
+    ...(plan.policyDecisionHash !== undefined
+      ? { policyDecisionHash: plan.policyDecisionHash }
+      : {}),
+    sideEffectClass: "workspace_write",
+    sandboxProfileId: plan.sandboxProfile.sandboxId,
+    sandboxMode: "workspace-write",
+    status,
+    approvalStatus: input.approvalStatus ?? "pending",
+    ...(input.operatorAuthorizationId !== undefined
+      ? { operatorAuthorizationId: input.operatorAuthorizationId }
+      : {}),
+    targetFiles: [...input.targetFiles],
+    maxChangedFiles: input.maxChangedFiles,
+    maxDiffLines: input.maxDiffLines,
+    rollbackRequired: input.rollbackRequired,
+    protectedBranchForbidden: input.protectedBranchForbidden,
+    dirtyWorktreeForbidden: input.dirtyWorktreeForbidden,
+    repositoryState: input.repositoryState,
+    reasons,
+    issuedAt: input.issuedAt
+  });
+}
+
 function getReadOnlyProviderExecutionPermitIssuanceBlockers(
   plan: ExecutorExecutionPlan,
   approvalStatus: ProviderExecutionPermitApprovalStatus | undefined
@@ -583,6 +784,106 @@ function getReadOnlyProviderExecutionPermitIssuanceBlockers(
   }
 
   return uniqueProviderCoreStrings(reasons);
+}
+
+function getWorkspaceWriteProviderExecutionPermitIssuanceBlockers(
+  plan: ExecutorExecutionPlan,
+  manifest: ProviderManifest,
+  input: WorkspaceWriteProviderExecutionPermitIssueInput
+): string[] {
+  const reasons: string[] = [];
+
+  if (plan.sideEffectClass !== "workspace_write") {
+    reasons.push("workspace_write_provider_execution_permit_requires_workspace_write_side_effect");
+  }
+
+  if (plan.sandboxProfile.mode !== "workspace-write") {
+    reasons.push("workspace_write_provider_execution_permit_requires_workspace_write_sandbox");
+  }
+
+  if (!providerSupportsSideEffectClass(manifest, "workspace_write")) {
+    reasons.push("workspace_write_provider_execution_permit_manifest_side_effect_unsupported");
+  }
+
+  if (!providerSupportsSandboxProfile(manifest, plan.sandboxProfile)) {
+    reasons.push("workspace_write_provider_execution_permit_manifest_sandbox_unsupported");
+  }
+
+  if (input.approvalStatus !== "approved") {
+    reasons.push("workspace_write_provider_execution_permit_approval_required");
+  }
+
+  if (input.operatorAuthorizationId === undefined || input.operatorAuthorizationId.length === 0) {
+    reasons.push("workspace_write_provider_execution_permit_operator_authorization_required");
+  }
+
+  reasons.push(...getWorkspaceWriteProviderExecutionPermitGovernanceBlockers({
+    targetFiles: input.targetFiles,
+    maxChangedFiles: input.maxChangedFiles,
+    rollbackRequired: input.rollbackRequired,
+    protectedBranchForbidden: input.protectedBranchForbidden,
+    dirtyWorktreeForbidden: input.dirtyWorktreeForbidden,
+    repositoryState: input.repositoryState
+  }));
+
+  return uniqueProviderCoreStrings(reasons);
+}
+
+function getWorkspaceWriteProviderExecutionPermitGovernanceBlockers(
+  input: Pick<
+    WorkspaceWriteProviderExecutionPermit,
+    | "targetFiles"
+    | "maxChangedFiles"
+    | "rollbackRequired"
+    | "protectedBranchForbidden"
+    | "dirtyWorktreeForbidden"
+    | "repositoryState"
+  >
+): string[] {
+  const reasons: string[] = [];
+  const targetFiles = uniqueProviderCoreStrings(input.targetFiles);
+
+  if (targetFiles.length === 0) {
+    reasons.push("workspace_write_provider_execution_permit_target_files_required");
+  }
+
+  if (targetFiles.length > input.maxChangedFiles) {
+    reasons.push("workspace_write_provider_execution_permit_target_file_count_exceeds_max");
+  }
+
+  if (targetFiles.some((targetFile) => !isSafeWorkspaceRelativeFilePath(targetFile))) {
+    reasons.push("workspace_write_provider_execution_permit_target_file_out_of_bounds");
+  }
+
+  if (!input.rollbackRequired) {
+    reasons.push("workspace_write_provider_execution_permit_rollback_required");
+  }
+
+  if (!input.protectedBranchForbidden || input.repositoryState.protectedBranch) {
+    reasons.push("workspace_write_provider_execution_permit_protected_branch_forbidden");
+  }
+
+  if (!input.dirtyWorktreeForbidden || !input.repositoryState.worktreeClean) {
+    reasons.push("workspace_write_provider_execution_permit_dirty_worktree_forbidden");
+  }
+
+  return uniqueProviderCoreStrings(reasons);
+}
+
+function isSafeWorkspaceRelativeFilePath(targetFile: string): boolean {
+  const slashPath = targetFile.replace(/\\/g, "/");
+
+  if (
+    slashPath.length === 0
+    || slashPath.startsWith("/")
+    || /^[a-zA-Z]:/.test(slashPath)
+    || slashPath.endsWith("/")
+  ) {
+    return false;
+  }
+
+  const parts = slashPath.split("/");
+  return parts.every((part) => part.length > 0 && part !== "." && part !== "..");
 }
 
 function uniqueProviderCoreStrings(values: string[]): string[] {
