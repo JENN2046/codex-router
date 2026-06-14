@@ -96,6 +96,7 @@ Expected safe text audit properties:
 
 - `status`: `passed`
 - `unexpected changed files`: `0`
+- final audit forbidden commands: `false`
 - provider execute calls: `0`
 - real Codex CLI calls: `0`
 - workspace-write execute calls: `0`
@@ -113,6 +114,7 @@ Expected safe JSON audit properties:
 - `checks.finalAuditJsonContractValid` is `true`
 - `checks.canaryFileAbsent` is `true`
 - `summary.unexpectedChangedFileCount` is `0`
+- `summary.finalAuditNoForbiddenCommands` is `true`
 - `summary.providerExecuteCalls` is `0`
 - `summary.realCodexCliCalls` is `0`
 - `summary.workspaceWriteExecuteCalls` is `0`
@@ -149,6 +151,7 @@ Latest verified boundary:
 - final local audit status: `passed`
 - final local audit commands: `10`
 - final local audit failed commands: `0`
+- candidate audit finalAuditNoForbiddenCommands: `true`
 - unexpected changed files: `0`
 - provider execute calls: `0`
 - real Codex CLI calls: `0`

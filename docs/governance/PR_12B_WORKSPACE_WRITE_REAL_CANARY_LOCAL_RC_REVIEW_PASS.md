@@ -38,6 +38,7 @@ Observed summarized results:
 - sensitive scan marker hits: `0`
 - candidate audit status: `passed`
 - candidate audit unexpected changed files: `0`
+- candidate audit finalAuditNoForbiddenCommands: `true`
 - candidate audit provider execute calls: `0`
 - candidate audit real Codex CLI calls: `0`
 - candidate audit workspace-write execute calls: `0`
@@ -86,6 +87,7 @@ Consistency checks:
 - local RC receipt final local audit command count: `10`
 - review pass final local audit command count: `10`
 - final local audit noForbiddenCommands: `true`
+- candidate audit finalAuditNoForbiddenCommands: `true`
 - candidate audit unexpected changed file count: `0`
 - sensitive scan marker hit count: `0`
 - canary target file absent: `true`
