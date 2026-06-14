@@ -18,16 +18,32 @@ production readiness claim.
 
 ## 3. Local Scope
 
-This local closeout covers:
+This local closeout originally covered:
 
 - `docs/governance/PR_13A_READONLY_REAL_CLI_PREFLIGHT_TASKBOOK.md`
 
 The taskbook defines the exact gate for a future real Codex CLI read-only
 smoke. It does not run the smoke.
 
-Included local commit:
+Original local commit:
 
 - `6f586cf docs(governance): define read-only real cli preflight`
+
+Subsequent PR-13A local guard commits:
+
+- `0bd8f51 test(governance): lock real readonly preflight taskbook`
+- `0270ce6 test(governance): lock real readonly smoke evidence`
+- `2ce9887 docs(governance): review real readonly preflight guards`
+- `8065019 feat(governance): gate real readonly smoke authorization`
+
+Additional local guard artifacts:
+
+- `tests/pr-13a-real-readonly-preflight-taskbook.test.ts`
+- `tests/real-readonly-smoke-authorization-acceptance.test.ts`
+- `scripts/run-real-readonly-smoke-authorization-acceptance.ts`
+- `docs/evidence/codex-cli-real-readonly-smoke-authorization-acceptance.json`
+- `docs/governance/PR_13A_READONLY_REAL_CLI_PREFLIGHT_GUARD_TEST_REVIEW.md`
+- `docs/governance/PR_13A_READONLY_REAL_CLI_AUTHORIZATION_PACKET_COMPATIBILITY.md`
 
 Related prior local safety material:
 
@@ -50,6 +66,17 @@ Confirmed taskbook requirements:
 - evidence must remain sanitized
 - fresh preflight validation commands are listed
 - stop conditions are listed
+
+Confirmed guard-test requirements:
+
+- taskbook keeps the exact future authorization token
+- taskbook keeps the exact future command shape
+- taskbook remains non-authorizing
+- taskbook keeps the fresh local preflight checklist
+- committed real read-only smoke evidence remains read-only and sanitized
+- future authorization packet must match PR-13A exactly
+- broadened command, workspace-write sandbox, non-`never` approval policy,
+  push, release, and tag are rejected locally before smoke execution
 
 The taskbook explicitly does not authorize:
 
@@ -77,11 +104,17 @@ Still closed:
 Observed existing real read-only surfaces:
 
 - package script: `smoke:readonly:real`
+- package script: `acceptance:real-readonly-smoke-auth`
 - script: `scripts/run-codex-cli-real-readonly-smoke.ts`
+- script: `scripts/run-real-readonly-smoke-authorization-acceptance.ts`
 - test: `tests/codex-cli-real-readonly-smoke-script.test.ts`
+- test: `tests/pr-13a-real-readonly-preflight-taskbook.test.ts`
+- test: `tests/real-readonly-smoke-authorization-acceptance.test.ts`
 - default evidence path: `docs/evidence/codex-cli-real-readonly-smoke.json`
+- authorization acceptance evidence path:
+  `docs/evidence/codex-cli-real-readonly-smoke-authorization-acceptance.json`
 
-This closeout did not execute those real smoke surfaces.
+This closeout did not execute the real smoke surface.
 
 ## 6. Validation
 
@@ -92,16 +125,21 @@ Validation run for this local closeout:
 - `git log --oneline -8`
 - `git diff --check`
 - `npx tsx --test tests\codex-cli-real-readonly-smoke-script.test.ts tests\real-readonly-dispatch-acceptance.test.ts tests\host-dispatcher.test.ts`
+- `npx tsx --test tests\real-readonly-smoke-authorization-acceptance.test.ts tests\pr-13a-real-readonly-preflight-taskbook.test.ts tests\codex-cli-real-readonly-smoke-script.test.ts tests\real-readonly-dispatch-acceptance.test.ts tests\host-dispatcher.test.ts`
 - `npm run acceptance:real-readonly-dispatch`
+- `npm run acceptance:real-readonly-smoke-auth`
 - `npm run typecheck`
 - `npm test`
 
 Observed passing results:
 
 - real read-only smoke script / dispatch / host dispatcher tests: `21 / 21`
+- PR-13A authorization, taskbook, smoke script, dispatch, and host dispatcher
+  tests: `30 / 30`
 - fake-only real-readonly dispatch acceptance: passed
+- real-readonly smoke authorization acceptance: passed
 - typecheck: passed
-- full test suite: `891 / 891`
+- full test suite: `900 / 900`
 - diff check: passed
 
 Sensitive marker review:
@@ -109,15 +147,21 @@ Sensitive marker review:
 - The taskbook intentionally names forbidden marker labels as part of its
   future evidence exclusion list.
 - These are policy text references, not leaked values.
+- `docs/evidence/codex-cli-real-readonly-smoke-authorization-acceptance.json`
+  omits the raw authorization token, raw command, raw prompt, raw args, raw
+  stdout, raw stderr, raw task envelope, raw env, raw token, raw patch, API key
+  markers, and bearer markers.
 - No raw prompt, raw command, raw environment, token value, API key value, or
   process output was added by this closeout.
 
 ## 7. Current Classification
 
-- SCOPED_RC_READY: local-only taskbook recorded
+- SCOPED_RC_READY: local-only taskbook, guard tests, and authorization
+  compatibility evidence recorded
 - PRODUCTION_READY: no
 - REAL_EXECUTION_READY: read-only guarded, separate authorization required
-- REAL_CODEX_CLI_READY: preflight-defined, not authorized by this closeout
+- REAL_CODEX_CLI_READY: preflight-defined and authorization-gated, not
+  authorized by this closeout
 - WORKSPACE_WRITE_READY: no
 - RELEASE_READY: no
 - PUSH_READY: not evaluated by this closeout
@@ -128,8 +172,11 @@ Result:
 
 - `PR_13A_READONLY_REAL_CLI_PREFLIGHT_LOCAL_CLOSEOUT_COMPLETE`
 
-The project now has a reviewed local taskbook for future real read-only CLI
-smoke authorization. This closeout does not authorize or perform the smoke.
+The project now has a reviewed local taskbook, guard tests, sanitized
+authorization acceptance evidence, and a local fail-closed compatibility check
+for future real read-only CLI smoke authorization.
+
+This closeout does not authorize or perform the smoke.
 
 ## 9. Next Safe Action
 
