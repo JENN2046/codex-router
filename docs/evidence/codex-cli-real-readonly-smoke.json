@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "codex-cli-real-readonly-smoke-gate.v1",
+  "generatedAt": "2026-06-14T08:07:28.816Z",
+  "mode": "real-readonly-smoke",
+  "status": "passed",
+  "taskId": "codex-cli-real-readonly-smoke",
+  "checks": {
+    "operatorFlagPresent": true,
+    "runnerInvoked": true,
+    "readOnlySandbox": true,
+    "approvalPolicyNever": true,
+    "noWorkspaceWrite": true,
+    "noFileWrite": true,
+    "timeoutConfigured": true,
+    "sanitizedEvidence": true
+  },
+  "plan": {
+    "sandbox": "read-only",
+    "approvalPolicy": "never",
+    "usesJson": true,
+    "skipGitRepoCheck": true,
+    "ephemeral": true,
+    "timeoutMs": 180000,
+    "model": "gpt-5.4-mini",
+    "workdir": "A:\\AGENTS_OS_Workspace\\governance\\codex-router\\repo"
+  },
+  "run": {
+    "exitCode": 0,
+    "status": "completed",
+    "eventCount": 4,
+    "parseErrorCount": 0,
+    "warningCount": 0,
+    "blockingReasons": [],
+    "timedOut": false,
+    "killed": false
+  },
+  "summary": {
+    "passed": true,
+    "blockingReasons": []
+  }
+}
