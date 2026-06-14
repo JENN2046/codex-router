@@ -1,9 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import {
   CodexCliExecutorProvider,
   codexCliProviderManifest
 } from "../packages/providers/codex-cli/src/index.js";
+import {
+  type CodexCliProcessSpawner
+} from "../packages/codex-cli-host/src/index.js";
 import {
   ProviderManifestSchema,
   providerSupportsSandboxProfile,
@@ -373,6 +377,153 @@ test("codex cli provider execute is disabled by default", async () => {
   );
 });
 
+test("codex cli provider read-only execute rejects without injected spawn", async () => {
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_execute_no_spawn",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {});
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.error?.code,
+    "codex_cli_provider_execute_requires_injected_spawn"
+  );
+  assert.deepEqual(result.error?.reasons, [
+    "codex_cli_provider_execute_requires_injected_spawn"
+  ]);
+});
+
+test("codex cli provider dry run does not spawn and returns sanitized summary", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      throw new Error("spawn must not run during dry run");
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_execute_dry_run",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {
+    dryRun: true
+  });
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.ok, true);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.artifacts?.[0]?.metadata.summaryKind, "codex-cli-provider-dry-run");
+  assert.equal(serialized.includes("prompt"), false);
+  assert.equal(serialized.includes("args"), false);
+  assert.equal(serialized.includes("stdout"), false);
+  assert.equal(serialized.includes("stderr"), false);
+});
+
+test("codex cli provider read-only execute succeeds with injected fake spawn", async () => {
+  let spawnCalls = 0;
+  const spawn: CodexCliProcessSpawner = () => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"completed\"}\n",
+      exitCode: 0
+    });
+  };
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_execute_fake_spawn_success",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {});
+  const summary = result.artifacts?.[0]?.metadata.summary as any;
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.ok, true);
+  assert.equal(spawnCalls, 1);
+  assert.equal(summary.status, "completed");
+  assert.equal(summary.inspection.status, "completed");
+  assert.equal(summary.inspection.eventCount, 1);
+  assert.equal(summary.exitCode, 0);
+  assert.equal(serialized.includes("agent_message"), false);
+  assert.equal(serialized.includes("requestedAction"), false);
+  assert.equal(serialized.includes("args"), false);
+  assert.equal(serialized.includes("stdout"), false);
+  assert.equal(serialized.includes("stderr"), false);
+  assert.equal(serialized.includes("prompt"), false);
+});
+
+test("codex cli provider execute rejects workspace-write plans before spawn", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_execute_workspace_write_rejected",
+    taskClass: "small_edit",
+    sandboxMode: "workspace-write"
+  }));
+
+  const result = await provider.execute(plan, {});
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.ok((result.error?.reasons as string[]).includes(
+    "codex_cli_provider_execute_only_supports_read_only"
+  ));
+});
+
+test("codex cli provider execute rejects invalid plans before spawn", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_execute_invalid_plan",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+  const invalidPlan = {
+    ...plan,
+    providerId: "other-provider"
+  } as ExecutorExecutionPlan;
+
+  const result = await provider.execute(invalidPlan, {});
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.error?.code, "codex_cli_provider_execution_plan_invalid");
+  assert.ok((result.error?.reasons as string[]).some((reason) => (
+    reason.startsWith("codex_cli_provider_id_mismatch:")
+  )));
+});
+
 function createExecutionInput(options: {
   taskId: string;
   taskClass: "read_only" | "small_edit" | "engineering" | "high_risk" | "release_external_action";
@@ -566,4 +717,60 @@ function readProviderMetadata(plan: ExecutorExecutionPlan): any {
   assert.equal(typeof metadata, "object");
   assert.notEqual(metadata, null);
   return metadata;
+}
+
+class FakeCodexCliStream extends EventEmitter {
+  setEncoding(_encoding: BufferEncoding): void {}
+  destroy(): void {}
+}
+
+class FakeCodexCliWritableStream {
+  end(): void {}
+  destroy(): void {}
+}
+
+class FakeCodexCliChild extends EventEmitter {
+  readonly stdin = new FakeCodexCliWritableStream();
+  readonly stdout = new FakeCodexCliStream();
+  readonly stderr = new FakeCodexCliStream();
+
+  constructor(
+    private readonly closeCode: number,
+    private readonly closeSignal: NodeJS.Signals | null
+  ) {
+    super();
+  }
+
+  kill(_signal?: NodeJS.Signals | number): boolean {
+    queueMicrotask(() => {
+      this.emit("close", this.closeCode, this.closeSignal);
+    });
+    return true;
+  }
+
+  unref(): void {}
+}
+
+function createFakeCodexCliChild(options: {
+  stdout: string;
+  stderr?: string;
+  exitCode: number;
+  signal?: NodeJS.Signals | null;
+}): FakeCodexCliChild {
+  const child = new FakeCodexCliChild(
+    options.exitCode,
+    options.signal ?? null
+  );
+
+  queueMicrotask(() => {
+    if (options.stdout) {
+      child.stdout.emit("data", options.stdout);
+    }
+    if (options.stderr) {
+      child.stderr.emit("data", options.stderr);
+    }
+    child.emit("close", options.exitCode, options.signal ?? null);
+  });
+
+  return child;
 }

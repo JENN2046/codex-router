@@ -1,9 +1,12 @@
 import { posix as pathPosix } from "node:path";
 import {
   createCodexCliExecPlanFromRoutingDecision,
+  runCodexCliExecPlan,
   validateCodexCliExecPlanForRun,
   type CodexCliApprovalPolicy,
   type CodexCliExecPlan,
+  type CodexCliProcessRunResult,
+  type CodexCliProcessSpawner,
   type CodexCliSandboxMode
 } from "../../../codex-cli-host/src/index.js";
 import {
@@ -22,6 +25,7 @@ import {
 import {
   SandboxProfileSchema,
   hashKernelObject,
+  type Artifact,
   type PolicyDecision,
   type SandboxProfile,
   type Task
@@ -53,6 +57,10 @@ export const CODEX_CLI_PROVIDER_PROMPT_OMITTED =
 export interface CodexCliExecutorProviderOptions {
   manifest?: ProviderManifest;
   executionEnabled?: boolean;
+  spawn?: CodexCliProcessSpawner;
+  timeoutMs?: number;
+  env?: NodeJS.ProcessEnv;
+  skipExecutionModelProbe?: boolean;
 }
 
 export interface CodexCliProviderSanitizedPlan {
@@ -138,10 +146,18 @@ export const codexCliProviderManifest = parseProviderManifest({
 export class CodexCliExecutorProvider implements ExecutorProvider {
   readonly manifest: ProviderManifest;
   private readonly executionEnabled: boolean;
+  private readonly spawn: CodexCliProcessSpawner | undefined;
+  private readonly timeoutMs: number | undefined;
+  private readonly env: NodeJS.ProcessEnv | undefined;
+  private readonly skipExecutionModelProbe: boolean;
 
   constructor(options: CodexCliExecutorProviderOptions = {}) {
     this.manifest = options.manifest ?? codexCliProviderManifest;
     this.executionEnabled = options.executionEnabled ?? false;
+    this.spawn = options.spawn;
+    this.timeoutMs = options.timeoutMs;
+    this.env = options.env;
+    this.skipExecutionModelProbe = options.skipExecutionModelProbe ?? true;
   }
 
   planExecution(input: ExecutionPlanInput): ExecutorExecutionPlan {
@@ -260,15 +276,99 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
     };
   }
 
-  execute(
-    _plan: ExecutorExecutionPlan,
-    _context: ProviderExecutionContext
-  ): ProviderExecutionResult {
+  async execute(
+    plan: ExecutorExecutionPlan,
+    context: ProviderExecutionContext
+  ): Promise<ProviderExecutionResult> {
     if (!this.executionEnabled) {
       throw new CodexCliProviderExecutionDisabledError();
     }
 
-    throw new CodexCliProviderNotImplementedError();
+    const validation = this.validateExecutionPlan(plan);
+    if (!validation.valid) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_execution_plan_invalid",
+        validation.reasons
+      );
+    }
+
+    const parsedPlan = parseExecutorExecutionPlan(plan);
+    const metadata = readCodexCliProviderMetadata(parsedPlan);
+    if (!metadata) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_execution_plan_invalid",
+        ["codex_cli_provider_metadata_missing"]
+      );
+    }
+
+    const readOnlyRejectionReasons = collectReadOnlyExecutionRejectionReasons(
+      parsedPlan,
+      metadata
+    );
+    if (readOnlyRejectionReasons.length > 0) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_execute_rejected",
+        readOnlyRejectionReasons
+      );
+    }
+
+    if (context.dryRun === true) {
+      const summary = createCodexCliProviderDryRunSummary(parsedPlan, metadata);
+      return {
+        ok: true,
+        artifacts: [
+          createCodexCliProviderSummaryArtifact(
+            parsedPlan,
+            "codex-cli-provider-dry-run",
+            summary
+          )
+        ]
+      };
+    }
+
+    if (!this.spawn) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_execute_requires_injected_spawn",
+        ["codex_cli_provider_execute_requires_injected_spawn"]
+      );
+    }
+
+    const codexCliPlan = createValidationCodexCliPlan(parsedPlan, metadata);
+    let run: CodexCliProcessRunResult;
+    try {
+      run = await runCodexCliExecPlan(codexCliPlan, {
+        allowWriteSandbox: false,
+        spawn: this.spawn,
+        skipExecutionModelProbe: this.skipExecutionModelProbe,
+        governance: {
+          enabled: false
+        },
+        ...(this.timeoutMs !== undefined ? { timeoutMs: this.timeoutMs } : {}),
+        ...(this.env !== undefined ? { env: this.env } : {})
+      });
+    } catch (error) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_execute_failed",
+        [normalizeErrorMessage(error)]
+      );
+    }
+
+    const summary = createCodexCliProviderExecutionSummary(
+      parsedPlan,
+      metadata,
+      run
+    );
+
+    return {
+      ok: run.inspection.status === "completed",
+      artifacts: [
+        createCodexCliProviderSummaryArtifact(
+          parsedPlan,
+          "codex-cli-provider-execution-summary",
+          summary
+        )
+      ]
+    };
   }
 }
 
@@ -825,6 +925,114 @@ function readCodexCliProviderMetadata(
     policyDecisionHash: metadata.policyDecisionHash,
     routingDecisionHash: metadata.routingDecisionHash,
     codexCliPlan: parsedPlan
+  };
+}
+
+function collectReadOnlyExecutionRejectionReasons(
+  plan: ExecutorExecutionPlan,
+  metadata: CodexCliProviderPlanMetadata
+): string[] {
+  const reasons: string[] = [];
+
+  if (plan.sideEffectClass !== "read_only") {
+    reasons.push("codex_cli_provider_execute_only_supports_read_only");
+  }
+
+  if (
+    plan.sandboxProfile.mode !== "read-only"
+    || metadata.codexCliPlan.sandbox !== "read-only"
+  ) {
+    reasons.push("codex_cli_provider_execute_requires_read_only_sandbox");
+  }
+
+  if (metadata.policyAllowsWorkspaceWrite !== false) {
+    reasons.push("codex_cli_provider_execute_disallows_workspace_write");
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function createCodexCliProviderDryRunSummary(
+  plan: ExecutorExecutionPlan,
+  metadata: CodexCliProviderPlanMetadata
+): Record<string, unknown> {
+  return {
+    schemaVersion: "codex-cli-provider-execution-summary.v1",
+    status: "dry_run",
+    providerId: plan.providerId,
+    planId: plan.planId,
+    taskId: plan.taskId,
+    ...(plan.runId !== undefined ? { runId: plan.runId } : {}),
+    executionSkipped: true,
+    model: metadata.codexCliPlan.model,
+    sandbox: metadata.codexCliPlan.sandbox,
+    approvalPolicy: metadata.codexCliPlan.approvalPolicy,
+    warningCount: metadata.codexCliPlan.warnings.length
+  };
+}
+
+function createCodexCliProviderExecutionSummary(
+  plan: ExecutorExecutionPlan,
+  metadata: CodexCliProviderPlanMetadata,
+  run: CodexCliProcessRunResult
+): Record<string, unknown> {
+  return {
+    schemaVersion: "codex-cli-provider-execution-summary.v1",
+    status: run.inspection.status,
+    providerId: plan.providerId,
+    planId: plan.planId,
+    taskId: plan.taskId,
+    ...(plan.runId !== undefined ? { runId: plan.runId } : {}),
+    exitCode: run.output.exitCode,
+    inspection: {
+      status: run.inspection.status,
+      eventCount: run.inspection.events.length,
+      parseErrorCount: run.inspection.parseErrors.length,
+      warningCount: run.inspection.warnings.length,
+      blockingReasons: [...run.inspection.blockingReasons]
+    },
+    timedOut: run.timedOut,
+    killed: run.killed,
+    model: metadata.codexCliPlan.model,
+    sandbox: metadata.codexCliPlan.sandbox,
+    approvalPolicy: metadata.codexCliPlan.approvalPolicy
+  };
+}
+
+function createCodexCliProviderSummaryArtifact(
+  plan: ExecutorExecutionPlan,
+  summaryKind: string,
+  summary: Record<string, unknown>
+): Artifact {
+  const payload = JSON.stringify(summary);
+
+  return {
+    schemaVersion: "artifact.v1",
+    artifactId: `${summaryKind}:${plan.planId}`,
+    taskId: plan.taskId,
+    ...(plan.runId !== undefined ? { runId: plan.runId } : {}),
+    kind: "evidence",
+    uri: `memory://codex-cli-provider/${encodeURIComponent(plan.planId)}/${summaryKind}`,
+    sha256: hashKernelObject(summary),
+    sizeBytes: Buffer.byteLength(payload, "utf8"),
+    createdAt: plan.createdAt,
+    metadata: {
+      summaryKind,
+      summary
+    }
+  };
+}
+
+function createCodexCliProviderErrorResult(
+  code: string,
+  reasons: string[]
+): ProviderExecutionResult {
+  return {
+    ok: false,
+    error: {
+      code,
+      reasons: uniqueStrings(reasons)
+    }
   };
 }
 
