@@ -24,6 +24,7 @@ export interface WorkspaceWriteRealCanaryFinalLocalAuditResult {
   status: "passed" | "failed";
   checks: {
     allCommandsPassed: boolean;
+    noForbiddenCommands: boolean;
     canaryFileAbsent: boolean;
     noWorkspaceWriteExecute: boolean;
     noRealCodexCli: boolean;
@@ -46,6 +47,18 @@ export type WorkspaceWriteRealCanaryFinalLocalAuditRunner = (
 ) => Promise<WorkspaceWriteRealCanaryFinalLocalAuditCommandResult>;
 
 export type WorkspaceWriteRealCanaryFinalLocalAuditOutputFormat = "text" | "json";
+
+export const WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_FORBIDDEN_COMMAND_MARKERS = [
+  "model:check",
+  "smoke:",
+  "smoke:readonly:real",
+  "smoke:workspace-write:telemetry",
+  "canary:write",
+  "canary:external",
+  "run-codex-cli-real-readonly-smoke",
+  "run-codex-cli-workspace-write-smoke",
+  "ALLOW_REAL_CODEX_CLI_READONLY_SMOKE"
+] as const;
 
 export const WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS: readonly WorkspaceWriteRealCanaryFinalLocalAuditCommand[] = [
   {
@@ -103,24 +116,33 @@ export const WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS: readonly Wo
 export async function runWorkspaceWriteRealCanaryFinalLocalAudit(options: {
   runner?: WorkspaceWriteRealCanaryFinalLocalAuditRunner;
   canaryFileExists?: () => boolean;
+  commands?: readonly WorkspaceWriteRealCanaryFinalLocalAuditCommand[];
 } = {}): Promise<WorkspaceWriteRealCanaryFinalLocalAuditResult> {
   const runner = options.runner ?? runCommand;
+  const commands = options.commands ?? WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS;
   const commandResults: WorkspaceWriteRealCanaryFinalLocalAuditCommandResult[] = [];
+  const noForbiddenCommands = commandsDoNotContainForbiddenMarkers(commands);
 
-  for (const command of WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS) {
-    const result = await runner(command);
-    commandResults.push(result);
+  if (noForbiddenCommands) {
+    for (const command of commands) {
+      const result = await runner(command);
+      commandResults.push(result);
 
-    if (result.status !== "passed") {
-      break;
+      if (result.status !== "passed") {
+        break;
+      }
     }
   }
 
   const canaryFileAbsent = !(options.canaryFileExists ?? defaultCanaryFileExists)();
-  const allCommandsPassed = commandResults.length === WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.length
+  const allCommandsPassed = noForbiddenCommands
+    && commandResults.length === commands.length
     && commandResults.every((result) => result.status === "passed");
   const reasons: string[] = [];
 
+  if (!noForbiddenCommands) {
+    reasons.push("workspace_write_real_canary_final_local_audit_forbidden_command");
+  }
   if (!allCommandsPassed) {
     reasons.push("workspace_write_real_canary_final_local_audit_command_failed");
   }
@@ -132,6 +154,7 @@ export async function runWorkspaceWriteRealCanaryFinalLocalAudit(options: {
     status: reasons.length === 0 ? "passed" : "failed",
     checks: {
       allCommandsPassed,
+      noForbiddenCommands,
       canaryFileAbsent,
       noWorkspaceWriteExecute: true,
       noRealCodexCli: true,
@@ -163,12 +186,25 @@ export function formatWorkspaceWriteRealCanaryFinalLocalAuditResult(
     `status: ${result.status}`,
     `commands: ${result.summary.commandCount}`,
     `failed commands: ${result.summary.failedCommandCount}`,
+    `forbidden commands: ${!result.checks.noForbiddenCommands}`,
     `canary file absent: ${result.checks.canaryFileAbsent}`,
     `provider execute calls: ${result.summary.providerExecuteCalls}`,
     `real Codex CLI calls: ${result.summary.realCodexCliCalls}`,
     `workspace-write execute calls: ${result.summary.workspaceWriteExecuteCalls}`,
     ...(result.reasons.length > 0 ? [`reasons: ${result.reasons.join(",")}`] : [])
   ].join("\n");
+}
+
+function commandsDoNotContainForbiddenMarkers(
+  commands: readonly WorkspaceWriteRealCanaryFinalLocalAuditCommand[]
+): boolean {
+  const commandContractText = commands
+    .map((command) => [command.id, command.command, ...command.args].join(" "))
+    .join("\n");
+
+  return WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_FORBIDDEN_COMMAND_MARKERS.every(
+    (marker) => !commandContractText.includes(marker)
+  );
 }
 
 async function runCommand(

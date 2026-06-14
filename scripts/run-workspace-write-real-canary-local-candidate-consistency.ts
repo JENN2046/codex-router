@@ -398,6 +398,7 @@ function finalAuditJsonContractIsValid(): boolean {
     status: "passed",
     checks: {
       allCommandsPassed: true,
+      noForbiddenCommands: true,
       canaryFileAbsent: true,
       noWorkspaceWriteExecute: true,
       noRealCodexCli: true,
@@ -424,6 +425,7 @@ function finalAuditJsonContractIsValid(): boolean {
 
   return parsed !== undefined
     && getString(parsed, ["status"]) === "passed"
+    && getBoolean(parsed, ["checks", "noForbiddenCommands"]) === true
     && getBoolean(parsed, ["checks", "canaryFileAbsent"]) === true
     && getBoolean(parsed, ["checks", "noWorkspaceWriteExecute"]) === true
     && getBoolean(parsed, ["checks", "noRealCodexCli"]) === true

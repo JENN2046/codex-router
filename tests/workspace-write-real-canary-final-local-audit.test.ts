@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS,
+  WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_FORBIDDEN_COMMAND_MARKERS,
   formatWorkspaceWriteRealCanaryFinalLocalAuditResult,
   runWorkspaceWriteRealCanaryFinalLocalAudit,
   type WorkspaceWriteRealCanaryFinalLocalAuditCommand
@@ -60,18 +61,6 @@ const requiredPackageScripts = [
   "audit:workspace-write-real-canary-final-local"
 ] as const;
 
-const forbiddenFinalLocalAuditCommandMarkers = [
-  "model:check",
-  "smoke:",
-  "smoke:readonly:real",
-  "smoke:workspace-write:telemetry",
-  "canary:write",
-  "canary:external",
-  "run-codex-cli-real-readonly-smoke",
-  "run-codex-cli-workspace-write-smoke",
-  "ALLOW_REAL_CODEX_CLI_READONLY_SMOKE"
-] as const;
-
 test("workspace-write real canary final local audit runs the fixed local validation set", async () => {
   const seen: string[] = [];
   const result = await runWorkspaceWriteRealCanaryFinalLocalAudit({
@@ -84,6 +73,7 @@ test("workspace-write real canary final local audit runs the fixed local validat
 
   assert.equal(result.status, "passed");
   assert.equal(result.checks.allCommandsPassed, true);
+  assert.equal(result.checks.noForbiddenCommands, true);
   assert.equal(result.checks.canaryFileAbsent, true);
   assert.equal(result.checks.noProviderExecute, true);
   assert.equal(result.checks.noRealCodexCli, true);
@@ -125,13 +115,40 @@ test("workspace-write real canary final local audit excludes real smoke and work
     .map((command) => [command.id, command.command, ...command.args].join(" "))
     .join("\n");
 
-  for (const marker of forbiddenFinalLocalAuditCommandMarkers) {
+  for (const marker of WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_FORBIDDEN_COMMAND_MARKERS) {
     assert.equal(
       commandContractText.includes(marker),
       false,
       `final local audit commands must omit ${marker}`
     );
   }
+});
+
+test("workspace-write real canary final local audit blocks forbidden command contracts before runner", async () => {
+  const seen: string[] = [];
+  const result = await runWorkspaceWriteRealCanaryFinalLocalAudit({
+    commands: [
+      {
+        id: "forbidden-real-smoke",
+        command: "npm",
+        args: ["run", "smoke:readonly:real"]
+      }
+    ],
+    runner: async (command) => {
+      seen.push(command.id);
+      return passed(command);
+    },
+    canaryFileExists: () => false
+  });
+
+  assert.equal(result.status, "failed");
+  assert.deepEqual(seen, []);
+  assert.equal(result.checks.noForbiddenCommands, false);
+  assert.equal(result.checks.allCommandsPassed, false);
+  assert.deepEqual(result.commands, []);
+  assert.ok(result.reasons.includes(
+    "workspace_write_real_canary_final_local_audit_forbidden_command"
+  ));
 });
 
 test("workspace-write real canary final local audit stops on first failed command", async () => {
