@@ -43,6 +43,11 @@ The final local audit runs the fixed PR-12B validation set:
 - `npm run acceptance:workspace-write-real-canary-pre-execution`
 - `npm run audit:workspace-write-real-canary-candidate -- --json`
 
+The fixed validation set is covered by tests that bind the command ids,
+command arguments, and required `package.json` script names. A script rename or
+command-set drift should therefore fail the local final audit test before the
+candidate is treated as ready.
+
 The candidate consistency audit checks:
 
 - worktree is clean

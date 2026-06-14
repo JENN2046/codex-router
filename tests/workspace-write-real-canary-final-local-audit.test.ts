@@ -1,11 +1,55 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS,
   formatWorkspaceWriteRealCanaryFinalLocalAuditResult,
   runWorkspaceWriteRealCanaryFinalLocalAudit,
   type WorkspaceWriteRealCanaryFinalLocalAuditCommand
 } from "../scripts/run-workspace-write-real-canary-final-local-audit.js";
+
+const expectedFinalLocalAuditCommands = [
+  {
+    id: "typecheck",
+    args: ["run", "typecheck"]
+  },
+  {
+    id: "workspace-write-guard-tests",
+    args: ["tsx", "--test", "tests\\workspace-write-guard.test.ts"]
+  },
+  {
+    id: "real-canary-authorization-acceptance-tests",
+    args: ["tsx", "--test", "tests\\workspace-write-real-canary-authorization-acceptance.test.ts"]
+  },
+  {
+    id: "real-canary-pre-execution-acceptance-tests",
+    args: ["tsx", "--test", "tests\\workspace-write-real-canary-pre-execution-acceptance.test.ts"]
+  },
+  {
+    id: "real-canary-candidate-consistency-tests",
+    args: ["tsx", "--test", "tests\\workspace-write-real-canary-local-candidate-consistency.test.ts"]
+  },
+  {
+    id: "real-canary-authorization-acceptance",
+    args: ["run", "acceptance:workspace-write-real-canary-auth"]
+  },
+  {
+    id: "real-canary-pre-execution-acceptance",
+    args: ["run", "acceptance:workspace-write-real-canary-pre-execution"]
+  },
+  {
+    id: "real-canary-candidate-audit-json",
+    args: ["run", "audit:workspace-write-real-canary-candidate", "--", "--json"]
+  }
+] as const;
+
+const requiredPackageScripts = [
+  "typecheck",
+  "acceptance:workspace-write-real-canary-auth",
+  "acceptance:workspace-write-real-canary-pre-execution",
+  "audit:workspace-write-real-canary-candidate",
+  "audit:workspace-write-real-canary-final-local"
+] as const;
 
 test("workspace-write real canary final local audit runs the fixed local validation set", async () => {
   const seen: string[] = [];
@@ -31,6 +75,28 @@ test("workspace-write real canary final local audit runs the fixed local validat
   assert.equal(result.summary.realCodexCliCalls, 0);
   assert.equal(result.summary.workspaceWriteExecuteCalls, 0);
   assert.deepEqual(result.reasons, []);
+});
+
+test("workspace-write real canary final local audit command contract is explicit", async () => {
+  assert.deepEqual(
+    WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS.map((command) => ({
+      id: command.id,
+      args: command.args
+    })),
+    expectedFinalLocalAuditCommands
+  );
+
+  const packageJson = JSON.parse(await readFile("package.json", "utf8")) as {
+    scripts?: Record<string, unknown>;
+  };
+
+  for (const scriptName of requiredPackageScripts) {
+    assert.equal(
+      typeof packageJson.scripts?.[scriptName],
+      "string",
+      `${scriptName} must remain available for the final local audit chain`
+    );
+  }
 });
 
 test("workspace-write real canary final local audit stops on first failed command", async () => {
