@@ -10,7 +10,8 @@ import {
   type ProviderRegistryEntry
 } from "../packages/provider-registry/src/index.js";
 import {
-  CodexCliExecutorProvider
+  CodexCliExecutorProvider,
+  codexCliProviderManifest
 } from "../packages/providers/codex-cli/src/index.js";
 import {
   McpServerRefSchema,
@@ -21,7 +22,9 @@ import {
 } from "../packages/protocol-a2a/src/index.js";
 import {
   ProviderManifestSchema,
+  hashProviderManifest,
   type ExecutorProvider,
+  type ProviderManifest,
   type RemoteAgentProvider,
   type ToolProvider
 } from "../packages/provider-core/src/index.js";
@@ -32,6 +35,129 @@ import {
 import { validAgentManifest } from "../packages/kernel-contracts/test-fixtures/valid-agent-manifest.js";
 
 const now = "2026-06-04T01:30:00.000Z";
+const pr7aNow = "2026-06-14T00:00:00.000Z";
+
+test("provider-registry read-only catalog registers codex-cli manifest", () => {
+  const registry = createProviderRegistry();
+  const entry = registry.register(codexCliProviderManifest, {
+    registeredAt: pr7aNow
+  });
+
+  assert.equal(entry.providerId, "codex-cli");
+  assert.equal(entry.kind, "executor");
+  assert.equal(entry.displayName, codexCliProviderManifest.displayName);
+  assert.equal(entry.version, codexCliProviderManifest.version);
+  assert.equal(entry.enabled, true);
+  assert.match(entry.manifestHash, /^[a-f0-9]{64}$/);
+  assert.equal(entry.attestation.manifestHash, entry.manifestHash);
+  assert.equal(entry.manifestHash, hashProviderManifest(codexCliProviderManifest));
+  assert.ok(entry.capabilities.length > 0);
+  assert.ok(entry.supportedSandboxProfiles.length > 0);
+  assert.ok(entry.supportedSideEffectClasses.length > 0);
+
+  const serialized = JSON.stringify(entry);
+  assert.equal(serialized.includes("execute"), false);
+  assert.equal(serialized.includes("function"), false);
+});
+
+test("provider-registry read-only catalog gets provider by id", () => {
+  const registry = createProviderRegistry();
+
+  registry.register(codexCliProviderManifest, {
+    registeredAt: pr7aNow
+  });
+
+  assert.equal(registry.get("codex-cli")?.providerId, "codex-cli");
+  assert.equal(registry.get("missing"), undefined);
+});
+
+test("provider-registry read-only catalog lists all and enabled providers", () => {
+  const registry = createProviderRegistry();
+  const disabledManifest = createDisabledProviderManifest();
+
+  registry.register(codexCliProviderManifest, {
+    registeredAt: pr7aNow
+  });
+  registry.register(disabledManifest, {
+    registeredAt: pr7aNow
+  });
+
+  assert.deepEqual(
+    registry.list().map((entry) => entry.providerId),
+    ["codex-cli", "codex-cli-disabled"]
+  );
+  assert.deepEqual(
+    registry.listEnabled().map((entry) => entry.providerId),
+    ["codex-cli"]
+  );
+});
+
+test("provider-registry read-only catalog rejects duplicate providers", () => {
+  const registry = createProviderRegistry();
+
+  registry.register(codexCliProviderManifest, {
+    registeredAt: pr7aNow
+  });
+
+  assert.throws(
+    () => registry.register(codexCliProviderManifest, { registeredAt: pr7aNow }),
+    /provider_registry_duplicate_provider:codex-cli/
+  );
+});
+
+test("provider-registry read-only catalog excludes disabled provider from listEnabled", () => {
+  const registry = createProviderRegistry();
+  const disabledManifest = createDisabledProviderManifest();
+
+  registry.register(disabledManifest, {
+    registeredAt: pr7aNow
+  });
+
+  assert.deepEqual(
+    registry.list().map((entry) => entry.providerId),
+    ["codex-cli-disabled"]
+  );
+  assert.deepEqual(registry.listEnabled(), []);
+});
+
+test("provider-registry read-only catalog snapshot is stable and sanitized", () => {
+  const registry = createProviderRegistry();
+
+  registry.register(codexCliProviderManifest, {
+    registeredAt: pr7aNow
+  });
+
+  const snapshot = registry.snapshot({
+    generatedAt: pr7aNow
+  });
+  const serialized = JSON.stringify(snapshot);
+
+  assert.equal(snapshot.schemaVersion, "provider-registry-snapshot.v1");
+  assert.equal(snapshot.generatedAt, pr7aNow);
+  assert.equal(snapshot.providerCount, 1);
+  assert.equal(snapshot.enabledProviderCount, 1);
+  assert.equal(snapshot.providers[0]?.providerId, "codex-cli");
+  assert.equal(serialized.includes("execute"), false);
+  assert.equal(serialized.includes("invoke"), false);
+  assert.equal(serialized.includes("function"), false);
+  assert.equal(serialized.includes("secret"), false);
+  assert.equal(serialized.includes("token"), false);
+  assert.equal(serialized.includes("OPENAI_API_KEY"), false);
+  assert.equal(serialized.includes("sk-"), false);
+  assert.equal(serialized.includes("Bearer"), false);
+});
+
+test("provider-registry read-only catalog manifest hash changes when manifest changes", () => {
+  const changedManifest = ProviderManifestSchema.parse({
+    ...codexCliProviderManifest,
+    version: "0.1.1"
+  });
+
+  assert.notEqual(
+    hashProviderManifest(changedManifest),
+    hashProviderManifest(codexCliProviderManifest)
+  );
+});
 
 test("provider-registry registers, gets, lists, and unregisters providers", () => {
   const registry = createProviderRegistry();
@@ -426,6 +552,15 @@ function createPopulatedRegistry(): ProviderRegistry {
 
 function createCodexProvider(): CodexCliExecutorProvider {
   return new CodexCliExecutorProvider();
+}
+
+function createDisabledProviderManifest(): ProviderManifest {
+  return ProviderManifestSchema.parse({
+    ...codexCliProviderManifest,
+    providerId: "codex-cli-disabled",
+    displayName: "Codex CLI Disabled",
+    enabled: false
+  });
 }
 
 function createMcpProvider(): ToolProvider {

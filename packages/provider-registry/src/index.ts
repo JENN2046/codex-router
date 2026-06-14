@@ -19,12 +19,17 @@ import {
   ProviderKindSchema,
   ProviderManifestSchema,
   ProviderSideEffectClassSchema,
+  createProviderAttestation,
+  hashProviderManifest,
+  parseProviderManifest,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass,
   type ExecutorProvider,
   type ModelProvider,
+  type ProviderAttestation,
   type ProviderKind,
   type ProviderManifest,
+  type ProviderSecurityBoundary,
   type ProviderSideEffectClass,
   type RemoteAgentProvider,
   type ToolProvider
@@ -41,6 +46,51 @@ export type ProviderRegistryEntry<
 > = {
   manifest: ProviderManifest;
   provider: TProvider;
+};
+
+export interface ProviderRegistryAttestationEntry {
+  providerId: string;
+  kind: ProviderKind;
+  displayName: string;
+  version: string;
+  enabled: boolean;
+  manifestHash: string;
+  capabilities: string[];
+  securityBoundary: ProviderSecurityBoundary;
+  supportedSandboxProfiles: SandboxProfile[];
+  supportedSideEffectClasses: ProviderSideEffectClass[];
+  attestation: ProviderAttestation;
+  registeredAt: string;
+}
+
+export interface ProviderRegistrySnapshot {
+  schemaVersion: "provider-registry-snapshot.v1";
+  generatedAt: string;
+  providerCount: number;
+  enabledProviderCount: number;
+  providers: ProviderRegistrySnapshotEntry[];
+}
+
+export type ProviderRegistrySnapshotSecurityBoundary = Omit<
+  ProviderSecurityBoundary,
+  "secretAccess"
+> & {
+  credentialAccess: ProviderSecurityBoundary["secretAccess"];
+};
+
+export type ProviderRegistrySnapshotAttestation = Omit<
+  ProviderAttestation,
+  "securityBoundary"
+> & {
+  securityBoundary: ProviderRegistrySnapshotSecurityBoundary;
+};
+
+export type ProviderRegistrySnapshotEntry = Omit<
+  ProviderRegistryAttestationEntry,
+  "securityBoundary" | "attestation"
+> & {
+  securityBoundary: ProviderRegistrySnapshotSecurityBoundary;
+  attestation: ProviderRegistrySnapshotAttestation;
 };
 
 export type ProviderRegistryFilter = {
@@ -98,6 +148,67 @@ const defaultLockStaleMs = 30_000;
 
 export class ProviderRegistry {
   private readonly entries = new Map<string, ProviderRegistryEntry>();
+  private readonly attestationCatalog = new Map<string, ProviderRegistryAttestationEntry>();
+
+  register(
+    manifestInput: ProviderManifest | z.input<typeof ProviderManifestSchema>,
+    options: { registeredAt?: string } = {}
+  ): ProviderRegistryAttestationEntry {
+    const manifest = parseProviderManifest(manifestInput);
+    const registeredAt = options.registeredAt ?? new Date().toISOString();
+
+    if (this.attestationCatalog.has(manifest.providerId)) {
+      throw new Error(`provider_registry_duplicate_provider:${manifest.providerId}`);
+    }
+
+    const attestation = createProviderAttestation(manifest, registeredAt);
+    const entry: ProviderRegistryAttestationEntry = {
+      providerId: manifest.providerId,
+      kind: manifest.kind,
+      displayName: manifest.displayName,
+      version: manifest.version,
+      enabled: manifest.enabled,
+      manifestHash: attestation.manifestHash,
+      capabilities: [...attestation.capabilities],
+      securityBoundary: structuredClone(attestation.securityBoundary) as ProviderSecurityBoundary,
+      supportedSandboxProfiles: structuredClone(attestation.supportedSandboxProfiles) as SandboxProfile[],
+      supportedSideEffectClasses: [...attestation.supportedSideEffectClasses],
+      attestation: structuredClone(attestation) as ProviderAttestation,
+      registeredAt
+    };
+
+    if (entry.manifestHash !== hashProviderManifest(manifest)) {
+      throw new Error(`provider_registry_manifest_hash_mismatch:${manifest.providerId}`);
+    }
+
+    this.attestationCatalog.set(manifest.providerId, entry);
+    return cloneAttestationEntry(entry);
+  }
+
+  get(providerId: string): ProviderRegistryAttestationEntry | undefined {
+    const entry = this.attestationCatalog.get(providerId);
+    return entry === undefined ? undefined : cloneAttestationEntry(entry);
+  }
+
+  list(): ProviderRegistryAttestationEntry[] {
+    return [...this.attestationCatalog.values()].map(cloneAttestationEntry);
+  }
+
+  listEnabled(): ProviderRegistryAttestationEntry[] {
+    return this.list().filter((entry) => entry.enabled);
+  }
+
+  snapshot(options: { generatedAt?: string } = {}): ProviderRegistrySnapshot {
+    const entries = this.list();
+    const providers = entries.map(toSnapshotEntry);
+    return {
+      schemaVersion: "provider-registry-snapshot.v1",
+      generatedAt: options.generatedAt ?? new Date().toISOString(),
+      providerCount: providers.length,
+      enabledProviderCount: entries.filter((entry) => entry.enabled).length,
+      providers
+    };
+  }
 
   registerProvider(
     manifestInput: ProviderManifest | z.input<typeof ProviderManifestSchema>,
@@ -594,6 +705,58 @@ function cloneEntry(entry: ProviderRegistryEntry): ProviderRegistryEntry {
   return {
     manifest: cloneManifest(entry.manifest),
     provider: entry.provider
+  };
+}
+
+function cloneAttestationEntry(
+  entry: ProviderRegistryAttestationEntry
+): ProviderRegistryAttestationEntry {
+  return structuredClone(entry) as ProviderRegistryAttestationEntry;
+}
+
+function toSnapshotEntry(
+  entry: ProviderRegistryAttestationEntry
+): ProviderRegistrySnapshotEntry {
+  const securityBoundary = toSnapshotSecurityBoundary(entry.securityBoundary);
+  return {
+    providerId: entry.providerId,
+    kind: entry.kind,
+    displayName: entry.displayName,
+    version: entry.version,
+    enabled: entry.enabled,
+    manifestHash: entry.manifestHash,
+    capabilities: [...entry.capabilities],
+    securityBoundary,
+    supportedSandboxProfiles: structuredClone(entry.supportedSandboxProfiles) as SandboxProfile[],
+    supportedSideEffectClasses: [...entry.supportedSideEffectClasses],
+    attestation: {
+      schemaVersion: entry.attestation.schemaVersion,
+      providerId: entry.attestation.providerId,
+      kind: entry.attestation.kind,
+      displayName: entry.attestation.displayName,
+      version: entry.attestation.version,
+      manifestHash: entry.attestation.manifestHash,
+      capabilities: [...entry.attestation.capabilities],
+      securityBoundary,
+      supportedSandboxProfiles: structuredClone(
+        entry.attestation.supportedSandboxProfiles
+      ) as SandboxProfile[],
+      supportedSideEffectClasses: [...entry.attestation.supportedSideEffectClasses],
+      attestedAt: entry.attestation.attestedAt
+    },
+    registeredAt: entry.registeredAt
+  };
+}
+
+function toSnapshotSecurityBoundary(
+  boundary: ProviderSecurityBoundary
+): ProviderRegistrySnapshotSecurityBoundary {
+  return {
+    isolation: boundary.isolation,
+    networkAccess: boundary.networkAccess,
+    filesystemAccess: boundary.filesystemAccess,
+    credentialAccess: boundary.secretAccess,
+    notes: [...boundary.notes]
   };
 }
 
