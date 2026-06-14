@@ -30,6 +30,12 @@ import { createDesktopExecutionPlan } from "../../desktop-bridge/src/index.js";
 import { createMemoryPreflightLogEvent, createPreflightLogEvent, type LogEvent } from "../../observability/src/index.js";
 import type { TelemetrySink } from "../../observability/src/index.js";
 import {
+  selectProviderForRoutingDecision,
+  summarizeProviderSelectionResult,
+  type ProviderRegistry,
+  type ProviderSelectionSummary
+} from "../../provider-registry/src/index.js";
+import {
   createInitialGovernanceState,
   type GovernanceState
 } from "../../state-manager/src/index.js";
@@ -67,6 +73,7 @@ export interface DesktopDecisionRunnerInput {
     memoryOverviewProvider?: MemoryOverviewProvider;
     telemetryStore?: TelemetrySink;
   };
+  providerRegistry?: ProviderRegistry;
   now?: () => string;
 }
 
@@ -95,6 +102,7 @@ export interface DesktopDecisionRunnerResult {
   auditEvents: AuditEvent[];
   observabilityEvents: LogEvent[];
   blockingReasons: string[];
+  providerSelection?: ProviderSelectionSummary;
   resumedFrom?: CheckpointRef;
   resumeSource?: ResumeSource;
 }
@@ -143,12 +151,17 @@ export async function runDesktopDecision(
     explicitOwnership: task.constraints.explicitOwnership ?? false,
     fileTargets: task.target.files
   });
+  const providerSelection = input.providerRegistry === undefined
+    ? undefined
+    : summarizeProviderSelectionResult(
+        selectProviderForRoutingDecision(input.providerRegistry, decision)
+      );
 
-  const status = resolveStatus(preflight, approval);
+  const status = resolveStatus(preflight, approval, providerSelection);
   const executionPlan = status === "ready" && decision.hostRoute === "desktop"
     ? createDesktopExecutionPlan(decision, { authorized: true })
     : candidateExecutionPlan;
-  const blockingReasons = collectBlockingReasons(preflight, approval);
+  const blockingReasons = collectBlockingReasons(preflight, approval, providerSelection);
   const checkpoint = buildCheckpoint(task.taskId, status, blockingReasons, now());
   const auditEvents = buildAuditEvents({
     task,
@@ -181,7 +194,8 @@ export async function runDesktopDecision(
     checkpoint,
     auditEvents,
     observabilityEvents,
-    blockingReasons
+    blockingReasons,
+    ...(providerSelection !== undefined ? { providerSelection } : {})
   };
 }
 
@@ -202,6 +216,7 @@ export async function resumeDesktopDecision(
     preflight: input.preflight,
     ...(input.availableAgents !== undefined ? { availableAgents: input.availableAgents } : {}),
     ...(input.persistence !== undefined ? { persistence: input.persistence } : {}),
+    ...(input.providerRegistry !== undefined ? { providerRegistry: input.providerRegistry } : {}),
     ...(input.now !== undefined ? { now: input.now } : {})
   };
   const result = await runDesktopDecision(runnerInput);
@@ -260,9 +275,14 @@ function deriveRequiredTools(
 
 function resolveStatus(
   preflight: PreflightResult,
-  approval: ApprovalDecision
+  approval: ApprovalDecision,
+  providerSelection?: ProviderSelectionSummary
 ): DesktopDecisionRunnerStatus {
   if (!preflight.ok) {
+    return "blocked_preflight";
+  }
+
+  if (providerSelection !== undefined && !providerSelection.selected) {
     return "blocked_preflight";
   }
 
@@ -275,10 +295,15 @@ function resolveStatus(
 
 function collectBlockingReasons(
   preflight: PreflightResult,
-  approval: ApprovalDecision
+  approval: ApprovalDecision,
+  providerSelection?: ProviderSelectionSummary
 ): string[] {
   if (!preflight.ok) {
     return [...preflight.errors];
+  }
+
+  if (providerSelection !== undefined && !providerSelection.selected) {
+    return [...providerSelection.reasons];
   }
 
   if (approval.status === "pending") {

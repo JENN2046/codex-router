@@ -8,6 +8,7 @@ import {
   ProviderRegistry,
   createProviderRegistry,
   selectProviderForGrant,
+  selectProviderForRoutingDecision,
   type ProviderRegistryEntry
 } from "../packages/provider-registry/src/index.js";
 import {
@@ -34,7 +35,8 @@ import {
   type SandboxProfile
 } from "../packages/kernel-contracts/src/index.js";
 import {
-  ProviderGrantSchema
+  ProviderGrantSchema,
+  RoutingDecisionSchema
 } from "../packages/contracts/src/index.js";
 import { validAgentManifest } from "../packages/kernel-contracts/test-fixtures/valid-agent-manifest.js";
 
@@ -324,6 +326,40 @@ test("provider-registry selection selects provider for grant", () => {
   assert.equal(result.provider?.providerId, "codex-cli");
 });
 
+test("provider-registry selection selects provider for routing decision", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const result = selectProviderForRoutingDecision(
+    registry,
+    createCodexReadOnlyRoutingDecision()
+  );
+
+  assert.equal(result.selected, true);
+  assert.equal(result.provider?.providerId, "codex-cli");
+  assert.deepEqual(result.reasons, []);
+});
+
+test("provider-registry selection rejects routing decisions without provider grants", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const decision = createCodexReadOnlyRoutingDecision();
+  delete (decision as { providerGrant?: unknown }).providerGrant;
+  const result = selectProviderForRoutingDecision(registry, decision);
+
+  assert.equal(result.selected, false);
+  assert.equal(result.provider, undefined);
+  assert.deepEqual(result.reasons, ["provider_selection_grant_missing"]);
+});
+
+test("provider-registry selection rejects routing decision manifest mismatch", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const decision = createCodexReadOnlyRoutingDecision({
+    manifestHash: "0".repeat(64)
+  });
+  const result = selectProviderForRoutingDecision(registry, decision);
+
+  assert.equal(result.selected, false);
+  assert.ok(result.reasons.includes("provider_selection_manifest_hash_mismatch"));
+});
+
 test("provider-registry selection rejects provider grant manifest mismatch", () => {
   const registry = createRegistryWithCodexCatalog();
   const grant = {
@@ -353,6 +389,29 @@ test("provider-registry selection result is sanitized", () => {
   assert.equal(serialized.includes("OPENAI_API_KEY"), false);
   assert.equal(serialized.includes("sk-"), false);
   assert.equal(serialized.includes("Bearer"), false);
+});
+
+test("provider-registry routing decision selection result is sanitized", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const result = selectProviderForRoutingDecision(
+    registry,
+    createCodexReadOnlyRoutingDecision()
+  );
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.selected, true);
+  assert.equal(serialized.includes("execute"), false);
+  assert.equal(serialized.includes("invoke"), false);
+  assert.equal(serialized.includes("function"), false);
+  assert.equal(serialized.includes("secret"), false);
+  assert.equal(serialized.includes("token"), false);
+  assert.equal(serialized.includes("OPENAI_API_KEY"), false);
+  assert.equal(serialized.includes("sk-"), false);
+  assert.equal(serialized.includes("Bearer"), false);
+  assert.equal(serialized.includes("prompt"), false);
+  assert.equal(serialized.includes("args"), false);
+  assert.equal(serialized.includes("stdout"), false);
+  assert.equal(serialized.includes("stderr"), false);
 });
 
 test("provider-registry registers, gets, lists, and unregisters providers", () => {
@@ -812,12 +871,53 @@ function createCodexReadOnlyProviderGrant() {
     grantId: "grant_provider_registry_codex_cli_readonly",
     providerId: "codex-cli",
     providerKind: "executor",
+    manifestHash: hashProviderManifest(codexCliProviderManifest),
     sideEffectClass: "read_only",
     toolAccess: "read_only",
     sandboxMode: "read-only",
     approvalRequired: false,
     requiredApprovals: [],
     reasons: ["test"]
+  });
+}
+
+function createCodexReadOnlyRoutingDecision(
+  grantOverrides: Partial<ReturnType<typeof createCodexReadOnlyProviderGrant>> = {}
+) {
+  const grant = ProviderGrantSchema.parse({
+    ...createCodexReadOnlyProviderGrant(),
+    ...grantOverrides
+  });
+
+  return RoutingDecisionSchema.parse({
+    schemaVersion: "routing-decision.v1",
+    decisionId: "decision_provider_registry_codex_cli_readonly",
+    taskId: "task_provider_registry_codex_cli_readonly",
+    policyVersion: "provider-registry-test-policy",
+    classification: {
+      taskClass: "read_only",
+      riskLevel: "low",
+      ambiguityScore: 0,
+      clarificationRequired: false,
+      riskFactors: []
+    },
+    execution: {
+      selectedModel: "gpt-5.4-mini",
+      toolAccess: "read_only",
+      executionProfile: "recon-only",
+      reasoningEffort: "low"
+    },
+    approval: {
+      required: false,
+      reasons: []
+    },
+    parallelism: {
+      allowed: false,
+      maxAgents: 1,
+      mode: "disabled"
+    },
+    hostRoute: "codex-cli",
+    providerGrant: grant
   });
 }
 

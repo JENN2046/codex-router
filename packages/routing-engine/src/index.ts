@@ -13,6 +13,8 @@ import type {
 import { parseTaskEnvelope } from "../../contracts/src/index.js";
 import type { PolicySnapshot } from "../../policy-config/src/index.js";
 import { getExecutionProfile } from "../../execution-profiles/src/index.js";
+import { hashProviderManifest } from "../../provider-core/src/index.js";
+import { codexCliProviderManifest } from "../../providers/codex-cli/src/index.js";
 
 export function routeTask(
   taskInput: TaskEnvelopeInput,
@@ -89,6 +91,9 @@ function createProviderGrant(input: {
     grantId: `${input.task.taskId}:${input.policyVersion}:${providerId}:${input.toolAccess}`,
     providerId,
     providerKind: "executor",
+    ...(providerId === "codex-cli"
+      ? { manifestHash: hashProviderManifest(codexCliProviderManifest) }
+      : {}),
     sideEffectClass: resolveProviderSideEffectClass(input.toolAccess),
     toolAccess: input.toolAccess,
     sandboxMode: input.toolAccess === "read_only" ? "read-only" : "workspace-write",

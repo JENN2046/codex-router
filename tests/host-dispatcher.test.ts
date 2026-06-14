@@ -10,8 +10,13 @@ import {
   dispatchToHost
 } from "../packages/host-dispatcher/src/index.js";
 import { runDesktopDecision } from "../packages/desktop-decision-runner/src/index.js";
-import { CodexCliExecutorProvider } from "../packages/providers/codex-cli/src/index.js";
 import {
+  CodexCliExecutorProvider,
+  codexCliProviderManifest
+} from "../packages/providers/codex-cli/src/index.js";
+import { createProviderRegistry, type ProviderRegistry } from "../packages/provider-registry/src/index.js";
+import {
+  ProviderManifestSchema,
   type ExecutionPlanInput
 } from "../packages/provider-core/src/index.js";
 import {
@@ -353,6 +358,40 @@ test("host dispatcher dispatches ready read-only runner results through provider
   assert.equal(serialized.includes("stderr"), false);
 });
 
+test("host dispatcher validates provider registry selection before read-only runner dispatch", async () => {
+  const runnerResult = await createReadOnlyRunnerResult(
+    "host-dispatcher-runner-provider-registry-success"
+  );
+  const registry = createRegistryWithCodexCatalog();
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"completed\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+
+  const result = await dispatchReadOnlyRunnerResultToProvider({
+    runnerResult,
+    provider,
+    providerRegistry: registry,
+    now
+  });
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "completed");
+  assert.equal(spawnCalls, 1);
+  assert.equal(result.providerSelection?.selected, true);
+  assert.equal(result.providerSelection?.providerId, "codex-cli");
+  assert.equal(result.permit?.status, "approved");
+  assertSafeDispatch(serialized);
+});
+
 test("host dispatcher dry-runs read-only runner provider dispatch without spawn", async () => {
   const runnerResult = await createReadOnlyRunnerResult("host-dispatcher-runner-provider-dry-run");
   let spawnCalls = 0;
@@ -510,6 +549,52 @@ test("host dispatcher rejects invalid provider grants before spawn", async () =>
   });
 });
 
+test("host dispatcher rejects missing registry providers before permit and execute", async () => {
+  const runnerResult = await createReadOnlyRunnerResult(
+    "host-dispatcher-runner-provider-registry-missing"
+  );
+
+  await assertRegistryDispatchRejected({
+    runnerResult,
+    providerRegistry: createProviderRegistry(),
+    expectedReason: "provider_selection_provider_missing:codex-cli"
+  });
+});
+
+test("host dispatcher rejects disabled registry providers before permit and execute", async () => {
+  const runnerResult = await createReadOnlyRunnerResult(
+    "host-dispatcher-runner-provider-registry-disabled"
+  );
+  const registry = createProviderRegistry();
+  registry.register(ProviderManifestSchema.parse({
+    ...codexCliProviderManifest,
+    enabled: false
+  }));
+
+  await assertRegistryDispatchRejected({
+    runnerResult,
+    providerRegistry: registry,
+    expectedReason: "provider_selection_provider_disabled:codex-cli"
+  });
+});
+
+test("host dispatcher rejects registry manifest mismatches before permit and execute", async () => {
+  const runnerResult = await createReadOnlyRunnerResult(
+    "host-dispatcher-runner-provider-registry-hash-mismatch"
+  );
+  const registry = createProviderRegistry();
+  registry.register(ProviderManifestSchema.parse({
+    ...codexCliProviderManifest,
+    version: "0.0.0-host-dispatcher-mismatch"
+  }));
+
+  await assertRegistryDispatchRejected({
+    runnerResult,
+    providerRegistry: registry,
+    expectedReason: "provider_selection_manifest_hash_mismatch"
+  });
+});
+
 function createReadOnlyTask(taskId: string) {
   return parseTaskEnvelope({
     taskId,
@@ -582,6 +667,76 @@ async function assertRunnerDispatchRejected(options: {
   assert.equal(serialized.includes("args"), false);
   assert.equal(serialized.includes("stdout"), false);
   assert.equal(serialized.includes("stderr"), false);
+}
+
+async function assertRegistryDispatchRejected(options: {
+  runnerResult: Awaited<ReturnType<typeof createReadOnlyRunnerResult>>;
+  providerRegistry: ProviderRegistry;
+  expectedReason: string;
+}): Promise<void> {
+  let spawnCalls = 0;
+  let planCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const originalPlanExecution = provider.planExecution.bind(provider);
+  provider.planExecution = ((input: ExecutionPlanInput) => {
+    planCalls += 1;
+    return originalPlanExecution(input);
+  }) as typeof provider.planExecution;
+
+  const result = await dispatchReadOnlyRunnerResultToProvider({
+    runnerResult: options.runnerResult,
+    provider,
+    providerRegistry: options.providerRegistry,
+    now
+  });
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked");
+  assert.equal(result.permit, undefined);
+  assert.equal(planCalls, 0);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.providerSelection?.selected, false);
+  assert.ok(result.blockingReasons?.includes(options.expectedReason));
+  assertSafeDispatch(serialized);
+}
+
+function createRegistryWithCodexCatalog(): ProviderRegistry {
+  const registry = createProviderRegistry();
+  registry.register(codexCliProviderManifest, {
+    registeredAt: now
+  });
+  return registry;
+}
+
+function assertSafeDispatch(serialized: string): void {
+  for (const marker of [
+    "prompt",
+    "args",
+    "stdout",
+    "stderr",
+    "execute",
+    "invoke",
+    "function",
+    "secret",
+    "token",
+    "OPENAI_API_KEY",
+    "sk-",
+    "Bearer",
+    "raw env",
+    "raw command"
+  ]) {
+    assert.equal(serialized.includes(marker), false, marker);
+  }
 }
 
 function createProviderExecutionInput(options: {

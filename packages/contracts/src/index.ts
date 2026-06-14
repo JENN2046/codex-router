@@ -124,6 +124,7 @@ export const ProviderGrantSchema = z.object({
   grantId: z.string().min(1),
   providerId: z.string().min(1),
   providerKind: ProviderGrantProviderKindSchema,
+  manifestHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   sideEffectClass: ProviderSideEffectClassSchema,
   toolAccess: ToolAccessLevelSchema,
   sandboxMode: z.enum(["read-only", "workspace-write"]),

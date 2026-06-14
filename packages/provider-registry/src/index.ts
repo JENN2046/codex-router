@@ -16,7 +16,8 @@ import {
   type SandboxProfile
 } from "../../kernel-contracts/src/index.js";
 import type {
-  ProviderGrant
+  ProviderGrant,
+  RoutingDecision
 } from "../../contracts/src/index.js";
 import {
   ProviderKindSchema,
@@ -110,6 +111,18 @@ export interface ProviderSelectionResult {
   selected: boolean;
   provider?: ProviderRegistrySnapshotEntry;
   reasons: string[];
+}
+
+export interface ProviderSelectionSummary {
+  selected: boolean;
+  providerId?: string;
+  manifestHash?: string;
+  kind?: ProviderKind;
+  enabled?: boolean;
+  reasons: string[];
+  capabilityCount?: number;
+  sandboxProfileCount?: number;
+  sideEffectClassCount?: number;
 }
 
 export type ProviderRegistryFilter = {
@@ -597,6 +610,42 @@ export function selectProviderForGrant(
   };
 
   return selectProviderFromRegistry(registry, request);
+}
+
+export function selectProviderForRoutingDecision(
+  registry: ProviderRegistry,
+  decision: RoutingDecision
+): ProviderSelectionResult {
+  if (decision.providerGrant === undefined) {
+    return {
+      selected: false,
+      reasons: ["provider_selection_grant_missing"]
+    };
+  }
+
+  return selectProviderForGrant(registry, decision.providerGrant);
+}
+
+export function summarizeProviderSelectionResult(
+  selection: ProviderSelectionResult
+): ProviderSelectionSummary {
+  const provider = selection.provider;
+
+  return {
+    selected: selection.selected,
+    ...(provider !== undefined
+      ? {
+          providerId: provider.providerId,
+          manifestHash: provider.manifestHash,
+          kind: provider.kind,
+          enabled: provider.enabled,
+          capabilityCount: provider.capabilities.length,
+          sandboxProfileCount: provider.supportedSandboxProfiles.length,
+          sideEffectClassCount: provider.supportedSideEffectClasses.length
+        }
+      : {}),
+    reasons: [...selection.reasons]
+  };
 }
 
 export function createInMemoryProviderManifestStore(): InMemoryProviderManifestStore {

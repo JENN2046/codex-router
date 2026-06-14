@@ -5,6 +5,8 @@ import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import { routeTask } from "../packages/routing-engine/src/index.js";
 import { classifyIntent } from "../packages/intent-gate/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
+import { hashProviderManifest } from "../packages/provider-core/src/index.js";
+import { codexCliProviderManifest } from "../packages/providers/codex-cli/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
 
@@ -52,6 +54,7 @@ test("routing engine covers read-only and small edit tasks", async () => {
     grantId: "read-only:2026-04-23.desktop-first.v1.1:codex-cli:read_only",
     providerId: "codex-cli",
     providerKind: "executor",
+    manifestHash: hashProviderManifest(codexCliProviderManifest),
     sideEffectClass: "read_only",
     toolAccess: "read_only",
     sandboxMode: "read-only",

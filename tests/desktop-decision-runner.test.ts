@@ -8,7 +8,12 @@ import {
   runDesktopDecision
 } from "../packages/desktop-decision-runner/src/index.js";
 import { dispatchReadOnlyRunnerResultToProvider } from "../packages/host-dispatcher/src/index.js";
-import { CodexCliExecutorProvider } from "../packages/providers/codex-cli/src/index.js";
+import {
+  CodexCliExecutorProvider,
+  codexCliProviderManifest
+} from "../packages/providers/codex-cli/src/index.js";
+import { createProviderRegistry } from "../packages/provider-registry/src/index.js";
+import { ProviderManifestSchema } from "../packages/provider-core/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
 
@@ -256,6 +261,107 @@ test("desktop decision runner read-only result can dry-run provider dispatch", a
   assert.equal(dispatch.status, "dry_run");
   assert.equal(dispatch.dryRun, true);
   assert.equal(spawnCalls, 0);
+});
+
+test("desktop decision runner records provider selection when registry is supplied", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const registry = createRegistryWithCodexCatalog();
+
+  const result = await runDesktopDecision({
+    task: createReadOnlyTask("runner-provider-selection-success"),
+    policy,
+    providerRegistry: registry,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    now: () => "2026-06-14T00:00:00.000Z"
+  });
+  const serialized = JSON.stringify(result.providerSelection);
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.providerSelection?.selected, true);
+  assert.equal(result.providerSelection?.providerId, "codex-cli");
+  assert.equal(result.providerSelection?.kind, "executor");
+  assert.equal(result.providerSelection?.enabled, true);
+  assert.equal(result.providerSelection?.reasons.length, 0);
+  assertSafeSelection(serialized);
+});
+
+test("desktop decision runner blocks when provider registry is missing provider", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const registry = createProviderRegistry();
+
+  const result = await runDesktopDecision({
+    task: createReadOnlyTask("runner-provider-selection-missing"),
+    policy,
+    providerRegistry: registry,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    now: () => "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(result.status, "blocked_preflight");
+  assert.equal(result.providerSelection?.selected, false);
+  assert.ok(result.blockingReasons.includes(
+    "provider_selection_provider_missing:codex-cli"
+  ));
+  assert.equal(hasPrimitive(result.executionPlan, "shell_command"), false);
+  assert.equal(hasPrimitive(result.executionPlan, "apply_patch"), false);
+});
+
+test("desktop decision runner blocks when provider registry has disabled provider", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const registry = createProviderRegistry();
+  registry.register(ProviderManifestSchema.parse({
+    ...codexCliProviderManifest,
+    enabled: false
+  }));
+
+  const result = await runDesktopDecision({
+    task: createReadOnlyTask("runner-provider-selection-disabled"),
+    policy,
+    providerRegistry: registry,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    now: () => "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(result.status, "blocked_preflight");
+  assert.equal(result.providerSelection?.selected, false);
+  assert.ok(result.blockingReasons.includes(
+    "provider_selection_provider_disabled:codex-cli"
+  ));
+});
+
+test("desktop decision runner blocks provider registry manifest hash mismatches", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const registry = createProviderRegistry();
+  registry.register(ProviderManifestSchema.parse({
+    ...codexCliProviderManifest,
+    version: "0.0.0-registry-mismatch"
+  }));
+
+  const result = await runDesktopDecision({
+    task: createReadOnlyTask("runner-provider-selection-hash-mismatch"),
+    policy,
+    providerRegistry: registry,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    now: () => "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(result.status, "blocked_preflight");
+  assert.equal(result.providerSelection?.selected, false);
+  assert.ok(result.blockingReasons.includes(
+    "provider_selection_manifest_hash_mismatch"
+  ));
 });
 
 test("desktop decision runner does not require desktop write tools for codex-cli small edits", async () => {
@@ -555,4 +661,59 @@ function hasPrimitive(
   primitive: string
 ): boolean {
   return plan.primitives.some((operation) => operation.primitive === primitive);
+}
+
+function createReadOnlyTask(taskId: string) {
+  return parseTaskEnvelope({
+    taskId,
+    source: "desktop-thread",
+    intent: {
+      summary: "Status update",
+      requestedAction: "Show current state",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {},
+    target: { branches: [], files: [], modules: [] },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: [],
+      provenance: [{
+        field: "taskClassHint",
+        value: "read_only",
+        source: "system"
+      }]
+    }
+  });
+}
+
+function createRegistryWithCodexCatalog() {
+  const registry = createProviderRegistry();
+  registry.register(codexCliProviderManifest, {
+    registeredAt: "2026-06-14T00:00:00.000Z"
+  });
+  return registry;
+}
+
+function assertSafeSelection(serialized: string): void {
+  for (const marker of [
+    "execute",
+    "invoke",
+    "function",
+    "secret",
+    "token",
+    "OPENAI_API_KEY",
+    "sk-",
+    "Bearer",
+    "raw env",
+    "raw command",
+    "prompt",
+    "args",
+    "stdout",
+    "stderr"
+  ]) {
+    assert.equal(serialized.includes(marker), false, marker);
+  }
 }

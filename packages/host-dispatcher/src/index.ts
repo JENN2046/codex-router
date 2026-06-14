@@ -20,6 +20,12 @@ import {
   legacyTaskEnvelopeToKernelTask
 } from "../../kernel-contracts/src/legacy-adapter.js";
 import type { DesktopDecisionRunnerResult } from "../../desktop-decision-runner/src/index.js";
+import {
+  selectProviderForRoutingDecision,
+  summarizeProviderSelectionResult,
+  type ProviderRegistry,
+  type ProviderSelectionSummary
+} from "../../provider-registry/src/index.js";
 
 export type { HostRoute };
 
@@ -61,6 +67,7 @@ export interface ReadOnlyProviderDispatchResult {
   timedOut?: boolean;
   killed?: boolean;
   permit?: ProviderExecutionPermit;
+  providerSelection?: ProviderSelectionSummary;
   error?: {
     code: string;
     reasons: string[];
@@ -70,6 +77,7 @@ export interface ReadOnlyProviderDispatchResult {
 export interface ReadOnlyRunnerProviderDispatchInput {
   runnerResult: DesktopDecisionRunnerResult;
   provider: CodexCliExecutorProvider;
+  providerRegistry?: ProviderRegistry;
   now: string;
   dryRun?: boolean;
 }
@@ -187,6 +195,21 @@ export async function dispatchReadOnlyRunnerResultToProvider(
     );
   }
 
+  const providerSelection = input.providerRegistry === undefined
+    ? undefined
+    : summarizeProviderSelectionResult(
+        selectProviderForRoutingDecision(input.providerRegistry, input.runnerResult.decision)
+      );
+  if (providerSelection !== undefined && !providerSelection.selected) {
+    return createReadOnlyRunnerDispatchBlockedResult(
+      input.runnerResult,
+      "host_dispatcher_provider_registry_selection_rejected",
+      providerSelection.reasons,
+      input.dryRun === true,
+      providerSelection
+    );
+  }
+
   const planInput = createProviderPlanInputFromRunnerResult(
     input.runnerResult,
     input.now
@@ -202,7 +225,8 @@ export async function dispatchReadOnlyRunnerResultToProvider(
   return {
     ...result,
     decisionId: input.runnerResult.decision.decisionId,
-    dryRun: input.dryRun === true
+    dryRun: input.dryRun === true,
+    ...(providerSelection !== undefined ? { providerSelection } : {})
   };
 }
 
@@ -390,7 +414,8 @@ function createReadOnlyRunnerDispatchBlockedResult(
   runnerResult: DesktopDecisionRunnerResult,
   code: string,
   reasons: string[],
-  dryRun: boolean
+  dryRun: boolean,
+  providerSelection?: ProviderSelectionSummary
 ): ReadOnlyProviderDispatchResult {
   const providerGrant = runnerResult.decision.providerGrant;
 
@@ -407,6 +432,7 @@ function createReadOnlyRunnerDispatchBlockedResult(
         }
       : {}),
     dryRun,
+    ...(providerSelection !== undefined ? { providerSelection } : {}),
     blockingReasons: [...reasons],
     error: {
       code,
