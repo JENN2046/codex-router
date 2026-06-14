@@ -20,6 +20,7 @@
     "acceptance:workspace-write-fake-canary": "tsx scripts/run-workspace-write-fake-canary-acceptance.ts",
     "acceptance:workspace-write-real-canary-auth": "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
     "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
+    "audit:real-readonly-smoke-local": "tsx scripts/run-real-readonly-smoke-local-closeout-audit.ts",
     "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
     "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
     "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts",
