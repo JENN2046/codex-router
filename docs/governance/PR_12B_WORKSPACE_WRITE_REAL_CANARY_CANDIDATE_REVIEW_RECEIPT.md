@@ -89,6 +89,7 @@ Expected safe final local audit properties:
 - `status`: `passed`
 - commands: `10`
 - failed commands: `0`
+- `checks.noForbiddenCommands` is `true`
 - canary file absent: `true`
 - provider execute calls: `0`
 - real Codex CLI calls: `0`

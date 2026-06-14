@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   PR_12B_REAL_CANARY_ALLOWED_ACTION,
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
@@ -74,6 +75,20 @@ const forbiddenMarkers = [
   "APPROVE_WORKSPACE_WRITE",
   "canary=ready"
 ];
+
+const auditFieldConsistencyDocs = [
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_CANDIDATE_REVIEW_RECEIPT.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_AUDIT_INDEX.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_RC_REVIEW_PASS.md"
+] as const;
+
+const requiredAuditFieldNames = [
+  "packageScriptsPresent",
+  "packageScriptTargetCount",
+  "packageScriptTargetMismatchCount",
+  "finalAuditNoForbiddenCommands",
+  "noForbiddenCommands"
+] as const;
 
 test("workspace-write real canary local candidate consistency passes for local-only candidate", () => {
   const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
@@ -283,6 +298,20 @@ test("workspace-write real canary local candidate consistency formats text and j
 
   for (const marker of forbiddenMarkers) {
     assert.equal(json.includes(marker), false, `json output must omit ${marker}`);
+  }
+});
+
+test("workspace-write real canary local candidate consistency docs record audit field names", async () => {
+  for (const docPath of auditFieldConsistencyDocs) {
+    const docText = await readFile(docPath, "utf8");
+
+    for (const fieldName of requiredAuditFieldNames) {
+      assert.equal(
+        docText.includes(fieldName),
+        true,
+        `${docPath} must record ${fieldName}`
+      );
+    }
   }
 });
 
