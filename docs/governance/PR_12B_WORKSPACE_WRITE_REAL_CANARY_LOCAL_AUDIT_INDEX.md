@@ -63,8 +63,20 @@ Minimum local validation set:
 
 - `npm run audit:workspace-write-real-canary-candidate -- --json`
 - `npm run audit:workspace-write-real-canary-final-local -- --json`
-- sensitive marker scan over PR-12B evidence and receipts
+- sensitive marker scan over PR-12B evidence, receipts, and this index
 - canary target absence check
+
+Sensitive marker scan targets:
+
+- `docs/evidence/workspace-write-real-canary-authorization-acceptance.json`
+- `docs/evidence/workspace-write-real-canary-pre-execution-acceptance.json`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_LOCAL_CLOSEOUT.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET_COMPATIBILITY.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_LOCAL_CLOSEOUT.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_BOUNDARY_AUDIT.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_CANDIDATE_REVIEW_RECEIPT.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT.md`
+- `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_AUDIT_INDEX.md`
 
 Expected safe results:
 

@@ -55,8 +55,8 @@ The final local audit runs:
 
 The JSON output is sanitized. It includes command ids, statuses, exit codes,
 checks, summary counters, and reason codes only. It does not include command
-arguments, process output, prompts, task envelopes, environment values, tokens,
-or patch bodies.
+arguments, process output, model input text, task envelopes, environment
+values, tokens, or patch bodies.
 
 ## 5. Boundary Conclusion
 
