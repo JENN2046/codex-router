@@ -1,6 +1,6 @@
 {
   "schemaVersion": "codex-cli-real-readonly-smoke-gate.v1",
-  "generatedAt": "2026-06-14T08:07:28.816Z",
+  "generatedAt": "2026-06-14T15:50:30.238Z",
   "mode": "real-readonly-smoke",
   "status": "passed",
   "taskId": "codex-cli-real-readonly-smoke",
