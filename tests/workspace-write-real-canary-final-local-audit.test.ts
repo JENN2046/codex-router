@@ -60,6 +60,18 @@ const requiredPackageScripts = [
   "audit:workspace-write-real-canary-final-local"
 ] as const;
 
+const forbiddenFinalLocalAuditCommandMarkers = [
+  "model:check",
+  "smoke:",
+  "smoke:readonly:real",
+  "smoke:workspace-write:telemetry",
+  "canary:write",
+  "canary:external",
+  "run-codex-cli-real-readonly-smoke",
+  "run-codex-cli-workspace-write-smoke",
+  "ALLOW_REAL_CODEX_CLI_READONLY_SMOKE"
+] as const;
+
 test("workspace-write real canary final local audit runs the fixed local validation set", async () => {
   const seen: string[] = [];
   const result = await runWorkspaceWriteRealCanaryFinalLocalAudit({
@@ -104,6 +116,20 @@ test("workspace-write real canary final local audit command contract is explicit
       typeof packageJson.scripts?.[scriptName],
       "string",
       `${scriptName} must remain available for the final local audit chain`
+    );
+  }
+});
+
+test("workspace-write real canary final local audit excludes real smoke and workspace-write commands", () => {
+  const commandContractText = WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS
+    .map((command) => [command.id, command.command, ...command.args].join(" "))
+    .join("\n");
+
+  for (const marker of forbiddenFinalLocalAuditCommandMarkers) {
+    assert.equal(
+      commandContractText.includes(marker),
+      false,
+      `final local audit commands must omit ${marker}`
     );
   }
 });
