@@ -25,8 +25,10 @@ const REQUIRED_RANGE_FILES = [
   "tests/workspace-write-guard.test.ts",
   "scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
   "scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
+  "scripts/run-workspace-write-real-canary-sensitive-scan.ts",
   "tests/workspace-write-real-canary-authorization-acceptance.test.ts",
   "tests/workspace-write-real-canary-pre-execution-acceptance.test.ts",
+  "tests/workspace-write-real-canary-sensitive-scan.test.ts",
   "docs/evidence/workspace-write-real-canary-authorization-acceptance.json",
   "docs/evidence/workspace-write-real-canary-pre-execution-acceptance.json",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_LOCAL_CLOSEOUT.md",
@@ -184,6 +186,9 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     ) && hasPackageScript(
       packageJson,
       "acceptance:workspace-write-real-canary-pre-execution"
+    ) && hasPackageScript(
+      packageJson,
+      "audit:workspace-write-real-canary-sensitive-scan"
     ),
     evidenceParseable: authorizationEvidence !== undefined && preExecutionEvidence !== undefined,
     evidenceLocalOnly: getString(authorizationEvidence, ["mode"])

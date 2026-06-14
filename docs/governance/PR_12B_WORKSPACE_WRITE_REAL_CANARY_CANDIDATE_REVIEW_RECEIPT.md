@@ -39,9 +39,11 @@ The final local audit runs the fixed PR-12B validation set:
 - `npx tsx --test tests\workspace-write-real-canary-authorization-acceptance.test.ts`
 - `npx tsx --test tests\workspace-write-real-canary-pre-execution-acceptance.test.ts`
 - `npx tsx --test tests\workspace-write-real-canary-local-candidate-consistency.test.ts`
+- `npx tsx --test tests\workspace-write-real-canary-sensitive-scan.test.ts`
 - `npm run acceptance:workspace-write-real-canary-auth`
 - `npm run acceptance:workspace-write-real-canary-pre-execution`
 - `npm run audit:workspace-write-real-canary-candidate -- --json`
+- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
 
 The fixed validation set is covered by tests that bind the command ids,
 command arguments, and required `package.json` script names. A script rename or
@@ -60,6 +62,7 @@ The candidate consistency audit checks:
 - evidence mode is local-only
 - execution counters are zero
 - evidence is sanitized
+- sensitive marker scan passes
 - governance docs remain non-authorizing
 - final audit JSON contract is valid and sanitized
 - fixed canary target file is absent
@@ -82,7 +85,7 @@ is treated as ready.
 Expected safe final local audit properties:
 
 - `status`: `passed`
-- commands: `8`
+- commands: `10`
 - failed commands: `0`
 - canary file absent: `true`
 - provider execute calls: `0`
@@ -137,14 +140,14 @@ Refresh commands:
 
 - `npm run audit:workspace-write-real-canary-candidate -- --json`
 - `npm run audit:workspace-write-real-canary-final-local -- --json`
-- sensitive marker scan over this receipt
+- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
 - canary target absence check
 
 Latest verified boundary:
 
 - candidate audit status: `passed`
 - final local audit status: `passed`
-- final local audit commands: `8`
+- final local audit commands: `10`
 - final local audit failed commands: `0`
 - unexpected changed files: `0`
 - provider execute calls: `0`

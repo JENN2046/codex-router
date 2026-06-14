@@ -51,6 +51,8 @@ Candidate and final local audit:
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT.md`
 - `npm run audit:workspace-write-real-canary-candidate`
 - `npm run audit:workspace-write-real-canary-candidate -- --json`
+- `npm run audit:workspace-write-real-canary-sensitive-scan`
+- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
 - `npm run audit:workspace-write-real-canary-final-local`
 - `npm run audit:workspace-write-real-canary-final-local -- --json`
 
@@ -63,7 +65,7 @@ Minimum local validation set:
 
 - `npm run audit:workspace-write-real-canary-candidate -- --json`
 - `npm run audit:workspace-write-real-canary-final-local -- --json`
-- sensitive marker scan over PR-12B evidence, receipts, and this index
+- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
 - canary target absence check
 
 Sensitive marker scan targets:
@@ -82,7 +84,7 @@ Expected safe results:
 
 - candidate audit status is `passed`
 - final local audit status is `passed`
-- final local audit commands are `8`
+- final local audit commands are `10`
 - final local audit failed commands are `0`
 - unexpected changed files are `0`
 - provider execute calls are `0`

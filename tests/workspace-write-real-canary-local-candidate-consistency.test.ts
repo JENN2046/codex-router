@@ -16,8 +16,10 @@ const requiredChangedFiles = [
   "tests/workspace-write-guard.test.ts",
   "scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
   "scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
+  "scripts/run-workspace-write-real-canary-sensitive-scan.ts",
   "tests/workspace-write-real-canary-authorization-acceptance.test.ts",
   "tests/workspace-write-real-canary-pre-execution-acceptance.test.ts",
+  "tests/workspace-write-real-canary-sensitive-scan.test.ts",
   "docs/evidence/workspace-write-real-canary-authorization-acceptance.json",
   "docs/evidence/workspace-write-real-canary-pre-execution-acceptance.json",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_LOCAL_CLOSEOUT.md",
@@ -234,7 +236,8 @@ function createConsistentInput(
     packageJsonText: JSON.stringify({
       scripts: {
         "acceptance:workspace-write-real-canary-auth": "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
-        "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts"
+        "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
+        "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts"
       }
     }),
     authorizationEvidenceText: createEvidenceText(

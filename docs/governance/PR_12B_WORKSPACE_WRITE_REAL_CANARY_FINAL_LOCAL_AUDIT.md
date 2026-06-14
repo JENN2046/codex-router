@@ -27,7 +27,7 @@ The command is valid only for the current local repository state at the time it 
 The final local audit must report:
 
 - `status`: `passed`
-- commands: `8`
+- commands: `10`
 - failed commands: `0`
 - canary file absent: `true`
 - provider execute calls: `0`
@@ -49,9 +49,11 @@ The final local audit runs:
 - `npx tsx --test tests\workspace-write-real-canary-authorization-acceptance.test.ts`
 - `npx tsx --test tests\workspace-write-real-canary-pre-execution-acceptance.test.ts`
 - `npx tsx --test tests\workspace-write-real-canary-local-candidate-consistency.test.ts`
+- `npx tsx --test tests\workspace-write-real-canary-sensitive-scan.test.ts`
 - `npm run acceptance:workspace-write-real-canary-auth`
 - `npm run acceptance:workspace-write-real-canary-pre-execution`
 - `npm run audit:workspace-write-real-canary-candidate -- --json`
+- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
 
 The JSON output is sanitized. It includes command ids, statuses, exit codes,
 checks, summary counters, and reason codes only. It does not include command
