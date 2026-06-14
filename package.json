@@ -17,6 +17,7 @@
     "acceptance:real-readonly-dispatch": "tsx scripts/run-real-readonly-dispatch-acceptance.ts",
     "acceptance:formal-readonly-integration": "tsx scripts/run-formal-readonly-cli-integration-readiness.ts",
     "acceptance:formal-readonly-integration-auth": "tsx scripts/run-formal-readonly-cli-integration-authorization-acceptance.ts",
+    "acceptance:formal-readonly-provider-integration-taskbook": "tsx scripts/run-formal-readonly-provider-integration-taskbook-acceptance.ts",
     "acceptance:real-readonly-smoke-auth": "tsx scripts/run-real-readonly-smoke-authorization-acceptance.ts",
     "acceptance:workspace-write-governance": "tsx scripts/run-workspace-write-governance-acceptance.ts",
     "acceptance:workspace-write-fake-canary": "tsx scripts/run-workspace-write-fake-canary-acceptance.ts",
