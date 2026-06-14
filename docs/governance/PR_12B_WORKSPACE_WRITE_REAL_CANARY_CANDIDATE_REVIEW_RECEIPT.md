@@ -64,6 +64,19 @@ The candidate consistency audit checks:
 - final audit JSON contract is valid and sanitized
 - fixed canary target file is absent
 
+The file-scope check uses the unique path list from
+`git diff --name-only origin/main..HEAD`. The reported `changedFileCount` is
+therefore a unique changed-file count for the current local candidate range,
+not a commit count and not an append-only history counter. Later hardening
+commits that touch already-allowed audit scripts, tests, or governance receipts
+can increase the ahead count while leaving `changedFileCount` unchanged.
+
+The allowed scope is intentionally limited to the PR-12B pre-execution control
+chain: workspace-write guard helpers, PR-12B acceptance scripts/tests/evidence,
+candidate/final audit scripts and tests, governance receipts, and `package.json`.
+Any new path outside that set must fail the candidate audit before the candidate
+is treated as ready.
+
 ## 4. Expected Safe Output
 
 Expected safe final local audit properties:
