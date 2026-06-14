@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "codex-cli-formal-readonly-integration-authorization-acceptance.v1",
+  "generatedAt": "2026-06-15T00:00:00.000Z",
+  "mode": "formal-readonly-integration-authorization-local-only",
+  "taskId": "codex-cli-formal-readonly-integration-authorization-acceptance",
+  "checks": {
+    "exactAuthorizationAccepted": true,
+    "missingAuthorizationBlocked": true,
+    "broadenedAuthorizationBlocked": true,
+    "executionAuthorizationRejected": true,
+    "pushReleaseTagRejected": true,
+    "noProviderExecute": true,
+    "noRealCodexCli": true,
+    "noWorkspaceWriteExecute": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "requiredProviderId": "codex-cli",
+    "requiredSandbox": "read-only",
+    "requiredSideEffectClass": "read_only",
+    "requiredApprovalPolicy": "never",
+    "readinessEvidencePathRequired": true,
+    "injectedSpawnerMustBeRequired": true,
+    "permitMustBeRequired": true,
+    "registrySelectionMustBeRequired": true,
+    "formalIntegrationAuthorizationOnly": true,
+    "providerExecutionMustRemainSeparate": true,
+    "realCliInvocationMustRemainSeparate": true,
+    "workspaceWriteMustRemainClosed": true,
+    "pushReleaseTagMustBeSeparate": true
+  },
+  "counters": {
+    "providerExecuteCalls": 0,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0
+  },
+  "blockingReasons": [
+    "formal_readonly_integration_authorization_exact_token_required",
+    "formal_readonly_integration_authorization_exact_command_required",
+    "formal_readonly_integration_authorization_provider_codex_cli_required",
+    "formal_readonly_integration_authorization_read_only_sandbox_required",
+    "formal_readonly_integration_authorization_read_only_side_effect_required",
+    "formal_readonly_integration_authorization_approval_never_required",
+    "formal_readonly_integration_authorization_readiness_evidence_required",
+    "formal_readonly_integration_authorization_injected_spawner_required",
+    "formal_readonly_integration_authorization_permit_required",
+    "formal_readonly_integration_authorization_registry_selection_required",
+    "formal_readonly_integration_authorization_real_execution_allowance_required",
+    "formal_readonly_integration_authorization_workspace_write_must_remain_closed",
+    "formal_readonly_integration_authorization_provider_execute_must_be_separate",
+    "formal_readonly_integration_authorization_real_cli_must_be_separate",
+    "formal_readonly_integration_authorization_push_must_be_separate",
+    "formal_readonly_integration_authorization_release_must_be_separate",
+    "formal_readonly_integration_authorization_tag_must_be_separate"
+  ]
+}
