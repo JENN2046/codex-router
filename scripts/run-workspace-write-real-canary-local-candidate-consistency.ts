@@ -35,7 +35,9 @@ const REQUIRED_RANGE_FILES = [
 const ALLOWED_RANGE_FILES = new Set<string>([
   ...REQUIRED_RANGE_FILES,
   "scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
-  "tests/workspace-write-real-canary-local-candidate-consistency.test.ts"
+  "scripts/run-workspace-write-real-canary-final-local-audit.ts",
+  "tests/workspace-write-real-canary-local-candidate-consistency.test.ts",
+  "tests/workspace-write-real-canary-final-local-audit.test.ts"
 ]);
 
 const REQUIRED_DOC_FILES = [
