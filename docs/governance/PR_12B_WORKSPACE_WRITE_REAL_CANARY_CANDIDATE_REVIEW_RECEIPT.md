@@ -105,7 +105,41 @@ running the final local audit recursively. It checks a synthetic zero-execution
 final audit result through the real formatter and requires command entries to
 contain only command id, status, and exit code.
 
-## 5. Non-authorization
+## 5. Latest Local Refresh
+
+Latest local refresh date:
+
+- 2026-06-14
+
+The refresh uses dynamic command output as evidence. It does not treat a fixed
+commit hash, ahead count, or changed-file count as a permanent readiness
+condition.
+
+Refresh commands:
+
+- `npm run audit:workspace-write-real-canary-candidate -- --json`
+- `npm run audit:workspace-write-real-canary-final-local -- --json`
+- sensitive marker scan over this receipt
+- canary target absence check
+
+Latest verified boundary:
+
+- candidate audit status: `passed`
+- final local audit status: `passed`
+- final local audit commands: `8`
+- final local audit failed commands: `0`
+- unexpected changed files: `0`
+- provider execute calls: `0`
+- real Codex CLI calls: `0`
+- workspace-write execute calls: `0`
+- canary file writes: `0`
+- final audit JSON contract valid: `true`
+- fixed canary target file absent: `true`
+
+The refresh remains local-only and pre-execution-only. It is not a push
+readiness decision and is not permission to cross into the real canary write.
+
+## 6. Non-authorization
 
 This receipt does not authorize:
 
@@ -117,7 +151,7 @@ This receipt does not authorize:
 - release
 - tag
 
-## 6. Result
+## 7. Result
 
 Result:
 
