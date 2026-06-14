@@ -60,6 +60,10 @@ checks, summary counters, and reason codes only. It does not include command
 arguments, process output, model input text, task envelopes, environment
 values, tokens, or patch bodies.
 
+The sensitive marker scan output is also summarized. It reports only counts,
+booleans, and reason codes. It does not print matched text, marker names, file
+excerpts, or secret-like values.
+
 ## 5. Boundary Conclusion
 
 If the authoritative local check passes, the local PR-12B candidate is internally consistent as a pre-execution control chain.
