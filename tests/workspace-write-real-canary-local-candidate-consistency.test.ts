@@ -109,6 +109,7 @@ test("workspace-write real canary local candidate consistency passes for local-o
     evidenceNoExecution: true,
     evidenceSanitized: true,
     governanceDocsNonAuthorizing: true,
+    auditFieldValuesRecorded: true,
     finalAuditJsonContractValid: true,
     canaryFileAbsent: true
   });
@@ -287,8 +288,10 @@ test("workspace-write real canary local candidate consistency formats text and j
   assert.match(text, /unexpected changed files: 0/);
   assert.match(text, /package script targets: 6/);
   assert.match(text, /package script target mismatches: 0/);
+  assert.match(text, /audit field values recorded: true/);
   assert.match(text, /final audit forbidden commands: false/);
   assert.equal(parsed.status, "passed");
+  assert.equal(parsed.checks.auditFieldValuesRecorded, true);
   assert.equal(parsed.checks.finalAuditJsonContractValid, true);
   assert.equal(parsed.summary.unexpectedChangedFileCount, 0);
   assert.equal(parsed.summary.packageScriptTargetCount, 6);
@@ -313,6 +316,31 @@ test("workspace-write real canary local candidate consistency docs record audit 
       );
     }
   }
+});
+
+test("workspace-write real canary local candidate consistency blocks stale audit field values", () => {
+  const governanceDocs = createGovernanceDocs();
+  governanceDocs["docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_CANDIDATE_REVIEW_RECEIPT.md"] = [
+    "This review does not authorize execution.",
+    "Real Codex CLI call: no",
+    "Workspace-write execute: no",
+    "Canary file write: no",
+    "- candidate audit packageScriptsPresent: `true`",
+    "- candidate audit packageScriptTargetCount: `6`",
+    "- candidate audit packageScriptTargetMismatchCount: `1`",
+    "- candidate audit finalAuditNoForbiddenCommands: `true`",
+    "- final local audit noForbiddenCommands: `true`"
+  ].join("\n");
+
+  const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
+    createConsistentInput({ governanceDocs })
+  );
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.auditFieldValuesRecorded, false);
+  assert.ok(review.reasons.includes(
+    "workspace_write_real_canary_candidate_audit_field_values_missing"
+  ));
 });
 
 function createConsistentInput(
@@ -352,7 +380,12 @@ function createGovernanceDocs(): Record<string, string> {
       "This review does not authorize execution.",
       "Real Codex CLI call: no",
       "Workspace-write execute: no",
-      "Canary file write: no"
+      "Canary file write: no",
+      "- candidate audit packageScriptsPresent: `true`",
+      "- candidate audit packageScriptTargetCount: `6`",
+      "- candidate audit packageScriptTargetMismatchCount: `0`",
+      "- candidate audit finalAuditNoForbiddenCommands: `true`",
+      "- final local audit noForbiddenCommands: `true`"
     ].join("\n")])
   );
 }

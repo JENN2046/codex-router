@@ -113,6 +113,7 @@ Expected safe JSON audit properties:
 - `checks.worktreeClean` is `true`
 - `checks.changedFilesWithinPr12bScope` is `true`
 - `checks.packageScriptsPresent` is `true`
+- `checks.auditFieldValuesRecorded` is `true`
 - `checks.evidenceNoExecution` is `true`
 - `checks.evidenceSanitized` is `true`
 - `checks.finalAuditJsonContractValid` is `true`
@@ -160,6 +161,7 @@ Latest verified boundary:
 - candidate audit finalAuditNoForbiddenCommands: `true`
 - candidate audit packageScriptTargetCount: `6`
 - candidate audit packageScriptTargetMismatchCount: `0`
+- candidate audit auditFieldValuesRecorded: `true`
 - unexpected changed files: `0`
 - provider execute calls: `0`
 - real Codex CLI calls: `0`

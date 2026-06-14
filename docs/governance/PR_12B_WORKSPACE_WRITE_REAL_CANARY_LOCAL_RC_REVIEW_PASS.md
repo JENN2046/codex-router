@@ -41,6 +41,7 @@ Observed summarized results:
 - candidate audit packageScriptTargetCount: `6`
 - candidate audit packageScriptTargetMismatchCount: `0`
 - candidate audit unexpected changed files: `0`
+- candidate audit auditFieldValuesRecorded: `true`
 - candidate audit finalAuditNoForbiddenCommands: `true`
 - candidate audit provider execute calls: `0`
 - candidate audit real Codex CLI calls: `0`
@@ -94,6 +95,7 @@ Consistency checks:
 - candidate audit packageScriptTargetCount: `6`
 - candidate audit packageScriptTargetMismatchCount: `0`
 - candidate audit finalAuditNoForbiddenCommands: `true`
+- candidate audit auditFieldValuesRecorded: `true`
 - candidate audit unexpected changed file count: `0`
 - sensitive scan marker hit count: `0`
 - canary target file absent: `true`

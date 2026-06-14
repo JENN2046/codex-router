@@ -72,6 +72,20 @@ const REQUIRED_PACKAGE_SCRIPTS = {
   "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts"
 } as const;
 
+const REQUIRED_AUDIT_FIELD_DOCS = [
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_CANDIDATE_REVIEW_RECEIPT.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_AUDIT_INDEX.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_LOCAL_RC_REVIEW_PASS.md"
+] as const;
+
+const REQUIRED_AUDIT_FIELD_VALUES = [
+  ["packageScriptsPresent", "true"],
+  ["packageScriptTargetCount", "6"],
+  ["packageScriptTargetMismatchCount", "0"],
+  ["finalAuditNoForbiddenCommands", "true"],
+  ["noForbiddenCommands", "true"]
+] as const;
+
 const FORBIDDEN_MARKERS = [
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
   PR_12B_REAL_CANARY_WORKSPACE,
@@ -120,6 +134,7 @@ export interface WorkspaceWriteRealCanaryLocalCandidateConsistencyResult {
     evidenceNoExecution: boolean;
     evidenceSanitized: boolean;
     governanceDocsNonAuthorizing: boolean;
+    auditFieldValuesRecorded: boolean;
     finalAuditJsonContractValid: boolean;
     canaryFileAbsent: boolean;
   };
@@ -208,6 +223,7 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     evidenceSanitized: !containsForbiddenMarker(input.authorizationEvidenceText)
       && !containsForbiddenMarker(input.preExecutionEvidenceText),
     governanceDocsNonAuthorizing: governanceDocsAreNonAuthorizing(input.governanceDocs),
+    auditFieldValuesRecorded: governanceDocsRecordAuditFieldValues(input.governanceDocs),
     finalAuditJsonContractValid: finalAuditJsonContractIsValid(),
     canaryFileAbsent: !input.canaryFileExists
   };
@@ -250,6 +266,11 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     reasons,
     checks.governanceDocsNonAuthorizing,
     "workspace_write_real_canary_candidate_docs_authorize_execution"
+  );
+  addReasonIfFalse(
+    reasons,
+    checks.auditFieldValuesRecorded,
+    "workspace_write_real_canary_candidate_audit_field_values_missing"
   );
   addReasonIfFalse(
     reasons,
@@ -302,6 +323,7 @@ export function formatWorkspaceWriteRealCanaryLocalCandidateConsistencyReview(
     `unexpected changed files: ${review.summary.unexpectedChangedFileCount}`,
     `package script targets: ${review.summary.packageScriptTargetCount}`,
     `package script target mismatches: ${review.summary.packageScriptTargetMismatchCount}`,
+    `audit field values recorded: ${review.checks.auditFieldValuesRecorded}`,
     `final audit forbidden commands: ${!review.summary.finalAuditNoForbiddenCommands}`,
     `provider execute calls: ${review.summary.providerExecuteCalls}`,
     `real Codex CLI calls: ${review.summary.realCodexCliCalls}`,
@@ -409,6 +431,18 @@ function governanceDocsAreNonAuthorizing(governanceDocs: Record<string, string>)
   });
 }
 
+function governanceDocsRecordAuditFieldValues(governanceDocs: Record<string, string>): boolean {
+  return REQUIRED_AUDIT_FIELD_DOCS.every((file) => {
+    const text = governanceDocs[file];
+
+    return text !== undefined && REQUIRED_AUDIT_FIELD_VALUES.every(
+      ([fieldName, expectedValue]) =>
+        new RegExp(`${escapeRegExp(fieldName)}[^\\n]*\`${escapeRegExp(expectedValue)}\``)
+          .test(text)
+    );
+  });
+}
+
 function finalAuditJsonContractIsValid(): boolean {
   const parsed = parseFinalAuditJsonContract();
 
@@ -496,6 +530,10 @@ function deniesWorkspaceWriteExecute(text: string): boolean {
 function deniesCanaryFileWrite(text: string): boolean {
   return /Canary file write:? no/i.test(text)
     || /does not authorize:[\s\S]*canary file write/i.test(text);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function getBoolean(
