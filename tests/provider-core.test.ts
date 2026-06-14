@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import {
   ExecutorExecutionPlanSchema,
+  ProviderExecutionPermitSchema,
   ProviderKindSchema,
   ProviderManifestSchema,
   ToolProviderInvocationPlanSchema,
@@ -62,6 +63,28 @@ test("provider-core validates executor plans", () => {
   assert.equal(plan.planId, "plan_provider_core_executor_001");
   assert.equal(plan.kind, "executor");
   assert.equal(plan.sandboxProfile.mode, "read-only");
+});
+
+test("provider-core validates provider execution permits", () => {
+  const permit = ProviderExecutionPermitSchema.parse({
+    permitId: "permit_provider_core_executor_001",
+    taskId: "task_provider_core_001",
+    runId: "run_provider_core_001",
+    planId: "plan_provider_core_executor_001",
+    providerId: "provider_core_executor_001",
+    providerManifestHash: "a".repeat(64),
+    policyDecisionHash: "policy_hash_provider_core_001",
+    sideEffectClass: "read_only",
+    sandboxProfileId: "sandbox_provider_core_read_only",
+    status: "approved",
+    approvalStatus: "not_required",
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(permit.schemaVersion, "provider-execution-permit.v1");
+  assert.equal(permit.providerId, "provider_core_executor_001");
+  assert.equal(permit.status, "approved");
+  assert.deepEqual(permit.reasons, []);
 });
 
 test("provider-core validates tool invocation plans", () => {

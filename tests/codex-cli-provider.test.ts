@@ -10,10 +10,12 @@ import {
 } from "../packages/codex-cli-host/src/index.js";
 import {
   ProviderManifestSchema,
+  hashProviderManifest,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass,
   type ExecutionPlanInput,
-  type ExecutorExecutionPlan
+  type ExecutorExecutionPlan,
+  type ProviderExecutionPermit
 } from "../packages/provider-core/src/index.js";
 import {
   CapabilityScopeSchema,
@@ -387,7 +389,9 @@ test("codex cli provider read-only execute rejects without injected spawn", asyn
     sandboxMode: "read-only"
   }));
 
-  const result = await provider.execute(plan, {});
+  const result = await provider.execute(plan, {
+    permit: createApprovedPermitForPlan(plan)
+  });
 
   assert.equal(result.ok, false);
   assert.equal(
@@ -428,7 +432,122 @@ test("codex cli provider dry run does not spawn and returns sanitized summary", 
   assert.equal(serialized.includes("stderr"), false);
 });
 
-test("codex cli provider read-only execute succeeds with injected fake spawn", async () => {
+test("codex cli provider non-dry-run execute requires a permit before spawn", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_execute_permit_required",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {});
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.error?.code, "codex_cli_provider_execution_permit_required");
+  assert.deepEqual(result.error?.reasons, [
+    "codex_cli_provider_execution_permit_required"
+  ]);
+});
+
+test("codex cli provider execute rejects unapproved permits before spawn", async () => {
+  await assertPermitRejection({
+    taskId: "task_codex_cli_provider_execute_permit_candidate",
+    mutatePermit: (permit) => ({
+      ...permit,
+      status: "candidate"
+    }),
+    expectedReason: "codex_cli_provider_execution_permit_not_approved:candidate"
+  });
+
+  await assertPermitRejection({
+    taskId: "task_codex_cli_provider_execute_permit_blocked",
+    mutatePermit: (permit) => ({
+      ...permit,
+      status: "blocked"
+    }),
+    expectedReason: "codex_cli_provider_execution_permit_not_approved:blocked"
+  });
+});
+
+test("codex cli provider execute rejects mismatched permits before spawn", async () => {
+  await assertPermitRejection({
+    taskId: "task_codex_cli_provider_execute_provider_mismatch",
+    mutatePermit: (permit) => ({
+      ...permit,
+      providerId: "other-provider"
+    }),
+    expectedReasonPrefix: "codex_cli_provider_execution_permit_provider_mismatch:"
+  });
+
+  await assertPermitRejection({
+    taskId: "task_codex_cli_provider_execute_task_mismatch",
+    mutatePermit: (permit) => ({
+      ...permit,
+      taskId: "task_other"
+    }),
+    expectedReasonPrefix: "codex_cli_provider_execution_permit_task_mismatch:"
+  });
+
+  await assertPermitRejection({
+    taskId: "task_codex_cli_provider_execute_plan_mismatch",
+    mutatePermit: (permit) => ({
+      ...permit,
+      planId: "plan_other"
+    }),
+    expectedReasonPrefix: "codex_cli_provider_execution_permit_plan_mismatch:"
+  });
+
+  await assertPermitRejection({
+    taskId: "task_codex_cli_provider_execute_side_effect_mismatch",
+    mutatePermit: (permit) => ({
+      ...permit,
+      sideEffectClass: "workspace_write"
+    }),
+    expectedReasonPrefix: "codex_cli_provider_execution_permit_side_effect_mismatch:"
+  });
+
+  await assertPermitRejection({
+    taskId: "task_codex_cli_provider_execute_sandbox_mismatch",
+    mutatePermit: (permit) => ({
+      ...permit,
+      sandboxProfileId: "sandbox_other"
+    }),
+    expectedReasonPrefix: "codex_cli_provider_execution_permit_sandbox_mismatch:"
+  });
+});
+
+test("codex cli provider execute rejects manifest and policy permit mismatches before spawn", async () => {
+  await assertPermitRejection({
+    taskId: "task_codex_cli_provider_execute_manifest_mismatch",
+    mutatePermit: (permit) => ({
+      ...permit,
+      providerManifestHash: "b".repeat(64)
+    }),
+    expectedReason: "codex_cli_provider_execution_permit_manifest_mismatch"
+  });
+
+  await assertPermitRejection({
+    taskId: "task_codex_cli_provider_execute_policy_mismatch",
+    mutatePermit: (permit) => ({
+      ...permit,
+      policyDecisionHash: "policy_hash_other"
+    }),
+    expectedReason: "codex_cli_provider_execution_permit_policy_mismatch"
+  });
+});
+
+test("codex cli provider read-only execute succeeds with approved permit and fake spawn", async () => {
   let spawnCalls = 0;
   const spawn: CodexCliProcessSpawner = () => {
     spawnCalls += 1;
@@ -447,7 +566,9 @@ test("codex cli provider read-only execute succeeds with injected fake spawn", a
     sandboxMode: "read-only"
   }));
 
-  const result = await provider.execute(plan, {});
+  const result = await provider.execute(plan, {
+    permit: createApprovedPermitForPlan(plan)
+  });
   const summary = result.artifacts?.[0]?.metadata.summary as any;
   const serialized = JSON.stringify(result);
 
@@ -717,6 +838,71 @@ function readProviderMetadata(plan: ExecutorExecutionPlan): any {
   assert.equal(typeof metadata, "object");
   assert.notEqual(metadata, null);
   return metadata;
+}
+
+function createApprovedPermitForPlan(
+  plan: ExecutorExecutionPlan
+): ProviderExecutionPermit {
+  return {
+    schemaVersion: "provider-execution-permit.v1",
+    permitId: `permit-${plan.planId}`,
+    taskId: plan.taskId,
+    runId: plan.runId,
+    planId: plan.planId,
+    providerId: plan.providerId,
+    providerManifestHash: hashProviderManifest(codexCliProviderManifest),
+    ...(plan.policyDecisionHash !== undefined
+      ? { policyDecisionHash: plan.policyDecisionHash }
+      : {}),
+    sideEffectClass: plan.sideEffectClass,
+    sandboxProfileId: plan.sandboxProfile.sandboxId,
+    status: "approved",
+    approvalStatus: plan.approvalRequired ? "approved" : "not_required",
+    reasons: [],
+    issuedAt: now
+  };
+}
+
+async function assertPermitRejection(options: {
+  taskId: string;
+  mutatePermit: (permit: ProviderExecutionPermit) => ProviderExecutionPermit;
+  expectedReason?: string;
+  expectedReasonPrefix?: string;
+}): Promise<void> {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: options.taskId,
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+  const permit = options.mutatePermit(createApprovedPermitForPlan(plan));
+
+  const result = await provider.execute(plan, {
+    permit
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.error?.code, "codex_cli_provider_execution_permit_invalid");
+  const reasons = result.error?.reasons as string[];
+  if (options.expectedReason !== undefined) {
+    assert.ok(reasons.includes(options.expectedReason));
+  }
+  if (options.expectedReasonPrefix !== undefined) {
+    assert.ok(reasons.some((reason) => (
+      reason.startsWith(options.expectedReasonPrefix ?? "")
+    )));
+  }
 }
 
 class FakeCodexCliStream extends EventEmitter {

@@ -85,6 +85,29 @@ export const ProviderAttestationSchema = z.object({
   attestedAt: z.string().min(1)
 });
 
+export const ProviderExecutionPermitSchema = z.object({
+  schemaVersion: z.literal("provider-execution-permit.v1").default("provider-execution-permit.v1"),
+  permitId: z.string().min(1),
+  taskId: z.string().min(1),
+  runId: z.string().min(1).optional(),
+  planId: z.string().min(1).optional(),
+  providerId: z.string().min(1),
+  providerManifestHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  policyDecisionHash: z.string().min(1).optional(),
+  sideEffectClass: ProviderSideEffectClassSchema,
+  sandboxProfileId: z.string().min(1),
+  status: z.enum(["candidate", "approved", "blocked"]),
+  approvalStatus: z.enum([
+    "not_required",
+    "approved",
+    "pending",
+    "rejected",
+    "expired"
+  ]).optional(),
+  reasons: z.array(z.string()).default([]),
+  issuedAt: z.string().min(1)
+});
+
 export const ProviderPlanBaseSchema = z.object({
   planId: z.string().min(1),
   runId: z.string().min(1),
@@ -120,6 +143,7 @@ export type ProviderSecurityBoundary = z.infer<typeof ProviderSecurityBoundarySc
 export type ProviderRequiredConfig = z.infer<typeof ProviderRequiredConfigSchema>;
 export type ProviderManifest = z.infer<typeof ProviderManifestSchema>;
 export type ProviderAttestation = z.infer<typeof ProviderAttestationSchema>;
+export type ProviderExecutionPermit = z.infer<typeof ProviderExecutionPermitSchema>;
 export type ProviderPlanBase = z.infer<typeof ProviderPlanBaseSchema>;
 export type ExecutorExecutionPlan = z.infer<typeof ExecutorExecutionPlanSchema>;
 export type ToolProviderInvocationPlan = z.infer<typeof ToolProviderInvocationPlanSchema>;
@@ -142,6 +166,7 @@ export type ExecutionValidationResult = {
 export type ProviderExecutionContext = {
   dryRun?: boolean;
   approvals?: string[];
+  permit?: ProviderExecutionPermit;
   metadata?: Record<string, unknown>;
 };
 
@@ -264,6 +289,12 @@ export function parseProviderAttestation(
   input: z.input<typeof ProviderAttestationSchema>
 ): ProviderAttestation {
   return ProviderAttestationSchema.parse(input);
+}
+
+export function parseProviderExecutionPermit(
+  input: z.input<typeof ProviderExecutionPermitSchema>
+): ProviderExecutionPermit {
+  return ProviderExecutionPermitSchema.parse(input);
 }
 
 export function createProviderAttestation(
