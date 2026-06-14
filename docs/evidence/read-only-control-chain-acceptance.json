@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "read-only-control-chain-acceptance.v1",
+  "generatedAt": "2026-06-14T00:00:00.000Z",
+  "mode": "fake-readonly",
+  "taskId": "read-only-control-chain-acceptance",
+  "checks": {
+    "runnerReady": true,
+    "preflightOk": true,
+    "approvalResolved": true,
+    "hostRouteCodexCli": true,
+    "toolAccessReadOnly": true,
+    "providerGrantPresent": true,
+    "permitIssued": true,
+    "dispatchOk": true,
+    "dryRunNoSpawn": true,
+    "workspaceWriteBlocked": true,
+    "providerGrantMissingBlocked": true,
+    "approvalPendingBlocked": true,
+    "preflightFailedBlocked": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "providerId": "codex-cli",
+    "sideEffectClass": "read_only",
+    "sandbox": "read-only",
+    "eventCount": 1,
+    "parseErrorCount": 0,
+    "warningCount": 0
+  },
+  "blockingReasons": [
+    "runner_result_tool_access_not_read_only",
+    "runner_result_provider_grant_side_effect_not_read_only",
+    "runner_result_provider_grant_sandbox_not_read_only",
+    "runner_result_provider_grant_missing",
+    "runner_result_approval_unresolved",
+    "runner_result_preflight_failed"
+  ]
+}
