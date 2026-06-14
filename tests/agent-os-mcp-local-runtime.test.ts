@@ -313,6 +313,78 @@ test("Agent OS MCP local runtime records revoked permits during approval consump
   assert.equal(permitStore.listPermits({ runId }).length, 2);
 });
 
+test("Agent OS MCP local runtime does not consume permits without planning context", () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const providerRegistry = createProviderRegistry();
+  const policyDecision = createPolicyDecision();
+  const createRuntime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    providerExecutionPlanStore: planStore,
+    approvalPermitStore: permitStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createWaitingEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "approval.issue"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.approve_run"],
+    allowLocalMutations: true,
+    preferredProviderId: "codex-cli",
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId,
+    createPermitId: () => "permit_agentos_mcp_runtime_context_missing_create"
+  });
+  const approveRuntime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    providerExecutionPlanStore: planStore,
+    approvalPermitStore: permitStore,
+    principal: validPrincipal,
+    policyDecision,
+    grantedCapabilities: ["approval.issue"],
+    approvedMutatingTools: ["agentos.approve_run"],
+    allowLocalMutations: true,
+    now: () => now,
+    createPermitId: () => "permit_agentos_mcp_runtime_context_missing"
+  });
+
+  const create = createRuntime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Create governed task",
+      requestedAction: "Create a run that cannot be consumed without context."
+    }
+  });
+  assert.equal(create.status, "succeeded");
+  assert.equal(create.output.providerPlanStatus, "waiting_approval");
+
+  const approve = approveRuntime.handleToolCall({
+    toolName: "agentos.approve_run",
+    input: {
+      runId,
+      capabilityScopes: ["fs.read:workspace/**"],
+      reason: "approval without planning context"
+    }
+  });
+
+  assert.equal(approve.status, "succeeded");
+  assert.equal(approve.output.permitId, "permit_agentos_mcp_runtime_context_missing");
+  assert.equal(approve.output.consumedProviderPlanId, undefined);
+  assert.deepEqual(approve.output.approvalConsumptionReasons, [
+    "approval_permit_consumption_context_missing"
+  ]);
+  assert.equal(planStore.listPlans({ runId }).length, 1);
+  assert.equal(planStore.listPlans({ runId }).at(-1)?.status, "waiting_approval");
+  assert.equal(
+    kernelStore.listEvents({
+      runId,
+      type: "kernel.approval.permit.consumed"
+    }).length,
+    0
+  );
+});
+
 test("Agent OS MCP local runtime default IDs do not collide for repeated titles", () => {
   const kernelStore = new InMemoryKernelStore();
   const firstRuntime = createAgentOsMcpLocalRuntime({
