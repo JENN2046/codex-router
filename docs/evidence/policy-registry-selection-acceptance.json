@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "policy-registry-selection-acceptance.v1",
+  "generatedAt": "2026-06-14T00:00:00.000Z",
+  "mode": "read-only-policy-registry-selection",
+  "taskId": "policy-registry-selection-acceptance",
+  "checks": {
+    "routingGrantPresent": true,
+    "routingGrantManifestHashRecorded": true,
+    "runnerReadyWithRegistry": true,
+    "runnerSelectionRecorded": true,
+    "runnerSelectionOk": true,
+    "runnerMissingProviderBlocked": true,
+    "runnerDisabledProviderBlocked": true,
+    "runnerManifestMismatchBlocked": true,
+    "dispatcherMissingProviderBlocked": true,
+    "dispatcherDisabledProviderBlocked": true,
+    "dispatcherManifestMismatchBlocked": true,
+    "dispatcherBlockedBeforePlan": true,
+    "workspaceWriteRemainsBlocked": true,
+    "noRunPath": true,
+    "leakCheckPassed": true
+  },
+  "summary": {
+    "providerId": "codex-cli",
+    "kind": "executor",
+    "manifestHash": "fb6c7a17b6da1986983a06a3c8e7d4fc2992674baab0ce84ee5816b988b4012b",
+    "capabilityCount": 3,
+    "sandboxProfileCount": 2,
+    "sideEffectClassCount": 3
+  },
+  "counters": {
+    "providerPlanCalls": 0,
+    "providerSpawnCalls": 0
+  },
+  "blockingReasons": [
+    "provider_selection_provider_missing:codex-cli",
+    "provider_selection_provider_disabled:codex-cli",
+    "provider_selection_manifest_hash_mismatch",
+    "provider_selection_manifest_hash_mismatch",
+    "provider_selection_provider_missing:codex-cli",
+    "provider_selection_provider_disabled:codex-cli",
+    "provider_selection_manifest_hash_mismatch",
+    "provider_selection_manifest_hash_mismatch",
+    "runner_result_tool_access_not_read_only",
+    "runner_result_provider_grant_side_effect_not_read_only",
+    "runner_result_provider_grant_sandbox_not_read_only"
+  ]
+}

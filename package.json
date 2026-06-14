@@ -13,6 +13,7 @@
     "operator:acceptance:telemetry": "tsx scripts/run-codex-cli-operator-acceptance-telemetry.ts",
     "acceptance:readonly-chain": "tsx scripts/run-readonly-control-chain-acceptance.ts",
     "acceptance:provider-registry": "tsx scripts/run-provider-registry-selection-acceptance.ts",
+    "acceptance:policy-registry-selection": "tsx scripts/run-policy-registry-selection-acceptance.ts",
     "smoke:contract": "tsx scripts/run-codex-cli-contract-smoke.ts",
     "smoke:telemetry": "tsx scripts/run-codex-cli-readonly-smoke-telemetry.ts",
     "smoke:workspace-write:telemetry": "tsx scripts/run-codex-cli-workspace-write-smoke-telemetry.ts",
