@@ -158,9 +158,13 @@ async function runCommand(
   command: WorkspaceWriteRealCanaryFinalLocalAuditCommand
 ): Promise<WorkspaceWriteRealCanaryFinalLocalAuditCommandResult> {
   try {
-    await execFileAsync(command.command, command.args, {
+    const execCommand = process.platform === "win32" ? "cmd.exe" : command.command;
+    const execArgs = process.platform === "win32"
+      ? ["/d", "/s", "/c", windowsCommandLine(command)]
+      : command.args;
+
+    await execFileAsync(execCommand, execArgs, {
       encoding: "utf8",
-      shell: process.platform === "win32",
       windowsHide: true
     });
     return {
@@ -175,6 +179,18 @@ async function runCommand(
       exitCode: getExitCode(error)
     };
   }
+}
+
+function windowsCommandLine(command: WorkspaceWriteRealCanaryFinalLocalAuditCommand): string {
+  return [command.command, ...command.args].map(windowsQuoteArg).join(" ");
+}
+
+function windowsQuoteArg(value: string): string {
+  if (!/[\s"]/u.test(value)) {
+    return value;
+  }
+
+  return `"${value.replace(/"/g, '\\"')}"`;
 }
 
 function getExitCode(error: unknown): number {
