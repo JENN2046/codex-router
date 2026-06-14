@@ -45,7 +45,9 @@ const REQUIRED_DOC_FILES = [
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_LOCAL_CLOSEOUT.md",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET_COMPATIBILITY.md",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_LOCAL_CLOSEOUT.md",
-  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_BOUNDARY_AUDIT.md"
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_BOUNDARY_AUDIT.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_CANDIDATE_REVIEW_RECEIPT.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT.md"
 ] as const;
 
 const FORBIDDEN_MARKERS = [
@@ -357,14 +359,32 @@ function containsForbiddenMarker(value: string): boolean {
 function governanceDocsAreNonAuthorizing(governanceDocs: Record<string, string>): boolean {
   return REQUIRED_DOC_FILES.every((file) => {
     const text = governanceDocs[file];
-    const hasNonAuthorizationStatement = /does not authorize|does not implement, enable, or execute|does not cross into execution|changes no runtime behavior|pre-execution governance only/i.test(text ?? "");
 
     return text !== undefined
-      && hasNonAuthorizationStatement
-      && /real Codex CLI call: no/i.test(text)
-      && /Workspace-write execute: no/i.test(text)
-      && /Canary file write: no/i.test(text);
+      && hasNonAuthorizationStatement(text)
+      && deniesRealCodexCli(text)
+      && deniesWorkspaceWriteExecute(text)
+      && deniesCanaryFileWrite(text);
   });
+}
+
+function hasNonAuthorizationStatement(text: string): boolean {
+  return /does not authorize|does not implement, enable, or execute|does not cross into execution|changes no runtime behavior|pre-execution governance only/i.test(text);
+}
+
+function deniesRealCodexCli(text: string): boolean {
+  return /real Codex CLI (?:call|invocation):? no/i.test(text)
+    || /does not authorize:[\s\S]*real Codex CLI invocation/i.test(text);
+}
+
+function deniesWorkspaceWriteExecute(text: string): boolean {
+  return /Workspace-write execute:? no/i.test(text)
+    || /does not authorize:[\s\S]*workspace-write execute/i.test(text);
+}
+
+function deniesCanaryFileWrite(text: string): boolean {
+  return /Canary file write:? no/i.test(text)
+    || /does not authorize:[\s\S]*canary file write/i.test(text);
 }
 
 function getBoolean(

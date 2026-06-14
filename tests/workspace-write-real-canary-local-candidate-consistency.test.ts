@@ -41,7 +41,9 @@ const governanceDocPaths = [
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_LOCAL_CLOSEOUT.md",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET_COMPATIBILITY.md",
   "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_LOCAL_CLOSEOUT.md",
-  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_BOUNDARY_AUDIT.md"
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_BOUNDARY_AUDIT.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_CANDIDATE_REVIEW_RECEIPT.md",
+  "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT.md"
 ];
 
 const forbiddenMarkers = [
@@ -132,6 +134,43 @@ test("workspace-write real canary local candidate consistency blocks stale or un
   assert.ok(review.reasons.includes("workspace_write_real_canary_candidate_canary_file_exists"));
 });
 
+test("workspace-write real canary local candidate consistency reviews later governance receipts", () => {
+  const governanceDocs = createGovernanceDocs();
+  governanceDocs["docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT.md"] = [
+    "This audit does not authorize:",
+    "- real Codex CLI invocation",
+    "- provider execute",
+    "- workspace-write execute",
+    "- canary file write"
+  ].join("\n");
+
+  const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
+    createConsistentInput({ governanceDocs })
+  );
+
+  assert.equal(review.status, "passed");
+  assert.equal(review.checks.governanceDocsNonAuthorizing, true);
+
+  const unsafeReview = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
+    createConsistentInput({
+      governanceDocs: {
+        ...governanceDocs,
+        "docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_CANDIDATE_REVIEW_RECEIPT.md": [
+          "This receipt does not authorize execution.",
+          "Real Codex CLI call: no",
+          "Workspace-write execute: no"
+        ].join("\n")
+      }
+    })
+  );
+
+  assert.equal(unsafeReview.status, "blocked");
+  assert.equal(unsafeReview.checks.governanceDocsNonAuthorizing, false);
+  assert.ok(unsafeReview.reasons.includes(
+    "workspace_write_real_canary_candidate_docs_authorize_execution"
+  ));
+});
+
 test("workspace-write real canary local candidate consistency omits raw sensitive inputs", () => {
   const input = createConsistentInput({
     authorizationEvidenceText: createEvidenceText(
@@ -200,17 +239,21 @@ function createConsistentInput(
     preExecutionEvidenceText: createEvidenceText(
       "workspace-write-real-canary-pre-execution-local-only"
     ),
-    governanceDocs: Object.fromEntries(
-      governanceDocPaths.map((path) => [path, [
-        "This review does not authorize execution.",
-        "Real Codex CLI call: no",
-        "Workspace-write execute: no",
-        "Canary file write: no"
-      ].join("\n")])
-    ),
+    governanceDocs: createGovernanceDocs(),
     canaryFileExists: false,
     ...overrides
   };
+}
+
+function createGovernanceDocs(): Record<string, string> {
+  return Object.fromEntries(
+    governanceDocPaths.map((path) => [path, [
+      "This review does not authorize execution.",
+      "Real Codex CLI call: no",
+      "Workspace-write execute: no",
+      "Canary file write: no"
+    ].join("\n")])
+  );
 }
 
 function createEvidenceText(
