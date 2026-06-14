@@ -9,6 +9,7 @@ It is intentionally not a point-in-time push receipt. It does not rely on a fixe
 Current state must be rechecked with:
 
 - `npm run audit:workspace-write-real-canary-candidate`
+- `npm run audit:workspace-write-real-canary-candidate -- --json`
 
 ## 2. Scope
 
@@ -45,7 +46,7 @@ The command checks:
 
 ## 4. Expected Safe Output
 
-Expected safe audit properties:
+Expected safe text audit properties:
 
 - `status`: `passed`
 - `unexpected changed files`: `0`
@@ -55,6 +56,23 @@ Expected safe audit properties:
 - canary file writes: `0`
 
 The exact ahead count and changed file count are current-state values and must be read from the command output when the review is performed.
+
+Expected safe JSON audit properties:
+
+- `status` is `passed`
+- `checks.worktreeClean` is `true`
+- `checks.changedFilesWithinPr12bScope` is `true`
+- `checks.evidenceNoExecution` is `true`
+- `checks.evidenceSanitized` is `true`
+- `checks.canaryFileAbsent` is `true`
+- `summary.unexpectedChangedFileCount` is `0`
+- `summary.providerExecuteCalls` is `0`
+- `summary.realCodexCliCalls` is `0`
+- `summary.workspaceWriteExecuteCalls` is `0`
+- `summary.canaryFileWrites` is `0`
+- `reasons` is empty
+
+The JSON output is for local automation and review tooling. It must remain sanitized and must not be treated as permission to execute workspace-write.
 
 ## 5. Non-authorization
 
