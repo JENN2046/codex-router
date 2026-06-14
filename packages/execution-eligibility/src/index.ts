@@ -7,6 +7,7 @@ import {
   type CapabilityGrantLike
 } from "../../capability/src/index.js";
 import {
+  type ApprovalPermitStore,
   hashApprovalScope,
   validateApprovalPermit
 } from "../../approval-permit/src/index.js";
@@ -49,6 +50,13 @@ export type EvaluateExecutionEligibilityInput = {
   requestedScopes: string[];
   planHash: string;
   now: string;
+};
+
+export type EvaluateExecutionEligibilityWithPermitStoreInput = Omit<
+  EvaluateExecutionEligibilityInput,
+  "approvalPermits"
+> & {
+  approvalPermitStore: ApprovalPermitStore;
 };
 
 const terminalRunStatuses = new Set<Run["status"]>([
@@ -197,6 +205,22 @@ export function evaluateExecutionEligibility(
     requiredApprovals: [],
     rejectedPermits: permitEvaluation.rejectedPermits
   };
+}
+
+export function evaluateExecutionEligibilityWithPermitStore(
+  input: EvaluateExecutionEligibilityWithPermitStoreInput
+): ExecutionEligibilityDecision {
+  const { approvalPermitStore, ...eligibilityInput } = input;
+  const approvalPermits = approvalPermitStore.listPermits({
+    taskId: input.task.taskId,
+    runId: input.run.runId,
+    principalId: input.principal.principalId
+  });
+
+  return evaluateExecutionEligibility({
+    ...eligibilityInput,
+    approvalPermits
+  });
 }
 
 function evaluatePermits(

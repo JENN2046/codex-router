@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createApprovalPermit,
-  hashApprovalScope
+  hashApprovalScope,
+  InMemoryApprovalPermitStore
 } from "../packages/approval-permit/src/index.js";
 import {
-  evaluateExecutionEligibility
+  evaluateExecutionEligibility,
+  evaluateExecutionEligibilityWithPermitStore
 } from "../packages/execution-eligibility/src/index.js";
 import {
   PolicyDecisionSchema,
@@ -155,6 +157,83 @@ test("execution eligibility accepts valid approval permits", () => {
   assert.deepEqual(decision.reasons, ["valid_approval_permit"]);
   assert.deepEqual(decision.acceptedPermits, [permit.permitId]);
   assert.deepEqual(decision.rejectedPermits, []);
+});
+
+test("execution eligibility loads valid approval permits from store", () => {
+  const policyDecision = createPolicyDecision();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const permit = permitStore.savePermit(createPermit(policyDecision, {
+    capabilityScopes: ["fs.write:/repo/docs/**"]
+  }));
+
+  const decision = evaluateExecutionEligibilityWithPermitStore({
+    ...createInput({
+      policyDecision,
+      requestedScopes: [writeScope],
+      capabilityGrants: []
+    }),
+    approvalPermitStore: permitStore
+  });
+
+  assert.equal(decision.status, "eligible");
+  assert.deepEqual(decision.reasons, ["valid_approval_permit"]);
+  assert.deepEqual(decision.acceptedPermits, [permit.permitId]);
+  assert.deepEqual(decision.rejectedPermits, []);
+});
+
+test("execution eligibility rejects revoked permits loaded from store", () => {
+  const policyDecision = createPolicyDecision();
+  const permitStore = new InMemoryApprovalPermitStore();
+  const permit = permitStore.savePermit(createPermit(policyDecision, {
+    capabilityScopes: ["fs.write:/repo/docs/**"]
+  }));
+  permitStore.revokePermit(
+    permit.permitId,
+    "2026-06-04T00:05:00.000Z",
+    "approval_withdrawn"
+  );
+
+  const decision = evaluateExecutionEligibilityWithPermitStore({
+    ...createInput({
+      policyDecision,
+      requestedScopes: [writeScope],
+      capabilityGrants: []
+    }),
+    approvalPermitStore: permitStore
+  });
+
+  assert.equal(decision.status, "waiting_approval");
+  assert.deepEqual(decision.acceptedPermits, []);
+  assert.ok(decision.rejectedPermits[0]?.includes("permit_revoked"));
+});
+
+test("execution eligibility only loads permits for the matching task run and principal", () => {
+  const policyDecision = createPolicyDecision();
+  const permitStore = new InMemoryApprovalPermitStore();
+  permitStore.savePermit(createPermit(policyDecision, {
+    permitId: "permit_wrong_run",
+    runId: "run_other_001",
+    capabilityScopes: ["fs.write:/repo/docs/**"]
+  }));
+  permitStore.savePermit(createPermit(policyDecision, {
+    permitId: "permit_wrong_principal",
+    principalId: "principal_other_001",
+    capabilityScopes: ["fs.write:/repo/docs/**"]
+  }));
+
+  const decision = evaluateExecutionEligibilityWithPermitStore({
+    ...createInput({
+      policyDecision,
+      requestedScopes: [writeScope],
+      capabilityGrants: []
+    }),
+    approvalPermitStore: permitStore
+  });
+
+  assert.equal(decision.status, "waiting_approval");
+  assert.deepEqual(decision.acceptedPermits, []);
+  assert.deepEqual(decision.rejectedPermits, []);
+  assert.ok(decision.requiredApprovals.includes(`approval:${writeScope}`));
 });
 
 test("execution eligibility checks policy-required scopes when caller underreports requested scopes", () => {
@@ -426,16 +505,20 @@ function createPolicyDecision(
 function createPermit(
   policyDecision: PolicyDecision,
   overrides: Partial<{
+    permitId: string;
+    taskId: string;
+    runId: string;
+    principalId: string;
     planHash: string;
     capabilityScopes: string[];
     expiresAt: string;
   }> = {}
 ): ApprovalPermit {
   return createApprovalPermit({
-    permitId: "permit_execution_eligibility_001",
-    taskId: validTask.taskId,
-    runId: validRun.runId,
-    principalId: validPrincipal.principalId,
+    permitId: overrides.permitId ?? "permit_execution_eligibility_001",
+    taskId: overrides.taskId ?? validTask.taskId,
+    runId: overrides.runId ?? validRun.runId,
+    principalId: overrides.principalId ?? validPrincipal.principalId,
     approverId: "principal_approver_001",
     policyDecisionHash: hashApprovalScope(policyDecision),
     planHash: overrides.planHash ?? planHash,
