@@ -11,6 +11,7 @@ import { createRecordingTelemetrySink } from "../packages/observability/src/inde
 import {
   CODEX_CLI_READONLY_SMOKE_OK,
   CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
+  checkCodexCliEnvironmentPreflight,
   checkCodexCliExecPlanModelAvailability,
   checkCodexCliModelAvailability,
   checkCodexCliModelCatalogAtStartup,
@@ -86,6 +87,90 @@ test("codex cli host governance-v2 public export surface is lock-stable", async 
 
 test.beforeEach(() => {
   clearCodexCliModelProbeCache();
+});
+
+test("codex cli environment preflight requires an injected spawner", async () => {
+  const result = await checkCodexCliEnvironmentPreflight({
+    generatedAt: "2026-06-14T00:00:00.000Z",
+    codexCommand: "codex"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.injectedSpawner, false);
+  assert.equal(result.checks.versionProbe, "skipped");
+  assert.deepEqual(result.blockingReasons, [
+    "codex_cli_environment_preflight_requires_injected_spawn"
+  ]);
+});
+
+test("codex cli environment preflight summarizes fake version output without raw fields", async () => {
+  const calls: Array<{ command: string; args: string[]; stdio?: unknown }> = [];
+  const result = await checkCodexCliEnvironmentPreflight({
+    generatedAt: "2026-06-14T00:00:00.000Z",
+    codexCommand: "codex",
+    spawn: (command, args, options) => {
+      calls.push({
+        command,
+        args,
+        stdio: options.stdio
+      });
+
+      return createFakeCodexCliChild({
+        stdout: "codex-cli 1.2.3\r\n",
+        stderr: "WARNING: diagnostic only\n",
+        exitCode: 0
+      });
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.command, "codex");
+  assert.deepEqual(calls[0]?.args, ["--version"]);
+  assert.deepEqual(calls[0]?.stdio, ["ignore", "pipe", "pipe"]);
+  assert.equal(result.status, "ready");
+  assert.equal(result.checks.injectedSpawner, true);
+  assert.equal(result.checks.versionProbe, "passed");
+  assert.equal(result.cli.version, "codex-cli 1.2.3");
+  assert.equal(result.cli.exitCode, 0);
+  assert.equal(result.cli.warningCount, 1);
+  assert.deepEqual(result.blockingReasons, []);
+
+  const serialized = JSON.stringify(result);
+  assert.equal(serialized.includes("args"), false);
+  assert.equal(serialized.includes("stdout"), false);
+  assert.equal(serialized.includes("stderr"), false);
+  assert.equal(serialized.includes("prompt"), false);
+  assert.equal(serialized.includes("requestedAction"), false);
+});
+
+test("codex cli environment preflight blocks failed or sensitive fake version output", async () => {
+  const failed = await checkCodexCliEnvironmentPreflight({
+    codexCommand: "codex",
+    spawn: () => createFakeCodexCliChild({
+      stdout: "",
+      stderr: "command failed\n",
+      exitCode: 1
+    })
+  });
+  const sensitive = await checkCodexCliEnvironmentPreflight({
+    codexCommand: "codex",
+    spawn: () => createFakeCodexCliChild({
+      stdout: "codex-cli sk-test-token\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(failed.status, "blocked");
+  assert.equal(failed.checks.versionProbe, "failed");
+  assert.ok(failed.blockingReasons.includes(
+    "codex_cli_environment_preflight_version_probe_failed"
+  ));
+  assert.equal(sensitive.status, "blocked");
+  assert.equal(sensitive.cli.version, undefined);
+  assert.ok(sensitive.blockingReasons.includes(
+    "codex_cli_environment_preflight_version_probe_failed"
+  ));
+  assert.equal(JSON.stringify(sensitive).includes("sk-test-token"), false);
 });
 
 test("codex cli host builds a read-only exec json plan without running the CLI", () => {

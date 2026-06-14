@@ -11,6 +11,7 @@
   "bridgeCliStateToGenericState",
   "bridgeRouteStrategyFromCliState",
   "buildCodexCliTaskPrompt",
+  "checkCodexCliEnvironmentPreflight",
   "checkCodexCliExecPlanModelAvailability",
   "checkCodexCliModelAvailability",
   "checkCodexCliModelCatalogAtStartup",

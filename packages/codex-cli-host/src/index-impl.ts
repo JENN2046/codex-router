@@ -436,6 +436,40 @@ export interface CodexCliProcessRunResult {
   error?: string;
 }
 
+export interface CodexCliEnvironmentPreflightOptions {
+  generatedAt?: string;
+  codexCommand?: string;
+  cwd?: string;
+  timeoutMs?: number;
+  env?: NodeJS.ProcessEnv;
+  spawn?: CodexCliProcessSpawner;
+}
+
+export interface CodexCliEnvironmentPreflightResult {
+  schemaVersion: "codex-cli-environment-preflight.v1";
+  generatedAt: string;
+  status: "ready" | "blocked";
+  checks: {
+    injectedSpawner: boolean;
+    versionProbe: "passed" | "failed" | "skipped";
+    noTaskEnvelope: true;
+    noPromptSent: true;
+    noWorkspaceWrite: true;
+    noRealCliFallback: true;
+  };
+  cli: {
+    commandResolved: boolean;
+    version?: string;
+    exitCode?: number;
+    timedOut: boolean;
+    killed: boolean;
+    closeReceived: boolean;
+    warningCount: number;
+  };
+  warnings: string[];
+  blockingReasons: string[];
+}
+
 export interface CodexCliSpawnOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
@@ -1591,6 +1625,142 @@ export function checkCodexCliExecPlanModelAvailability(
     ...(options.modelCatalogRelevance
       ? { relevantModelId: options.modelCatalogRelevance }
       : {})
+  });
+}
+
+export async function checkCodexCliEnvironmentPreflight(
+  options: CodexCliEnvironmentPreflightOptions = {}
+): Promise<CodexCliEnvironmentPreflightResult> {
+  const generatedAt = options.generatedAt ?? new Date().toISOString();
+  const command = options.codexCommand ?? resolveCodexCliRuntimeCommand();
+
+  if (!options.spawn) {
+    return {
+      schemaVersion: "codex-cli-environment-preflight.v1",
+      generatedAt,
+      status: "blocked",
+      checks: {
+        injectedSpawner: false,
+        versionProbe: "skipped",
+        noTaskEnvelope: true,
+        noPromptSent: true,
+        noWorkspaceWrite: true,
+        noRealCliFallback: true
+      },
+      cli: {
+        commandResolved: Boolean(command.trim()),
+        timedOut: false,
+        killed: false,
+        closeReceived: false,
+        warningCount: 0
+      },
+      warnings: [],
+      blockingReasons: ["codex_cli_environment_preflight_requires_injected_spawn"]
+    };
+  }
+
+  let stdout = "";
+  let stderr = "";
+  let timedOut = false;
+  let killed = false;
+  let closeReceived = false;
+  let exitCode: number | undefined;
+  let timeout: NodeJS.Timeout | undefined;
+
+  const createResult = (
+    versionProbe: "passed" | "failed",
+    extraBlockers: string[] = []
+  ): CodexCliEnvironmentPreflightResult => {
+    const warnings = extractCodexCliWarnings(stderr);
+    const version = sanitizeCodexCliVersionProbe(stdout);
+    const blockingReasons = [
+      ...(versionProbe === "passed" ? [] : ["codex_cli_environment_preflight_version_probe_failed"]),
+      ...(timedOut ? ["codex_cli_environment_preflight_timeout"] : []),
+      ...extraBlockers
+    ];
+
+    return {
+      schemaVersion: "codex-cli-environment-preflight.v1",
+      generatedAt,
+      status: blockingReasons.length === 0 ? "ready" : "blocked",
+      checks: {
+        injectedSpawner: true,
+        versionProbe,
+        noTaskEnvelope: true,
+        noPromptSent: true,
+        noWorkspaceWrite: true,
+        noRealCliFallback: true
+      },
+      cli: {
+        commandResolved: Boolean(command.trim()),
+        ...(version ? { version } : {}),
+        ...(exitCode !== undefined ? { exitCode } : {}),
+        timedOut,
+        killed,
+        closeReceived,
+        warningCount: warnings.length
+      },
+      warnings,
+      blockingReasons
+    };
+  };
+
+  let child: CodexCliChildProcess;
+  try {
+    const spawnEnv = resolveCodexCliSpawnEnv(command, options.env);
+    child = options.spawn(command, ["--version"], {
+      ...(options.cwd ? { cwd: options.cwd } : {}),
+      ...(spawnEnv ? { env: spawnEnv } : {}),
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true
+    });
+  } catch {
+    return createResult("failed", ["codex_cli_environment_preflight_spawn_failed"]);
+  }
+
+  child.stdout?.setEncoding("utf8");
+  child.stderr?.setEncoding("utf8");
+  child.stdout?.on("data", (chunk) => {
+    stdout += chunk.toString();
+  });
+  child.stderr?.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  return await new Promise<CodexCliEnvironmentPreflightResult>((resolve) => {
+    let settled = false;
+    const settle = (versionProbe: "passed" | "failed", extraBlockers: string[] = []) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+
+      resolve(createResult(versionProbe, extraBlockers));
+    };
+
+    if (options.timeoutMs !== undefined && options.timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        timedOut = true;
+        killed = child.kill("SIGTERM");
+        settle("failed");
+      }, options.timeoutMs);
+    }
+
+    child.on("error", () => {
+      exitCode = 1;
+      settle("failed", ["codex_cli_environment_preflight_process_error"]);
+    });
+
+    child.on("close", (code) => {
+      closeReceived = true;
+      exitCode = code ?? 1;
+      const version = sanitizeCodexCliVersionProbe(stdout);
+      settle(exitCode === 0 && version ? "passed" : "failed");
+    });
   });
 }
 
@@ -3362,6 +3532,28 @@ function normalizeCodexCliSpawnError(error: unknown): string {
   }
 
   return String(error);
+}
+
+function sanitizeCodexCliVersionProbe(stdout: string): string | undefined {
+  const line = stdout
+    .split(/\r?\n/)
+    .map((entry) => entry.trim().replace(/\s+/g, " "))
+    .find(Boolean);
+
+  if (!line || containsSensitiveEvidenceToken(line)) {
+    return undefined;
+  }
+
+  const sanitized = line
+    .replace(/[^A-Za-z0-9 ._+\-/@()]/g, "")
+    .slice(0, 120)
+    .trim();
+
+  return sanitized || undefined;
+}
+
+function containsSensitiveEvidenceToken(value: string): boolean {
+  return /\b(OPENAI_API_KEY|Bearer|token|secret|password)\b|sk-/i.test(value);
 }
 
 function isCodexCliCommandSpawnBlockedForShellFallback(
