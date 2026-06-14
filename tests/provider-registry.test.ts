@@ -7,6 +7,7 @@ import {
   FileSystemProviderManifestStore,
   ProviderRegistry,
   createProviderRegistry,
+  selectProviderForGrant,
   type ProviderRegistryEntry
 } from "../packages/provider-registry/src/index.js";
 import {
@@ -32,6 +33,9 @@ import {
   SandboxProfileSchema,
   type SandboxProfile
 } from "../packages/kernel-contracts/src/index.js";
+import {
+  ProviderGrantSchema
+} from "../packages/contracts/src/index.js";
 import { validAgentManifest } from "../packages/kernel-contracts/test-fixtures/valid-agent-manifest.js";
 
 const now = "2026-06-04T01:30:00.000Z";
@@ -157,6 +161,198 @@ test("provider-registry read-only catalog manifest hash changes when manifest ch
     hashProviderManifest(changedManifest),
     hashProviderManifest(codexCliProviderManifest)
   );
+});
+
+test("provider-registry selection selects codex-cli by providerId", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const result = registry.select({
+    providerId: "codex-cli"
+  });
+
+  assert.equal(result.selected, true);
+  assert.equal(result.provider?.providerId, "codex-cli");
+  assert.deepEqual(result.reasons, []);
+});
+
+test("provider-registry selection rejects missing providers", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const result = registry.select({
+    providerId: "missing"
+  });
+
+  assert.equal(result.selected, false);
+  assert.equal(result.provider, undefined);
+  assert.deepEqual(result.reasons, [
+    "provider_selection_provider_missing:missing"
+  ]);
+});
+
+test("provider-registry selection rejects disabled provider by default", () => {
+  const registry = createProviderRegistry();
+
+  registry.register(createDisabledProviderManifest(), {
+    registeredAt: pr7aNow
+  });
+
+  const result = registry.select({
+    providerId: "codex-cli-disabled"
+  });
+
+  assert.equal(result.selected, false);
+  assert.equal(result.provider, undefined);
+  assert.ok(result.reasons.includes(
+    "provider_selection_provider_disabled:codex-cli-disabled"
+  ));
+});
+
+test("provider-registry selection can read disabled provider when enabled is not required", () => {
+  const registry = createProviderRegistry();
+
+  registry.register(createDisabledProviderManifest(), {
+    registeredAt: pr7aNow
+  });
+
+  const result = registry.select({
+    providerId: "codex-cli-disabled",
+    requireEnabled: false
+  });
+
+  assert.equal(result.selected, true);
+  assert.equal(result.provider?.providerId, "codex-cli-disabled");
+});
+
+test("provider-registry selection rejects kind mismatch", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const result = registry.select({
+    providerId: "codex-cli",
+    kind: "tool"
+  });
+
+  assert.equal(result.selected, false);
+  assert.deepEqual(result.reasons, [
+    "provider_selection_kind_mismatch:tool:executor"
+  ]);
+});
+
+test("provider-registry selection rejects manifest hash mismatch", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const result = registry.select({
+    providerId: "codex-cli",
+    expectedManifestHash: "0".repeat(64)
+  });
+
+  assert.equal(result.selected, false);
+  assert.ok(result.reasons.includes("provider_selection_manifest_hash_mismatch"));
+});
+
+test("provider-registry selection rejects missing capabilities", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const result = registry.select({
+    providerId: "codex-cli",
+    requiredCapabilities: ["missing.capability"]
+  });
+
+  assert.equal(result.selected, false);
+  assert.deepEqual(result.reasons, [
+    "provider_selection_missing_capability:missing.capability"
+  ]);
+});
+
+test("provider-registry selection rejects unsupported side effects", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const result = registry.select({
+    providerId: "codex-cli",
+    requiredSideEffectClass: "protected_remote"
+  });
+
+  assert.equal(result.selected, false);
+  assert.deepEqual(result.reasons, [
+    "provider_selection_unsupported_side_effect:protected_remote"
+  ]);
+});
+
+test("provider-registry selection accepts supported side effects", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const result = registry.select({
+    providerId: "codex-cli",
+    requiredSideEffectClass: "read_only"
+  });
+
+  assert.equal(result.selected, true);
+  assert.equal(result.provider?.providerId, "codex-cli");
+});
+
+test("provider-registry selection rejects unsupported sandbox", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const sandbox = createSandboxProfile("read-only", {
+    sandboxId: "sandbox_provider_registry_full_network",
+    networkAccess: "full"
+  });
+  const result = registry.select({
+    providerId: "codex-cli",
+    requiredSandboxProfile: sandbox
+  });
+
+  assert.equal(result.selected, false);
+  assert.deepEqual(result.reasons, [
+    "provider_selection_unsupported_sandbox:sandbox_provider_registry_full_network"
+  ]);
+});
+
+test("provider-registry selection accepts supported read-only sandbox", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const readOnlySandbox = codexCliProviderManifest.supportedSandboxProfiles.find(
+    (sandbox) => sandbox.mode === "read-only"
+  );
+  assert.ok(readOnlySandbox);
+
+  const result = registry.select({
+    providerId: "codex-cli",
+    requiredSandboxProfile: readOnlySandbox
+  });
+
+  assert.equal(result.selected, true);
+  assert.equal(result.provider?.providerId, "codex-cli");
+});
+
+test("provider-registry selection selects provider for grant", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const grant = createCodexReadOnlyProviderGrant();
+  const result = selectProviderForGrant(registry, grant);
+
+  assert.equal(result.selected, true);
+  assert.equal(result.provider?.providerId, "codex-cli");
+});
+
+test("provider-registry selection rejects provider grant manifest mismatch", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const grant = {
+    ...createCodexReadOnlyProviderGrant(),
+    manifestHash: "0".repeat(64)
+  };
+  const result = selectProviderForGrant(registry, grant);
+
+  assert.equal(result.selected, false);
+  assert.ok(result.reasons.includes("provider_selection_manifest_hash_mismatch"));
+});
+
+test("provider-registry selection result is sanitized", () => {
+  const registry = createRegistryWithCodexCatalog();
+  const result = registry.select({
+    providerId: "codex-cli",
+    requiredSideEffectClass: "read_only"
+  });
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.selected, true);
+  assert.equal(serialized.includes("execute"), false);
+  assert.equal(serialized.includes("invoke"), false);
+  assert.equal(serialized.includes("function"), false);
+  assert.equal(serialized.includes("secret"), false);
+  assert.equal(serialized.includes("token"), false);
+  assert.equal(serialized.includes("OPENAI_API_KEY"), false);
+  assert.equal(serialized.includes("sk-"), false);
+  assert.equal(serialized.includes("Bearer"), false);
 });
 
 test("provider-registry registers, gets, lists, and unregisters providers", () => {
@@ -550,6 +746,14 @@ function createPopulatedRegistry(): ProviderRegistry {
   return registry;
 }
 
+function createRegistryWithCodexCatalog(): ProviderRegistry {
+  const registry = createProviderRegistry();
+  registry.register(codexCliProviderManifest, {
+    registeredAt: pr7aNow
+  });
+  return registry;
+}
+
 function createCodexProvider(): CodexCliExecutorProvider {
   return new CodexCliExecutorProvider();
 }
@@ -581,18 +785,39 @@ function createA2AProvider(): RemoteAgentProvider {
 }
 
 function createSandboxProfile(
-  mode: "read-only" | "workspace-write"
+  mode: "read-only" | "workspace-write",
+  options: {
+    sandboxId?: string;
+    networkAccess?: SandboxProfile["networkAccess"];
+    writableRoots?: string[];
+  } = {}
 ): SandboxProfile {
   return SandboxProfileSchema.parse({
     schemaVersion: "sandbox-profile.v1",
-    sandboxId: `sandbox_provider_registry_${mode.replace(/[^a-z0-9]+/g, "_")}`,
+    sandboxId: options.sandboxId
+      ?? `sandbox_provider_registry_${mode.replace(/[^a-z0-9]+/g, "_")}`,
     mode,
-    networkAccess: "none",
-    writableRoots: mode === "read-only" ? [] : ["workspace"],
+    networkAccess: options.networkAccess ?? "none",
+    writableRoots: options.writableRoots ?? (mode === "read-only" ? [] : ["workspace"]),
     envPolicy: {
       inheritProcessEnv: false,
       allowlist: []
     }
+  });
+}
+
+function createCodexReadOnlyProviderGrant() {
+  return ProviderGrantSchema.parse({
+    schemaVersion: "provider-grant.v1",
+    grantId: "grant_provider_registry_codex_cli_readonly",
+    providerId: "codex-cli",
+    providerKind: "executor",
+    sideEffectClass: "read_only",
+    toolAccess: "read_only",
+    sandboxMode: "read-only",
+    approvalRequired: false,
+    requiredApprovals: [],
+    reasons: ["test"]
   });
 }
 

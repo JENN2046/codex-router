@@ -15,6 +15,9 @@ import {
   SandboxProfileSchema,
   type SandboxProfile
 } from "../../kernel-contracts/src/index.js";
+import type {
+  ProviderGrant
+} from "../../contracts/src/index.js";
 import {
   ProviderKindSchema,
   ProviderManifestSchema,
@@ -92,6 +95,22 @@ export type ProviderRegistrySnapshotEntry = Omit<
   securityBoundary: ProviderRegistrySnapshotSecurityBoundary;
   attestation: ProviderRegistrySnapshotAttestation;
 };
+
+export interface ProviderSelectionRequest {
+  providerId: string;
+  kind?: ProviderKind;
+  requiredCapabilities?: string[];
+  requiredSandboxProfile?: SandboxProfile;
+  requiredSideEffectClass?: ProviderSideEffectClass;
+  expectedManifestHash?: string;
+  requireEnabled?: boolean;
+}
+
+export interface ProviderSelectionResult {
+  selected: boolean;
+  provider?: ProviderRegistrySnapshotEntry;
+  reasons: string[];
+}
 
 export type ProviderRegistryFilter = {
   kind?: ProviderKind;
@@ -208,6 +227,10 @@ export class ProviderRegistry {
       enabledProviderCount: entries.filter((entry) => entry.enabled).length,
       providers
     };
+  }
+
+  select(request: ProviderSelectionRequest): ProviderSelectionResult {
+    return selectProviderFromRegistry(this, request);
   }
 
   registerProvider(
@@ -521,6 +544,61 @@ export function createProviderRegistry(): ProviderRegistry {
   return new ProviderRegistry();
 }
 
+export function selectProviderFromRegistry(
+  registry: ProviderRegistry,
+  request: ProviderSelectionRequest
+): ProviderSelectionResult {
+  const entry = registry.get(request.providerId);
+  if (entry === undefined) {
+    return {
+      selected: false,
+      reasons: [`provider_selection_provider_missing:${request.providerId}`]
+    };
+  }
+
+  const reasons = collectProviderSelectionRejectionReasons(entry, request);
+
+  if (reasons.length > 0) {
+    return {
+      selected: false,
+      reasons
+    };
+  }
+
+  return {
+    selected: true,
+    provider: toSnapshotEntry(entry),
+    reasons: []
+  };
+}
+
+export function selectProviderForGrant(
+  registry: ProviderRegistry,
+  providerGrant: ProviderGrant
+): ProviderSelectionResult {
+  const grantRecord = providerGrant as ProviderGrant & {
+    capabilities?: unknown;
+    manifestHash?: unknown;
+    sandboxProfile?: unknown;
+  };
+  const request: ProviderSelectionRequest = {
+    providerId: providerGrant.providerId,
+    requiredSideEffectClass: providerGrant.sideEffectClass,
+    requiredSandboxProfile: isSandboxProfileInput(grantRecord.sandboxProfile)
+      ? SandboxProfileSchema.parse(grantRecord.sandboxProfile)
+      : createSandboxProfileForGrant(providerGrant),
+    ...(isProviderKind(providerGrant.providerKind) ? { kind: providerGrant.providerKind } : {}),
+    ...(Array.isArray(grantRecord.capabilities)
+      ? { requiredCapabilities: grantRecord.capabilities.filter(isString) }
+      : {}),
+    ...(typeof grantRecord.manifestHash === "string"
+      ? { expectedManifestHash: grantRecord.manifestHash }
+      : {})
+  };
+
+  return selectProviderFromRegistry(registry, request);
+}
+
 export function createInMemoryProviderManifestStore(): InMemoryProviderManifestStore {
   return new InMemoryProviderManifestStore();
 }
@@ -577,6 +655,103 @@ function providerManifestMatchesEnabledFilter(
   }
 
   return filter.includeDisabled === true || manifest.enabled;
+}
+
+function collectProviderSelectionRejectionReasons(
+  entry: ProviderRegistryAttestationEntry,
+  request: ProviderSelectionRequest
+): string[] {
+  const reasons: string[] = [];
+
+  if (request.requireEnabled !== false && !entry.enabled) {
+    reasons.push(`provider_selection_provider_disabled:${entry.providerId}`);
+  }
+
+  if (request.kind !== undefined && request.kind !== entry.kind) {
+    reasons.push(`provider_selection_kind_mismatch:${request.kind}:${entry.kind}`);
+  }
+
+  if (
+    request.expectedManifestHash !== undefined
+    && request.expectedManifestHash !== entry.manifestHash
+  ) {
+    reasons.push("provider_selection_manifest_hash_mismatch");
+  }
+
+  for (const capability of request.requiredCapabilities ?? []) {
+    if (!entry.capabilities.includes(capability)) {
+      reasons.push(`provider_selection_missing_capability:${capability}`);
+    }
+  }
+
+  if (
+    request.requiredSandboxProfile !== undefined
+    && !providerSupportsSandboxProfile(
+      manifestFromAttestationEntry(entry),
+      request.requiredSandboxProfile
+    )
+  ) {
+    reasons.push(`provider_selection_unsupported_sandbox:${request.requiredSandboxProfile.sandboxId}`);
+  }
+
+  if (
+    request.requiredSideEffectClass !== undefined
+    && !entry.supportedSideEffectClasses.includes(request.requiredSideEffectClass)
+  ) {
+    reasons.push(`provider_selection_unsupported_side_effect:${request.requiredSideEffectClass}`);
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function manifestFromAttestationEntry(entry: ProviderRegistryAttestationEntry): ProviderManifest {
+  return ProviderManifestSchema.parse({
+    schemaVersion: "provider-manifest.v1",
+    providerId: entry.providerId,
+    kind: entry.kind,
+    displayName: entry.displayName,
+    version: entry.version,
+    capabilities: entry.capabilities,
+    requiredConfig: {
+      keys: [],
+      optionalKeys: []
+    },
+    securityBoundary: entry.securityBoundary,
+    supportedSandboxProfiles: entry.supportedSandboxProfiles,
+    supportedSideEffectClasses: entry.supportedSideEffectClasses,
+    enabled: entry.enabled,
+    metadata: {}
+  });
+}
+
+function createSandboxProfileForGrant(providerGrant: ProviderGrant): SandboxProfile {
+  return SandboxProfileSchema.parse({
+    schemaVersion: "sandbox-profile.v1",
+    sandboxId: `provider-grant-${providerGrant.sandboxMode}`,
+    mode: providerGrant.sandboxMode,
+    networkAccess: "none",
+    writableRoots: providerGrant.sandboxMode === "read-only" ? [] : ["workspace"],
+    envPolicy: {
+      inheritProcessEnv: false,
+      allowlist: []
+    }
+  });
+}
+
+function isSandboxProfileInput(input: unknown): input is SandboxProfile {
+  return SandboxProfileSchema.safeParse(input).success;
+}
+
+function isProviderKind(input: unknown): input is ProviderKind {
+  return ProviderKindSchema.safeParse(input).success;
+}
+
+function isString(input: unknown): input is string {
+  return typeof input === "string";
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function parseProviderManifestForStorage(
