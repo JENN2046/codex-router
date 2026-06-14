@@ -144,9 +144,25 @@ export type ProviderRequiredConfig = z.infer<typeof ProviderRequiredConfigSchema
 export type ProviderManifest = z.infer<typeof ProviderManifestSchema>;
 export type ProviderAttestation = z.infer<typeof ProviderAttestationSchema>;
 export type ProviderExecutionPermit = z.infer<typeof ProviderExecutionPermitSchema>;
+export type ProviderExecutionPermitApprovalStatus = NonNullable<
+  ProviderExecutionPermit["approvalStatus"]
+>;
 export type ProviderPlanBase = z.infer<typeof ProviderPlanBaseSchema>;
 export type ExecutorExecutionPlan = z.infer<typeof ExecutorExecutionPlanSchema>;
 export type ToolProviderInvocationPlan = z.infer<typeof ToolProviderInvocationPlanSchema>;
+
+export type ProviderExecutionPermitIssueInput = {
+  plan: ExecutorExecutionPlan;
+  manifest: ProviderManifest;
+  permitId?: string;
+  approvalStatus?: ProviderExecutionPermitApprovalStatus;
+  reasons?: string[];
+  issuedAt: string;
+};
+
+export type ProviderExecutionPermitValidationOptions = {
+  reasonPrefix?: string;
+};
 
 export type ExecutionPlanInput = {
   task: Task;
@@ -318,6 +334,97 @@ export function createProviderAttestation(
   });
 }
 
+export function createApprovedProviderExecutionPermit(
+  input: ProviderExecutionPermitIssueInput
+): ProviderExecutionPermit {
+  const plan = ExecutorExecutionPlanSchema.parse(input.plan);
+  const reasons = getReadOnlyProviderExecutionPermitIssuanceBlockers(
+    plan,
+    input.approvalStatus
+  );
+
+  if (reasons.length > 0) {
+    throw new Error(`provider_execution_permit_not_approvable:${reasons.join(",")}`);
+  }
+
+  return createProviderExecutionPermit(input, "approved", []);
+}
+
+export function createBlockedProviderExecutionPermit(
+  input: ProviderExecutionPermitIssueInput
+): ProviderExecutionPermit {
+  const plan = ExecutorExecutionPlanSchema.parse(input.plan);
+  const reasons = input.reasons ?? getReadOnlyProviderExecutionPermitIssuanceBlockers(
+    plan,
+    input.approvalStatus
+  );
+
+  return createProviderExecutionPermit(input, "blocked", reasons);
+}
+
+export function validateProviderExecutionPermitForPlan(
+  permitInput: ProviderExecutionPermit,
+  planInput: ExecutorExecutionPlan,
+  manifestInput: ProviderManifest,
+  options: ProviderExecutionPermitValidationOptions = {}
+): string[] {
+  const parsedPermit = ProviderExecutionPermitSchema.safeParse(permitInput);
+  const prefix = options.reasonPrefix ?? "provider_execution_permit";
+
+  if (!parsedPermit.success) {
+    return [`${prefix}_invalid:${normalizeProviderCoreError(parsedPermit.error)}`];
+  }
+
+  const permit = parsedPermit.data;
+  const plan = ExecutorExecutionPlanSchema.parse(planInput);
+  const manifest = ProviderManifestSchema.parse(manifestInput);
+  const reasons: string[] = [];
+
+  if (permit.status !== "approved") {
+    reasons.push(`${prefix}_not_approved:${permit.status}`);
+  }
+
+  if (permit.providerId !== plan.providerId) {
+    reasons.push(`${prefix}_provider_mismatch:${permit.providerId}:${plan.providerId}`);
+  }
+
+  if (permit.taskId !== plan.taskId) {
+    reasons.push(`${prefix}_task_mismatch:${permit.taskId}:${plan.taskId}`);
+  }
+
+  if (permit.runId !== undefined && permit.runId !== plan.runId) {
+    reasons.push(`${prefix}_run_mismatch:${permit.runId}:${plan.runId}`);
+  }
+
+  if (permit.planId !== undefined && permit.planId !== plan.planId) {
+    reasons.push(`${prefix}_plan_mismatch:${permit.planId}:${plan.planId}`);
+  }
+
+  if (permit.sideEffectClass !== plan.sideEffectClass) {
+    reasons.push(`${prefix}_side_effect_mismatch:${permit.sideEffectClass}:${plan.sideEffectClass}`);
+  }
+
+  if (permit.sandboxProfileId !== plan.sandboxProfile.sandboxId) {
+    reasons.push(`${prefix}_sandbox_mismatch:${permit.sandboxProfileId}:${plan.sandboxProfile.sandboxId}`);
+  }
+
+  if (
+    permit.providerManifestHash !== undefined
+    && permit.providerManifestHash !== hashProviderManifest(manifest)
+  ) {
+    reasons.push(`${prefix}_manifest_mismatch`);
+  }
+
+  if (
+    permit.policyDecisionHash !== undefined
+    && permit.policyDecisionHash !== plan.policyDecisionHash
+  ) {
+    reasons.push(`${prefix}_policy_mismatch`);
+  }
+
+  return uniqueProviderCoreStrings(reasons);
+}
+
 export function hashProviderManifest(manifest: ProviderManifest): string {
   return createHash("sha256")
     .update(stableStringifyProviderObject(ProviderManifestSchema.parse(manifest)))
@@ -425,6 +532,65 @@ function writableRootImplies(grantedRoot: string, requestedRoot: string): boolea
   }
 
   return false;
+}
+
+function createProviderExecutionPermit(
+  input: ProviderExecutionPermitIssueInput,
+  status: "approved" | "blocked",
+  reasons: string[]
+): ProviderExecutionPermit {
+  const plan = ExecutorExecutionPlanSchema.parse(input.plan);
+  const manifest = ProviderManifestSchema.parse(input.manifest);
+  const approvalStatus = input.approvalStatus
+    ?? (plan.approvalRequired ? "pending" : "not_required");
+
+  return ProviderExecutionPermitSchema.parse({
+    schemaVersion: "provider-execution-permit.v1",
+    permitId: input.permitId ?? `permit_${plan.planId}`,
+    taskId: plan.taskId,
+    runId: plan.runId,
+    planId: plan.planId,
+    providerId: plan.providerId,
+    providerManifestHash: hashProviderManifest(manifest),
+    ...(plan.policyDecisionHash !== undefined
+      ? { policyDecisionHash: plan.policyDecisionHash }
+      : {}),
+    sideEffectClass: plan.sideEffectClass,
+    sandboxProfileId: plan.sandboxProfile.sandboxId,
+    status,
+    approvalStatus,
+    reasons,
+    issuedAt: input.issuedAt
+  });
+}
+
+function getReadOnlyProviderExecutionPermitIssuanceBlockers(
+  plan: ExecutorExecutionPlan,
+  approvalStatus: ProviderExecutionPermitApprovalStatus | undefined
+): string[] {
+  const reasons: string[] = [];
+
+  if (plan.sideEffectClass !== "read_only") {
+    reasons.push("provider_execution_permit_read_only_only");
+  }
+
+  if (plan.sandboxProfile.mode !== "read-only") {
+    reasons.push("provider_execution_permit_requires_read_only_sandbox");
+  }
+
+  if (plan.approvalRequired || (approvalStatus !== undefined && approvalStatus !== "not_required")) {
+    reasons.push("provider_execution_permit_approval_required");
+  }
+
+  return uniqueProviderCoreStrings(reasons);
+}
+
+function uniqueProviderCoreStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function normalizeProviderCoreError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function normalizeRootPattern(root: string): string {

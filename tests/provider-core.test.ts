@@ -3,14 +3,18 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import {
   ExecutorExecutionPlanSchema,
-  ProviderExecutionPermitSchema,
   ProviderKindSchema,
   ProviderManifestSchema,
   ToolProviderInvocationPlanSchema,
   assertProviderSupportsSandboxProfile,
   assertProviderSupportsSideEffectClass,
+  createApprovedProviderExecutionPermit,
+  createBlockedProviderExecutionPermit,
+  hashProviderManifest,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass,
+  validateProviderExecutionPermitForPlan,
+  type ExecutorExecutionPlan,
   type ProviderManifest
 } from "../packages/provider-core/src/index.js";
 import {
@@ -66,25 +70,88 @@ test("provider-core validates executor plans", () => {
 });
 
 test("provider-core validates provider execution permits", () => {
-  const permit = ProviderExecutionPermitSchema.parse({
-    permitId: "permit_provider_core_executor_001",
-    taskId: "task_provider_core_001",
-    runId: "run_provider_core_001",
-    planId: "plan_provider_core_executor_001",
-    providerId: "provider_core_executor_001",
-    providerManifestHash: "a".repeat(64),
-    policyDecisionHash: "policy_hash_provider_core_001",
-    sideEffectClass: "read_only",
-    sandboxProfileId: "sandbox_provider_core_read_only",
-    status: "approved",
-    approvalStatus: "not_required",
+  const manifest = createProviderManifest();
+  const plan = createExecutorPlan();
+  const permit = createApprovedProviderExecutionPermit({
+    plan,
+    manifest,
     issuedAt: "2026-06-14T00:00:00.000Z"
   });
 
   assert.equal(permit.schemaVersion, "provider-execution-permit.v1");
   assert.equal(permit.providerId, "provider_core_executor_001");
   assert.equal(permit.status, "approved");
+  assert.equal(permit.providerManifestHash, hashProviderManifest(manifest));
   assert.deepEqual(permit.reasons, []);
+  assert.deepEqual(validateProviderExecutionPermitForPlan(
+    permit,
+    plan,
+    manifest
+  ), []);
+});
+
+test("provider-core rejects provider execution permit mismatches", () => {
+  const manifest = createProviderManifest();
+  const plan = createExecutorPlan();
+  const permit = createApprovedProviderExecutionPermit({
+    plan,
+    manifest,
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.ok(validateProviderExecutionPermitForPlan({
+    ...permit,
+    providerId: "other-provider"
+  }, plan, manifest).some((reason) => (
+    reason.startsWith("provider_execution_permit_provider_mismatch:")
+  )));
+  assert.ok(validateProviderExecutionPermitForPlan({
+    ...permit,
+    taskId: "task_other"
+  }, plan, manifest).some((reason) => (
+    reason.startsWith("provider_execution_permit_task_mismatch:")
+  )));
+  assert.ok(validateProviderExecutionPermitForPlan({
+    ...permit,
+    planId: "plan_other"
+  }, plan, manifest).some((reason) => (
+    reason.startsWith("provider_execution_permit_plan_mismatch:")
+  )));
+  assert.ok(validateProviderExecutionPermitForPlan({
+    ...permit,
+    sideEffectClass: "workspace_write"
+  }, plan, manifest).some((reason) => (
+    reason.startsWith("provider_execution_permit_side_effect_mismatch:")
+  )));
+  assert.ok(validateProviderExecutionPermitForPlan({
+    ...permit,
+    sandboxProfileId: "sandbox_other"
+  }, plan, manifest).some((reason) => (
+    reason.startsWith("provider_execution_permit_sandbox_mismatch:")
+  )));
+  assert.ok(validateProviderExecutionPermitForPlan({
+    ...permit,
+    providerManifestHash: "b".repeat(64)
+  }, plan, manifest).includes("provider_execution_permit_manifest_mismatch"));
+  assert.ok(validateProviderExecutionPermitForPlan({
+    ...permit,
+    policyDecisionHash: "policy_hash_other"
+  }, plan, manifest).includes("provider_execution_permit_policy_mismatch"));
+});
+
+test("provider-core blocks non-read-only provider execution permits", () => {
+  const blocked = createBlockedProviderExecutionPermit({
+    plan: createExecutorPlan({
+      sandboxProfile: createSandboxProfile("workspace-write"),
+      sideEffectClass: "workspace_write"
+    }),
+    manifest: createProviderManifest(),
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(blocked.status, "blocked");
+  assert.ok(blocked.reasons.includes("provider_execution_permit_read_only_only"));
+  assert.ok(blocked.reasons.includes("provider_execution_permit_requires_read_only_sandbox"));
 });
 
 test("provider-core validates tool invocation plans", () => {
@@ -291,6 +358,28 @@ function createProviderManifest(): ProviderManifest {
     ],
     supportedSideEffectClasses: ["read_only", "workspace_write"],
     metadata: {}
+  });
+}
+
+function createExecutorPlan(
+  overrides: Partial<ExecutorExecutionPlan> = {}
+): ExecutorExecutionPlan {
+  return ExecutorExecutionPlanSchema.parse({
+    schemaVersion: "executor-execution-plan.v1",
+    kind: "executor",
+    planId: "plan_provider_core_executor_001",
+    runId: "run_provider_core_001",
+    taskId: "task_provider_core_001",
+    providerId: "provider_core_executor_001",
+    inputHash: "a".repeat(64),
+    policyDecisionHash: "policy_hash_provider_core_001",
+    requiredCapabilities: ["fs.read:/repo/**"],
+    approvalRequired: false,
+    sandboxProfile: createSandboxProfile("read-only"),
+    sideEffectClass: "read_only",
+    createdAt: "2026-06-04T00:00:00.000Z",
+    metadata: {},
+    ...overrides
   });
 }
 

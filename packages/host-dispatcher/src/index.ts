@@ -4,6 +4,15 @@ import {
   createCodexCliExecPlanFromRoutingDecision,
   runCodexCliExecPlan
 } from "../../codex-cli-host/src/index.js";
+import type { CodexCliExecutorProvider } from "../../providers/codex-cli/src/index.js";
+import {
+  createApprovedProviderExecutionPermit,
+  createBlockedProviderExecutionPermit,
+  parseExecutorExecutionPlan,
+  type ExecutorExecutionPlan,
+  type ProviderExecutionPermit,
+  type ProviderExecutionResult
+} from "../../provider-core/src/index.js";
 import type { DesktopDecisionRunnerResult } from "../../desktop-decision-runner/src/index.js";
 
 export type { HostRoute };
@@ -18,6 +27,36 @@ export interface HostDispatcherResult {
   cliPlan?: CodexCliExecPlan;
   cliRun?: CodexCliProcessRunResult;
   cliError?: string;
+}
+
+export interface ReadOnlyProviderDispatchInput {
+  provider: CodexCliExecutorProvider;
+  plan: ExecutorExecutionPlan;
+  now: string;
+  dryRun?: boolean;
+}
+
+export interface ReadOnlyProviderDispatchResult {
+  ok: boolean;
+  status: "completed" | "failed" | "blocked" | "dry_run";
+  providerId?: string;
+  planId?: string;
+  permitId?: string;
+  taskId?: string;
+  runId?: string;
+  sideEffectClass?: string;
+  sandbox?: string;
+  eventCount?: number;
+  parseErrorCount?: number;
+  warningCount?: number;
+  blockingReasons?: string[];
+  timedOut?: boolean;
+  killed?: boolean;
+  permit?: ProviderExecutionPermit;
+  error?: {
+    code: string;
+    reasons: string[];
+  };
 }
 
 export async function dispatchToHost(
@@ -38,6 +77,86 @@ export async function dispatchToHost(
   }
 
   return { hostRoute: "desktop" };
+}
+
+export async function dispatchReadOnlyProviderPlan(
+  input: ReadOnlyProviderDispatchInput
+): Promise<ReadOnlyProviderDispatchResult> {
+  let plan: ExecutorExecutionPlan;
+  try {
+    plan = parseExecutorExecutionPlan(input.plan);
+  } catch (error) {
+    return createReadOnlyProviderDispatchBlockedResult(
+      undefined,
+      undefined,
+      "host_dispatcher_provider_plan_invalid",
+      [normalizeHostDispatcherError(error)]
+    );
+  }
+
+  if (
+    input.provider.manifest.providerId !== "codex-cli"
+    || plan.providerId !== "codex-cli"
+  ) {
+    return createReadOnlyProviderDispatchBlockedResult(
+      plan,
+      undefined,
+      "host_dispatcher_read_only_provider_dispatch_requires_codex_cli",
+      ["host_dispatcher_read_only_provider_dispatch_requires_codex_cli"]
+    );
+  }
+
+  const validation = await input.provider.validateExecutionPlan(plan);
+  if (!validation.valid) {
+    return createReadOnlyProviderDispatchBlockedResult(
+      plan,
+      undefined,
+      "host_dispatcher_provider_plan_invalid",
+      validation.reasons
+    );
+  }
+
+  if (plan.sideEffectClass !== "read_only" || plan.sandboxProfile.mode !== "read-only") {
+    const permit = createBlockedProviderExecutionPermit({
+      plan,
+      manifest: input.provider.manifest,
+      issuedAt: input.now
+    });
+    return createReadOnlyProviderDispatchBlockedResult(
+      plan,
+      permit,
+      "host_dispatcher_read_only_provider_dispatch_rejected",
+      permit.reasons
+    );
+  }
+
+  let permit: ProviderExecutionPermit;
+  try {
+    permit = createApprovedProviderExecutionPermit({
+      plan,
+      manifest: input.provider.manifest,
+      issuedAt: input.now
+    });
+  } catch (error) {
+    const blockedPermit = createBlockedProviderExecutionPermit({
+      plan,
+      manifest: input.provider.manifest,
+      issuedAt: input.now,
+      reasons: [normalizeHostDispatcherError(error)]
+    });
+    return createReadOnlyProviderDispatchBlockedResult(
+      plan,
+      blockedPermit,
+      "host_dispatcher_read_only_provider_permit_not_approved",
+      blockedPermit.reasons
+    );
+  }
+
+  const execution = await input.provider.execute(plan, input.dryRun === true
+    ? { dryRun: true }
+    : { permit });
+
+  return createReadOnlyProviderDispatchExecutionResult(plan, permit, execution);
 }
 
 async function dispatchToCliHost(
@@ -100,6 +219,120 @@ function verifyRunnerResult(
   }
 
   return undefined;
+}
+
+function createReadOnlyProviderDispatchExecutionResult(
+  plan: ExecutorExecutionPlan,
+  permit: ProviderExecutionPermit,
+  execution: ProviderExecutionResult
+): ReadOnlyProviderDispatchResult {
+  const summary = readProviderExecutionSummary(execution);
+  const inspection = readRecord(summary?.inspection);
+  const status = typeof summary?.status === "string"
+    ? summary.status
+    : execution.ok ? "completed" : "failed";
+  const eventCount = readNumber(inspection?.eventCount);
+  const parseErrorCount = readNumber(inspection?.parseErrorCount);
+  const warningCount = readNumber(inspection?.warningCount ?? summary?.warningCount);
+  const blockingReasons = readStringArray(inspection?.blockingReasons);
+  const timedOut = readBoolean(summary?.timedOut);
+  const killed = readBoolean(summary?.killed);
+
+  return {
+    ok: execution.ok,
+    status: status === "dry_run" ? "dry_run" : execution.ok ? "completed" : "failed",
+    providerId: plan.providerId,
+    planId: plan.planId,
+    permitId: permit.permitId,
+    taskId: plan.taskId,
+    runId: plan.runId,
+    sideEffectClass: plan.sideEffectClass,
+    sandbox: plan.sandboxProfile.mode,
+    ...(eventCount !== undefined ? { eventCount } : {}),
+    ...(parseErrorCount !== undefined ? { parseErrorCount } : {}),
+    ...(warningCount !== undefined ? { warningCount } : {}),
+    ...(blockingReasons !== undefined ? { blockingReasons } : {}),
+    ...(timedOut !== undefined ? { timedOut } : {}),
+    ...(killed !== undefined ? { killed } : {}),
+    permit,
+    ...(execution.error ? { error: sanitizeProviderExecutionError(execution.error) } : {})
+  };
+}
+
+function createReadOnlyProviderDispatchBlockedResult(
+  plan: ExecutorExecutionPlan | undefined,
+  permit: ProviderExecutionPermit | undefined,
+  code: string,
+  reasons: string[]
+): ReadOnlyProviderDispatchResult {
+  return {
+    ok: false,
+    status: "blocked",
+    ...(plan !== undefined
+      ? {
+          providerId: plan.providerId,
+          planId: plan.planId,
+          taskId: plan.taskId,
+          runId: plan.runId,
+          sideEffectClass: plan.sideEffectClass,
+          sandbox: plan.sandboxProfile.mode
+        }
+      : {}),
+    ...(permit !== undefined
+      ? {
+          permitId: permit.permitId,
+          permit
+        }
+      : {}),
+    blockingReasons: [...reasons],
+    error: {
+      code,
+      reasons: [...reasons]
+    }
+  };
+}
+
+function readProviderExecutionSummary(
+  execution: ProviderExecutionResult
+): Record<string, unknown> | undefined {
+  const metadata = execution.artifacts?.[0]?.metadata;
+  const summary = metadata?.summary;
+  return readRecord(summary);
+}
+
+function sanitizeProviderExecutionError(
+  error: Record<string, unknown>
+): { code: string; reasons: string[] } {
+  return {
+    code: typeof error.code === "string"
+      ? error.code
+      : "host_dispatcher_provider_execution_failed",
+    reasons: readStringArray(error.reasons) ?? []
+  };
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? [...value]
+    : undefined;
+}
+
+function normalizeHostDispatcherError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function verifyCodexCliRunnerResult(

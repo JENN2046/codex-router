@@ -36,10 +36,9 @@ import {
 import {
   assertProviderSupportsSandboxProfile,
   assertProviderSupportsSideEffectClass,
-  hashProviderManifest,
   parseExecutorExecutionPlan,
-  ProviderExecutionPermitSchema,
   parseProviderManifest,
+  validateProviderExecutionPermitForPlan,
   type ExecutionPlanInput,
   type ExecutionValidationResult,
   type ExecutorExecutionPlan,
@@ -977,69 +976,14 @@ function validateCodexCliProviderExecutionPermit(
     return ["codex_cli_provider_execution_permit_required"];
   }
 
-  const parsedPermit = ProviderExecutionPermitSchema.safeParse(context.permit);
-  if (!parsedPermit.success) {
-    return [`codex_cli_provider_execution_permit_invalid:${normalizeErrorMessage(parsedPermit.error)}`];
-  }
-
-  const permit = parsedPermit.data;
-  const reasons: string[] = [];
-
-  if (permit.status !== "approved") {
-    reasons.push(`codex_cli_provider_execution_permit_not_approved:${permit.status}`);
-  }
-
-  if (permit.providerId !== plan.providerId) {
-    reasons.push(
-      `codex_cli_provider_execution_permit_provider_mismatch:${permit.providerId}:${plan.providerId}`
-    );
-  }
-
-  if (permit.taskId !== plan.taskId) {
-    reasons.push(
-      `codex_cli_provider_execution_permit_task_mismatch:${permit.taskId}:${plan.taskId}`
-    );
-  }
-
-  if (permit.runId !== undefined && permit.runId !== plan.runId) {
-    reasons.push(
-      `codex_cli_provider_execution_permit_run_mismatch:${permit.runId}:${plan.runId}`
-    );
-  }
-
-  if (permit.planId !== undefined && permit.planId !== plan.planId) {
-    reasons.push(
-      `codex_cli_provider_execution_permit_plan_mismatch:${permit.planId}:${plan.planId}`
-    );
-  }
-
-  if (permit.sideEffectClass !== plan.sideEffectClass) {
-    reasons.push(
-      `codex_cli_provider_execution_permit_side_effect_mismatch:${permit.sideEffectClass}:${plan.sideEffectClass}`
-    );
-  }
-
-  if (permit.sandboxProfileId !== plan.sandboxProfile.sandboxId) {
-    reasons.push(
-      `codex_cli_provider_execution_permit_sandbox_mismatch:${permit.sandboxProfileId}:${plan.sandboxProfile.sandboxId}`
-    );
-  }
-
-  if (
-    permit.providerManifestHash !== undefined
-    && permit.providerManifestHash !== hashProviderManifest(manifest)
-  ) {
-    reasons.push("codex_cli_provider_execution_permit_manifest_mismatch");
-  }
-
-  if (
-    permit.policyDecisionHash !== undefined
-    && permit.policyDecisionHash !== plan.policyDecisionHash
-  ) {
-    reasons.push("codex_cli_provider_execution_permit_policy_mismatch");
-  }
-
-  return uniqueStrings(reasons);
+  return validateProviderExecutionPermitForPlan(
+    context.permit,
+    plan,
+    manifest,
+    {
+      reasonPrefix: "codex_cli_provider_execution_permit"
+    }
+  );
 }
 
 function createCodexCliProviderDryRunSummary(

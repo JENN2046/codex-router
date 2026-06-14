@@ -10,7 +10,8 @@ import {
 } from "../packages/codex-cli-host/src/index.js";
 import {
   ProviderManifestSchema,
-  hashProviderManifest,
+  createApprovedProviderExecutionPermit,
+  createBlockedProviderExecutionPermit,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass,
   type ExecutionPlanInput,
@@ -547,6 +548,83 @@ test("codex cli provider execute rejects manifest and policy permit mismatches b
   });
 });
 
+test("codex cli provider execute rejects provider-core blocked permits", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_execute_blocked_core_permit",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+  const permit = createBlockedProviderExecutionPermit({
+    plan,
+    manifest: codexCliProviderManifest,
+    issuedAt: now,
+    reasons: ["test_blocked_permit"]
+  });
+
+  const result = await provider.execute(plan, {
+    permit
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.ok((result.error?.reasons as string[]).includes(
+    "codex_cli_provider_execution_permit_not_approved:blocked"
+  ));
+});
+
+test("codex cli provider execute rejects provider-core permit for another plan", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_execute_plan_target",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+  const otherPlan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_execute_plan_other",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+  const permit = createApprovedProviderExecutionPermit({
+    plan: otherPlan,
+    manifest: codexCliProviderManifest,
+    issuedAt: now
+  });
+
+  const result = await provider.execute(plan, {
+    permit
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.ok((result.error?.reasons as string[]).some((reason) => (
+    reason.startsWith("codex_cli_provider_execution_permit_task_mismatch:")
+  )));
+  assert.ok((result.error?.reasons as string[]).some((reason) => (
+    reason.startsWith("codex_cli_provider_execution_permit_plan_mismatch:")
+  )));
+});
+
 test("codex cli provider read-only execute succeeds with approved permit and fake spawn", async () => {
   let spawnCalls = 0;
   const spawn: CodexCliProcessSpawner = () => {
@@ -843,24 +921,12 @@ function readProviderMetadata(plan: ExecutorExecutionPlan): any {
 function createApprovedPermitForPlan(
   plan: ExecutorExecutionPlan
 ): ProviderExecutionPermit {
-  return {
-    schemaVersion: "provider-execution-permit.v1",
+  return createApprovedProviderExecutionPermit({
+    plan,
+    manifest: codexCliProviderManifest,
     permitId: `permit-${plan.planId}`,
-    taskId: plan.taskId,
-    runId: plan.runId,
-    planId: plan.planId,
-    providerId: plan.providerId,
-    providerManifestHash: hashProviderManifest(codexCliProviderManifest),
-    ...(plan.policyDecisionHash !== undefined
-      ? { policyDecisionHash: plan.policyDecisionHash }
-      : {}),
-    sideEffectClass: plan.sideEffectClass,
-    sandboxProfileId: plan.sandboxProfile.sandboxId,
-    status: "approved",
-    approvalStatus: plan.approvalRequired ? "approved" : "not_required",
-    reasons: [],
     issuedAt: now
-  };
+  });
 }
 
 async function assertPermitRejection(options: {
