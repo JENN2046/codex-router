@@ -2,6 +2,45 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { classifyIntent } from "../packages/intent-gate/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
+import type { TaskClass, TaskHintProvenance } from "../packages/contracts/src/index.js";
+
+function classifyNeutralHintTask(options: {
+  taskId: string;
+  taskClassHint: TaskClass;
+  source?: TaskHintProvenance["source"];
+  repoRoot?: string;
+  files?: string[];
+}) {
+  const provenance = options.source === undefined
+    ? {}
+    : {
+      provenance: [{
+        field: "taskClassHint" as const,
+        value: options.taskClassHint,
+        source: options.source
+      }]
+    };
+
+  return classifyIntent(parseTaskEnvelope({
+    taskId: options.taskId,
+    source: "desktop-thread",
+    intent: {
+      summary: "Status update",
+      requestedAction: "Show current state",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: options.repoRoot === undefined ? {} : { repoRoot: options.repoRoot },
+    target: { branches: [], files: options.files ?? [], modules: [] },
+    constraints: {},
+    hints: {
+      taskClassHint: options.taskClassHint,
+      riskHints: [],
+      tags: [],
+      ...provenance
+    }
+  }));
+}
 
 test("intent gate asks for clarification on ambiguous continuation tasks", () => {
   const result = classifyIntent(parseTaskEnvelope({
@@ -44,135 +83,71 @@ test("intent gate keeps explicit read-only requests out of clarification", () =>
   assert.equal(result.recommendedProfile, "recon-only");
 });
 
-test("intent gate respects low-risk hints when text has no classification keywords", () => {
-  const readOnlyResult = classifyIntent(parseTaskEnvelope({
-    taskId: "t-neutral-read-only-hint",
-    source: "desktop-thread",
-    intent: {
-      summary: "Status update",
-      requestedAction: "Show current state",
-      successCriteria: [],
-      outOfScope: []
-    },
-    repoContext: {},
-    target: { branches: [], files: [], modules: [] },
-    constraints: {},
-    hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
-  }));
+test("intent gate treats low-risk hints without provenance as untrusted", () => {
+  const readOnlyResult = classifyNeutralHintTask({
+    taskId: "t-neutral-read-only-hint-without-provenance",
+    taskClassHint: "read_only"
+  });
 
-  assert.equal(readOnlyResult.taskClass, "read_only");
-  assert.equal(readOnlyResult.recommendedProfile, "recon-only");
-  assert.equal(readOnlyResult.clarificationRequired, false);
-  assert.deepEqual(readOnlyResult.ambiguityReasons, []);
-
-  const smallEditResult = classifyIntent(parseTaskEnvelope({
-    taskId: "t-neutral-small-edit-hint",
-    source: "desktop-thread",
-    intent: {
-      summary: "Status update",
-      requestedAction: "Show current state",
-      successCriteria: [],
-      outOfScope: []
-    },
-    repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["README.md"], modules: [] },
-    constraints: {},
-    hints: { taskClassHint: "small_edit", riskHints: [], tags: [] }
-  }));
-
-  assert.equal(smallEditResult.taskClass, "small_edit");
-  assert.equal(smallEditResult.recommendedProfile, "engineering");
-  assert.equal(smallEditResult.clarificationRequired, false);
-  assert.deepEqual(smallEditResult.ambiguityReasons, []);
-});
-
-test("intent gate requires trusted provenance before low-risk hints classify neutral text", () => {
-  const memoryHintResult = classifyIntent(parseTaskEnvelope({
-    taskId: "t-neutral-memory-read-only-hint",
-    source: "desktop-thread",
-    intent: {
-      summary: "Status update",
-      requestedAction: "Show current state",
-      successCriteria: [],
-      outOfScope: []
-    },
-    repoContext: {},
-    target: { branches: [], files: [], modules: [] },
-    constraints: {},
-    hints: {
-      taskClassHint: "read_only",
-      riskHints: [],
-      tags: [],
-      provenance: [{
-        field: "taskClassHint",
-        value: "read_only",
-        source: "memory",
-        reason: "recalled previous low-risk posture"
-      }]
-    }
-  }));
-
-  assert.equal(memoryHintResult.taskClass, "engineering");
-  assert.ok(memoryHintResult.ambiguityReasons.includes(
-    "task_class_hint_untrusted:memory:read_only"
+  assert.equal(readOnlyResult.taskClass, "engineering");
+  assert.ok(readOnlyResult.ambiguityReasons.includes(
+    "task_class_hint_untrusted:unspecified:read_only"
   ));
 
-  const userHintResult = classifyIntent(parseTaskEnvelope({
-    taskId: "t-neutral-user-read-only-hint",
-    source: "desktop-thread",
-    intent: {
-      summary: "Status update",
-      requestedAction: "Show current state",
-      successCriteria: [],
-      outOfScope: []
-    },
-    repoContext: {},
-    target: { branches: [], files: [], modules: [] },
-    constraints: {},
-    hints: {
-      taskClassHint: "read_only",
-      riskHints: [],
-      tags: [],
-      provenance: [{
-        field: "taskClassHint",
-        value: "read_only",
-        source: "user",
-        reason: "operator explicitly scoped read-only"
-      }]
-    }
-  }));
+  const smallEditResult = classifyNeutralHintTask({
+    taskId: "t-neutral-small-edit-hint-without-provenance",
+    taskClassHint: "small_edit",
+    repoRoot: "A:/codex-router",
+    files: ["README.md"]
+  });
 
-  assert.equal(userHintResult.taskClass, "read_only");
-  assert.equal(userHintResult.clarificationRequired, false);
+  assert.equal(smallEditResult.taskClass, "engineering");
+  assert.ok(smallEditResult.ambiguityReasons.includes(
+    "task_class_hint_untrusted:unspecified:small_edit"
+  ));
 });
 
-test("intent gate still allows untrusted provenance to raise risk", () => {
-  const result = classifyIntent(parseTaskEnvelope({
-    taskId: "t-neutral-memory-high-risk-hint",
-    source: "desktop-thread",
-    intent: {
-      summary: "Status update",
-      requestedAction: "Show current state",
-      successCriteria: [],
-      outOfScope: []
-    },
-    repoContext: {},
-    target: { branches: [], files: [], modules: [] },
-    constraints: {},
-    hints: {
-      taskClassHint: "high_risk",
-      riskHints: [],
-      tags: [],
-      provenance: [{
-        field: "taskClassHint",
-        value: "high_risk",
-        source: "memory"
-      }]
-    }
-  }));
+test("intent gate trusts system policy and operator provenance for low-risk hints", () => {
+  for (const source of ["system", "policy", "operator"] as const) {
+    const result = classifyNeutralHintTask({
+      taskId: `t-neutral-${source}-read-only-hint`,
+      taskClassHint: "read_only",
+      source
+    });
 
-  assert.equal(result.taskClass, "high_risk");
-  assert.equal(result.ambiguityReasons.includes("task_class_hint_untrusted:memory:high_risk"), false);
+    assert.equal(result.taskClass, "read_only");
+    assert.equal(result.recommendedProfile, "recon-only");
+    assert.equal(result.clarificationRequired, false);
+    assert.deepEqual(result.ambiguityReasons, []);
+  }
+});
+
+test("intent gate treats user memory agent legacy and unknown provenance as advisory for low-risk hints", () => {
+  for (const source of ["user", "memory", "agent", "legacy", "unknown"] as const) {
+    const result = classifyNeutralHintTask({
+      taskId: `t-neutral-${source}-read-only-hint`,
+      taskClassHint: "read_only",
+      source
+    });
+
+    assert.equal(result.taskClass, "engineering");
+    assert.ok(result.ambiguityReasons.includes(
+      `task_class_hint_untrusted:${source}:read_only`
+    ));
+  }
+});
+
+test("intent gate still allows any provenance to raise risk", () => {
+  for (const source of ["user", "agent", "system", "policy", "operator", "memory", "legacy", "unknown"] as const) {
+    const result = classifyNeutralHintTask({
+      taskId: `t-neutral-${source}-high-risk-hint`,
+      taskClassHint: "high_risk",
+      source
+    });
+
+    assert.equal(result.taskClass, "high_risk");
+    assert.equal(result.ambiguityReasons.includes(`task_class_hint_untrusted:${source}:high_risk`), false);
+  }
 });
 
 test("intent gate does not allow taskClassHint to down-classify engineering text", () => {

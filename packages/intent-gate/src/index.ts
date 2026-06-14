@@ -32,7 +32,7 @@ const TASK_CLASS_RANK: Record<TaskClass, number> = {
   high_risk: 3,
   release_external_action: 4
 };
-const TRUSTED_HINT_SOURCES = new Set(["user", "system", "policy"]);
+const TRUSTED_HINT_SOURCES = new Set(["system", "policy", "operator"]);
 
 export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassification {
   const task: TaskEnvelope = parseTaskEnvelope(taskInput);
@@ -103,7 +103,7 @@ function classifyTaskClassHintTrust(
 
   if (provenance.length === 0) {
     return {
-      canSetNeutralClass: true,
+      canSetNeutralClass: false,
       sources: ["unspecified"]
     };
   }

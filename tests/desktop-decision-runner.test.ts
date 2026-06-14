@@ -167,7 +167,16 @@ test("desktop decision runner respects neutral read-only hints without desktop w
       repoContext: {},
       target: { branches: [], files: [], modules: [] },
       constraints: {},
-      hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
+      hints: {
+        taskClassHint: "read_only",
+        riskHints: [],
+        tags: [],
+        provenance: [{
+          field: "taskClassHint",
+          value: "read_only",
+          source: "system"
+        }]
+      }
     }),
     policy,
     preflight: {

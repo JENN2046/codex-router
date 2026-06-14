@@ -125,7 +125,7 @@ export const TaskConstraintsSchema = z.object({
 export const TaskHintProvenanceSchema = z.object({
   field: z.enum(["taskClassHint", "riskHints", "tags"]),
   value: z.string().min(1),
-  source: z.enum(["user", "agent", "system", "policy", "memory", "legacy", "unknown"]).default("unknown"),
+  source: z.enum(["user", "agent", "system", "policy", "operator", "memory", "legacy", "unknown"]).default("unknown"),
   reason: z.string().min(1).optional(),
   createdAt: z.string().min(1).optional()
 });

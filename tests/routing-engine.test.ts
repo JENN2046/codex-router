@@ -67,7 +67,16 @@ test("routing engine respects low-risk taskClassHint when text is neutral", asyn
     repoContext: {},
     target: { branches: [], files: [], modules: [] },
     constraints: {},
-    hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: [],
+      provenance: [{
+        field: "taskClassHint",
+        value: "read_only",
+        source: "system"
+      }]
+    }
   });
 
   const smallEditTask = parseTaskEnvelope({
@@ -82,7 +91,16 @@ test("routing engine respects low-risk taskClassHint when text is neutral", asyn
     repoContext: { repoRoot: "A:/codex-router" },
     target: { branches: [], files: ["README.md"], modules: [] },
     constraints: {},
-    hints: { taskClassHint: "small_edit", riskHints: [], tags: [] }
+    hints: {
+      taskClassHint: "small_edit",
+      riskHints: [],
+      tags: [],
+      provenance: [{
+        field: "taskClassHint",
+        value: "small_edit",
+        source: "system"
+      }]
+    }
   });
 
   const readOnlyDecision = routeTask(readOnlyTask, classifyIntent(readOnlyTask), policy);
