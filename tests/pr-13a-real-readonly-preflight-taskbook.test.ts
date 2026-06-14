@@ -23,6 +23,10 @@ test("PR-13A real read-only preflight taskbook keeps the exact future authorizat
     packageJson.scripts?.["smoke:readonly:real"],
     "tsx scripts/run-codex-cli-real-readonly-smoke.ts"
   );
+  assert.equal(
+    packageJson.scripts?.["acceptance:real-readonly-smoke-auth"],
+    "tsx scripts/run-real-readonly-smoke-authorization-acceptance.ts"
+  );
 });
 
 test("PR-13A real read-only preflight taskbook remains non-authorizing and read-only", async () => {
@@ -56,8 +60,10 @@ test("PR-13A real read-only preflight taskbook preserves the required fresh loca
     "`git log --oneline -10`",
     "`npm run typecheck`",
     "`npx tsx --test tests\\codex-cli-real-readonly-smoke-script.test.ts`",
+    "`npx tsx --test tests\\real-readonly-smoke-authorization-acceptance.test.ts`",
     "`npx tsx --test tests\\real-readonly-dispatch-acceptance.test.ts`",
     "`npx tsx --test tests\\host-dispatcher.test.ts`",
+    "`npm run acceptance:real-readonly-smoke-auth`",
     "`npm run acceptance:real-readonly-dispatch`"
   ]) {
     assert.ok(taskbook.includes(command), `expected preflight command ${command}`);
@@ -68,6 +74,7 @@ test("PR-13A real read-only preflight taskbook preserves the required fresh loca
     "branch `main`",
     "local branch not behind `origin/main`",
     "typecheck pass",
+    "real-readonly smoke authorization acceptance pass",
     "no workspace-write gate opened",
     "no real Codex CLI call made during preflight"
   ]) {

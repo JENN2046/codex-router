@@ -33,9 +33,13 @@ This taskbook only prepares the next gate. It does not run:
 Observed local surfaces already exist:
 
 - package script: `smoke:readonly:real`
+- package script: `acceptance:real-readonly-smoke-auth`
 - script: `scripts/run-codex-cli-real-readonly-smoke.ts`
+- script: `scripts/run-real-readonly-smoke-authorization-acceptance.ts`
 - test: `tests/codex-cli-real-readonly-smoke-script.test.ts`
+- test: `tests/real-readonly-smoke-authorization-acceptance.test.ts`
 - evidence path: `docs/evidence/codex-cli-real-readonly-smoke.json`
+- authorization acceptance evidence path: `docs/evidence/codex-cli-real-readonly-smoke-authorization-acceptance.json`
 - fake-only dispatch acceptance: `npm run acceptance:real-readonly-dispatch`
 - fake-only dispatch evidence: `docs/evidence/codex-cli-real-readonly-dispatch-acceptance.json`
 - PR-10 closeout: `docs/governance/PR_10_REAL_READONLY_EXECUTE_LOCAL_CLOSEOUT.md`
@@ -81,8 +85,10 @@ Before any future real read-only smoke, run and review:
 - `git log --oneline -10`
 - `npm run typecheck`
 - `npx tsx --test tests\codex-cli-real-readonly-smoke-script.test.ts`
+- `npx tsx --test tests\real-readonly-smoke-authorization-acceptance.test.ts`
 - `npx tsx --test tests\real-readonly-dispatch-acceptance.test.ts`
 - `npx tsx --test tests\host-dispatcher.test.ts`
+- `npm run acceptance:real-readonly-smoke-auth`
 - `npm run acceptance:real-readonly-dispatch`
 
 Required preflight results:
@@ -92,6 +98,8 @@ Required preflight results:
 - local branch not behind `origin/main`
 - typecheck pass
 - real read-only smoke script tests pass
+- real read-only smoke authorization acceptance tests pass
+- real-readonly smoke authorization acceptance pass
 - fake-only real-readonly dispatch acceptance pass
 - host dispatcher tests pass
 - no workspace-write gate opened
@@ -141,6 +149,7 @@ Stop before future real CLI invocation if any of these are true:
 - local branch is behind or diverged
 - typecheck fails
 - smoke script tests fail
+- real read-only smoke authorization acceptance fails
 - fake-only dispatch acceptance fails
 - host dispatcher tests fail
 - evidence leak search has an unexplained hit
