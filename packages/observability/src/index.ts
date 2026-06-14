@@ -484,14 +484,14 @@ export function createMetricsTelemetryAlertSink(
 
   return {
     async record(alert: TelemetryDeliveryAlert): Promise<void> {
-      await backend.increment(metricName, 1, {
+      await backend.increment(metricName, 1, sanitizeTelemetryAlertMetricTags({
         level: alert.level,
         scope: alert.scope,
         metric: alert.metric,
         ...(alert.sinkIndex !== undefined ? { sinkIndex: alert.sinkIndex } : {}),
         ...(alert.sinkLabel !== undefined ? { sinkLabel: alert.sinkLabel } : {}),
         ...(options.baseTags ?? {})
-      });
+      }));
     }
   };
 }
@@ -1426,7 +1426,7 @@ function createTelemetryDeliveryAlertContext(
   alert: TelemetryDeliveryAlert,
   context?: Record<string, unknown>
 ): Record<string, unknown> {
-  return {
+  return createSafeAuditDetails({
     level: alert.level,
     scope: alert.scope,
     metric: alert.metric,
@@ -1435,7 +1435,22 @@ function createTelemetryDeliveryAlertContext(
     ...(alert.sinkIndex !== undefined ? { sinkIndex: alert.sinkIndex } : {}),
     ...(alert.sinkLabel !== undefined ? { sinkLabel: alert.sinkLabel } : {}),
     ...context
-  };
+  });
+}
+
+function sanitizeTelemetryAlertMetricTags(
+  tags: Record<string, TelemetryAlertMetricTagValue>
+): Record<string, TelemetryAlertMetricTagValue> {
+  const sanitized = createSafeAuditDetails(tags);
+  const output: Record<string, TelemetryAlertMetricTagValue> = {};
+
+  for (const [key, value] of Object.entries(sanitized)) {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      output[key] = value;
+    }
+  }
+
+  return output;
 }
 
 function createTelemetryAlertExactKey(alert: TelemetryDeliveryAlert): string {

@@ -292,6 +292,40 @@ test("logger telemetry alert sink maps alert levels to backend methods", async (
   ]);
 });
 
+test("logger telemetry alert sink receives sanitized base context", async () => {
+  const contexts: Array<Record<string, unknown> | undefined> = [];
+  const sink = createLoggerTelemetryAlertSink({
+    info() {
+      throw new Error("unexpected_info");
+    },
+    warn(_message, context) {
+      contexts.push(context);
+    },
+    error() {
+      throw new Error("unexpected_error");
+    }
+  }, {
+    baseContext: {
+      apiKey: "raw-api-key",
+      stderr: "Authorization: Bearer abc.def.ghi"
+    }
+  });
+
+  await sink.record({
+    level: "warn",
+    scope: "totals",
+    metric: "timeouts",
+    message: "warn-alert",
+    observed: 1,
+    threshold: 0
+  });
+
+  assert.equal(contexts[0]?.apiKey, "<REDACTED_SECRET>");
+  assert.equal(contexts[0]?.stderr, "Authorization: <REDACTED_SECRET>");
+  assert.equal(JSON.stringify(contexts[0]).includes("raw-api-key"), false);
+  assert.equal(JSON.stringify(contexts[0]).includes("abc.def.ghi"), false);
+});
+
 test("tracing telemetry alert sink maps alerts into tracing events", async () => {
   const calls: Array<Record<string, unknown>> = [];
   const sink = createTracingTelemetryAlertSink({
@@ -324,6 +358,38 @@ test("tracing telemetry alert sink maps alerts into tracing events", async () =>
   assert.equal(attributes?.source, "test");
   assert.equal(attributes?.metric, "retries");
   assert.equal(attributes?.sinkIndex, 1);
+});
+
+test("tracing telemetry alert sink receives sanitized base attributes", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const sink = createTracingTelemetryAlertSink({
+    addEvent(name, attributes) {
+      calls.push({
+        name,
+        ...(attributes ? { attributes } : {})
+      });
+    }
+  }, {
+    baseAttributes: {
+      token: "raw-token",
+      stdout: "x".repeat(5000)
+    }
+  });
+
+  await sink.record({
+    level: "warn",
+    scope: "sink",
+    metric: "retries",
+    message: "trace-alert",
+    observed: 2,
+    threshold: 1,
+    sinkIndex: 1
+  });
+
+  const attributes = calls[0]?.attributes as Record<string, unknown> | undefined;
+  assert.equal(attributes?.token, "<REDACTED_SECRET>");
+  assert.equal(attributes?.stdout, "<omitted:5000>");
+  assert.equal(JSON.stringify(attributes).includes("raw-token"), false);
 });
 
 test("metrics telemetry alert sink maps alerts into counter increments", async () => {
@@ -363,6 +429,40 @@ test("metrics telemetry alert sink maps alerts into counter increments", async (
     metric: "failureRate",
     sinkLabel: "logger"
   });
+});
+
+test("metrics telemetry alert sink receives sanitized base tags", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const sink = createMetricsTelemetryAlertSink({
+    increment(metricName, value, tags) {
+      calls.push({
+        metricName,
+        ...(value !== undefined ? { value } : {}),
+        ...(tags ? { tags } : {})
+      });
+    }
+  }, {
+    baseTags: {
+      token: "raw-token",
+      command: "tool --password raw-password"
+    }
+  });
+
+  await sink.record({
+    level: "error",
+    scope: "sink",
+    metric: "failureRate",
+    message: "metric-alert",
+    observed: 1,
+    threshold: 0.1,
+    sinkLabel: "logger"
+  });
+
+  const tags = calls[0]?.tags as Record<string, unknown> | undefined;
+  assert.equal(tags?.token, "<REDACTED_SECRET>");
+  assert.equal(tags?.command, "tool --password <REDACTED_SECRET>");
+  assert.equal(JSON.stringify(tags).includes("raw-token"), false);
+  assert.equal(JSON.stringify(tags).includes("raw-password"), false);
 });
 
 test("fanout telemetry alert sink emits the same alert to every child sink", async () => {
