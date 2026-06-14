@@ -73,7 +73,34 @@ Decision:
 This means only that the local pre-execution PR-12B audit surface is internally
 consistent under the current local machine-readable checks.
 
-## 6. Non-authorization
+## 6. Closeout Consistency Pass
+
+Consistency checks:
+
+- local audit index sensitive scan target count: `11`
+- local RC receipt sensitive scan target count: `11`
+- review pass sensitive scan target count: `11`
+- final local audit required command count: `10`
+- local audit index final local audit command count: `10`
+- local RC receipt final local audit command count: `10`
+- review pass final local audit command count: `10`
+- candidate audit unexpected changed file count: `0`
+- sensitive scan marker hit count: `0`
+- canary target file absent: `true`
+
+Boundary statement consistency:
+
+- local audit index remains non-authorizing
+- local RC receipt remains non-authorizing
+- local RC review pass remains non-authorizing
+- final local audit remains non-authorizing
+- candidate review receipt remains non-authorizing
+
+Consistency decision:
+
+- `PR_12B_CLOSEOUT_INDEX_CONSISTENCY_PASS`
+
+## 7. Non-authorization
 
 This review pass does not authorize:
 
@@ -85,7 +112,7 @@ This review pass does not authorize:
 - release
 - tag
 
-## 7. Result
+## 8. Result
 
 Result:
 
