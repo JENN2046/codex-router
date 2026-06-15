@@ -8,9 +8,10 @@ evidence are pushed to `origin/main` at `c95ab3b`. Controlled execution gate
 design is pushed to `origin/main` at `6e55131`. Future canary packet checklist
 is pushed to `origin/main` at `2f16fa2`. Post-push checklist anchors are pushed
 to `origin/main` at `4db8174`. The future Codex CLI canary execution
-authorization packet draft/review and post-merge anchors are pushed to
-`origin/main` at `c73fa1b`. Clean local `main` authorization packet audit passed
-before push.
+authorization packet draft/review, post-merge anchors, and post-push anchors are
+pushed to `origin/main` at `19b3a5e`. Clean local `main` authorization packet
+audit passed before the post-push anchor merge. The current branch designs the
+final local execution gate for a future real workspace-write canary.
 
 Changed files:
 
@@ -18,11 +19,14 @@ Changed files:
 - `docs/agent-os-transformation/current-roadmap-20260610.md`
 - `docs/governance/APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md`
 - `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_AUTHORIZATION_PACKET.md`
+- `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_GATE.md`
 - `package.json`
 - `scripts/run-approval-consumption-dispatch-matrix-audit.ts`
 - `scripts/run-future-codex-cli-canary-authorization-packet-audit.ts`
+- `scripts/run-future-codex-cli-canary-execution-gate-audit.ts`
 - `tests/approval-consumption-dispatch-matrix-audit.test.ts`
 - `tests/future-codex-cli-canary-authorization-packet-audit.test.ts`
+- `tests/future-codex-cli-canary-execution-gate-audit.test.ts`
 
 ## Validation
 
@@ -60,6 +64,18 @@ Changed files:
 - `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
 - `git push origin main` succeeded after one retry, pushing `4db8174..c73fa1b`.
 - Post-push `git status -sb` showed `main...origin/main`.
+- `git push origin main` pushed `c73fa1b..19b3a5e`.
+- `npx tsx --test tests\future-codex-cli-canary-execution-gate-audit.test.ts`
+  passed: `5 / 5`.
+- `npm run typecheck` passed on `docs/future-canary-execution-gate`.
+- `npm run audit:future-codex-cli-canary-execution-gate` blocked as expected on
+  the dirty non-`main` design branch with reasons
+  `future_codex_cli_canary_execution_gate_worktreeClean` and
+  `future_codex_cli_canary_execution_gate_branchMain`.
+- After commit, `npm run audit:future-codex-cli-canary-execution-gate` blocked
+  as expected on the clean non-`main` design branch with only
+  `future_codex_cli_canary_execution_gate_branchMain`.
+- `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
 
 ## Not Run
 

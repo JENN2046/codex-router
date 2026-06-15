@@ -1,8 +1,8 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `main` / `origin/main` at `c73fa1b`, then
-`docs/post-push-authorization-packet-anchor`
+Branch: `main` / `origin/main` at `19b3a5e`, then
+`docs/future-canary-execution-gate`
 
 ## Passed
 
@@ -89,6 +89,30 @@ Branch: `main` / `origin/main` at `c73fa1b`, then
 - Post-push checks
   - `git status -sb`: `main...origin/main`
   - `Test-Path tmp\codex-cli-write-canary.txt`: `False`
+- `git push origin main`
+  - Result: pushed `c73fa1b..19b3a5e`
+- Future canary execution gate tests
+  - Command: `npx tsx --test tests\future-codex-cli-canary-execution-gate-audit.test.ts`
+  - Result: `5 / 5`
+- `npm run typecheck`
+  - Result: passed after adding
+    `scripts/run-future-codex-cli-canary-execution-gate-audit.ts`
+- `npm run audit:future-codex-cli-canary-execution-gate`
+  - Result: expected blocked on `docs/future-canary-execution-gate`
+    because the worktree is dirty and branch is not `main`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
+    canary file writes `0`
+  - Reasons:
+    `future_codex_cli_canary_execution_gate_worktreeClean`,
+    `future_codex_cli_canary_execution_gate_branchMain`
+- `Test-Path tmp\codex-cli-write-canary.txt`
+  - Result: `False`
+- `npm run audit:future-codex-cli-canary-execution-gate`
+  - Result: expected blocked after commit on clean
+    `docs/future-canary-execution-gate` because branch is not `main`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
+    canary file writes `0`
+  - Reasons: `future_codex_cli_canary_execution_gate_branchMain`
 
 ## Not Run
 

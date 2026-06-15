@@ -3,16 +3,18 @@
 Original goal: continue the evidence-first plan toward real Codex CLI practice
 without letting future agents follow stale roadmap facts.
 
-Current status: `main` and `origin/main` are aligned at `c73fa1b`. Fresh real
+Current status: `main` and `origin/main` are aligned at `19b3a5e`. Fresh real
 Codex CLI read-only smoke, main-only smoke chain audits, controlled execution
 gate design audit, future canary packet checklist audit, and future canary
-authorization packet audit passed. The authorization packet draft/review and
-post-merge anchors are pushed.
+authorization packet audit passed. The authorization packet draft/review,
+post-merge anchors, and post-push anchors are pushed. The current branch
+`docs/future-canary-execution-gate` designs the final local execution gate for a
+future real workspace-write canary.
 
 Next safe action:
 
 1. Inspect `git status -sb` and the branch diff.
-2. Continue with local-only design for the next controlled execution gate.
+2. Validate and commit the local-only execution gate design.
 3. Keep workspace-write and general provider execution closed unless a later
    task gives exact authorization.
 

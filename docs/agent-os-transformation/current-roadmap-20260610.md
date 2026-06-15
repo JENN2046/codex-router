@@ -1,13 +1,14 @@
 # Agent OS Current Roadmap
 
 Date: 2026-06-15
-Current base: `main` and `origin/main` at `c73fa1b`
+Current base: `main` and `origin/main` at `19b3a5e`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
 matrix evidence are merged and locally validated. A fresh real read-only Codex
 CLI smoke has passed on current local `main`. The future Codex CLI canary
-execution authorization packet draft/review and post-merge anchors are pushed to
-`origin/main`; the clean-main authorization packet audit passed without running
+execution authorization packet draft/review, post-merge anchors, and post-push
+anchors are pushed to `origin/main`. The current local branch designs the final
+execution gate for a future real workspace-write canary without running
 workspace-write.
 
 ## Current Position
@@ -149,8 +150,10 @@ Next gated slice:
   `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_PACKET_CHECKLIST.md`
 - Current authorization packet draft artifact:
   `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_AUTHORIZATION_PACKET.md`
+- Current execution gate artifact:
+  `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_GATE.md`
 - Current local audit:
-  `npm run audit:future-codex-cli-canary-authorization-packet`
+  `npm run audit:future-codex-cli-canary-execution-gate`
 
 ## Following Phases
 
@@ -186,7 +189,7 @@ After local review/evidence hardening:
 ## Validation Baseline
 
 Latest local validation on 2026-06-15 through `main` / `origin/main` at
-`c73fa1b`:
+`19b3a5e`, plus execution gate branch validation:
 
 - `npm run audit:approval-consumption-dispatch-matrix` passed on clean `main`.
 - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
@@ -199,6 +202,9 @@ Latest local validation on 2026-06-15 through `main` / `origin/main` at
 - `npm run audit:future-codex-cli-canary-authorization-packet` passed on clean
   local `main` at `57ae4a7`.
 - `git push origin main` succeeded after one retry, pushing `4db8174..c73fa1b`.
+- `git push origin main` pushed `c73fa1b..19b3a5e`.
+- `npx tsx --test tests\future-codex-cli-canary-execution-gate-audit.test.ts`
+  passed on `docs/future-canary-execution-gate`.
 - `npm run typecheck` passed.
 - `npm test` passed: `1003 / 1003`.
 - `npm run build` passed.

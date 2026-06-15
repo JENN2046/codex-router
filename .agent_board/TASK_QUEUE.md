@@ -34,6 +34,12 @@
 - Refresh post-merge anchors for clean-main authorization packet audit.
 - Push local `main` to `origin/main` at `c73fa1b`.
 - Refresh post-push anchors for `c73fa1b`.
+- Fast-forward merge post-push authorization packet anchors into local `main`.
+- Validate `npm run audit:future-codex-cli-canary-authorization-packet` on clean
+  local `main` after the post-push anchor merge.
+- Push local `main` to `origin/main` at `19b3a5e`.
+- Design the final local execution gate for a future real workspace-write
+  canary without executing it.
 
 ## In Progress
 
@@ -46,5 +52,5 @@
 
 ## Remaining
 
-- Design the next controlled execution gate for a future real workspace-write
-  canary without executing it.
+- Run the execution gate audit on clean `main` only after local fast-forward
+  merge.
