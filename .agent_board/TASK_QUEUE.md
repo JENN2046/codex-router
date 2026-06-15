@@ -85,6 +85,17 @@
   running workspace-write or general provider execution.
 - Commit the taxonomy/policy branch.
 - Run `npm run audit:capability-taxonomy-escalation-policy` on the clean branch.
+- Fast-forward local `main` to `origin/main` at
+  `68320e3 test: add capability taxonomy escalation policy`.
+- Validate synced `main` with `npm run typecheck`, `npm test` (`1037 / 1037`),
+  `npm run build`, and
+  `npm run audit:capability-taxonomy-escalation-policy`.
+- Create local branch `docs/update-agent-board-68320e3` for the `.agent_board`
+  refresh.
+- Refresh `.agent_board` to the current `68320e3` mainline and latest
+  validation state.
+- Validate the `.agent_board` refresh with `git diff --check` and stale-state
+  text search.
 
 ## In Progress
 
@@ -97,4 +108,5 @@
 
 ## Remaining
 
+- Review and optionally commit the `.agent_board` refresh locally.
 - Merge and push only after explicit user authorization for that remote action.

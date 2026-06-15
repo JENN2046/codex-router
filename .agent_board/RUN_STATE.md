@@ -2,8 +2,8 @@
 
 Date: 2026-06-15
 Workspace: `A:\AGENTS_OS_Workspace\governance\codex-router`
-Branch: `docs/capability-taxonomy-escalation-policy`
-Base: `main` and `origin/main` at `67bee3f`
+Branch: `docs/update-agent-board-68320e3`
+Base: `main` and `origin/main` at `68320e3`
 
 ## Current Mainline Evidence
 
@@ -16,6 +16,8 @@ Base: `main` and `origin/main` at `67bee3f`
   `5566777 test: add post-canary rollback receipt gate`
 - Post-rollback-gate anchor commit:
   `67bee3f docs: refresh post rollback gate anchors`
+- Capability taxonomy escalation policy commit:
+  `68320e3 test: add capability taxonomy escalation policy`
 
 ## Status
 
@@ -36,13 +38,26 @@ The post-canary receipt plus rollback verification gate is merged and pushed.
 `main` with no provider execute, real Codex CLI, workspace-write execute,
 canary file write, or additional canary run during receipt review.
 
-The post-rollback-gate anchors are merged and pushed. The current branch adds a
-local, non-executing capability taxonomy and escalation policy for future
-write-capable steps:
+The post-rollback-gate anchors are merged and pushed. The capability taxonomy
+escalation policy for future write-capable steps is merged on `main`:
 
 - `docs/governance/CAPABILITY_TAXONOMY_ESCALATION_POLICY.md`
 - `scripts/run-capability-taxonomy-escalation-policy-audit.ts`
 - `tests/capability-taxonomy-escalation-policy-audit.test.ts`
+
+Latest validation after fast-forwarding local `main` to `68320e3`:
+
+- `npm run typecheck`: passed.
+- `npm test`: passed, `1037 / 1037`.
+- `npm run build`: passed.
+- `npm run audit:capability-taxonomy-escalation-policy`: passed on `main` with
+  ahead / behind `0 / 0`, package script mismatches `0`, capability classes
+  `9`, evidence status `passed`, execution status `completed`, exit code `0`,
+  and provider execute, real Codex CLI, workspace-write execute, canary file
+  write, general provider execution, and external write counts all at `0`.
+- `.agent_board` refresh doc check: `git diff --check` passed with only CRLF
+  conversion warnings, and stale-current-state search found no old aligned
+  `67bee3f` or old taxonomy-branch status wording.
 
 ## Current Boundary
 
@@ -53,6 +68,7 @@ as general runtime modes.
 
 ## Next Safe Action
 
-Review the capability taxonomy branch for merge readiness. Keep the work local
+Review the `.agent_board` refresh diff for merge readiness. Keep the work local
 and non-executing unless a future task gives separate exact authorization for a
-new execution boundary or remote action.
+new execution boundary or remote action. Current local work is only the
+`docs/update-agent-board-68320e3` branch.

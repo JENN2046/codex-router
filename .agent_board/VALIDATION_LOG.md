@@ -1,8 +1,8 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `main` / `origin/main` at `67bee3f`, then
-`docs/capability-taxonomy-escalation-policy`
+Branch: `main` / `origin/main` at `68320e3`, then
+`docs/update-agent-board-68320e3`
 
 ## Passed
 
@@ -280,6 +280,37 @@ Branch: `main` / `origin/main` at `67bee3f`, then
   - Canary file writes during taxonomy review: `0`
   - General provider execution calls during taxonomy review: `0`
   - External write calls during taxonomy review: `0`
+- Fast-forward sync to current remote main
+  - From: `1cc810e`
+  - To: `68320e3 test: add capability taxonomy escalation policy`
+  - Result: local `main` aligned with `origin/main`, ahead / behind `0 / 0`
+- `npm run typecheck`
+  - Result: passed on `main` at `68320e3`
+- `npm test`
+  - Result: passed on `main` at `68320e3`, `1037 / 1037`
+- `npm run build`
+  - Result: passed on `main` at `68320e3`
+- `npm run audit:capability-taxonomy-escalation-policy`
+  - Result: passed on clean aligned `main` at `68320e3`
+  - Branch ahead / behind: `0 / 0`
+  - Package script mismatches: `0`
+  - Capability classes: `9`
+  - Evidence status: `passed`
+  - Execution status: `completed`
+  - Exit code: `0`
+  - Provider execute calls during taxonomy review: `0`
+  - Real Codex CLI calls during taxonomy review: `0`
+  - Workspace-write execute calls during taxonomy review: `0`
+  - Canary file writes during taxonomy review: `0`
+  - General provider execution calls during taxonomy review: `0`
+  - External write calls during taxonomy review: `0`
+- `.agent_board` refresh diff check
+  - Command: `git diff --check`
+  - Result: passed with only CRLF conversion warnings.
+- `.agent_board` stale-current-state search
+  - Command: searched `.agent_board` for stale current-status wording from the
+    pre-`68320e3` handoff.
+  - Result: no matches.
 
 ## Not Run
 
@@ -288,3 +319,5 @@ Branch: `main` / `origin/main` at `67bee3f`, then
 - General provider execution.
 - Release, tag, deployment, or external service writes beyond the explicitly
   requested `git push origin main`.
+- Additional real Codex CLI smoke, canary, commit, push, release, tag,
+  deployment, or external service write during the `68320e3` board refresh.

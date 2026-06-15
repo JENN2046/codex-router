@@ -17,9 +17,10 @@ passed before push. The final pre-execution review, clean-main final-local audit
 fix, bounded real workspace-write canary evidence, post-canary anchors, and
 post-canary receipt rollback gate are pushed to `origin/main` at `5566777`.
 Post-rollback-gate anchors are pushed to `origin/main` at `67bee3f`. The current
-branch designs the capability taxonomy and escalation policy for future
-write-capable steps without running workspace-write or general provider
-execution.
+mainline is now aligned with `origin/main` at `68320e3`, which includes the
+capability taxonomy and escalation policy for future write-capable steps
+without running workspace-write or general provider execution. The current
+local branch only refreshes `.agent_board` status files to that mainline state.
 
 Changed files:
 
@@ -41,6 +42,11 @@ Changed files:
 - `docs/governance/CAPABILITY_TAXONOMY_ESCALATION_POLICY.md`
 - `scripts/run-capability-taxonomy-escalation-policy-audit.ts`
 - `tests/capability-taxonomy-escalation-policy-audit.test.ts`
+- `.agent_board/CHECKPOINT.md`
+- `.agent_board/HANDOFF.md`
+- `.agent_board/RUN_STATE.md`
+- `.agent_board/TASK_QUEUE.md`
+- `.agent_board/VALIDATION_LOG.md`
 
 ## Validation
 
@@ -147,6 +153,19 @@ passed: `5 / 5`.
   `docs/capability-taxonomy-escalation-policy` with provider execute, real
   Codex CLI, workspace-write execute, canary file write, general provider
   execution, and external write counts all at `0`.
+- After fast-forwarding local `main` to `68320e3`, `npm run typecheck` passed.
+- After fast-forwarding local `main` to `68320e3`, `npm test` passed:
+  `1037 / 1037`.
+- After fast-forwarding local `main` to `68320e3`, `npm run build` passed.
+- After fast-forwarding local `main` to `68320e3`,
+  `npm run audit:capability-taxonomy-escalation-policy` passed on clean aligned
+  `main` with ahead / behind `0 / 0` and provider execute, real Codex CLI,
+  workspace-write execute, canary file write, general provider execution, and
+  external write counts all at `0`.
+- For the `.agent_board` refresh branch, `git diff --check` passed with only
+  CRLF conversion warnings.
+- Stale-current-state search found no old aligned `67bee3f` status, old
+  taxonomy branch status, or stale taxonomy-branch review wording.
 
 ## Not Run
 
@@ -155,6 +174,8 @@ passed: `5 / 5`.
 - General provider execution was not enabled.
 - No release, tag, deployment, or external service write other than the
   explicitly requested `git push origin main` was run.
+- No additional real Codex CLI smoke, canary, release, tag, deployment, commit,
+  push, or external service write was run during the `68320e3` board refresh.
 
 ## Risk
 

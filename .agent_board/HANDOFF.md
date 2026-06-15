@@ -3,13 +3,14 @@
 Original goal: continue the evidence-first plan toward real Codex CLI practice
 without letting future agents follow stale roadmap facts.
 
-Current status: `main` and `origin/main` are aligned at `67bee3f`. Fresh real
+Current status: `main` and `origin/main` are aligned at `68320e3`. Fresh real
 Codex CLI read-only smoke, main-only smoke chain audits, controlled execution
 gate design audit, future canary packet checklist audit, future canary
 authorization packet audit, future canary execution gate audit, final
 pre-execution review audit, clean-main final-local audit, one bounded real
 Codex CLI workspace-write canary, and post-canary receipt rollback gate audit
-have passed. Post-rollback-gate anchors are also merged and pushed.
+have passed. Post-rollback-gate anchors and the capability taxonomy escalation
+policy are also merged and present on `origin/main`.
 
 The real workspace-write canary evidence is committed at:
 
@@ -28,17 +29,32 @@ for `Test-Path tmp\codex-cli-write-canary.txt`.
 
 Current local branch:
 
-- `docs/capability-taxonomy-escalation-policy`
+- `docs/update-agent-board-68320e3`
 
-The branch adds a non-executing capability taxonomy and escalation policy plus a
-local audit script and tests. Targeted taxonomy tests, `npm run typecheck`,
-`npm test`, `npm run build`, and
-`npm run audit:capability-taxonomy-escalation-policy` passed.
+The branch only refreshes local `.agent_board` handoff surfaces to the current
+`68320e3` mainline state. The capability taxonomy escalation policy is already
+on `main` at `68320e3`.
+
+Latest validation on clean aligned `main` before this branch:
+
+- `npm run typecheck`: passed.
+- `npm test`: passed, `1037 / 1037`.
+- `npm run build`: passed.
+- `npm run audit:capability-taxonomy-escalation-policy`: passed with branch
+  ahead / behind `0 / 0` and provider execute, real Codex CLI,
+  workspace-write execute, canary file write, general provider execution, and
+  external write counts all at `0`.
+
+Latest validation on the `.agent_board` refresh branch:
+
+- `git diff --check`: passed with only CRLF conversion warnings.
+- Stale-current-state search for old `67bee3f` aligned-status and old branch
+  wording: no matches.
 
 Next safe action:
 
 1. Inspect `git status -sb` and the branch diff.
-2. Review merge readiness for the capability taxonomy branch.
+2. Review the `.agent_board` refresh diff.
 3. Keep the next step local and non-executing unless a later task gives exact
    authorization for a new execution boundary.
 
