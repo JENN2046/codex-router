@@ -2,8 +2,9 @@
 
 ## Completed
 
-Implemented the evidence-first plan slice on branch
-`docs/governance-evidence-matrix`.
+Implemented, merged, and pushed the evidence-first plan slice to `origin/main`
+at `24c3508`. Local `main` also contains post-push anchor cleanup facts and may
+be ahead until another push is explicitly authorized.
 
 Changed files:
 
@@ -26,8 +27,6 @@ Changed files:
 
 ## Not Run
 
-- `npm run audit:approval-consumption-dispatch-matrix` was not run on this
-  feature branch because the audit intentionally requires clean `main`.
 - Real Codex CLI read-only smoke was not run because it requires explicit
   operator authorization.
 

@@ -3,14 +3,16 @@
 Original goal: continue the evidence-first plan toward real Codex CLI practice
 without letting future agents follow stale roadmap facts.
 
-Current status: local branch `docs/governance-evidence-matrix` contains one
-implementation commit, `b8d0b01`, plus this `.agent_board` handoff update.
+Current status: `origin/main` contains the evidence matrix at `24c3508`. Local
+`main` contains a post-push anchor cleanup commit and may be ahead until the
+user explicitly authorizes another push.
 
 Next safe action:
 
 1. Inspect `git status -sb` and the branch diff.
-2. If approved, merge/push/open PR through the repository's normal branch rules.
-3. Only run a fresh real Codex CLI read-only smoke after explicit authorization.
+2. Validate the post-push anchor cleanup locally.
+3. Only run a fresh real Codex CLI read-only smoke after exact explicit
+   authorization.
 
 Do not treat the matrix audit as real host execution evidence. It is a local
 review gate that keeps approval consumption, provider dispatch preconditions,

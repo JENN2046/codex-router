@@ -1,7 +1,7 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `docs/governance-evidence-matrix`
+Branch: `main` after merge/push, then `docs/post-push-anchor-cleanup`
 
 ## Passed
 
@@ -24,6 +24,8 @@ Branch: `docs/governance-evidence-matrix`
   - Result: `1003 / 1003`
 - `npm run build`
 - `git diff --cached --check`
+- `npm run audit:approval-consumption-dispatch-matrix`
+  - Result: passed on clean `main` at `24c3508`
 
 ## Not Run
 

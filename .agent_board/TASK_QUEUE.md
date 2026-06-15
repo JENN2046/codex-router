@@ -2,17 +2,21 @@
 
 ## Done
 
-- Refresh stale roadmap/continue-anchor baseline from `1cc810e` to `97304d2`.
+- Refresh stale roadmap/continue-anchor baselines through current `24c3508`.
 - Add local approval consumption dispatch audit matrix documentation.
 - Add `audit:approval-consumption-dispatch-matrix` script entry.
 - Add matrix audit implementation and regression tests.
 - Validate targeted governance evidence suite, typecheck, full tests, build, and
   staged diff whitespace.
 - Commit local checkpoint `b8d0b01`.
+- Fast-forward merge evidence matrix into `main`.
+- Push `main` to `origin/main` at `24c3508`.
+- Validate `npm run audit:approval-consumption-dispatch-matrix` on clean
+  `main`.
 
 ## In Progress
 
-- Keep the evidence-first branch ready for review and next authorization.
+- Refresh post-push anchors so future agents start from `24c3508`.
 
 ## Blocked
 
@@ -21,6 +25,6 @@
 
 ## Remaining
 
-- Optional local merge / push / PR after explicit direction.
+- Run fresh real read-only Codex CLI smoke after exact operator authorization.
 - After a fresh read-only smoke, design the controlled execution gate for the
   next real Codex CLI step.

@@ -9,14 +9,17 @@ This workspace is the `codex-router` SDK and Agent OS governance runtime
 preparation workspace. It is a Git repository. Normal implementation work should
 use a focused branch, not direct edits on `main`.
 
-Current synchronized baseline:
+Current evidence baseline:
 
-- `main` is aligned with `origin/main` at `97304d2`.
-- Latest commit: `docs: refresh roadmap and continue anchor`.
+- `origin/main` includes the evidence matrix at `24c3508`.
+- Local `main` includes a post-push anchor cleanup commit and may be ahead of
+  `origin/main` until the user explicitly authorizes another push.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
-  - `npm test` passed: `999 / 999`.
+  - `npm test` passed: `1003 / 1003`.
   - `npm run build` passed.
+  - `npm run audit:approval-consumption-dispatch-matrix` passed on clean
+    `main`.
 
 ## Current Mainline Facts
 
@@ -30,6 +33,7 @@ Agent OS now includes:
 - local approval permit issuance through `agentos.approve_run`
 - local approval permit consumption for read-only governed plans
 - read-only formal Codex CLI integration readiness evidence
+- approval consumption / provider dispatch / sanitized audit matrix evidence
 
 Approval consumption is no longer merely deferred. It is implemented and locally
 closed out for the bounded read-only planning path.
@@ -38,6 +42,7 @@ Primary current references:
 
 - `docs/agent-os-transformation/current-roadmap-20260610.md`
 - `docs/governance/APPROVAL_CONSUMPTION_HARDENING_LOCAL_CLOSEOUT.md`
+- `docs/governance/APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md`
 - `docs/governance/PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX.md`
 - `docs/phase-21-closeout-audit-20260611.md`
 
@@ -54,8 +59,9 @@ Still closed unless a future task gives exact explicit authorization:
 - push, release, tag, publish, or external service writes
 - secret, credential, or `.env` changes
 
-The read-only formal integration matrix is local-only. It does not authorize
-provider execute, workspace-write, real CLI invocation, push, release, or tag.
+The read-only formal integration matrix and approval consumption dispatch audit
+matrix are local-only. They do not authorize provider execute, workspace-write,
+real CLI invocation, push, release, or tag.
 
 ## Current Safe Next Step
 
@@ -63,17 +69,12 @@ When the user says "continue project" or a similar continuation request in this
 folder, continue from the current mainline facts, not the older April CLI-host
 anchor.
 
-The next safe local action is:
+The next safe local action is a fresh read-only real Codex CLI smoke preflight
+for the current `main`, but only after exact explicit operator authorization.
 
-1. Review or add local-only acceptance evidence around approval consumption.
-2. Review provider dispatch preconditions, especially reject-before-spawn paths.
-3. Review sanitized audit surfaces for events, artifacts, telemetry, tool input
-   previews, result envelopes, and workspace-write guard evidence.
+Required authorization token:
 
-Good first local slice:
-
-- Add or refresh a small audit matrix tying approval consumption, provider
-  dispatch preconditions, and redaction surfaces to existing tests and evidence.
+- `APPROVE_FORMAL_REAL_CODEX_CLI_READONLY_SMOKE_EXECUTION_PR_18A`
 
 ## Remote Or Side-effectful Actions
 
@@ -109,6 +110,7 @@ GitHub, pushing, opening a PR, closing an issue, or adding an issue comment.
 Use existing scripts only:
 
 ```powershell
+npm run audit:approval-consumption-dispatch-matrix
 npm run typecheck
 npm test
 npm run build
@@ -118,8 +120,10 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from `main` at `97304d2`: approval issuance and read-only approval
-consumption are implemented; read-only formal integration evidence is recorded;
-next safe local work is acceptance/review evidence for approval consumption,
-provider dispatch preconditions, and sanitized audit surfaces, without opening
-real execution, workspace-write, or remote actions.
+Continue from `origin/main` evidence baseline `24c3508`, plus any local
+post-push anchor cleanup on `main`: approval issuance, read-only approval
+consumption, read-only formal integration evidence, and approval consumption
+dispatch audit matrix evidence are merged to `origin/main`; next gated action is
+a fresh real read-only Codex CLI smoke for current local `main` after exact
+operator authorization, without opening workspace-write, provider execution, or
+unrelated remote actions.

@@ -1,9 +1,10 @@
 # Agent OS Current Roadmap
 
 Date: 2026-06-15
-Current base: `main` at `97304d2`
+Current base: `main` at `24c3508`
 Status: local governance foundation, approval issuance, approval consumption,
-and read-only formal integration evidence are merged and locally validated.
+read-only formal integration evidence, and approval consumption dispatch audit
+matrix evidence are merged and locally validated.
 
 ## Current Position
 
@@ -55,6 +56,8 @@ Safe and implemented:
   lock-safety, permit validation, and audit redaction gates.
 - Verify the read-only formal integration chain through local audit matrix
   evidence.
+- Verify approval consumption, provider dispatch preconditions, and sanitized
+  audit surfaces through local audit matrix evidence.
 
 Still blocked or disabled:
 
@@ -94,6 +97,7 @@ Approval consumption is also implemented and covered:
 Primary evidence:
 
 - `docs/governance/APPROVAL_CONSUMPTION_HARDENING_LOCAL_CLOSEOUT.md`
+- `docs/governance/APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md`
 - `tests/approval-permit.test.ts`
 - `tests/execution-eligibility.test.ts`
 - `tests/agent-os-mcp-local-runtime.test.ts`
@@ -112,32 +116,28 @@ chain:
 - `PR_19C_FORMAL_REAL_READONLY_SMOKE_LOCAL_RC_CLOSEOUT_COMPLETE`
 - `PR_20C_READONLY_REAL_SMOKE_CHAIN_LOCAL_CLOSEOUT_COMPLETE`
 - `PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX_RECORDED`
+- `APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX_RECORDED`
 
 Primary evidence:
 
 - `docs/governance/PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX.md`
+- `docs/governance/APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md`
 - `docs/evidence/codex-cli-formal-readonly-integration-readiness.json`
 - `docs/evidence/codex-cli-formal-readonly-dispatch-boundary-acceptance.json`
 - `docs/evidence/codex-cli-formal-real-readonly-smoke-taskbook-acceptance.json`
 - `docs/evidence/codex-cli-real-readonly-smoke.json`
 
-This matrix is local-only. It does not authorize provider execute,
+These matrices are local-only. They do not authorize provider execute,
 workspace-write, real CLI invocation, push, release, or tag.
 
 ## Current Reviewable Slice
 
-Next safe local slice:
+Next gated slice:
 
-- Review or add local-only acceptance evidence around approval consumption.
-- Review provider dispatch preconditions, especially reject-before-spawn paths.
-- Review sanitized audit surfaces for events, artifacts, telemetry, tool input
-  previews, result envelopes, and workspace-write guard evidence.
-
-Suggested first local docs/test task:
-
-- Add or refresh a small local audit matrix that ties approval consumption,
-  provider dispatch preconditions, and redaction surfaces to existing tests and
-  evidence.
+- Run a fresh real read-only Codex CLI smoke against current `main` after exact
+  operator authorization.
+- Preserve the current boundary: no workspace-write, general provider execution,
+  push, release, tag, or external service write is implied by the smoke.
 
 ## Following Phases
 
@@ -172,11 +172,12 @@ After local review/evidence hardening:
 
 ## Validation Baseline
 
-Latest local validation on 2026-06-15 before the docs anchor refresh at
-`97304d2`:
+Latest local validation on 2026-06-15 before the post-push anchor refresh at
+`24c3508`:
 
+- `npm run audit:approval-consumption-dispatch-matrix` passed on clean `main`.
 - `npm run typecheck` passed.
-- `npm test` passed: `999 / 999`.
+- `npm test` passed: `1003 / 1003`.
 - `npm run build` passed.
 
 For docs-only roadmap updates, inspect the diff and keep the worktree clean.
