@@ -27,12 +27,16 @@ const expectedFinalLocalAuditCommands = [
     args: ["tsx", "--test", "tests\\workspace-write-real-canary-pre-execution-acceptance.test.ts"]
   },
   {
-    id: "real-canary-candidate-consistency-tests",
-    args: ["tsx", "--test", "tests\\workspace-write-real-canary-local-candidate-consistency.test.ts"]
+    id: "future-canary-pre-execution-review-tests",
+    args: ["tsx", "--test", "tests\\future-codex-cli-canary-pre-execution-review-audit.test.ts"]
   },
   {
     id: "real-canary-sensitive-scan-tests",
     args: ["tsx", "--test", "tests\\workspace-write-real-canary-sensitive-scan.test.ts"]
+  },
+  {
+    id: "future-canary-pre-execution-review-audit",
+    args: ["run", "audit:future-codex-cli-canary-pre-execution-review"]
   },
   {
     id: "real-canary-authorization-acceptance",
@@ -41,10 +45,6 @@ const expectedFinalLocalAuditCommands = [
   {
     id: "real-canary-pre-execution-acceptance",
     args: ["run", "acceptance:workspace-write-real-canary-pre-execution"]
-  },
-  {
-    id: "real-canary-candidate-audit-json",
-    args: ["run", "audit:workspace-write-real-canary-candidate", "--", "--json"]
   },
   {
     id: "real-canary-sensitive-scan-json",
@@ -56,7 +56,7 @@ const requiredPackageScripts = [
   "typecheck",
   "acceptance:workspace-write-real-canary-auth",
   "acceptance:workspace-write-real-canary-pre-execution",
-  "audit:workspace-write-real-canary-candidate",
+  "audit:future-codex-cli-canary-pre-execution-review",
   "audit:workspace-write-real-canary-sensitive-scan",
   "audit:workspace-write-real-canary-final-local"
 ] as const;

@@ -90,14 +90,19 @@ export const WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS: readonly Wo
     args: ["tsx", "--test", "tests\\workspace-write-real-canary-pre-execution-acceptance.test.ts"]
   },
   {
-    id: "real-canary-candidate-consistency-tests",
+    id: "future-canary-pre-execution-review-tests",
     command: npxExecutable(),
-    args: ["tsx", "--test", "tests\\workspace-write-real-canary-local-candidate-consistency.test.ts"]
+    args: ["tsx", "--test", "tests\\future-codex-cli-canary-pre-execution-review-audit.test.ts"]
   },
   {
     id: "real-canary-sensitive-scan-tests",
     command: npxExecutable(),
     args: ["tsx", "--test", "tests\\workspace-write-real-canary-sensitive-scan.test.ts"]
+  },
+  {
+    id: "future-canary-pre-execution-review-audit",
+    command: npmExecutable(),
+    args: ["run", "audit:future-codex-cli-canary-pre-execution-review"]
   },
   {
     id: "real-canary-authorization-acceptance",
@@ -108,11 +113,6 @@ export const WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS: readonly Wo
     id: "real-canary-pre-execution-acceptance",
     command: npmExecutable(),
     args: ["run", "acceptance:workspace-write-real-canary-pre-execution"]
-  },
-  {
-    id: "real-canary-candidate-audit-json",
-    command: npmExecutable(),
-    args: ["run", "audit:workspace-write-real-canary-candidate", "--", "--json"]
   },
   {
     id: "real-canary-sensitive-scan-json",
