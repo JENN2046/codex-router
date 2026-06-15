@@ -11,9 +11,10 @@ use a focused branch, not direct edits on `main`.
 
 Current evidence baseline:
 
-- `main` is aligned with `origin/main` at `fe181cb`.
-- Latest mainline commit: `docs: refresh execution gate push anchors`.
-- Current local working branch: `docs/future-canary-pre-execution-review`.
+- Local `main` has fast-forwarded to `ae3cb7f`.
+- `origin/main` is at `fe181cb`.
+- Latest local mainline commit: `test: add future canary pre-execution review`.
+- Current local cleanup branch: `docs/post-merge-pre-execution-review-anchor`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `1003 / 1003`.
@@ -40,6 +41,9 @@ Current evidence baseline:
   - `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
     passed on the pre-execution review branch.
   - `npm run typecheck` passed on the pre-execution review branch.
+  - `npm run audit:future-codex-cli-canary-pre-execution-review` blocked on
+    clean local `main` only because local `main` is not aligned with
+    `origin/main`.
 
 ## Current Mainline Facts
 
@@ -158,13 +162,14 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from `main` / `origin/main` at `fe181cb`: approval issuance,
+Continue from local `main` at `ae3cb7f` and `origin/main` at `fe181cb`:
+approval issuance,
 read-only approval consumption, read-only formal integration evidence, approval
 consumption dispatch audit matrix evidence, fresh real read-only Codex CLI smoke
 evidence, controlled execution gate design, future canary execution packet
 checklist, future canary authorization packet draft/review, and post-merge
 anchors are pushed. Future canary execution gate design and execution-gate
-post-merge anchors are pushed. Current local branch
-`docs/future-canary-pre-execution-review` designs the final pre-execution review
-before exact operator authorization. Do not open workspace-write, general
-provider execution, or unrelated remote actions.
+post-merge anchors are pushed. Future canary pre-execution review is merged into
+local `main`, and its clean-main audit is blocked only by
+`mainAlignedWithOrigin`. Do not open workspace-write, general provider
+execution, or unrelated remote actions.

@@ -1,7 +1,7 @@
 # Agent OS Current Roadmap
 
 Date: 2026-06-15
-Current base: `main` and `origin/main` at `fe181cb`
+Current base: local `main` at `ae3cb7f`; `origin/main` at `fe181cb`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
 matrix evidence are merged and locally validated. A fresh real read-only Codex
@@ -12,7 +12,8 @@ future real workspace-write canary, its post-merge anchors, and its post-push
 anchors are pushed to
 `origin/main`; the clean-main gate audit passed without running workspace-write.
 The current local branch designs the final pre-execution review before exact
-operator authorization.
+operator authorization. The review is merged into local `main`, and its
+clean-main audit is blocked only by remote alignment.
 
 ## Current Position
 
@@ -216,6 +217,8 @@ Latest local validation on 2026-06-15 through `main` / `origin/main` at
 - `git push origin main` pushed `c679c58..fe181cb`.
 - `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
   passed on `docs/future-canary-pre-execution-review`.
+- `npm run audit:future-codex-cli-canary-pre-execution-review` blocked on clean
+  local `main` only because local `main` is not aligned with `origin/main`.
 - `npm run typecheck` passed.
 - `npm test` passed: `1003 / 1003`.
 - `npm run build` passed.

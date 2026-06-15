@@ -165,6 +165,22 @@ Branch: `main` / `origin/main` at `fe181cb`, then
     `future_codex_cli_canary_pre_execution_review_mainAlignedWithOrigin`
 - `Test-Path tmp\codex-cli-write-canary.txt`
   - Result: `False`
+- `npm run audit:future-codex-cli-canary-pre-execution-review`
+  - Result: expected blocked on
+    `docs/post-merge-pre-execution-review-anchor` because the worktree is dirty,
+    branch is not `main`, and local HEAD is not aligned with `origin/main`
+  - Reasons:
+    `future_codex_cli_canary_pre_execution_review_worktreeClean`,
+    `future_codex_cli_canary_pre_execution_review_branchMain`,
+    `future_codex_cli_canary_pre_execution_review_mainAlignedWithOrigin`
+- `npm run audit:future-codex-cli-canary-pre-execution-review`
+  - Result: expected blocked on clean local `main` because local `main` is not
+    aligned with `origin/main`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
+    canary file writes `0`
+  - Reasons: `future_codex_cli_canary_pre_execution_review_mainAlignedWithOrigin`
+- `Test-Path tmp\codex-cli-write-canary.txt`
+  - Result: `False`
 
 ## Not Run
 

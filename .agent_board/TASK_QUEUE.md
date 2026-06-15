@@ -52,6 +52,10 @@
 - Push local `main` to `origin/main` at `fe181cb`.
 - Refresh post-push anchors for `fe181cb`.
 - Design the final pre-execution review before exact operator authorization.
+- Fast-forward merge pre-execution review into local `main`.
+- Run `npm run audit:future-codex-cli-canary-pre-execution-review` on clean
+  local `main`; blocked only by `mainAlignedWithOrigin`.
+- Refresh post-merge anchors for clean-main pre-execution review audit.
 
 ## In Progress
 
@@ -64,5 +68,5 @@
 
 ## Remaining
 
-- Run the pre-execution review audit only after local fast-forward merge to
-  clean `main` and remote alignment.
+- Push local `main` only after explicit user instruction.
+- Rerun the pre-execution review audit on aligned clean `main`.

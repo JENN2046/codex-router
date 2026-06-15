@@ -89,11 +89,14 @@ Changed files:
 - `git push origin main` pushed `c679c58..fe181cb`.
 - Post-push `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
 - `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
-  passed: `5 / 5`.
+passed: `5 / 5`.
 - `npm run typecheck` passed on `docs/future-canary-pre-execution-review`.
 - `npm run audit:future-codex-cli-canary-pre-execution-review` blocked as
   expected on the dirty non-`main` review branch because local HEAD is not
   aligned with `origin/main`.
+- After local fast-forward merge, `npm run audit:future-codex-cli-canary-pre-execution-review`
+  blocked on clean local `main` only because local `main` is not aligned with
+  `origin/main`.
 - `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
 
 ## Not Run
