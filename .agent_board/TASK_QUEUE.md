@@ -46,6 +46,11 @@
 - Refresh post-merge anchors for clean-main execution gate audit.
 - Push local `main` to `origin/main` at `c679c58`.
 - Refresh post-push anchors for `c679c58`.
+- Fast-forward merge post-push execution gate anchors into local `main`.
+- Validate `npm run audit:future-codex-cli-canary-execution-gate` on clean
+  local `main` after the post-push anchor merge.
+- Push local `main` to `origin/main` at `fe181cb`.
+- Refresh post-push anchors for `fe181cb`.
 
 ## In Progress
 

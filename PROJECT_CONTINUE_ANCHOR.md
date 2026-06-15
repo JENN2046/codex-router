@@ -11,9 +11,9 @@ use a focused branch, not direct edits on `main`.
 
 Current evidence baseline:
 
-- `main` is aligned with `origin/main` at `c679c58`.
-- Latest mainline commit: `docs: refresh execution gate merge anchors`.
-- Current local cleanup branch: `docs/post-push-execution-gate-anchor`.
+- `main` is aligned with `origin/main` at `fe181cb`.
+- Latest mainline commit: `docs: refresh execution gate push anchors`.
+- Current local cleanup branch: `docs/post-push-execution-gate-final-anchor`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `1003 / 1003`.
@@ -36,6 +36,7 @@ Current evidence baseline:
   - `npm run audit:future-codex-cli-canary-execution-gate` passed on clean
     local `main` after the fast-forward merge.
   - `git push origin main` pushed `19b3a5e..c679c58`.
+  - `git push origin main` pushed `c679c58..fe181cb`.
 
 ## Current Mainline Facts
 
@@ -152,7 +153,7 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from `main` / `origin/main` at `c679c58`: approval issuance,
+Continue from `main` / `origin/main` at `fe181cb`: approval issuance,
 read-only approval consumption, read-only formal integration evidence, approval
 consumption dispatch audit matrix evidence, fresh real read-only Codex CLI smoke
 evidence, controlled execution gate design, future canary execution packet

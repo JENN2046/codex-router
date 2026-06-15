@@ -3,11 +3,11 @@
 Original goal: continue the evidence-first plan toward real Codex CLI practice
 without letting future agents follow stale roadmap facts.
 
-Current status: `main` and `origin/main` are aligned at `c679c58`. Fresh real
+Current status: `main` and `origin/main` are aligned at `fe181cb`. Fresh real
 Codex CLI read-only smoke, main-only smoke chain audits, controlled execution
 gate design audit, future canary packet checklist audit, future canary
 authorization packet audit, and future canary execution gate audit passed. The
-execution gate design and post-merge anchors are pushed.
+execution gate design, post-merge anchors, and post-push anchors are pushed.
 
 Next safe action:
 

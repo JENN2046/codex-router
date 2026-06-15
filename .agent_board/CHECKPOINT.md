@@ -11,8 +11,9 @@ to `origin/main` at `4db8174`. The future Codex CLI canary execution
 authorization packet draft/review, post-merge anchors, and post-push anchors are
 pushed to `origin/main` at `19b3a5e`. Clean local `main` authorization packet
 audit passed before the post-push anchor merge. The future canary execution gate
-design and post-merge execution gate anchors are pushed to `origin/main` at
-`c679c58`. The clean local `main` gate audit passed before push.
+design, post-merge execution gate anchors, and post-push execution gate anchors
+are pushed to `origin/main` at `fe181cb`. The clean local `main` gate audit
+passed before push.
 
 Changed files:
 
@@ -81,6 +82,8 @@ Changed files:
 - `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
 - `git push origin main` pushed `19b3a5e..c679c58`.
 - Post-push `git status -sb` showed `main...origin/main`.
+- `git push origin main` pushed `c679c58..fe181cb`.
+- Post-push `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
 
 ## Not Run
 
