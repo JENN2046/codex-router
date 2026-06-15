@@ -3,25 +3,32 @@
 Original goal: continue the evidence-first plan toward real Codex CLI practice
 without letting future agents follow stale roadmap facts.
 
-Current status: `main` and `origin/main` are aligned at `fe181cb`. Fresh real
+Current status: `main` and `origin/main` are aligned at `5e24281`. Fresh real
 Codex CLI read-only smoke, main-only smoke chain audits, controlled execution
 gate design audit, future canary packet checklist audit, future canary
-authorization packet audit, and future canary execution gate audit passed. The
-execution gate design, post-merge anchors, and post-push anchors are pushed.
-The future canary pre-execution review is merged into local `main`; its
-clean-main audit is blocked only by `mainAlignedWithOrigin` because local
-`main` is ahead of `origin/main`.
+authorization packet audit, future canary execution gate audit, final
+pre-execution review audit, clean-main final-local audit, and one bounded real
+Codex CLI workspace-write canary have passed.
+
+The real workspace-write canary evidence is committed at:
+
+- `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
+
+The canary target was:
+
+- `tmp/codex-cli-write-canary.txt`
+
+The target file was removed after execution. The latest check returned `False`
+for `Test-Path tmp\codex-cli-write-canary.txt`.
 
 Next safe action:
 
 1. Inspect `git status -sb` and the branch diff.
-2. Push local `main` only if the user explicitly asks for a remote write.
-3. Rerun the pre-execution review audit on aligned clean `main`.
-4. Keep workspace-write and general provider execution closed unless a later
-   task gives exact authorization.
+2. Design a post-canary receipt plus rollback verification gate.
+3. Keep the next step local and non-executing unless a later task gives exact
+   authorization for a new execution boundary.
 
-Do not treat the matrix audit as real host execution evidence. It is a local
-review gate that keeps approval consumption, provider dispatch preconditions,
-and sanitized audit surfaces aligned before live execution expansion.
-Do not treat the authorization packet draft as workspace-write execution
-permission.
+Do not treat the recorded canary as general provider execution permission. It
+proves one bounded local workspace-write canary only. It does not authorize
+general workspace-write execution, release, tag, deployment, live adapter
+activation, or external service writes.

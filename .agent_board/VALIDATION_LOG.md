@@ -1,8 +1,8 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `main` / `origin/main` at `fe181cb`, then
-`docs/post-push-execution-gate-final-anchor`
+Branch: `main` / `origin/main` at `5e24281`, then
+`docs/post-real-canary-anchor`
 
 ## Passed
 
@@ -181,10 +181,53 @@ Branch: `main` / `origin/main` at `fe181cb`, then
   - Reasons: `future_codex_cli_canary_pre_execution_review_mainAlignedWithOrigin`
 - `Test-Path tmp\codex-cli-write-canary.txt`
   - Result: `False`
+- `git push origin main`
+  - Result: pushed `fe181cb..3a71acc`
+- `npm run audit:future-codex-cli-canary-pre-execution-review`
+  - Result: passed on aligned clean `main` at `3a71acc`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
+    canary file writes `0`
+- Final-local audit clean-main gate fix
+  - Commit: `590dbd4 test: align final canary audit with clean main gate`
+  - Targeted test:
+    `npx tsx --test tests\workspace-write-real-canary-final-local-audit.test.ts`
+    passed: `9 / 9`
+  - `npm run typecheck`: passed
+  - `npm test`: passed: `1027 / 1027`
+- `git push origin main`
+  - Result: pushed `3a71acc..590dbd4`
+- `npm run audit:workspace-write-real-canary-final-local`
+  - Result: passed on clean aligned `main`
+  - Commands: `10`
+  - Failed commands: `0`
+  - Sensitive scan marker hits: `0`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`
+- `npm run audit:future-codex-cli-canary-pre-execution-review`
+  - Result: passed on clean aligned `main`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
+    canary file writes `0`
+- Bounded real Codex CLI workspace-write canary
+  - Result: passed
+  - Evidence:
+    `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
+  - Target file: `tmp/codex-cli-write-canary.txt`
+  - Sandbox: `workspace-write`
+  - Approval policy: `on-request`
+  - Execution status: `completed`
+  - Exit code: `0`
+  - Event count: `60`
+  - Parse error count: `0`
+  - Blocking reasons: `[]`
+- Post-canary rollback cleanup
+  - `Test-Path tmp\codex-cli-write-canary.txt`: `False`
+  - Evidence sensitive marker scan: no hits for the checked markers
+- `git push origin main`
+  - Result: pushed `590dbd4..5e24281`
 
 ## Not Run
 
-- Workspace-write real CLI smoke.
-- Canary file write.
+- Additional workspace-write canary runs beyond the single authorized bounded
+  run.
+- General provider execution.
 - Release, tag, deployment, or external service writes beyond the explicitly
   requested `git push origin main`.

@@ -1,7 +1,7 @@
 # Agent OS Current Roadmap
 
 Date: 2026-06-15
-Current base: local `main` at `ae3cb7f`; `origin/main` at `fe181cb`
+Current base: `main` and `origin/main` at `5e24281`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
 matrix evidence are merged and locally validated. A fresh real read-only Codex
@@ -11,9 +11,11 @@ anchors are pushed to `origin/main`. The final execution gate design for a
 future real workspace-write canary, its post-merge anchors, and its post-push
 anchors are pushed to
 `origin/main`; the clean-main gate audit passed without running workspace-write.
-The current local branch designs the final pre-execution review before exact
-operator authorization. The review is merged into local `main`, and its
-clean-main audit is blocked only by remote alignment.
+The final pre-execution review, clean-main final-local audit alignment fix, and
+bounded real workspace-write canary evidence are pushed to `origin/main`. The
+real canary passed for target `tmp/codex-cli-write-canary.txt`, its evidence is
+recorded at `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`,
+and the temporary canary file has been removed.
 
 ## Current Position
 
@@ -68,12 +70,14 @@ Safe and implemented:
 - Verify approval consumption, provider dispatch preconditions, and sanitized
   audit surfaces through local audit matrix evidence.
 - Verify the real Codex CLI read-only path against current local `main`.
+- Verify one bounded real Codex CLI workspace-write canary against current
+  `main`.
 
 Still blocked or disabled:
 
 - Real provider execution as a general runtime mode.
 - Real Codex CLI execution as a general runtime mode.
-- Workspace-write execution without a separate exact operator authorization.
+- Workspace-write execution beyond the single recorded bounded canary.
 - Live MCP server connection.
 - Live A2A network connection.
 - Live App Server process.
@@ -144,10 +148,10 @@ workspace-write, real CLI invocation, push, release, or tag.
 
 Next gated slice:
 
-- Design the controlled execution gate for the next real Codex CLI step.
-- Preserve the current boundary: no workspace-write, general provider execution,
-  push, release, tag, or external service write is implied by the read-only
-  smoke.
+- Design the post-canary receipt and rollback verification gate.
+- Preserve the current boundary: the recorded canary proves one bounded local
+  workspace-write execution only. It does not imply general workspace-write,
+  general provider execution, push, release, tag, or external service write.
 - Current design artifact:
   `docs/governance/CONTROLLED_EXECUTION_GATE_NEXT_CODEX_CLI_STEP.md`
 - Current packet checklist artifact:
@@ -158,6 +162,8 @@ Next gated slice:
   `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_GATE.md`
 - Current pre-execution review artifact:
   `docs/governance/FUTURE_CODEX_CLI_CANARY_PRE_EXECUTION_REVIEW.md`
+- Current real canary evidence:
+  `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
 - Current local audit:
   `npm run audit:future-codex-cli-canary-pre-execution-review`
 
@@ -195,7 +201,7 @@ After local review/evidence hardening:
 ## Validation Baseline
 
 Latest local validation on 2026-06-15 through `main` / `origin/main` at
-`fe181cb`:
+`5e24281`:
 
 - `npm run audit:approval-consumption-dispatch-matrix` passed on clean `main`.
 - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
@@ -219,8 +225,24 @@ Latest local validation on 2026-06-15 through `main` / `origin/main` at
   passed on `docs/future-canary-pre-execution-review`.
 - `npm run audit:future-codex-cli-canary-pre-execution-review` blocked on clean
   local `main` only because local `main` is not aligned with `origin/main`.
+- `git push origin main` pushed `fe181cb..3a71acc`.
+- `npm run audit:future-codex-cli-canary-pre-execution-review` passed on
+  aligned clean `main`.
+- `npm run audit:workspace-write-real-canary-final-local` passed after the
+  clean-main gate alignment fix.
+- `npm test` passed: `1027 / 1027`.
+- `git push origin main` pushed `3a71acc..590dbd4`.
+- Bounded real Codex CLI workspace-write canary passed:
+  - target file: `tmp/codex-cli-write-canary.txt`
+  - evidence:
+    `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
+  - execution status: `completed`
+  - exit code: `0`
+  - blocking reasons: `[]`
+- Post-canary `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
+- `git push origin main` pushed `590dbd4..5e24281`.
 - `npm run typecheck` passed.
-- `npm test` passed: `1003 / 1003`.
+- `npm test` passed: `1027 / 1027`.
 - `npm run build` passed.
 
 For docs-only roadmap updates, inspect the diff and keep the worktree clean.

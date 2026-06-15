@@ -56,6 +56,21 @@
 - Run `npm run audit:future-codex-cli-canary-pre-execution-review` on clean
   local `main`; blocked only by `mainAlignedWithOrigin`.
 - Refresh post-merge anchors for clean-main pre-execution review audit.
+- Push local `main` to `origin/main` at `3a71acc`.
+- Rerun `npm run audit:future-codex-cli-canary-pre-execution-review` on aligned
+  clean `main`.
+- Align `audit:workspace-write-real-canary-final-local` with clean aligned
+  `main` gate shape.
+- Validate the final-local audit fix with targeted tests, typecheck, and full
+  `npm test` (`1027 / 1027`).
+- Push local `main` to `origin/main` at `590dbd4`.
+- Run one bounded real Codex CLI workspace-write canary under exact operator
+  authorization.
+- Record real canary evidence at
+  `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`.
+- Remove `tmp\codex-cli-write-canary.txt` after the canary run.
+- Push real canary evidence to `origin/main` at `5e24281`.
+- Refresh post-real-canary anchors.
 
 ## In Progress
 
@@ -63,10 +78,11 @@
 
 ## Blocked
 
-- Workspace-write or general provider execution: requires a separate exact
-  operator authorization and controlled execution gate.
+- General workspace-write or general provider execution: requires a separate
+  exact operator authorization and a new controlled execution gate.
 
 ## Remaining
 
-- Push local `main` only after explicit user instruction.
-- Rerun the pre-execution review audit on aligned clean `main`.
+- Design post-canary receipt and rollback verification gate.
+- Validate the post-canary receipt without running another workspace-write
+  canary.

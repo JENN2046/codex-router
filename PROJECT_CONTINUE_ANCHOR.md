@@ -11,13 +11,12 @@ use a focused branch, not direct edits on `main`.
 
 Current evidence baseline:
 
-- Local `main` has fast-forwarded to `ae3cb7f`.
-- `origin/main` is at `fe181cb`.
-- Latest local mainline commit: `test: add future canary pre-execution review`.
-- Current local cleanup branch: `docs/post-merge-pre-execution-review-anchor`.
+- `main` is aligned with `origin/main` at `5e24281`.
+- Latest mainline commit: `docs: record real workspace-write canary evidence`.
+- Current local cleanup branch: `docs/post-real-canary-anchor`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
-  - `npm test` passed: `1003 / 1003`.
+  - `npm test` passed: `1027 / 1027`.
   - `npm run build` passed.
   - `npm run audit:approval-consumption-dispatch-matrix` passed on clean
     `main`.
@@ -44,6 +43,17 @@ Current evidence baseline:
   - `npm run audit:future-codex-cli-canary-pre-execution-review` blocked on
     clean local `main` only because local `main` is not aligned with
     `origin/main`.
+  - `git push origin main` pushed `fe181cb..3a71acc`.
+  - `npm run audit:future-codex-cli-canary-pre-execution-review` passed on
+    aligned clean `main`.
+  - `npm run audit:workspace-write-real-canary-final-local` passed after the
+    clean-main gate alignment fix.
+  - `git push origin main` pushed `3a71acc..590dbd4`.
+  - A bounded real Codex CLI workspace-write canary passed under exact operator
+    authorization for target `tmp/codex-cli-write-canary.txt`.
+  - The canary target file was removed after execution; `Test-Path
+    tmp\codex-cli-write-canary.txt` returned `False`.
+  - `git push origin main` pushed `590dbd4..5e24281`.
 
 ## Current Mainline Facts
 
@@ -59,6 +69,7 @@ Agent OS now includes:
 - read-only formal Codex CLI integration readiness evidence
 - approval consumption / provider dispatch / sanitized audit matrix evidence
 - fresh real Codex CLI read-only smoke evidence for current local `main`
+- bounded real Codex CLI workspace-write canary evidence for current `main`
 
 Approval consumption is no longer merely deferred. It is implemented and locally
 closed out for the bounded read-only planning path.
@@ -70,6 +81,7 @@ Primary current references:
 - `docs/governance/APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md`
 - `docs/governance/PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX.md`
 - `docs/evidence/codex-cli-real-readonly-smoke.json`
+- `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
 - `docs/phase-21-closeout-audit-20260611.md`
 
 ## Important Boundaries
@@ -78,7 +90,7 @@ Still closed unless a future task gives exact explicit authorization:
 
 - real provider execution as a general runtime mode
 - real Codex CLI execution as a general runtime mode
-- workspace-write execution
+- workspace-write execution beyond the single recorded bounded canary
 - live MCP server connection
 - live A2A network connection
 - live App Server process
@@ -95,14 +107,14 @@ When the user says "continue project" or a similar continuation request in this
 folder, continue from the current mainline facts, not the older April CLI-host
 anchor.
 
-The fresh read-only real Codex CLI smoke for current local `main` has passed
-under exact operator authorization. The controlled execution gate design, future
+The fresh read-only real Codex CLI smoke for current local `main` passed under
+exact operator authorization. The controlled execution gate design, future
 canary execution packet checklist, future canary execution authorization packet
-draft/review, and post-merge anchor cleanup are merged and pushed to
-`origin/main`. The future canary execution gate design and post-merge execution
-gate anchors are also merged and pushed to `origin/main`. The gate remains
-draft/review only and does not enable workspace-write or general provider
-execution.
+draft/review, execution gate, final pre-execution review, final-local audit gate
+alignment fix, and bounded real workspace-write canary evidence are merged and
+pushed to `origin/main`. The recorded workspace-write canary was a single
+bounded local canary write only. It does not enable workspace-write or general
+provider execution as a general runtime mode.
 
 Current design artifact:
 
@@ -152,6 +164,7 @@ npm run audit:future-codex-cli-canary-packet-checklist
 npm run audit:future-codex-cli-canary-authorization-packet
 npm run audit:future-codex-cli-canary-execution-gate
 npm run audit:future-codex-cli-canary-pre-execution-review
+npm run audit:workspace-write-real-canary-final-local
 npm run smoke:readonly:real
 npm run typecheck
 npm test
@@ -162,14 +175,13 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from local `main` at `ae3cb7f` and `origin/main` at `fe181cb`:
-approval issuance,
-read-only approval consumption, read-only formal integration evidence, approval
+Continue from `main` / `origin/main` at `5e24281`: approval issuance, read-only
+approval consumption, read-only formal integration evidence, approval
 consumption dispatch audit matrix evidence, fresh real read-only Codex CLI smoke
-evidence, controlled execution gate design, future canary execution packet
-checklist, future canary authorization packet draft/review, and post-merge
-anchors are pushed. Future canary execution gate design and execution-gate
-post-merge anchors are pushed. Future canary pre-execution review is merged into
-local `main`, and its clean-main audit is blocked only by
-`mainAlignedWithOrigin`. Do not open workspace-write, general provider
-execution, or unrelated remote actions.
+evidence, controlled execution gate design, future canary packet/review gates,
+and bounded real workspace-write canary evidence are pushed. The real
+workspace-write canary passed for target `tmp/codex-cli-write-canary.txt`, its
+evidence is `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`,
+and the temporary canary file has been removed. Next safe work is post-canary
+receipt plus rollback verification gate design. Do not open general
+workspace-write, general provider execution, or unrelated remote actions.
