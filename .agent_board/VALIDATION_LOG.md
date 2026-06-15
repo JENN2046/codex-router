@@ -1,8 +1,8 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: local `main` at `57ae4a7`, then
-`docs/post-merge-authorization-packet-anchor`
+Branch: `main` / `origin/main` at `c73fa1b`, then
+`docs/post-push-authorization-packet-anchor`
 
 ## Passed
 
@@ -83,9 +83,16 @@ Branch: local `main` at `57ae4a7`, then
     canary file writes `0`
 - `Test-Path tmp\codex-cli-write-canary.txt`
   - Result: `False`
+- `git push origin main`
+  - Result: first attempt failed with an HTTPS/TLS handshake error; one
+    automatic retry succeeded, pushing `4db8174..c73fa1b`
+- Post-push checks
+  - `git status -sb`: `main...origin/main`
+  - `Test-Path tmp\codex-cli-write-canary.txt`: `False`
 
 ## Not Run
 
 - Workspace-write real CLI smoke.
 - Canary file write.
-- Push.
+- Release, tag, deployment, or external service writes beyond the explicitly
+  requested `git push origin main`.

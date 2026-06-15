@@ -11,10 +11,9 @@ use a focused branch, not direct edits on `main`.
 
 Current evidence baseline:
 
-- `origin/main` is at `4db8174`.
-- Local `main` has fast-forwarded to `57ae4a7`.
-- Latest local mainline commit: `test: draft future canary authorization packet`.
-- Current local cleanup branch: `docs/post-merge-authorization-packet-anchor`.
+- `main` is aligned with `origin/main` at `c73fa1b`.
+- Latest mainline commit: `docs: refresh authorization packet merge anchors`.
+- Current local cleanup branch: `docs/post-push-authorization-packet-anchor`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `1003 / 1003`.
@@ -29,6 +28,7 @@ Current evidence baseline:
   - `npm run typecheck` passed on the packet draft branch.
   - `npm run audit:future-codex-cli-canary-authorization-packet` passed on
     clean local `main` after the fast-forward merge.
+  - `git push origin main` succeeded after one retry, pushing `4db8174..c73fa1b`.
 
 ## Current Mainline Facts
 
@@ -82,10 +82,10 @@ anchor.
 
 The fresh read-only real Codex CLI smoke for current local `main` has passed
 under exact operator authorization. The controlled execution gate design, future
-canary execution packet checklist, and future canary execution authorization
-packet draft/review are merged into local `main`. The clean local `main`
-authorization packet audit passed without enabling workspace-write or general
-provider execution.
+canary execution packet checklist, future canary execution authorization packet
+draft/review, and post-merge anchor cleanup are merged and pushed to
+`origin/main`. The clean local `main` authorization packet audit passed without
+enabling workspace-write or general provider execution.
 
 Current design artifact:
 
@@ -141,13 +141,11 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from local `main` at `57ae4a7` and `origin/main` at `4db8174`:
-approval issuance,
+Continue from `main` / `origin/main` at `c73fa1b`: approval issuance,
 read-only approval consumption, read-only formal integration evidence, approval
 consumption dispatch audit matrix evidence, fresh real read-only Codex CLI smoke
-evidence, controlled execution gate design, and future canary execution packet
-checklist are merged to `origin/main`; future canary authorization packet
-draft/review is merged into local `main` and its clean-main audit passed.
-Remote `origin/main` is still behind local `main`; do not push without explicit
-user instruction. Do not open workspace-write, general provider execution, or
-unrelated remote actions.
+evidence, controlled execution gate design, future canary execution packet
+checklist, future canary authorization packet draft/review, and post-merge
+anchors are pushed. Next safe local step is designing the next controlled
+execution gate for a future real workspace-write canary. Do not open
+workspace-write, general provider execution, or unrelated remote actions.
