@@ -1,7 +1,7 @@
 # Agent OS Current Roadmap
 
 Date: 2026-06-15
-Current base: `main` at `1cc810e`
+Current base: `main` at `97304d2`
 Status: local governance foundation, approval issuance, approval consumption,
 and read-only formal integration evidence are merged and locally validated.
 
@@ -172,7 +172,8 @@ After local review/evidence hardening:
 
 ## Validation Baseline
 
-Latest local validation on 2026-06-15 after fast-forwarding to `1cc810e`:
+Latest local validation on 2026-06-15 before the docs anchor refresh at
+`97304d2`:
 
 - `npm run typecheck` passed.
 - `npm test` passed: `999 / 999`.

@@ -11,8 +11,8 @@ use a focused branch, not direct edits on `main`.
 
 Current synchronized baseline:
 
-- `main` is aligned with `origin/main` at `1cc810e`.
-- Latest commit: `test(governance): add readonly formal integration matrix`.
+- `main` is aligned with `origin/main` at `97304d2`.
+- Latest commit: `docs: refresh roadmap and continue anchor`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `999 / 999`.
@@ -118,7 +118,7 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from `main` at `1cc810e`: approval issuance and read-only approval
+Continue from `main` at `97304d2`: approval issuance and read-only approval
 consumption are implemented; read-only formal integration evidence is recorded;
 next safe local work is acceptance/review evidence for approval consumption,
 provider dispatch preconditions, and sanitized audit surfaces, without opening
