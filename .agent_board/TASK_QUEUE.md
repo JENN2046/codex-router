@@ -44,6 +44,8 @@
 - Validate `npm run audit:future-codex-cli-canary-execution-gate` on clean
   local `main`.
 - Refresh post-merge anchors for clean-main execution gate audit.
+- Push local `main` to `origin/main` at `c679c58`.
+- Refresh post-push anchors for `c679c58`.
 
 ## In Progress
 
@@ -56,6 +58,5 @@
 
 ## Remaining
 
-- Push local `main` only after explicit user instruction.
 - Design the next pre-execution review step for a future real workspace-write
   canary without executing it.

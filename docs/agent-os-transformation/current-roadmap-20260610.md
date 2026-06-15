@@ -1,15 +1,15 @@
 # Agent OS Current Roadmap
 
 Date: 2026-06-15
-Current base: local `main` at `6d05762`; `origin/main` at `19b3a5e`
+Current base: `main` and `origin/main` at `c679c58`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
 matrix evidence are merged and locally validated. A fresh real read-only Codex
 CLI smoke has passed on current local `main`. The future Codex CLI canary
 execution authorization packet draft/review, post-merge anchors, and post-push
 anchors are pushed to `origin/main`. The final execution gate design for a
-future real workspace-write canary is merged into local `main`, and its
-clean-main audit passed without running workspace-write.
+future real workspace-write canary and its post-merge anchors are pushed to
+`origin/main`; the clean-main gate audit passed without running workspace-write.
 
 ## Current Position
 
@@ -188,7 +188,8 @@ After local review/evidence hardening:
 
 ## Validation Baseline
 
-Latest local validation on 2026-06-15 through local `main` at `6d05762`:
+Latest local validation on 2026-06-15 through `main` / `origin/main` at
+`c679c58`:
 
 - `npm run audit:approval-consumption-dispatch-matrix` passed on clean `main`.
 - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
@@ -206,6 +207,7 @@ Latest local validation on 2026-06-15 through local `main` at `6d05762`:
   passed on `docs/future-canary-execution-gate`.
 - `npm run audit:future-codex-cli-canary-execution-gate` passed on clean local
   `main` at `6d05762`.
+- `git push origin main` pushed `19b3a5e..c679c58`.
 - `npm run typecheck` passed.
 - `npm test` passed: `1003 / 1003`.
 - `npm run build` passed.

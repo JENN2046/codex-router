@@ -11,8 +11,8 @@ to `origin/main` at `4db8174`. The future Codex CLI canary execution
 authorization packet draft/review, post-merge anchors, and post-push anchors are
 pushed to `origin/main` at `19b3a5e`. Clean local `main` authorization packet
 audit passed before the post-push anchor merge. The future canary execution gate
-design is merged into local `main` at `6d05762`, and the clean local `main` gate
-audit passed.
+design and post-merge execution gate anchors are pushed to `origin/main` at
+`c679c58`. The clean local `main` gate audit passed before push.
 
 Changed files:
 
@@ -79,13 +79,14 @@ Changed files:
 - After local fast-forward merge, `npm run audit:future-codex-cli-canary-execution-gate`
   passed on clean local `main` at `6d05762`.
 - `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
+- `git push origin main` pushed `19b3a5e..c679c58`.
+- Post-push `git status -sb` showed `main...origin/main`.
 
 ## Not Run
 
 - Workspace-write real CLI smoke was not run.
 - General provider execution was not enabled.
 - Canary file write was not run.
-- Push was not run for `6d05762`.
 - No release, tag, deployment, or external service write other than the
   explicitly requested `git push origin main` was run.
 
