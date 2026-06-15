@@ -15,8 +15,11 @@ design, post-merge execution gate anchors, and post-push execution gate anchors
 are pushed to `origin/main` at `fe181cb`. The clean local `main` gate audit
 passed before push. The final pre-execution review, clean-main final-local audit
 fix, bounded real workspace-write canary evidence, post-canary anchors, and
-post-canary receipt rollback gate are pushed to `origin/main` at `5566777`. The
-current branch refreshes post-rollback-gate anchors.
+post-canary receipt rollback gate are pushed to `origin/main` at `5566777`.
+Post-rollback-gate anchors are pushed to `origin/main` at `67bee3f`. The current
+branch designs the capability taxonomy and escalation policy for future
+write-capable steps without running workspace-write or general provider
+execution.
 
 Changed files:
 
@@ -35,6 +38,9 @@ Changed files:
 - `tests/future-codex-cli-canary-authorization-packet-audit.test.ts`
 - `tests/future-codex-cli-canary-execution-gate-audit.test.ts`
 - `tests/future-codex-cli-canary-pre-execution-review-audit.test.ts`
+- `docs/governance/CAPABILITY_TAXONOMY_ESCALATION_POLICY.md`
+- `scripts/run-capability-taxonomy-escalation-policy-audit.ts`
+- `tests/capability-taxonomy-escalation-policy-audit.test.ts`
 
 ## Validation
 
@@ -130,6 +136,17 @@ passed: `5 / 5`.
 - `git push origin main` pushed `5642b43..5566777`.
 - `npm run audit:post-canary-receipt-rollback-gate` passed on clean aligned
   `main`.
+- `git push origin main` pushed `5566777..67bee3f`.
+- `npx tsx --test tests\capability-taxonomy-escalation-policy-audit.test.ts`
+  passed: `5 / 5`.
+- `npm run typecheck` passed.
+- `npm test` passed: `1037 / 1037`.
+- `npm run build` passed.
+- `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
+- `npm run audit:capability-taxonomy-escalation-policy` passed on clean
+  `docs/capability-taxonomy-escalation-policy` with provider execute, real
+  Codex CLI, workspace-write execute, canary file write, general provider
+  execution, and external write counts all at `0`.
 
 ## Not Run
 

@@ -1,8 +1,8 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `main` / `origin/main` at `5566777`, then
-`docs/post-rollback-gate-anchor`
+Branch: `main` / `origin/main` at `67bee3f`, then
+`docs/capability-taxonomy-escalation-policy`
 
 ## Passed
 
@@ -251,6 +251,35 @@ Branch: `main` / `origin/main` at `5566777`, then
   - Workspace-write execute calls during review: `0`
   - Canary file writes during review: `0`
   - Additional canary runs during review: `0`
+- `git push origin main`
+  - Result: pushed `5566777..67bee3f`
+- Capability taxonomy escalation policy tests
+  - Command:
+    `npx tsx --test tests\capability-taxonomy-escalation-policy-audit.test.ts`
+  - Result: `5 / 5`
+- `npm run typecheck`
+  - Result: passed after adding
+    `scripts/run-capability-taxonomy-escalation-policy-audit.ts`
+- `npm test`
+  - Result: `1037 / 1037`
+- `npm run build`
+  - Result: passed
+- `Test-Path tmp\codex-cli-write-canary.txt`
+  - Result: `False`
+- `npm run audit:capability-taxonomy-escalation-policy`
+  - Result: passed on clean
+    `docs/capability-taxonomy-escalation-policy`
+  - Branch ahead / behind: `1 / 0`
+  - Capability classes: `9`
+  - Evidence status: `passed`
+  - Execution status: `completed`
+  - Exit code: `0`
+  - Provider execute calls during taxonomy review: `0`
+  - Real Codex CLI calls during taxonomy review: `0`
+  - Workspace-write execute calls during taxonomy review: `0`
+  - Canary file writes during taxonomy review: `0`
+  - General provider execution calls during taxonomy review: `0`
+  - External write calls during taxonomy review: `0`
 
 ## Not Run
 

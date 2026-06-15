@@ -49,6 +49,7 @@
     "audit:future-codex-cli-canary-execution-gate": "tsx scripts/run-future-codex-cli-canary-execution-gate-audit.ts",
     "audit:future-codex-cli-canary-pre-execution-review": "tsx scripts/run-future-codex-cli-canary-pre-execution-review-audit.ts",
     "audit:post-canary-receipt-rollback-gate": "tsx scripts/run-post-canary-receipt-rollback-verification-gate-audit.ts",
+    "audit:capability-taxonomy-escalation-policy": "tsx scripts/run-capability-taxonomy-escalation-policy-audit.ts",
     "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
     "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
     "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts",

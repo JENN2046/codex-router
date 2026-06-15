@@ -2,8 +2,8 @@
 
 Date: 2026-06-15
 Workspace: `A:\AGENTS_OS_Workspace\governance\codex-router`
-Branch: `docs/post-rollback-gate-anchor`
-Base: `main` and `origin/main` at `5566777`
+Branch: `docs/capability-taxonomy-escalation-policy`
+Base: `main` and `origin/main` at `67bee3f`
 
 ## Current Mainline Evidence
 
@@ -14,6 +14,8 @@ Base: `main` and `origin/main` at `5566777`
   `5642b43 docs: refresh post real canary anchors`
 - Post-canary receipt rollback gate commit:
   `5566777 test: add post-canary rollback receipt gate`
+- Post-rollback-gate anchor commit:
+  `67bee3f docs: refresh post rollback gate anchors`
 
 ## Status
 
@@ -34,6 +36,14 @@ The post-canary receipt plus rollback verification gate is merged and pushed.
 `main` with no provider execute, real Codex CLI, workspace-write execute,
 canary file write, or additional canary run during receipt review.
 
+The post-rollback-gate anchors are merged and pushed. The current branch adds a
+local, non-executing capability taxonomy and escalation policy for future
+write-capable steps:
+
+- `docs/governance/CAPABILITY_TAXONOMY_ESCALATION_POLICY.md`
+- `scripts/run-capability-taxonomy-escalation-policy-audit.ts`
+- `tests/capability-taxonomy-escalation-policy-audit.test.ts`
+
 ## Current Boundary
 
 The recorded canary proves one bounded local workspace-write execution only. It
@@ -43,6 +53,6 @@ as general runtime modes.
 
 ## Next Safe Action
 
-Design and record the capability taxonomy and escalation policy for future
-write-capable steps. Keep the work local and non-executing unless a future task
-gives separate exact authorization.
+Review the capability taxonomy branch for merge readiness. Keep the work local
+and non-executing unless a future task gives separate exact authorization for a
+new execution boundary or remote action.

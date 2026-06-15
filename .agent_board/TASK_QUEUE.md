@@ -76,6 +76,15 @@
 - Validate `npm run audit:post-canary-receipt-rollback-gate` on clean aligned
   `main`.
 - Refresh post-rollback-gate anchors.
+- Fast-forward merge post-rollback-gate anchors into local `main`.
+- Push local `main` to `origin/main` at `67bee3f`.
+- Design capability taxonomy and escalation policy for future write-capable
+  steps.
+- Add local non-executing taxonomy audit script and regression tests.
+- Validate taxonomy targeted tests, typecheck, full tests, and build without
+  running workspace-write or general provider execution.
+- Commit the taxonomy/policy branch.
+- Run `npm run audit:capability-taxonomy-escalation-policy` on the clean branch.
 
 ## In Progress
 
@@ -88,7 +97,4 @@
 
 ## Remaining
 
-- Design capability taxonomy and escalation policy for future write-capable
-  steps.
-- Validate the taxonomy/policy without running workspace-write or general
-  provider execution.
+- Merge and push only after explicit user authorization for that remote action.
