@@ -40,6 +40,10 @@
 - Push local `main` to `origin/main` at `19b3a5e`.
 - Design the final local execution gate for a future real workspace-write
   canary without executing it.
+- Fast-forward merge future canary execution gate into local `main`.
+- Validate `npm run audit:future-codex-cli-canary-execution-gate` on clean
+  local `main`.
+- Refresh post-merge anchors for clean-main execution gate audit.
 
 ## In Progress
 
@@ -52,5 +56,6 @@
 
 ## Remaining
 
-- Run the execution gate audit on clean `main` only after local fast-forward
-  merge.
+- Push local `main` only after explicit user instruction.
+- Design the next pre-execution review step for a future real workspace-write
+  canary without executing it.

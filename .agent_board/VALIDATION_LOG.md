@@ -1,8 +1,8 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `main` / `origin/main` at `19b3a5e`, then
-`docs/future-canary-execution-gate`
+Branch: local `main` at `6d05762`, then
+`docs/post-merge-execution-gate-anchor`
 
 ## Passed
 
@@ -113,6 +113,18 @@ Branch: `main` / `origin/main` at `19b3a5e`, then
   - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
     canary file writes `0`
   - Reasons: `future_codex_cli_canary_execution_gate_branchMain`
+- `npm run audit:future-codex-cli-canary-execution-gate`
+  - Result: passed on clean local `main` at `6d05762`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
+    canary file writes `0`
+- `Test-Path tmp\codex-cli-write-canary.txt`
+  - Result: `False`
+- `npm run audit:future-codex-cli-canary-execution-gate`
+  - Result: expected blocked on `docs/post-merge-execution-gate-anchor`
+    because the worktree is dirty and branch is not `main`
+  - Reasons:
+    `future_codex_cli_canary_execution_gate_worktreeClean`,
+    `future_codex_cli_canary_execution_gate_branchMain`
 
 ## Not Run
 
