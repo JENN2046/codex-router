@@ -66,6 +66,9 @@ export interface CodexCliExecutorProviderOptions {
   env?: NodeJS.ProcessEnv;
   oneShotEnv?: NodeJS.ProcessEnv;
   skipExecutionModelProbe?: boolean;
+  promptHandoffStore?: CodexCliProviderPromptHandoffStore;
+  promptHandoffTtlMs?: number;
+  nowMs?: () => number;
 }
 
 export type CodexCliProviderExecutionMode = "fake" | "real";
@@ -114,7 +117,62 @@ export interface CodexCliProviderPlanMetadata {
   policyAllowsWorkspaceWrite: boolean;
   policyDecisionHash: string;
   routingDecisionHash: string;
+  promptHandoff: CodexCliProviderPromptHandoffMetadata;
   codexCliPlan: CodexCliProviderSanitizedPlan;
+}
+
+export interface CodexCliProviderPromptHandoffMetadata {
+  schemaVersion: "codex-cli-provider-handoff.v1";
+  storage: "one-shot";
+  handle: string;
+  inputHash: string;
+  contentHash: string;
+}
+
+export interface CodexCliProviderPromptHandoffRecord {
+  schemaVersion: "codex-cli-provider-handoff-record.v1";
+  handle: string;
+  planId: string;
+  runId: string;
+  taskId: string;
+  inputHash: string;
+  contentHash: string;
+  content: string;
+  expiresAtMs?: number;
+}
+
+export interface CodexCliProviderPromptHandoffStore {
+  put(record: CodexCliProviderPromptHandoffRecord): void;
+  consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined;
+}
+
+class InMemoryCodexCliProviderPromptHandoffStore implements CodexCliProviderPromptHandoffStore {
+  private readonly records = new Map<string, CodexCliProviderPromptHandoffRecord>();
+
+  constructor(private readonly nowMs: () => number) {}
+
+  put(record: CodexCliProviderPromptHandoffRecord): void {
+    this.records.set(record.handle, {
+      ...record
+    });
+  }
+
+  consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
+    const record = this.records.get(handle);
+    this.records.delete(handle);
+
+    if (record === undefined) {
+      return undefined;
+    }
+
+    if (record.expiresAtMs !== undefined && record.expiresAtMs <= this.nowMs()) {
+      return undefined;
+    }
+
+    return {
+      ...record
+    };
+  }
 }
 
 export class CodexCliProviderExecutionDisabledError extends Error {
@@ -185,6 +243,9 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
   private readonly env: NodeJS.ProcessEnv | undefined;
   private readonly oneShotEnv: NodeJS.ProcessEnv | undefined;
   private readonly skipExecutionModelProbe: boolean;
+  private readonly promptHandoffStore: CodexCliProviderPromptHandoffStore;
+  private readonly promptHandoffTtlMs: number;
+  private readonly nowMs: () => number;
 
   constructor(options: CodexCliExecutorProviderOptions = {}) {
     this.manifest = options.manifest ?? codexCliProviderManifest;
@@ -196,6 +257,10 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
     this.env = options.env;
     this.oneShotEnv = options.oneShotEnv;
     this.skipExecutionModelProbe = options.skipExecutionModelProbe ?? true;
+    this.nowMs = options.nowMs ?? (() => Date.now());
+    this.promptHandoffTtlMs = options.promptHandoffTtlMs ?? 5 * 60 * 1000;
+    this.promptHandoffStore = options.promptHandoffStore
+      ?? new InMemoryCodexCliProviderPromptHandoffStore(this.nowMs);
   }
 
   planExecution(input: ExecutionPlanInput): ExecutorExecutionPlan {
@@ -229,19 +294,28 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
     const policyDecisionHash = hashKernelObject(input.policyDecision);
     const routingDecisionHash = hashKernelObject(parsedRoutingDecision);
     const inputHash = input.inputHash ?? createCodexCliProviderInputHash(input);
+    const planId = `plan_codex_cli_${input.task.taskId}_${inputHash.slice(0, 12)}`;
+    const promptHandoff = createCodexCliProviderPromptHandoffMetadata({
+      planId,
+      runId: input.run.runId,
+      taskId: input.task.taskId,
+      inputHash,
+      content: codexCliPlan.prompt
+    });
     const metadata: CodexCliProviderPlanMetadata = {
       schemaVersion: "codex-cli-provider-plan-metadata.v1",
       promptStorage: "omitted",
       policyAllowsWorkspaceWrite: effectiveSandbox === "workspace-write",
       policyDecisionHash,
       routingDecisionHash,
+      promptHandoff,
       codexCliPlan: sanitizeCodexCliPlan(codexCliPlan)
     };
 
-    return parseExecutorExecutionPlan({
+    const executionPlan = parseExecutorExecutionPlan({
       schemaVersion: "executor-execution-plan.v1",
       kind: "executor",
-      planId: `plan_codex_cli_${input.task.taskId}_${inputHash.slice(0, 12)}`,
+      planId,
       runId: input.run.runId,
       taskId: input.task.taskId,
       providerId: this.manifest.providerId,
@@ -256,6 +330,19 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
         codexCliProvider: metadata
       }
     });
+    this.promptHandoffStore.put({
+      schemaVersion: "codex-cli-provider-handoff-record.v1",
+      handle: promptHandoff.handle,
+      planId,
+      runId: input.run.runId,
+      taskId: input.task.taskId,
+      inputHash,
+      contentHash: promptHandoff.contentHash,
+      content: codexCliPlan.prompt,
+      expiresAtMs: this.nowMs() + this.promptHandoffTtlMs
+    });
+
+    return executionPlan;
   }
 
   validateExecutionPlan(plan: ExecutorExecutionPlan): ExecutionValidationResult {
@@ -400,7 +487,26 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
       );
     }
 
-    const codexCliPlan = createValidationCodexCliPlan(parsedPlan, metadata);
+    const handoff = this.promptHandoffStore.consume(metadata.promptHandoff.handle);
+    const handoffValidationReasons = validateCodexCliProviderPromptHandoff(
+      parsedPlan,
+      metadata,
+      handoff
+    );
+    if (handoffValidationReasons.length > 0 || handoff === undefined) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_handoff_invalid",
+        handoffValidationReasons.length > 0
+          ? handoffValidationReasons
+          : ["codex_cli_provider_handoff_missing"]
+      );
+    }
+
+    const codexCliPlan = createExecutionCodexCliPlan(
+      parsedPlan,
+      metadata,
+      handoff.content
+    );
     let run: CodexCliProcessRunResult;
     try {
       run = await runCodexCliExecPlan(codexCliPlan, {
@@ -868,6 +974,29 @@ function sanitizeCodexCliPlan(plan: CodexCliExecPlan): CodexCliProviderSanitized
   return sanitized;
 }
 
+function createCodexCliProviderPromptHandoffMetadata(input: {
+  planId: string;
+  runId: string;
+  taskId: string;
+  inputHash: string;
+  content: string;
+}): CodexCliProviderPromptHandoffMetadata {
+  const contentHash = hashCodexCliProviderPromptContent(input.content);
+  return {
+    schemaVersion: "codex-cli-provider-handoff.v1",
+    storage: "one-shot",
+    handle: [
+      "handoff_codex_cli",
+      toSafeCodexCliProviderHandoffPart(input.taskId),
+      toSafeCodexCliProviderHandoffPart(input.runId),
+      input.inputHash.slice(0, 12),
+      contentHash.slice(0, 12)
+    ].join("_"),
+    inputHash: input.inputHash,
+    contentHash
+  };
+}
+
 function createValidationCodexCliPlan(
   plan: ExecutorExecutionPlan,
   metadata: CodexCliProviderPlanMetadata
@@ -894,6 +1023,19 @@ function createValidationCodexCliPlan(
   }
 
   return validationPlan;
+}
+
+function createExecutionCodexCliPlan(
+  plan: ExecutorExecutionPlan,
+  metadata: CodexCliProviderPlanMetadata,
+  prompt: string
+): CodexCliExecPlan {
+  const executionPlan = createValidationCodexCliPlan(plan, metadata);
+  return {
+    ...executionPlan,
+    args: [...metadata.codexCliPlan.argsWithoutPrompt, prompt],
+    prompt
+  };
 }
 
 function createRedactedValidationTask(
@@ -941,7 +1083,11 @@ function readCodexCliProviderMetadata(
   }
 
   const codexCliPlan = metadata.codexCliPlan;
+  const promptHandoff = metadata.promptHandoff;
   if (!isRecord(codexCliPlan)) {
+    return undefined;
+  }
+  if (!isRecord(promptHandoff)) {
     return undefined;
   }
 
@@ -951,6 +1097,11 @@ function readCodexCliProviderMetadata(
     || typeof metadata.policyAllowsWorkspaceWrite !== "boolean"
     || typeof metadata.policyDecisionHash !== "string"
     || typeof metadata.routingDecisionHash !== "string"
+    || promptHandoff.schemaVersion !== "codex-cli-provider-handoff.v1"
+    || promptHandoff.storage !== "one-shot"
+    || typeof promptHandoff.handle !== "string"
+    || typeof promptHandoff.inputHash !== "string"
+    || typeof promptHandoff.contentHash !== "string"
     || codexCliPlan.schemaVersion !== "codex-cli-provider-sanitized-plan.v1"
     || typeof codexCliPlan.command !== "string"
     || !Array.isArray(codexCliPlan.argsWithoutPrompt)
@@ -992,6 +1143,13 @@ function readCodexCliProviderMetadata(
     policyAllowsWorkspaceWrite: metadata.policyAllowsWorkspaceWrite,
     policyDecisionHash: metadata.policyDecisionHash,
     routingDecisionHash: metadata.routingDecisionHash,
+    promptHandoff: {
+      schemaVersion: "codex-cli-provider-handoff.v1",
+      storage: "one-shot",
+      handle: promptHandoff.handle,
+      inputHash: promptHandoff.inputHash,
+      contentHash: promptHandoff.contentHash
+    },
     codexCliPlan: parsedPlan
   };
 }
@@ -1289,13 +1447,26 @@ function validateCodexCliProviderMetadata(
   const reasons: string[] = [];
   const rawMetadata = metadata as unknown as Record<string, unknown>;
   const rawCodexPlan = metadata.codexCliPlan as unknown as Record<string, unknown>;
+  const rawHandoff = metadata.promptHandoff as unknown as Record<string, unknown>;
 
   if ("prompt" in rawMetadata || "prompt" in rawCodexPlan) {
     reasons.push("codex_cli_provider_plan_must_not_store_prompt");
   }
 
+  if ("prompt" in rawHandoff || "content" in rawHandoff || "raw" in rawHandoff) {
+    reasons.push("codex_cli_provider_handoff_must_not_store_raw_content");
+  }
+
   if (metadata.codexCliPlan.promptOmitted !== true) {
     reasons.push("codex_cli_provider_prompt_omission_required");
+  }
+
+  if (
+    !/^[a-f0-9]{64}$/.test(metadata.promptHandoff.inputHash)
+    || !/^[a-f0-9]{64}$/.test(metadata.promptHandoff.contentHash)
+    || metadata.promptHandoff.handle.trim().length === 0
+  ) {
+    reasons.push("codex_cli_provider_handoff_metadata_invalid");
   }
 
   if (
@@ -1321,6 +1492,10 @@ function validateCodexCliPlanAlignment(
     );
   }
 
+  if (metadata.promptHandoff.inputHash !== plan.inputHash) {
+    reasons.push("codex_cli_provider_handoff_input_hash_mismatch");
+  }
+
   if (
     plan.sideEffectClass === "read_only"
     && metadata.codexCliPlan.sandbox !== "read-only"
@@ -1338,6 +1513,57 @@ function validateCodexCliPlanAlignment(
   return reasons;
 }
 
+function validateCodexCliProviderPromptHandoff(
+  plan: ExecutorExecutionPlan,
+  metadata: CodexCliProviderPlanMetadata,
+  handoff: CodexCliProviderPromptHandoffRecord | undefined
+): string[] {
+  if (handoff === undefined) {
+    return ["codex_cli_provider_handoff_missing"];
+  }
+
+  const reasons: string[] = [];
+  if (handoff.schemaVersion !== "codex-cli-provider-handoff-record.v1") {
+    reasons.push("codex_cli_provider_handoff_schema_mismatch");
+  }
+
+  if (handoff.handle !== metadata.promptHandoff.handle) {
+    reasons.push("codex_cli_provider_handoff_handle_mismatch");
+  }
+
+  if (handoff.planId !== plan.planId) {
+    reasons.push("codex_cli_provider_handoff_plan_mismatch");
+  }
+
+  if (handoff.runId !== plan.runId) {
+    reasons.push("codex_cli_provider_handoff_run_mismatch");
+  }
+
+  if (handoff.taskId !== plan.taskId) {
+    reasons.push("codex_cli_provider_handoff_task_mismatch");
+  }
+
+  if (
+    handoff.inputHash !== plan.inputHash
+    || handoff.inputHash !== metadata.promptHandoff.inputHash
+  ) {
+    reasons.push("codex_cli_provider_handoff_input_hash_mismatch");
+  }
+
+  if (
+    handoff.contentHash !== metadata.promptHandoff.contentHash
+    || hashCodexCliProviderPromptContent(handoff.content) !== metadata.promptHandoff.contentHash
+  ) {
+    reasons.push("codex_cli_provider_handoff_content_hash_mismatch");
+  }
+
+  if (handoff.content.trim().length === 0) {
+    reasons.push("codex_cli_provider_handoff_empty_content");
+  }
+
+  return uniqueStrings(reasons);
+}
+
 function createCodexCliProviderInputHash(input: ExecutionPlanInput): string {
   return hashKernelObject({
     task: input.task,
@@ -1348,6 +1574,22 @@ function createCodexCliProviderInputHash(input: ExecutionPlanInput): string {
       ? undefined
       : hashKernelObject(input.proposedInput)
   });
+}
+
+function hashCodexCliProviderPromptContent(content: string): string {
+  return hashKernelObject({
+    codexCliProviderPromptContent: content
+  });
+}
+
+function toSafeCodexCliProviderHandoffPart(value: string): string {
+  const safe = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return safe || "unknown";
 }
 
 function hasProtectedRemoteSideEffect(policyDecision: PolicyDecision): boolean {

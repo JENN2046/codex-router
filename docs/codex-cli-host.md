@@ -337,6 +337,19 @@ The default implementation uses `child_process.spawn()` with `shell: false`.
 Tests use an injectable spawner so the policy and evidence behavior can be
 validated without running live Codex CLI work.
 
+## Provider Prompt Handoff
+
+The Codex CLI executor provider still omits the raw task prompt from provider
+plan metadata and artifacts. Plan metadata records only a one-shot handoff
+handle, the provider input hash, and a prompt content hash. The raw prompt is
+kept in a short-lived in-memory handoff store owned by the provider instance.
+
+Non-dry-run provider execution must consume that handoff exactly once before it
+spawns Codex CLI. The provider checks plan id, run id, task id, input hash, and
+content hash before rebuilding the final `codex exec` argv. Missing, expired,
+reused, or mismatched handoffs fail closed before spawn. Dry-runs validate the
+sanitized plan and never consume or expose the raw prompt.
+
 ## Read-Only Smoke
 
 `runCodexCliReadOnlySmoke()` is the explicit safe smoke wrapper for the
