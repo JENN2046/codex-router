@@ -16,6 +16,8 @@ import {
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
   PR_12B_REAL_CANARY_BRANCH,
   PR_12B_REAL_CANARY_WORKSPACE,
+  WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV,
+  createWorkspaceWriteRealCanaryConfigFromEnv,
   createWorkspaceWriteRollbackPlanEvidence,
   evaluateWorkspaceWriteCanaryReadiness,
   evaluateWorkspaceWriteRealCanaryAuthorization,
@@ -416,6 +418,61 @@ test("workspace-write real canary authorization accepts only the PR-12B exact pa
     workspaceWriteExecuteCalls: 0,
     canaryFileWrites: 0
   });
+});
+
+test("workspace-write real canary authorization accepts configured canary target from env", () => {
+  const canaryConfig = createWorkspaceWriteRealCanaryConfigFromEnv({
+    [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.targetFile]: "var/canary/configured.txt",
+    [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.workspace]: "D:/configured/repo",
+    [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.branch]: "canary/main",
+    [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.allowedAction]: "one configured local canary write"
+  });
+  const authorization = evaluateWorkspaceWriteRealCanaryAuthorization({
+    authorizationPhrase: PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
+    workspace: "D:\\configured\\repo\\",
+    branch: "canary/main",
+    targetFile: "var/canary/configured.txt",
+    allowedAction: "one configured local canary write",
+    canaryConfig,
+    sandboxMode: "workspace-write",
+    rollbackRequired: true,
+    pushAuthorized: false
+  });
+  const defaultTargetAuthorization = evaluateWorkspaceWriteRealCanaryAuthorization({
+    authorizationPhrase: PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
+    workspace: "D:/configured/repo",
+    branch: "canary/main",
+    targetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+    allowedAction: "one configured local canary write",
+    canaryConfig,
+    sandboxMode: "workspace-write",
+    rollbackRequired: true,
+    pushAuthorized: false
+  });
+
+  assert.equal(canaryConfig.targetFile, "var/canary/configured.txt");
+  assert.equal(authorization.ok, true);
+  assert.equal(authorization.status, "authorized");
+  assert.equal(defaultTargetAuthorization.ok, false);
+  assert.ok(defaultTargetAuthorization.reasons.includes(
+    "workspace_write_real_canary_authorization_fixed_target_required"
+  ));
+});
+
+test("workspace-write real canary env config rejects unsafe target files", () => {
+  assert.throws(
+    () => createWorkspaceWriteRealCanaryConfigFromEnv({
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.targetFile]: "../outside.txt"
+    }),
+    /workspace_write_real_canary_config_target_file_unsafe/
+  );
+
+  assert.throws(
+    () => createWorkspaceWriteRealCanaryConfigFromEnv({
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.targetFile]: "C:/outside.txt"
+    }),
+    /workspace_write_real_canary_config_target_file_unsafe/
+  );
 });
 
 test("workspace-write real canary authorization fails closed on missing or broadened fields", () => {

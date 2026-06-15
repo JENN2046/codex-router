@@ -5,11 +5,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
-  PR_12B_REAL_CANARY_ALLOWED_ACTION,
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
-  PR_12B_REAL_CANARY_BRANCH,
-  PR_12B_REAL_CANARY_WORKSPACE,
+  createWorkspaceWriteRealCanaryConfig,
+  createWorkspaceWriteRealCanaryConfigFromEnv,
+  type WorkspaceWriteRealCanaryConfig,
+  type WorkspaceWriteRealCanaryConfigEnv,
+  type WorkspaceWriteRealCanaryConfigInput,
   evaluateWorkspaceWriteRealCanaryAuthorization
 } from "../packages/workspace-write-guard/src/index.js";
 
@@ -22,7 +23,6 @@ const DEFAULT_EVIDENCE_PATH = join(
   "workspace-write-real-canary-authorization-acceptance.json"
 );
 const DEFAULT_GENERATED_AT = "2026-06-14T00:00:00.000Z";
-const CANARY_TARGET_FILE = DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE;
 
 export interface WorkspaceWriteRealCanaryAuthorizationAcceptanceEvidence {
   schemaVersion: "workspace-write-real-canary-authorization-acceptance.v1";
@@ -63,19 +63,23 @@ export interface WorkspaceWriteRealCanaryAuthorizationAcceptanceEvidence {
 
 export interface WorkspaceWriteRealCanaryAuthorizationAcceptanceOptions {
   generatedAt?: string;
+  canaryConfig?: WorkspaceWriteRealCanaryConfigInput;
+  env?: WorkspaceWriteRealCanaryConfigEnv;
 }
 
 export async function runWorkspaceWriteRealCanaryAuthorizationAcceptance(
   options: WorkspaceWriteRealCanaryAuthorizationAcceptanceOptions = {}
 ): Promise<WorkspaceWriteRealCanaryAuthorizationAcceptanceEvidence> {
   const generatedAt = options.generatedAt ?? DEFAULT_GENERATED_AT;
-  const canaryFileExistsBefore = existsSync(CANARY_TARGET_FILE);
+  const canaryConfig = resolveCanaryConfig(options);
+  const canaryFileExistsBefore = existsSync(canaryConfig.targetFile);
   const exactAuthorization = evaluateWorkspaceWriteRealCanaryAuthorization({
     authorizationPhrase: PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
-    workspace: PR_12B_REAL_CANARY_WORKSPACE,
-    branch: PR_12B_REAL_CANARY_BRANCH,
-    targetFile: CANARY_TARGET_FILE,
-    allowedAction: PR_12B_REAL_CANARY_ALLOWED_ACTION,
+    workspace: canaryConfig.workspace,
+    branch: canaryConfig.branch,
+    targetFile: canaryConfig.targetFile,
+    allowedAction: canaryConfig.allowedAction,
+    canaryConfig,
     sandboxMode: "workspace-write",
     rollbackRequired: true,
     pushAuthorized: false
@@ -93,10 +97,11 @@ export async function runWorkspaceWriteRealCanaryAuthorizationAcceptance(
   });
   const pushAuthorization = evaluateWorkspaceWriteRealCanaryAuthorization({
     authorizationPhrase: PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
-    workspace: PR_12B_REAL_CANARY_WORKSPACE,
-    branch: PR_12B_REAL_CANARY_BRANCH,
-    targetFile: CANARY_TARGET_FILE,
-    allowedAction: PR_12B_REAL_CANARY_ALLOWED_ACTION,
+    workspace: canaryConfig.workspace,
+    branch: canaryConfig.branch,
+    targetFile: canaryConfig.targetFile,
+    allowedAction: canaryConfig.allowedAction,
+    canaryConfig,
     sandboxMode: "workspace-write",
     rollbackRequired: true,
     pushAuthorized: true
@@ -107,7 +112,7 @@ export async function runWorkspaceWriteRealCanaryAuthorizationAcceptance(
     workspaceWriteExecuteCalls: 0,
     canaryFileWrites: 0
   };
-  const canaryFileExistsAfter = existsSync(CANARY_TARGET_FILE);
+  const canaryFileExistsAfter = existsSync(canaryConfig.targetFile);
   const evidenceWithoutLeakCheck: Omit<
     WorkspaceWriteRealCanaryAuthorizationAcceptanceEvidence,
     "checks"
@@ -145,8 +150,8 @@ export async function runWorkspaceWriteRealCanaryAuthorizationAcceptance(
       noCanaryFileWrite: counters.canaryFileWrites === 0
     },
     summary: {
-      targetFile: CANARY_TARGET_FILE,
-      branch: PR_12B_REAL_CANARY_BRANCH,
+      targetFile: canaryConfig.targetFile,
+      branch: canaryConfig.branch,
       requiredSandbox: "workspace-write",
       requiredRollback: true,
       pushMustBeSeparate: true,
@@ -162,7 +167,7 @@ export async function runWorkspaceWriteRealCanaryAuthorizationAcceptance(
       ...pushAuthorization.reasons
     ])
   };
-  const leakCheckPassed = !containsForbiddenMarkers(evidenceWithoutLeakCheck);
+  const leakCheckPassed = !containsForbiddenMarkers(evidenceWithoutLeakCheck, canaryConfig);
 
   return {
     ...evidenceWithoutLeakCheck,
@@ -171,6 +176,20 @@ export async function runWorkspaceWriteRealCanaryAuthorizationAcceptance(
       leakCheckPassed
     }
   };
+}
+
+function resolveCanaryConfig(
+  options: WorkspaceWriteRealCanaryAuthorizationAcceptanceOptions
+): WorkspaceWriteRealCanaryConfig {
+  if (options.canaryConfig !== undefined) {
+    return createWorkspaceWriteRealCanaryConfig(options.canaryConfig);
+  }
+
+  if (options.env !== undefined) {
+    return createWorkspaceWriteRealCanaryConfigFromEnv(options.env);
+  }
+
+  return createWorkspaceWriteRealCanaryConfig();
 }
 
 export async function writeWorkspaceWriteRealCanaryAuthorizationAcceptanceEvidence(
@@ -188,12 +207,15 @@ export async function writeWorkspaceWriteRealCanaryAuthorizationAcceptanceEviden
   };
 }
 
-function containsForbiddenMarkers(value: unknown): boolean {
+function containsForbiddenMarkers(
+  value: unknown,
+  canaryConfig: WorkspaceWriteRealCanaryConfig
+): boolean {
   const serialized = JSON.stringify(value);
   return [
     PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
-    PR_12B_REAL_CANARY_WORKSPACE,
-    PR_12B_REAL_CANARY_ALLOWED_ACTION,
+    canaryConfig.workspace,
+    canaryConfig.allowedAction,
     "requestedAction",
     "prompt",
     "args",
@@ -223,7 +245,9 @@ async function main(): Promise<void> {
   const outputPath = outputIdx >= 0
     ? process.argv[outputIdx + 1]!
     : DEFAULT_EVIDENCE_PATH;
-  const evidence = await runWorkspaceWriteRealCanaryAuthorizationAcceptance();
+  const evidence = await runWorkspaceWriteRealCanaryAuthorizationAcceptance({
+    env: process.env
+  });
   const write = await writeWorkspaceWriteRealCanaryAuthorizationAcceptanceEvidence(
     evidence,
     outputPath

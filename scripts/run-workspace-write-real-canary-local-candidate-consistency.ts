@@ -10,7 +10,12 @@ import {
   DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
   PR_12B_REAL_CANARY_ALLOWED_ACTION,
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
-  PR_12B_REAL_CANARY_WORKSPACE
+  PR_12B_REAL_CANARY_WORKSPACE,
+  createWorkspaceWriteRealCanaryConfig,
+  createWorkspaceWriteRealCanaryConfigFromEnv,
+  type WorkspaceWriteRealCanaryConfig,
+  type WorkspaceWriteRealCanaryConfigEnv,
+  type WorkspaceWriteRealCanaryConfigInput
 } from "../packages/workspace-write-guard/src/index.js";
 import {
   WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS,
@@ -124,6 +129,7 @@ export interface WorkspaceWriteRealCanaryLocalCandidateConsistencyInput {
   preExecutionEvidenceText: string;
   governanceDocs: Record<string, string>;
   canaryFileExists: boolean;
+  canaryTargetFile?: string;
 }
 
 export interface WorkspaceWriteRealCanaryLocalCandidateConsistencyResult {
@@ -138,6 +144,7 @@ export interface WorkspaceWriteRealCanaryLocalCandidateConsistencyResult {
     evidenceParseable: boolean;
     evidenceLocalOnly: boolean;
     evidenceNoExecution: boolean;
+    evidenceTargetMatchesConfigured: boolean;
     evidenceSanitized: boolean;
     governanceDocsNonAuthorizing: boolean;
     auditFieldValuesRecorded: boolean;
@@ -167,8 +174,13 @@ export type WorkspaceWriteRealCanaryLocalCandidateConsistencyOutputFormat =
   | "json";
 
 export async function collectWorkspaceWriteRealCanaryLocalCandidateConsistencyInput(
-  cwd = process.cwd()
+  cwd = process.cwd(),
+  options: {
+    canaryConfig?: WorkspaceWriteRealCanaryConfigInput;
+    env?: WorkspaceWriteRealCanaryConfigEnv;
+  } = {}
 ): Promise<WorkspaceWriteRealCanaryLocalCandidateConsistencyInput> {
+  const canaryConfig = resolveCanaryConfig(options);
   const [gitStatusShort, branch, aheadBehindRaw, changedFilesRaw] = await Promise.all([
     git(["status", "--short"], cwd),
     git(["branch", "--show-current"], cwd),
@@ -195,7 +207,8 @@ export async function collectWorkspaceWriteRealCanaryLocalCandidateConsistencyIn
       "utf8"
     ),
     governanceDocs: await readGovernanceDocs(cwd),
-    canaryFileExists: existsSync(join(cwd, DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE))
+    canaryFileExists: existsSync(join(cwd, canaryConfig.targetFile)),
+    canaryTargetFile: canaryConfig.targetFile
   };
 }
 
@@ -207,6 +220,7 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
   const authorizationEvidence = parseObject(input.authorizationEvidenceText);
   const preExecutionEvidence = parseObject(input.preExecutionEvidenceText);
   const packageScriptTargetReview = reviewPackageScriptTargets(packageJson);
+  const canaryTargetFile = input.canaryTargetFile ?? DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE;
 
   const checks = {
     worktreeClean: input.gitStatusShort.trim() === "",
@@ -226,6 +240,11 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
       === "workspace-write-real-canary-pre-execution-local-only",
     evidenceNoExecution: evidenceHasNoExecution(authorizationEvidence)
       && evidenceHasNoExecution(preExecutionEvidence),
+    evidenceTargetMatchesConfigured: evidenceTargetMatchesConfigured(
+      authorizationEvidence,
+      preExecutionEvidence,
+      canaryTargetFile
+    ),
     evidenceSanitized: !containsForbiddenMarker(input.authorizationEvidenceText)
       && !containsForbiddenMarker(input.preExecutionEvidenceText),
     governanceDocsNonAuthorizing: governanceDocsAreNonAuthorizing(input.governanceDocs),
@@ -262,6 +281,11 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
     reasons,
     checks.evidenceNoExecution,
     "workspace_write_real_canary_candidate_execution_counter_nonzero"
+  );
+  addReasonIfFalse(
+    reasons,
+    checks.evidenceTargetMatchesConfigured,
+    "workspace_write_real_canary_candidate_evidence_target_mismatch"
   );
   addReasonIfFalse(
     reasons,
@@ -304,7 +328,7 @@ export function reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
       ).length,
       packageScriptTargetCount: packageScriptTargetReview.targetCount,
       packageScriptTargetMismatchCount: packageScriptTargetReview.mismatchCount,
-      canaryTargetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+      canaryTargetFile,
       finalAuditNoForbiddenCommands: finalAuditNoForbiddenCommands(),
       ...executionCounters
     },
@@ -397,6 +421,15 @@ function evidenceHasNoExecution(evidence: Record<string, unknown> | undefined): 
     && getNumber(evidence, ["counters", "canaryFileWrites"]) === 0;
 }
 
+function evidenceTargetMatchesConfigured(
+  authorizationEvidence: Record<string, unknown> | undefined,
+  preExecutionEvidence: Record<string, unknown> | undefined,
+  canaryTargetFile: string
+): boolean {
+  return getString(authorizationEvidence, ["summary", "targetFile"]) === canaryTargetFile
+    && getString(preExecutionEvidence, ["summary", "targetFile"]) === canaryTargetFile;
+}
+
 function mergeExecutionCounters(
   authorizationEvidence: Record<string, unknown> | undefined,
   preExecutionEvidence: Record<string, unknown> | undefined
@@ -478,6 +511,21 @@ function finalAuditJsonContractIsValid(): boolean {
 
 function finalAuditNoForbiddenCommands(): boolean {
   return getBoolean(parseFinalAuditJsonContract(), ["checks", "noForbiddenCommands"]) === true;
+}
+
+function resolveCanaryConfig(options: {
+  canaryConfig?: WorkspaceWriteRealCanaryConfigInput;
+  env?: WorkspaceWriteRealCanaryConfigEnv;
+}): WorkspaceWriteRealCanaryConfig {
+  if (options.canaryConfig !== undefined) {
+    return createWorkspaceWriteRealCanaryConfig(options.canaryConfig);
+  }
+
+  if (options.env !== undefined) {
+    return createWorkspaceWriteRealCanaryConfigFromEnv(options.env);
+  }
+
+  return createWorkspaceWriteRealCanaryConfig();
 }
 
 function parseFinalAuditJsonContract(): Record<string, unknown> | undefined {
@@ -600,7 +648,10 @@ function addReasonIfFalse(reasons: string[], condition: boolean, reason: string)
 }
 
 async function main(): Promise<void> {
-  const input = await collectWorkspaceWriteRealCanaryLocalCandidateConsistencyInput();
+  const input = await collectWorkspaceWriteRealCanaryLocalCandidateConsistencyInput(
+    process.cwd(),
+    { env: process.env }
+  );
   const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(input);
   const format = process.argv.includes("--json") ? "json" : "text";
 

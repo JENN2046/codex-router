@@ -6,7 +6,8 @@ import { join } from "node:path";
 import {
   PR_12B_REAL_CANARY_ALLOWED_ACTION,
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
-  PR_12B_REAL_CANARY_WORKSPACE
+  PR_12B_REAL_CANARY_WORKSPACE,
+  WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV
 } from "../packages/workspace-write-guard/src/index.js";
 import {
   runWorkspaceWriteRealCanaryPreExecutionAcceptance,
@@ -115,6 +116,26 @@ test("workspace-write real canary pre-execution acceptance writer persists safe 
   assert.equal(parsed.checks.noCanaryFileWrite, true);
   assert.equal(parsed.checks.leakCheckPassed, true);
   assertSafeEvidence(parsed);
+});
+
+test("workspace-write real canary pre-execution acceptance reads canary config from env", async () => {
+  const evidence = await runWorkspaceWriteRealCanaryPreExecutionAcceptance({
+    generatedAt: now,
+    env: {
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.targetFile]: "tmp/configured-pre-canary.txt",
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.workspace]: "D:/configured/pre-repo",
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.branch]: "canary/pre",
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.allowedAction]: "one configured pre canary write"
+    }
+  });
+  const serialized = JSON.stringify(evidence);
+
+  assert.equal(evidence.checks.authorizationAccepted, true);
+  assert.equal(evidence.checks.canaryReadinessReady, true);
+  assert.equal(evidence.checks.preExecutionGateReady, true);
+  assert.equal(evidence.summary.targetFile, "tmp/configured-pre-canary.txt");
+  assert.equal(serialized.includes("D:/configured/pre-repo"), false);
+  assert.equal(serialized.includes("one configured pre canary write"), false);
 });
 
 function assertSafeEvidence(

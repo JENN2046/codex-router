@@ -13,6 +13,18 @@ export const PR_12B_REAL_CANARY_WORKSPACE =
   "A:\\AGENTS_OS_Workspace\\governance\\codex-router\\repo";
 export const PR_12B_REAL_CANARY_BRANCH = "main";
 export const PR_12B_REAL_CANARY_ALLOWED_ACTION = "one bounded local canary write";
+export const WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV = {
+  targetFile: "WORKSPACE_WRITE_REAL_CANARY_TARGET_FILE",
+  workspace: "WORKSPACE_WRITE_REAL_CANARY_WORKSPACE",
+  branch: "WORKSPACE_WRITE_REAL_CANARY_BRANCH",
+  allowedAction: "WORKSPACE_WRITE_REAL_CANARY_ALLOWED_ACTION"
+} as const;
+export const DEFAULT_WORKSPACE_WRITE_REAL_CANARY_CONFIG = {
+  targetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+  workspace: PR_12B_REAL_CANARY_WORKSPACE,
+  branch: PR_12B_REAL_CANARY_BRANCH,
+  allowedAction: PR_12B_REAL_CANARY_ALLOWED_ACTION
+} as const;
 
 export const WorkspaceWriteDiffFileSummarySchema = z.object({
   path: z.string().min(1),
@@ -195,10 +207,22 @@ export type WorkspaceWriteRealCanaryAuthorizationInput = {
   branch?: string;
   targetFile?: string;
   allowedAction?: string;
+  canaryConfig?: WorkspaceWriteRealCanaryConfigInput;
   sandboxMode?: string;
   rollbackRequired?: boolean;
   pushAuthorized?: boolean;
 };
+
+export type WorkspaceWriteRealCanaryConfig = {
+  targetFile: string;
+  workspace: string;
+  branch: string;
+  allowedAction: string;
+};
+
+export type WorkspaceWriteRealCanaryConfigInput = Partial<WorkspaceWriteRealCanaryConfig>;
+
+export type WorkspaceWriteRealCanaryConfigEnv = Record<string, string | undefined>;
 
 export type WorkspaceWriteRealCanaryPreExecutionGateInput = {
   authorization: WorkspaceWriteRealCanaryAuthorizationResult;
@@ -464,16 +488,67 @@ export function evaluateWorkspaceWriteCanaryReadiness(
   });
 }
 
+export function createWorkspaceWriteRealCanaryConfig(
+  input: WorkspaceWriteRealCanaryConfigInput = {}
+): WorkspaceWriteRealCanaryConfig {
+  return {
+    targetFile: normalizeCanaryTargetFile(
+      configuredString(input.targetFile, DEFAULT_WORKSPACE_WRITE_REAL_CANARY_CONFIG.targetFile, "target_file")
+    ),
+    workspace: configuredString(
+      input.workspace,
+      DEFAULT_WORKSPACE_WRITE_REAL_CANARY_CONFIG.workspace,
+      "workspace"
+    ),
+    branch: configuredString(
+      input.branch,
+      DEFAULT_WORKSPACE_WRITE_REAL_CANARY_CONFIG.branch,
+      "branch"
+    ),
+    allowedAction: configuredString(
+      input.allowedAction,
+      DEFAULT_WORKSPACE_WRITE_REAL_CANARY_CONFIG.allowedAction,
+      "allowed_action"
+    )
+  };
+}
+
+export function createWorkspaceWriteRealCanaryConfigFromEnv(
+  env: WorkspaceWriteRealCanaryConfigEnv
+): WorkspaceWriteRealCanaryConfig {
+  const input: WorkspaceWriteRealCanaryConfigInput = {};
+  const targetFile = env[WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.targetFile];
+  const workspace = env[WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.workspace];
+  const branch = env[WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.branch];
+  const allowedAction = env[WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.allowedAction];
+
+  if (targetFile !== undefined) {
+    input.targetFile = targetFile;
+  }
+  if (workspace !== undefined) {
+    input.workspace = workspace;
+  }
+  if (branch !== undefined) {
+    input.branch = branch;
+  }
+  if (allowedAction !== undefined) {
+    input.allowedAction = allowedAction;
+  }
+
+  return createWorkspaceWriteRealCanaryConfig(input);
+}
+
 export function evaluateWorkspaceWriteRealCanaryAuthorization(
   input: WorkspaceWriteRealCanaryAuthorizationInput
 ): WorkspaceWriteRealCanaryAuthorizationResult {
+  const canaryConfig = createWorkspaceWriteRealCanaryConfig(input.canaryConfig);
   const exactPhraseMatched = input.authorizationPhrase === PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE;
   const workspaceMatched = normalizeWorkspacePath(input.workspace) === normalizeWorkspacePath(
-    PR_12B_REAL_CANARY_WORKSPACE
+    canaryConfig.workspace
   );
-  const branchMatched = input.branch === PR_12B_REAL_CANARY_BRANCH;
-  const fixedTargetMatched = input.targetFile === DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE;
-  const allowedActionMatched = input.allowedAction === PR_12B_REAL_CANARY_ALLOWED_ACTION;
+  const branchMatched = input.branch === canaryConfig.branch;
+  const fixedTargetMatched = input.targetFile === canaryConfig.targetFile;
+  const allowedActionMatched = input.allowedAction === canaryConfig.allowedAction;
   const sandboxMatched = input.sandboxMode === "workspace-write";
   const rollbackRequired = input.rollbackRequired === true;
   const pushDisallowed = input.pushAuthorized !== true;
@@ -651,6 +726,31 @@ function normalizeOptionalString(value: string | undefined): string | undefined 
 function normalizeWorkspacePath(value: string | undefined): string | undefined {
   const trimmed = normalizeOptionalString(value);
   return trimmed === undefined ? undefined : trimmed.replace(/\//g, "\\").replace(/\\+$/g, "");
+}
+
+function configuredString(
+  value: string | undefined,
+  defaultValue: string,
+  label: string
+): string {
+  const configured = value === undefined ? defaultValue : value;
+  const normalized = normalizeOptionalString(configured);
+
+  if (normalized === undefined) {
+    throw new Error(`workspace_write_real_canary_config_${label}_required`);
+  }
+
+  return normalized;
+}
+
+function normalizeCanaryTargetFile(value: string): string {
+  const normalized = value.replace(/\\/g, "/");
+
+  if (!isSafeWorkspaceRelativeFilePath(normalized)) {
+    throw new Error("workspace_write_real_canary_config_target_file_unsafe");
+  }
+
+  return normalized;
 }
 
 function isSafeWorkspaceRelativeFilePath(path: string): boolean {

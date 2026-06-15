@@ -4,7 +4,13 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
-import { DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE } from "../packages/workspace-write-guard/src/index.js";
+import {
+  createWorkspaceWriteRealCanaryConfig,
+  createWorkspaceWriteRealCanaryConfigFromEnv,
+  type WorkspaceWriteRealCanaryConfig,
+  type WorkspaceWriteRealCanaryConfigEnv,
+  type WorkspaceWriteRealCanaryConfigInput
+} from "../packages/workspace-write-guard/src/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -125,9 +131,12 @@ export async function runWorkspaceWriteRealCanaryFinalLocalAudit(options: {
   runner?: WorkspaceWriteRealCanaryFinalLocalAuditRunner;
   canaryFileExists?: () => boolean;
   commands?: readonly WorkspaceWriteRealCanaryFinalLocalAuditCommand[];
+  canaryConfig?: WorkspaceWriteRealCanaryConfigInput;
+  env?: WorkspaceWriteRealCanaryConfigEnv;
 } = {}): Promise<WorkspaceWriteRealCanaryFinalLocalAuditResult> {
-  const runner = options.runner ?? runCommand;
+  const runner = options.runner ?? ((command) => runCommand(command, options.env));
   const commands = options.commands ?? WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS;
+  const canaryConfig = resolveCanaryConfig(options);
   const commandResults: WorkspaceWriteRealCanaryFinalLocalAuditCommandResult[] = [];
   let sensitiveScanStdout: string | undefined;
   const noForbiddenCommands = commandsDoNotContainForbiddenMarkers(commands);
@@ -147,7 +156,9 @@ export async function runWorkspaceWriteRealCanaryFinalLocalAudit(options: {
     }
   }
 
-  const canaryFileAbsent = !(options.canaryFileExists ?? defaultCanaryFileExists)();
+  const canaryFileAbsent = !(options.canaryFileExists ?? (() =>
+    defaultCanaryFileExists(canaryConfig)
+  ))();
   const allCommandsPassed = noForbiddenCommands
     && commandResults.length === commands.length
     && commandResults.every((result) => result.status === "passed");
@@ -194,7 +205,7 @@ export async function runWorkspaceWriteRealCanaryFinalLocalAudit(options: {
       failedCommandCount: commandResults.filter((result) => result.status !== "passed").length,
       sensitiveScanTargetCount: sensitiveScanSummary.targetCount,
       sensitiveScanMarkerHitCount: sensitiveScanSummary.markerHitCount,
-      canaryTargetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+      canaryTargetFile: canaryConfig.targetFile,
       workspaceWriteExecuteCalls: 0,
       realCodexCliCalls: 0,
       providerExecuteCalls: 0
@@ -283,16 +294,19 @@ function commandsDoNotContainForbiddenMarkers(
 }
 
 async function runCommand(
-  command: WorkspaceWriteRealCanaryFinalLocalAuditCommand
+  command: WorkspaceWriteRealCanaryFinalLocalAuditCommand,
+  envOverrides?: WorkspaceWriteRealCanaryConfigEnv
 ): Promise<WorkspaceWriteRealCanaryFinalLocalAuditRunnerResult> {
   try {
-    const execCommand = process.platform === "win32" ? "cmd.exe" : command.command;
-    const execArgs = process.platform === "win32"
+    const useWindowsShell = process.platform === "win32" && needsWindowsShell(command.command);
+    const execCommand = useWindowsShell ? "cmd.exe" : command.command;
+    const execArgs = useWindowsShell
       ? ["/d", "/s", "/c", windowsCommandLine(command)]
       : command.args;
 
     const { stdout } = await execFileAsync(execCommand, execArgs, {
       encoding: "utf8",
+      env: mergeProcessEnv(envOverrides),
       windowsHide: true
     });
     return {
@@ -308,6 +322,28 @@ async function runCommand(
       exitCode: getExitCode(error)
     };
   }
+}
+
+function needsWindowsShell(command: string): boolean {
+  return /\.(?:bat|cmd)$/iu.test(command);
+}
+
+function mergeProcessEnv(envOverrides: WorkspaceWriteRealCanaryConfigEnv | undefined): NodeJS.ProcessEnv {
+  if (envOverrides === undefined) {
+    return process.env;
+  }
+
+  const env: NodeJS.ProcessEnv = { ...process.env };
+
+  for (const [key, value] of Object.entries(envOverrides)) {
+    if (value === undefined) {
+      delete env[key];
+    } else {
+      env[key] = value;
+    }
+  }
+
+  return env;
 }
 
 function getNumber(
@@ -359,8 +395,23 @@ function getExitCode(error: unknown): number {
   return 1;
 }
 
-function defaultCanaryFileExists(): boolean {
-  return existsSync(DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE);
+function resolveCanaryConfig(options: {
+  canaryConfig?: WorkspaceWriteRealCanaryConfigInput;
+  env?: WorkspaceWriteRealCanaryConfigEnv;
+}): WorkspaceWriteRealCanaryConfig {
+  if (options.canaryConfig !== undefined) {
+    return createWorkspaceWriteRealCanaryConfig(options.canaryConfig);
+  }
+
+  if (options.env !== undefined) {
+    return createWorkspaceWriteRealCanaryConfigFromEnv(options.env);
+  }
+
+  return createWorkspaceWriteRealCanaryConfig();
+}
+
+function defaultCanaryFileExists(canaryConfig: WorkspaceWriteRealCanaryConfig): boolean {
+  return existsSync(canaryConfig.targetFile);
 }
 
 function npmExecutable(): string {
@@ -372,7 +423,9 @@ function npxExecutable(): string {
 }
 
 async function main(): Promise<void> {
-  const result = await runWorkspaceWriteRealCanaryFinalLocalAudit();
+  const result = await runWorkspaceWriteRealCanaryFinalLocalAudit({
+    env: process.env
+  });
   const format = process.argv.includes("--json") ? "json" : "text";
 
   console.log(formatWorkspaceWriteRealCanaryFinalLocalAuditResult(result, format));

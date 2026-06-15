@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV } from "../packages/workspace-write-guard/src/index.js";
 import {
   WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS,
   WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_FORBIDDEN_COMMAND_MARKERS,
@@ -190,6 +191,44 @@ test("workspace-write real canary final local audit blocks if canary file exists
   assert.ok(result.reasons.includes(
     "workspace_write_real_canary_final_local_audit_canary_file_exists"
   ));
+});
+
+test("workspace-write real canary final local audit reports configured canary target", async () => {
+  const result = await runWorkspaceWriteRealCanaryFinalLocalAudit({
+    runner: async (command) => passed(command),
+    canaryFileExists: () => false,
+    env: {
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.targetFile]: "tmp/configured-final-canary.txt"
+    }
+  });
+
+  assert.equal(result.status, "passed");
+  assert.equal(result.summary.canaryTargetFile, "tmp/configured-final-canary.txt");
+  assert.equal(result.checks.canaryFileAbsent, true);
+});
+
+test("workspace-write real canary final local audit passes configured env to child commands", async () => {
+  const result = await runWorkspaceWriteRealCanaryFinalLocalAudit({
+    commands: [{
+      id: "configured-env-probe",
+      command: process.execPath,
+      args: [
+        "-e",
+        "process.exit(process.env.WORKSPACE_WRITE_REAL_CANARY_TARGET_FILE==='tmp/configured-final-child-env-canary.txt'?0:7)"
+      ]
+    }],
+    env: {
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.targetFile]: "tmp/configured-final-child-env-canary.txt"
+    }
+  });
+
+  assert.equal(result.status, "passed");
+  assert.deepEqual(result.commands, [{
+    id: "configured-env-probe",
+    status: "passed",
+    exitCode: 0
+  }]);
+  assert.equal(result.summary.canaryTargetFile, "tmp/configured-final-child-env-canary.txt");
 });
 
 test("workspace-write real canary final local audit blocks invalid sensitive scan json", async () => {

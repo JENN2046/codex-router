@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
+  DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
   PR_12B_REAL_CANARY_ALLOWED_ACTION,
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
   PR_12B_REAL_CANARY_WORKSPACE
@@ -110,6 +111,7 @@ test("workspace-write real canary local candidate consistency passes for local-o
     evidenceParseable: true,
     evidenceLocalOnly: true,
     evidenceNoExecution: true,
+    evidenceTargetMatchesConfigured: true,
     evidenceSanitized: true,
     governanceDocsNonAuthorizing: true,
     auditFieldValuesRecorded: true,
@@ -142,6 +144,42 @@ test("workspace-write real canary local candidate consistency blocks unexpected 
   assert.equal(review.status, "blocked");
   assert.ok(review.reasons.includes("workspace_write_real_canary_candidate_unexpected_files"));
   assert.equal(review.summary.unexpectedChangedFileCount, 1);
+});
+
+test("workspace-write real canary local candidate consistency reports configured canary target", () => {
+  const canaryTargetFile = "tmp/configured-candidate-canary.txt";
+  const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
+    createConsistentInput({
+      canaryTargetFile,
+      authorizationEvidenceText: createEvidenceText(
+        "workspace-write-real-canary-authorization-local-only",
+        {},
+        { summary: { targetFile: canaryTargetFile } }
+      ),
+      preExecutionEvidenceText: createEvidenceText(
+        "workspace-write-real-canary-pre-execution-local-only",
+        {},
+        { summary: { targetFile: canaryTargetFile } }
+      )
+    })
+  );
+
+  assert.equal(review.status, "passed");
+  assert.equal(review.summary.canaryTargetFile, canaryTargetFile);
+});
+
+test("workspace-write real canary local candidate consistency blocks evidence target mismatch", () => {
+  const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
+    createConsistentInput({
+      canaryTargetFile: "tmp/configured-candidate-canary.txt"
+    })
+  );
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.evidenceTargetMatchesConfigured, false);
+  assert.ok(review.reasons.includes(
+    "workspace_write_real_canary_candidate_evidence_target_mismatch"
+  ));
 });
 
 test("workspace-write real canary local candidate consistency blocks stale or unsafe state", () => {
@@ -425,6 +463,9 @@ function createEvidenceText(
       noRealCodexCli: counters.realCodexCliCalls === 0,
       noWorkspaceWriteExecute: counters.workspaceWriteExecuteCalls === 0,
       noCanaryFileWrite: counters.canaryFileWrites === 0
+    },
+    summary: {
+      targetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE
     },
     counters,
     ...extraFields

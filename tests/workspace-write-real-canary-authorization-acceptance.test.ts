@@ -6,7 +6,8 @@ import { join } from "node:path";
 import {
   PR_12B_REAL_CANARY_ALLOWED_ACTION,
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
-  PR_12B_REAL_CANARY_WORKSPACE
+  PR_12B_REAL_CANARY_WORKSPACE,
+  WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV
 } from "../packages/workspace-write-guard/src/index.js";
 import {
   runWorkspaceWriteRealCanaryAuthorizationAcceptance,
@@ -114,6 +115,28 @@ test("workspace-write real canary authorization acceptance writer persists safe 
   assert.equal(parsed.checks.noRealCodexCli, true);
   assert.equal(parsed.checks.leakCheckPassed, true);
   assertSafeEvidence(parsed);
+});
+
+test("workspace-write real canary authorization acceptance reads canary config from env", async () => {
+  const evidence = await runWorkspaceWriteRealCanaryAuthorizationAcceptance({
+    generatedAt: now,
+    env: {
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.targetFile]: "tmp/configured-auth-canary.txt",
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.workspace]: "D:/configured/auth-repo",
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.branch]: "canary/auth",
+      [WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV.allowedAction]: "one configured auth canary write"
+    }
+  });
+  const serialized = JSON.stringify(evidence);
+
+  assert.equal(evidence.checks.exactAuthorizationAccepted, true);
+  assert.equal(evidence.summary.targetFile, "tmp/configured-auth-canary.txt");
+  assert.equal(evidence.summary.branch, "canary/auth");
+  assert.equal(evidence.summary.workspaceMatched, true);
+  assert.equal(evidence.summary.fixedTargetMatched, true);
+  assert.equal(evidence.summary.boundedActionMatched, true);
+  assert.equal(serialized.includes("D:/configured/auth-repo"), false);
+  assert.equal(serialized.includes("one configured auth canary write"), false);
 });
 
 function assertSafeEvidence(
