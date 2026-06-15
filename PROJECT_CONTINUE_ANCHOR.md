@@ -11,8 +11,8 @@ use a focused branch, not direct edits on `main`.
 
 Current evidence baseline:
 
-- `main` is aligned with `origin/main` at `c95ab3b`.
-- Latest commit: `test: refresh real readonly smoke evidence`.
+- `main` is aligned with `origin/main` at `6e55131`.
+- Latest commit: `test: design controlled execution gate`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `1003 / 1003`.
@@ -74,13 +74,15 @@ folder, continue from the current mainline facts, not the older April CLI-host
 anchor.
 
 The fresh read-only real Codex CLI smoke for current local `main` has passed
-under exact operator authorization. The next safe local action is to design the
-controlled execution gate for the next real Codex CLI step, without enabling
-workspace-write or general provider execution.
+under exact operator authorization. The controlled execution gate design is
+merged. The next safe local action is packet checklist / packet review work for
+a future bounded workspace-write real canary, without enabling workspace-write
+or general provider execution.
 
 Current design artifact:
 
 - `docs/governance/CONTROLLED_EXECUTION_GATE_NEXT_CODEX_CLI_STEP.md`
+- `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_PACKET_CHECKLIST.md`
 
 ## Remote Or Side-effectful Actions
 
@@ -118,6 +120,7 @@ Use existing scripts only:
 ```powershell
 npm run audit:approval-consumption-dispatch-matrix
 npm run audit:controlled-execution-gate-design
+npm run audit:future-codex-cli-canary-packet-checklist
 npm run smoke:readonly:real
 npm run typecheck
 npm test
@@ -128,9 +131,10 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from `main` / `origin/main` at `c95ab3b`: approval issuance,
+Continue from `main` / `origin/main` at `6e55131`: approval issuance,
 read-only approval consumption, read-only formal integration evidence, approval
-consumption dispatch audit matrix evidence, and fresh real read-only Codex CLI
-smoke evidence are merged to `origin/main`; current local work is controlled
-execution gate design for the next real Codex CLI step, without opening
-workspace-write, general provider execution, or unrelated remote actions.
+consumption dispatch audit matrix evidence, fresh real read-only Codex CLI smoke
+evidence, and controlled execution gate design are merged to `origin/main`;
+current local work is the future canary execution packet checklist, without
+opening workspace-write, general provider execution, or unrelated remote
+actions.

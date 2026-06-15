@@ -19,10 +19,12 @@
 - Push `main` to `origin/main` at `c95ab3b`.
 - Design controlled execution gate for the next real Codex CLI step.
 - Validate `npm run audit:controlled-execution-gate-design`.
+- Fast-forward controlled execution gate design into `main`.
+- Push `main` to `origin/main` at `6e55131`.
 
 ## In Progress
 
-- Keep the design branch ready for local fast-forward merge or review.
+- Add future Codex CLI canary execution packet checklist.
 
 ## Blocked
 
@@ -31,4 +33,5 @@
 
 ## Remaining
 
-- Decide whether to merge/push the design branch after review.
+- Validate and commit the future packet checklist.
+- Decide whether to merge/push the packet checklist branch after review.

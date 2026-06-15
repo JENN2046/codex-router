@@ -2,25 +2,26 @@
 
 Date: 2026-06-15
 Workspace: `A:\AGENTS_OS_Workspace\governance\codex-router`
-Branch: `docs/controlled-execution-gate-design`
-Base: `main` and `origin/main` at `c95ab3b`
-Implementation commit: `c95ab3b test: refresh real readonly smoke evidence`
+Branch: `docs/future-execution-packet-checklist`
+Base: `main` and `origin/main` at `6e55131`
+Implementation commit: `6e55131 test: design controlled execution gate`
 Current branch HEAD: inspect with `git log --oneline --decorate -n 3`
 
 ## Status
 
-The evidence-first slice, post-push anchor cleanup, and fresh real Codex CLI
-read-only smoke evidence are merged and pushed to `origin/main`. Main-only
-read-only smoke chain audits passed on clean `main`.
+The evidence-first slice, fresh real Codex CLI read-only smoke evidence, and
+controlled execution gate design are merged and pushed to `origin/main`.
+Main-only read-only smoke chain audits and controlled gate design audit passed
+on clean `main`.
 
 ## Current Boundary
 
-This slice designs the controlled execution gate for the next real Codex CLI
-step. It does not run workspace-write execution, general provider execution,
-push, release, tag, deployment, or external service write.
+This slice records the future canary execution packet checklist. It does not run
+workspace-write execution, general provider execution, canary file write, push,
+release, tag, deployment, or external service write.
 
 ## Next Safe Action
 
-Finish and validate the controlled execution gate design audit. Workspace-write
+Finish and validate the future canary packet checklist audit. Workspace-write
 and general provider execution remain closed without separate exact operator
 authorization.

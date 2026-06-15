@@ -1,7 +1,7 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `main` after merge/push, then `docs/controlled-execution-gate-design`
+Branch: `main` after merge/push, then `docs/future-execution-packet-checklist`
 
 ## Passed
 
@@ -51,7 +51,13 @@ Branch: `main` after merge/push, then `docs/controlled-execution-gate-design`
   - Result: passed after committing the design branch
   - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
     canary file writes `0`
+- Future canary packet checklist tests
+  - Command: `npx tsx --test tests\future-codex-cli-canary-packet-checklist-audit.test.ts`
+  - Result: `5 / 5`
+- `npm run typecheck`
+  - Result: passed after adding `scripts/run-future-codex-cli-canary-packet-checklist-audit.ts`
 
 ## Not Run
 
 - Workspace-write real CLI smoke.
+- Canary file write.

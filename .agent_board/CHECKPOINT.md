@@ -4,8 +4,9 @@
 
 Implemented, merged, and pushed the evidence-first plan slice to `origin/main`
 at `24c3508`. Post-push anchor cleanup and fresh real Codex CLI read-only smoke
-evidence are pushed to `origin/main` at `c95ab3b`.
-Controlled execution gate design is now in progress on a focused branch.
+evidence are pushed to `origin/main` at `c95ab3b`. Controlled execution gate
+design is pushed to `origin/main` at `6e55131`. Future canary packet checklist
+work is now in progress on a focused branch.
 
 Changed files:
 
@@ -33,11 +34,14 @@ Changed files:
   `18 / 18`.
 - `npm run typecheck` passed after adding the design audit script.
 - `npm run audit:controlled-execution-gate-design` passed after commit.
+- future canary packet checklist tests passed: `5 / 5`.
+- `npm run typecheck` passed after adding the packet checklist audit script.
 
 ## Not Run
 
 - Workspace-write real CLI smoke was not run.
 - General provider execution was not enabled.
+- Canary file write was not run.
 
 ## Risk
 
