@@ -365,6 +365,29 @@ test("codex cli provider validation rejects dangerous CLI args", () => {
   assert.ok(validation.reasons.includes(
     "codex_cli_dangerous_arg_not_allowed:--full-auto"
   ));
+
+  const yoloTamperedPlan = {
+    ...plan,
+    metadata: {
+      ...plan.metadata,
+      codexCliProvider: {
+        ...metadata,
+        codexCliPlan: {
+          ...metadata.codexCliPlan,
+          argsWithoutPrompt: [
+            ...metadata.codexCliPlan.argsWithoutPrompt,
+            "--yolo=true"
+          ]
+        }
+      }
+    }
+  } as ExecutorExecutionPlan;
+  const yoloValidation = provider.validateExecutionPlan(yoloTamperedPlan);
+
+  assert.equal(yoloValidation.valid, false);
+  assert.ok(yoloValidation.reasons.includes(
+    "codex_cli_dangerous_arg_not_allowed:--yolo=true"
+  ));
 });
 
 test("codex cli provider execute is disabled by default", async () => {

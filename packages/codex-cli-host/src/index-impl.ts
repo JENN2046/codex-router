@@ -943,6 +943,8 @@ export interface CodexCliWorkspaceWriteSmokeApprovalPacketWriteResult {
 
 const DANGEROUS_CODEX_CLI_ARGS = new Set([
   "--dangerously-bypass-approvals-and-sandbox",
+  "--dangerously-bypass-hook-trust",
+  "--yolo",
   "--full-auto"
 ]);
 
@@ -3739,12 +3741,17 @@ function createCodexCliExecPlanWarnings(
 
 function assertNoDangerousCodexCliArgs(args: string[]): void {
   const dangerousArg = args.find((arg) => (
-    DANGEROUS_CODEX_CLI_ARGS.has(arg) || arg.includes("danger-full-access")
+    DANGEROUS_CODEX_CLI_ARGS.has(readCodexCliFlagName(arg))
+    || arg.includes("danger-full-access")
   ));
 
   if (dangerousArg) {
     throw new Error(`codex_cli_dangerous_arg_not_allowed:${dangerousArg}`);
   }
+}
+
+function readCodexCliFlagName(arg: string): string {
+  return arg.split("=", 1)[0] ?? arg;
 }
 
 const CODEX_CLI_SECURITY_ARG_GROUPS = [

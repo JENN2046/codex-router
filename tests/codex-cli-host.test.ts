@@ -1573,6 +1573,37 @@ test("codex cli host keeps write and release tasks sandboxed without bypass flag
     }),
     /codex_cli_dangerous_arg_not_allowed/
   );
+  for (const dangerousArg of [
+    "--dangerously-bypass-approvals-and-sandbox=true",
+    "--dangerously-bypass-hook-trust",
+    "--dangerously-bypass-hook-trust=true",
+    "--yolo",
+    "--yolo=true"
+  ]) {
+    assert.throws(
+      () => createCodexCliExecPlan(engineeringTask, {
+        extraArgs: [dangerousArg]
+      }),
+      /codex_cli_dangerous_arg_not_allowed/
+    );
+  }
+
+  const slashCommandPromptPlan = createCodexCliExecPlan({
+    ...engineeringTask,
+    taskId: "cli-slash-permissions-text",
+    intent: {
+      summary: "/permissions Auto should remain prompt text",
+      requestedAction: "Review the text `/permissions Auto` without changing CLI permissions.",
+      successCriteria: [],
+      outOfScope: []
+    }
+  });
+  assert.equal(slashCommandPromptPlan.args.includes("--yolo"), false);
+  assert.equal(
+    slashCommandPromptPlan.args.includes("--dangerously-bypass-approvals-and-sandbox"),
+    false
+  );
+  assert.equal(slashCommandPromptPlan.prompt.includes("/permissions Auto"), true);
 
   assert.throws(
     () => createCodexCliExecPlan(engineeringTask, {
@@ -2090,9 +2121,16 @@ test("codex cli host runner rejects manually forged dangerous plans", async () =
     ...plan,
     args: [...plan.args, "--dangerously-bypass-approvals-and-sandbox"]
   };
+  const yoloForgedPlan = {
+    ...plan,
+    args: [...plan.args, "--yolo=true"]
+  };
 
   assert.ok(validateCodexCliExecPlanForRun(forgedPlan).some((reason) => (
     reason.includes("codex_cli_dangerous_arg_not_allowed")
+  )));
+  assert.ok(validateCodexCliExecPlanForRun(yoloForgedPlan).some((reason) => (
+    reason === "codex_cli_dangerous_arg_not_allowed:--yolo=true"
   )));
   await assert.rejects(
     () => runCodexCliExecPlan(forgedPlan, {
@@ -2102,6 +2140,15 @@ test("codex cli host runner rejects manually forged dangerous plans", async () =
       })
     }),
     /codex_cli_dangerous_arg_not_allowed/
+  );
+  await assert.rejects(
+    () => runCodexCliExecPlan(yoloForgedPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_dangerous_arg_not_allowed:--yolo=true/
   );
 });
 
