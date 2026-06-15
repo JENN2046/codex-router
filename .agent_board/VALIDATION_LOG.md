@@ -181,6 +181,14 @@ Branch: `main` / `origin/main` at `fe181cb`, then
   - Reasons: `future_codex_cli_canary_pre_execution_review_mainAlignedWithOrigin`
 - `Test-Path tmp\codex-cli-write-canary.txt`
   - Result: `False`
+- `git push origin main`
+  - Result: pushed `fe181cb..3a71acc`
+- `npm run audit:future-codex-cli-canary-pre-execution-review`
+  - Result: passed on aligned clean `main` at `3a71acc`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
+    canary file writes `0`
+- `Test-Path tmp\codex-cli-write-canary.txt`
+  - Result: `False`
 
 ## Not Run
 

@@ -11,10 +11,9 @@ use a focused branch, not direct edits on `main`.
 
 Current evidence baseline:
 
-- Local `main` has fast-forwarded to `ae3cb7f`.
-- `origin/main` is at `fe181cb`.
-- Latest local mainline commit: `test: add future canary pre-execution review`.
-- Current local cleanup branch: `docs/post-merge-pre-execution-review-anchor`.
+- `main` is aligned with `origin/main` at `3a71acc`.
+- Latest mainline commit: `docs: refresh pre-execution review merge anchors`.
+- Current local cleanup branch: `docs/post-push-pre-execution-review-anchor`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `1003 / 1003`.
@@ -44,6 +43,9 @@ Current evidence baseline:
   - `npm run audit:future-codex-cli-canary-pre-execution-review` blocked on
     clean local `main` only because local `main` is not aligned with
     `origin/main`.
+  - `git push origin main` pushed `fe181cb..3a71acc`.
+  - `npm run audit:future-codex-cli-canary-pre-execution-review` passed on
+    aligned clean `main`.
 
 ## Current Mainline Facts
 
@@ -162,14 +164,14 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from local `main` at `ae3cb7f` and `origin/main` at `fe181cb`:
-approval issuance,
+Continue from `main` / `origin/main` at `3a71acc`: approval issuance,
 read-only approval consumption, read-only formal integration evidence, approval
 consumption dispatch audit matrix evidence, fresh real read-only Codex CLI smoke
 evidence, controlled execution gate design, future canary execution packet
 checklist, future canary authorization packet draft/review, and post-merge
 anchors are pushed. Future canary execution gate design and execution-gate
-post-merge anchors are pushed. Future canary pre-execution review is merged into
-local `main`, and its clean-main audit is blocked only by
-`mainAlignedWithOrigin`. Do not open workspace-write, general provider
-execution, or unrelated remote actions.
+post-merge anchors are pushed. Future canary pre-execution review is merged and
+pushed, and its audit passed on aligned clean `main`. The next boundary is exact
+operator authorization for the bounded workspace-write canary. Do not open
+workspace-write, general provider execution, or unrelated remote actions without
+that exact authorization.

@@ -56,6 +56,9 @@
 - Run `npm run audit:future-codex-cli-canary-pre-execution-review` on clean
   local `main`; blocked only by `mainAlignedWithOrigin`.
 - Refresh post-merge anchors for clean-main pre-execution review audit.
+- Push local `main` to `origin/main` at `3a71acc`.
+- Rerun `npm run audit:future-codex-cli-canary-pre-execution-review` on aligned
+  clean `main`.
 
 ## In Progress
 
@@ -68,5 +71,4 @@
 
 ## Remaining
 
-- Push local `main` only after explicit user instruction.
-- Rerun the pre-execution review audit on aligned clean `main`.
+- Exact operator authorization for the bounded workspace-write canary.

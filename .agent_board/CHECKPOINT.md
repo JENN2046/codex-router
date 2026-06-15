@@ -98,12 +98,17 @@ passed: `5 / 5`.
   blocked on clean local `main` only because local `main` is not aligned with
   `origin/main`.
 - `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
+- `git push origin main` pushed `fe181cb..3a71acc`.
+- `npm run audit:future-codex-cli-canary-pre-execution-review` passed on
+  aligned clean `main`.
+- Post-audit `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
 
 ## Not Run
 
 - Workspace-write real CLI smoke was not run.
 - General provider execution was not enabled.
 - Canary file write was not run.
+- Workspace-write real canary was not run.
 - No release, tag, deployment, or external service write other than the
   explicitly requested `git push origin main` was run.
 
