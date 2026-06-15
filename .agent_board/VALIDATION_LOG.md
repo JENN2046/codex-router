@@ -1,7 +1,7 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `main` after merge/push, then `docs/future-execution-packet-checklist`
+Branch: `main` after merge/push, then `docs/post-push-future-checklist-anchor`
 
 ## Passed
 
@@ -56,6 +56,10 @@ Branch: `main` after merge/push, then `docs/future-execution-packet-checklist`
   - Result: `5 / 5`
 - `npm run typecheck`
   - Result: passed after adding `scripts/run-future-codex-cli-canary-packet-checklist-audit.ts`
+- `npm run audit:future-codex-cli-canary-packet-checklist`
+  - Result: passed on clean `main` at `2f16fa2`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
+    canary file writes `0`
 
 ## Not Run
 

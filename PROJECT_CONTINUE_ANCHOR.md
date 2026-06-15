@@ -11,8 +11,8 @@ use a focused branch, not direct edits on `main`.
 
 Current evidence baseline:
 
-- `main` is aligned with `origin/main` at `6e55131`.
-- Latest commit: `test: design controlled execution gate`.
+- `main` is aligned with `origin/main` at `2f16fa2`.
+- Latest commit: `test: add future canary packet checklist`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `1003 / 1003`.
@@ -75,9 +75,10 @@ anchor.
 
 The fresh read-only real Codex CLI smoke for current local `main` has passed
 under exact operator authorization. The controlled execution gate design is
-merged. The next safe local action is packet checklist / packet review work for
-a future bounded workspace-write real canary, without enabling workspace-write
-or general provider execution.
+merged. The future canary execution packet checklist is also merged. The next
+safe local action is authorization packet draft/review work for a future bounded
+workspace-write real canary, without enabling workspace-write or general
+provider execution.
 
 Current design artifact:
 
@@ -131,10 +132,10 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from `main` / `origin/main` at `6e55131`: approval issuance,
+Continue from `main` / `origin/main` at `2f16fa2`: approval issuance,
 read-only approval consumption, read-only formal integration evidence, approval
 consumption dispatch audit matrix evidence, fresh real read-only Codex CLI smoke
-evidence, and controlled execution gate design are merged to `origin/main`;
-current local work is the future canary execution packet checklist, without
-opening workspace-write, general provider execution, or unrelated remote
-actions.
+evidence, controlled execution gate design, and future canary execution packet
+checklist are merged to `origin/main`; current local work is future canary
+authorization packet draft/review, without opening workspace-write, general
+provider execution, or unrelated remote actions.

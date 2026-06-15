@@ -21,10 +21,14 @@
 - Validate `npm run audit:controlled-execution-gate-design`.
 - Fast-forward controlled execution gate design into `main`.
 - Push `main` to `origin/main` at `6e55131`.
+- Add future Codex CLI canary execution packet checklist.
+- Fast-forward future packet checklist into `main`.
+- Validate `npm run audit:future-codex-cli-canary-packet-checklist`.
+- Push `main` to `origin/main` at `2f16fa2`.
 
 ## In Progress
 
-- Add future Codex CLI canary execution packet checklist.
+- Refresh post-push anchors for `2f16fa2`.
 
 ## Blocked
 
@@ -33,5 +37,4 @@
 
 ## Remaining
 
-- Validate and commit the future packet checklist.
-- Decide whether to merge/push the packet checklist branch after review.
+- Draft/review the future canary execution authorization packet.

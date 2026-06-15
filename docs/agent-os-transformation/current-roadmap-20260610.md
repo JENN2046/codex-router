@@ -1,7 +1,7 @@
 # Agent OS Current Roadmap
 
 Date: 2026-06-15
-Current base: `main` at `6e55131`
+Current base: `main` at `2f16fa2`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
 matrix evidence are merged and locally validated. A fresh real read-only Codex
@@ -144,6 +144,8 @@ Next gated slice:
   `docs/governance/CONTROLLED_EXECUTION_GATE_NEXT_CODEX_CLI_STEP.md`
 - Current packet checklist artifact:
   `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_PACKET_CHECKLIST.md`
+- Next safe artifact:
+  future canary execution authorization packet draft/review.
 
 ## Following Phases
 
@@ -178,13 +180,15 @@ After local review/evidence hardening:
 
 ## Validation Baseline
 
-Latest local validation on 2026-06-15 before the future canary packet checklist
-at `6e55131`:
+Latest local validation on 2026-06-15 before the post-push packet checklist
+anchor refresh at `2f16fa2`:
 
 - `npm run audit:approval-consumption-dispatch-matrix` passed on clean `main`.
 - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
 - read-only real smoke chain audits passed on clean `main`.
 - `npm run audit:controlled-execution-gate-design` passed on clean `main`.
+- `npm run audit:future-codex-cli-canary-packet-checklist` passed on clean
+  `main`.
 - `npm run typecheck` passed.
 - `npm test` passed: `1003 / 1003`.
 - `npm run build` passed.

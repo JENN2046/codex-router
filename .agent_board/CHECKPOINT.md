@@ -6,7 +6,7 @@ Implemented, merged, and pushed the evidence-first plan slice to `origin/main`
 at `24c3508`. Post-push anchor cleanup and fresh real Codex CLI read-only smoke
 evidence are pushed to `origin/main` at `c95ab3b`. Controlled execution gate
 design is pushed to `origin/main` at `6e55131`. Future canary packet checklist
-work is now in progress on a focused branch.
+is pushed to `origin/main` at `2f16fa2`.
 
 Changed files:
 
@@ -36,6 +36,8 @@ Changed files:
 - `npm run audit:controlled-execution-gate-design` passed after commit.
 - future canary packet checklist tests passed: `5 / 5`.
 - `npm run typecheck` passed after adding the packet checklist audit script.
+- `npm run audit:future-codex-cli-canary-packet-checklist` passed on clean
+  `main`.
 
 ## Not Run
 
