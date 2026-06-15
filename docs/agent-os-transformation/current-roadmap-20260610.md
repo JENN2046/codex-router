@@ -1,7 +1,7 @@
 # Agent OS Current Roadmap
 
 Date: 2026-06-15
-Current base: `main` and `origin/main` at `5e24281`
+Current base: `main` and `origin/main` at `5566777`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
 matrix evidence are merged and locally validated. A fresh real read-only Codex
@@ -15,7 +15,9 @@ The final pre-execution review, clean-main final-local audit alignment fix, and
 bounded real workspace-write canary evidence are pushed to `origin/main`. The
 real canary passed for target `tmp/codex-cli-write-canary.txt`, its evidence is
 recorded at `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`,
-and the temporary canary file has been removed.
+and the temporary canary file has been removed. The post-canary receipt plus
+rollback verification gate is pushed to `origin/main`, and its clean-main audit
+passed without running another workspace-write canary.
 
 ## Current Position
 
@@ -72,6 +74,8 @@ Safe and implemented:
 - Verify the real Codex CLI read-only path against current local `main`.
 - Verify one bounded real Codex CLI workspace-write canary against current
   `main`.
+- Verify the post-canary receipt and rollback cleanup state without running
+  another workspace-write canary.
 
 Still blocked or disabled:
 
@@ -148,7 +152,8 @@ workspace-write, real CLI invocation, push, release, or tag.
 
 Next gated slice:
 
-- Design the post-canary receipt and rollback verification gate.
+- Design the capability taxonomy and escalation policy for future write-capable
+  steps.
 - Preserve the current boundary: the recorded canary proves one bounded local
   workspace-write execution only. It does not imply general workspace-write,
   general provider execution, push, release, tag, or external service write.
@@ -164,8 +169,10 @@ Next gated slice:
   `docs/governance/FUTURE_CODEX_CLI_CANARY_PRE_EXECUTION_REVIEW.md`
 - Current real canary evidence:
   `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
+- Current post-canary receipt gate:
+  `docs/governance/POST_CANARY_RECEIPT_ROLLBACK_VERIFICATION_GATE.md`
 - Current local audit:
-  `npm run audit:future-codex-cli-canary-pre-execution-review`
+  `npm run audit:post-canary-receipt-rollback-gate`
 
 ## Following Phases
 
@@ -201,7 +208,7 @@ After local review/evidence hardening:
 ## Validation Baseline
 
 Latest local validation on 2026-06-15 through `main` / `origin/main` at
-`5e24281`:
+`5566777`:
 
 - `npm run audit:approval-consumption-dispatch-matrix` passed on clean `main`.
 - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
@@ -241,8 +248,23 @@ Latest local validation on 2026-06-15 through `main` / `origin/main` at
   - blocking reasons: `[]`
 - Post-canary `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
 - `git push origin main` pushed `590dbd4..5e24281`.
+- `git push origin main` pushed `5e24281..5642b43`.
+- `npx tsx --test tests\post-canary-receipt-rollback-verification-gate-audit.test.ts`
+  passed: `5 / 5`.
+- `npm run typecheck` passed after adding the post-canary receipt rollback gate
+  audit.
+- `npm test` passed: `1032 / 1032`.
+- `npm run build` passed.
+- `git push origin main` pushed `5642b43..5566777`.
+- `npm run audit:post-canary-receipt-rollback-gate` passed on clean aligned
+  `main`:
+  - provider execute calls during review: `0`
+  - real Codex CLI calls during review: `0`
+  - workspace-write execute calls during review: `0`
+  - canary file writes during review: `0`
+  - additional canary runs during review: `0`
 - `npm run typecheck` passed.
-- `npm test` passed: `1027 / 1027`.
+- `npm test` passed: `1032 / 1032`.
 - `npm run build` passed.
 
 For docs-only roadmap updates, inspect the diff and keep the worktree clean.

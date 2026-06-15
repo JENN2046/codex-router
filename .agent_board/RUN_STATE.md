@@ -2,26 +2,23 @@
 
 Date: 2026-06-15
 Workspace: `A:\AGENTS_OS_Workspace\governance\codex-router`
-Branch: `docs/post-real-canary-anchor`
-Base: `main` and `origin/main` at `5e24281`
+Branch: `docs/post-rollback-gate-anchor`
+Base: `main` and `origin/main` at `5566777`
 
 ## Current Mainline Evidence
 
-- Pre-execution review commit: `ae3cb7f test: add future canary pre-execution review`
-- Pre-execution review anchor commit: `3a71acc docs: refresh pre-execution review merge anchors`
 - Final-local clean-main gate fix: `590dbd4 test: align final canary audit with clean main gate`
 - Real workspace-write canary evidence commit:
   `5e24281 docs: record real workspace-write canary evidence`
+- Post-real-canary anchor commit:
+  `5642b43 docs: refresh post real canary anchors`
+- Post-canary receipt rollback gate commit:
+  `5566777 test: add post-canary rollback receipt gate`
 
 ## Status
 
-The evidence-first slice, fresh real Codex CLI read-only smoke, controlled
-execution gate design, future canary packet checklist, authorization packet,
-execution gate, and final pre-execution review are merged and pushed. The
-final-local audit was aligned with the clean `main` gate shape and pushed.
-
 The bounded real Codex CLI workspace-write canary passed on clean aligned
-`main`. Evidence is recorded at:
+`main`, and its evidence is recorded at:
 
 - `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
 
@@ -32,6 +29,11 @@ The canary target was:
 The canary target file was removed after execution. The latest check returned
 `False` for `Test-Path tmp\codex-cli-write-canary.txt`.
 
+The post-canary receipt plus rollback verification gate is merged and pushed.
+`npm run audit:post-canary-receipt-rollback-gate` passed on clean aligned
+`main` with no provider execute, real Codex CLI, workspace-write execute,
+canary file write, or additional canary run during receipt review.
+
 ## Current Boundary
 
 The recorded canary proves one bounded local workspace-write execution only. It
@@ -41,6 +43,6 @@ as general runtime modes.
 
 ## Next Safe Action
 
-Design and record the post-canary receipt plus rollback verification gate. Keep
-the work local and non-executing unless a future task gives separate exact
-authorization.
+Design and record the capability taxonomy and escalation policy for future
+write-capable steps. Keep the work local and non-executing unless a future task
+gives separate exact authorization.

@@ -14,8 +14,9 @@ audit passed before the post-push anchor merge. The future canary execution gate
 design, post-merge execution gate anchors, and post-push execution gate anchors
 are pushed to `origin/main` at `fe181cb`. The clean local `main` gate audit
 passed before push. The final pre-execution review, clean-main final-local audit
-fix, and bounded real workspace-write canary evidence are pushed to
-`origin/main` at `5e24281`. The current branch refreshes post-canary anchors.
+fix, bounded real workspace-write canary evidence, post-canary anchors, and
+post-canary receipt rollback gate are pushed to `origin/main` at `5566777`. The
+current branch refreshes post-rollback-gate anchors.
 
 Changed files:
 
@@ -115,9 +116,25 @@ passed: `5 / 5`.
   - blocking reasons: `[]`
 - The canary target file was removed after execution.
 - `git push origin main` pushed `590dbd4..5e24281`.
+- `git push origin main` pushed `5e24281..5642b43`.
+- Post-canary receipt and rollback verification gate was added and pushed:
+  - commit: `5566777 test: add post-canary rollback receipt gate`
+  - document:
+    `docs/governance/POST_CANARY_RECEIPT_ROLLBACK_VERIFICATION_GATE.md`
+  - audit: `npm run audit:post-canary-receipt-rollback-gate`
+- `npx tsx --test tests\post-canary-receipt-rollback-verification-gate-audit.test.ts`
+  passed: `5 / 5`.
+- `npm run typecheck` passed.
+- `npm test` passed: `1032 / 1032`.
+- `npm run build` passed.
+- `git push origin main` pushed `5642b43..5566777`.
+- `npm run audit:post-canary-receipt-rollback-gate` passed on clean aligned
+  `main`.
 
 ## Not Run
 
+- Additional workspace-write canary runs beyond the single authorized bounded
+  run.
 - General provider execution was not enabled.
 - No release, tag, deployment, or external service write other than the
   explicitly requested `git push origin main` was run.

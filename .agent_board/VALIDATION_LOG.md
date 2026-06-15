@@ -1,8 +1,8 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `main` / `origin/main` at `5e24281`, then
-`docs/post-real-canary-anchor`
+Branch: `main` / `origin/main` at `5566777`, then
+`docs/post-rollback-gate-anchor`
 
 ## Passed
 
@@ -223,6 +223,34 @@ Branch: `main` / `origin/main` at `5e24281`, then
   - Evidence sensitive marker scan: no hits for the checked markers
 - `git push origin main`
   - Result: pushed `590dbd4..5e24281`
+- `git push origin main`
+  - Result: pushed `5e24281..5642b43`
+- Post-canary receipt rollback gate tests
+  - Command:
+    `npx tsx --test tests\post-canary-receipt-rollback-verification-gate-audit.test.ts`
+  - Result: `5 / 5`
+- `npm run typecheck`
+  - Result: passed after adding
+    `scripts/run-post-canary-receipt-rollback-verification-gate-audit.ts`
+- `npm test`
+  - Result: `1032 / 1032`
+- `npm run build`
+  - Result: passed
+- `git push origin main`
+  - Result: pushed `5642b43..5566777`
+- `npm run audit:post-canary-receipt-rollback-gate`
+  - Result: passed on clean aligned `main`
+  - Branch: `main`
+  - Ahead / behind: `0 / 0`
+  - Evidence status: `passed`
+  - Execution status: `completed`
+  - Exit code: `0`
+  - Parse error count: `0`
+  - Provider execute calls during review: `0`
+  - Real Codex CLI calls during review: `0`
+  - Workspace-write execute calls during review: `0`
+  - Canary file writes during review: `0`
+  - Additional canary runs during review: `0`
 
 ## Not Run
 

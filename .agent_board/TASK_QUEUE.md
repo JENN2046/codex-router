@@ -71,6 +71,11 @@
 - Remove `tmp\codex-cli-write-canary.txt` after the canary run.
 - Push real canary evidence to `origin/main` at `5e24281`.
 - Refresh post-real-canary anchors.
+- Push post-real-canary anchors to `origin/main` at `5642b43`.
+- Push post-canary receipt rollback gate to `origin/main` at `5566777`.
+- Validate `npm run audit:post-canary-receipt-rollback-gate` on clean aligned
+  `main`.
+- Refresh post-rollback-gate anchors.
 
 ## In Progress
 
@@ -83,6 +88,7 @@
 
 ## Remaining
 
-- Design post-canary receipt and rollback verification gate.
-- Validate the post-canary receipt without running another workspace-write
-  canary.
+- Design capability taxonomy and escalation policy for future write-capable
+  steps.
+- Validate the taxonomy/policy without running workspace-write or general
+  provider execution.
