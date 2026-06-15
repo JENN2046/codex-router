@@ -65,3 +65,57 @@ test("approval gate independently requires approval for protected write contexts
   assert.ok(approval.reasons.includes("repo_context:protected_branch"));
   assert.ok(approval.reasons.includes("workspace:dirty"));
 });
+
+test("approval gate recomputes protected policy signals when routing approval is absent", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = parseTaskEnvelope({
+    taskId: "gate-policy-recheck",
+    source: "desktop-thread",
+    intent: {
+      summary: "prepare release",
+      requestedAction: "merge to prod/stable and push production config",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router", branch: "main", worktreeClean: true },
+    target: { branches: ["prod/stable"], files: [], modules: [] },
+    constraints: {},
+    hints: { riskHints: [], tags: [] }
+  });
+
+  const decision = routeTask(task, classifyIntent(task), policy);
+  const staleDecision = {
+    ...decision,
+    execution: {
+      ...decision.execution,
+      toolAccess: "read_only" as const
+    },
+    approval: {
+      required: false,
+      reasons: []
+    },
+    providerGrant: decision.providerGrant
+      ? {
+          ...decision.providerGrant,
+          sideEffectClass: "read_only" as const,
+          toolAccess: "read_only" as const,
+          sandboxMode: "read-only" as const,
+          approvalRequired: false,
+          requiredApprovals: []
+        }
+      : undefined
+  };
+
+  assert.equal(decision.execution.toolAccess, "protected_remote");
+  assert.equal(staleDecision.execution.toolAccess, "read_only");
+
+  const approval = evaluateApprovalRequirement(task, staleDecision, policy);
+
+  assert.equal(approval.status, "pending");
+  assert.ok(approval.reasons.includes("tool_access:protected_remote"));
+  assert.ok(approval.reasons.includes("protected_branch:prod/stable"));
+  assert.ok(approval.reasons.includes("active_branch:main"));
+  assert.ok(approval.reasons.includes("keyword:merge"));
+  assert.ok(approval.reasons.includes("keyword:push"));
+  assert.ok(approval.reasons.includes("keyword:production"));
+});
