@@ -2,29 +2,25 @@
 
 Date: 2026-06-15
 Workspace: `A:\AGENTS_OS_Workspace\governance\codex-router`
-Branch: `docs/post-push-anchor-cleanup`
-Remote evidence base: `origin/main` at `24c3508`
-Local base: `main` has post-push anchor cleanup and may be ahead until push is
-explicitly authorized
-Implementation commit: `b8d0b01 test: add approval dispatch audit matrix`
+Branch: `docs/controlled-execution-gate-design`
+Base: `main` and `origin/main` at `c95ab3b`
+Implementation commit: `c95ab3b test: refresh real readonly smoke evidence`
 Current branch HEAD: inspect with `git log --oneline --decorate -n 3`
 
 ## Status
 
-The evidence-first slice was fast-forward merged into local `main` and pushed
-to `origin/main` at `24c3508`. Local `main` now also contains post-push anchor
-cleanup facts. Fresh real Codex CLI read-only smoke passed under exact operator
-authorization.
+The evidence-first slice, post-push anchor cleanup, and fresh real Codex CLI
+read-only smoke evidence are merged and pushed to `origin/main`. Main-only
+read-only smoke chain audits passed on clean `main`.
 
 ## Current Boundary
 
-This slice records and validates local review evidence for approval consumption,
-provider dispatch preconditions, and sanitized audit surfaces. It does not run
-the real Codex CLI, provider execution, workspace-write execution, push, release,
-tag, deployment, or external service write.
+This slice designs the controlled execution gate for the next real Codex CLI
+step. It does not run workspace-write execution, general provider execution,
+push, release, tag, deployment, or external service write.
 
 ## Next Safe Action
 
-The next local action is controlled execution gate design for the next real
-Codex CLI step. Workspace-write and general provider execution remain closed
-without separate exact operator authorization.
+Finish and validate the controlled execution gate design audit. Workspace-write
+and general provider execution remain closed without separate exact operator
+authorization.

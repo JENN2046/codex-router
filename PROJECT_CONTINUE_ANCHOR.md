@@ -11,9 +11,8 @@ use a focused branch, not direct edits on `main`.
 
 Current evidence baseline:
 
-- `origin/main` includes the evidence matrix at `24c3508`.
-- Local `main` includes a post-push anchor cleanup commit and may be ahead of
-  `origin/main` until the user explicitly authorizes another push.
+- `main` is aligned with `origin/main` at `c95ab3b`.
+- Latest commit: `test: refresh real readonly smoke evidence`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `1003 / 1003`.
@@ -22,6 +21,7 @@ Current evidence baseline:
     `main`.
   - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real`
     passed and refreshed `docs/evidence/codex-cli-real-readonly-smoke.json`.
+  - read-only real smoke chain audits passed on clean `main`.
 
 ## Current Mainline Facts
 
@@ -78,6 +78,10 @@ under exact operator authorization. The next safe local action is to design the
 controlled execution gate for the next real Codex CLI step, without enabling
 workspace-write or general provider execution.
 
+Current design artifact:
+
+- `docs/governance/CONTROLLED_EXECUTION_GATE_NEXT_CODEX_CLI_STEP.md`
+
 ## Remote Or Side-effectful Actions
 
 Do not perform remote actions without explicit approval.
@@ -113,6 +117,7 @@ Use existing scripts only:
 
 ```powershell
 npm run audit:approval-consumption-dispatch-matrix
+npm run audit:controlled-execution-gate-design
 npm run smoke:readonly:real
 npm run typecheck
 npm test
@@ -123,11 +128,9 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from `origin/main` evidence baseline `24c3508`, plus any local
-post-push anchor cleanup on `main`: approval issuance, read-only approval
-consumption, read-only formal integration evidence, and approval consumption
-dispatch audit matrix evidence are merged to `origin/main`; fresh real
-read-only Codex CLI smoke passed on current local `main`; next local work is a
-controlled execution gate design for the next real Codex CLI step, without
-opening workspace-write, general provider execution, or unrelated remote
-actions.
+Continue from `main` / `origin/main` at `c95ab3b`: approval issuance,
+read-only approval consumption, read-only formal integration evidence, approval
+consumption dispatch audit matrix evidence, and fresh real read-only Codex CLI
+smoke evidence are merged to `origin/main`; current local work is controlled
+execution gate design for the next real Codex CLI step, without opening
+workspace-write, general provider execution, or unrelated remote actions.

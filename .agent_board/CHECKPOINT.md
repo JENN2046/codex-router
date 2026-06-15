@@ -3,9 +3,9 @@
 ## Completed
 
 Implemented, merged, and pushed the evidence-first plan slice to `origin/main`
-at `24c3508`. Local `main` also contains post-push anchor cleanup facts and may
-be ahead until another push is explicitly authorized.
-Fresh real Codex CLI read-only smoke passed under exact operator authorization.
+at `24c3508`. Post-push anchor cleanup and fresh real Codex CLI read-only smoke
+evidence are pushed to `origin/main` at `c95ab3b`.
+Controlled execution gate design is now in progress on a focused branch.
 
 Changed files:
 
@@ -26,6 +26,13 @@ Changed files:
 - `npm run build` passed.
 - `git diff --cached --check` passed with only CRLF conversion warnings.
 - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
+- read-only real smoke chain audits passed on clean `main`.
+- `npx tsx --test tests\controlled-execution-gate-design-audit.test.ts`
+  passed: `4 / 4`.
+- controlled execution / workspace-write canary targeted tests passed:
+  `18 / 18`.
+- `npm run typecheck` passed after adding the design audit script.
+- `npm run audit:controlled-execution-gate-design` passed after commit.
 
 ## Not Run
 

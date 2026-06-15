@@ -14,10 +14,15 @@
 - Validate `npm run audit:approval-consumption-dispatch-matrix` on clean
   `main`.
 - Run fresh real read-only Codex CLI smoke under exact operator authorization.
+- Fast-forward fresh smoke evidence into `main`.
+- Rerun main-only real read-only smoke audits on clean `main`.
+- Push `main` to `origin/main` at `c95ab3b`.
+- Design controlled execution gate for the next real Codex CLI step.
+- Validate `npm run audit:controlled-execution-gate-design`.
 
 ## In Progress
 
-- Record fresh real read-only smoke evidence and follow-up gate boundary.
+- Keep the design branch ready for local fast-forward merge or review.
 
 ## Blocked
 
@@ -26,6 +31,4 @@
 
 ## Remaining
 
-- Fast-forward local `main` to the fresh smoke evidence branch if approved.
-- Rerun main-only real read-only smoke audits on clean `main`.
-- Design the controlled execution gate for the next real Codex CLI step.
+- Decide whether to merge/push the design branch after review.

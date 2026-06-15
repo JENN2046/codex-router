@@ -43,6 +43,7 @@
     "audit:readonly-real-smoke-chain-local-closeout": "tsx scripts/run-readonly-real-smoke-chain-local-closeout-audit.ts",
     "audit:readonly-formal-integration-matrix": "tsx scripts/run-readonly-formal-integration-readiness-matrix-audit.ts",
     "audit:approval-consumption-dispatch-matrix": "tsx scripts/run-approval-consumption-dispatch-matrix-audit.ts",
+    "audit:controlled-execution-gate-design": "tsx scripts/run-controlled-execution-gate-design-audit.ts",
     "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
     "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
     "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts",
