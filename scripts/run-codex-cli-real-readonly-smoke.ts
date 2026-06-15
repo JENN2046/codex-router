@@ -112,7 +112,6 @@ export async function runRealCodexCliReadOnlySmokeScript(
     planOptions: {
       model: env.CODEX_CLI_REAL_READONLY_SMOKE_MODEL
         ?? DEFAULT_CODEX_CLI_MODEL_PROBE_MODEL,
-      skipGitRepoCheck: true,
       ephemeral: true,
       ...(env.CODEX_CLI_REAL_READONLY_SMOKE_COMMAND !== undefined
         ? { codexCommand: env.CODEX_CLI_REAL_READONLY_SMOKE_COMMAND }

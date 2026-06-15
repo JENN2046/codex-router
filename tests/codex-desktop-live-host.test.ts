@@ -55,6 +55,11 @@ class FakeCodexCliChild extends EventEmitter implements CodexCliChildProcess {
 function createPassingCodexCliOptions(): CodexCliProcessRunOptions {
   return {
     allowWriteSandbox: true,
+    workspaceWritePreflight: {
+      beforeCommit: "abc123def456",
+      rollbackCommand: "git restore --source abc123def456 -- packages/codex-desktop-live-host/src/index.ts",
+      targetAllowlist: ["packages/codex-desktop-live-host/src/index.ts"]
+    },
     skipExecutionModelProbe: true,
     spawn: () => new FakeCodexCliChild()
   };
@@ -96,7 +101,7 @@ function createReadTask(taskId: string): TaskEnvelopeInput {
       successCriteria: [],
       outOfScope: []
     },
-    repoContext: { repoRoot: "A:/codex-router" },
+    repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
     target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
@@ -113,7 +118,7 @@ function createEngineeringTask(taskId: string): TaskEnvelopeInput {
       successCriteria: [],
       outOfScope: []
     },
-    repoContext: { repoRoot: "A:/codex-router" },
+    repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
     target: { branches: [], files: ["packages/codex-desktop-live-host/src/index.ts"], modules: [] },
     constraints: {},
     hints: { taskClassHint: "engineering", riskHints: [], tags: [] }

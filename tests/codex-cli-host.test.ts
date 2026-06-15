@@ -11,6 +11,7 @@ import { createRecordingTelemetrySink } from "../packages/observability/src/inde
 import {
   CODEX_CLI_READONLY_SMOKE_OK,
   CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
+  DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE,
   checkCodexCliEnvironmentPreflight,
   checkCodexCliExecPlanModelAvailability,
   checkCodexCliModelAvailability,
@@ -63,6 +64,28 @@ import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import { routeTask } from "../packages/routing-engine/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
+const TEST_WORKSPACE_WRITE_BEFORE_COMMIT = "abc123def456";
+
+function createTestWorkspaceWritePreflight(
+  targetAllowlist = [DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE]
+): {
+  beforeCommit: string;
+  rollbackCommand: string;
+  targetAllowlist: string[];
+} {
+  return {
+    beforeCommit: TEST_WORKSPACE_WRITE_BEFORE_COMMIT,
+    rollbackCommand: [
+      "git",
+      "restore",
+      "--source",
+      TEST_WORKSPACE_WRITE_BEFORE_COMMIT,
+      "--",
+      ...targetAllowlist
+    ].join(" "),
+    targetAllowlist
+  };
+}
 
 test("codex cli host public export surface is lock-stable", async () => {
   const moduleExports = await import("../packages/codex-cli-host/src/index.js");
@@ -221,7 +244,8 @@ test("codex cli host builds a read-only exec json plan without running the CLI",
       outOfScope: ["file edits"]
     },
     repoContext: {
-      repoRoot: "A:/codex-router"
+      repoRoot: "A:/codex-router",
+      worktreeClean: true
     },
     target: {
       branches: [],
@@ -235,7 +259,6 @@ test("codex cli host builds a read-only exec json plan without running the CLI",
       tags: ["codex-cli-host-smoke"]
     }
   }, {
-    skipGitRepoCheck: true,
     ephemeral: true
   });
 
@@ -252,7 +275,7 @@ test("codex cli host builds a read-only exec json plan without running the CLI",
     "read-only",
     "--cd"
   ]);
-  assert.ok(plan.args.includes("--skip-git-repo-check"));
+  assert.equal(plan.args.includes("--skip-git-repo-check"), false);
   assert.ok(plan.args.includes("--ephemeral"));
   assert.equal(plan.args.at(-1), plan.prompt);
   assert.match(plan.prompt, /"source": "cli"/);
@@ -270,7 +293,8 @@ test("codex cli host derives CLI model and sandbox from routing decisions", asyn
       outOfScope: ["file edits"]
     },
     repoContext: {
-      repoRoot: "A:/codex-router"
+      repoRoot: "A:/codex-router",
+      worktreeClean: true
     },
     target: {
       branches: [],
@@ -293,7 +317,8 @@ test("codex cli host derives CLI model and sandbox from routing decisions", asyn
       outOfScope: []
     },
     repoContext: {
-      repoRoot: "A:/codex-router"
+      repoRoot: "A:/codex-router",
+      worktreeClean: true
     },
     target: {
       branches: [],
@@ -313,7 +338,6 @@ test("codex cli host derives CLI model and sandbox from routing decisions", asyn
     readOnlyTask,
     readOnlyDecision,
     {
-      skipGitRepoCheck: true,
       ephemeral: true
     }
   );
@@ -321,7 +345,6 @@ test("codex cli host derives CLI model and sandbox from routing decisions", asyn
     smallEditTask,
     smallEditDecision,
     {
-      skipGitRepoCheck: true,
       ephemeral: true
     }
   );
@@ -416,7 +439,8 @@ test("codex cli model selection switch accepts gpt-5.4-mini over codex spark", a
       outOfScope: []
     },
     repoContext: {
-      repoRoot: "A:/codex-router"
+      repoRoot: "A:/codex-router",
+      worktreeClean: true
     },
     target: {
       branches: [],
@@ -667,8 +691,7 @@ test("codex cli runner checks selected model against startup catalog before spaw
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
   let successfulRunCalls = 0;
 
@@ -748,7 +771,7 @@ test("codex cli model probe evidence uses logged-in CLI path without API key", a
   assert.equal(evidence.cli.sandbox, "read-only");
   assert.equal(evidence.cli.approvalPolicy, "never");
   assert.equal(evidence.cli.usesJson, true);
-  assert.equal(evidence.cli.skipGitRepoCheck, true);
+  assert.equal(evidence.cli.skipGitRepoCheck, false);
   assert.equal(evidence.cli.ephemeral, true);
   assert.equal(evidence.run?.eventCount, 1);
   assert.equal(calls.length, 1);
@@ -913,8 +936,7 @@ test("codex cli runner blocks strict model probe unexpected response before main
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
   let calls = 0;
 
@@ -959,8 +981,7 @@ test("codex cli runner can require a cached model probe", () => {
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
 
   assert.ok(validateCodexCliExecPlanForRun(plan, {
@@ -993,8 +1014,7 @@ test("codex cli runner auto-probes model with cli before main execution", async 
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
   const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
 
@@ -1055,8 +1075,7 @@ test("codex cli runner defaults to automatic strict model probe when plan has a 
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
   let calls = 0;
 
@@ -1102,8 +1121,7 @@ test("codex cli runner blocks when auto model probe fails in strict mode", async
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
   let calls = 0;
 
@@ -1151,8 +1169,7 @@ test("codex cli runner can explicitly skip default execution model probe", async
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
   let calls = 0;
 
@@ -1197,8 +1214,7 @@ test("codex cli runner reuses a cached passed model probe within the ttl", async
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
   let calls = 0;
 
@@ -1252,8 +1268,7 @@ test("codex cli runner refreshes the model probe after cache ttl expiry", async 
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
   let calls = 0;
 
@@ -1304,8 +1319,7 @@ test("codex cli runner can disable the passed probe cache explicitly", async () 
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
   let calls = 0;
 
@@ -1356,8 +1370,7 @@ test("codex cli runner emits telemetry for model probe cache miss and hit", asyn
       tags: []
     }
   }, {
-    model: "gpt-5.4-mini",
-    skipGitRepoCheck: true
+    model: "gpt-5.4-mini"
   });
   const telemetryStore = createRecordingTelemetrySink();
   let calls = 0;
@@ -1779,7 +1792,6 @@ test("codex cli host runner captures read-only process output through an injecta
       tags: []
     }
   }, {
-    skipGitRepoCheck: true,
     ephemeral: true
   });
 
@@ -1830,7 +1842,6 @@ test("codex cli runner prepends packaged helper PATH for Windows bin executable 
     taskId: "cli-runner-windows-bin-helper-path"
   }), {
     codexCommand: command,
-    skipGitRepoCheck: true,
     ephemeral: true
   });
 
@@ -1870,7 +1881,6 @@ test("codex cli runner allows CODEX_API_KEY only through one-shot child env", as
   const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
     taskId: "cli-runner-one-shot-child-env"
   }), {
-    skipGitRepoCheck: true,
     ephemeral: true
   });
   const result = await runCodexCliExecPlan(plan, {
@@ -1914,7 +1924,6 @@ test("codex cli runner converts synchronous spawner failure into a failed execut
   const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
     taskId: "cli-runner-sync-spawn-error"
   }), {
-    skipGitRepoCheck: true,
     ephemeral: true
   });
 
@@ -1989,7 +1998,6 @@ test("codex cli operator acceptance runs a task through the guarded exec runner 
     },
     planOptions: {
       model: "gpt-5.4-mini",
-      skipGitRepoCheck: true,
       ephemeral: true
     },
     telemetryStore,
@@ -2048,7 +2056,6 @@ test("codex cli operator acceptance emits cache miss then hit across consecutive
     task,
     planOptions: {
       model: "gpt-5.4-mini",
-      skipGitRepoCheck: true,
       ephemeral: true
     },
     telemetryStore,
@@ -2058,7 +2065,6 @@ test("codex cli operator acceptance emits cache miss then hit across consecutive
     task,
     planOptions: {
       model: "gpt-5.4-mini",
-      skipGitRepoCheck: true,
       ephemeral: true
     },
     telemetryStore,
@@ -2111,7 +2117,6 @@ test("codex cli operator acceptance evidence writes without raw prompt or argv",
     },
     planOptions: {
       model: "gpt-5.4-mini",
-      skipGitRepoCheck: true,
       ephemeral: true
     },
     spawn: () => createFakeCodexCliChild({
@@ -2166,7 +2171,6 @@ test("codex cli operator acceptance blocks workspace-write plans without explici
       model: "gpt-5.4-mini",
       sandbox: "workspace-write",
       approvalPolicy: "on-request",
-      skipGitRepoCheck: true,
       ephemeral: true
     }
   });
@@ -2189,7 +2193,8 @@ test("codex cli host runner blocks write sandbox unless explicitly allowed", asy
       outOfScope: []
     },
     repoContext: {
-      repoRoot: "A:/codex-router"
+      repoRoot: "A:/codex-router",
+      worktreeClean: true
     },
     target: {
       branches: [],
@@ -2220,6 +2225,7 @@ test("codex cli host runner blocks write sandbox unless explicitly allowed", asy
 
   const result = await runCodexCliExecPlan(plan, {
     allowWriteSandbox: true,
+    workspaceWritePreflight: createTestWorkspaceWritePreflight(["README.md"]),
     spawn: () => createFakeCodexCliChild({
       stdout: "{\"type\":\"agent_message\",\"message\":\"allowed\"}\n",
       exitCode: 0
@@ -2227,6 +2233,66 @@ test("codex cli host runner blocks write sandbox unless explicitly allowed", asy
   });
 
   assert.equal(result.inspection.status, "completed");
+});
+
+test("codex cli host runner gates skip git repo check by mode and explicit allowance", async () => {
+  const readOnlyPlan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
+    taskId: "cli-runner-readonly-skip-git-gate"
+  }), {
+    skipGitRepoCheck: true,
+    ephemeral: true
+  });
+  const workspaceWritePlan = createCodexCliExecPlan(createCodexCliWorkspaceWriteSmokeTask({
+    taskId: "cli-runner-write-skip-git-gate"
+  }), {
+    sandbox: "workspace-write",
+    approvalPolicy: "on-request",
+    skipGitRepoCheck: true,
+    ephemeral: true
+  });
+
+  assert.ok(validateCodexCliExecPlanForRun(readOnlyPlan).includes(
+    "codex_cli_skip_git_repo_check_requires_explicit_allowance:--skip-git-repo-check"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(readOnlyPlan, {
+      skipExecutionModelProbe: true,
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_skip_git_repo_check_requires_explicit_allowance/
+  );
+
+  const allowedReadOnly = await runCodexCliExecPlan(readOnlyPlan, {
+    allowSkipGitRepoCheck: true,
+    skipExecutionModelProbe: true,
+    spawn: () => createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"allowed\"}\n",
+      exitCode: 0
+    })
+  });
+  assert.equal(allowedReadOnly.inspection.status, "completed");
+
+  assert.ok(validateCodexCliExecPlanForRun(workspaceWritePlan, {
+    allowWriteSandbox: true,
+    allowSkipGitRepoCheck: true
+  }).includes(
+    "codex_cli_skip_git_repo_check_not_allowed_for_workspace_write:--skip-git-repo-check"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(workspaceWritePlan, {
+      allowWriteSandbox: true,
+      allowSkipGitRepoCheck: true,
+      skipExecutionModelProbe: true,
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_skip_git_repo_check_not_allowed_for_workspace_write/
+  );
 });
 
 test("codex cli host runner rejects manually forged dangerous plans", async () => {
@@ -3443,7 +3509,7 @@ test("codex cli read-only smoke runs through guarded runner and captures evidenc
     "exec",
     "--json"
   ]);
-  assert.equal(result.plan.args.includes("--skip-git-repo-check"), true);
+  assert.equal(result.plan.args.includes("--skip-git-repo-check"), false);
   assert.equal(result.plan.args.includes("--ephemeral"), true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.cwd, "A:/codex-router");
@@ -3457,7 +3523,7 @@ test("codex cli read-only smoke runs through guarded runner and captures evidenc
   assert.equal(evidence.status, "passed");
   assert.equal(evidence.taskId, "cli-smoke-readonly");
   assert.equal(evidence.plan.usesJson, true);
-  assert.equal(evidence.plan.skipGitRepoCheck, true);
+  assert.equal(evidence.plan.skipGitRepoCheck, false);
   assert.equal(evidence.plan.ephemeral, true);
   assert.equal(evidence.run.eventCount, 1);
   assert.deepEqual(evidence.summary.warnings, ["WARNING: diagnostic only"]);
@@ -3749,10 +3815,22 @@ test("codex cli workspace-write smoke preflight blocks without explicit allowanc
   assert.ok(preflight.blockingReasons.includes(
     "codex_cli_workspace_write_smoke_requires_confirmation"
   ));
+  assert.ok(preflight.blockingReasons.includes(
+    "codex_cli_workspace_write_smoke_requires_clean_worktree"
+  ));
+  assert.ok(preflight.blockingReasons.includes(
+    "codex_cli_workspace_write_smoke_requires_before_commit"
+  ));
+  assert.ok(preflight.blockingReasons.includes(
+    "codex_cli_workspace_write_smoke_requires_rollback_command"
+  ));
 
   assert.equal(evidence.schemaVersion, "codex-cli-workspace-write-smoke-preflight.v1");
   assert.equal(evidence.status, "blocked");
   assert.equal(evidence.summary.readyToRun, false);
+  assert.equal(evidence.guards.worktreeClean, false);
+  assert.equal(evidence.guards.beforeCommitRecorded, false);
+  assert.equal(evidence.guards.rollbackCommandRecorded, false);
   assert.equal(evidence.requiredConfirmation, CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION);
   assert.equal("prompt" in evidence.plan, false);
   assert.equal("args" in evidence.plan, false);
@@ -3765,8 +3843,10 @@ test("codex cli workspace-write smoke preflight becomes ready only with both gat
     taskOptions: {
       taskId: "cli-write-smoke-ready",
       repoRoot: "A:/codex-router",
+      worktreeClean: true,
       file: "docs/evidence/codex-cli-workspace-write-smoke.txt"
     },
+    beforeCommit: TEST_WORKSPACE_WRITE_BEFORE_COMMIT,
     allowWriteSandbox: true,
     confirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION
   });
@@ -3783,8 +3863,14 @@ test("codex cli workspace-write smoke preflight becomes ready only with both gat
   assert.equal(preflight.status, "ready");
   assert.deepEqual(preflight.blockingReasons, []);
   assert.equal(evidence.summary.readyToRun, true);
+  assert.equal(evidence.guards.worktreeClean, true);
+  assert.equal(evidence.guards.beforeCommitRecorded, true);
+  assert.equal(evidence.guards.rollbackCommandRecorded, true);
   assert.deepEqual(evidence.plan.targetFiles, [
     "docs/evidence/codex-cli-workspace-write-smoke.txt"
+  ]);
+  assert.deepEqual(evidence.plan.targetAllowlist, [
+    DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE
   ]);
   assert.equal(write.path, path);
   assert.ok(write.bytes > 0);
@@ -3892,8 +3978,10 @@ test("codex cli workspace-write smoke runner executes only after both gates", as
   const result = await runCodexCliWorkspaceWriteSmoke({
     taskOptions: {
       taskId: "cli-write-smoke-run-ready",
-      repoRoot: "A:/codex-router"
+      repoRoot: "A:/codex-router",
+      worktreeClean: true
     },
+    beforeCommit: TEST_WORKSPACE_WRITE_BEFORE_COMMIT,
     allowWriteSandbox: true,
     confirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
     spawn: spawner
@@ -3918,6 +4006,7 @@ test("codex cli workspace-write smoke runner executes only after both gates", as
     "--sandbox",
     "workspace-write"
   ]);
+  assert.equal(calls[0]?.args.includes("--skip-git-repo-check"), false);
   assert.equal(result.run?.inspection.status, "completed");
   assert.equal(result.run?.inspection.events.length, 1);
   assert.equal(child?.stdin.ended, true);
@@ -3937,7 +4026,6 @@ test("codex cli governance forces step-back after three anomalies and blocks wri
     codexCommand: "codex",
     sandbox: "workspace-write",
     approvalPolicy: "on-request",
-    skipGitRepoCheck: true,
     ephemeral: true
   });
   const first = createCodexCliGovernanceBundle({
@@ -4019,8 +4107,10 @@ test("codex cli workspace-write smoke runner respects an explicit codex command 
   const result = await runCodexCliWorkspaceWriteSmoke({
     taskOptions: {
       taskId: "cli-write-smoke-run-custom-command",
-      repoRoot: "A:/codex-router"
+      repoRoot: "A:/codex-router",
+      worktreeClean: true
     },
+    beforeCommit: TEST_WORKSPACE_WRITE_BEFORE_COMMIT,
     planOptions: {
       codexCommand: "custom-codex"
     },
@@ -4094,6 +4184,10 @@ test("codex cli workspace-write smoke run-and-write forwards lifecycle options",
   const path = join(dir, "timeout", "evidence.json");
   const persisted = await runAndWriteCodexCliWorkspaceWriteSmokeEvidence({
     evidencePath: path,
+    taskOptions: {
+      worktreeClean: true
+    },
+    beforeCommit: TEST_WORKSPACE_WRITE_BEFORE_COMMIT,
     allowWriteSandbox: true,
     confirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
     timeoutMs: 1,

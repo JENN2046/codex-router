@@ -80,7 +80,6 @@ Use:
 import { createCodexCliExecPlan } from "../packages/codex-cli-host/src/index.js";
 
 const plan = createCodexCliExecPlan(task, {
-  skipGitRepoCheck: true,
   ephemeral: true
 });
 ```
@@ -99,6 +98,7 @@ Defaults:
 - for Codex CLI `0.125.0`, the approval flag is emitted before `exec` as
   `-a <approval-policy>`
 - dangerous bypass flags are rejected
+- `--skip-git-repo-check` is not emitted by default
 
 The adapter intentionally does not emit:
 
@@ -110,7 +110,6 @@ When the caller already has a `RoutingDecision`, prefer:
 
 ```ts
 const plan = createCodexCliExecPlanFromRoutingDecision(task, decision, {
-  skipGitRepoCheck: true,
   ephemeral: true
 });
 ```
@@ -131,7 +130,6 @@ const plan = createCodexCliExecPlanFromRoutingDecision(task, decision, {
     mode: "user_preference",
     requestedModel: "gpt-5.3-codex"
   },
-  skipGitRepoCheck: true,
   ephemeral: true
 });
 ```
@@ -229,9 +227,9 @@ npm run model:check
 
 By default this uses the logged-in Codex CLI session, not `OPENAI_API_KEY`.
 It runs a read-only `codex exec --json --model <model>` probe with `-a never`,
-`--skip-git-repo-check`, and `--ephemeral`. This is the right mode for checking
-whether the current Codex account can execute the selected model before a real
-task.
+`--ephemeral`, and the normal Git repository check. This is the right mode for
+checking whether the current Codex account can execute the selected model before
+a real task.
 
 The command reads:
 
@@ -320,6 +318,12 @@ Default runner gates:
 - dangerous bypass arguments are rejected even if a plan is manually forged
 - argv `--sandbox` and approval values must match plan metadata
 - `workspace-write` plans require `allowWriteSandbox: true`
+- `--skip-git-repo-check` is blocked unless the caller passes
+  `allowSkipGitRepoCheck: true`
+- `workspace-write` plans may never use `--skip-git-repo-check`
+- `workspace-write` plans require a known repo root, `worktreeClean: true`,
+  a recorded `beforeCommit`, a rollback command, and a target allowlist through
+  `workspaceWritePreflight`
 - when a `modelCatalog` is supplied, the selected `plan.model` must be present
 - when `requireModelCatalog` is true, execution is blocked until a catalog is
   supplied
@@ -336,9 +340,13 @@ official CLI route. It creates or accepts a read-only task envelope, forces:
 - `--sandbox read-only`
 - `-a never` for non-interactive smoke execution
 - `--json`
-- `--skip-git-repo-check` by default
 - `--ephemeral` by default
 - a default `180000` ms timeout window
+
+Read-only smoke does not skip the Git repository check by default. A smoke or
+canary fixture that must exercise `--skip-git-repo-check` has to set
+`planOptions.skipGitRepoCheck: true` and pass `allowSkipGitRepoCheck: true`.
+Workspace-write smoke never allows this flag.
 
 It does not expose `allowWriteSandbox`. Any write-capable CLI run must use the
 lower-level guarded runner directly and pass the normal project approval rules.
@@ -385,6 +393,15 @@ The preflight is `blocked` unless both gates are present:
 
 - `allowWriteSandbox: true`
 - confirmation string: `ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE`
+
+It also requires the workspace-write safety packet to be complete:
+
+- a known repo root or working directory
+- `repoContext.worktreeClean: true`
+- a recorded `beforeCommit`
+- a rollback command derived from that commit and the target files
+- target files that match the smoke target allowlist
+- no `--skip-git-repo-check`
 
 Use `createCodexCliWorkspaceWriteSmokePreflightEvidence()` and
 `writeCodexCliWorkspaceWriteSmokePreflightEvidenceFile()` to persist a compact

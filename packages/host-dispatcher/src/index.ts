@@ -298,7 +298,7 @@ async function dispatchToCliHost(
     const plan = createCodexCliExecPlanFromRoutingDecision(
       task,
       decision,
-      { skipGitRepoCheck: true, ephemeral: true }
+      { ephemeral: true }
     );
     const run = await runCodexCliExecPlan(plan, input.codexCliOptions ?? {});
 

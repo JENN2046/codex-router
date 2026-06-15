@@ -39,6 +39,8 @@ export type CodexCliExecutionStatus = "completed" | "failed";
 export const DEFAULT_CODEX_CLI_READ_ONLY_SMOKE_TIMEOUT_MS = 180_000;
 export const DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TIMEOUT_MS = 180_000;
 export const DEFAULT_CODEX_CLI_MODEL_PROBE_TIMEOUT_MS = 180_000;
+export const DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE =
+  "docs/evidence/codex-cli-workspace-write-smoke.txt";
 export const DEFAULT_CODEX_CLI_MODEL_PROBE_CACHE_TTL_MS = 300_000;
 export const DEFAULT_CODEX_CLI_MODEL_PROBE_MODEL = "gpt-5.4-mini";
 export const DEFAULT_CODEX_CLI_TERMINATION_GRACE_MS = 5_000;
@@ -339,6 +341,12 @@ export interface CodexCliExecPlan {
   warnings: string[];
 }
 
+export interface CodexCliWorkspaceWriteRunPreflight {
+  beforeCommit?: string;
+  rollbackCommand?: string;
+  targetAllowlist?: string[];
+}
+
 export interface CodexCliJsonlEvent {
   line: number;
   raw: string;
@@ -384,6 +392,8 @@ export interface CodexCliGovernanceEvidenceSummary {
 
 export interface CodexCliProcessRunOptions {
   allowWriteSandbox?: boolean;
+  allowSkipGitRepoCheck?: boolean;
+  workspaceWritePreflight?: CodexCliWorkspaceWriteRunPreflight;
   timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   oneShotEnv?: NodeJS.ProcessEnv;
@@ -529,6 +539,7 @@ export interface CodexCliWorkspaceWriteSmokeTaskOptions {
   taskId?: string;
   repoRoot?: string;
   branch?: string;
+  worktreeClean?: boolean;
   file?: string;
   modules?: string[];
   tags?: string[];
@@ -544,6 +555,7 @@ export interface CodexCliReadOnlySmokeRunOptions {
   task?: TaskEnvelopeInput;
   taskOptions?: CodexCliReadOnlySmokeTaskOptions;
   planOptions?: CodexCliReadOnlySmokePlanOptions;
+  allowSkipGitRepoCheck?: boolean;
   timeoutMs?: number;
   modelProbeTimeoutMs?: number;
   terminationGraceMs?: number;
@@ -636,6 +648,8 @@ export interface CodexCliReadOnlySmokePersistResult {
 export interface CodexCliOperatorAcceptanceRunOptions {
   task: TaskEnvelopeInput;
   planOptions?: CodexCliExecPlanOptions;
+  allowSkipGitRepoCheck?: boolean;
+  workspaceWritePreflight?: CodexCliWorkspaceWriteRunPreflight;
   timeoutMs?: number;
   terminationGraceMs?: number;
   modelProbeTimeoutMs?: number;
@@ -748,6 +762,17 @@ export interface CodexCliWorkspaceWriteSmokePreflightOptions {
   planOptions?: CodexCliWorkspaceWriteSmokePlanOptions;
   allowWriteSandbox?: boolean;
   confirmation?: string;
+  beforeCommit?: string;
+  targetAllowlist?: string[];
+}
+
+export interface CodexCliWorkspaceWriteSmokePreflightGuards {
+  repoRootKnown: boolean;
+  worktreeClean: boolean;
+  beforeCommitRecorded: boolean;
+  rollbackCommandRecorded: boolean;
+  targetFilesAllowed: boolean;
+  targetAllowlist: string[];
 }
 
 export interface CodexCliWorkspaceWriteSmokeRunOptions
@@ -768,6 +793,9 @@ export interface CodexCliWorkspaceWriteSmokePreflight {
   plan: CodexCliExecPlan;
   blockingReasons: string[];
   requiredConfirmation: typeof CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION;
+  guards: CodexCliWorkspaceWriteSmokePreflightGuards;
+  beforeCommit?: string;
+  rollbackCommand?: string;
 }
 
 export interface CodexCliWorkspaceWriteSmokeResult {
@@ -799,6 +827,7 @@ export interface CodexCliWorkspaceWriteSmokeEvidence {
   preflight: {
     status: "ready" | "blocked";
     blockingReasons: string[];
+    guards: CodexCliWorkspaceWriteSmokePreflightGuards;
   };
   approvalPacket: {
     status: "ready" | "blocked";
@@ -884,6 +913,7 @@ export interface CodexCliWorkspaceWriteSmokePreflightEvidence {
     approvalPolicy: CodexCliApprovalPolicy;
     workdir?: string;
     targetFiles: string[];
+    targetAllowlist: string[];
     modules: string[];
     usesJson: boolean;
     skipGitRepoCheck: boolean;
@@ -895,6 +925,7 @@ export interface CodexCliWorkspaceWriteSmokePreflightEvidence {
     blockingReasons: string[];
     warnings: string[];
   };
+  guards: CodexCliWorkspaceWriteSmokePreflightGuards;
   notes: string[];
 }
 
@@ -942,6 +973,8 @@ export interface CodexCliWorkspaceWriteSmokeApprovalPacket {
   rollback: {
     strategy: string;
     affectedFiles: string[];
+    beforeCommit?: string;
+    command?: string;
   };
   safetyNotes: string[];
   notes: string[];
@@ -1411,7 +1444,7 @@ export async function createCodexCliModelCliProbeEvidence(
         sandbox: "read-only",
         approvalPolicy: "never",
         usesJson: true,
-        skipGitRepoCheck: true,
+        skipGitRepoCheck: false,
         ephemeral: true,
         workdir
       },
@@ -1973,6 +2006,8 @@ export function validateCodexCliExecPlanForRun(
   options: Pick<
     CodexCliProcessRunOptions,
     | "allowWriteSandbox"
+    | "allowSkipGitRepoCheck"
+    | "workspaceWritePreflight"
     | "modelProbe"
     | "requireModelProbe"
     | "autoProbeModelWithCli"
@@ -2005,12 +2040,66 @@ export function validateCodexCliExecPlanForRun(
     blockingReasons.push(`codex_cli_sandbox_arg_mismatch:${sandboxArg}:${plan.sandbox}`);
   }
 
+  const isWorkspaceWritePlan = plan.sandbox === "workspace-write"
+    || sandboxArg === "workspace-write";
+
   if (plan.sandbox === "workspace-write" && options.allowWriteSandbox !== true) {
     blockingReasons.push("codex_cli_write_sandbox_requires_explicit_allowance");
   }
 
   if (!["read-only", "workspace-write"].includes(plan.sandbox)) {
     blockingReasons.push(`codex_cli_unsupported_sandbox:${plan.sandbox}`);
+  }
+
+  const skipGitRepoCheckArg = findCodexCliArgMatch(plan.args, ["--skip-git-repo-check"]);
+  if (
+    skipGitRepoCheckArg !== undefined
+    && (plan.sandbox === "workspace-write" || sandboxArg === "workspace-write")
+  ) {
+    blockingReasons.push(
+      `codex_cli_skip_git_repo_check_not_allowed_for_workspace_write:${skipGitRepoCheckArg}`
+    );
+  } else if (
+    skipGitRepoCheckArg !== undefined
+    && options.allowSkipGitRepoCheck !== true
+  ) {
+    blockingReasons.push(
+      `codex_cli_skip_git_repo_check_requires_explicit_allowance:${skipGitRepoCheckArg}`
+    );
+  }
+
+  if (isWorkspaceWritePlan) {
+    const beforeCommit = normalizeCodexCliOptionalText(
+      options.workspaceWritePreflight?.beforeCommit
+    );
+    const rollbackCommand = normalizeCodexCliOptionalText(
+      options.workspaceWritePreflight?.rollbackCommand
+    );
+    const targetAllowlist = normalizeCodexCliExplicitTargetAllowlist(
+      options.workspaceWritePreflight?.targetAllowlist
+    );
+    const repoRootKnown = normalizeCodexCliOptionalText(plan.task.repoContext.repoRoot)
+      !== undefined
+      || normalizeCodexCliOptionalText(plan.workdir) !== undefined;
+    const targetFilesAllowed = plan.task.target.files.length > 0
+      && targetAllowlist.length > 0
+      && plan.task.target.files.every((file) => targetAllowlist.includes(file));
+
+    if (!repoRootKnown) {
+      blockingReasons.push("codex_cli_workspace_write_smoke_requires_repo_root");
+    }
+    if (plan.task.repoContext.worktreeClean !== true) {
+      blockingReasons.push("codex_cli_workspace_write_smoke_requires_clean_worktree");
+    }
+    if (beforeCommit === undefined) {
+      blockingReasons.push("codex_cli_workspace_write_smoke_requires_before_commit");
+    }
+    if (rollbackCommand === undefined) {
+      blockingReasons.push("codex_cli_workspace_write_smoke_requires_rollback_command");
+    }
+    if (!targetFilesAllowed) {
+      blockingReasons.push("codex_cli_workspace_write_smoke_target_not_allowlisted");
+    }
   }
 
   const approvalArg = getCodexCliArgValue(plan.args, "--ask-for-approval")
@@ -2413,7 +2502,7 @@ export function createCodexCliWorkspaceWriteSmokeTask(
   options: CodexCliWorkspaceWriteSmokeTaskOptions = {}
 ): TaskEnvelopeInput {
   const repoRoot = options.repoRoot ?? "A:/codex-router";
-  const file = options.file ?? "docs/evidence/codex-cli-workspace-write-smoke.txt";
+  const file = options.file ?? DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE;
   const modules = options.modules ?? ["codex-cli-host"];
   const tags = options.tags ?? ["codex-cli-host-smoke", "workspace-write"];
 
@@ -2443,7 +2532,7 @@ export function createCodexCliWorkspaceWriteSmokeTask(
     repoContext: {
       repoRoot,
       ...(options.branch !== undefined ? { branch: options.branch } : {}),
-      worktreeClean: false
+      worktreeClean: options.worktreeClean ?? false
     },
     target: {
       branches: [],
@@ -2515,12 +2604,14 @@ export function createCodexCliWorkspaceWriteSmokePreflight(
     options.task ?? createCodexCliWorkspaceWriteSmokeTask(options.taskOptions)
   );
   const smokeCwd = options.planOptions?.cwd ?? task.repoContext.repoRoot;
+  const beforeCommit = normalizeCodexCliOptionalText(options.beforeCommit);
+  const targetAllowlist = normalizeCodexCliTargetAllowlist(options.targetAllowlist);
   const planOptions: CodexCliExecPlanOptions = {
     ...(options.planOptions ?? {}),
     ...(options.planOptions?.codexCommand !== undefined
       ? {}
       : { codexCommand: resolveCodexCliRuntimeCommand() }),
-    skipGitRepoCheck: options.planOptions?.skipGitRepoCheck ?? true,
+    skipGitRepoCheck: options.planOptions?.skipGitRepoCheck ?? false,
     ephemeral: options.planOptions?.ephemeral ?? true,
     sandbox: "workspace-write"
   };
@@ -2530,13 +2621,52 @@ export function createCodexCliWorkspaceWriteSmokePreflight(
   }
 
   const plan = createCodexCliExecPlan(task, planOptions);
+  const repoRootKnown = normalizeCodexCliOptionalText(task.repoContext.repoRoot)
+    !== undefined
+    || normalizeCodexCliOptionalText(plan.workdir) !== undefined;
+  const worktreeClean = task.repoContext.worktreeClean === true;
+  const targetFilesAllowed = task.target.files.length > 0
+    && task.target.files.every((file) => targetAllowlist.includes(file));
+  const rollbackCommand = beforeCommit !== undefined && targetFilesAllowed
+    ? createCodexCliGitRestoreRollbackCommand(beforeCommit, task.target.files)
+    : undefined;
+  const guards: CodexCliWorkspaceWriteSmokePreflightGuards = {
+    repoRootKnown,
+    worktreeClean,
+    beforeCommitRecorded: beforeCommit !== undefined,
+    rollbackCommandRecorded: rollbackCommand !== undefined,
+    targetFilesAllowed,
+    targetAllowlist
+  };
   const blockingReasons = uniqueStrings([
     ...validateCodexCliExecPlanForRun(
       plan,
-      options.allowWriteSandbox === undefined
-        ? {}
-        : { allowWriteSandbox: options.allowWriteSandbox }
+      {
+        ...(options.allowWriteSandbox === undefined
+          ? {}
+          : { allowWriteSandbox: options.allowWriteSandbox }),
+        workspaceWritePreflight: {
+          ...(beforeCommit !== undefined ? { beforeCommit } : {}),
+          ...(rollbackCommand !== undefined ? { rollbackCommand } : {}),
+          targetAllowlist
+        }
+      }
     ),
+    ...(repoRootKnown
+      ? []
+      : ["codex_cli_workspace_write_smoke_requires_repo_root"]),
+    ...(worktreeClean
+      ? []
+      : ["codex_cli_workspace_write_smoke_requires_clean_worktree"]),
+    ...(beforeCommit !== undefined
+      ? []
+      : ["codex_cli_workspace_write_smoke_requires_before_commit"]),
+    ...(rollbackCommand !== undefined
+      ? []
+      : ["codex_cli_workspace_write_smoke_requires_rollback_command"]),
+    ...(targetFilesAllowed
+      ? []
+      : ["codex_cli_workspace_write_smoke_target_not_allowlisted"]),
     ...(options.confirmation === CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION
       ? []
       : ["codex_cli_workspace_write_smoke_requires_confirmation"])
@@ -2547,7 +2677,10 @@ export function createCodexCliWorkspaceWriteSmokePreflight(
     task,
     plan,
     blockingReasons,
-    requiredConfirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION
+    requiredConfirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
+    guards,
+    ...(beforeCommit !== undefined ? { beforeCommit } : {}),
+    ...(rollbackCommand !== undefined ? { rollbackCommand } : {})
   };
 }
 
@@ -2571,6 +2704,7 @@ export function createCodexCliWorkspaceWriteSmokePreflightEvidence(
       approvalPolicy: preflight.plan.approvalPolicy,
       ...(preflight.plan.workdir !== undefined ? { workdir: preflight.plan.workdir } : {}),
       targetFiles: [...preflight.task.target.files],
+      targetAllowlist: [...preflight.guards.targetAllowlist],
       modules: [...preflight.task.target.modules],
       usesJson: preflight.plan.args.includes("--json"),
       skipGitRepoCheck: preflight.plan.args.includes("--skip-git-repo-check"),
@@ -2581,6 +2715,10 @@ export function createCodexCliWorkspaceWriteSmokePreflightEvidence(
       readyToRun: preflight.status === "ready",
       blockingReasons: [...preflight.blockingReasons],
       warnings: [...preflight.plan.warnings]
+    },
+    guards: {
+      ...preflight.guards,
+      targetAllowlist: [...preflight.guards.targetAllowlist]
     },
     notes: [...(options.notes ?? [])]
   };
@@ -2636,7 +2774,13 @@ export function createCodexCliWorkspaceWriteSmokeApprovalPacket(
         "Remove or restore the targeted smoke evidence file only.",
         "No branch movement, release action, external write, or secret change is part of this smoke."
       ].join(" "),
-      affectedFiles: targetFiles
+      affectedFiles: targetFiles,
+      ...(preflight.beforeCommit !== undefined
+        ? { beforeCommit: preflight.beforeCommit }
+        : {}),
+      ...(preflight.rollbackCommand !== undefined
+        ? { command: preflight.rollbackCommand }
+        : {})
     },
     safetyNotes: [
       "Approval packet does not execute Codex CLI.",
@@ -2673,7 +2817,7 @@ export async function runCodexCliReadOnlySmoke(
     ...(options.planOptions?.codexCommand !== undefined
       ? {}
       : { codexCommand: resolveCodexCliRuntimeCommand() }),
-    skipGitRepoCheck: options.planOptions?.skipGitRepoCheck ?? true,
+    skipGitRepoCheck: options.planOptions?.skipGitRepoCheck ?? false,
     ephemeral: options.planOptions?.ephemeral ?? true,
     sandbox: "read-only",
     approvalPolicy: "never"
@@ -2682,7 +2826,11 @@ export async function runCodexCliReadOnlySmoke(
     planOptions.cwd = smokeCwd;
   }
   const plan = createCodexCliReadOnlySmokeExecPlan(task, planOptions);
-  const validationBlockers = validateCodexCliExecPlanForRun(plan);
+  const validationBlockers = validateCodexCliExecPlanForRun(plan, {
+    ...(options.allowSkipGitRepoCheck !== undefined
+      ? { allowSkipGitRepoCheck: options.allowSkipGitRepoCheck }
+      : {})
+  });
 
   if (validationBlockers.length > 0) {
     const governance = options.governance?.enabled === false
@@ -2717,6 +2865,9 @@ export async function runCodexCliReadOnlySmoke(
         : {}),
       ...(options.terminationGraceMs !== undefined
         ? { terminationGraceMs: options.terminationGraceMs }
+        : {}),
+      ...(options.allowSkipGitRepoCheck !== undefined
+        ? { allowSkipGitRepoCheck: options.allowSkipGitRepoCheck }
         : {}),
       ...(options.env !== undefined ? { env: options.env } : {}),
       ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {}),
@@ -2832,6 +2983,15 @@ export async function runCodexCliWorkspaceWriteSmoke(
       ?? DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TIMEOUT_MS;
     const run = await runCodexCliExecPlan(preflight.plan, {
       allowWriteSandbox: true,
+      workspaceWritePreflight: {
+        ...(preflight.beforeCommit !== undefined
+          ? { beforeCommit: preflight.beforeCommit }
+          : {}),
+        ...(preflight.rollbackCommand !== undefined
+          ? { rollbackCommand: preflight.rollbackCommand }
+          : {}),
+        targetAllowlist: [...preflight.guards.targetAllowlist]
+      },
       timeoutMs,
       ...(options.modelProbeTimeoutMs !== undefined
         ? { modelProbeTimeoutMs: options.modelProbeTimeoutMs }
@@ -2904,9 +3064,17 @@ export async function runCodexCliOperatorAcceptance(
   const plan = createCodexCliExecPlan(task, planOptions);
   const validationBlockers = validateCodexCliExecPlanForRun(
     plan,
-    options.allowWriteSandbox === undefined
-      ? {}
-      : { allowWriteSandbox: options.allowWriteSandbox }
+    {
+      ...(options.allowWriteSandbox !== undefined
+        ? { allowWriteSandbox: options.allowWriteSandbox }
+        : {}),
+      ...(options.allowSkipGitRepoCheck !== undefined
+        ? { allowSkipGitRepoCheck: options.allowSkipGitRepoCheck }
+        : {}),
+      ...(options.workspaceWritePreflight !== undefined
+        ? { workspaceWritePreflight: options.workspaceWritePreflight }
+        : {})
+    }
   );
   const recordingTelemetry = createRecordingTelemetrySink();
   const telemetryStore = createFanoutTelemetrySink(
@@ -2946,6 +3114,12 @@ export async function runCodexCliOperatorAcceptance(
         ? { terminationGraceMs: options.terminationGraceMs }
         : {}),
       ...(options.modelProbeTimeoutMs !== undefined ? { modelProbeTimeoutMs: options.modelProbeTimeoutMs } : {}),
+      ...(options.allowSkipGitRepoCheck !== undefined
+        ? { allowSkipGitRepoCheck: options.allowSkipGitRepoCheck }
+        : {}),
+      ...(options.workspaceWritePreflight !== undefined
+        ? { workspaceWritePreflight: options.workspaceWritePreflight }
+        : {}),
       ...(options.env !== undefined ? { env: options.env } : {}),
       ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {}),
       ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
@@ -3150,7 +3324,11 @@ export function createCodexCliWorkspaceWriteSmokeEvidence(
     requiredConfirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
     preflight: {
       status: result.preflight.status,
-      blockingReasons: [...result.preflight.blockingReasons]
+      blockingReasons: [...result.preflight.blockingReasons],
+      guards: {
+        ...result.preflight.guards,
+        targetAllowlist: [...result.preflight.guards.targetAllowlist]
+      }
     },
     approvalPacket: {
       status: result.preflight.status,
@@ -3217,6 +3395,8 @@ export async function runAndWriteCodexCliWorkspaceWriteSmokeEvidence(
     ...(options.planOptions !== undefined ? { planOptions: options.planOptions } : {}),
     ...(options.allowWriteSandbox !== undefined ? { allowWriteSandbox: options.allowWriteSandbox } : {}),
     ...(options.confirmation !== undefined ? { confirmation: options.confirmation } : {}),
+    ...(options.beforeCommit !== undefined ? { beforeCommit: options.beforeCommit } : {}),
+    ...(options.targetAllowlist !== undefined ? { targetAllowlist: options.targetAllowlist } : {}),
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     ...(options.modelProbeTimeoutMs !== undefined
       ? { modelProbeTimeoutMs: options.modelProbeTimeoutMs }
@@ -3508,7 +3688,7 @@ function createCodexCliModelProbeExecPlan(
     model: options.model,
     sandbox: "read-only",
     approvalPolicy: "never",
-    skipGitRepoCheck: true,
+    skipGitRepoCheck: false,
     ephemeral: true
   });
   const prompt = createCodexCliModelProbePrompt();
@@ -4627,6 +4807,48 @@ function quoteCommandPart(part: string): string {
   }
 
   return `"${part.replace(/"/g, "\\\"")}"`;
+}
+
+function normalizeCodexCliOptionalText(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeCodexCliTargetAllowlist(values: string[] | undefined): string[] {
+  return uniqueStrings(
+    (values === undefined || values.length === 0
+      ? [DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE]
+      : values
+    )
+      .map((value) => normalizeCodexCliOptionalText(value))
+      .filter((value): value is string => value !== undefined)
+  );
+}
+
+function normalizeCodexCliExplicitTargetAllowlist(values: string[] | undefined): string[] {
+  return uniqueStrings(
+    (values ?? [])
+      .map((value) => normalizeCodexCliOptionalText(value))
+      .filter((value): value is string => value !== undefined)
+  );
+}
+
+function createCodexCliGitRestoreRollbackCommand(
+  beforeCommit: string,
+  affectedFiles: string[]
+): string {
+  return [
+    "git",
+    "restore",
+    "--source",
+    beforeCommit,
+    "--",
+    ...affectedFiles
+  ].map(quoteCommandPart).join(" ");
 }
 
 function toSafeCodexCliEvidencePart(value: string, fallback: string): string {

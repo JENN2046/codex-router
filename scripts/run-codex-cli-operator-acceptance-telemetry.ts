@@ -1,9 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import { dirname } from "node:path";
+import { promisify } from "node:util";
 import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import {
   CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
   DEFAULT_CODEX_CLI_MODEL_PROBE_MODEL,
+  DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE,
   clearCodexCliModelProbeCache,
   createCodexCliOperatorAcceptanceEvidence,
   runCodexCliOperatorAcceptance,
@@ -14,7 +17,15 @@ import {
 import type { TaskEnvelopeInput } from "../packages/contracts/src/index.js";
 
 type AcceptanceMode = "read-only" | "workspace-write";
+type WorkspaceWriteRepoState = {
+  repoRoot: string;
+  worktreeClean: boolean;
+  targetAllowlist: string[];
+  beforeCommit?: string;
+  rollbackCommand?: string;
+};
 
+const execFileAsync = promisify(execFile);
 const mode = resolveMode(process.env.CODEX_CLI_OPERATOR_ACCEPTANCE_TELEMETRY_MODE);
 const model = process.env.CODEX_CLI_OPERATOR_ACCEPTANCE_TELEMETRY_MODEL
   ?? DEFAULT_CODEX_CLI_MODEL_PROBE_MODEL;
@@ -41,19 +52,28 @@ if (
 
   try {
     const telemetryStore = createRecordingTelemetrySink();
+    const repoState = mode === "workspace-write"
+      ? await resolveWorkspaceWriteRepoState("CODEX_CLI_OPERATOR_ACCEPTANCE_TELEMETRY_CWD")
+      : undefined;
     const first = await runCodexCliOperatorAcceptance({
-      task: createTask(mode),
+      task: createTask(mode, repoState),
       planOptions: createPlanOptions(mode),
       telemetryStore,
       modelProbeTimeoutMs,
-      ...(mode === "workspace-write" ? { allowWriteSandbox: true } : {})
+      ...(mode === "workspace-write" ? { allowWriteSandbox: true } : {}),
+      ...(repoState !== undefined
+        ? { workspaceWritePreflight: createWorkspaceWritePreflight(repoState) }
+        : {})
     });
     const second = await runCodexCliOperatorAcceptance({
-      task: createTask(mode),
+      task: createTask(mode, repoState),
       planOptions: createPlanOptions(mode),
       telemetryStore,
       modelProbeTimeoutMs,
-      ...(mode === "workspace-write" ? { allowWriteSandbox: true } : {})
+      ...(mode === "workspace-write" ? { allowWriteSandbox: true } : {}),
+      ...(repoState !== undefined
+        ? { workspaceWritePreflight: createWorkspaceWritePreflight(repoState) }
+        : {})
     });
     const telemetryEvents = await telemetryStore.loadAll();
     const telemetryMessages = telemetryEvents.map((event) => event.message);
@@ -130,7 +150,10 @@ function resolvePositiveInteger(input: string | undefined, fallback: number): nu
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function createTask(modeValue: AcceptanceMode): TaskEnvelopeInput {
+function createTask(
+  modeValue: AcceptanceMode,
+  repoState?: WorkspaceWriteRepoState
+): TaskEnvelopeInput {
   if (modeValue === "workspace-write") {
     return {
       taskId: "codex-cli-operator-acceptance-telemetry-workspace-write",
@@ -149,12 +172,12 @@ function createTask(modeValue: AcceptanceMode): TaskEnvelopeInput {
         ]
       },
       repoContext: {
-        repoRoot: "A:/codex-router",
-        worktreeClean: true
+        repoRoot: repoState?.repoRoot ?? "A:/codex-router",
+        worktreeClean: repoState?.worktreeClean ?? false
       },
       target: {
         branches: [],
-        files: ["docs/evidence/codex-cli-workspace-write-smoke.txt"],
+        files: [DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE],
         modules: ["codex-cli-host"]
       },
       constraints: {},
@@ -200,10 +223,82 @@ function createTask(modeValue: AcceptanceMode): TaskEnvelopeInput {
   };
 }
 
+async function resolveWorkspaceWriteRepoState(
+  cwdEnvName: string
+): Promise<WorkspaceWriteRepoState> {
+  const cwd = process.env[cwdEnvName] ?? process.cwd();
+  const targetAllowlist = [DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE];
+
+  try {
+    const [repoRoot, beforeCommit, statusShort] = await Promise.all([
+      git(["rev-parse", "--show-toplevel"], cwd),
+      git(["rev-parse", "HEAD"], cwd),
+      git(["status", "--short"], cwd)
+    ]);
+    const normalizedRoot = repoRoot.trim() || cwd;
+    const normalizedCommit = beforeCommit.trim();
+    const rollbackCommand = normalizedCommit.length > 0
+      ? createGitRestoreRollbackCommand(normalizedCommit, targetAllowlist)
+      : undefined;
+
+    return {
+      repoRoot: normalizedRoot,
+      worktreeClean: statusShort.trim().length === 0,
+      targetAllowlist,
+      ...(normalizedCommit.length > 0 ? { beforeCommit: normalizedCommit } : {}),
+      ...(rollbackCommand !== undefined ? { rollbackCommand } : {})
+    };
+  } catch {
+    return {
+      repoRoot: cwd,
+      worktreeClean: false,
+      targetAllowlist
+    };
+  }
+}
+
+function createWorkspaceWritePreflight(
+  repoState: WorkspaceWriteRepoState
+): {
+  beforeCommit?: string;
+  rollbackCommand?: string;
+  targetAllowlist: string[];
+} {
+  return {
+    ...(repoState.beforeCommit !== undefined
+      ? { beforeCommit: repoState.beforeCommit }
+      : {}),
+    ...(repoState.rollbackCommand !== undefined
+      ? { rollbackCommand: repoState.rollbackCommand }
+      : {}),
+    targetAllowlist: [...repoState.targetAllowlist]
+  };
+}
+
+async function git(args: string[], cwd: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", args, {
+    cwd,
+    encoding: "utf8",
+    windowsHide: true
+  });
+
+  return stdout;
+}
+
+function createGitRestoreRollbackCommand(beforeCommit: string, affectedFiles: string[]): string {
+  return [
+    "git",
+    "restore",
+    "--source",
+    beforeCommit,
+    "--",
+    ...affectedFiles
+  ].join(" ");
+}
+
 function createPlanOptions(modeValue: AcceptanceMode): CodexCliExecPlanOptions {
   return {
     model,
-    skipGitRepoCheck: true,
     ephemeral: true,
     ...(modeValue === "workspace-write"
       ? { sandbox: "workspace-write" as const, approvalPolicy: "on-request" as const }

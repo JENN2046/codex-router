@@ -9,6 +9,7 @@ import {
   CODEX_CLI_READONLY_SMOKE_OK,
   CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
   DEFAULT_CODEX_CLI_MODEL_PROBE_MODEL,
+  DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE,
   clearCodexCliModelProbeCache,
   createCodexCliReadOnlySmokeEvidence,
   createCodexCliWorkspaceWriteSmokeEvidence,
@@ -25,6 +26,7 @@ const model = process.env.CODEX_CLI_CONTRACT_SMOKE_MODEL
 const cwd = process.cwd();
 const codexCommand = "codex-contract-smoke";
 const generatedAt = new Date().toISOString();
+const workspaceWriteBeforeCommit = "codex-cli-contract-smoke-before";
 
 interface ContractSpawnCall {
   kind: "model-probe" | "smoke-run";
@@ -48,7 +50,6 @@ async function main(): Promise<void> {
     model,
     codexCommand,
     cwd,
-    skipGitRepoCheck: true,
     ephemeral: true
   };
 
@@ -79,8 +80,10 @@ async function main(): Promise<void> {
     taskOptions: {
       taskId: "codex-cli-contract-smoke-workspace-write-blocked",
       repoRoot: cwd,
-      file: "docs/evidence/codex-cli-contract-smoke-workspace-write.txt"
+      worktreeClean: true,
+      file: DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE
     },
+    beforeCommit: workspaceWriteBeforeCommit,
     spawn
   });
   const blockedRunSpawned = spawnCalls.length !== spawnCountBeforeBlockedRun;
@@ -91,8 +94,10 @@ async function main(): Promise<void> {
     taskOptions: {
       taskId: "codex-cli-contract-smoke-workspace-write-ready",
       repoRoot: cwd,
-      file: "docs/evidence/codex-cli-contract-smoke-workspace-write.txt"
+      worktreeClean: true,
+      file: DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TARGET_FILE
     },
+    beforeCommit: workspaceWriteBeforeCommit,
     allowWriteSandbox: true,
     confirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
     spawn

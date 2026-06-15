@@ -33,6 +33,12 @@ import {
 } from "../packages/kernel-contracts/src/index.js";
 
 const now = "2026-06-04T00:00:00.000Z";
+const WORKSPACE_WRITE_PREFLIGHT_BLOCKERS = [
+  "codex_cli_workspace_write_smoke_requires_clean_worktree",
+  "codex_cli_workspace_write_smoke_requires_before_commit",
+  "codex_cli_workspace_write_smoke_requires_rollback_command",
+  "codex_cli_workspace_write_smoke_target_not_allowlisted"
+];
 
 test("codex cli provider manifest is valid", () => {
   const manifest = ProviderManifestSchema.parse(codexCliProviderManifest);
@@ -143,8 +149,8 @@ test("codex cli workspace-write plan requires a workspace-write policy decision"
   ]);
   assert.equal(readProviderMetadata(plan).policyAllowsWorkspaceWrite, true);
   assert.deepEqual(validation, {
-    valid: true,
-    reasons: []
+    valid: false,
+    reasons: WORKSPACE_WRITE_PREFLIGHT_BLOCKERS
   });
 });
 
@@ -283,8 +289,8 @@ test("codex cli provider classifies command plans as local command before write 
   assert.equal(plan.sandboxProfile.mode, "workspace-write");
   assert.equal(readProviderMetadata(plan).codexCliPlan.sandbox, "workspace-write");
   assert.deepEqual(validation, {
-    valid: true,
-    reasons: []
+    valid: false,
+    reasons: WORKSPACE_WRITE_PREFLIGHT_BLOCKERS
   });
 });
 
@@ -921,9 +927,10 @@ test("codex cli provider execute rejects workspace-write plans before spawn", as
 
   assert.equal(result.ok, false);
   assert.equal(spawnCalls, 0);
-  assert.ok((result.error?.reasons as string[]).includes(
-    "codex_cli_provider_execute_only_supports_read_only"
-  ));
+  assert.equal(result.error?.code, "codex_cli_provider_execution_plan_invalid");
+  for (const reason of WORKSPACE_WRITE_PREFLIGHT_BLOCKERS) {
+    assert.ok((result.error?.reasons as string[]).includes(reason));
+  }
 });
 
 test("codex cli provider execute rejects invalid plans before spawn", async () => {

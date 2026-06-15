@@ -287,8 +287,11 @@ test("host dispatcher rejects workspace-write provider dispatch before spawn", a
   assert.equal(result.ok, false);
   assert.equal(result.status, "blocked");
   assert.equal(spawnCalls, 0);
-  assert.equal(result.permit?.status, "blocked");
-  assert.ok(result.blockingReasons?.includes("provider_execution_permit_read_only_only"));
+  assert.equal(result.permit, undefined);
+  assert.equal(result.error?.code, "host_dispatcher_provider_plan_invalid");
+  assert.ok(result.blockingReasons?.includes(
+    "codex_cli_workspace_write_smoke_requires_clean_worktree"
+  ));
 });
 
 test("host dispatcher rejects invalid provider plans before permit issuance", async () => {

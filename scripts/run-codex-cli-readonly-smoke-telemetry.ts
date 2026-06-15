@@ -93,12 +93,10 @@ function resolvePlanOptions(): {
   model: string;
   codexCommand?: string;
   cwd?: string;
-  skipGitRepoCheck: true;
   ephemeral: true;
 } {
   return {
     model,
-    skipGitRepoCheck: true,
     ephemeral: true,
     ...(process.env.CODEX_CLI_SMOKE_TELEMETRY_CODEX_COMMAND !== undefined
       ? { codexCommand: process.env.CODEX_CLI_SMOKE_TELEMETRY_CODEX_COMMAND }

@@ -27,6 +27,11 @@ import {
 } from "../packages/state-manager/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
+const TEST_README_WORKSPACE_WRITE_PREFLIGHT = {
+  beforeCommit: "abc123def456",
+  rollbackCommand: "git restore --source abc123def456 -- README.md",
+  targetAllowlist: ["README.md"]
+};
 
 async function createReadyRunnerResult() {
   const policy = await loadPolicyFromFile(policyPath);
@@ -40,7 +45,7 @@ async function createReadyRunnerResult() {
         successCriteria: [],
         outOfScope: []
       },
-      repoContext: { repoRoot: "A:/codex-router" },
+      repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
       target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
       constraints: {},
       hints: { riskHints: [], tags: [] }
@@ -67,7 +72,7 @@ async function createReadyShellRunnerResult() {
         successCriteria: [],
         outOfScope: []
       },
-      repoContext: { repoRoot: "A:/codex-router" },
+      repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
       target: { branches: [], files: ["packages/contracts/src/index.ts"], modules: [] },
       constraints: {},
       hints: { riskHints: [], tags: [] }
@@ -140,7 +145,7 @@ test("desktop live adapter does not execute blocked runner results", async () =>
         successCriteria: [],
         outOfScope: []
       },
-      repoContext: { repoRoot: "A:/codex-router" },
+      repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
       target: { branches: [], files: ["packages/contracts/src/index.ts"], modules: [] },
       constraints: {},
       hints: { riskHints: [], tags: [] }
@@ -554,7 +559,7 @@ test("runDesktopTask dispatches codex-cli small edits instead of executing deskt
         successCriteria: [],
         outOfScope: []
       },
-      repoContext: { repoRoot: "A:/codex-router" },
+      repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
       target: { branches: [], files: ["README.md"], modules: [] },
       constraints: {},
       hints: { riskHints: [], tags: [] }
@@ -576,6 +581,7 @@ test("runDesktopTask dispatches codex-cli small edits instead of executing deskt
     },
     codexCliOptions: {
       allowWriteSandbox: true,
+      workspaceWritePreflight: TEST_README_WORKSPACE_WRITE_PREFLIGHT,
       skipExecutionModelProbe: true,
       spawn: () => {
         spawned = true;
@@ -612,7 +618,7 @@ test("runDesktopTask returns blocked codex-cli decisions without desktop handler
         successCriteria: [],
         outOfScope: []
       },
-      repoContext: { repoRoot: "A:/codex-router" },
+      repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
       target: { branches: [], files: ["README.md"], modules: [] },
       constraints: {},
       hints: { riskHints: [], tags: [] }
@@ -624,6 +630,7 @@ test("runDesktopTask returns blocked codex-cli decisions without desktop handler
     },
     codexCliOptions: {
       allowWriteSandbox: true,
+      workspaceWritePreflight: TEST_README_WORKSPACE_WRITE_PREFLIGHT,
       skipExecutionModelProbe: true,
       spawn: () => {
         spawned = true;

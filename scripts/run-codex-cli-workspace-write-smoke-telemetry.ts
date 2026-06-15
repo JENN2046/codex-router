@@ -1,5 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import { dirname } from "node:path";
+import { promisify } from "node:util";
 import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import {
   CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
@@ -8,6 +10,7 @@ import {
   runCodexCliWorkspaceWriteSmoke
 } from "../packages/codex-cli-host/src/index.js";
 
+const execFileAsync = promisify(execFile);
 const evidencePath = process.env.CODEX_CLI_WORKSPACE_WRITE_SMOKE_TELEMETRY_EVIDENCE_PATH
   ?? "docs/evidence/codex-cli-workspace-write-smoke-telemetry-latest.json";
 const model = process.env.CODEX_CLI_WORKSPACE_WRITE_SMOKE_TELEMETRY_MODEL
@@ -35,10 +38,18 @@ if (!allowWrite || confirmation !== CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION
 
   try {
     const telemetryStore = createRecordingTelemetrySink();
+    const repoState = await resolveWorkspaceWriteRepoState();
     const first = await runCodexCliWorkspaceWriteSmoke({
       telemetryStore,
       allowWriteSandbox: true,
       confirmation,
+      ...(repoState.beforeCommit !== undefined
+        ? { beforeCommit: repoState.beforeCommit }
+        : {}),
+      taskOptions: {
+        repoRoot: repoState.repoRoot,
+        worktreeClean: repoState.worktreeClean
+      },
       planOptions: resolvePlanOptions(),
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       ...(modelProbeTimeoutMs !== undefined ? { modelProbeTimeoutMs } : {}),
@@ -48,6 +59,13 @@ if (!allowWrite || confirmation !== CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION
       telemetryStore,
       allowWriteSandbox: true,
       confirmation,
+      ...(repoState.beforeCommit !== undefined
+        ? { beforeCommit: repoState.beforeCommit }
+        : {}),
+      taskOptions: {
+        repoRoot: repoState.repoRoot,
+        worktreeClean: repoState.worktreeClean
+      },
       planOptions: resolvePlanOptions(),
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       ...(modelProbeTimeoutMs !== undefined ? { modelProbeTimeoutMs } : {}),
@@ -110,12 +128,10 @@ function resolvePlanOptions(): {
   model: string;
   codexCommand?: string;
   cwd?: string;
-  skipGitRepoCheck: true;
   ephemeral: true;
 } {
   return {
     model,
-    skipGitRepoCheck: true,
     ephemeral: true,
     ...(process.env.CODEX_CLI_WORKSPACE_WRITE_SMOKE_TELEMETRY_CODEX_COMMAND !== undefined
       ? { codexCommand: process.env.CODEX_CLI_WORKSPACE_WRITE_SMOKE_TELEMETRY_CODEX_COMMAND }
@@ -124,6 +140,46 @@ function resolvePlanOptions(): {
       ? { cwd: process.env.CODEX_CLI_WORKSPACE_WRITE_SMOKE_TELEMETRY_CWD }
       : {})
   };
+}
+
+async function resolveWorkspaceWriteRepoState(): Promise<{
+  repoRoot: string;
+  worktreeClean: boolean;
+  beforeCommit?: string;
+}> {
+  const cwd = process.env.CODEX_CLI_WORKSPACE_WRITE_SMOKE_TELEMETRY_CWD
+    ?? process.cwd();
+
+  try {
+    const [repoRoot, beforeCommit, statusShort] = await Promise.all([
+      git(["rev-parse", "--show-toplevel"], cwd),
+      git(["rev-parse", "HEAD"], cwd),
+      git(["status", "--short"], cwd)
+    ]);
+    const normalizedRoot = repoRoot.trim() || cwd;
+    const normalizedCommit = beforeCommit.trim();
+
+    return {
+      repoRoot: normalizedRoot,
+      worktreeClean: statusShort.trim().length === 0,
+      ...(normalizedCommit.length > 0 ? { beforeCommit: normalizedCommit } : {})
+    };
+  } catch {
+    return {
+      repoRoot: cwd,
+      worktreeClean: false
+    };
+  }
+}
+
+async function git(args: string[], cwd: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", args, {
+    cwd,
+    encoding: "utf8",
+    windowsHide: true
+  });
+
+  return stdout;
 }
 
 function summarizeRun(
