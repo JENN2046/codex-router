@@ -11,8 +11,9 @@ use a focused branch, not direct edits on `main`.
 
 Current evidence baseline:
 
-- `main` is aligned with `origin/main` at `2f16fa2`.
-- Latest commit: `test: add future canary packet checklist`.
+- `main` is aligned with `origin/main` at `4db8174`.
+- Latest mainline commit: `docs: refresh future checklist anchors`.
+- Current local working branch: `docs/future-canary-authorization-packet`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `1003 / 1003`.
@@ -22,6 +23,9 @@ Current evidence baseline:
   - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real`
     passed and refreshed `docs/evidence/codex-cli-real-readonly-smoke.json`.
   - read-only real smoke chain audits passed on clean `main`.
+  - `npx tsx --test tests\future-codex-cli-canary-authorization-packet-audit.test.ts`
+    passed on the packet draft branch.
+  - `npm run typecheck` passed on the packet draft branch.
 
 ## Current Mainline Facts
 
@@ -74,9 +78,9 @@ folder, continue from the current mainline facts, not the older April CLI-host
 anchor.
 
 The fresh read-only real Codex CLI smoke for current local `main` has passed
-under exact operator authorization. The controlled execution gate design is
-merged. The future canary execution packet checklist is also merged. The next
-safe local action is authorization packet draft/review work for a future bounded
+under exact operator authorization. The controlled execution gate design and
+future canary execution packet checklist are merged. The current branch drafts
+and reviews the future canary execution authorization packet shape for a bounded
 workspace-write real canary, without enabling workspace-write or general
 provider execution.
 
@@ -84,6 +88,7 @@ Current design artifact:
 
 - `docs/governance/CONTROLLED_EXECUTION_GATE_NEXT_CODEX_CLI_STEP.md`
 - `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_PACKET_CHECKLIST.md`
+- `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_AUTHORIZATION_PACKET.md`
 
 ## Remote Or Side-effectful Actions
 
@@ -122,6 +127,7 @@ Use existing scripts only:
 npm run audit:approval-consumption-dispatch-matrix
 npm run audit:controlled-execution-gate-design
 npm run audit:future-codex-cli-canary-packet-checklist
+npm run audit:future-codex-cli-canary-authorization-packet
 npm run smoke:readonly:real
 npm run typecheck
 npm test
@@ -132,10 +138,11 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from `main` / `origin/main` at `2f16fa2`: approval issuance,
+Continue from `main` / `origin/main` at `4db8174`: approval issuance,
 read-only approval consumption, read-only formal integration evidence, approval
 consumption dispatch audit matrix evidence, fresh real read-only Codex CLI smoke
 evidence, controlled execution gate design, and future canary execution packet
 checklist are merged to `origin/main`; current local work is future canary
-authorization packet draft/review, without opening workspace-write, general
-provider execution, or unrelated remote actions.
+authorization packet draft/review on
+`docs/future-canary-authorization-packet`, without opening workspace-write,
+general provider execution, or unrelated remote actions.

@@ -1,11 +1,13 @@
 # Agent OS Current Roadmap
 
 Date: 2026-06-15
-Current base: `main` at `2f16fa2`
+Current base: `main` at `4db8174`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
 matrix evidence are merged and locally validated. A fresh real read-only Codex
-CLI smoke has passed on current local `main`.
+CLI smoke has passed on current local `main`. The current local branch drafts
+and reviews the future Codex CLI canary execution authorization packet without
+running workspace-write.
 
 ## Current Position
 
@@ -144,8 +146,10 @@ Next gated slice:
   `docs/governance/CONTROLLED_EXECUTION_GATE_NEXT_CODEX_CLI_STEP.md`
 - Current packet checklist artifact:
   `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_PACKET_CHECKLIST.md`
-- Next safe artifact:
-  future canary execution authorization packet draft/review.
+- Current authorization packet draft artifact:
+  `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_AUTHORIZATION_PACKET.md`
+- Current local audit:
+  `npm run audit:future-codex-cli-canary-authorization-packet`
 
 ## Following Phases
 
@@ -181,7 +185,7 @@ After local review/evidence hardening:
 ## Validation Baseline
 
 Latest local validation on 2026-06-15 before the post-push packet checklist
-anchor refresh at `2f16fa2`:
+anchor refresh at `4db8174`, plus packet draft branch validation:
 
 - `npm run audit:approval-consumption-dispatch-matrix` passed on clean `main`.
 - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
@@ -189,6 +193,8 @@ anchor refresh at `2f16fa2`:
 - `npm run audit:controlled-execution-gate-design` passed on clean `main`.
 - `npm run audit:future-codex-cli-canary-packet-checklist` passed on clean
   `main`.
+- `npx tsx --test tests\future-codex-cli-canary-authorization-packet-audit.test.ts`
+  passed on `docs/future-canary-authorization-packet`.
 - `npm run typecheck` passed.
 - `npm test` passed: `1003 / 1003`.
 - `npm run build` passed.

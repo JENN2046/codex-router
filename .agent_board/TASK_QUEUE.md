@@ -25,10 +25,13 @@
 - Fast-forward future packet checklist into `main`.
 - Validate `npm run audit:future-codex-cli-canary-packet-checklist`.
 - Push `main` to `origin/main` at `2f16fa2`.
+- Refresh post-push anchors for `4db8174`.
+- Draft/review the future canary execution authorization packet.
+- Commit the packet draft/review branch.
 
 ## In Progress
 
-- Refresh post-push anchors for `2f16fa2`.
+- None.
 
 ## Blocked
 
@@ -37,4 +40,5 @@
 
 ## Remaining
 
-- Draft/review the future canary execution authorization packet.
+- Run the authorization packet audit on clean `main` only after a local
+  fast-forward merge.

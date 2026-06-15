@@ -6,16 +6,21 @@ Implemented, merged, and pushed the evidence-first plan slice to `origin/main`
 at `24c3508`. Post-push anchor cleanup and fresh real Codex CLI read-only smoke
 evidence are pushed to `origin/main` at `c95ab3b`. Controlled execution gate
 design is pushed to `origin/main` at `6e55131`. Future canary packet checklist
-is pushed to `origin/main` at `2f16fa2`.
+is pushed to `origin/main` at `2f16fa2`. Post-push checklist anchors are pushed
+to `origin/main` at `4db8174`. The current branch has a committed draft/review
+of the future Codex CLI canary execution authorization packet.
 
 Changed files:
 
 - `PROJECT_CONTINUE_ANCHOR.md`
 - `docs/agent-os-transformation/current-roadmap-20260610.md`
 - `docs/governance/APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md`
+- `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_AUTHORIZATION_PACKET.md`
 - `package.json`
 - `scripts/run-approval-consumption-dispatch-matrix-audit.ts`
+- `scripts/run-future-codex-cli-canary-authorization-packet-audit.ts`
 - `tests/approval-consumption-dispatch-matrix-audit.test.ts`
+- `tests/future-codex-cli-canary-authorization-packet-audit.test.ts`
 
 ## Validation
 
@@ -38,12 +43,25 @@ Changed files:
 - `npm run typecheck` passed after adding the packet checklist audit script.
 - `npm run audit:future-codex-cli-canary-packet-checklist` passed on clean
   `main`.
+- `npx tsx --test tests\future-codex-cli-canary-authorization-packet-audit.test.ts`
+  passed: `5 / 5`.
+- `npm run typecheck` passed on `docs/future-canary-authorization-packet`.
+- `npm run audit:future-codex-cli-canary-authorization-packet` blocked as
+  expected on the dirty non-`main` draft branch with reasons
+  `future_codex_cli_canary_authorization_packet_worktreeClean` and
+  `future_codex_cli_canary_authorization_packet_branchMain`.
+- After commit, `npm run audit:future-codex-cli-canary-authorization-packet`
+  blocked as expected on the clean non-`main` draft branch with only
+  `future_codex_cli_canary_authorization_packet_branchMain`.
 
 ## Not Run
 
 - Workspace-write real CLI smoke was not run.
 - General provider execution was not enabled.
 - Canary file write was not run.
+- `npm run audit:future-codex-cli-canary-authorization-packet` has not passed
+  on clean `main` yet; it is intended to run only after the branch is merged
+  locally to a clean `main`.
 
 ## Risk
 

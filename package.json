@@ -45,6 +45,7 @@
     "audit:approval-consumption-dispatch-matrix": "tsx scripts/run-approval-consumption-dispatch-matrix-audit.ts",
     "audit:controlled-execution-gate-design": "tsx scripts/run-controlled-execution-gate-design-audit.ts",
     "audit:future-codex-cli-canary-packet-checklist": "tsx scripts/run-future-codex-cli-canary-packet-checklist-audit.ts",
+    "audit:future-codex-cli-canary-authorization-packet": "tsx scripts/run-future-codex-cli-canary-authorization-packet-audit.ts",
     "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
     "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
     "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts",

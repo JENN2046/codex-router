@@ -1,7 +1,7 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `main` after merge/push, then `docs/post-push-future-checklist-anchor`
+Branch: `main` after merge/push, then `docs/future-canary-authorization-packet`
 
 ## Passed
 
@@ -60,8 +60,26 @@ Branch: `main` after merge/push, then `docs/post-push-future-checklist-anchor`
   - Result: passed on clean `main` at `2f16fa2`
   - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
     canary file writes `0`
+- Future canary authorization packet tests
+  - Command: `npx tsx --test tests\future-codex-cli-canary-authorization-packet-audit.test.ts`
+  - Result: `5 / 5`
+- `npm run typecheck`
+  - Result: passed after adding
+    `scripts/run-future-codex-cli-canary-authorization-packet-audit.ts`
+- `npm run audit:future-codex-cli-canary-authorization-packet`
+  - Result: expected blocked on `docs/future-canary-authorization-packet`
+    because the worktree is dirty and branch is not `main`
+  - Reasons:
+    `future_codex_cli_canary_authorization_packet_worktreeClean`,
+    `future_codex_cli_canary_authorization_packet_branchMain`
+- `npm run audit:future-codex-cli-canary-authorization-packet`
+  - Result: expected blocked after commit on clean
+    `docs/future-canary-authorization-packet` because branch is not `main`
+  - Reasons: `future_codex_cli_canary_authorization_packet_branchMain`
 
 ## Not Run
 
 - Workspace-write real CLI smoke.
 - Canary file write.
+- `npm run audit:future-codex-cli-canary-authorization-packet` on clean
+  `main`; this should run only after local fast-forward merge.
