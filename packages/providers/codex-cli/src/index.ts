@@ -64,6 +64,7 @@ export interface CodexCliExecutorProviderOptions {
   spawn?: CodexCliProcessSpawner;
   timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
+  oneShotEnv?: NodeJS.ProcessEnv;
   skipExecutionModelProbe?: boolean;
 }
 
@@ -182,6 +183,7 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
   private readonly spawn: CodexCliProcessSpawner | undefined;
   private readonly timeoutMs: number | undefined;
   private readonly env: NodeJS.ProcessEnv | undefined;
+  private readonly oneShotEnv: NodeJS.ProcessEnv | undefined;
   private readonly skipExecutionModelProbe: boolean;
 
   constructor(options: CodexCliExecutorProviderOptions = {}) {
@@ -192,6 +194,7 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
     this.spawn = options.spawn;
     this.timeoutMs = options.timeoutMs;
     this.env = options.env;
+    this.oneShotEnv = options.oneShotEnv;
     this.skipExecutionModelProbe = options.skipExecutionModelProbe ?? true;
   }
 
@@ -408,7 +411,8 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
           enabled: false
         },
         ...(this.timeoutMs !== undefined ? { timeoutMs: this.timeoutMs } : {}),
-        ...(this.env !== undefined ? { env: this.env } : {})
+        ...(this.env !== undefined ? { env: this.env } : {}),
+        ...(this.oneShotEnv !== undefined ? { oneShotEnv: this.oneShotEnv } : {})
       });
     } catch (error) {
       return createCodexCliProviderErrorResult(

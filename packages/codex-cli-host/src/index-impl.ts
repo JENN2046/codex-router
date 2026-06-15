@@ -11,6 +11,10 @@ import {
   type TelemetrySink
 } from "../../observability/src/index.js";
 import {
+  redactSecretLikeFields,
+  redactSecretLikeText
+} from "../../redaction/src/index.js";
+import {
   ModelIdSchema,
   parseRoutingDecision,
   parseTaskEnvelope,
@@ -239,6 +243,8 @@ export interface CodexCliModelCliProbeEvidenceOptions {
   strict?: boolean;
   timeoutMs?: number;
   terminationGraceMs?: number;
+  env?: NodeJS.ProcessEnv;
+  oneShotEnv?: NodeJS.ProcessEnv;
   spawn?: CodexCliProcessSpawner;
 }
 
@@ -380,6 +386,7 @@ export interface CodexCliProcessRunOptions {
   allowWriteSandbox?: boolean;
   timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
+  oneShotEnv?: NodeJS.ProcessEnv;
   spawn?: CodexCliProcessSpawner;
   telemetryStore?: TelemetrySink;
   modelProbe?: CodexCliModelCliProbeEvidence;
@@ -442,6 +449,7 @@ export interface CodexCliEnvironmentPreflightOptions {
   cwd?: string;
   timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
+  oneShotEnv?: NodeJS.ProcessEnv;
   spawn?: CodexCliProcessSpawner;
   allowRealCodexCli?: boolean;
 }
@@ -540,6 +548,7 @@ export interface CodexCliReadOnlySmokeRunOptions {
   modelProbeTimeoutMs?: number;
   terminationGraceMs?: number;
   env?: NodeJS.ProcessEnv;
+  oneShotEnv?: NodeJS.ProcessEnv;
   spawn?: CodexCliProcessSpawner;
   telemetryStore?: TelemetrySink;
   governance?: CodexCliGovernanceRunOptions;
@@ -631,6 +640,7 @@ export interface CodexCliOperatorAcceptanceRunOptions {
   terminationGraceMs?: number;
   modelProbeTimeoutMs?: number;
   env?: NodeJS.ProcessEnv;
+  oneShotEnv?: NodeJS.ProcessEnv;
   spawn?: CodexCliProcessSpawner;
   telemetryStore?: TelemetrySink;
   allowWriteSandbox?: boolean;
@@ -746,6 +756,7 @@ export interface CodexCliWorkspaceWriteSmokeRunOptions
   modelProbeTimeoutMs?: number;
   terminationGraceMs?: number;
   env?: NodeJS.ProcessEnv;
+  oneShotEnv?: NodeJS.ProcessEnv;
   spawn?: CodexCliProcessSpawner;
   telemetryStore?: TelemetrySink;
   governance?: CodexCliGovernanceRunOptions;
@@ -1426,6 +1437,8 @@ export async function createCodexCliModelCliProbeEvidence(
         ? { terminationGraceMs: options.terminationGraceMs }
         : {}),
       skipExecutionModelProbe: true,
+      ...(options.env !== undefined ? { env: options.env } : {}),
+      ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {}),
       ...(options.spawn ? { spawn: options.spawn } : {})
     });
     const probeInspection = inspectCodexCliModelProbeRun(run);
@@ -1715,7 +1728,10 @@ export async function checkCodexCliEnvironmentPreflight(
 
   let child: CodexCliChildProcess;
   try {
-    const spawnEnv = resolveCodexCliSpawnEnv(command, options.env);
+    const spawnEnv = resolveCodexCliSpawnEnv(command, {
+      ...(options.env !== undefined ? { baseEnv: options.env } : {}),
+      ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {})
+    });
     child = spawn(command, ["--version"], {
       ...(options.cwd ? { cwd: options.cwd } : {}),
       ...(spawnEnv ? { env: spawnEnv } : {}),
@@ -1857,11 +1873,99 @@ export function inspectCodexCliCommandOutput(
 
   return {
     status: blockingReasons.length === 0 ? "completed" : "failed",
-    events: parsed.events,
-    parseErrors: parsed.parseErrors,
+    events: parsed.events.map(sanitizeCodexCliJsonlEventForResult),
+    parseErrors: parsed.parseErrors.map(sanitizeCodexCliJsonlParseErrorForResult),
     warnings,
     blockingReasons
   };
+}
+
+function sanitizeCodexCliCommandOutputForResult(
+  output: CodexCliCommandOutput
+): CodexCliCommandOutput {
+  return {
+    exitCode: output.exitCode,
+    stdout: redactCodexCliSensitiveEvidenceText(output.stdout),
+    ...(output.stderr !== undefined
+      ? { stderr: redactCodexCliSensitiveEvidenceText(output.stderr) }
+      : {})
+  };
+}
+
+function sanitizeCodexCliJsonlEventForResult(
+  event: CodexCliJsonlEvent
+): CodexCliJsonlEvent {
+  const redactedEvent = redactCodexCliSensitiveEvidenceValue(event.event);
+
+  return {
+    line: event.line,
+    raw: redactCodexCliSensitiveEvidenceText(event.raw),
+    event: isRecord(redactedEvent) ? redactedEvent : {}
+  };
+}
+
+function sanitizeCodexCliJsonlParseErrorForResult(
+  parseError: CodexCliJsonlParseError
+): CodexCliJsonlParseError {
+  return {
+    line: parseError.line,
+    raw: redactCodexCliSensitiveEvidenceText(parseError.raw),
+    error: redactCodexCliSensitiveEvidenceText(parseError.error)
+  };
+}
+
+function redactCodexCliSensitiveEvidenceText(value: string): string {
+  return redactCodexCliAuthJsonPaths(redactSecretLikeText(value, [
+    "CODEX_API_KEY",
+    "OPENAI_API_KEY",
+    "CODEX_ACCESS_TOKEN"
+  ]));
+}
+
+function redactCodexCliSensitiveEvidenceValue(value: unknown): unknown {
+  return redactCodexCliAuthJsonPathsInValue(redactSecretLikeFields(value, {
+    additionalSecretKeys: [
+      "CODEX_API_KEY",
+      "OPENAI_API_KEY",
+      "CODEX_ACCESS_TOKEN"
+    ],
+    redactArgvSecrets: true,
+    redactStrings: true
+  }));
+}
+
+function redactCodexCliAuthJsonPathsInValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return redactCodexCliAuthJsonPaths(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(redactCodexCliAuthJsonPathsInValue);
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  const output: Record<string, unknown> = {};
+  for (const [key, entryValue] of Object.entries(value)) {
+    output[key] = redactCodexCliAuthJsonPathsInValue(entryValue);
+  }
+
+  return output;
+}
+
+function redactCodexCliAuthJsonPaths(value: string): string {
+  return value.replace(
+    /(?:~|[A-Za-z]:)?(?:[\\/][^\s"'<>|]+)+[\\/]auth\.json\b|\bauth\.json\b/gi,
+    "<REDACTED_AUTH_JSON_PATH>"
+  );
+}
+
+function normalizeCodexCliSafeError(error: unknown): string {
+  return redactCodexCliSensitiveEvidenceText(
+    error instanceof Error ? error.message : String(error)
+  );
 }
 
 export function validateCodexCliExecPlanForRun(
@@ -2053,11 +2157,15 @@ export async function runCodexCliExecPlan(
     output: CodexCliCommandOutput,
     error?: string
   ): CodexCliProcessRunResult => {
+    const safeOutput = sanitizeCodexCliCommandOutputForResult(output);
+    const safeError = error !== undefined
+      ? redactCodexCliSensitiveEvidenceText(error)
+      : undefined;
     const inspection = inspectCodexCliCommandOutput(output);
     const blockingReasons = [
       ...inspection.blockingReasons,
       ...(timedOut ? ["codex_cli_process_timeout"] : []),
-      ...(error ? [`codex_cli_process_error:${error}`] : [])
+      ...(safeError ? [`codex_cli_process_error:${safeError}`] : [])
     ];
     const inspectionWithRuntime: CodexCliCommandInspection = {
       ...inspection,
@@ -2083,7 +2191,7 @@ export async function runCodexCliExecPlan(
         parseErrorCount: inspectionWithRuntime.parseErrors.length,
         blockingReasons: inspectionWithRuntime.blockingReasons,
         warnings: inspectionWithRuntime.warnings,
-        ...(error ? { error } : {}),
+        ...(safeError ? { error: safeError } : {}),
         timedOut,
         killed,
         ...(resolvedOptions.governance?.evidenceRef
@@ -2096,7 +2204,7 @@ export async function runCodexCliExecPlan(
       });
     return {
       plan,
-      output,
+      output: safeOutput,
       inspection: inspectionWithRuntime,
       timedOut,
       killed,
@@ -2105,7 +2213,7 @@ export async function runCodexCliExecPlan(
           mode: "pipe",
           closed: stdinClosed,
           destroyed: stdinDestroyed,
-          ...(stdinError ? { error: stdinError } : {})
+          ...(stdinError ? { error: redactCodexCliSensitiveEvidenceText(stdinError) } : {})
         },
         termination: {
           closeReceived,
@@ -2127,11 +2235,14 @@ export async function runCodexCliExecPlan(
       modelAvailability,
       ...(modelProbe ? { modelProbe } : {}),
       ...(governance ? { governance } : {}),
-      ...(error ? { error } : {})
+      ...(safeError ? { error: safeError } : {})
     };
   };
 
-  const spawnEnv = resolveCodexCliSpawnEnv(plan.command, resolvedOptions.env);
+  const spawnEnv = resolveCodexCliSpawnEnv(plan.command, {
+    ...(resolvedOptions.env !== undefined ? { baseEnv: resolvedOptions.env } : {}),
+    ...(resolvedOptions.oneShotEnv !== undefined ? { oneShotEnv: resolvedOptions.oneShotEnv } : {})
+  });
   let child: CodexCliChildProcess;
   try {
     child = spawn(plan.command, plan.args, {
@@ -2159,7 +2270,7 @@ export async function runCodexCliExecPlan(
       stdinDestroyed = true;
     }
   } catch (error) {
-    stdinError = normalizeCodexCliSpawnError(error);
+    stdinError = redactCodexCliSensitiveEvidenceText(normalizeCodexCliSpawnError(error));
   }
 
   child.stdout?.setEncoding("utf8");
@@ -2608,6 +2719,7 @@ export async function runCodexCliReadOnlySmoke(
         ? { terminationGraceMs: options.terminationGraceMs }
         : {}),
       ...(options.env !== undefined ? { env: options.env } : {}),
+      ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {}),
       ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
       ...(options.telemetryStore !== undefined
         ? { telemetryStore: options.telemetryStore }
@@ -2660,6 +2772,7 @@ export async function runCodexCliReadOnlySmoke(
       ...(semanticGovernance ? { governance: semanticGovernance } : {})
     };
   } catch (error) {
+    const safeError = normalizeCodexCliSafeError(error);
     const governance = options.governance?.enabled === false
       ? undefined
       : createCodexCliGovernanceBundle({
@@ -2667,8 +2780,8 @@ export async function runCodexCliReadOnlySmoke(
         plan,
         stage: "read-only-smoke-error",
         status: "failed",
-        blockingReasons: [error instanceof Error ? error.message : String(error)],
-        error: error instanceof Error ? error.message : String(error),
+        blockingReasons: [safeError],
+        error: safeError,
         ...(options.governance?.evidenceRef ? { evidenceRef: options.governance.evidenceRef } : {}),
         ...(options.governance?.previousState ? { previousState: options.governance.previousState } : {}),
         ...(options.governance?.now ? { now: options.governance.now } : {})
@@ -2680,7 +2793,7 @@ export async function runCodexCliReadOnlySmoke(
       plan,
       validationBlockers,
       ...(governance ? { governance } : {}),
-      error: error instanceof Error ? error.message : String(error)
+      error: safeError
     };
   }
 }
@@ -2727,6 +2840,7 @@ export async function runCodexCliWorkspaceWriteSmoke(
         ? { terminationGraceMs: options.terminationGraceMs }
         : {}),
       ...(options.env !== undefined ? { env: options.env } : {}),
+      ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {}),
       ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
       ...(options.telemetryStore !== undefined
         ? { telemetryStore: options.telemetryStore }
@@ -2744,6 +2858,7 @@ export async function runCodexCliWorkspaceWriteSmoke(
       ...(run.governance ? { governance: run.governance } : {})
     };
   } catch (error) {
+    const safeError = normalizeCodexCliSafeError(error);
     const governance = options.governance?.enabled === false
       ? undefined
       : createCodexCliGovernanceBundle({
@@ -2751,8 +2866,8 @@ export async function runCodexCliWorkspaceWriteSmoke(
         plan: preflight.plan,
         stage: "workspace-write-smoke-error",
         status: "failed",
-        blockingReasons: [error instanceof Error ? error.message : String(error)],
-        error: error instanceof Error ? error.message : String(error),
+        blockingReasons: [safeError],
+        error: safeError,
         ...(options.governance?.evidenceRef ? { evidenceRef: options.governance.evidenceRef } : {}),
         ...(options.governance?.previousState ? { previousState: options.governance.previousState } : {}),
         ...(options.governance?.now ? { now: options.governance.now } : {})
@@ -2765,7 +2880,7 @@ export async function runCodexCliWorkspaceWriteSmoke(
       plan: preflight.plan,
       validationBlockers: preflight.blockingReasons,
       ...(governance ? { governance } : {}),
-      error: error instanceof Error ? error.message : String(error)
+      error: safeError
     };
   }
 }
@@ -2832,6 +2947,7 @@ export async function runCodexCliOperatorAcceptance(
         : {}),
       ...(options.modelProbeTimeoutMs !== undefined ? { modelProbeTimeoutMs: options.modelProbeTimeoutMs } : {}),
       ...(options.env !== undefined ? { env: options.env } : {}),
+      ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {}),
       ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
       telemetryStore,
       ...(options.governance !== undefined ? { governance: options.governance } : {})
@@ -2847,6 +2963,7 @@ export async function runCodexCliOperatorAcceptance(
       ...(run.governance ? { governance: run.governance } : {})
     };
   } catch (error) {
+    const safeError = normalizeCodexCliSafeError(error);
     const governance = options.governance?.enabled === false
       ? undefined
       : createCodexCliGovernanceBundle({
@@ -2854,8 +2971,8 @@ export async function runCodexCliOperatorAcceptance(
         plan,
         stage: "operator-acceptance-error",
         status: "failed",
-        blockingReasons: [error instanceof Error ? error.message : String(error)],
-        error: error instanceof Error ? error.message : String(error),
+        blockingReasons: [safeError],
+        error: safeError,
         ...(options.governance?.evidenceRef ? { evidenceRef: options.governance.evidenceRef } : {}),
         ...(options.governance?.previousState ? { previousState: options.governance.previousState } : {}),
         ...(options.governance?.now ? { now: options.governance.now } : {})
@@ -2868,7 +2985,7 @@ export async function runCodexCliOperatorAcceptance(
       validationBlockers,
       telemetryEvents: await recordingTelemetry.loadAll(),
       ...(governance ? { governance } : {}),
-      error: error instanceof Error ? error.message : String(error)
+      error: safeError
     };
   }
 }
@@ -2879,11 +2996,14 @@ export function createCodexCliOperatorAcceptanceEvidence(
 ): CodexCliOperatorAcceptanceEvidence {
   const inspection = result.run?.inspection;
   const error = result.error ?? result.run?.error;
+  const safeError = error !== undefined
+    ? redactCodexCliSensitiveEvidenceText(error)
+    : undefined;
   const repoRoot = options.repoRoot ?? result.task.repoContext.repoRoot;
   const blockingReasons = uniqueStrings([
     ...result.validationBlockers,
     ...(inspection?.blockingReasons ?? []),
-    ...(error !== undefined ? [`codex_cli_process_error:${error}`] : [])
+    ...(safeError !== undefined ? [`codex_cli_process_error:${safeError}`] : [])
   ]);
 
   return {
@@ -3006,11 +3126,14 @@ export function createCodexCliWorkspaceWriteSmokeEvidence(
   const inspection = result.run?.inspection;
   const repoRoot = options.repoRoot ?? result.task.repoContext.repoRoot;
   const error = result.error ?? result.run?.error;
+  const safeError = error !== undefined
+    ? redactCodexCliSensitiveEvidenceText(error)
+    : undefined;
   const blockingReasons = uniqueStrings([
     ...result.validationBlockers,
     ...(result.preflight.blockingReasons ?? []),
     ...(inspection?.blockingReasons ?? []),
-    ...(error !== undefined ? [`codex_cli_process_error:${error}`] : [])
+    ...(safeError !== undefined ? [`codex_cli_process_error:${safeError}`] : [])
   ]);
   const warnings = uniqueStrings([
     ...result.plan.warnings,
@@ -3102,6 +3225,7 @@ export async function runAndWriteCodexCliWorkspaceWriteSmokeEvidence(
       ? { terminationGraceMs: options.terminationGraceMs }
       : {}),
     ...(options.env !== undefined ? { env: options.env } : {}),
+    ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {}),
     ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
     ...(options.telemetryStore !== undefined
       ? { telemetryStore: options.telemetryStore }
@@ -3131,10 +3255,13 @@ export function createCodexCliReadOnlySmokeEvidence(
   const inspection = result.run?.inspection;
   const repoRoot = options.repoRoot ?? result.task.repoContext.repoRoot;
   const error = result.error ?? result.run?.error;
+  const safeError = error !== undefined
+    ? redactCodexCliSensitiveEvidenceText(error)
+    : undefined;
   const blockingReasons = uniqueStrings([
     ...result.validationBlockers,
     ...(inspection?.blockingReasons ?? []),
-    ...(error !== undefined ? [`codex_cli_process_error:${error}`] : [])
+    ...(safeError !== undefined ? [`codex_cli_process_error:${safeError}`] : [])
   ]);
   const warnings = uniqueStrings([
     ...result.plan.warnings,
@@ -3212,6 +3339,7 @@ export async function runAndWriteCodexCliReadOnlySmokeEvidence(
       ? { terminationGraceMs: options.terminationGraceMs }
       : {}),
     ...(options.env !== undefined ? { env: options.env } : {}),
+    ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {}),
     ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
     ...(options.telemetryStore !== undefined
       ? { telemetryStore: options.telemetryStore }
@@ -3237,8 +3365,27 @@ export async function runAndWriteCodexCliReadOnlySmokeEvidence(
 export function extractCodexCliWarnings(stderr: string): string[] {
   return stderr
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("WARNING:"));
+    .map(sanitizeCodexCliWarning)
+    .filter((line): line is string => line !== undefined);
+}
+
+function sanitizeCodexCliWarning(line: string): string | undefined {
+  const normalized = line.trim().replace(/\s+/g, " ");
+
+  if (!normalized.startsWith("WARNING:")) {
+    return undefined;
+  }
+
+  if (containsSensitiveEvidenceToken(normalized)) {
+    return "WARNING: <REDACTED_SENSITIVE_EVIDENCE>";
+  }
+
+  const sanitized = normalized
+    .replace(/[^A-Za-z0-9 ._+\-/@():;,[\]]/g, "")
+    .slice(0, 240)
+    .trim();
+
+  return sanitized || undefined;
 }
 
 function releaseCodexCliChildHandles(child: CodexCliChildProcess): {
@@ -3561,7 +3708,7 @@ function sanitizeCodexCliVersionProbe(stdout: string): string | undefined {
 }
 
 function containsSensitiveEvidenceToken(value: string): boolean {
-  return /\b(OPENAI_API_KEY|Bearer|token|secret|password)\b|sk-/i.test(value);
+  return /\b(OPENAI_API_KEY|Bearer|token|secret|password)\b|sk-|\bauth\.json\b/i.test(value);
 }
 
 function isCodexCliCommandSpawnBlockedForShellFallback(
@@ -3676,32 +3823,110 @@ function createWindowsCodexExecutableCandidates(npmRoot: string): string[] {
   });
 }
 
+const CODEX_CLI_CHILD_ENV_ALLOWLIST = new Set([
+  "PATH",
+  "HOME",
+  "USERPROFILE",
+  "TMPDIR",
+  "TEMP",
+  "TMP",
+  "SHELL",
+  "COMSPEC",
+  "CODEX_HOME",
+  "CODEX_SQLITE_HOME",
+  "CODEX_CA_CERTIFICATE",
+  "SSL_CERT_FILE",
+  "RUST_LOG",
+  "SYSTEMROOT",
+  "WINDIR",
+  "PATHEXT"
+]);
+
+const CODEX_CLI_CHILD_ENV_SECRET_KEYS = new Set([
+  "OPENAI_API_KEY",
+  "CODEX_API_KEY",
+  "CODEX_ACCESS_TOKEN"
+]);
+
+const CODEX_CLI_ONE_SHOT_ENV_ALLOWLIST = new Set([
+  "CODEX_API_KEY"
+]);
+
 function resolveCodexCliSpawnEnv(
   command: string,
-  env: NodeJS.ProcessEnv | undefined
-): NodeJS.ProcessEnv | undefined {
+  options: {
+    baseEnv?: NodeJS.ProcessEnv;
+    oneShotEnv?: NodeJS.ProcessEnv;
+  } = {}
+): NodeJS.ProcessEnv {
+  const baseEnv = options.baseEnv ?? process.env;
+  const childEnv = buildCodexCliChildEnv(baseEnv);
   const helperPath = resolveWindowsCodexHelperPathForCommand(command);
 
-  if (!helperPath) {
-    return env;
+  if (helperPath) {
+    prependCodexCliWindowsHelperPath(childEnv, baseEnv, helperPath);
   }
 
-  const baseEnv = env ?? process.env;
-  const pathKey = getWindowsPathEnvKey(baseEnv);
-  const currentPath = baseEnv[pathKey] ?? "";
+  applyCodexCliOneShotEnv(childEnv, options.oneShotEnv);
+  return childEnv;
+}
+
+function buildCodexCliChildEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const childEnv: NodeJS.ProcessEnv = {};
+
+  for (const [key, value] of Object.entries(baseEnv)) {
+    const normalizedKey = key.toUpperCase();
+    if (
+      value !== undefined
+      && CODEX_CLI_CHILD_ENV_ALLOWLIST.has(normalizedKey)
+      && !CODEX_CLI_CHILD_ENV_SECRET_KEYS.has(normalizedKey)
+    ) {
+      childEnv[key] = value;
+    }
+  }
+
+  return childEnv;
+}
+
+function applyCodexCliOneShotEnv(
+  childEnv: NodeJS.ProcessEnv,
+  oneShotEnv: NodeJS.ProcessEnv | undefined
+): void {
+  if (!oneShotEnv) {
+    return;
+  }
+
+  for (const [key, value] of Object.entries(oneShotEnv)) {
+    const normalizedKey = key.toUpperCase();
+    if (
+      value !== undefined
+      && CODEX_CLI_ONE_SHOT_ENV_ALLOWLIST.has(normalizedKey)
+    ) {
+      childEnv[key] = value;
+    }
+  }
+}
+
+function prependCodexCliWindowsHelperPath(
+  childEnv: NodeJS.ProcessEnv,
+  baseEnv: NodeJS.ProcessEnv,
+  helperPath: string
+): void {
+  const pathKey = getWindowsPathEnvKey(childEnv)
+    ?? getWindowsPathEnvKey(baseEnv)
+    ?? "PATH";
+  const currentPath = childEnv[pathKey] ?? baseEnv[pathKey] ?? "";
   const pathEntries = currentPath
     .split(";")
     .map((entry) => entry.trim())
     .filter(Boolean);
 
   if (pathEntries.some((entry) => entry.toLowerCase() === helperPath.toLowerCase())) {
-    return env ?? undefined;
+    childEnv[pathKey] = currentPath;
+    return;
   }
 
-  return {
-    ...baseEnv,
-    [pathKey]: currentPath ? `${helperPath};${currentPath}` : helperPath
-  };
+  childEnv[pathKey] = currentPath ? `${helperPath};${currentPath}` : helperPath;
 }
 
 function resolveWindowsCodexHelperPathForCommand(command: string): string | undefined {
@@ -3718,8 +3943,8 @@ function resolveWindowsCodexHelperPathForCommand(command: string): string | unde
   return join(match[1], "codex-path");
 }
 
-function getWindowsPathEnvKey(env: NodeJS.ProcessEnv): string {
-  return Object.keys(env).find((key) => key.toLowerCase() === "path") ?? "PATH";
+function getWindowsPathEnvKey(env: NodeJS.ProcessEnv): string | undefined {
+  return Object.keys(env).find((key) => key.toLowerCase() === "path");
 }
 
 function createCodexCliExecPlanWarnings(
@@ -4252,6 +4477,8 @@ async function resolveCodexCliModelProbeForRun(
     ...(options.terminationGraceMs !== undefined
       ? { terminationGraceMs: options.terminationGraceMs }
       : {}),
+    ...(options.env !== undefined ? { env: options.env } : {}),
+    ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {}),
     ...(options.spawn ? { spawn: options.spawn } : {})
   });
   await emitCodexCliModelProbeResultTelemetry({

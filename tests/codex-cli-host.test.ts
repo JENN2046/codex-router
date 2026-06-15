@@ -105,14 +105,31 @@ test("codex cli environment preflight requires an injected spawner", async () =>
 });
 
 test("codex cli environment preflight summarizes fake version output without raw fields", async () => {
-  const calls: Array<{ command: string; args: string[]; stdio?: unknown }> = [];
+  const calls: Array<{
+    command: string;
+    args: string[];
+    env?: NodeJS.ProcessEnv;
+    stdio?: unknown;
+  }> = [];
   const result = await checkCodexCliEnvironmentPreflight({
     generatedAt: "2026-06-14T00:00:00.000Z",
     codexCommand: "codex",
+    env: {
+      PATH: "C:/Windows/System32",
+      HOME: "C:/Users/codex",
+      OPENAI_API_KEY: "sk-openai-base",
+      CODEX_API_KEY: "sk-codex-base",
+      CODEX_TEST_ENV: "stripped"
+    },
+    oneShotEnv: {
+      CODEX_API_KEY: "sk-codex-one-shot",
+      OPENAI_API_KEY: "sk-openai-one-shot"
+    },
     spawn: (command, args, options) => {
       calls.push({
         command,
         args,
+        ...(options.env ? { env: options.env } : {}),
         stdio: options.stdio
       });
 
@@ -128,6 +145,11 @@ test("codex cli environment preflight summarizes fake version output without raw
   assert.equal(calls[0]?.command, "codex");
   assert.deepEqual(calls[0]?.args, ["--version"]);
   assert.deepEqual(calls[0]?.stdio, ["ignore", "pipe", "pipe"]);
+  assert.equal(calls[0]?.env?.PATH, "C:/Windows/System32");
+  assert.equal(calls[0]?.env?.HOME, "C:/Users/codex");
+  assert.equal(calls[0]?.env?.CODEX_API_KEY, "sk-codex-one-shot");
+  assert.equal(calls[0]?.env?.OPENAI_API_KEY, undefined);
+  assert.equal(calls[0]?.env?.CODEX_TEST_ENV, undefined);
   assert.equal(result.status, "ready");
   assert.equal(result.checks.injectedSpawner, true);
   assert.equal(result.checks.realCliAllowed, false);
@@ -161,6 +183,13 @@ test("codex cli environment preflight blocks failed or sensitive fake version ou
       exitCode: 0
     })
   });
+  const authPath = await checkCodexCliEnvironmentPreflight({
+    codexCommand: "codex",
+    spawn: () => createFakeCodexCliChild({
+      stdout: "codex-cli C:/Users/codex/.codex/auth.json\n",
+      exitCode: 0
+    })
+  });
 
   assert.equal(failed.status, "blocked");
   assert.equal(failed.checks.versionProbe, "failed");
@@ -173,6 +202,12 @@ test("codex cli environment preflight blocks failed or sensitive fake version ou
     "codex_cli_environment_preflight_version_probe_failed"
   ));
   assert.equal(JSON.stringify(sensitive).includes("sk-test-token"), false);
+  assert.equal(authPath.status, "blocked");
+  assert.equal(authPath.cli.version, undefined);
+  assert.ok(authPath.blockingReasons.includes(
+    "codex_cli_environment_preflight_version_probe_failed"
+  ));
+  assert.equal(JSON.stringify(authPath).includes("auth.json"), false);
 });
 
 test("codex cli host builds a read-only exec json plan without running the CLI", () => {
@@ -1678,6 +1713,30 @@ test("codex cli host inspects command output without treating stderr warnings as
   assert.deepEqual(inspection.blockingReasons, []);
 });
 
+test("codex cli host redacts sensitive stderr warnings in inspection and evidence", async () => {
+  const result = await runCodexCliReadOnlySmoke({
+    spawn: () => createFakeCodexCliChild({
+      stdout: `{"type":"agent_message","message":"${CODEX_CLI_READONLY_SMOKE_OK}"}\n`,
+      stderr: "WARNING: reading C:/Users/codex/.codex/auth.json with sk-test-token\n",
+      exitCode: 0
+    })
+  });
+  const evidence = createCodexCliReadOnlySmokeEvidence(result, {
+    generatedAt: "2026-04-25T14:10:00.000Z"
+  });
+  const serialized = JSON.stringify({ result, evidence });
+
+  assert.equal(result.status, "passed");
+  assert.deepEqual(result.run?.inspection.warnings, [
+    "WARNING: <REDACTED_SENSITIVE_EVIDENCE>"
+  ]);
+  assert.deepEqual(evidence.summary.warnings, [
+    "WARNING: <REDACTED_SENSITIVE_EVIDENCE>"
+  ]);
+  assert.equal(serialized.includes("auth.json"), false);
+  assert.equal(serialized.includes("sk-test-token"), false);
+});
+
 test("codex cli host runner captures read-only process output through an injectable spawner", async () => {
   const calls: Array<{ command: string; args: string[]; cwd?: string; stdio?: unknown }> = [];
   let child: FakeCodexCliChild | undefined;
@@ -1780,7 +1839,11 @@ test("codex cli runner prepends packaged helper PATH for Windows bin executable 
     const result = await runCodexCliExecPlan(plan, {
       env: {
         Path: "C:/Windows/System32",
-        CODEX_TEST_ENV: "preserved"
+        CODEX_HOME: "C:/codex-home",
+        CODEX_TEST_ENV: "stripped",
+        OPENAI_API_KEY: "sk-openai-base",
+        CODEX_API_KEY: "sk-codex-base",
+        CODEX_ACCESS_TOKEN: "codex-access-token"
       },
       skipExecutionModelProbe: true,
       spawn: spawner
@@ -1789,13 +1852,62 @@ test("codex cli runner prepends packaged helper PATH for Windows bin executable 
     assert.equal(result.inspection.status, "completed");
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.command, command);
-    assert.equal(calls[0]?.env?.CODEX_TEST_ENV, "preserved");
     assert.equal(calls[0]?.env?.Path, `${helperPath};C:/Windows/System32`);
+    assert.equal(calls[0]?.env?.CODEX_HOME, "C:/codex-home");
+    assert.equal(calls[0]?.env?.CODEX_TEST_ENV, undefined);
+    assert.equal(calls[0]?.env?.OPENAI_API_KEY, undefined);
+    assert.equal(calls[0]?.env?.CODEX_API_KEY, undefined);
+    assert.equal(calls[0]?.env?.CODEX_ACCESS_TOKEN, undefined);
   } finally {
     if (originalPlatform) {
       Object.defineProperty(process, "platform", originalPlatform);
     }
   }
+});
+
+test("codex cli runner allows CODEX_API_KEY only through one-shot child env", async () => {
+  const calls: Array<{ env?: NodeJS.ProcessEnv }> = [];
+  const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
+    taskId: "cli-runner-one-shot-child-env"
+  }), {
+    skipGitRepoCheck: true,
+    ephemeral: true
+  });
+  const result = await runCodexCliExecPlan(plan, {
+    env: {
+      PATH: "C:/Windows/System32",
+      HOME: "C:/Users/codex",
+      CODEX_API_KEY: "sk-codex-base",
+      OPENAI_API_KEY: "sk-openai-base",
+      CODEX_ACCESS_TOKEN: "codex-access-token",
+      CODEX_TEST_ENV: "stripped"
+    },
+    oneShotEnv: {
+      CODEX_API_KEY: "sk-codex-one-shot",
+      OPENAI_API_KEY: "sk-openai-one-shot",
+      CODEX_TEST_ENV: "still-stripped"
+    },
+    skipExecutionModelProbe: true,
+    spawn: (_command, _args, options) => {
+      calls.push({
+        ...(options.env ? { env: options.env } : {})
+      });
+
+      return createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"ok\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+
+  assert.equal(result.inspection.status, "completed");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.env?.PATH, "C:/Windows/System32");
+  assert.equal(calls[0]?.env?.HOME, "C:/Users/codex");
+  assert.equal(calls[0]?.env?.CODEX_API_KEY, "sk-codex-one-shot");
+  assert.equal(calls[0]?.env?.OPENAI_API_KEY, undefined);
+  assert.equal(calls[0]?.env?.CODEX_ACCESS_TOKEN, undefined);
+  assert.equal(calls[0]?.env?.CODEX_TEST_ENV, undefined);
 });
 
 test("codex cli runner converts synchronous spawner failure into a failed execution result", async () => {
@@ -1819,6 +1931,31 @@ test("codex cli runner converts synchronous spawner failure into a failed execut
     "codex_cli_exit_code:1",
     "codex_cli_process_error:spawn EPERM"
   ]);
+});
+
+test("codex cli runner redacts sensitive process errors from results and evidence", async () => {
+  const result = await runCodexCliReadOnlySmoke({
+    spawn: () => {
+      throw new Error("spawn EPERM C:/Users/codex/.codex/auth.json sk-test-token");
+    }
+  });
+  const evidence = createCodexCliReadOnlySmokeEvidence(result, {
+    generatedAt: "2026-04-25T14:10:00.000Z"
+  });
+  const processError = result.error ?? result.run?.error;
+  const serialized = JSON.stringify({ result, evidence });
+
+  assert.equal(result.status, "failed");
+  assert.equal(processError?.includes("<REDACTED_AUTH_JSON_PATH>"), true);
+  assert.equal(processError?.includes("<REDACTED_SECRET>"), true);
+  assert.ok(result.run?.inspection.blockingReasons.some(
+    (reason) => reason.includes("<REDACTED_AUTH_JSON_PATH>")
+  ));
+  assert.ok(evidence.summary.blockingReasons.some(
+    (reason) => reason.includes("<REDACTED_AUTH_JSON_PATH>")
+  ));
+  assert.equal(serialized.includes("auth.json"), false);
+  assert.equal(serialized.includes("sk-test-token"), false);
 });
 
 test("codex cli operator acceptance runs a task through the guarded exec runner and captures telemetry", async () => {

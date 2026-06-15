@@ -651,8 +651,12 @@ test("codex cli provider execute rejects provider-core permit for another plan",
 
 test("codex cli provider read-only execute succeeds with approved permit and fake spawn", async () => {
   let spawnCalls = 0;
-  const spawn: CodexCliProcessSpawner = () => {
+  const calls: Array<{ env?: NodeJS.ProcessEnv }> = [];
+  const spawn: CodexCliProcessSpawner = (_command, _args, options) => {
     spawnCalls += 1;
+    calls.push({
+      ...(options.env ? { env: options.env } : {})
+    });
     return createFakeCodexCliChild({
       stdout: "{\"type\":\"agent_message\",\"message\":\"completed\"}\n",
       exitCode: 0
@@ -660,6 +664,15 @@ test("codex cli provider read-only execute succeeds with approved permit and fak
   };
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
+    env: {
+      PATH: "C:/Windows/System32",
+      OPENAI_API_KEY: "sk-openai-base",
+      CODEX_API_KEY: "sk-codex-base",
+      CODEX_TEST_ENV: "stripped"
+    },
+    oneShotEnv: {
+      CODEX_API_KEY: "sk-codex-one-shot"
+    },
     spawn
   });
   const plan = provider.planExecution(createExecutionInput({
@@ -676,6 +689,10 @@ test("codex cli provider read-only execute succeeds with approved permit and fak
 
   assert.equal(result.ok, true);
   assert.equal(spawnCalls, 1);
+  assert.equal(calls[0]?.env?.PATH, "C:/Windows/System32");
+  assert.equal(calls[0]?.env?.CODEX_API_KEY, "sk-codex-one-shot");
+  assert.equal(calls[0]?.env?.OPENAI_API_KEY, undefined);
+  assert.equal(calls[0]?.env?.CODEX_TEST_ENV, undefined);
   assert.equal(summary.status, "completed");
   assert.equal(summary.inspection.status, "completed");
   assert.equal(summary.inspection.eventCount, 1);
