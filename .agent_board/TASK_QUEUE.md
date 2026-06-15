@@ -28,6 +28,10 @@
 - Refresh post-push anchors for `4db8174`.
 - Draft/review the future canary execution authorization packet.
 - Commit the packet draft/review branch.
+- Fast-forward merge authorization packet draft/review into local `main`.
+- Validate `npm run audit:future-codex-cli-canary-authorization-packet` on clean
+  local `main`.
+- Refresh post-merge anchors for clean-main authorization packet audit.
 
 ## In Progress
 
@@ -40,5 +44,6 @@
 
 ## Remaining
 
-- Run the authorization packet audit on clean `main` only after a local
-  fast-forward merge.
+- Push local `main` only after explicit user instruction.
+- Design the next controlled execution gate for a future real workspace-write
+  canary without executing it.

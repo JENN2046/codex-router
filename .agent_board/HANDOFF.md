@@ -3,18 +3,19 @@
 Original goal: continue the evidence-first plan toward real Codex CLI practice
 without letting future agents follow stale roadmap facts.
 
-Current status: `main` and `origin/main` are aligned at `4db8174`. Fresh real
-Codex CLI read-only smoke, main-only smoke chain audits, controlled execution
-gate design audit, and future canary packet checklist audit passed. The current
-branch `docs/future-canary-authorization-packet` has a committed draft/review of
-the future canary execution authorization packet.
+Current status: local `main` is at `57ae4a7` and `origin/main` is at `4db8174`.
+Fresh real Codex CLI read-only smoke, main-only smoke chain audits, controlled
+execution gate design audit, future canary packet checklist audit, and future
+canary authorization packet audit passed. The authorization packet draft/review
+is merged into local `main`; push has not been run.
 
 Next safe action:
 
 1. Inspect `git status -sb` and the branch diff.
-2. Run `npm run audit:future-codex-cli-canary-authorization-packet` only on a
-   clean local `main` after a local fast-forward merge.
-3. Keep workspace-write and general provider execution closed unless a later
+2. Push local `main` only if the user explicitly asks for a remote write.
+3. Otherwise continue with local-only design for the next controlled execution
+   gate.
+4. Keep workspace-write and general provider execution closed unless a later
    task gives exact authorization.
 
 Do not treat the matrix audit as real host execution evidence. It is a local

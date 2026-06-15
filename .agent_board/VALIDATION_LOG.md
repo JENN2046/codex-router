@@ -1,7 +1,8 @@
 # Validation Log
 
 Date: 2026-06-15
-Branch: `main` after merge/push, then `docs/future-canary-authorization-packet`
+Branch: local `main` at `57ae4a7`, then
+`docs/post-merge-authorization-packet-anchor`
 
 ## Passed
 
@@ -76,10 +77,15 @@ Branch: `main` after merge/push, then `docs/future-canary-authorization-packet`
   - Result: expected blocked after commit on clean
     `docs/future-canary-authorization-packet` because branch is not `main`
   - Reasons: `future_codex_cli_canary_authorization_packet_branchMain`
+- `npm run audit:future-codex-cli-canary-authorization-packet`
+  - Result: passed on clean local `main` at `57ae4a7`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
+    canary file writes `0`
+- `Test-Path tmp\codex-cli-write-canary.txt`
+  - Result: `False`
 
 ## Not Run
 
 - Workspace-write real CLI smoke.
 - Canary file write.
-- `npm run audit:future-codex-cli-canary-authorization-packet` on clean
-  `main`; this should run only after local fast-forward merge.
+- Push.

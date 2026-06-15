@@ -11,9 +11,10 @@ use a focused branch, not direct edits on `main`.
 
 Current evidence baseline:
 
-- `main` is aligned with `origin/main` at `4db8174`.
-- Latest mainline commit: `docs: refresh future checklist anchors`.
-- Current local working branch: `docs/future-canary-authorization-packet`.
+- `origin/main` is at `4db8174`.
+- Local `main` has fast-forwarded to `57ae4a7`.
+- Latest local mainline commit: `test: draft future canary authorization packet`.
+- Current local cleanup branch: `docs/post-merge-authorization-packet-anchor`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `1003 / 1003`.
@@ -26,6 +27,8 @@ Current evidence baseline:
   - `npx tsx --test tests\future-codex-cli-canary-authorization-packet-audit.test.ts`
     passed on the packet draft branch.
   - `npm run typecheck` passed on the packet draft branch.
+  - `npm run audit:future-codex-cli-canary-authorization-packet` passed on
+    clean local `main` after the fast-forward merge.
 
 ## Current Mainline Facts
 
@@ -78,10 +81,10 @@ folder, continue from the current mainline facts, not the older April CLI-host
 anchor.
 
 The fresh read-only real Codex CLI smoke for current local `main` has passed
-under exact operator authorization. The controlled execution gate design and
-future canary execution packet checklist are merged. The current branch drafts
-and reviews the future canary execution authorization packet shape for a bounded
-workspace-write real canary, without enabling workspace-write or general
+under exact operator authorization. The controlled execution gate design, future
+canary execution packet checklist, and future canary execution authorization
+packet draft/review are merged into local `main`. The clean local `main`
+authorization packet audit passed without enabling workspace-write or general
 provider execution.
 
 Current design artifact:
@@ -138,11 +141,13 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 
 ## One-Line Resume Prompt
 
-Continue from `main` / `origin/main` at `4db8174`: approval issuance,
+Continue from local `main` at `57ae4a7` and `origin/main` at `4db8174`:
+approval issuance,
 read-only approval consumption, read-only formal integration evidence, approval
 consumption dispatch audit matrix evidence, fresh real read-only Codex CLI smoke
 evidence, controlled execution gate design, and future canary execution packet
-checklist are merged to `origin/main`; current local work is future canary
-authorization packet draft/review on
-`docs/future-canary-authorization-packet`, without opening workspace-write,
-general provider execution, or unrelated remote actions.
+checklist are merged to `origin/main`; future canary authorization packet
+draft/review is merged into local `main` and its clean-main audit passed.
+Remote `origin/main` is still behind local `main`; do not push without explicit
+user instruction. Do not open workspace-write, general provider execution, or
+unrelated remote actions.
