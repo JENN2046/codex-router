@@ -13,7 +13,8 @@ Current branch HEAD: inspect with `git log --oneline --decorate -n 3`
 
 The evidence-first slice was fast-forward merged into local `main` and pushed
 to `origin/main` at `24c3508`. Local `main` now also contains post-push anchor
-cleanup facts.
+cleanup facts. Fresh real Codex CLI read-only smoke passed under exact operator
+authorization.
 
 ## Current Boundary
 
@@ -24,6 +25,6 @@ tag, deployment, or external service write.
 
 ## Next Safe Action
 
-After this anchor cleanup, the next gated action is a fresh real read-only Codex
-CLI smoke for current `main`. It remains gated on exact explicit operator
-authorization.
+The next local action is controlled execution gate design for the next real
+Codex CLI step. Workspace-write and general provider execution remain closed
+without separate exact operator authorization.

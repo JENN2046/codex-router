@@ -13,18 +13,19 @@
 - Push `main` to `origin/main` at `24c3508`.
 - Validate `npm run audit:approval-consumption-dispatch-matrix` on clean
   `main`.
+- Run fresh real read-only Codex CLI smoke under exact operator authorization.
 
 ## In Progress
 
-- Refresh post-push anchors so future agents start from `24c3508`.
+- Record fresh real read-only smoke evidence and follow-up gate boundary.
 
 ## Blocked
 
-- Fresh real Codex CLI read-only smoke: requires explicit operator token and
-  should not be inferred from general continuation.
+- Workspace-write or general provider execution: requires a separate exact
+  operator authorization and controlled execution gate.
 
 ## Remaining
 
-- Run fresh real read-only Codex CLI smoke after exact operator authorization.
-- After a fresh read-only smoke, design the controlled execution gate for the
-  next real Codex CLI step.
+- Fast-forward local `main` to the fresh smoke evidence branch if approved.
+- Rerun main-only real read-only smoke audits on clean `main`.
+- Design the controlled execution gate for the next real Codex CLI step.

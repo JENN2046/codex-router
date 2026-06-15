@@ -4,7 +4,8 @@ Date: 2026-06-15
 Current base: `main` at `24c3508`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
-matrix evidence are merged and locally validated.
+matrix evidence are merged and locally validated. A fresh real read-only Codex
+CLI smoke has passed on current local `main`.
 
 ## Current Position
 
@@ -58,6 +59,7 @@ Safe and implemented:
   evidence.
 - Verify approval consumption, provider dispatch preconditions, and sanitized
   audit surfaces through local audit matrix evidence.
+- Verify the real Codex CLI read-only path against current local `main`.
 
 Still blocked or disabled:
 
@@ -134,10 +136,10 @@ workspace-write, real CLI invocation, push, release, or tag.
 
 Next gated slice:
 
-- Run a fresh real read-only Codex CLI smoke against current `main` after exact
-  operator authorization.
+- Design the controlled execution gate for the next real Codex CLI step.
 - Preserve the current boundary: no workspace-write, general provider execution,
-  push, release, tag, or external service write is implied by the smoke.
+  push, release, tag, or external service write is implied by the read-only
+  smoke.
 
 ## Following Phases
 
@@ -176,6 +178,7 @@ Latest local validation on 2026-06-15 before the post-push anchor refresh at
 `24c3508`:
 
 - `npm run audit:approval-consumption-dispatch-matrix` passed on clean `main`.
+- `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
 - `npm run typecheck` passed.
 - `npm test` passed: `1003 / 1003`.
 - `npm run build` passed.

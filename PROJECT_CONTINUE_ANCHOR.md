@@ -20,6 +20,8 @@ Current evidence baseline:
   - `npm run build` passed.
   - `npm run audit:approval-consumption-dispatch-matrix` passed on clean
     `main`.
+  - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real`
+    passed and refreshed `docs/evidence/codex-cli-real-readonly-smoke.json`.
 
 ## Current Mainline Facts
 
@@ -34,6 +36,7 @@ Agent OS now includes:
 - local approval permit consumption for read-only governed plans
 - read-only formal Codex CLI integration readiness evidence
 - approval consumption / provider dispatch / sanitized audit matrix evidence
+- fresh real Codex CLI read-only smoke evidence for current local `main`
 
 Approval consumption is no longer merely deferred. It is implemented and locally
 closed out for the bounded read-only planning path.
@@ -44,6 +47,7 @@ Primary current references:
 - `docs/governance/APPROVAL_CONSUMPTION_HARDENING_LOCAL_CLOSEOUT.md`
 - `docs/governance/APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md`
 - `docs/governance/PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX.md`
+- `docs/evidence/codex-cli-real-readonly-smoke.json`
 - `docs/phase-21-closeout-audit-20260611.md`
 
 ## Important Boundaries
@@ -69,12 +73,10 @@ When the user says "continue project" or a similar continuation request in this
 folder, continue from the current mainline facts, not the older April CLI-host
 anchor.
 
-The next safe local action is a fresh read-only real Codex CLI smoke preflight
-for the current `main`, but only after exact explicit operator authorization.
-
-Required authorization token:
-
-- `APPROVE_FORMAL_REAL_CODEX_CLI_READONLY_SMOKE_EXECUTION_PR_18A`
+The fresh read-only real Codex CLI smoke for current local `main` has passed
+under exact operator authorization. The next safe local action is to design the
+controlled execution gate for the next real Codex CLI step, without enabling
+workspace-write or general provider execution.
 
 ## Remote Or Side-effectful Actions
 
@@ -111,6 +113,7 @@ Use existing scripts only:
 
 ```powershell
 npm run audit:approval-consumption-dispatch-matrix
+npm run smoke:readonly:real
 npm run typecheck
 npm test
 npm run build
@@ -123,7 +126,8 @@ For docs-only anchor updates, inspect the diff and confirm the worktree state.
 Continue from `origin/main` evidence baseline `24c3508`, plus any local
 post-push anchor cleanup on `main`: approval issuance, read-only approval
 consumption, read-only formal integration evidence, and approval consumption
-dispatch audit matrix evidence are merged to `origin/main`; next gated action is
-a fresh real read-only Codex CLI smoke for current local `main` after exact
-operator authorization, without opening workspace-write, provider execution, or
-unrelated remote actions.
+dispatch audit matrix evidence are merged to `origin/main`; fresh real
+read-only Codex CLI smoke passed on current local `main`; next local work is a
+controlled execution gate design for the next real Codex CLI step, without
+opening workspace-write, general provider execution, or unrelated remote
+actions.
