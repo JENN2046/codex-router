@@ -1726,6 +1726,71 @@ test("codex cli host inspects command output without treating stderr warnings as
   assert.deepEqual(inspection.blockingReasons, []);
 });
 
+test("codex cli semantic inspection blocks read-only write evidence", () => {
+  const inspection = inspectCodexCliCommandOutput({
+    exitCode: 0,
+    stdout: [
+      "{\"type\":\"file_change\",\"path\":\"README.md\"}",
+      "{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\",\"command\":\"echo unsafe > README.md\"}}",
+      "{\"type\":\"agent_message\",\"message\":\"done\"}"
+    ].join("\n") + "\n"
+  }, {
+    sandbox: "read-only",
+    strictUnknownEvents: true
+  });
+
+  assert.equal(inspection.status, "failed");
+  assert.ok(inspection.blockingReasons.includes(
+    "codex_cli_readonly_jsonl_file_change_not_allowed:file_change"
+  ));
+  assert.ok(inspection.blockingReasons.includes(
+    "codex_cli_readonly_jsonl_write_command_not_allowed"
+  ));
+});
+
+test("codex cli semantic inspection fails closed on unknown strict events", async () => {
+  const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
+    taskId: "cli-runner-unknown-jsonl-event"
+  }), {
+    ephemeral: true
+  });
+  const result = await runCodexCliExecPlan(plan, {
+    skipExecutionModelProbe: true,
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"experimental.future_event\",\"payload\":true}",
+        "{\"type\":\"item.completed\",\"item\":{\"type\":\"mystery_tool\",\"status\":\"completed\"}}"
+      ].join("\n") + "\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(result.inspection.status, "failed");
+  assert.ok(result.inspection.blockingReasons.includes(
+    "codex_cli_jsonl_unknown_event_type:experimental.future_event"
+  ));
+  assert.ok(result.inspection.blockingReasons.includes(
+    "codex_cli_jsonl_unknown_event_type:mystery_tool"
+  ));
+});
+
+test("codex cli semantic inspection blocks secret-like jsonl content without leaking it", () => {
+  const inspection = inspectCodexCliCommandOutput({
+    exitCode: 0,
+    stdout: "{\"type\":\"agent_message\",\"message\":\"token sk-test-jsonl-secret\"}\n"
+  }, {
+    sandbox: "read-only",
+    strictUnknownEvents: true
+  });
+  const serialized = JSON.stringify(inspection);
+
+  assert.equal(inspection.status, "failed");
+  assert.ok(inspection.blockingReasons.includes(
+    "codex_cli_jsonl_secret_like_content"
+  ));
+  assert.equal(serialized.includes("sk-test-jsonl-secret"), false);
+});
+
 test("codex cli host redacts sensitive stderr warnings in inspection and evidence", async () => {
   const result = await runCodexCliReadOnlySmoke({
     spawn: () => createFakeCodexCliChild({
@@ -2293,6 +2358,120 @@ test("codex cli host runner gates skip git repo check by mode and explicit allow
     }),
     /codex_cli_skip_git_repo_check_not_allowed_for_workspace_write/
   );
+});
+
+test("codex cli semantic inspection enforces workspace-write target files", async () => {
+  const task = parseTaskEnvelope({
+    taskId: "cli-runner-workspace-write-jsonl-targets",
+    source: "cli",
+    intent: {
+      summary: "edit one target",
+      requestedAction: "edit README.md only",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router",
+      worktreeClean: true
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const plan = createCodexCliExecPlan(task, {
+    sandbox: "workspace-write",
+    approvalPolicy: "on-request",
+    ephemeral: true
+  });
+
+  const permitted = await runCodexCliExecPlan(plan, {
+    allowWriteSandbox: true,
+    skipExecutionModelProbe: true,
+    workspaceWritePreflight: createTestWorkspaceWritePreflight(["README.md"]),
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"file_change\",\"path\":\"README.md\"}",
+        "{\"type\":\"agent_message\",\"message\":\"changed\"}"
+      ].join("\n") + "\n",
+      exitCode: 0
+    })
+  });
+  const rejected = await runCodexCliExecPlan(plan, {
+    allowWriteSandbox: true,
+    skipExecutionModelProbe: true,
+    workspaceWritePreflight: createTestWorkspaceWritePreflight(["README.md"]),
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"file_change\",\"path\":\"docs/other.md\"}",
+        "{\"type\":\"agent_message\",\"message\":\"changed\"}"
+      ].join("\n") + "\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(permitted.inspection.status, "completed");
+  assert.equal(rejected.inspection.status, "failed");
+  assert.ok(rejected.inspection.blockingReasons.includes(
+    "codex_cli_workspace_write_jsonl_file_change_not_permitted:docs/other.md"
+  ));
+});
+
+test("codex cli semantic inspection blocks remote write commands", async () => {
+  const task = parseTaskEnvelope({
+    taskId: "cli-runner-jsonl-remote-write",
+    source: "cli",
+    intent: {
+      summary: "edit one target",
+      requestedAction: "edit README.md only",
+      successCriteria: [],
+      outOfScope: ["remote writes"]
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router",
+      worktreeClean: true
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const plan = createCodexCliExecPlan(task, {
+    sandbox: "workspace-write",
+    approvalPolicy: "on-request",
+    ephemeral: true
+  });
+  const result = await runCodexCliExecPlan(plan, {
+    allowWriteSandbox: true,
+    skipExecutionModelProbe: true,
+    workspaceWritePreflight: createTestWorkspaceWritePreflight(["README.md"]),
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\",\"command\":\"git push origin main\"}}",
+        "{\"type\":\"agent_message\",\"message\":\"pushed\"}"
+      ].join("\n") + "\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(result.inspection.status, "failed");
+  assert.ok(result.inspection.blockingReasons.includes(
+    "codex_cli_jsonl_remote_write_command_not_allowed"
+  ));
 });
 
 test("codex cli host runner rejects manually forged dangerous plans", async () => {

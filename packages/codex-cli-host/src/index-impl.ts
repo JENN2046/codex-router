@@ -378,6 +378,12 @@ export interface CodexCliCommandInspection {
   blockingReasons: string[];
 }
 
+export interface CodexCliSemanticInspectionOptions {
+  sandbox?: CodexCliSandboxMode;
+  targetFiles?: string[];
+  strictUnknownEvents?: boolean;
+}
+
 export interface CodexCliGovernanceEvidenceSummary {
   schemaVersion: "codex-cli-governance-evidence-summary.v1";
   action: string;
@@ -1895,13 +1901,15 @@ export function parseCodexCliJsonl(output: string): CodexCliJsonlParseResult {
 }
 
 export function inspectCodexCliCommandOutput(
-  output: CodexCliCommandOutput
+  output: CodexCliCommandOutput,
+  options: CodexCliSemanticInspectionOptions = {}
 ): CodexCliCommandInspection {
   const parsed = parseCodexCliJsonl(output.stdout);
   const warnings = extractCodexCliWarnings(output.stderr ?? "");
   const blockingReasons = [
     ...(output.exitCode === 0 ? [] : [`codex_cli_exit_code:${output.exitCode}`]),
-    ...(parsed.parseErrors.length === 0 ? [] : ["codex_cli_jsonl_parse_error"])
+    ...(parsed.parseErrors.length === 0 ? [] : ["codex_cli_jsonl_parse_error"]),
+    ...inspectCodexCliJsonlSemantics(parsed.events, options)
   ];
 
   return {
@@ -1911,6 +1919,301 @@ export function inspectCodexCliCommandOutput(
     warnings,
     blockingReasons
   };
+}
+
+function inspectCodexCliJsonlSemantics(
+  events: CodexCliJsonlEvent[],
+  options: CodexCliSemanticInspectionOptions
+): string[] {
+  const blockingReasons: string[] = [];
+  const targetFiles = normalizeCodexCliExplicitTargetAllowlist(options.targetFiles)
+    .map(normalizeCodexCliInspectionPath);
+
+  for (const event of events) {
+    const semanticType = getCodexCliJsonlSemanticEventType(event.event);
+    if (semanticType === undefined) {
+      if (options.strictUnknownEvents === true) {
+        blockingReasons.push("codex_cli_jsonl_event_type_missing");
+      }
+      continue;
+    }
+
+    if (
+      options.strictUnknownEvents === true
+      && !isKnownCodexCliJsonlEvent(event.event, semanticType)
+    ) {
+      blockingReasons.push(
+        `codex_cli_jsonl_unknown_event_type:${redactCodexCliSensitiveEvidenceText(semanticType)}`
+      );
+      continue;
+    }
+
+    if (codexCliJsonlEventHasSecretLikeContent(event.event)) {
+      blockingReasons.push("codex_cli_jsonl_secret_like_content");
+    }
+
+    if (isCodexCliFileChangeLikeEventType(semanticType)) {
+      if (options.sandbox === "read-only") {
+        blockingReasons.push(
+          `codex_cli_readonly_jsonl_file_change_not_allowed:${semanticType}`
+        );
+      } else if (options.sandbox === "workspace-write") {
+        const changedFiles = extractCodexCliJsonlEventFilePaths(event.event);
+        if (changedFiles.length === 0) {
+          blockingReasons.push(
+            `codex_cli_workspace_write_jsonl_file_change_without_path:${semanticType}`
+          );
+        }
+
+        for (const file of changedFiles) {
+          if (!targetFiles.includes(file)) {
+            blockingReasons.push(
+              `codex_cli_workspace_write_jsonl_file_change_not_permitted:${redactCodexCliSensitiveEvidenceText(file)}`
+            );
+          }
+        }
+      }
+    }
+
+    if (isCodexCliCommandExecutionLikeEventType(semanticType)) {
+      const commandText = extractCodexCliJsonlCommandText(event.event);
+      if (commandText === undefined) {
+        if (options.sandbox === "read-only") {
+          blockingReasons.push(
+            `codex_cli_readonly_jsonl_command_safety_unknown:${semanticType}`
+          );
+        }
+        continue;
+      }
+
+      if (isCodexCliRemoteWriteCommand(commandText)) {
+        blockingReasons.push("codex_cli_jsonl_remote_write_command_not_allowed");
+      }
+
+      if (
+        options.sandbox === "read-only"
+        && isCodexCliWriteCommand(commandText)
+      ) {
+        blockingReasons.push("codex_cli_readonly_jsonl_write_command_not_allowed");
+      }
+    }
+
+    if (
+      options.sandbox === "read-only"
+      && isCodexCliWriteToolLikeEventType(semanticType)
+    ) {
+      blockingReasons.push(
+        `codex_cli_readonly_jsonl_write_tool_not_allowed:${semanticType}`
+      );
+    }
+  }
+
+  return uniqueStrings(blockingReasons);
+}
+
+function getCodexCliJsonlSemanticEventType(
+  payload: Record<string, unknown>
+): string | undefined {
+  const item = isRecord(payload.item) ? payload.item : undefined;
+  return typeof item?.type === "string"
+    ? item.type
+    : typeof payload.type === "string"
+      ? payload.type
+      : undefined;
+}
+
+function isKnownCodexCliJsonlEvent(
+  payload: Record<string, unknown>,
+  semanticType: string
+): boolean {
+  const item = isRecord(payload.item) ? payload.item : undefined;
+  const topLevelType = typeof payload.type === "string" ? payload.type : undefined;
+  const itemType = typeof item?.type === "string" ? item.type : undefined;
+  const normalizedTopLevelType = topLevelType?.toLowerCase();
+  const normalizedSemanticType = semanticType.toLowerCase();
+  const topLevelEventKnown = normalizedTopLevelType === "agent_message"
+    || normalizedTopLevelType === "session.started"
+    || normalizedTopLevelType === "session.updated"
+    || normalizedTopLevelType === "session.completed"
+    || normalizedTopLevelType === "thread.started"
+    || normalizedTopLevelType === "thread.updated"
+    || normalizedTopLevelType === "thread.completed"
+    || normalizedTopLevelType === "turn.started"
+    || normalizedTopLevelType === "turn.completed"
+    || normalizedTopLevelType === "task.started"
+    || normalizedTopLevelType === "task.completed"
+    || normalizedTopLevelType === "item.started"
+    || normalizedTopLevelType === "item.completed"
+    || normalizedTopLevelType === "item.updated"
+    || normalizedTopLevelType === "plan_update"
+    || normalizedTopLevelType === "token_count"
+    || normalizedTopLevelType === "warning"
+    || normalizedTopLevelType === "error";
+  const semanticEventKnown = normalizedSemanticType === "agent_message"
+    || normalizedSemanticType === "reasoning"
+    || normalizedSemanticType === "message"
+    || normalizedSemanticType === "plan_update"
+    || normalizedSemanticType === "token_count"
+    || isCodexCliCommandExecutionLikeEventType(semanticType)
+    || isCodexCliProbeToolLikeEventType(semanticType)
+    || isCodexCliFileChangeLikeEventType(semanticType);
+
+  return itemType !== undefined && normalizedTopLevelType?.startsWith("item.")
+    ? semanticEventKnown
+    : topLevelEventKnown || semanticEventKnown;
+}
+
+function codexCliJsonlEventHasSecretLikeContent(
+  payload: Record<string, unknown>
+): boolean {
+  const serialized = JSON.stringify(payload);
+  return serialized !== undefined
+    && redactCodexCliSensitiveEvidenceText(serialized) !== serialized;
+}
+
+function isCodexCliFileChangeLikeEventType(type: string): boolean {
+  const normalized = type.toLowerCase().replace(/[-.]/g, "_");
+  return normalized === "file_change"
+    || normalized === "file_changed"
+    || normalized === "file_update"
+    || normalized === "file_write"
+    || normalized === "patch"
+    || normalized === "apply_patch"
+    || normalized === "diff"
+    || normalized.includes("file_change")
+    || normalized.includes("file_write")
+    || normalized.includes("apply_patch");
+}
+
+function isCodexCliCommandExecutionLikeEventType(type: string): boolean {
+  const normalized = type.toLowerCase().replace(/[-.]/g, "_");
+  return normalized === "command_execution"
+    || normalized === "shell_command"
+    || normalized === "exec_command"
+    || normalized.includes("command_execution")
+    || normalized.includes("shell_command");
+}
+
+function isCodexCliWriteToolLikeEventType(type: string): boolean {
+  const normalized = type.toLowerCase().replace(/[-.]/g, "_");
+  return normalized === "mcp_tool_call"
+    || normalized === "tool_call"
+    || normalized === "function_call"
+    || normalized.includes("apply_patch")
+    || normalized.includes("write")
+    || normalized.includes("edit")
+    || normalized.includes("delete")
+    || normalized.includes("remove");
+}
+
+function extractCodexCliJsonlCommandText(
+  payload: Record<string, unknown>
+): string | undefined {
+  const item = isRecord(payload.item) ? payload.item : undefined;
+  const command = firstString([
+    payload.command,
+    payload.cmd,
+    item?.command,
+    item?.cmd,
+    joinStringArray(payload.argv),
+    joinStringArray(payload.args),
+    joinStringArray(item?.argv),
+    joinStringArray(item?.args)
+  ]);
+
+  return command?.trim() || undefined;
+}
+
+function extractCodexCliJsonlEventFilePaths(
+  payload: Record<string, unknown>
+): string[] {
+  const paths: string[] = [];
+  collectCodexCliJsonlEventFilePaths(payload, paths);
+  return uniqueStrings(
+    paths
+      .map((path) => normalizeCodexCliOptionalText(normalizeCodexCliInspectionPath(path)))
+      .filter((path): path is string => path !== undefined)
+  );
+}
+
+function normalizeCodexCliInspectionPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+function collectCodexCliJsonlEventFilePaths(value: unknown, paths: string[]): void {
+  if (typeof value === "string") {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectCodexCliJsonlEventFilePaths(item, paths));
+    return;
+  }
+
+  if (!isRecord(value)) {
+    return;
+  }
+
+  for (const [key, entryValue] of Object.entries(value)) {
+    const normalizedKey = key.toLowerCase();
+    if (
+      typeof entryValue === "string"
+      && (normalizedKey === "path"
+        || normalizedKey === "file"
+        || normalizedKey === "file_path"
+        || normalizedKey === "filepath"
+        || normalizedKey === "target_file")
+    ) {
+      paths.push(entryValue);
+      continue;
+    }
+
+    if (
+      Array.isArray(entryValue)
+      && entryValue.every((item): item is string => typeof item === "string")
+      && (normalizedKey === "paths"
+        || normalizedKey === "files"
+        || normalizedKey === "file_paths"
+        || normalizedKey === "changed_files")
+    ) {
+      paths.push(...entryValue);
+      continue;
+    }
+
+    collectCodexCliJsonlEventFilePaths(entryValue, paths);
+  }
+}
+
+function isCodexCliWriteCommand(command: string): boolean {
+  const normalized = normalizeCodexCliCommandForInspection(command);
+  return /\b(rm|del|erase|rmdir|mv|move|cp|copy|touch|mkdir)\b/.test(normalized)
+    || /\b(git\s+(?:checkout|restore|reset|clean|add|commit|merge|rebase|tag|push))\b/.test(normalized)
+    || /\b(npm|pnpm|yarn)\s+(?:publish|version|install|update|audit\s+fix)\b/.test(normalized)
+    || /\bapply_patch\b/.test(normalized)
+    || />>|>\s*[^&]/.test(normalized);
+}
+
+function isCodexCliRemoteWriteCommand(command: string): boolean {
+  const normalized = normalizeCodexCliCommandForInspection(command);
+  return /\bgit\s+(?:push|merge|tag)\b/.test(normalized)
+    || /\bgh\s+(?:pr\s+merge|release\s+(?:create|upload|delete)|repo\s+(?:edit|delete))\b/.test(normalized)
+    || /\b(npm|pnpm|yarn)\s+publish\b/.test(normalized);
+}
+
+function normalizeCodexCliCommandForInspection(command: string): string {
+  return command.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function firstString(values: Array<unknown>): string | undefined {
+  return values.find((value): value is string => (
+    typeof value === "string" && value.trim().length > 0
+  ));
+}
+
+function joinStringArray(value: unknown): string | undefined {
+  return Array.isArray(value) && value.every((item): item is string => typeof item === "string")
+    ? value.join(" ")
+    : undefined;
 }
 
 function sanitizeCodexCliCommandOutputForResult(
@@ -2250,7 +2553,11 @@ export async function runCodexCliExecPlan(
     const safeError = error !== undefined
       ? redactCodexCliSensitiveEvidenceText(error)
       : undefined;
-    const inspection = inspectCodexCliCommandOutput(output);
+    const inspection = inspectCodexCliCommandOutput(output, {
+      sandbox: plan.sandbox,
+      targetFiles: plan.task.target.files,
+      strictUnknownEvents: true
+    });
     const blockingReasons = [
       ...inspection.blockingReasons,
       ...(timedOut ? ["codex_cli_process_timeout"] : []),

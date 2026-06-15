@@ -324,6 +324,11 @@ Default runner gates:
 - `workspace-write` plans require a known repo root, `worktreeClean: true`,
   a recorded `beforeCommit`, a rollback command, and a target allowlist through
   `workspaceWritePreflight`
+- JSONL output is semantically inspected before the run is considered complete:
+  unknown strict events fail closed, secret-like event content is blocked,
+  read-only runs cannot report file changes or write commands, workspace-write
+  file-change events must match task target files, and remote-write commands
+  such as push, merge, tag, release, or publish are blocked
 - when a `modelCatalog` is supplied, the selected `plan.model` must be present
 - when `requireModelCatalog` is true, execution is blocked until a catalog is
   supplied
