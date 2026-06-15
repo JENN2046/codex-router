@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "codex-cli-workspace-write-smoke-evidence.v1",
+  "generatedAt": "2026-06-15T09:31:34.145Z",
+  "host": "Codex CLI",
+  "repoRoot": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
+  "status": "passed",
+  "taskId": "codex-cli-workspace-write-smoke",
+  "requiredConfirmation": "ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE",
+  "preflight": {
+    "status": "ready",
+    "blockingReasons": []
+  },
+  "approvalPacket": {
+    "status": "ready",
+    "risk": "medium",
+    "blockers": [],
+    "targetFiles": [
+      "tmp/codex-cli-write-canary.txt"
+    ],
+    "commandPreview": "\"C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe\" -a on-request exec --json --sandbox workspace-write --model gpt-5.4-mini --cd \"A:\\AGENTS_OS_Workspace\\governance\\codex-router\" --skip-git-repo-check --ephemeral \"<task envelope omitted>\""
+  },
+  "plan": {
+    "command": "C:\\Users\\617\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe",
+    "sandbox": "workspace-write",
+    "approvalPolicy": "on-request",
+    "workdir": "A:\\AGENTS_OS_Workspace\\governance\\codex-router",
+    "usesJson": true,
+    "skipGitRepoCheck": true,
+    "ephemeral": true,
+    "warnings": []
+  },
+  "run": {
+    "exitCode": 0,
+    "executionStatus": "completed",
+    "eventCount": 60,
+    "parseErrorCount": 0,
+    "warnings": [],
+    "blockingReasons": [],
+    "timedOut": false,
+    "killed": false,
+    "stdinClosed": true,
+    "stdinDestroyed": true,
+    "closeReceived": true,
+    "forcedSettled": false,
+    "stdioDestroyed": false,
+    "unrefCalled": false,
+    "terminationGraceMs": 5000,
+    "terminationEscalated": false
+  },
+  "summary": {
+    "passed": true,
+    "blockingReasons": [],
+    "warnings": []
+  },
+  "governance": {
+    "schemaVersion": "codex-cli-governance-evidence-summary.v1",
+    "action": "continue",
+    "riskLevel": "medium",
+    "anomalyCount": 0,
+    "observationStatus": "succeeded",
+    "observationSignals": [
+      "writeSandboxRequested"
+    ],
+    "ledgerId": "codex-cli-workspace-write-smoke:codex-cli-ledger:2026-06-15T09:31:34.145Z"
+  },
+  "notes": [
+    "PR-12B exact operator authorization received in chat.",
+    "Bounded target file: tmp/codex-cli-write-canary.txt.",
+    "Push, release, tag, deployment, and external service writes were not authorized."
+  ]
+}
