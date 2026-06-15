@@ -13,7 +13,7 @@ Current evidence baseline:
 
 - `main` is aligned with `origin/main` at `fe181cb`.
 - Latest mainline commit: `docs: refresh execution gate push anchors`.
-- Current local cleanup branch: `docs/post-push-execution-gate-final-anchor`.
+- Current local working branch: `docs/future-canary-pre-execution-review`.
 - Local validation on 2026-06-15:
   - `npm run typecheck` passed.
   - `npm test` passed: `1003 / 1003`.
@@ -37,6 +37,9 @@ Current evidence baseline:
     local `main` after the fast-forward merge.
   - `git push origin main` pushed `19b3a5e..c679c58`.
   - `git push origin main` pushed `c679c58..fe181cb`.
+  - `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
+    passed on the pre-execution review branch.
+  - `npm run typecheck` passed on the pre-execution review branch.
 
 ## Current Mainline Facts
 
@@ -103,6 +106,7 @@ Current design artifact:
 - `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_PACKET_CHECKLIST.md`
 - `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_AUTHORIZATION_PACKET.md`
 - `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_GATE.md`
+- `docs/governance/FUTURE_CODEX_CLI_CANARY_PRE_EXECUTION_REVIEW.md`
 
 ## Remote Or Side-effectful Actions
 
@@ -143,6 +147,7 @@ npm run audit:controlled-execution-gate-design
 npm run audit:future-codex-cli-canary-packet-checklist
 npm run audit:future-codex-cli-canary-authorization-packet
 npm run audit:future-codex-cli-canary-execution-gate
+npm run audit:future-codex-cli-canary-pre-execution-review
 npm run smoke:readonly:real
 npm run typecheck
 npm test
@@ -159,6 +164,7 @@ consumption dispatch audit matrix evidence, fresh real read-only Codex CLI smoke
 evidence, controlled execution gate design, future canary execution packet
 checklist, future canary authorization packet draft/review, and post-merge
 anchors are pushed. Future canary execution gate design and execution-gate
-post-merge anchors are pushed. Next safe local step is designing the next
-pre-execution review step for a future real workspace-write canary. Do not open
-workspace-write, general provider execution, or unrelated remote actions.
+post-merge anchors are pushed. Current local branch
+`docs/future-canary-pre-execution-review` designs the final pre-execution review
+before exact operator authorization. Do not open workspace-write, general
+provider execution, or unrelated remote actions.

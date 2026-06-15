@@ -147,6 +147,24 @@ Branch: `main` / `origin/main` at `fe181cb`, then
   - Reasons:
     `future_codex_cli_canary_execution_gate_worktreeClean`,
     `future_codex_cli_canary_execution_gate_branchMain`
+- Future canary pre-execution review tests
+  - Command: `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
+  - Result: `5 / 5`
+- `npm run typecheck`
+  - Result: passed after adding
+    `scripts/run-future-codex-cli-canary-pre-execution-review-audit.ts`
+- `npm run audit:future-codex-cli-canary-pre-execution-review`
+  - Result: expected blocked on `docs/future-canary-pre-execution-review`
+    because the worktree is dirty, branch is not `main`, and local HEAD is not
+    aligned with `origin/main`
+  - Boundary: provider execute `0`, real CLI `0`, workspace-write execute `0`,
+    canary file writes `0`
+  - Reasons:
+    `future_codex_cli_canary_pre_execution_review_worktreeClean`,
+    `future_codex_cli_canary_pre_execution_review_branchMain`,
+    `future_codex_cli_canary_pre_execution_review_mainAlignedWithOrigin`
+- `Test-Path tmp\codex-cli-write-canary.txt`
+  - Result: `False`
 
 ## Not Run
 

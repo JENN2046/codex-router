@@ -13,7 +13,8 @@ pushed to `origin/main` at `19b3a5e`. Clean local `main` authorization packet
 audit passed before the post-push anchor merge. The future canary execution gate
 design, post-merge execution gate anchors, and post-push execution gate anchors
 are pushed to `origin/main` at `fe181cb`. The clean local `main` gate audit
-passed before push.
+passed before push. The current branch designs the final pre-execution review
+before exact operator authorization.
 
 Changed files:
 
@@ -22,13 +23,16 @@ Changed files:
 - `docs/governance/APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md`
 - `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_AUTHORIZATION_PACKET.md`
 - `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_GATE.md`
+- `docs/governance/FUTURE_CODEX_CLI_CANARY_PRE_EXECUTION_REVIEW.md`
 - `package.json`
 - `scripts/run-approval-consumption-dispatch-matrix-audit.ts`
 - `scripts/run-future-codex-cli-canary-authorization-packet-audit.ts`
 - `scripts/run-future-codex-cli-canary-execution-gate-audit.ts`
+- `scripts/run-future-codex-cli-canary-pre-execution-review-audit.ts`
 - `tests/approval-consumption-dispatch-matrix-audit.test.ts`
 - `tests/future-codex-cli-canary-authorization-packet-audit.test.ts`
 - `tests/future-codex-cli-canary-execution-gate-audit.test.ts`
+- `tests/future-codex-cli-canary-pre-execution-review-audit.test.ts`
 
 ## Validation
 
@@ -84,6 +88,13 @@ Changed files:
 - Post-push `git status -sb` showed `main...origin/main`.
 - `git push origin main` pushed `c679c58..fe181cb`.
 - Post-push `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
+- `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
+  passed: `5 / 5`.
+- `npm run typecheck` passed on `docs/future-canary-pre-execution-review`.
+- `npm run audit:future-codex-cli-canary-pre-execution-review` blocked as
+  expected on the dirty non-`main` review branch because local HEAD is not
+  aligned with `origin/main`.
+- `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
 
 ## Not Run
 

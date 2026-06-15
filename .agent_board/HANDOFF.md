@@ -8,12 +8,13 @@ Codex CLI read-only smoke, main-only smoke chain audits, controlled execution
 gate design audit, future canary packet checklist audit, future canary
 authorization packet audit, and future canary execution gate audit passed. The
 execution gate design, post-merge anchors, and post-push anchors are pushed.
+The current branch `docs/future-canary-pre-execution-review` designs the final
+pre-execution review before exact operator authorization.
 
 Next safe action:
 
 1. Inspect `git status -sb` and the branch diff.
-2. Continue with local-only design for the next pre-execution review
-   step.
+2. Validate and commit the local-only pre-execution review.
 3. Keep workspace-write and general provider execution closed unless a later
    task gives exact authorization.
 

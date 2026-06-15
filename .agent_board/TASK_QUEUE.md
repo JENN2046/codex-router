@@ -51,6 +51,7 @@
   local `main` after the post-push anchor merge.
 - Push local `main` to `origin/main` at `fe181cb`.
 - Refresh post-push anchors for `fe181cb`.
+- Design the final pre-execution review before exact operator authorization.
 
 ## In Progress
 
@@ -63,5 +64,5 @@
 
 ## Remaining
 
-- Design the next pre-execution review step for a future real workspace-write
-  canary without executing it.
+- Run the pre-execution review audit only after local fast-forward merge to
+  clean `main` and remote alignment.

@@ -11,6 +11,8 @@ anchors are pushed to `origin/main`. The final execution gate design for a
 future real workspace-write canary, its post-merge anchors, and its post-push
 anchors are pushed to
 `origin/main`; the clean-main gate audit passed without running workspace-write.
+The current local branch designs the final pre-execution review before exact
+operator authorization.
 
 ## Current Position
 
@@ -153,8 +155,10 @@ Next gated slice:
   `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_AUTHORIZATION_PACKET.md`
 - Current execution gate artifact:
   `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_GATE.md`
+- Current pre-execution review artifact:
+  `docs/governance/FUTURE_CODEX_CLI_CANARY_PRE_EXECUTION_REVIEW.md`
 - Current local audit:
-  `npm run audit:future-codex-cli-canary-execution-gate`
+  `npm run audit:future-codex-cli-canary-pre-execution-review`
 
 ## Following Phases
 
@@ -210,6 +214,8 @@ Latest local validation on 2026-06-15 through `main` / `origin/main` at
   `main` at `6d05762`.
 - `git push origin main` pushed `19b3a5e..c679c58`.
 - `git push origin main` pushed `c679c58..fe181cb`.
+- `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
+  passed on `docs/future-canary-pre-execution-review`.
 - `npm run typecheck` passed.
 - `npm test` passed: `1003 / 1003`.
 - `npm run build` passed.
