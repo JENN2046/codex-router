@@ -38,6 +38,7 @@
     "audit:formal-real-readonly-smoke-receipt-local": "tsx scripts/run-formal-real-readonly-smoke-receipt-local-audit.ts",
     "audit:formal-real-readonly-smoke-local-rc": "tsx scripts/run-formal-real-readonly-smoke-local-rc-review.ts",
     "audit:formal-real-readonly-smoke-rc-local-closeout": "tsx scripts/run-formal-real-readonly-smoke-rc-local-closeout-audit.ts",
+    "audit:readonly-real-smoke-chain-index": "tsx scripts/run-readonly-real-smoke-chain-index-audit.ts",
     "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
     "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
     "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts",
