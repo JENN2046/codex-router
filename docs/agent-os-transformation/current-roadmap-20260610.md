@@ -1,19 +1,21 @@
 # Agent OS Current Roadmap
 
-Date: 2026-06-10
-Current base: `main` at merge commit `2a77817`
-Status: Phase 1-3 foundation and Phase 4/5/6/8 local execution foundation are
-merged.
+Date: 2026-06-15
+Current base: `main` at `1cc810e`
+Status: local governance foundation, approval issuance, approval consumption,
+and read-only formal integration evidence are merged and locally validated.
 
 ## Current Position
 
 Agent OS now has a local governance kernel, provider planning, dry-run provider
-execution, local durable stores, scheduler leases, and public wrappers for
-MCP-local, CLI, SDK, and app-server style callers.
+execution, local durable stores, scheduler leases, approval permit issuance,
+approval permit consumption, and public wrappers for MCP-local, CLI, SDK, and
+app-server style callers.
 
-The project is ready to move from "declared approval gates" toward "real local
-approval issuance." It is not yet ready for real provider execution or live
-network/runtime surfaces.
+The current mainline is still not an authorization to open real execution
+surfaces. The active safe direction is local-only review or acceptance evidence
+around approval consumption, provider dispatch preconditions, and sanitized
+audit surfaces.
 
 ## Completed Foundation
 
@@ -29,6 +31,11 @@ Already merged:
 - Phase 6: durable local stores and scheduler leases.
 - Phase 8: governed public entry wrappers for MCP-local, CLI, SDK, and
   app-server surfaces.
+- Real local approval issuance through `agentos.approve_run`.
+- Local approval permit consumption for read-only governed plans that start in
+  `waiting_approval`.
+- Read-only formal Codex CLI integration readiness evidence without re-running
+  the real CLI.
 
 ## Current Product Boundary
 
@@ -36,149 +43,144 @@ Safe and implemented:
 
 - Create local Agent OS tasks and runs.
 - Store and list runs, artifacts, events, provider plans, provider manifests,
-  and scheduler leases locally.
+  scheduler leases, and approval permits locally.
 - Plan provider execution.
 - Dry-run provider execution and record evidence.
+- Issue local approval permits when gates pass.
+- Consume valid stored approval permits for read-only governed plans.
+- Surface approval issuance and consumption through MCP-local, SDK, CLI, and
+  App Server wrappers.
 - Expose governed local public surfaces.
-- Enforce capability, approval-tool, local-mutation, provider, scheduler, and
-  lock-safety gates.
+- Enforce capability, approval-tool, local-mutation, provider, scheduler,
+  lock-safety, permit validation, and audit redaction gates.
+- Verify the read-only formal integration chain through local audit matrix
+  evidence.
 
 Still blocked or disabled:
 
-- `agentos.approve_run` real permit issuance.
-- Real provider execution.
-- Real Codex CLI execution.
+- Real provider execution as a general runtime mode.
+- Real Codex CLI execution as a general runtime mode.
+- Workspace-write execution without a separate exact operator authorization.
 - Live MCP server connection.
 - Live A2A network connection.
 - Live App Server process.
 - Signed permits.
 - Distributed storage.
+- Push, release, tag, publish, or external service writes without explicit
+  remote authorization.
 
-## Current Phase: Real Approval Issuance
+## Completed Approval Issuance And Consumption
 
-Goal:
+Approval issuance is implemented and covered:
 
-Turn `agentos.approve_run` from a stable blocked declaration into a local,
-audited approval permit issuer.
+- In-memory approval permit store.
+- Local runtime `agentos.approve_run` permit issuance.
+- Provider-plan scope boundary checks.
+- `kernel.approval.permit.issued` event evidence.
+- MCP-local, SDK, CLI, and App Server entry regression tests.
 
-Current branch:
+Approval consumption is also implemented and covered:
 
-`docs/agent-os-phase-4-8-roadmap`
+- Stored permits can be loaded for execution eligibility.
+- Valid permits can move a read-only `waiting_approval` provider plan to
+  `planned`.
+- Runtime output reports `consumedProviderPlanId` and
+  `approvalConsumptionReasons`.
+- Revoked, expired, and plan-hash-mismatched permits are rejected and audited.
+- Missing planning context prevents consumption and leaves the waiting plan
+  intact.
+- Rejected permit audit is preserved across public wrappers.
 
-Status in this branch:
+Primary evidence:
 
-- The Phase 4-8 completion report and current roadmap docs baseline have been
-  added.
-- The first local approval-issuance slice is implemented:
-  - in-memory approval permit store
-  - local runtime `agentos.approve_run` permit issuance
-  - provider-plan scope boundary check
-  - `kernel.approval.permit.issued` event evidence
-  - MCP-local, SDK, CLI, and App Server entry regression tests
+- `docs/governance/APPROVAL_CONSUMPTION_HARDENING_LOCAL_CLOSEOUT.md`
+- `tests/approval-permit.test.ts`
+- `tests/execution-eligibility.test.ts`
+- `tests/agent-os-mcp-local-runtime.test.ts`
+- `tests/agent-os-sdk.test.ts`
+- `tests/agent-os-cli.test.ts`
+- `tests/agent-os-app-server.test.ts`
 
-Non-goals for this phase:
+## Current Read-only Integration Evidence
 
-- Real provider execution.
-- Real Codex CLI execution.
-- Live MCP/A2A/App Server networking.
-- Cryptographic production signing.
-- Cross-host permit storage.
+The newest mainline commits close out the local read-only formal integration
+chain:
 
-Implementation checklist:
+- `PR_14C_FORMAL_READONLY_CLI_INTEGRATION_LOCAL_CLOSEOUT_COMPLETE`
+- `PR_15C_FORMAL_READONLY_PROVIDER_INTEGRATION_LOCAL_CLOSEOUT_COMPLETE`
+- `PR_16B_FORMAL_READONLY_DISPATCH_BOUNDARY_LOCAL_CLOSEOUT_COMPLETE`
+- `PR_19C_FORMAL_REAL_READONLY_SMOKE_LOCAL_RC_CLOSEOUT_COMPLETE`
+- `PR_20C_READONLY_REAL_SMOKE_CHAIN_LOCAL_CLOSEOUT_COMPLETE`
+- `PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX_RECORDED`
 
-1. Done: add an approval permit store.
-   - Provide an in-memory store for tests.
-   - Keep the store API small: save, get, list by run, revoke.
-   - File-backed approval permit storage remains deferred until the lock and
-     migration contract is needed.
+Primary evidence:
 
-2. Done: extend `AgentOsMcpLocalRuntimeOptions`.
-   - Accept an optional approval permit store.
-   - Accept an approver principal or use the runtime principal as approver for
-     local deterministic tests.
-   - Keep mutation gates unchanged: `approval.issue`, approved mutating tool,
-     and local mutation allowance are still required.
+- `docs/governance/PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX.md`
+- `docs/evidence/codex-cli-formal-readonly-integration-readiness.json`
+- `docs/evidence/codex-cli-formal-readonly-dispatch-boundary-acceptance.json`
+- `docs/evidence/codex-cli-formal-real-readonly-smoke-taskbook-acceptance.json`
+- `docs/evidence/codex-cli-real-readonly-smoke.json`
 
-3. Done: implement `handleApproveRun`.
-   - Parse input using the existing schema.
-   - Require the run to exist.
-   - Require an approval permit store.
-   - Require a stored provider execution plan for the run.
-   - Require requested approval scopes to be covered by the provider plan.
-   - Bind the permit to task, run, principal, policy decision hash, plan hash,
-     requested capability scopes, issue time, expiry, approver, and reason.
-   - Return `permitId`, `runId`, and `expiresAt` on success.
-   - Return stable blocked output for missing run, missing context, invalid
-     scope, or unsafe request cases.
+This matrix is local-only. It does not authorize provider execute,
+workspace-write, real CLI invocation, push, release, or tag.
 
-4. Done: record audit evidence.
-   - Append a kernel event such as `kernel.approval.permit.issued`.
-   - Include public surface, tool name, permit id, run id, approver id, and
-     requested scopes.
-   - Do not log secrets or raw credentials.
+## Current Reviewable Slice
 
-5. Done: wire public surfaces through shared runtime tests.
-   - MCP-local runtime success and failure tests are covered.
-   - SDK `approveRun()` success test is covered.
-   - CLI `approve-run` parser/runtime test is covered.
-   - App-server `POST /agent-os/runs/:runId/approve` route and wrapper test
-     are covered.
-   - Manifest output schema remains aligned with the success and blocked
-     result shapes.
+Next safe local slice:
 
-6. Deferred: keep permit consumption as a follow-up.
-   - Issuance creates a permit.
-   - A later phase should feed stored permits into execution eligibility,
-     provider planning, and provider runner paths automatically.
+- Review or add local-only acceptance evidence around approval consumption.
+- Review provider dispatch preconditions, especially reject-before-spawn paths.
+- Review sanitized audit surfaces for events, artifacts, telemetry, tool input
+  previews, result envelopes, and workspace-write guard evidence.
+
+Suggested first local docs/test task:
+
+- Add or refresh a small local audit matrix that ties approval consumption,
+  provider dispatch preconditions, and redaction surfaces to existing tests and
+  evidence.
 
 ## Following Phases
 
-After real approval issuance:
+After local review/evidence hardening:
 
-1. Approval consumption.
-   - Load permits from the store when evaluating execution eligibility.
-   - Re-plan or unblock runs using accepted permits.
-   - Add revocation behavior and tests.
-
-2. Controlled provider execution.
+1. Controlled provider execution.
    - Add explicit execution mode separate from dry-run mode.
    - Require valid permits and runner invariant checks.
    - Keep provider execution disabled by default.
 
-3. Codex CLI execution opt-in.
+2. Codex CLI execution opt-in.
    - Add explicit configuration for real Codex CLI execution.
    - Preserve dry-run default.
    - Add timeout, cancellation, telemetry, redaction, and evidence paths.
 
-4. Worker loop.
+3. Worker loop.
    - Connect scheduler lease acquisition to provider runner dry-runs first.
    - Add renew/release behavior and crash recovery tests.
    - Only then consider real execution dispatch.
 
-5. Live protocol adapters.
+4. Live protocol adapters.
    - MCP live server adapter after local runtime contract stabilizes.
    - A2A real transport after fake transport and auth rules are complete.
    - App Server transport after a docs-first contract gate.
 
-6. Hardening.
+5. Hardening.
    - Signed permits.
    - Tamper-evident audit ledger.
    - Store migrations.
    - Operator audit view.
    - Rust sidecar spike only for concrete non-bypassable enforcement needs.
 
-## Current Reviewable Slice
+## Validation Baseline
 
-This branch's first reviewable implementation slice:
+Latest local validation on 2026-06-15 after fast-forwarding to `1cc810e`:
 
-- Add approval permit store interfaces and in-memory implementation.
-- Implement `agentos.approve_run` success path in the local runtime.
-- Add MCP-local, SDK, CLI, and App Server approval regression tests.
+- `npm run typecheck` passed.
+- `npm test` passed: `999 / 999`.
+- `npm run build` passed.
 
-Validation target:
+For docs-only roadmap updates, inspect the diff and keep the worktree clean.
+For runtime changes, run targeted tests plus:
 
-- `npx tsx --test tests/approval-permit.test.ts tests/agent-os-mcp-local-runtime.test.ts`
-- `npx tsx --test tests/agent-os-mcp-server-manifest.test.ts`
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
