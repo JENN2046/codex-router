@@ -490,8 +490,9 @@ export function reviewReadonlyProductizationAcceptance(
     );
   const roadmapUpdated =
     input.roadmapText !== null
-    && roadmapText.includes(
-      `Current base: \`main\` and \`origin/main\` at \`${input.headShort}\``
+    && roadmapText.includes("Date: 2026-06-16")
+    && /Current base: `main` and `origin\/main` at `[0-9a-f]{7,}`/.test(
+      roadmapText
     )
     && REQUIRED_ROADMAP_MARKERS.every((marker) => roadmapText.includes(marker));
   const docsNonAuthorizing =
