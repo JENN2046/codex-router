@@ -100,6 +100,8 @@ Defaults:
   `-a <approval-policy>`
 - dangerous bypass flags are rejected
 - `--skip-git-repo-check` is not emitted by default
+- production plans from `createCodexCliExecPlanFromRoutingDecision()` always
+  emit `--ignore-user-config`, so Router controls the effective Codex config
 
 The adapter intentionally does not emit:
 
@@ -126,8 +128,9 @@ That helper binds the policy-selected model to CLI argv as `--model <selectedMod
 and derives the CLI sandbox from `decision.execution.toolAccess`. Read-only tool
 access maps to `--sandbox read-only`; all write-capable tool access maps to
 `--sandbox workspace-write`. The helper rejects task/decision id mismatches and
-does not allow callers to override `model` or `sandbox`, so the CLI plan inherits
-the router decision instead of shadowing it.
+does not allow callers to override `model`, `sandbox`, or user-config posture, so
+the CLI plan inherits the router decision and Router-owned config posture instead
+of shadowing it.
 
 For user-controlled model choice, keep the same helper and turn on the explicit
 preference switch:

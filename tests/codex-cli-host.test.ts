@@ -1561,6 +1561,8 @@ test("codex cli decision plan rejects task mismatches and policy overrides", asy
     ["configOverrides", ["model=gpt-5.4"]],
     ["cwd", "A:/other"],
     ["extraArgs", ["--ask-for-approval", "never"]],
+    ["ignoreUserConfig", false],
+    ["ignoreUserConfig", true],
     ["ignoreRules", true],
     ["profile", "custom-profile"]
   ] as const) {
@@ -1574,12 +1576,13 @@ test("codex cli decision plan rejects task mismatches and policy overrides", asy
 
   const ignoreUserConfigPlan = createCodexCliExecPlanFromRoutingDecision(
     task,
-    decision,
-    {
-      ignoreUserConfig: true
-    }
+    decision
   );
   assert.ok(ignoreUserConfigPlan.args.includes("--ignore-user-config"));
+  assert.equal(
+    ignoreUserConfigPlan.args.filter((arg) => arg === "--ignore-user-config").length,
+    1
+  );
 });
 
 test("codex cli host keeps write and release tasks sandboxed without bypass flags", () => {

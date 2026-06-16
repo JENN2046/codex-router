@@ -53,7 +53,7 @@ Observed public behaviors:
 | `--json` | Official docs describe JSON Lines output for machine-readable event streams. | Required for parser and evidence generation. |
 | `--output-schema` | Official docs describe schema-shaped final output for stable downstream fields. | Potential future evidence/report shape hook; not currently required by `codex-cli-host`. |
 | `--ephemeral` | Official docs and local help support non-persistent sessions. | Useful for safe smoke and report-only tasks. |
-| `--ignore-user-config` / `--ignore-rules` | Local help exposes these controls. | Potential future deterministic automation controls; must be explicit if used. |
+| `--ignore-user-config` / `--ignore-rules` | Local help exposes these controls. | Production routing-decision plans always use `--ignore-user-config`; `--ignore-rules` remains disallowed for production callers. |
 
 ## 5. Local CLI Wrapper Surface Observed
 

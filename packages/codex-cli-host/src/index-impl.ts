@@ -74,6 +74,7 @@ export interface CodexCliDecisionExecPlanOptions
     | "configOverrides"
     | "cwd"
     | "extraArgs"
+    | "ignoreUserConfig"
     | "ignoreRules"
     | "model"
     | "profile"
@@ -1143,6 +1144,7 @@ export function createCodexCliExecPlanFromRoutingDecision(
   );
   const plan = createCodexCliExecPlan(task, {
     ...planOptions,
+    ignoreUserConfig: true,
     model: modelResolution.selectedModel,
     sandbox: resolveCodexCliSandboxForRoutingDecision(decision)
   });
@@ -4678,6 +4680,7 @@ function assertNoCodexCliDecisionPolicyOverrides(
     "configOverrides",
     "cwd",
     "extraArgs",
+    "ignoreUserConfig",
     "ignoreRules",
     "profile"
   ];

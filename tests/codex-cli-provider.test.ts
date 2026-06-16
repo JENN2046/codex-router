@@ -80,6 +80,7 @@ test("codex cli provider creates a read-only plan without storing the prompt", (
   assert.equal(metadata.promptHandoff.inputHash, plan.inputHash);
   assert.match(metadata.promptHandoff.contentHash, /^[a-f0-9]{64}$/);
   assert.equal(typeof metadata.promptHandoff.handle, "string");
+  assert.equal(metadata.codexCliPlan.argsWithoutPrompt.includes("--ignore-user-config"), true);
   assert.equal(
     metadata.codexCliPlan.argsWithoutPrompt.some((arg: string) => arg.includes("Task envelope:")),
     false
