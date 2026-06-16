@@ -136,7 +136,7 @@ test("read-only productization acceptance blocks broadened authorization docs", 
   const input = await createInputFromWorkspace();
   const review = reviewReadonlyProductizationAcceptance({
     ...input,
-    productizationDocText: (input.productizationDocText ?? "").replace(
+    productizationDocText: (input.productizationDocText ?? "").replaceAll(
       "does not authorize workspace-write",
       "workspace-write authorized: `true`"
     )
