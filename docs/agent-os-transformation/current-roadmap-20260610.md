@@ -1,7 +1,7 @@
 # Agent OS Current Roadmap
 
-Date: 2026-06-15
-Current base: `main` and `origin/main` at `5566777`
+Date: 2026-06-16
+Current base: `main` and `origin/main` at `29abcd0`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
 matrix evidence are merged and locally validated. A fresh real read-only Codex
@@ -17,7 +17,10 @@ real canary passed for target `tmp/codex-cli-write-canary.txt`, its evidence is
 recorded at `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`,
 and the temporary canary file has been removed. The post-canary receipt plus
 rollback verification gate is pushed to `origin/main`, and its clean-main audit
-passed without running another workspace-write canary.
+passed without running another workspace-write canary. The Codex CLI taskbook,
+configuration, user-posture, and source and release package boundary fixes are
+present on current `main`. The read-only productization acceptance package is
+now the current local closeout layer.
 
 ## Current Position
 
@@ -76,6 +79,8 @@ Safe and implemented:
   `main`.
 - Verify the post-canary receipt and rollback cleanup state without running
   another workspace-write canary.
+- Verify the read-only productization acceptance package as a local-only,
+  summarized audit layer over the existing evidence chain.
 
 Still blocked or disabled:
 
@@ -134,11 +139,13 @@ chain:
 - `PR_19C_FORMAL_REAL_READONLY_SMOKE_LOCAL_RC_CLOSEOUT_COMPLETE`
 - `PR_20C_READONLY_REAL_SMOKE_CHAIN_LOCAL_CLOSEOUT_COMPLETE`
 - `PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX_RECORDED`
+- `READONLY_PRODUCTIZATION_ACCEPTANCE_RECORDED`
 - `APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX_RECORDED`
 
 Primary evidence:
 
 - `docs/governance/PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX.md`
+- `docs/governance/READONLY_PRODUCTIZATION_ACCEPTANCE.md`
 - `docs/governance/APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md`
 - `docs/evidence/codex-cli-formal-readonly-integration-readiness.json`
 - `docs/evidence/codex-cli-formal-readonly-dispatch-boundary-acceptance.json`
@@ -147,13 +154,18 @@ Primary evidence:
 
 These matrices are local-only. They do not authorize provider execute,
 workspace-write, real CLI invocation, push, release, or tag.
+The productization acceptance entry point is
+`npm run audit:readonly-productization`; it is also local-only and does not
+authorize evidence refresh or any real execution path.
 
 ## Current Reviewable Slice
 
-Next gated slice:
+Current local closeout slice:
 
-- Design the capability taxonomy and escalation policy for future write-capable
-  steps.
+- Keep the read-only productization acceptance package green on clean aligned
+  `main`.
+- Preserve the current boundary: source and release package boundary fixes are
+  local governance hardening, not authorization to publish or release.
 - Preserve the current boundary: the recorded canary proves one bounded local
   workspace-write execution only. It does not imply general workspace-write,
   general provider execution, push, release, tag, or external service write.
@@ -173,6 +185,8 @@ Next gated slice:
   `docs/governance/POST_CANARY_RECEIPT_ROLLBACK_VERIFICATION_GATE.md`
 - Current local audit:
   `npm run audit:post-canary-receipt-rollback-gate`
+- Current read-only productization audit:
+  `npm run audit:readonly-productization`
 
 ## Following Phases
 
