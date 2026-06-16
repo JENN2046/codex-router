@@ -23,7 +23,6 @@ import {
   createCodexCliOperatorAcceptanceEvidence,
   createCodexCliReadOnlySmokeEvidence,
   createCodexCliReadOnlySmokeTask,
-  createCodexCliExecPlan,
   createCodexCliExecPlanFromRoutingDecision,
   createCodexCliWorkspaceWriteSmokeApprovalPacket,
   createCodexCliWorkspaceWriteSmokeEvidence,
@@ -58,6 +57,7 @@ import {
   resolveCodexCliSandboxForRoutingDecision,
   resolveCodexCliSandbox
 } from "../packages/codex-cli-host/src/index.js";
+import { createCodexCliExecPlan } from "../packages/codex-cli-host/src/internal.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
 import { classifyIntent } from "../packages/intent-gate/src/index.js";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
@@ -94,6 +94,16 @@ test("codex cli host public export surface is lock-stable", async () => {
     .sort();
 
   assert.deepEqual(actualExports, codexCliHostPublicExportLockFixture);
+});
+
+test("codex cli host public production surface does not expose raw exec plan builder", async () => {
+  const moduleExports = await import("../packages/codex-cli-host/src/index.js");
+
+  assert.equal("createCodexCliExecPlan" in moduleExports, false);
+  assert.equal(
+    "createCodexCliExecPlanFromRoutingDecision" in moduleExports,
+    true
+  );
 });
 
 test("codex cli host governance-v2 public export surface is lock-stable", async () => {

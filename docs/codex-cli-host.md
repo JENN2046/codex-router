@@ -44,7 +44,6 @@ See:
 
 Use:
 
-- `createCodexCliExecPlan()`
 - `createCodexCliExecPlanFromRoutingDecision()`
 - `validateCodexCliExecPlanForRun()`
 - `runCodexCliExecPlan()`
@@ -76,10 +75,12 @@ Use:
 
 ## Exec Plan
 
-```ts
-import { createCodexCliExecPlan } from "../packages/codex-cli-host/src/index.js";
+Production callers should build CLI plans from a routed policy decision:
 
-const plan = createCodexCliExecPlan(task, {
+```ts
+import { createCodexCliExecPlanFromRoutingDecision } from "../packages/codex-cli-host/src/index.js";
+
+const plan = createCodexCliExecPlanFromRoutingDecision(task, decision, {
   ephemeral: true
 });
 ```
@@ -103,10 +104,17 @@ Defaults:
 The adapter intentionally does not emit:
 
 - `--dangerously-bypass-approvals-and-sandbox`
+- `--dangerously-bypass-hook-trust`
 - `--full-auto`
+- `--yolo`
 - `danger-full-access`
 
-When the caller already has a `RoutingDecision`, prefer:
+The raw `createCodexCliExecPlan()` builder remains internal/smoke-only under
+`packages/codex-cli-host/src/internal.ts`. Production paths should use
+`createCodexCliExecPlanFromRoutingDecision()` so model and sandbox come from the
+router decision rather than caller-supplied raw options.
+
+When the caller already has a `RoutingDecision`, use:
 
 ```ts
 const plan = createCodexCliExecPlanFromRoutingDecision(task, decision, {

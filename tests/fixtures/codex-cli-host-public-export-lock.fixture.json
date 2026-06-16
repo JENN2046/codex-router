@@ -20,7 +20,6 @@
   "compareCodexCliModelStrength",
   "createCodexCliArbitrationPacket",
   "createCodexCliCheckpointLedgerEntry",
-  "createCodexCliExecPlan",
   "createCodexCliExecPlanFromRoutingDecision",
   "createCodexCliExecutionObservation",
   "createCodexCliGovernanceBundle",

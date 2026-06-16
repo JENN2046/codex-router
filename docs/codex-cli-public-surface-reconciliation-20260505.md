@@ -65,9 +65,10 @@ Current implementation observations:
 
 | Local surface | Finding | Fit |
 |---|---|---|
-| `createCodexCliExecPlan()` | Builds `codex exec --json --sandbox <mode>` plans and sets approval with `-a` before `exec` by default. | DIRECT |
+| `createCodexCliExecPlanFromRoutingDecision()` | Public production helper builds `codex exec --json --sandbox <mode>` plans from router-selected model and sandbox. | DIRECT |
+| `createCodexCliExecPlan()` | Raw builder is internal/smoke-only and is not exported by the public production surface. | INTERNAL |
 | `CodexCliSandboxMode` | Supports `read-only` and `workspace-write`; does not expose `danger-full-access`. | CONSERVATIVE |
-| dangerous args guard | Blocks `--dangerously-bypass-approvals-and-sandbox` and `--full-auto`. | DIRECT |
+| dangerous args guard | Blocks bypass aliases including `--dangerously-bypass-approvals-and-sandbox`, `--dangerously-bypass-hook-trust`, `--full-auto`, `--yolo`, and `danger-full-access`. | DIRECT |
 | `parseCodexCliJsonl()` | Parses arbitrary JSON object lines and records parse diagnostics for invalid or non-object lines. | DIRECT |
 | `validateCodexCliExecPlanForRun()` | Requires `exec`, `--json`, explicit sandbox, explicit approval policy, and blocks workspace-write unless `allowWriteSandbox` is true. | DIRECT |
 | read-only smoke helpers | Model a read-only task with no file edits or external writes. | DIRECT |
