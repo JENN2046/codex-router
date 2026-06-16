@@ -2068,9 +2068,42 @@ function isKnownCodexCliJsonlEvent(
 function codexCliJsonlEventHasSecretLikeContent(
   payload: Record<string, unknown>
 ): boolean {
-  const serialized = JSON.stringify(payload);
-  return serialized !== undefined
-    && redactCodexCliSensitiveEvidenceText(serialized) !== serialized;
+  return codexCliJsonlValueHasSecretLikeContent(payload);
+}
+
+function codexCliJsonlValueHasSecretLikeContent(value: unknown): boolean {
+  if (typeof value === "string") {
+    return redactCodexCliSensitiveEvidenceText(value) !== value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(codexCliJsonlValueHasSecretLikeContent);
+  }
+
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return Object.entries(value).some(([key, entryValue]) => {
+    if (
+      !isCodexCliJsonlSafeTokenMetricKey(key)
+      && isCodexCliJsonlSecretLikeFieldKey(key)
+    ) {
+      return true;
+    }
+
+    return codexCliJsonlValueHasSecretLikeContent(entryValue);
+  });
+}
+
+function isCodexCliJsonlSafeTokenMetricKey(key: string): boolean {
+  return /^(?:input|output|total|cached|reasoning|prompt|completion)_tokens$/i.test(key)
+    || /^tokens_(?:input|output|total|cached|reasoning|prompt|completion)$/i.test(key);
+}
+
+function isCodexCliJsonlSecretLikeFieldKey(key: string): boolean {
+  return /(?:api[-_]?key|authorization|credential|password|secret|access[-_]?token|client[-_]?secret|refresh[-_]?token|github[-_]?token|^token$|[-_.]token$|token[-_.])/i.test(key)
+    || /\bauth\.json\b/i.test(key);
 }
 
 function isCodexCliFileChangeLikeEventType(type: string): boolean {
@@ -2409,8 +2442,14 @@ export function validateCodexCliExecPlanForRun(
 
   const approvalArg = getCodexCliArgValue(plan.args, "--ask-for-approval")
     ?? getCodexCliArgValue(plan.args, "-a");
+  const approvalArgOmittedForReadOnlyNever =
+    approvalArg === undefined
+    && plan.sandbox === "read-only"
+    && plan.approvalPolicy === "never";
   if (!approvalArg) {
-    blockingReasons.push("codex_cli_plan_must_set_approval_policy");
+    if (!approvalArgOmittedForReadOnlyNever) {
+      blockingReasons.push("codex_cli_plan_must_set_approval_policy");
+    }
   } else if (!["untrusted", "on-request", "never"].includes(approvalArg)) {
     blockingReasons.push(`codex_cli_unsupported_approval_policy_arg:${approvalArg}`);
   } else if (approvalArg !== plan.approvalPolicy) {
@@ -3126,7 +3165,7 @@ export async function runCodexCliReadOnlySmoke(
     ...(options.planOptions?.codexCommand !== undefined
       ? {}
       : { codexCommand: resolveCodexCliRuntimeCommand() }),
-    skipGitRepoCheck: options.planOptions?.skipGitRepoCheck ?? false,
+    skipGitRepoCheck: options.planOptions?.skipGitRepoCheck ?? true,
     ephemeral: options.planOptions?.ephemeral ?? true,
     sandbox: "read-only",
     approvalPolicy: "never"
@@ -3136,9 +3175,7 @@ export async function runCodexCliReadOnlySmoke(
   }
   const plan = createCodexCliReadOnlySmokeExecPlan(task, planOptions);
   const validationBlockers = validateCodexCliExecPlanForRun(plan, {
-    ...(options.allowSkipGitRepoCheck !== undefined
-      ? { allowSkipGitRepoCheck: options.allowSkipGitRepoCheck }
-      : {})
+    allowSkipGitRepoCheck: options.allowSkipGitRepoCheck ?? true
   });
 
   if (validationBlockers.length > 0) {
@@ -3175,9 +3212,7 @@ export async function runCodexCliReadOnlySmoke(
       ...(options.terminationGraceMs !== undefined
         ? { terminationGraceMs: options.terminationGraceMs }
         : {}),
-      ...(options.allowSkipGitRepoCheck !== undefined
-        ? { allowSkipGitRepoCheck: options.allowSkipGitRepoCheck }
-        : {}),
+      allowSkipGitRepoCheck: options.allowSkipGitRepoCheck ?? true,
       ...(options.env !== undefined ? { env: options.env } : {}),
       ...(options.oneShotEnv !== undefined ? { oneShotEnv: options.oneShotEnv } : {}),
       ...(options.spawn !== undefined ? { spawn: options.spawn } : {}),
@@ -3954,7 +3989,10 @@ function createCodexCliReadOnlySmokeExecPlan(
   const basePlan = createCodexCliExecPlan(task, {
     ...options,
     sandbox: "read-only",
-    approvalPolicy: options.approvalPolicy ?? "never"
+    approvalPolicy: options.approvalPolicy ?? "never",
+    approvalFlagPlacement: options.approvalFlagPlacement ?? "omit",
+    skipGitRepoCheck: options.skipGitRepoCheck ?? true,
+    ignoreUserConfig: options.ignoreUserConfig ?? true
   });
   const prompt = createCodexCliReadOnlySmokePrompt();
   const args = [...basePlan.args];
@@ -3997,8 +4035,10 @@ function createCodexCliModelProbeExecPlan(
     model: options.model,
     sandbox: "read-only",
     approvalPolicy: "never",
+    approvalFlagPlacement: "omit",
     skipGitRepoCheck: false,
-    ephemeral: true
+    ephemeral: true,
+    ignoreUserConfig: true
   });
   const prompt = createCodexCliModelProbePrompt();
   const args = basePlan.args.map((arg) => (
@@ -4197,7 +4237,7 @@ function sanitizeCodexCliVersionProbe(stdout: string): string | undefined {
 }
 
 function containsSensitiveEvidenceToken(value: string): boolean {
-  return /\b(OPENAI_API_KEY|Bearer|token|secret|password)\b|sk-|\bauth\.json\b/i.test(value);
+  return /\b(OPENAI_API_KEY|CODEX_API_KEY|CODEX_ACCESS_TOKEN|Bearer|secret|password)\b|sk-|\bauth\.json\b/i.test(value);
 }
 
 function isCodexCliCommandSpawnBlockedForShellFallback(
@@ -4309,13 +4349,18 @@ function createWindowsCodexExecutableCandidates(npmRoot: string): string[] {
       join(vendorRoot, "bin", "codex.exe"),
       join(vendorRoot, "codex", "codex.exe")
     ];
-  });
+  }).concat([
+    join(npmRoot, "codex.cmd"),
+    join(npmRoot, "codex")
+  ]);
 }
 
 const CODEX_CLI_CHILD_ENV_ALLOWLIST = new Set([
   "PATH",
   "HOME",
   "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
   "TMPDIR",
   "TEMP",
   "TMP",

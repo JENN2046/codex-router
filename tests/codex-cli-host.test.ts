@@ -1804,6 +1804,24 @@ test("codex cli semantic inspection blocks secret-like jsonl content without lea
   assert.equal(serialized.includes("sk-test-jsonl-secret"), false);
 });
 
+test("codex cli semantic inspection allows usage token counters", () => {
+  const inspection = inspectCodexCliCommandOutput({
+    exitCode: 0,
+    stdout: [
+      "{\"type\":\"agent_message\",\"message\":\"READONLY_OK\"}",
+      "{\"type\":\"token_count\",\"usage\":{\"input_tokens\":12,\"output_tokens\":3,\"total_tokens\":15}}"
+    ].join("\n") + "\n"
+  }, {
+    sandbox: "read-only",
+    strictUnknownEvents: true
+  });
+
+  assert.equal(inspection.status, "completed");
+  assert.equal(inspection.blockingReasons.includes(
+    "codex_cli_jsonl_secret_like_content"
+  ), false);
+});
+
 test("codex cli host redacts sensitive stderr warnings in inspection and evidence", async () => {
   const result = await runCodexCliReadOnlySmoke({
     spawn: () => createFakeCodexCliChild({
@@ -3689,20 +3707,18 @@ test("codex cli read-only smoke runs through guarded runner and captures evidenc
 
   assert.equal(result.status, "passed");
   if (process.platform === "win32") {
-    assert.match(calls[0]?.command ?? "", /codex\.exe$/i);
+    assert.match(calls[0]?.command ?? "", /codex\.(cmd|exe)$/i);
   } else {
     assert.equal(calls[0]?.command, "codex");
   }
   assert.equal(result.plan.sandbox, "read-only");
   assert.equal(result.plan.approvalPolicy, "never");
-  assert.deepEqual(result.plan.args.slice(0, 4), [
-    "-a",
-    "never",
-    "exec",
-    "--json"
-  ]);
-  assert.equal(result.plan.args.includes("--skip-git-repo-check"), false);
+  assert.deepEqual(result.plan.args.slice(0, 3), ["exec", "--json", "--sandbox"]);
+  assert.equal(result.plan.args.includes("-a"), false);
+  assert.equal(result.plan.args.includes("--ask-for-approval"), false);
+  assert.equal(result.plan.args.includes("--skip-git-repo-check"), true);
   assert.equal(result.plan.args.includes("--ephemeral"), true);
+  assert.equal(result.plan.args.includes("--ignore-user-config"), true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.cwd, "A:/codex-router");
   assert.equal(calls[0]?.args.includes("workspace-write"), false);
@@ -3715,7 +3731,7 @@ test("codex cli read-only smoke runs through guarded runner and captures evidenc
   assert.equal(evidence.status, "passed");
   assert.equal(evidence.taskId, "cli-smoke-readonly");
   assert.equal(evidence.plan.usesJson, true);
-  assert.equal(evidence.plan.skipGitRepoCheck, false);
+  assert.equal(evidence.plan.skipGitRepoCheck, true);
   assert.equal(evidence.plan.ephemeral, true);
   assert.equal(evidence.run.eventCount, 1);
   assert.deepEqual(evidence.summary.warnings, ["WARNING: diagnostic only"]);
