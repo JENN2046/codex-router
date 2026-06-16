@@ -2102,8 +2102,35 @@ function isCodexCliJsonlSafeTokenMetricKey(key: string): boolean {
 }
 
 function isCodexCliJsonlSecretLikeFieldKey(key: string): boolean {
-  return /(?:api[-_]?key|authorization|credential|password|secret|access[-_]?token|client[-_]?secret|refresh[-_]?token|github[-_]?token|^token$|[-_.]token$|token[-_.])/i.test(key)
+  const normalizedKeyParts = normalizeCodexCliJsonlFieldKeyParts(key);
+
+  return normalizedKeyParts.includes("authorization")
+    || normalizedKeyParts.includes("credential")
+    || normalizedKeyParts.includes("password")
+    || normalizedKeyParts.includes("secret")
+    || normalizedKeyParts.includes("token")
+    || hasAdjacentCodexCliJsonlFieldKeyParts(normalizedKeyParts, "api", "key")
     || /\bauth\.json\b/i.test(key);
+}
+
+function normalizeCodexCliJsonlFieldKeyParts(key: string): string[] {
+  return key
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(/[^A-Za-z0-9]+/)
+    .map((part) => part.toLowerCase())
+    .filter(Boolean)
+    .flatMap((part) => part.endsWith("s") ? [part, part.slice(0, -1)] : [part]);
+}
+
+function hasAdjacentCodexCliJsonlFieldKeyParts(
+  parts: string[],
+  first: string,
+  second: string
+): boolean {
+  return parts.some((part, index) => (
+    part === first && parts[index + 1] === second
+  ));
 }
 
 function isCodexCliFileChangeLikeEventType(type: string): boolean {

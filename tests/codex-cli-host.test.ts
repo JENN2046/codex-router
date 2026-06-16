@@ -1822,6 +1822,44 @@ test("codex cli semantic inspection allows usage token counters", () => {
   ), false);
 });
 
+test("codex cli semantic inspection blocks token-like jsonl fields", () => {
+  for (const key of [
+    "Token",
+    "tokens",
+    "Tokens",
+    "accessToken",
+    "ACCESS_TOKEN",
+    "apiKey",
+    "APIKey",
+    "API_KEY",
+    "clientSecret",
+    "ClientSecret",
+    "Password",
+    "Secret",
+    "Credential",
+    "Authorization"
+  ]) {
+    const payload = JSON.stringify({
+      type: "agent_message",
+      [key]: "plain-secret-value"
+    });
+    const inspection = inspectCodexCliCommandOutput({
+      exitCode: 0,
+      stdout: `${payload}\n`
+    }, {
+      sandbox: "read-only",
+      strictUnknownEvents: true
+    });
+    const serialized = JSON.stringify(inspection);
+
+    assert.equal(inspection.status, "failed");
+    assert.ok(inspection.blockingReasons.includes(
+      "codex_cli_jsonl_secret_like_content"
+    ));
+    assert.equal(serialized.includes("plain-secret-value"), false);
+  }
+});
+
 test("codex cli host redacts sensitive stderr warnings in inspection and evidence", async () => {
   const result = await runCodexCliReadOnlySmoke({
     spawn: () => createFakeCodexCliChild({
