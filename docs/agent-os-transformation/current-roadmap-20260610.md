@@ -1,7 +1,7 @@
 # Agent OS Current Roadmap
 
 Date: 2026-06-16
-Current base: `main` and `origin/main` at `29abcd0`
+Current base: `main` and `origin/main` at `89ec579`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
 matrix evidence are merged and locally validated. A fresh real read-only Codex
@@ -20,7 +20,8 @@ rollback verification gate is pushed to `origin/main`, and its clean-main audit
 passed without running another workspace-write canary. The Codex CLI taskbook,
 configuration, user-posture, and source and release package boundary fixes are
 present on current `main`. The read-only productization acceptance package is
-now the current local closeout layer.
+now closed on current `main`. The PR-22A controlled provider execution
+taskbook is the next gated planning layer.
 
 ## Current Position
 
@@ -164,6 +165,9 @@ Current local closeout slice:
 
 - Keep the read-only productization acceptance package green on clean aligned
   `main`.
+- Review the PR-22A controlled provider execution taskbook before any
+  implementation:
+  `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
 - Preserve the current boundary: source and release package boundary fixes are
   local governance hardening, not authorization to publish or release.
 - Preserve the current boundary: the recorded canary proves one bounded local
@@ -187,12 +191,15 @@ Current local closeout slice:
   `npm run audit:post-canary-receipt-rollback-gate`
 - Current read-only productization audit:
   `npm run audit:readonly-productization`
+- Current controlled provider execution taskbook:
+  `PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_RECORDED`
 
 ## Following Phases
 
 After local review/evidence hardening:
 
 1. Controlled provider execution.
+   - Review PR-22A first.
    - Add explicit execution mode separate from dry-run mode.
    - Require valid permits and runner invariant checks.
    - Keep provider execution disabled by default.
