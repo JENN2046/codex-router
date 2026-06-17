@@ -921,6 +921,30 @@ test("codex cli model probe fails if the model tries to use commands", async () 
   ));
 });
 
+test("codex cli model probe fails if the model uses web search", async () => {
+  const evidence = await createCodexCliModelCliProbeEvidence({
+    generatedAt: "2026-04-25T14:05:55.000Z",
+    model: "gpt-5.4-mini",
+    codexCommand: "codex",
+    cwd: "A:/codex-router",
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"thread.started\",\"thread_id\":\"test\"}",
+        "{\"type\":\"turn.started\"}",
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"web_search_call\",\"query\":\"should not search\",\"status\":\"completed\"}}",
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"agent_message\",\"text\":\"CODEX_CLI_MODEL_PROBE_OK\"}}",
+        "{\"type\":\"turn.completed\"}"
+      ].join("\n"),
+      exitCode: 0
+    })
+  });
+
+  assert.equal(evidence.status, "failed");
+  assert.ok(evidence.blockingReasons.includes(
+    "codex_cli_model_probe_unexpected_tool_use:web_search_call"
+  ));
+});
+
 test("codex cli runner blocks strict model probe unexpected response before main run", async () => {
   const plan = createCodexCliExecPlan({
     taskId: "cli-runner-auto-probe-unexpected-response",
@@ -4016,6 +4040,26 @@ test("codex cli read-only smoke fails if the model tries to use commands", async
   assert.equal(result.governance?.observation.status, "failed");
   assert.ok(result.governance?.observation.blockingReasons.includes(
     "codex_cli_readonly_smoke_unexpected_tool_use:command_execution"
+  ));
+});
+
+test("codex cli read-only smoke fails if the model uses web search", async () => {
+  const result = await runCodexCliReadOnlySmoke({
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"web_search_call\",\"query\":\"should not search\"}}",
+        `{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"${CODEX_CLI_READONLY_SMOKE_OK}"}}`
+      ].join("\n") + "\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(result.status, "failed");
+  assert.ok(result.run?.inspection.blockingReasons.includes(
+    "codex_cli_readonly_smoke_unexpected_tool_use:web_search_call"
+  ));
+  assert.ok(result.governance?.observation.blockingReasons.includes(
+    "codex_cli_readonly_smoke_unexpected_tool_use:web_search_call"
   ));
 });
 

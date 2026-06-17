@@ -4232,11 +4232,13 @@ function extractCodexCliUnexpectedProbeToolUses(
 }
 
 function isCodexCliProbeToolLikeEventType(type: string): boolean {
-  const normalized = type.toLowerCase();
+  const normalized = type.toLowerCase().replace(/[-.]/g, "_");
   return normalized === "command_execution"
     || normalized === "tool_call"
     || normalized === "mcp_tool_call"
     || normalized === "function_call"
+    || normalized === "web_search"
+    || normalized === "web_search_call"
     || normalized.endsWith("_tool_call")
     || normalized.includes("command_execution");
 }
