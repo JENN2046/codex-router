@@ -2919,23 +2919,85 @@ test("codex cli host runner rejects forged policy bypass argv", async () => {
       tags: []
     }
   });
-  const forgedPlan = {
-    ...plan,
-    args: [...plan.args, "--ignore-rules"]
-  };
 
-  assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
-    "codex_cli_policy_bypass_arg_not_allowed:--ignore-rules"
-  ));
-  await assert.rejects(
-    () => runCodexCliExecPlan(forgedPlan, {
-      spawn: () => createFakeCodexCliChild({
-        stdout: "",
-        exitCode: 0
-      })
-    }),
-    /codex_cli_policy_bypass_arg_not_allowed:--ignore-rules/
-  );
+  for (const arg of ["--ignore-rules", "--ignore-rules=true", "--ignore-rules=false"]) {
+    const forgedPlan = {
+      ...plan,
+      args: [...plan.args, arg]
+    };
+
+    assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
+      `codex_cli_policy_bypass_arg_not_allowed:${arg}`
+    ));
+    await assert.rejects(
+      () => runCodexCliExecPlan(forgedPlan, {
+        spawn: () => createFakeCodexCliChild({
+          stdout: "",
+          exitCode: 0
+        })
+      }),
+      new RegExp(`codex_cli_policy_bypass_arg_not_allowed:${arg}`)
+    );
+    assert.throws(
+      () => createCodexCliExecPlan(plan.task, {
+        extraArgs: [arg]
+      }),
+      new RegExp(`codex_cli_policy_bypass_arg_not_allowed:${arg}`)
+    );
+  }
+});
+
+test("codex cli host runner rejects feature flag override argv", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-forged-feature-flag-override",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+
+  for (const arg of ["--enable", "--enable=experimental", "--disable", "--disable=sandbox"]) {
+    const forgedPlan = {
+      ...plan,
+      args: [...plan.args, arg]
+    };
+
+    assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
+      `codex_cli_feature_flag_override_not_allowed:${arg}`
+    ));
+    await assert.rejects(
+      () => runCodexCliExecPlan(forgedPlan, {
+        spawn: () => createFakeCodexCliChild({
+          stdout: "",
+          exitCode: 0
+        })
+      }),
+      new RegExp(`codex_cli_feature_flag_override_not_allowed:${arg}`)
+    );
+    assert.throws(
+      () => createCodexCliExecPlan(plan.task, {
+        extraArgs: [arg]
+      }),
+      new RegExp(`codex_cli_feature_flag_override_not_allowed:${arg}`)
+    );
+  }
 });
 
 test("codex cli host runner rejects forged provider override argv", async () => {

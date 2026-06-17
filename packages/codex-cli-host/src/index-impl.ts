@@ -1109,6 +1109,8 @@ export function createCodexCliExecPlan(
   assertNoCodexCliOutputSchemaArgs(args);
   assertNoCodexCliImageAttachmentArgs(args);
   assertNoCodexCliExecSubcommandArgs(args, prompt);
+  assertNoCodexCliPolicyBypassArgs(args);
+  assertNoCodexCliFeatureFlagOverrideArgs(args);
   assertNoGovernedCodexCliConfigOverrides(args);
 
   return {
@@ -2538,6 +2540,12 @@ export function validateCodexCliExecPlanForRun(
 
   try {
     assertNoCodexCliPolicyBypassArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertNoCodexCliFeatureFlagOverrideArgs(plan.args);
   } catch (error) {
     blockingReasons.push(error instanceof Error ? error.message : String(error));
   }
@@ -4595,11 +4603,21 @@ function assertNoCodexCliWorkspaceExpansionArgs(args: string[]): void {
 }
 
 function assertNoCodexCliPolicyBypassArgs(args: string[]): void {
-  const bypassArg = args.find((arg) => arg === "--ignore-rules");
+  const bypassArg = findCodexCliArgMatch(args, ["--ignore-rules"]);
 
   if (bypassArg !== undefined) {
     throw new Error(
       `codex_cli_policy_bypass_arg_not_allowed:${bypassArg}`
+    );
+  }
+}
+
+function assertNoCodexCliFeatureFlagOverrideArgs(args: string[]): void {
+  const featureFlagArg = findCodexCliArgMatch(args, ["--enable", "--disable"]);
+
+  if (featureFlagArg !== undefined) {
+    throw new Error(
+      `codex_cli_feature_flag_override_not_allowed:${featureFlagArg}`
     );
   }
 }
