@@ -1,6 +1,7 @@
 # Run State
 
-Status: active local state-surface cleanup.
+Status: active local state-surface cleanup with state-sync audit-core extraction
+validated locally.
 
 Current truth source:
 
@@ -14,9 +15,9 @@ Branch:
 
 - `fix/codex-cli-policy-bypass-flags`
 
-Current head before metadata refresh:
+Current head at latest local status refresh:
 
-- `e574f95`
+- `bcec97a`
 
 Upstream:
 
@@ -24,7 +25,8 @@ Upstream:
 
 Worktree at last board refresh:
 
-- dirty only because the post-commit state metadata refresh is in progress
+- dirty with the local state-sync audit-core extraction and state metadata
+  refresh
 
 Current scope:
 
@@ -34,14 +36,22 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `e574f95` before the post-commit metadata refresh:
+Validation baseline for `bcec97a` plus the local audit-core extraction working
+tree:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `98 / 98`
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `101 / 101`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1074 / 1074`
+- `npm test`: passed, `1082 / 1082`
 - `npm run build`: passed
 
-Next validation for this slice:
+Current local optimization:
+
+- pure state-sync audit rules extracted to
+  `packages/state-sync-audit/src/index.ts`
+- `scripts/run-state-sync-audit.ts` remains the CLI and repo collection shell
+- `tests/state-sync-audit.test.ts` imports the reusable module
+
+Completed validation for this slice:
 
 - `npx tsx --test tests\state-sync-audit.test.ts`
 - `npm run audit:state-sync`

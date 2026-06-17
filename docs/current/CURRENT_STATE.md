@@ -12,19 +12,20 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `e574f95` |
+| Current head | `bcec97a` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `e574f95` |
+| Upstream divergence | `ahead 2 / behind 0` |
+| Latest validated commit | `bcec97a` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `e574f95`:
+Latest validated commands for `bcec97a` plus the local state-sync audit-core
+extraction working tree:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `98 / 98`.
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `101 / 101`.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1074 / 1074`.
+- `npm test`: passed, `1082 / 1082`.
 - `npm run build`: passed.
 
 ## Execution Boundary
@@ -63,6 +64,15 @@ Current state-sync slice validation:
 - `npm test`: passed, `1082 / 1082`.
 - `npm run build`: passed.
 
+Current local optimization:
+
+- Pure state-sync audit rules were extracted to
+  `packages/state-sync-audit/src/index.ts`.
+- `scripts/run-state-sync-audit.ts` now stays focused on repository collection
+  and CLI output.
+- `tests/state-sync-audit.test.ts` now imports the reusable audit module instead
+  of the CLI script.
+
 The audit should check this file, package script wiring, and `.agent_board`
 handoff surfaces for stale current-state facts. If a new commit is created,
 refresh `Current head`, `Latest validated commit`, validation facts, and
@@ -74,5 +84,5 @@ Continue the state-surface cleanup locally:
 
 1. keep `CURRENT_STATE.md` as the source of current operational facts
 2. keep `.agent_board` aligned with this file
-3. move toward Codex CLI argv allowlist and official JSONL fixtures in later
-   focused branches
+3. either commit the state-sync audit-core extraction and refresh this file
+   after commit, or continue with a docs/current split pass before committing

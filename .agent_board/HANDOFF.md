@@ -6,18 +6,19 @@ boundaries, documentation drift, and maintainability pressure.
 Current status:
 
 - Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head before this metadata refresh: `e574f95`
+- Current head at this metadata refresh: `bcec97a`
 - Upstream: `origin/fix/codex-cli-policy-bypass-flags`
 - Current state source: `docs/current/CURRENT_STATE.md`
-- Work in progress: current-state document, state-sync audit script, state-sync
-  tests, package script wiring, `.agent_board` refresh, and Codex CLI argv
-  allowlist plus JSONL fixture hardening.
+- Work in progress: state-sync audit-core extraction, current-state document,
+  state-sync audit script, state-sync tests, package script wiring,
+  `.agent_board` refresh, and Codex CLI argv allowlist plus JSONL fixture
+  hardening.
 
-Validated before this slice:
+Validated before this broader state-sync cleanup:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `98 / 98`
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `101 / 101`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1074 / 1074`
+- `npm test`: passed, `1082 / 1082`
 - `npm run build`: passed
 
 Validation for this slice:
@@ -35,6 +36,14 @@ Validation for this slice:
 - `npm run build`
   - passed
 
+Local optimization completed but uncommitted:
+
+- `packages/state-sync-audit/src/index.ts` now owns pure review and formatting
+  logic.
+- `scripts/run-state-sync-audit.ts` now owns Git/file collection and CLI
+  execution.
+- `tests/state-sync-audit.test.ts` imports the reusable audit module.
+
 Hard boundaries:
 
 - Do not treat the recorded bounded workspace-write canary as general
@@ -47,6 +56,6 @@ Hard boundaries:
 Next safe action:
 
 1. Inspect diff and report validation honestly.
-2. If continuing locally, move to docs/current split cleanup or audit-core
-   extraction.
+2. If continuing locally, inspect and optionally commit the audit-core
+   extraction, then refresh `CURRENT_STATE.md` after the commit.
 3. Commit and push only after explicit authorization.

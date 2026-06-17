@@ -45,3 +45,20 @@ Results:
   - Result: passed, `1082 / 1082`
 - `npm run build`
   - Result: passed
+
+## Audit-Core Extraction
+
+Results:
+
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `5 / 5`
+- `npm run audit:state-sync`
+  - Result: passed
+- `npm run typecheck`
+  - Result: passed
+- `npm run build`
+  - Result: passed
+- `npm test`
+  - Result: passed, `1082 / 1082`
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - Result: passed, `101 / 101`

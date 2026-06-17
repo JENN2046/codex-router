@@ -5,7 +5,7 @@ import {
   formatStateSyncAuditResult,
   reviewStateSyncAudit,
   type StateSyncAuditInput
-} from "../scripts/run-state-sync-audit.js";
+} from "../packages/state-sync-audit/src/index.js";
 
 test("state sync audit passes for current state surfaces", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace());

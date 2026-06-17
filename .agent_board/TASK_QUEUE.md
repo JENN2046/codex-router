@@ -26,6 +26,12 @@
   changes, and command execution.
 - Validate Codex CLI host targeted tests, state-sync audit, typecheck, full
   tests, and build after the JSONL fixture change.
+- Extract pure state-sync audit rules into
+  `packages/state-sync-audit/src/index.ts`.
+- Keep `scripts/run-state-sync-audit.ts` as the repository collection and CLI
+  shell.
+- Validate state-sync targeted tests, state-sync audit, typecheck, full tests,
+  Codex CLI host targeted tests, and build after the audit-core extraction.
 
 ## In Progress
 
@@ -43,7 +49,7 @@
 
 - Inspect diff.
 - Refresh `CURRENT_STATE.md` to a new commit after any local commit.
-- Next implementation slice: reduce docs/current split pressure or begin
-  audit-core extraction, depending on review priority.
+- Next implementation slice: reduce docs/current split pressure or commit the
+  audit-core extraction and refresh state metadata afterward.
 - Commit and push only if explicitly requested after validation, or if a later
   instruction clearly authorizes that remote action.
