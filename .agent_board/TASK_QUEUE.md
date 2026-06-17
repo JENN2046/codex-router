@@ -32,6 +32,10 @@
   shell.
 - Validate state-sync targeted tests, state-sync audit, typecheck, full tests,
   Codex CLI host targeted tests, and build after the audit-core extraction.
+- Fix CI shallow checkout failures for read-only audit collectors that inspect
+  `origin/main`.
+- Validate the failed CI test files, nested smoke-chain audit files, typecheck,
+  full tests, build, and state-sync audit after the CI fix.
 
 ## In Progress
 
@@ -49,7 +53,7 @@
 
 - Inspect diff.
 - Refresh `CURRENT_STATE.md` to a new commit after any local commit.
-- Next implementation slice: reduce docs/current split pressure or push only
-  after explicit remote-write authorization.
+- Next implementation slice: push the CI fix and state refresh to PR #41, then
+  wait for checks.
 - Commit and push only if explicitly requested after validation, or if a later
   instruction clearly authorizes that remote action.

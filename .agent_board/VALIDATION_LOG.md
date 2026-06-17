@@ -62,3 +62,20 @@ Results:
   - Result: passed, `1082 / 1082`
 - `npx tsx --test tests\codex-cli-host.test.ts`
   - Result: passed, `101 / 101`
+
+## CI Shallow Checkout Audit Fix
+
+Results:
+
+- `npx tsx --test tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts`
+  - Result: passed, `16 / 16`
+- `npx tsx --test tests\readonly-real-smoke-chain-index-audit.test.ts tests\readonly-real-smoke-chain-local-candidate-consistency.test.ts tests\readonly-real-smoke-chain-local-closeout-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts`
+  - Result: passed, `16 / 16`
+- `npm run typecheck`
+  - Result: passed
+- `npm test`
+  - Result: passed, `1082 / 1082`
+- `npm run build`
+  - Result: passed
+- `npm run audit:state-sync`
+  - Result: passed

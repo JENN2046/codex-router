@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `986cd8b`.
+`fix/codex-cli-policy-bypass-flags` after local commit `ebd7967`.
 
 The current operational state should now be read from:
 
@@ -32,6 +32,8 @@ The current operational state should now be read from:
 - Kept `scripts/run-state-sync-audit.ts` focused on Git/file collection and CLI
   output.
 - Updated state-sync tests to import the reusable audit module.
+- Fixed CI shallow checkout failures by allowing selected read-only audit
+  collectors to tolerate missing `origin/main` during input collection.
 
 ## Validation
 
@@ -51,6 +53,10 @@ Run for this slice:
   - Result: passed
 - `npx tsx --test tests\codex-cli-host.test.ts`
   - Result: passed, `101 / 101`
+- `npx tsx --test tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts`
+  - Result: passed, `16 / 16`
+- `npx tsx --test tests\readonly-real-smoke-chain-index-audit.test.ts tests\readonly-real-smoke-chain-local-candidate-consistency.test.ts tests\readonly-real-smoke-chain-local-closeout-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts`
+  - Result: passed, `16 / 16`
 
 ## Remaining Risk
 

@@ -12,17 +12,19 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `986cd8b` |
+| Current head | `ebd7967` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
-| Upstream divergence | `ahead 3 / behind 0` |
-| Latest validated commit | `986cd8b` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `ebd7967` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `986cd8b`:
+Latest validated commands for `ebd7967`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `101 / 101`.
+- `npx tsx --test tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts`: passed, `16 / 16`.
+- `npx tsx --test tests\readonly-real-smoke-chain-index-audit.test.ts tests\readonly-real-smoke-chain-local-candidate-consistency.test.ts tests\readonly-real-smoke-chain-local-closeout-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts`: passed, `16 / 16`.
 - `npm run typecheck`: passed.
 - `npm test`: passed, `1082 / 1082`.
 - `npm run build`: passed.
@@ -65,6 +67,8 @@ Current state-sync slice validation:
 
 Latest local optimization:
 
+- CI shallow checkout compatibility was added for read-only audit collectors
+  that inspect divergence from `origin/main`.
 - Pure state-sync audit rules were extracted to
   `packages/state-sync-audit/src/index.ts`.
 - `scripts/run-state-sync-audit.ts` now stays focused on repository collection
@@ -83,5 +87,4 @@ Continue the state-surface cleanup locally:
 
 1. keep `CURRENT_STATE.md` as the source of current operational facts
 2. keep `.agent_board` aligned with this file
-3. continue with a docs/current split pass or push the branch only after
-   explicit remote-write authorization
+3. push the CI fix and state refresh to update PR #41, then wait for checks

@@ -6,11 +6,11 @@ boundaries, documentation drift, and maintainability pressure.
 Current status:
 
 - Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head at this metadata refresh: `986cd8b`
+- Current head at this metadata refresh: `ebd7967`
 - Upstream: `origin/fix/codex-cli-policy-bypass-flags`
 - Current state source: `docs/current/CURRENT_STATE.md`
-- Work in progress: post-commit state metadata refresh after the state-sync
-  audit-core extraction commit.
+- Work in progress: post-commit state metadata refresh after the CI shallow
+  checkout audit fix.
 
 Validated before this broader state-sync cleanup:
 
@@ -34,8 +34,10 @@ Validation for this slice:
 - `npm run build`
   - passed
 
-Local optimization committed at `986cd8b`:
+Local optimizations committed:
 
+- `ebd7967` allows selected read-only audit collectors to tolerate missing
+  `origin/main` during CI shallow PR checkouts.
 - `packages/state-sync-audit/src/index.ts` now owns pure review and formatting
   logic.
 - `scripts/run-state-sync-audit.ts` now owns Git/file collection and CLI
@@ -54,6 +56,6 @@ Hard boundaries:
 Next safe action:
 
 1. Inspect diff and report validation honestly.
-2. Commit this post-commit state refresh, then continue with docs/current split
-   cleanup or push only after explicit remote-write authorization.
+2. Commit this post-commit state refresh, push the branch, then wait for PR #41
+   checks.
 3. Commit and push only after explicit authorization.
