@@ -6,7 +6,7 @@ boundaries, documentation drift, and maintainability pressure.
 Current status:
 
 - Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head at this metadata refresh: `a65a7fb`
+- Current head at this metadata refresh: `a4feda6`
 - Upstream: `origin/fix/codex-cli-policy-bypass-flags`
 - Current state source: `docs/current/CURRENT_STATE.md`
 - Work in progress: post-commit state metadata refresh after shallow PR merge
@@ -14,10 +14,10 @@ Current status:
 
 Validated for current PR merge checkout state-sync review fix:
 
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `14 / 14`
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `15 / 15`
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1099 / 1099`
+- `npm test`: passed, `1100 / 1100`
 - `npm run build`: passed
 - `npm run audit:state-sync`: passed before state refresh
 
@@ -55,6 +55,8 @@ Local optimizations committed:
 - The audit now accepts clean synthetic single-commit review checkouts only when
   the state document explicitly allows them and recorded state fields are
   self-consistent.
+- The audit now excludes the merge checkout base parent from acceptable state
+  commits whenever PR-side merge ancestry evidence is available.
 - The review fix makes selected read-only audit freshness checks fail closed when
   `origin/main` divergence is unknown.
 - `packages/state-sync-audit/src/index.ts` now owns pure review and formatting

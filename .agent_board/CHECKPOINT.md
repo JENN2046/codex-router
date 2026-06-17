@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `a65a7fb`.
+`fix/codex-cli-policy-bypass-flags` after local commit `a4feda6`.
 
 The current operational state should now be read from:
 
@@ -52,6 +52,8 @@ The current operational state should now be read from:
 - Added an explicit synthetic single-commit review checkout rule for state-sync
   audit, gated on a clean checkout, `ahead 0 / behind 0`, matching recorded
   state fields, and the `Synthetic review checkout` state marker.
+- Excluded the merge checkout base parent from acceptable state commits whenever
+  PR-side merge ancestry evidence is available.
 
 ## Validation
 
@@ -78,7 +80,7 @@ Run for this slice:
 - `npm run audit:state-sync`
   - Result: passed after state refresh
 - `npx tsx --test tests\state-sync-audit.test.ts`
-  - Result: passed, `14 / 14`
+  - Result: passed, `15 / 15`
 - `npx tsx --test tests\codex-cli-host.test.ts`
   - Result: passed, `104 / 104`
 - `npm run typecheck`
@@ -86,7 +88,7 @@ Run for this slice:
 - `npm run audit:state-sync`
   - Result: passed before state refresh
 - `npm test`
-  - Result: passed, `1099 / 1099`
+  - Result: passed, `1100 / 1100`
 - `npm run build`
   - Result: passed
 - `npx tsx --test tests\codex-cli-host.test.ts`

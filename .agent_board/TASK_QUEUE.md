@@ -76,6 +76,12 @@
   tests, typecheck, state-sync audit, full tests, and build.
 - Refresh `CURRENT_STATE.md` and `.agent_board` after the synthetic review
   checkout fix.
+- Fix PR review feedback so merge checkout base parents are not accepted as
+  state commits when PR-side merge ancestry evidence exists.
+- Validate merge base exclusion with targeted state-sync tests, typecheck,
+  state-sync audit, full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the merge base exclusion
+  fix.
 
 ## In Progress
 

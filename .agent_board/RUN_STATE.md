@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `a65a7fb`
+- `a4feda6`
 
 Upstream:
 
@@ -35,12 +35,12 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `a65a7fb`:
+Validation baseline for `a4feda6`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `14 / 14`
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `15 / 15`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1099 / 1099`
+- `npm test`: passed, `1100 / 1100`
 - `npm run build`: passed
 - `npm run audit:state-sync`: passed before state refresh
 
@@ -62,6 +62,8 @@ Latest local optimization:
 - state-sync audit allows clean synthetic single-commit review checkouts only
   when `CURRENT_STATE.md` explicitly marks them as allowed and the recorded
   state fields are self-consistent
+- state-sync audit excludes the merge checkout base parent from acceptable
+  state commits whenever PR-side merge ancestry commits are available
 - read-only audit freshness collectors fail closed when `origin/main`
   divergence is unknown
 - pure state-sync audit rules extracted to

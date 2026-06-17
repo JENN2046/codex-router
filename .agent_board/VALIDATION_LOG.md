@@ -186,3 +186,18 @@ Results:
   - Result: passed, `1099 / 1099`
 - `npm run build`
   - Result: passed
+
+## Merge Base State-Sync Exclusion Fix
+
+Results:
+
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `15 / 15`
+- `npm run typecheck`
+  - Result: passed
+- `npm run audit:state-sync`
+  - Result: passed before state refresh
+- `npm test`
+  - Result: passed, `1100 / 1100`
+- `npm run build`
+  - Result: passed
