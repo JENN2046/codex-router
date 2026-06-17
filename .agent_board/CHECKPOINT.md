@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `c916b97`.
+`fix/codex-cli-policy-bypass-flags` after local commit `e324718`.
 
 The current operational state should now be read from:
 
@@ -40,6 +40,8 @@ The current operational state should now be read from:
   real head, or the parent head when `Stale after commit: true`.
 - Tightened state-sync audit to require recorded upstream divergence to match
   the actual ahead/behind result, with unknown divergence blocked.
+- Tightened Codex CLI probe and read-only smoke validation to treat web search
+  events as unexpected tool use.
 
 ## Validation
 
@@ -57,10 +59,10 @@ Run for this slice:
   - Result: passed, `1082 / 1082`
 - `npm run build`
   - Result: passed
-- `npx tsx --test tests\state-sync-audit.test.ts`
-  - Result: passed, `8 / 8`
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - Result: passed, `104 / 104`
 - `npm test`
-  - Result: passed, `1091 / 1091`
+  - Result: passed, `1094 / 1094`
 - `npm run audit:state-sync`
   - Result: passed after state refresh
 - `npm run audit:state-sync`
@@ -87,4 +89,4 @@ Run for this slice:
   should be treated as current.
 - The state-sync audit is a local read-only audit. It does not authorize
   execution, provider work, workspace-write, or remote actions.
-- The upstream divergence review fix and state refresh are committed and pushed.
+- The web search probe review fix is committed and pushed.

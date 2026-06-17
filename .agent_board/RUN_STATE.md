@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `c916b97`
+- `e324718`
 
 Upstream:
 
@@ -35,12 +35,12 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `c916b97`:
+Validation baseline for `e324718`:
 
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `8 / 8`
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
 - `npm run audit:state-sync`: passed after state refresh
 - `npm run typecheck`: passed
-- `npm test`: passed, `1091 / 1091`
+- `npm test`: passed, `1094 / 1094`
 - `npm run build`: passed
 
 Latest local optimization:
@@ -50,6 +50,8 @@ Latest local optimization:
   stale-after-commit parent head
 - state-sync audit checks recorded upstream divergence against the actual
   ahead/behind result and blocks unknown divergence
+- Codex CLI probe and read-only smoke checks treat web search events as
+  unexpected tool use
 - read-only audit freshness collectors fail closed when `origin/main`
   divergence is unknown
 - pure state-sync audit rules extracted to
@@ -59,7 +61,7 @@ Latest local optimization:
 
 Completed validation for this slice:
 
-- `npx tsx --test tests\state-sync-audit.test.ts`
+- `npx tsx --test tests\codex-cli-host.test.ts`
 - `npm run audit:state-sync`
 - `npm run typecheck`
 - `npm test`

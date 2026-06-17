@@ -49,6 +49,10 @@
 - Refresh `CURRENT_STATE.md` and `.agent_board` after the upstream divergence
   review fix.
 - Validate the state refresh with `npm run audit:state-sync`.
+- Fix PR review feedback requiring web search events to count as unexpected
+  tool use during probes and read-only smoke validation.
+- Validate web search probe fix with Codex CLI host targeted tests, typecheck,
+  full tests, build, and state-sync audit.
 
 ## In Progress
 

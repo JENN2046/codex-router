@@ -109,3 +109,18 @@ Results:
   - Result: passed, `1091 / 1091`
 - `npm run build`
   - Result: passed
+
+## Web Search Probe Review Fix
+
+Results:
+
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - Result: passed, `104 / 104`
+- `npm run typecheck`
+  - Result: passed
+- `npm test`
+  - Result: passed, `1094 / 1094`
+- `npm run build`
+  - Result: passed
+- `npm run audit:state-sync`
+  - Result: passed before state refresh

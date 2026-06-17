@@ -12,21 +12,21 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `c916b97` |
+| Current head | `e324718` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
 | Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `c916b97` |
+| Latest validated commit | `e324718` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `c916b97`:
+Latest validated commands for `e324718`:
 
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `8 / 8`.
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
 - `npx tsx --test tests\codex-cli-host.test.ts`: baseline marker retained;
   covered by earlier PR review validation in this branch.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1091 / 1091`.
+- `npm test`: passed, `1094 / 1094`.
 - `npm run build`: passed.
 - `npm run audit:state-sync`: passed after state refresh.
 
@@ -59,10 +59,10 @@ State sync command:
 
 Current state-sync slice validation:
 
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `8 / 8`.
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
 - `npm run audit:state-sync`: passed after state refresh.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1091 / 1091`.
+- `npm test`: passed, `1094 / 1094`.
 - `npm run build`: passed.
 
 Latest local optimization:
@@ -74,6 +74,8 @@ Latest local optimization:
   `Stale after commit: true`.
 - State-sync audit now requires `Upstream divergence` to match the actual
   `git rev-list --left-right --count` result and blocks unknown divergence.
+- Codex CLI probe and read-only smoke validation now treat web search events as
+  unexpected tool use.
 - Read-only audit freshness collectors now fail closed when `origin/main`
   divergence is unknown instead of pretending `0 / 0`.
 - Pure state-sync audit rules were extracted to
