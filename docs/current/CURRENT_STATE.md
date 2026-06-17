@@ -12,15 +12,15 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `8a976b0` |
+| Current head | `aa0df92` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
 | Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `8a976b0` |
+| Latest validated commit | `aa0df92` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `8a976b0`:
+Latest validated commands for `aa0df92`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
 - `npx tsx --test tests\state-sync-audit.test.ts`: passed, `12 / 12`.
@@ -82,6 +82,8 @@ Latest local optimization:
 - State-sync audit now also reads the declared parents of `HEAD^2`, so shallow
   PR merge checkouts can validate a state refresh that records the PR head's
   parent commit.
+- State-sync audit merge-checkout regression tests now derive the recorded
+  state head dynamically instead of baking in a previous refresh hash.
 - Read-only audit freshness collectors now fail closed when `origin/main`
   divergence is unknown instead of pretending `0 / 0`.
 - Pure state-sync audit rules were extracted to

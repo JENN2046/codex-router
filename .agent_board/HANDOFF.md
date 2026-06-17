@@ -6,7 +6,7 @@ boundaries, documentation drift, and maintainability pressure.
 Current status:
 
 - Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head at this metadata refresh: `8a976b0`
+- Current head at this metadata refresh: `aa0df92`
 - Upstream: `origin/fix/codex-cli-policy-bypass-flags`
 - Current state source: `docs/current/CURRENT_STATE.md`
 - Work in progress: post-commit state metadata refresh after shallow PR merge
@@ -50,6 +50,8 @@ Local optimizations committed:
   second-parent ancestry while still blocking unrelated stale hashes.
 - The review fix reads declared parents from `HEAD^2`, covering shallow PR
   merge checkouts where `HEAD^2^` cannot be resolved locally.
+- The regression test now derives the recorded state head dynamically instead
+  of baking in a previous state refresh hash.
 - The review fix makes selected read-only audit freshness checks fail closed when
   `origin/main` divergence is unknown.
 - `packages/state-sync-audit/src/index.ts` now owns pure review and formatting

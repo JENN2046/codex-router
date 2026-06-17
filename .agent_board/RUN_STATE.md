@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `8a976b0`
+- `aa0df92`
 
 Upstream:
 
@@ -35,7 +35,7 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `8a976b0`:
+Validation baseline for `aa0df92`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
 - `npx tsx --test tests\state-sync-audit.test.ts`: passed, `12 / 12`
@@ -57,6 +57,8 @@ Latest local optimization:
   state hashes while still blocking unrelated stale hashes
 - state-sync audit reads declared parents from `HEAD^2` so shallow PR merge
   checkouts can validate the PR head parent without downloading it
+- state-sync audit regression tests derive the recorded state head dynamically
+  instead of baking in a previous refresh hash
 - read-only audit freshness collectors fail closed when `origin/main`
   divergence is unknown
 - pure state-sync audit rules extracted to

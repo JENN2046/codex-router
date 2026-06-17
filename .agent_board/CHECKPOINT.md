@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `8a976b0`.
+`fix/codex-cli-policy-bypass-flags` after local commit `aa0df92`.
 
 The current operational state should now be read from:
 
@@ -47,6 +47,8 @@ The current operational state should now be read from:
   hashes.
 - Tightened state-sync audit for shallow PR merge checkout contexts by reading
   declared parents from `HEAD^2` when `HEAD^2^` is unavailable.
+- Stabilized the shallow merge regression test so it derives the recorded state
+  head dynamically instead of baking in a previous refresh hash.
 
 ## Validation
 

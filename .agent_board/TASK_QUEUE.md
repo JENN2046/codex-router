@@ -65,6 +65,11 @@
   tests, typecheck, state-sync audit, full tests, and build.
 - Refresh `CURRENT_STATE.md` and `.agent_board` after the shallow PR merge
   checkout state-sync review fix.
+- Fix CI failure caused by a state-sync regression test baking in a previous
+  state refresh hash.
+- Validate state-sync test stability fix with targeted state-sync tests,
+  typecheck, state-sync audit, full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the test stability fix.
 
 ## In Progress
 
