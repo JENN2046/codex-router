@@ -6,7 +6,7 @@ boundaries, documentation drift, and maintainability pressure.
 Current status:
 
 - Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head at this metadata refresh: `c1bbc9d`
+- Current head at this metadata refresh: `948ca3a`
 - Upstream: `origin/fix/codex-cli-policy-bypass-flags`
 - Current state source: `docs/current/CURRENT_STATE.md`
 - Work in progress: post-commit state metadata refresh after PR merge checkout
@@ -15,6 +15,7 @@ Current status:
 Validated for current PR merge checkout state-sync review fix:
 
 - `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
 - `npm run typecheck`: passed
 - `npm test`: passed, `1096 / 1096`
 - `npm run build`: passed

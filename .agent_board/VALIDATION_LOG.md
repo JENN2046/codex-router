@@ -131,6 +131,8 @@ Results:
 
 - `npx tsx --test tests\state-sync-audit.test.ts`
   - Result: passed, `11 / 11`
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - Result: passed, `104 / 104`
 - `npm run typecheck`
   - Result: passed
 - `npm run audit:state-sync`

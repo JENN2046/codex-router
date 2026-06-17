@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `c1bbc9d`.
+`fix/codex-cli-policy-bypass-flags` after local commit `948ca3a`.
 
 The current operational state should now be read from:
 
@@ -72,6 +72,8 @@ Run for this slice:
   - Result: passed after state refresh
 - `npx tsx --test tests\state-sync-audit.test.ts`
   - Result: passed, `11 / 11`
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - Result: passed, `104 / 104`
 - `npm run typecheck`
   - Result: passed
 - `npm run audit:state-sync`

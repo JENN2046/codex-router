@@ -12,16 +12,17 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `c1bbc9d` |
+| Current head | `948ca3a` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
 | Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `c1bbc9d` |
+| Latest validated commit | `948ca3a` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `c1bbc9d`:
+Latest validated commands for `948ca3a`:
 
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
 - `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`.
 - `npm run typecheck`: passed.
 - `npm test`: passed, `1096 / 1096`.
@@ -57,6 +58,7 @@ State sync command:
 
 Current state-sync slice validation:
 
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
 - `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`.
 - `npm run typecheck`: passed.
 - `npm test`: passed, `1096 / 1096`.

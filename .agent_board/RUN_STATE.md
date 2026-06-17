@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `c1bbc9d`
+- `948ca3a`
 
 Upstream:
 
@@ -35,8 +35,9 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `c1bbc9d`:
+Validation baseline for `948ca3a`:
 
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
 - `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`
 - `npm run typecheck`: passed
 - `npm test`: passed, `1096 / 1096`
@@ -63,6 +64,7 @@ Latest local optimization:
 
 Completed validation for this slice:
 
+- `npx tsx --test tests\codex-cli-host.test.ts`
 - `npx tsx --test tests\state-sync-audit.test.ts`
 - `npm run audit:state-sync`
 - `npm run typecheck`
