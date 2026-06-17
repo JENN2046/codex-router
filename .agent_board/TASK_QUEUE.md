@@ -82,6 +82,10 @@
   state-sync audit, full tests, and build.
 - Refresh `CURRENT_STATE.md` and `.agent_board` after the merge base exclusion
   fix.
+- Fix PR review feedback so the state-sync collector filters merge checkout
+  base parents out of `allowedStateCommits` before review.
+- Validate merge-base allowlist collection with targeted state-sync tests,
+  typecheck, state-sync audit, full tests, and build.
 
 ## In Progress
 
@@ -97,5 +101,5 @@
 
 ## Remaining
 
-- Commit the state refresh.
+- Commit the merge-base allowlist collection state refresh.
 - Push PR #41 and wait for checks.

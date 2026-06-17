@@ -12,21 +12,21 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `a4feda6` |
+| Current head | `a24fad2` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
 | Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `a4feda6` |
+| Latest validated commit | `a24fad2` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
 ## Validation Baseline
 
-Latest validated commands for `a4feda6`:
+Latest validated commands for `a24fad2`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `15 / 15`.
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `16 / 16`.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1100 / 1100`.
+- `npm test`: passed, `1101 / 1101`.
 - `npm run build`: passed.
 - `npm run audit:state-sync`: passed before state refresh.
 
@@ -60,9 +60,9 @@ State sync command:
 Current state-sync slice validation:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `15 / 15`.
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `16 / 16`.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1100 / 1100`.
+- `npm test`: passed, `1101 / 1101`.
 - `npm run build`: passed.
 - `npm run audit:state-sync`: passed before state refresh.
 
@@ -91,6 +91,8 @@ Latest local optimization:
   clean, and upstream divergence is `ahead 0 / behind 0`.
 - State-sync audit no longer treats the merge checkout base parent as an
   acceptable state commit when PR-side merge ancestry commits are available.
+- State-sync audit collection now filters the merge checkout base parent out of
+  `allowedStateCommits` before review, including shallow checkout parent data.
 - Read-only audit freshness collectors now fail closed when `origin/main`
   divergence is unknown instead of pretending `0 / 0`.
 - Pure state-sync audit rules were extracted to

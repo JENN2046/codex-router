@@ -201,3 +201,18 @@ Results:
   - Result: passed, `1100 / 1100`
 - `npm run build`
   - Result: passed
+
+## Merge Base Allowlist Collection Fix
+
+Results:
+
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `16 / 16`
+- `npm run typecheck`
+  - Result: passed
+- `npm run audit:state-sync`
+  - Result: passed before state refresh
+- `npm test`
+  - Result: passed, `1101 / 1101`
+- `npm run build`
+  - Result: passed
