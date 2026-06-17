@@ -1787,6 +1787,59 @@ test("codex cli semantic inspection fails closed on unknown strict events", asyn
   ));
 });
 
+test("codex cli semantic inspection recognizes official jsonl event families", () => {
+  const inspection = inspectCodexCliCommandOutput({
+    exitCode: 1,
+    stdout: [
+      "{\"type\":\"thread.started\",\"thread_id\":\"thread_1\"}",
+      "{\"type\":\"turn.started\",\"turn_id\":\"turn_1\"}",
+      "{\"type\":\"item.started\",\"item\":{\"id\":\"item_1\",\"type\":\"mcp_tool_call\",\"server\":\"local\",\"tool\":\"repo_search\",\"status\":\"in_progress\"}}",
+      "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"web_search_call\",\"query\":\"Codex JSONL events\",\"status\":\"completed\"}}",
+      "{\"type\":\"item.updated\",\"item\":{\"id\":\"item_3\",\"type\":\"plan_update\",\"status\":\"completed\"}}",
+      "{\"type\":\"turn.failed\",\"turn_id\":\"turn_1\",\"error\":{\"message\":\"simulated failure\"}}",
+      "{\"type\":\"error\",\"message\":\"simulated failure\"}"
+    ].join("\n") + "\n"
+  }, {
+    strictUnknownEvents: true
+  });
+
+  assert.equal(inspection.status, "failed");
+  assert.ok(inspection.blockingReasons.includes("codex_cli_exit_code:1"));
+  assert.equal(
+    inspection.blockingReasons.some((reason) =>
+      reason.startsWith("codex_cli_jsonl_unknown_event_type:")
+    ),
+    false
+  );
+});
+
+test("codex cli semantic inspection blocks official file and command item shapes", () => {
+  const inspection = inspectCodexCliCommandOutput({
+    exitCode: 0,
+    stdout: [
+      "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"file_change\",\"path\":\"README.md\",\"status\":\"completed\"}}",
+      "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"command_execution\",\"argv\":[\"powershell\",\"-Command\",\"echo unsafe > README.md\"],\"status\":\"completed\"}}"
+    ].join("\n") + "\n"
+  }, {
+    sandbox: "read-only",
+    strictUnknownEvents: true
+  });
+
+  assert.equal(inspection.status, "failed");
+  assert.ok(inspection.blockingReasons.includes(
+    "codex_cli_readonly_jsonl_file_change_not_allowed:file_change"
+  ));
+  assert.ok(inspection.blockingReasons.includes(
+    "codex_cli_readonly_jsonl_write_command_not_allowed"
+  ));
+  assert.equal(
+    inspection.blockingReasons.some((reason) =>
+      reason.startsWith("codex_cli_jsonl_unknown_event_type:")
+    ),
+    false
+  );
+});
+
 test("codex cli semantic inspection blocks secret-like jsonl content without leaking it", () => {
   const inspection = inspectCodexCliCommandOutput({
     exitCode: 0,
@@ -2996,6 +3049,60 @@ test("codex cli host runner rejects feature flag override argv", async () => {
         extraArgs: [arg]
       }),
       new RegExp(`codex_cli_feature_flag_override_not_allowed:${arg}`)
+    );
+  }
+});
+
+test("codex cli host runner rejects argv outside the production allowlist", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-forged-unknown-argv",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+
+  for (const [arg, expectedReason] of [
+    ["--experimental-unsafe-mode", "codex_cli_arg_not_allowlisted:--experimental-unsafe-mode"],
+    ["unexpected-positional", "codex_cli_positional_arg_not_allowlisted:unexpected-positional"]
+  ] as const) {
+    const forgedPlan = {
+      ...plan,
+      args: [...plan.args, arg]
+    };
+
+    assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(expectedReason));
+    await assert.rejects(
+      () => runCodexCliExecPlan(forgedPlan, {
+        spawn: () => createFakeCodexCliChild({
+          stdout: "",
+          exitCode: 0
+        })
+      }),
+      new RegExp(expectedReason)
+    );
+    assert.throws(
+      () => createCodexCliExecPlan(plan.task, {
+        extraArgs: [arg]
+      }),
+      new RegExp(expectedReason)
     );
   }
 });

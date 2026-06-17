@@ -1111,6 +1111,7 @@ export function createCodexCliExecPlan(
   assertNoCodexCliExecSubcommandArgs(args, prompt);
   assertNoCodexCliPolicyBypassArgs(args);
   assertNoCodexCliFeatureFlagOverrideArgs(args);
+  assertCodexCliExecPlanArgAllowlist({ args, prompt });
   assertNoGovernedCodexCliConfigOverrides(args);
 
   return {
@@ -2044,6 +2045,7 @@ function isKnownCodexCliJsonlEvent(
     || normalizedTopLevelType === "thread.completed"
     || normalizedTopLevelType === "turn.started"
     || normalizedTopLevelType === "turn.completed"
+    || normalizedTopLevelType === "turn.failed"
     || normalizedTopLevelType === "task.started"
     || normalizedTopLevelType === "task.completed"
     || normalizedTopLevelType === "item.started"
@@ -2057,6 +2059,8 @@ function isKnownCodexCliJsonlEvent(
     || normalizedSemanticType === "reasoning"
     || normalizedSemanticType === "message"
     || normalizedSemanticType === "plan_update"
+    || normalizedSemanticType === "web_search"
+    || normalizedSemanticType === "web_search_call"
     || normalizedSemanticType === "token_count"
     || isCodexCliCommandExecutionLikeEventType(semanticType)
     || isCodexCliProbeToolLikeEventType(semanticType)
@@ -2546,6 +2550,12 @@ export function validateCodexCliExecPlanForRun(
 
   try {
     assertNoCodexCliFeatureFlagOverrideArgs(plan.args);
+  } catch (error) {
+    blockingReasons.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    assertCodexCliExecPlanArgAllowlist(plan);
   } catch (error) {
     blockingReasons.push(error instanceof Error ? error.message : String(error));
   }
@@ -4619,6 +4629,55 @@ function assertNoCodexCliFeatureFlagOverrideArgs(args: string[]): void {
     throw new Error(
       `codex_cli_feature_flag_override_not_allowed:${featureFlagArg}`
     );
+  }
+}
+
+function assertCodexCliExecPlanArgAllowlist(
+  plan: Pick<CodexCliExecPlan, "args" | "prompt">
+): void {
+  const valueFlags = [
+    "-a",
+    "--ask-for-approval",
+    "-c",
+    "--config",
+    "-C",
+    "--cd",
+    "--cwd",
+    "-m",
+    "--model",
+    "-p",
+    "--profile",
+    "-s",
+    "--sandbox"
+  ] as const;
+  const booleanFlags = new Set([
+    "--json",
+    "--skip-git-repo-check",
+    "--ephemeral",
+    "--ignore-user-config"
+  ]);
+
+  for (let index = 0; index < plan.args.length; index += 1) {
+    const arg = plan.args[index];
+    if (arg === undefined) {
+      continue;
+    }
+
+    if (arg === "exec" || arg === plan.prompt || booleanFlags.has(arg)) {
+      continue;
+    }
+
+    const parsedValueFlag = getCodexCliArgValueAt(plan.args, index, valueFlags);
+    if (parsedValueFlag !== undefined) {
+      index += parsedValueFlag.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg.startsWith("-")) {
+      throw new Error(`codex_cli_arg_not_allowlisted:${arg}`);
+    }
+
+    throw new Error(`codex_cli_positional_arg_not_allowlisted:${arg}`);
   }
 }
 

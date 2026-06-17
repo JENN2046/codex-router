@@ -1,64 +1,52 @@
 # Handoff
 
-Original goal: continue the evidence-first plan toward real Codex CLI practice
-without letting future agents follow stale roadmap facts.
+Original goal: reduce project drag from stale state surfaces, unclear execution
+boundaries, documentation drift, and maintainability pressure.
 
-Current status: `main` and `origin/main` are aligned at `68320e3`. Fresh real
-Codex CLI read-only smoke, main-only smoke chain audits, controlled execution
-gate design audit, future canary packet checklist audit, future canary
-authorization packet audit, future canary execution gate audit, final
-pre-execution review audit, clean-main final-local audit, one bounded real
-Codex CLI workspace-write canary, and post-canary receipt rollback gate audit
-have passed. Post-rollback-gate anchors and the capability taxonomy escalation
-policy are also merged and present on `origin/main`.
+Current status:
 
-The real workspace-write canary evidence is committed at:
+- Branch: `fix/codex-cli-policy-bypass-flags`
+- Current head before this state-sync slice: `1687e61`
+- Upstream: `origin/fix/codex-cli-policy-bypass-flags`
+- Current state source: `docs/current/CURRENT_STATE.md`
+- Work in progress: current-state document, state-sync audit script, state-sync
+  tests, package script wiring, `.agent_board` refresh, and Codex CLI argv
+  allowlist plus JSONL fixture hardening.
 
-- `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
+Validated before this slice:
 
-The receipt / rollback gate is committed at:
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `98 / 98`
+- `npm run typecheck`: passed
+- `npm test`: passed, `1074 / 1074`
+- `npm run build`: passed
 
-- `docs/governance/POST_CANARY_RECEIPT_ROLLBACK_VERIFICATION_GATE.md`
+Validation for this slice:
 
-The canary target was:
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - passed, `5 / 5`
+- `npm run audit:state-sync`
+  - passed
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - passed, `101 / 101`
+- `npm run typecheck`
+  - passed
+- `npm test`
+  - passed, `1082 / 1082`
+- `npm run build`
+  - passed
 
-- `tmp/codex-cli-write-canary.txt`
+Hard boundaries:
 
-The target file was removed after execution. The latest check returned `False`
-for `Test-Path tmp\codex-cli-write-canary.txt`.
-
-Current local branch:
-
-- `docs/update-agent-board-68320e3`
-
-The branch only refreshes local `.agent_board` handoff surfaces to the current
-`68320e3` mainline state. The capability taxonomy escalation policy is already
-on `main` at `68320e3`.
-
-Latest validation on clean aligned `main` before this branch:
-
-- `npm run typecheck`: passed.
-- `npm test`: passed, `1037 / 1037`.
-- `npm run build`: passed.
-- `npm run audit:capability-taxonomy-escalation-policy`: passed with branch
-  ahead / behind `0 / 0` and provider execute, real Codex CLI,
-  workspace-write execute, canary file write, general provider execution, and
-  external write counts all at `0`.
-
-Latest validation on the `.agent_board` refresh branch:
-
-- `git diff --check`: passed with only CRLF conversion warnings.
-- Stale-current-state search for old `67bee3f` aligned-status and old branch
-  wording: no matches.
+- Do not treat the recorded bounded workspace-write canary as general
+  workspace-write permission.
+- Do not run general provider execution.
+- Do not push to `main`, release, tag, deploy, or write to external services
+  without a separate explicit instruction.
+- Do not modify secrets or env files.
 
 Next safe action:
 
-1. Inspect `git status -sb` and the branch diff.
-2. Review the `.agent_board` refresh diff.
-3. Keep the next step local and non-executing unless a later task gives exact
-   authorization for a new execution boundary.
-
-Do not treat the recorded canary as general provider execution permission. It
-proves one bounded local workspace-write canary only. It does not authorize
-general workspace-write execution, release, tag, deployment, live adapter
-activation, or external service writes.
+1. Inspect diff and report validation honestly.
+2. If continuing locally, move to docs/current split cleanup or audit-core
+   extraction.
+3. Commit and push only after explicit authorization.
