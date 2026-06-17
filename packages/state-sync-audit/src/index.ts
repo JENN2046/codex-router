@@ -135,7 +135,13 @@ export function reviewStateSyncAudit(
       ),
     agentBoardAligned:
       input.agentBoardText.includes(input.branch)
-      && input.agentBoardText.includes(CURRENT_STATE_DOC),
+      && input.agentBoardText.includes(CURRENT_STATE_DOC)
+      && agentBoardCommitsMatchState(
+        input.agentBoardText,
+        input.head,
+        input.parentHead,
+        staleAfterCommit
+      ),
     staleMarkersAbsent: staleMarkerHits.length === 0,
     outputSanitized: outputIsSanitized(combinedStateText),
     auditReadOnly: true
@@ -242,6 +248,24 @@ function upstreamDivergenceMatches(
   behind: number
 ): boolean {
   return value === `ahead ${ahead} / behind ${behind}`;
+}
+
+function agentBoardCommitsMatchState(
+  text: string,
+  head: string,
+  parentHead: string | undefined,
+  staleAfterCommit: boolean
+): boolean {
+  const allowed = new Set([head]);
+  if (staleAfterCommit && parentHead !== undefined) {
+    allowed.add(parentHead);
+  }
+
+  return commitLikeTokens(text).every((token) => allowed.has(token));
+}
+
+function commitLikeTokens(text: string): string[] {
+  return Array.from(new Set(text.match(/\b[0-9a-f]{7,40}\b/g) ?? []));
 }
 
 function escapeRegExp(value: string): string {

@@ -6,7 +6,7 @@ boundaries, documentation drift, and maintainability pressure.
 Current status:
 
 - Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head at this metadata refresh: `ebd1906`
+- Current head at this metadata refresh: `c916b97`
 - Upstream: `origin/fix/codex-cli-policy-bypass-flags`
 - Current state source: `docs/current/CURRENT_STATE.md`
 - Work in progress: post-commit state metadata refresh after upstream
@@ -37,12 +37,13 @@ Validation for this slice:
 
 Local optimizations committed:
 
-- `b2f0c1d` makes `turn.failed` JSONL events blocking even with exit code `0`.
-- `b2f0c1d` tightens state-sync commit fields to the real head or the
+- The review fix makes `turn.failed` JSONL events blocking even with exit code
+  `0`.
+- The review fix tightens state-sync commit fields to the real head or the
   stale-after-commit parent head.
-- `ebd1906` tightens `Upstream divergence` to the actual ahead/behind result
-  and blocks unknown divergence.
-- `b2f0c1d` makes selected read-only audit freshness checks fail closed when
+- The review fix tightens `Upstream divergence` to the actual ahead/behind
+  result and blocks unknown divergence.
+- The review fix makes selected read-only audit freshness checks fail closed when
   `origin/main` divergence is unknown.
 - `packages/state-sync-audit/src/index.ts` now owns pure review and formatting
   logic.

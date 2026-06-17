@@ -12,15 +12,15 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `ebd1906` |
+| Current head | `c916b97` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
 | Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `ebd1906` |
+| Latest validated commit | `c916b97` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `ebd1906`:
+Latest validated commands for `c916b97`:
 
 - `npx tsx --test tests\state-sync-audit.test.ts`: passed, `8 / 8`.
 - `npx tsx --test tests\codex-cli-host.test.ts`: baseline marker retained;

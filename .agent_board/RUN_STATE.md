@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `ebd1906`
+- `c916b97`
 
 Upstream:
 
@@ -35,7 +35,7 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `ebd1906`:
+Validation baseline for `c916b97`:
 
 - `npx tsx --test tests\state-sync-audit.test.ts`: passed, `8 / 8`
 - `npm run audit:state-sync`: passed after state refresh

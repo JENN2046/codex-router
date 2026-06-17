@@ -8,7 +8,7 @@ Branch:
 
 Commit:
 
-- `e574f95`
+- initial branch baseline before the state-sync slice
 
 Commands:
 

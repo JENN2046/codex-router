@@ -94,6 +94,20 @@ test("state sync audit blocks stale agent board facts", async () => {
   assert.ok(review.reasons.includes("state_sync_staleMarkersAbsent"));
 });
 
+test("state sync audit blocks stale agent board commit facts", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    agentBoardText: [
+      input.agentBoardText,
+      "Historical stale board head: `1687e61`"
+    ].join("\n")
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
+});
+
 test("state sync audit blocks missing script and boundary markers", async () => {
   const input = await createInputFromWorkspace();
   const packageJson = JSON.parse(input.packageJsonText) as {

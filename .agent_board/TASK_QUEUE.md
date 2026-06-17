@@ -6,7 +6,7 @@
   `--ignore-rules=false` are blocked.
 - Block Codex CLI feature flag override argv through `--enable` and
   `--disable` variants.
-- Validate and push branch `fix/codex-cli-policy-bypass-flags` at `1687e61`.
+- Validate and push branch `fix/codex-cli-policy-bypass-flags`.
 - Add `docs/current/CURRENT_STATE.md` as the compact current-state surface.
 - Add `scripts/run-state-sync-audit.ts`.
 - Add `tests/state-sync-audit.test.ts`.
@@ -40,13 +40,14 @@
   unknown `origin/main` freshness.
 - Validate PR review fixes with targeted tests, typecheck, full tests, and
   build.
-- Refresh `CURRENT_STATE.md` and `.agent_board` after commit `b2f0c1d`.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the first PR review fix.
 - Validate the state refresh with `npm run audit:state-sync`.
 - Fix PR review feedback requiring `Upstream divergence` to match actual
   ahead/behind state.
 - Validate upstream divergence fix with targeted state-sync tests, typecheck,
   full tests, and build.
-- Refresh `CURRENT_STATE.md` and `.agent_board` after commit `ebd1906`.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the upstream divergence
+  review fix.
 - Validate the state refresh with `npm run audit:state-sync`.
 
 ## In Progress

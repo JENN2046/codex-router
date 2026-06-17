@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `ebd1906`.
+`fix/codex-cli-policy-bypass-flags` after local commit `c916b97`.
 
 The current operational state should now be read from:
 
@@ -19,7 +19,7 @@ The current operational state should now be read from:
   detection.
 - Wired `npm run audit:state-sync`.
 - Replaced stale `.agent_board` references to old mainline state with the
-  current branch and `e574f95` baseline.
+  current branch baseline.
 - Added a Codex CLI production argv allowlist validator that rejects forged
   unknown flags and positional argv before spawn.
 - Added Codex CLI host regression coverage for allowlist enforcement.
@@ -87,4 +87,4 @@ Run for this slice:
   should be treated as current.
 - The state-sync audit is a local read-only audit. It does not authorize
   execution, provider work, workspace-write, or remote actions.
-- The upstream divergence review fix is committed and pushed at `ebd1906`.
+- The upstream divergence review fix and state refresh are committed and pushed.
