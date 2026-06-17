@@ -32,6 +32,7 @@ export async function collectStateSyncAuditInput(
     parentHead,
     mergeParentHead,
     mergeParentParentHead,
+    mergeParentDeclaredParents,
     upstream,
     aheadBehind
   ] =
@@ -42,6 +43,7 @@ export async function collectStateSyncAuditInput(
       git(["rev-parse", "--short", "HEAD^"], cwd).catch(() => ""),
       git(["rev-parse", "--short", "HEAD^2"], cwd).catch(() => ""),
       git(["rev-parse", "--short", "HEAD^2^"], cwd).catch(() => ""),
+      git(["show", "-s", "--format=%P", "HEAD^2"], cwd).catch(() => ""),
       git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd)
         .catch(() => ""),
       git(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], cwd)
@@ -66,7 +68,8 @@ export async function collectStateSyncAuditInput(
 
   const allowedStateCommits = uniqueNonEmpty([
     mergeParentHead,
-    mergeParentParentHead
+    mergeParentParentHead,
+    ...shortCommitParents(mergeParentDeclaredParents)
   ]);
   if (allowedStateCommits.length > 0) {
     input.allowedStateCommits = allowedStateCommits;
@@ -97,6 +100,14 @@ async function git(args: string[], cwd: string): Promise<string> {
 
 function uniqueNonEmpty(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function shortCommitParents(value: string): string[] {
+  return value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((commit) => commit.slice(0, 7));
 }
 
 async function read(cwd: string, filePath: string): Promise<string> {

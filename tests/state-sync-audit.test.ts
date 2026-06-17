@@ -65,6 +65,18 @@ test("state sync audit accepts stale state from merge checkout second-parent anc
   assert.equal(review.status, "passed");
 });
 
+test("state sync audit accepts stale state from shallow merge second-parent parent", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "78c110e",
+    parentHead: "f37f174",
+    allowedStateCommits: ["c1db64a", "948ca3a"]
+  });
+
+  assert.equal(review.status, "passed");
+});
+
 test("state sync audit blocks stale state outside merge checkout ancestry", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
