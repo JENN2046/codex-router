@@ -49,7 +49,7 @@
 
 - Inspect diff.
 - Refresh `CURRENT_STATE.md` to a new commit after any local commit.
-- Next implementation slice: reduce docs/current split pressure or commit the
-  audit-core extraction and refresh state metadata afterward.
+- Next implementation slice: reduce docs/current split pressure or push only
+  after explicit remote-write authorization.
 - Commit and push only if explicitly requested after validation, or if a later
   instruction clearly authorizes that remote action.

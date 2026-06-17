@@ -1,7 +1,7 @@
 # Run State
 
-Status: active local state-surface cleanup with state-sync audit-core extraction
-validated locally.
+Status: state-sync audit-core extraction committed locally; state metadata
+refresh is in progress.
 
 Current truth source:
 
@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `bcec97a`
+- `986cd8b`
 
 Upstream:
 
@@ -25,8 +25,7 @@ Upstream:
 
 Worktree at last board refresh:
 
-- dirty with the local state-sync audit-core extraction and state metadata
-  refresh
+- dirty only with the post-commit state metadata refresh
 
 Current scope:
 
@@ -36,15 +35,14 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `bcec97a` plus the local audit-core extraction working
-tree:
+Validation baseline for `986cd8b`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `101 / 101`
 - `npm run typecheck`: passed
 - `npm test`: passed, `1082 / 1082`
 - `npm run build`: passed
 
-Current local optimization:
+Latest local optimization:
 
 - pure state-sync audit rules extracted to
   `packages/state-sync-audit/src/index.ts`

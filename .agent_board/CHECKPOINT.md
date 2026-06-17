@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `bcec97a`.
+`fix/codex-cli-policy-bypass-flags` after local commit `986cd8b`.
 
 The current operational state should now be read from:
 
@@ -59,4 +59,4 @@ Run for this slice:
   should be treated as current.
 - The state-sync audit is a local read-only audit. It does not authorize
   execution, provider work, workspace-write, or remote actions.
-- The audit-core extraction is currently local and uncommitted.
+- The audit-core extraction is committed locally at `986cd8b`.

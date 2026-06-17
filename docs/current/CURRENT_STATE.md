@@ -12,16 +12,15 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `bcec97a` |
+| Current head | `986cd8b` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
-| Upstream divergence | `ahead 2 / behind 0` |
-| Latest validated commit | `bcec97a` |
+| Upstream divergence | `ahead 3 / behind 0` |
+| Latest validated commit | `986cd8b` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `bcec97a` plus the local state-sync audit-core
-extraction working tree:
+Latest validated commands for `986cd8b`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `101 / 101`.
 - `npm run typecheck`: passed.
@@ -64,7 +63,7 @@ Current state-sync slice validation:
 - `npm test`: passed, `1082 / 1082`.
 - `npm run build`: passed.
 
-Current local optimization:
+Latest local optimization:
 
 - Pure state-sync audit rules were extracted to
   `packages/state-sync-audit/src/index.ts`.
@@ -84,5 +83,5 @@ Continue the state-surface cleanup locally:
 
 1. keep `CURRENT_STATE.md` as the source of current operational facts
 2. keep `.agent_board` aligned with this file
-3. either commit the state-sync audit-core extraction and refresh this file
-   after commit, or continue with a docs/current split pass before committing
+3. continue with a docs/current split pass or push the branch only after
+   explicit remote-write authorization
