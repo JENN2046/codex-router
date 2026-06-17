@@ -312,10 +312,16 @@ function stateCompatibleCommits(
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined
 ): string[] {
+  const mergeAncestryCommits = allowedStateCommits ?? [];
+  const fallbackCommits = mergeAncestryCommits.length > 0
+    ? mergeAncestryCommits
+    : [
+        ...(parentHead !== undefined ? [parentHead] : []),
+        ...(syntheticReviewState !== undefined ? [syntheticReviewState] : [])
+      ];
+
   return Array.from(new Set([
-    ...(parentHead !== undefined ? [parentHead] : []),
-    ...(allowedStateCommits ?? []),
-    ...(syntheticReviewState !== undefined ? [syntheticReviewState] : [])
+    ...fallbackCommits
   ]));
 }
 

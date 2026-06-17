@@ -131,6 +131,25 @@ test("state sync audit blocks stale state outside merge checkout ancestry", asyn
   assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
 });
 
+test("state sync audit blocks merge base as state when merge ancestry is available", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "83b8770",
+    parentHead: "f37f174",
+    allowedStateCommits: ["c1db64a"],
+    currentStateText: input.currentStateText
+      .replace(/\| Current head \| `[^`]+` \|/, "| Current head | `f37f174` |")
+      .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit | `f37f174` |"),
+    agentBoardText: input.agentBoardText.replace(/\b[0-9a-f]{7,40}\b/g, "f37f174")
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
+});
+
 test("state sync audit blocks mismatched upstream divergence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
