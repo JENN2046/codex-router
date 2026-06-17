@@ -55,6 +55,7 @@
     "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
     "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts",
     "audit:source-release-package-boundary": "tsx scripts/run-source-release-package-boundary-audit.ts",
+    "audit:state-sync": "tsx scripts/run-state-sync-audit.ts",
     "preflight:codex-cli-env": "tsx scripts/run-codex-cli-environment-preflight.ts",
     "smoke:contract": "tsx scripts/run-codex-cli-contract-smoke.ts",
     "smoke:readonly:real": "tsx scripts/run-codex-cli-real-readonly-smoke.ts",

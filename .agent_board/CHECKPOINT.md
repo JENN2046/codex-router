@@ -1,183 +1,128 @@
 # Checkpoint
 
-## Completed
+## Current Stage
 
-Implemented, merged, and pushed the evidence-first plan slice to `origin/main`
-at `24c3508`. Post-push anchor cleanup and fresh real Codex CLI read-only smoke
-evidence are pushed to `origin/main` at `c95ab3b`. Controlled execution gate
-design is pushed to `origin/main` at `6e55131`. Future canary packet checklist
-is pushed to `origin/main` at `2f16fa2`. Post-push checklist anchors are pushed
-to `origin/main` at `4db8174`. The future Codex CLI canary execution
-authorization packet draft/review, post-merge anchors, and post-push anchors are
-pushed to `origin/main` at `19b3a5e`. Clean local `main` authorization packet
-audit passed before the post-push anchor merge. The future canary execution gate
-design, post-merge execution gate anchors, and post-push execution gate anchors
-are pushed to `origin/main` at `fe181cb`. The clean local `main` gate audit
-passed before push. The final pre-execution review, clean-main final-local audit
-fix, bounded real workspace-write canary evidence, post-canary anchors, and
-post-canary receipt rollback gate are pushed to `origin/main` at `5566777`.
-Post-rollback-gate anchors are pushed to `origin/main` at `67bee3f`. The current
-mainline is now aligned with `origin/main` at `68320e3`, which includes the
-capability taxonomy and escalation policy for future write-capable steps
-without running workspace-write or general provider execution. The current
-local branch only refreshes `.agent_board` status files to that mainline state.
+State-surface cleanup is in progress on branch
+`fix/codex-cli-policy-bypass-flags` after local commit `a24fad2`.
 
-Changed files:
+The current operational state should now be read from:
 
-- `PROJECT_CONTINUE_ANCHOR.md`
-- `docs/agent-os-transformation/current-roadmap-20260610.md`
-- `docs/governance/APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md`
-- `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_AUTHORIZATION_PACKET.md`
-- `docs/governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_GATE.md`
-- `docs/governance/FUTURE_CODEX_CLI_CANARY_PRE_EXECUTION_REVIEW.md`
-- `package.json`
-- `scripts/run-approval-consumption-dispatch-matrix-audit.ts`
-- `scripts/run-future-codex-cli-canary-authorization-packet-audit.ts`
-- `scripts/run-future-codex-cli-canary-execution-gate-audit.ts`
-- `scripts/run-future-codex-cli-canary-pre-execution-review-audit.ts`
-- `tests/approval-consumption-dispatch-matrix-audit.test.ts`
-- `tests/future-codex-cli-canary-authorization-packet-audit.test.ts`
-- `tests/future-codex-cli-canary-execution-gate-audit.test.ts`
-- `tests/future-codex-cli-canary-pre-execution-review-audit.test.ts`
-- `docs/governance/CAPABILITY_TAXONOMY_ESCALATION_POLICY.md`
-- `scripts/run-capability-taxonomy-escalation-policy-audit.ts`
-- `tests/capability-taxonomy-escalation-policy-audit.test.ts`
-- `.agent_board/CHECKPOINT.md`
-- `.agent_board/HANDOFF.md`
-- `.agent_board/RUN_STATE.md`
-- `.agent_board/TASK_QUEUE.md`
-- `.agent_board/VALIDATION_LOG.md`
+- `docs/current/CURRENT_STATE.md`
+
+## Completed In This Slice
+
+- Created a compact current-state document with branch, head, upstream,
+  validation baseline, execution boundary, blocked capabilities, and next safe
+  action.
+- Added a local read-only state-sync audit script.
+- Added regression tests for stale current-state and stale `.agent_board`
+  detection.
+- Wired `npm run audit:state-sync`.
+- Replaced stale `.agent_board` references to old mainline state with the
+  current branch baseline.
+- Added a Codex CLI production argv allowlist validator that rejects forged
+  unknown flags and positional argv before spawn.
+- Added Codex CLI host regression coverage for allowlist enforcement.
+- Added official JSONL fixture coverage for known Codex event families and
+  read-only write evidence in official item shapes.
+- Added `turn.failed` and web search item recognition to strict JSONL known
+  event handling.
+- Extracted pure state-sync audit review and formatting logic into
+  `packages/state-sync-audit/src/index.ts`.
+- Kept `scripts/run-state-sync-audit.ts` focused on Git/file collection and CLI
+  output.
+- Updated state-sync tests to import the reusable audit module.
+- Fixed CI shallow checkout failures by allowing selected read-only audit
+  collectors to fail closed when `origin/main` divergence is unknown.
+- Fixed PR review feedback by making `turn.failed` JSONL events blocking even
+  with exit code `0`.
+- Tightened state-sync audit to require recorded commit hashes to match the
+  real head, or the parent head when `Stale after commit: true`.
+- Tightened state-sync audit to require recorded upstream divergence to match
+  the actual ahead/behind result, with unknown divergence blocked.
+- Tightened Codex CLI probe and read-only smoke validation to treat web search
+  events as unexpected tool use.
+- Tightened state-sync audit for PR merge checkout contexts by accepting stale
+  state hashes from second-parent ancestry while still blocking unrelated stale
+  hashes.
+- Tightened state-sync audit for shallow PR merge checkout contexts by reading
+  declared parents from `HEAD^2` when `HEAD^2^` is unavailable.
+- Stabilized the shallow merge regression test so it derives the recorded state
+  head dynamically instead of baking in a previous refresh hash.
+- Added an explicit synthetic single-commit review checkout rule for state-sync
+  audit, gated on a clean checkout, `ahead 0 / behind 0`, matching recorded
+  state fields, and the `Synthetic review checkout` state marker.
+- Excluded the merge checkout base parent from acceptable state commits whenever
+  PR-side merge ancestry evidence is available.
+- Filtered the merge checkout base parent out of collected
+  `allowedStateCommits` before state-sync review.
 
 ## Validation
 
-- `npx tsx --test tests\approval-consumption-dispatch-matrix-audit.test.ts`
-  passed: `4 / 4`.
-- Targeted governance evidence suite passed: `124 / 124`.
-- `npm run typecheck` passed.
-- `npm test` passed: `1003 / 1003`.
-- `npm run build` passed.
-- `git diff --cached --check` passed with only CRLF conversion warnings.
-- `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
-- read-only real smoke chain audits passed on clean `main`.
-- `npx tsx --test tests\controlled-execution-gate-design-audit.test.ts`
-  passed: `4 / 4`.
-- controlled execution / workspace-write canary targeted tests passed:
-  `18 / 18`.
-- `npm run typecheck` passed after adding the design audit script.
-- `npm run audit:controlled-execution-gate-design` passed after commit.
-- future canary packet checklist tests passed: `5 / 5`.
-- `npm run typecheck` passed after adding the packet checklist audit script.
-- `npm run audit:future-codex-cli-canary-packet-checklist` passed on clean
-  `main`.
-- `npx tsx --test tests\future-codex-cli-canary-authorization-packet-audit.test.ts`
-  passed: `5 / 5`.
-- `npm run typecheck` passed on `docs/future-canary-authorization-packet`.
-- `npm run audit:future-codex-cli-canary-authorization-packet` blocked as
-  expected on the dirty non-`main` draft branch with reasons
-  `future_codex_cli_canary_authorization_packet_worktreeClean` and
-  `future_codex_cli_canary_authorization_packet_branchMain`.
-- After commit, `npm run audit:future-codex-cli-canary-authorization-packet`
-  blocked as expected on the clean non-`main` draft branch with only
-  `future_codex_cli_canary_authorization_packet_branchMain`.
-- After local fast-forward merge, `npm run audit:future-codex-cli-canary-authorization-packet`
-  passed on clean local `main` at `57ae4a7`.
-- `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
-- `git push origin main` succeeded after one retry, pushing `4db8174..c73fa1b`.
-- Post-push `git status -sb` showed `main...origin/main`.
-- `git push origin main` pushed `c73fa1b..19b3a5e`.
-- `npx tsx --test tests\future-codex-cli-canary-execution-gate-audit.test.ts`
-  passed: `5 / 5`.
-- `npm run typecheck` passed on `docs/future-canary-execution-gate`.
-- `npm run audit:future-codex-cli-canary-execution-gate` blocked as expected on
-  the dirty non-`main` design branch with reasons
-  `future_codex_cli_canary_execution_gate_worktreeClean` and
-  `future_codex_cli_canary_execution_gate_branchMain`.
-- After commit, `npm run audit:future-codex-cli-canary-execution-gate` blocked
-  as expected on the clean non-`main` design branch with only
-  `future_codex_cli_canary_execution_gate_branchMain`.
-- After local fast-forward merge, `npm run audit:future-codex-cli-canary-execution-gate`
-  passed on clean local `main` at `6d05762`.
-- `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
-- `git push origin main` pushed `19b3a5e..c679c58`.
-- Post-push `git status -sb` showed `main...origin/main`.
-- `git push origin main` pushed `c679c58..fe181cb`.
-- Post-push `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
-- `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
-passed: `5 / 5`.
-- `npm run typecheck` passed on `docs/future-canary-pre-execution-review`.
-- `npm run audit:future-codex-cli-canary-pre-execution-review` blocked as
-  expected on the dirty non-`main` review branch because local HEAD is not
-  aligned with `origin/main`.
-- After local fast-forward merge, `npm run audit:future-codex-cli-canary-pre-execution-review`
-  blocked on clean local `main` only because local `main` is not aligned with
-  `origin/main`.
-- `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
-- `git push origin main` pushed `fe181cb..3a71acc`.
-- `npm run audit:future-codex-cli-canary-pre-execution-review` passed on
-  aligned clean `main`.
-- `npm run audit:workspace-write-real-canary-final-local` passed after the
-  clean-main gate alignment fix.
-- `npm test` passed: `1027 / 1027`.
-- `git push origin main` pushed `3a71acc..590dbd4`.
-- Bounded real Codex CLI workspace-write canary passed:
-  - evidence:
-    `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
-  - target: `tmp/codex-cli-write-canary.txt`
-  - execution status: `completed`
-  - exit code: `0`
-  - blocking reasons: `[]`
-- The canary target file was removed after execution.
-- `git push origin main` pushed `590dbd4..5e24281`.
-- `git push origin main` pushed `5e24281..5642b43`.
-- Post-canary receipt and rollback verification gate was added and pushed:
-  - commit: `5566777 test: add post-canary rollback receipt gate`
-  - document:
-    `docs/governance/POST_CANARY_RECEIPT_ROLLBACK_VERIFICATION_GATE.md`
-  - audit: `npm run audit:post-canary-receipt-rollback-gate`
-- `npx tsx --test tests\post-canary-receipt-rollback-verification-gate-audit.test.ts`
-  passed: `5 / 5`.
-- `npm run typecheck` passed.
-- `npm test` passed: `1032 / 1032`.
-- `npm run build` passed.
-- `git push origin main` pushed `5642b43..5566777`.
-- `npm run audit:post-canary-receipt-rollback-gate` passed on clean aligned
-  `main`.
-- `git push origin main` pushed `5566777..67bee3f`.
-- `npx tsx --test tests\capability-taxonomy-escalation-policy-audit.test.ts`
-  passed: `5 / 5`.
-- `npm run typecheck` passed.
-- `npm test` passed: `1037 / 1037`.
-- `npm run build` passed.
-- `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
-- `npm run audit:capability-taxonomy-escalation-policy` passed on clean
-  `docs/capability-taxonomy-escalation-policy` with provider execute, real
-  Codex CLI, workspace-write execute, canary file write, general provider
-  execution, and external write counts all at `0`.
-- After fast-forwarding local `main` to `68320e3`, `npm run typecheck` passed.
-- After fast-forwarding local `main` to `68320e3`, `npm test` passed:
-  `1037 / 1037`.
-- After fast-forwarding local `main` to `68320e3`, `npm run build` passed.
-- After fast-forwarding local `main` to `68320e3`,
-  `npm run audit:capability-taxonomy-escalation-policy` passed on clean aligned
-  `main` with ahead / behind `0 / 0` and provider execute, real Codex CLI,
-  workspace-write execute, canary file write, general provider execution, and
-  external write counts all at `0`.
-- For the `.agent_board` refresh branch, `git diff --check` passed with only
-  CRLF conversion warnings.
-- Stale-current-state search found no old aligned `67bee3f` status, old
-  taxonomy branch status, or stale taxonomy-branch review wording.
+Run for this slice:
 
-## Not Run
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `5 / 5`
+- `npm run audit:state-sync`
+  - Result: passed
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - Result: passed, `101 / 101`
+- `npm run typecheck`
+  - Result: passed
+- `npm test`
+  - Result: passed, `1082 / 1082`
+- `npm run build`
+  - Result: passed
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `16 / 16`
+- `npm run typecheck`
+  - Result: passed
+- `npm run audit:state-sync`
+  - Result: passed before state refresh
+- `npm test`
+  - Result: passed, `1101 / 1101`
+- `npm run build`
+  - Result: passed
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - Result: passed, `104 / 104`
+- `npm test`
+  - Result: passed, `1094 / 1094`
+- `npm run audit:state-sync`
+  - Result: passed after state refresh
+- `npm run audit:state-sync`
+  - Result: passed after state refresh
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `15 / 15`
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - Result: passed, `104 / 104`
+- `npm run typecheck`
+  - Result: passed
+- `npm run audit:state-sync`
+  - Result: passed before state refresh
+- `npm test`
+  - Result: passed, `1100 / 1100`
+- `npm run build`
+  - Result: passed
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - Result: passed, `101 / 101`
+- `npx tsx --test tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts`
+  - Result: passed, `16 / 16`
+- `npx tsx --test tests\readonly-real-smoke-chain-index-audit.test.ts tests\readonly-real-smoke-chain-local-candidate-consistency.test.ts tests\readonly-real-smoke-chain-local-closeout-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts`
+  - Result: passed, `16 / 16`
+- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`
+  - Result: passed, `137 / 137`
+- `npm run typecheck`
+  - Result: passed
+- `npm test`
+  - Result: passed, `1089 / 1089`
+- `npm run build`
+  - Result: passed
 
-- Additional workspace-write canary runs beyond the single authorized bounded
-  run.
-- General provider execution was not enabled.
-- No release, tag, deployment, or external service write other than the
-  explicitly requested `git push origin main` was run.
-- No additional real Codex CLI smoke, canary, release, tag, deployment, commit,
-  push, or external service write was run during the `68320e3` board refresh.
+## Remaining Risk
 
-## Risk
-
-No real provider execution as a general runtime mode, workspace-write execution,
-deployment, release, tag, or external service write was performed.
+- `CURRENT_STATE.md` intentionally records `Stale after commit: true`; after a
+  new commit, the state surface must be refreshed to the new commit before it
+  should be treated as current.
+- The state-sync audit is a local read-only audit. It does not authorize
+  execution, provider work, workspace-write, or remote actions.
+- The web search probe review fix is committed and pushed.

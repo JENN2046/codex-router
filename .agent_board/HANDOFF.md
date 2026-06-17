@@ -1,64 +1,83 @@
 # Handoff
 
-Original goal: continue the evidence-first plan toward real Codex CLI practice
-without letting future agents follow stale roadmap facts.
+Original goal: reduce project drag from stale state surfaces, unclear execution
+boundaries, documentation drift, and maintainability pressure.
 
-Current status: `main` and `origin/main` are aligned at `68320e3`. Fresh real
-Codex CLI read-only smoke, main-only smoke chain audits, controlled execution
-gate design audit, future canary packet checklist audit, future canary
-authorization packet audit, future canary execution gate audit, final
-pre-execution review audit, clean-main final-local audit, one bounded real
-Codex CLI workspace-write canary, and post-canary receipt rollback gate audit
-have passed. Post-rollback-gate anchors and the capability taxonomy escalation
-policy are also merged and present on `origin/main`.
+Current status:
 
-The real workspace-write canary evidence is committed at:
+- Branch: `fix/codex-cli-policy-bypass-flags`
+- Current head at this metadata refresh: `a24fad2`
+- Upstream: `origin/fix/codex-cli-policy-bypass-flags`
+- Current state source: `docs/current/CURRENT_STATE.md`
+- Work in progress: post-commit state metadata refresh after merge-base
+  allowlist collection fix.
 
-- `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
+Validated for current PR merge checkout state-sync review fix:
 
-The receipt / rollback gate is committed at:
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `16 / 16`
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
+- `npm run typecheck`: passed
+- `npm test`: passed, `1101 / 1101`
+- `npm run build`: passed
+- `npm run audit:state-sync`: passed before state refresh
 
-- `docs/governance/POST_CANARY_RECEIPT_ROLLBACK_VERIFICATION_GATE.md`
+Validation for this slice:
 
-The canary target was:
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - passed, `5 / 5`
+- `npm run audit:state-sync`
+  - passed
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - passed, `101 / 101`
+- `npm run typecheck`
+  - passed
+- `npm test`
+  - passed, `1082 / 1082`
+- `npm run build`
+  - passed
 
-- `tmp/codex-cli-write-canary.txt`
+Local optimizations committed:
 
-The target file was removed after execution. The latest check returned `False`
-for `Test-Path tmp\codex-cli-write-canary.txt`.
+- The review fix makes `turn.failed` JSONL events blocking even with exit code
+  `0`.
+- The review fix tightens state-sync commit fields to the real head or the
+  stale-after-commit parent head.
+- The review fix tightens `Upstream divergence` to the actual ahead/behind
+  result and blocks unknown divergence.
+- The review fix treats web search events as unexpected tool use during Codex
+  CLI probes and read-only smoke validation.
+- The review fix accepts stale state hashes from PR merge checkout
+  second-parent ancestry while still blocking unrelated stale hashes.
+- The review fix reads declared parents from `HEAD^2`, covering shallow PR
+  merge checkouts where `HEAD^2^` cannot be resolved locally.
+- The regression test now derives the recorded state head dynamically instead
+  of baking in a previous state refresh hash.
+- The audit now accepts clean synthetic single-commit review checkouts only when
+  the state document explicitly allows them and recorded state fields are
+  self-consistent.
+- The audit now excludes the merge checkout base parent from acceptable state
+  commits whenever PR-side merge ancestry evidence is available.
+- The state-sync collector now filters the merge checkout base parent out of
+  `allowedStateCommits` before review, including shallow checkout parent data.
+- The review fix makes selected read-only audit freshness checks fail closed when
+  `origin/main` divergence is unknown.
+- `packages/state-sync-audit/src/index.ts` now owns pure review and formatting
+  logic.
+- `scripts/run-state-sync-audit.ts` now owns Git/file collection and CLI
+  execution.
+- `tests/state-sync-audit.test.ts` imports the reusable audit module.
 
-Current local branch:
+Hard boundaries:
 
-- `docs/update-agent-board-68320e3`
-
-The branch only refreshes local `.agent_board` handoff surfaces to the current
-`68320e3` mainline state. The capability taxonomy escalation policy is already
-on `main` at `68320e3`.
-
-Latest validation on clean aligned `main` before this branch:
-
-- `npm run typecheck`: passed.
-- `npm test`: passed, `1037 / 1037`.
-- `npm run build`: passed.
-- `npm run audit:capability-taxonomy-escalation-policy`: passed with branch
-  ahead / behind `0 / 0` and provider execute, real Codex CLI,
-  workspace-write execute, canary file write, general provider execution, and
-  external write counts all at `0`.
-
-Latest validation on the `.agent_board` refresh branch:
-
-- `git diff --check`: passed with only CRLF conversion warnings.
-- Stale-current-state search for old `67bee3f` aligned-status and old branch
-  wording: no matches.
+- Do not treat the recorded bounded workspace-write canary as general
+  workspace-write permission.
+- Do not run general provider execution.
+- Do not push to `main`, release, tag, deploy, or write to external services
+  without a separate explicit instruction.
+- Do not modify secrets or env files.
 
 Next safe action:
 
-1. Inspect `git status -sb` and the branch diff.
-2. Review the `.agent_board` refresh diff.
-3. Keep the next step local and non-executing unless a later task gives exact
-   authorization for a new execution boundary.
-
-Do not treat the recorded canary as general provider execution permission. It
-proves one bounded local workspace-write canary only. It does not authorize
-general workspace-write execution, release, tag, deployment, live adapter
-activation, or external service writes.
+1. Inspect diff and report validation honestly.
+2. Commit this post-commit state refresh.
+3. Push PR #41, then wait for checks.

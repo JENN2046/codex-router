@@ -96,6 +96,16 @@ test("read-only formal integration readiness matrix blocks stale state", async (
   assert.ok(review.reasons.includes("readonly_formal_integration_matrix_matrixDocRecorded"));
 });
 
+test("read-only formal integration readiness matrix fails closed when origin freshness is unknown", async () => {
+  const review = reviewReadonlyFormalIntegrationReadinessMatrixAudit({
+    ...(await createInputFromWorkspace()),
+    aheadBehind: "unknown\tunknown"
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("readonly_formal_integration_matrix_notBehindOrigin"));
+});
+
 test("read-only formal integration readiness matrix blocks reopened gates", async () => {
   const input = await createInputFromWorkspace();
   const providerEvidence = JSON.parse(

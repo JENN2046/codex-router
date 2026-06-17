@@ -921,6 +921,30 @@ test("codex cli model probe fails if the model tries to use commands", async () 
   ));
 });
 
+test("codex cli model probe fails if the model uses web search", async () => {
+  const evidence = await createCodexCliModelCliProbeEvidence({
+    generatedAt: "2026-04-25T14:05:55.000Z",
+    model: "gpt-5.4-mini",
+    codexCommand: "codex",
+    cwd: "A:/codex-router",
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"thread.started\",\"thread_id\":\"test\"}",
+        "{\"type\":\"turn.started\"}",
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"web_search_call\",\"query\":\"should not search\",\"status\":\"completed\"}}",
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"agent_message\",\"text\":\"CODEX_CLI_MODEL_PROBE_OK\"}}",
+        "{\"type\":\"turn.completed\"}"
+      ].join("\n"),
+      exitCode: 0
+    })
+  });
+
+  assert.equal(evidence.status, "failed");
+  assert.ok(evidence.blockingReasons.includes(
+    "codex_cli_model_probe_unexpected_tool_use:web_search_call"
+  ));
+});
+
 test("codex cli runner blocks strict model probe unexpected response before main run", async () => {
   const plan = createCodexCliExecPlan({
     taskId: "cli-runner-auto-probe-unexpected-response",
@@ -1785,6 +1809,79 @@ test("codex cli semantic inspection fails closed on unknown strict events", asyn
   assert.ok(result.inspection.blockingReasons.includes(
     "codex_cli_jsonl_unknown_event_type:mystery_tool"
   ));
+});
+
+test("codex cli semantic inspection recognizes official jsonl event families", () => {
+  const inspection = inspectCodexCliCommandOutput({
+    exitCode: 1,
+    stdout: [
+      "{\"type\":\"thread.started\",\"thread_id\":\"thread_1\"}",
+      "{\"type\":\"turn.started\",\"turn_id\":\"turn_1\"}",
+      "{\"type\":\"item.started\",\"item\":{\"id\":\"item_1\",\"type\":\"mcp_tool_call\",\"server\":\"local\",\"tool\":\"repo_search\",\"status\":\"in_progress\"}}",
+      "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"web_search_call\",\"query\":\"Codex JSONL events\",\"status\":\"completed\"}}",
+      "{\"type\":\"item.updated\",\"item\":{\"id\":\"item_3\",\"type\":\"plan_update\",\"status\":\"completed\"}}",
+      "{\"type\":\"turn.failed\",\"turn_id\":\"turn_1\",\"error\":{\"message\":\"simulated failure\"}}",
+      "{\"type\":\"error\",\"message\":\"simulated failure\"}"
+    ].join("\n") + "\n"
+  }, {
+    strictUnknownEvents: true
+  });
+
+  assert.equal(inspection.status, "failed");
+  assert.ok(inspection.blockingReasons.includes("codex_cli_exit_code:1"));
+  assert.ok(inspection.blockingReasons.includes("codex_cli_turn_failed"));
+  assert.equal(
+    inspection.blockingReasons.some((reason) =>
+      reason.startsWith("codex_cli_jsonl_unknown_event_type:")
+    ),
+    false
+  );
+});
+
+test("codex cli semantic inspection fails closed on turn failed with zero exit", () => {
+  const inspection = inspectCodexCliCommandOutput({
+    exitCode: 0,
+    stdout:
+      "{\"type\":\"turn.failed\",\"turn_id\":\"turn_1\",\"error\":{\"message\":\"simulated failure\"}}\n"
+  }, {
+    strictUnknownEvents: true
+  });
+
+  assert.equal(inspection.status, "failed");
+  assert.ok(inspection.blockingReasons.includes("codex_cli_turn_failed"));
+  assert.equal(
+    inspection.blockingReasons.some((reason) =>
+      reason.startsWith("codex_cli_jsonl_unknown_event_type:")
+    ),
+    false
+  );
+});
+
+test("codex cli semantic inspection blocks official file and command item shapes", () => {
+  const inspection = inspectCodexCliCommandOutput({
+    exitCode: 0,
+    stdout: [
+      "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"file_change\",\"path\":\"README.md\",\"status\":\"completed\"}}",
+      "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"command_execution\",\"argv\":[\"powershell\",\"-Command\",\"echo unsafe > README.md\"],\"status\":\"completed\"}}"
+    ].join("\n") + "\n"
+  }, {
+    sandbox: "read-only",
+    strictUnknownEvents: true
+  });
+
+  assert.equal(inspection.status, "failed");
+  assert.ok(inspection.blockingReasons.includes(
+    "codex_cli_readonly_jsonl_file_change_not_allowed:file_change"
+  ));
+  assert.ok(inspection.blockingReasons.includes(
+    "codex_cli_readonly_jsonl_write_command_not_allowed"
+  ));
+  assert.equal(
+    inspection.blockingReasons.some((reason) =>
+      reason.startsWith("codex_cli_jsonl_unknown_event_type:")
+    ),
+    false
+  );
 });
 
 test("codex cli semantic inspection blocks secret-like jsonl content without leaking it", () => {
@@ -2919,23 +3016,139 @@ test("codex cli host runner rejects forged policy bypass argv", async () => {
       tags: []
     }
   });
-  const forgedPlan = {
-    ...plan,
-    args: [...plan.args, "--ignore-rules"]
-  };
 
-  assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
-    "codex_cli_policy_bypass_arg_not_allowed:--ignore-rules"
-  ));
-  await assert.rejects(
-    () => runCodexCliExecPlan(forgedPlan, {
-      spawn: () => createFakeCodexCliChild({
-        stdout: "",
-        exitCode: 0
-      })
-    }),
-    /codex_cli_policy_bypass_arg_not_allowed:--ignore-rules/
-  );
+  for (const arg of ["--ignore-rules", "--ignore-rules=true", "--ignore-rules=false"]) {
+    const forgedPlan = {
+      ...plan,
+      args: [...plan.args, arg]
+    };
+
+    assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
+      `codex_cli_policy_bypass_arg_not_allowed:${arg}`
+    ));
+    await assert.rejects(
+      () => runCodexCliExecPlan(forgedPlan, {
+        spawn: () => createFakeCodexCliChild({
+          stdout: "",
+          exitCode: 0
+        })
+      }),
+      new RegExp(`codex_cli_policy_bypass_arg_not_allowed:${arg}`)
+    );
+    assert.throws(
+      () => createCodexCliExecPlan(plan.task, {
+        extraArgs: [arg]
+      }),
+      new RegExp(`codex_cli_policy_bypass_arg_not_allowed:${arg}`)
+    );
+  }
+});
+
+test("codex cli host runner rejects feature flag override argv", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-forged-feature-flag-override",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+
+  for (const arg of ["--enable", "--enable=experimental", "--disable", "--disable=sandbox"]) {
+    const forgedPlan = {
+      ...plan,
+      args: [...plan.args, arg]
+    };
+
+    assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(
+      `codex_cli_feature_flag_override_not_allowed:${arg}`
+    ));
+    await assert.rejects(
+      () => runCodexCliExecPlan(forgedPlan, {
+        spawn: () => createFakeCodexCliChild({
+          stdout: "",
+          exitCode: 0
+        })
+      }),
+      new RegExp(`codex_cli_feature_flag_override_not_allowed:${arg}`)
+    );
+    assert.throws(
+      () => createCodexCliExecPlan(plan.task, {
+        extraArgs: [arg]
+      }),
+      new RegExp(`codex_cli_feature_flag_override_not_allowed:${arg}`)
+    );
+  }
+});
+
+test("codex cli host runner rejects argv outside the production allowlist", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-forged-unknown-argv",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+
+  for (const [arg, expectedReason] of [
+    ["--experimental-unsafe-mode", "codex_cli_arg_not_allowlisted:--experimental-unsafe-mode"],
+    ["unexpected-positional", "codex_cli_positional_arg_not_allowlisted:unexpected-positional"]
+  ] as const) {
+    const forgedPlan = {
+      ...plan,
+      args: [...plan.args, arg]
+    };
+
+    assert.ok(validateCodexCliExecPlanForRun(forgedPlan).includes(expectedReason));
+    await assert.rejects(
+      () => runCodexCliExecPlan(forgedPlan, {
+        spawn: () => createFakeCodexCliChild({
+          stdout: "",
+          exitCode: 0
+        })
+      }),
+      new RegExp(expectedReason)
+    );
+    assert.throws(
+      () => createCodexCliExecPlan(plan.task, {
+        extraArgs: [arg]
+      }),
+      new RegExp(expectedReason)
+    );
+  }
 });
 
 test("codex cli host runner rejects forged provider override argv", async () => {
@@ -3827,6 +4040,26 @@ test("codex cli read-only smoke fails if the model tries to use commands", async
   assert.equal(result.governance?.observation.status, "failed");
   assert.ok(result.governance?.observation.blockingReasons.includes(
     "codex_cli_readonly_smoke_unexpected_tool_use:command_execution"
+  ));
+});
+
+test("codex cli read-only smoke fails if the model uses web search", async () => {
+  const result = await runCodexCliReadOnlySmoke({
+    spawn: () => createFakeCodexCliChild({
+      stdout: [
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"web_search_call\",\"query\":\"should not search\"}}",
+        `{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"${CODEX_CLI_READONLY_SMOKE_OK}"}}`
+      ].join("\n") + "\n",
+      exitCode: 0
+    })
+  });
+
+  assert.equal(result.status, "failed");
+  assert.ok(result.run?.inspection.blockingReasons.includes(
+    "codex_cli_readonly_smoke_unexpected_tool_use:web_search_call"
+  ));
+  assert.ok(result.governance?.observation.blockingReasons.includes(
+    "codex_cli_readonly_smoke_unexpected_tool_use:web_search_call"
   ));
 });
 

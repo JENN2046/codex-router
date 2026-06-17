@@ -167,7 +167,8 @@ export async function collectSourceReleasePackageBoundaryAuditInput(
   ] = await Promise.all([
     git(["status", "--short"], cwd),
     git(["branch", "--show-current"], cwd),
-    git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd),
+    git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd)
+      .catch(() => "unknown\tunknown"),
     collectArchiveManifest(cwd, SOURCE_REVIEW_PACK_PLAN),
     collectArchiveManifest(cwd, RELEASE_EVIDENCE_PACK_PLAN)
   ]);
@@ -471,11 +472,11 @@ function parseAheadBehind(value: string): { ahead: number; behind: number } {
 
 function parseCount(value: string | undefined): number {
   if (value === undefined) {
-    return 0;
+    return -1;
   }
 
   const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) ? parsed : -1;
 }
 
 function normalizeDirectoryPath(filePath: string): string {

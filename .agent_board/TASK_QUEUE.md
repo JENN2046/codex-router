@@ -2,100 +2,90 @@
 
 ## Done
 
-- Refresh stale roadmap/continue-anchor baselines through current `24c3508`.
-- Add local approval consumption dispatch audit matrix documentation.
-- Add `audit:approval-consumption-dispatch-matrix` script entry.
-- Add matrix audit implementation and regression tests.
-- Validate targeted governance evidence suite, typecheck, full tests, build, and
-  staged diff whitespace.
-- Commit local checkpoint `b8d0b01`.
-- Fast-forward merge evidence matrix into `main`.
-- Push `main` to `origin/main` at `24c3508`.
-- Validate `npm run audit:approval-consumption-dispatch-matrix` on clean
-  `main`.
-- Run fresh real read-only Codex CLI smoke under exact operator authorization.
-- Fast-forward fresh smoke evidence into `main`.
-- Rerun main-only real read-only smoke audits on clean `main`.
-- Push `main` to `origin/main` at `c95ab3b`.
-- Design controlled execution gate for the next real Codex CLI step.
-- Validate `npm run audit:controlled-execution-gate-design`.
-- Fast-forward controlled execution gate design into `main`.
-- Push `main` to `origin/main` at `6e55131`.
-- Add future Codex CLI canary execution packet checklist.
-- Fast-forward future packet checklist into `main`.
-- Validate `npm run audit:future-codex-cli-canary-packet-checklist`.
-- Push `main` to `origin/main` at `2f16fa2`.
-- Refresh post-push anchors for `4db8174`.
-- Draft/review the future canary execution authorization packet.
-- Commit the packet draft/review branch.
-- Fast-forward merge authorization packet draft/review into local `main`.
-- Validate `npm run audit:future-codex-cli-canary-authorization-packet` on clean
-  local `main`.
-- Refresh post-merge anchors for clean-main authorization packet audit.
-- Push local `main` to `origin/main` at `c73fa1b`.
-- Refresh post-push anchors for `c73fa1b`.
-- Fast-forward merge post-push authorization packet anchors into local `main`.
-- Validate `npm run audit:future-codex-cli-canary-authorization-packet` on clean
-  local `main` after the post-push anchor merge.
-- Push local `main` to `origin/main` at `19b3a5e`.
-- Design the final local execution gate for a future real workspace-write
-  canary without executing it.
-- Fast-forward merge future canary execution gate into local `main`.
-- Validate `npm run audit:future-codex-cli-canary-execution-gate` on clean
-  local `main`.
-- Refresh post-merge anchors for clean-main execution gate audit.
-- Push local `main` to `origin/main` at `c679c58`.
-- Refresh post-push anchors for `c679c58`.
-- Fast-forward merge post-push execution gate anchors into local `main`.
-- Validate `npm run audit:future-codex-cli-canary-execution-gate` on clean
-  local `main` after the post-push anchor merge.
-- Push local `main` to `origin/main` at `fe181cb`.
-- Refresh post-push anchors for `fe181cb`.
-- Design the final pre-execution review before exact operator authorization.
-- Fast-forward merge pre-execution review into local `main`.
-- Run `npm run audit:future-codex-cli-canary-pre-execution-review` on clean
-  local `main`; blocked only by `mainAlignedWithOrigin`.
-- Refresh post-merge anchors for clean-main pre-execution review audit.
-- Push local `main` to `origin/main` at `3a71acc`.
-- Rerun `npm run audit:future-codex-cli-canary-pre-execution-review` on aligned
-  clean `main`.
-- Align `audit:workspace-write-real-canary-final-local` with clean aligned
-  `main` gate shape.
-- Validate the final-local audit fix with targeted tests, typecheck, and full
-  `npm test` (`1027 / 1027`).
-- Push local `main` to `origin/main` at `590dbd4`.
-- Run one bounded real Codex CLI workspace-write canary under exact operator
-  authorization.
-- Record real canary evidence at
-  `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`.
-- Remove `tmp\codex-cli-write-canary.txt` after the canary run.
-- Push real canary evidence to `origin/main` at `5e24281`.
-- Refresh post-real-canary anchors.
-- Push post-real-canary anchors to `origin/main` at `5642b43`.
-- Push post-canary receipt rollback gate to `origin/main` at `5566777`.
-- Validate `npm run audit:post-canary-receipt-rollback-gate` on clean aligned
-  `main`.
-- Refresh post-rollback-gate anchors.
-- Fast-forward merge post-rollback-gate anchors into local `main`.
-- Push local `main` to `origin/main` at `67bee3f`.
-- Design capability taxonomy and escalation policy for future write-capable
-  steps.
-- Add local non-executing taxonomy audit script and regression tests.
-- Validate taxonomy targeted tests, typecheck, full tests, and build without
-  running workspace-write or general provider execution.
-- Commit the taxonomy/policy branch.
-- Run `npm run audit:capability-taxonomy-escalation-policy` on the clean branch.
-- Fast-forward local `main` to `origin/main` at
-  `68320e3 test: add capability taxonomy escalation policy`.
-- Validate synced `main` with `npm run typecheck`, `npm test` (`1037 / 1037`),
-  `npm run build`, and
-  `npm run audit:capability-taxonomy-escalation-policy`.
-- Create local branch `docs/update-agent-board-68320e3` for the `.agent_board`
-  refresh.
-- Refresh `.agent_board` to the current `68320e3` mainline and latest
-  validation state.
-- Validate the `.agent_board` refresh with `git diff --check` and stale-state
-  text search.
+- Fix Codex CLI policy bypass argv matching so `--ignore-rules=true` and
+  `--ignore-rules=false` are blocked.
+- Block Codex CLI feature flag override argv through `--enable` and
+  `--disable` variants.
+- Validate and push branch `fix/codex-cli-policy-bypass-flags`.
+- Add `docs/current/CURRENT_STATE.md` as the compact current-state surface.
+- Add `scripts/run-state-sync-audit.ts`.
+- Add `tests/state-sync-audit.test.ts`.
+- Add package script `audit:state-sync`.
+- Refresh `.agent_board` to point at `docs/current/CURRENT_STATE.md` and current
+  branch state.
+- Validate state-sync targeted tests, state-sync audit, typecheck, full tests,
+  and build.
+- Add Codex CLI production argv allowlist validator.
+- Add regression coverage for unknown forged flags and unknown positional argv.
+- Validate Codex CLI host targeted tests, state-sync audit, typecheck, full
+  tests, and build after the allowlist change.
+- Align strict JSONL known-event handling with official Codex event families for
+  `turn.failed` and web search item shapes.
+- Add official JSONL fixture coverage for `thread.started`, `turn.started`,
+  `turn.failed`, `item.*`, MCP tool calls, web search calls, plan updates, file
+  changes, and command execution.
+- Validate Codex CLI host targeted tests, state-sync audit, typecheck, full
+  tests, and build after the JSONL fixture change.
+- Extract pure state-sync audit rules into
+  `packages/state-sync-audit/src/index.ts`.
+- Keep `scripts/run-state-sync-audit.ts` as the repository collection and CLI
+  shell.
+- Validate state-sync targeted tests, state-sync audit, typecheck, full tests,
+  Codex CLI host targeted tests, and build after the audit-core extraction.
+- Fix CI shallow checkout failures for read-only audit collectors that inspect
+  `origin/main`.
+- Validate the failed CI test files, nested smoke-chain audit files, typecheck,
+  full tests, build, and state-sync audit after the CI fix.
+- Fix PR review feedback for `turn.failed`, state-sync hash freshness, and
+  unknown `origin/main` freshness.
+- Validate PR review fixes with targeted tests, typecheck, full tests, and
+  build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the first PR review fix.
+- Validate the state refresh with `npm run audit:state-sync`.
+- Fix PR review feedback requiring `Upstream divergence` to match actual
+  ahead/behind state.
+- Validate upstream divergence fix with targeted state-sync tests, typecheck,
+  full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the upstream divergence
+  review fix.
+- Validate the state refresh with `npm run audit:state-sync`.
+- Fix PR review feedback requiring web search events to count as unexpected
+  tool use during probes and read-only smoke validation.
+- Validate web search probe fix with Codex CLI host targeted tests, typecheck,
+  full tests, build, and state-sync audit.
+- Fix PR review feedback requiring state hashes to remain valid when
+  `audit:state-sync` runs on a PR merge checkout.
+- Validate PR merge checkout state-sync fix with targeted state-sync tests,
+  typecheck, state-sync audit, full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the PR merge checkout
+  state-sync review fix.
+- Fix PR review feedback requiring state hashes to remain valid in shallow PR
+  merge checkouts where `HEAD^2^` cannot be resolved.
+- Validate shallow PR merge checkout state-sync fix with targeted state-sync
+  tests, typecheck, state-sync audit, full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the shallow PR merge
+  checkout state-sync review fix.
+- Fix CI failure caused by a state-sync regression test baking in a previous
+  state refresh hash.
+- Validate state-sync test stability fix with targeted state-sync tests,
+  typecheck, state-sync audit, full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the test stability fix.
+- Fix repeated synthetic single-commit review checkout state hash failures
+  without accepting arbitrary stale state.
+- Validate synthetic review checkout state-sync fix with targeted state-sync
+  tests, typecheck, state-sync audit, full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the synthetic review
+  checkout fix.
+- Fix PR review feedback so merge checkout base parents are not accepted as
+  state commits when PR-side merge ancestry evidence exists.
+- Validate merge base exclusion with targeted state-sync tests, typecheck,
+  state-sync audit, full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the merge base exclusion
+  fix.
+- Fix PR review feedback so the state-sync collector filters merge checkout
+  base parents out of `allowedStateCommits` before review.
+- Validate merge-base allowlist collection with targeted state-sync tests,
+  typecheck, state-sync audit, full tests, and build.
 
 ## In Progress
 
@@ -103,10 +93,13 @@
 
 ## Blocked
 
-- General workspace-write or general provider execution: requires a separate
-  exact operator authorization and a new controlled execution gate.
+- General workspace-write or general provider execution remains blocked until a
+  separate exact operator authorization and a new controlled execution gate are
+  provided.
+- Protected remote writes, release, tag, deployment, and secret changes remain
+  blocked unless explicitly authorized in a future task.
 
 ## Remaining
 
-- Review and optionally commit the `.agent_board` refresh locally.
-- Merge and push only after explicit user authorization for that remote action.
+- Commit the merge-base allowlist collection state refresh.
+- Push PR #41 and wait for checks.

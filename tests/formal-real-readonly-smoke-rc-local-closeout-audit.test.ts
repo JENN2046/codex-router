@@ -103,6 +103,19 @@ test("formal real read-only smoke RC local closeout blocks stale or unsafe state
   ));
 });
 
+test("formal real read-only smoke RC local closeout fails closed when origin freshness is unknown", async () => {
+  const review = reviewFormalRealReadonlySmokeRcLocalCloseoutAudit({
+    ...(await createInputFromWorkspace()),
+    aheadBehind: "unknown\tunknown"
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes(
+    "formal_real_readonly_smoke_rc_local_closeout_notBehindOrigin"
+  ));
+  assert.equal(review.summary.behind, -1);
+});
+
 test("formal real read-only smoke RC local closeout blocks reopened final preflight", async () => {
   const input = await createInputFromWorkspace();
   const finalPreflight = JSON.parse(input.finalPreflightEvidenceText);

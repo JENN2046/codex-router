@@ -90,6 +90,17 @@ test("read-only real smoke chain index audit blocks stale or unsafe receipt", as
   assert.ok(review.reasons.includes("readonly_real_smoke_chain_index_workspaceWriteClosed"));
 });
 
+test("read-only real smoke chain index audit fails closed when origin freshness is unknown", async () => {
+  const review = reviewReadonlyRealSmokeChainIndexAudit({
+    ...(await createInputFromWorkspace()),
+    aheadBehind: "unknown\tunknown"
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("readonly_real_smoke_chain_index_notBehindOrigin"));
+  assert.equal(review.summary.behind, -1);
+});
+
 test("read-only real smoke chain index audit blocks reopened formal gates", async () => {
   const input = await createInputFromWorkspace();
   const auth = JSON.parse(input.formalExecutionAuthEvidenceText);
