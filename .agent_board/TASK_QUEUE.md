@@ -59,6 +59,12 @@
   typecheck, state-sync audit, full tests, and build.
 - Refresh `CURRENT_STATE.md` and `.agent_board` after the PR merge checkout
   state-sync review fix.
+- Fix PR review feedback requiring state hashes to remain valid in shallow PR
+  merge checkouts where `HEAD^2^` cannot be resolved.
+- Validate shallow PR merge checkout state-sync fix with targeted state-sync
+  tests, typecheck, state-sync audit, full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the shallow PR merge
+  checkout state-sync review fix.
 
 ## In Progress
 

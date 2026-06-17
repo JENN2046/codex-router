@@ -1,7 +1,7 @@
 # Run State
 
-Status: PR merge checkout state-sync review fix committed; state metadata
-refresh is in progress.
+Status: shallow PR merge checkout state-sync review fix committed; state
+metadata refresh is in progress.
 
 Current truth source:
 
@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `948ca3a`
+- `8a976b0`
 
 Upstream:
 
@@ -35,12 +35,12 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `948ca3a`:
+Validation baseline for `8a976b0`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `12 / 12`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1096 / 1096`
+- `npm test`: passed, `1097 / 1097`
 - `npm run build`: passed
 - `npm run audit:state-sync`: passed before state refresh
 
@@ -55,6 +55,8 @@ Latest local optimization:
   unexpected tool use
 - state-sync audit accepts PR merge checkout second-parent ancestry for stale
   state hashes while still blocking unrelated stale hashes
+- state-sync audit reads declared parents from `HEAD^2` so shallow PR merge
+  checkouts can validate the PR head parent without downloading it
 - read-only audit freshness collectors fail closed when `origin/main`
   divergence is unknown
 - pure state-sync audit rules extracted to

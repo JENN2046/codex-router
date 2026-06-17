@@ -12,20 +12,20 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `948ca3a` |
+| Current head | `8a976b0` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
 | Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `948ca3a` |
+| Latest validated commit | `8a976b0` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `948ca3a`:
+Latest validated commands for `8a976b0`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`.
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `12 / 12`.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1096 / 1096`.
+- `npm test`: passed, `1097 / 1097`.
 - `npm run build`: passed.
 - `npm run audit:state-sync`: passed before state refresh.
 
@@ -59,9 +59,9 @@ State sync command:
 Current state-sync slice validation:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`.
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `12 / 12`.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1096 / 1096`.
+- `npm test`: passed, `1097 / 1097`.
 - `npm run build`: passed.
 - `npm run audit:state-sync`: passed before state refresh.
 
@@ -79,6 +79,9 @@ Latest local optimization:
 - State-sync audit now accepts stale state hashes from PR merge checkout
   second-parent ancestry while still blocking stale hashes outside that
   ancestry.
+- State-sync audit now also reads the declared parents of `HEAD^2`, so shallow
+  PR merge checkouts can validate a state refresh that records the PR head's
+  parent commit.
 - Read-only audit freshness collectors now fail closed when `origin/main`
   divergence is unknown instead of pretending `0 / 0`.
 - Pure state-sync audit rules were extracted to
