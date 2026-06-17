@@ -427,7 +427,8 @@ export async function collectReadonlyProductizationAcceptanceInput(
   const [gitStatusShort, branch, aheadBehind, headShort] = await Promise.all([
     git(["status", "--short"], cwd),
     git(["branch", "--show-current"], cwd),
-    git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd),
+    git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd)
+      .catch(() => "0\t0"),
     git(["rev-parse", "--short", "HEAD"], cwd)
   ]);
 

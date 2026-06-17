@@ -145,6 +145,7 @@ export async function collectReadonlyFormalIntegrationReadinessMatrixAuditInput(
     git(["status", "--short"], cwd),
     git(["branch", "--show-current"], cwd),
     git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd)
+      .catch(() => "0\t0")
   ]);
 
   return {

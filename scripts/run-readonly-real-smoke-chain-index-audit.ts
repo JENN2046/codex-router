@@ -121,6 +121,7 @@ export async function collectReadonlyRealSmokeChainIndexAuditInput(
     git(["status", "--short"], cwd),
     git(["branch", "--show-current"], cwd),
     git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd)
+      .catch(() => "0\t0")
   ]);
   const read = (path: string) => readFile(join(cwd, path), "utf8");
   const [

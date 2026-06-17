@@ -167,7 +167,8 @@ export async function collectSourceReleasePackageBoundaryAuditInput(
   ] = await Promise.all([
     git(["status", "--short"], cwd),
     git(["branch", "--show-current"], cwd),
-    git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd),
+    git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd)
+      .catch(() => "0\t0"),
     collectArchiveManifest(cwd, SOURCE_REVIEW_PACK_PLAN),
     collectArchiveManifest(cwd, RELEASE_EVIDENCE_PACK_PLAN)
   ]);
