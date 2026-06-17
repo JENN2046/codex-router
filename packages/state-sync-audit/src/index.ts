@@ -104,6 +104,14 @@ export function reviewStateSyncAudit(
     input.agentBoardText.includes(marker) || input.currentStateText.includes(marker)
   );
   const combinedStateText = `${input.currentStateText}\n${input.agentBoardText}`;
+  const syntheticReviewState = syntheticReviewStateAllowed(
+    input,
+    currentHead,
+    latestValidatedCommit,
+    ahead,
+    behind,
+    staleAfterCommit
+  );
 
   const checks = {
     packageScriptPresent: packageScriptReview.mismatchCount === 0,
@@ -114,6 +122,7 @@ export function reviewStateSyncAudit(
       input.head,
       input.parentHead,
       input.allowedStateCommits,
+      syntheticReviewState,
       staleAfterCommit
     ),
     upstreamRecorded:
@@ -125,6 +134,7 @@ export function reviewStateSyncAudit(
         input.head,
         input.parentHead,
         input.allowedStateCommits,
+        syntheticReviewState,
         staleAfterCommit
       ),
     staleAfterCommitRecorded: staleAfterCommit,
@@ -144,6 +154,7 @@ export function reviewStateSyncAudit(
         input.head,
         input.parentHead,
         input.allowedStateCommits,
+        syntheticReviewState,
         staleAfterCommit
       ),
     staleMarkersAbsent: staleMarkerHits.length === 0,
@@ -237,6 +248,7 @@ function stateCommitMatchesHead(
   head: string,
   parentHead: string | undefined,
   allowedStateCommits: string[] | undefined,
+  syntheticReviewState: string | undefined,
   staleAfterCommit: boolean
 ): boolean {
   if (value === undefined) {
@@ -247,7 +259,8 @@ function stateCommitMatchesHead(
     || (staleAfterCommit && stateCommitIsAllowed(
       value,
       parentHead,
-      allowedStateCommits
+      allowedStateCommits,
+      syntheticReviewState
     ));
 }
 
@@ -264,11 +277,16 @@ function agentBoardCommitsMatchState(
   head: string,
   parentHead: string | undefined,
   allowedStateCommits: string[] | undefined,
+  syntheticReviewState: string | undefined,
   staleAfterCommit: boolean
 ): boolean {
   const allowed = new Set([head]);
   if (staleAfterCommit) {
-    for (const commit of stateCompatibleCommits(parentHead, allowedStateCommits)) {
+    for (const commit of stateCompatibleCommits(
+      parentHead,
+      allowedStateCommits,
+      syntheticReviewState
+    )) {
       allowed.add(commit);
     }
   }
@@ -279,19 +297,61 @@ function agentBoardCommitsMatchState(
 function stateCommitIsAllowed(
   value: string,
   parentHead: string | undefined,
-  allowedStateCommits: string[] | undefined
+  allowedStateCommits: string[] | undefined,
+  syntheticReviewState: string | undefined
 ): boolean {
-  return stateCompatibleCommits(parentHead, allowedStateCommits).includes(value);
+  return stateCompatibleCommits(
+    parentHead,
+    allowedStateCommits,
+    syntheticReviewState
+  ).includes(value);
 }
 
 function stateCompatibleCommits(
   parentHead: string | undefined,
-  allowedStateCommits: string[] | undefined
+  allowedStateCommits: string[] | undefined,
+  syntheticReviewState: string | undefined
 ): string[] {
   return Array.from(new Set([
     ...(parentHead !== undefined ? [parentHead] : []),
-    ...(allowedStateCommits ?? [])
+    ...(allowedStateCommits ?? []),
+    ...(syntheticReviewState !== undefined ? [syntheticReviewState] : [])
   ]));
+}
+
+function syntheticReviewStateAllowed(
+  input: StateSyncAuditInput,
+  currentHead: string | undefined,
+  latestValidatedCommit: string | undefined,
+  ahead: number,
+  behind: number,
+  staleAfterCommit: boolean
+): string | undefined {
+  if (!fieldIncludes(input.currentStateText, "Synthetic review checkout", "allowed")) {
+    return undefined;
+  }
+
+  if (
+    currentHead === undefined
+    || latestValidatedCommit === undefined
+    || currentHead !== latestValidatedCommit
+  ) {
+    return undefined;
+  }
+
+  if (!staleAfterCommit || ahead !== 0 || behind !== 0) {
+    return undefined;
+  }
+
+  if ((input.allowedStateCommits?.length ?? 0) > 0) {
+    return undefined;
+  }
+
+  if (countStatusEntries(input.gitStatusShort) !== 0) {
+    return undefined;
+  }
+
+  return currentHead;
 }
 
 function commitLikeTokens(text: string): string[] {

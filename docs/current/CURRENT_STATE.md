@@ -17,6 +17,7 @@ but current operational facts should be refreshed here first.
 | Upstream divergence | `ahead 0 / behind 0` |
 | Latest validated commit | `aa0df92` |
 | Stale after commit | `true` |
+| Synthetic review checkout | `allowed` |
 
 ## Validation Baseline
 
@@ -84,6 +85,10 @@ Latest local optimization:
   parent commit.
 - State-sync audit merge-checkout regression tests now derive the recorded
   state head dynamically instead of baking in a previous refresh hash.
+- State-sync audit allows synthetic single-commit review checkouts only when
+  this file explicitly records `Synthetic review checkout` as `allowed`, the
+  recorded head and latest validated commit match each other, the checkout is
+  clean, and upstream divergence is `ahead 0 / behind 0`.
 - Read-only audit freshness collectors now fail closed when `origin/main`
   divergence is unknown instead of pretending `0 / 0`.
 - Pure state-sync audit rules were extracted to

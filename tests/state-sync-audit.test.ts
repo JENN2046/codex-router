@@ -81,6 +81,41 @@ test("state sync audit accepts stale state from shallow merge second-parent pare
   assert.equal(review.status, "passed");
 });
 
+test("state sync audit accepts clean synthetic review checkouts when explicitly allowed", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    gitStatusShort: "",
+    head: "8c05119",
+    parentHead: "f37f174",
+    allowedStateCommits: [],
+    aheadBehind: "0\t0"
+  });
+
+  assert.equal(review.status, "passed");
+});
+
+test("state sync audit blocks synthetic review checkouts without explicit state marker", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    gitStatusShort: "",
+    head: "8c05119",
+    parentHead: "f37f174",
+    allowedStateCommits: [],
+    aheadBehind: "0\t0",
+    currentStateText: input.currentStateText.replace(
+      /\| Synthetic review checkout \| `allowed` \|\n/,
+      ""
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
+});
+
 test("state sync audit blocks stale state outside merge checkout ancestry", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
