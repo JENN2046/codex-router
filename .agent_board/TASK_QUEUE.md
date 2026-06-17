@@ -70,6 +70,12 @@
 - Validate state-sync test stability fix with targeted state-sync tests,
   typecheck, state-sync audit, full tests, and build.
 - Refresh `CURRENT_STATE.md` and `.agent_board` after the test stability fix.
+- Fix repeated synthetic single-commit review checkout state hash failures
+  without accepting arbitrary stale state.
+- Validate synthetic review checkout state-sync fix with targeted state-sync
+  tests, typecheck, state-sync audit, full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the synthetic review
+  checkout fix.
 
 ## In Progress
 

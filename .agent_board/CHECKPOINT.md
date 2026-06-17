@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `aa0df92`.
+`fix/codex-cli-policy-bypass-flags` after local commit `a65a7fb`.
 
 The current operational state should now be read from:
 
@@ -49,6 +49,9 @@ The current operational state should now be read from:
   declared parents from `HEAD^2` when `HEAD^2^` is unavailable.
 - Stabilized the shallow merge regression test so it derives the recorded state
   head dynamically instead of baking in a previous refresh hash.
+- Added an explicit synthetic single-commit review checkout rule for state-sync
+  audit, gated on a clean checkout, `ahead 0 / behind 0`, matching recorded
+  state fields, and the `Synthetic review checkout` state marker.
 
 ## Validation
 
@@ -75,7 +78,7 @@ Run for this slice:
 - `npm run audit:state-sync`
   - Result: passed after state refresh
 - `npx tsx --test tests\state-sync-audit.test.ts`
-  - Result: passed, `12 / 12`
+  - Result: passed, `14 / 14`
 - `npx tsx --test tests\codex-cli-host.test.ts`
   - Result: passed, `104 / 104`
 - `npm run typecheck`
@@ -83,7 +86,7 @@ Run for this slice:
 - `npm run audit:state-sync`
   - Result: passed before state refresh
 - `npm test`
-  - Result: passed, `1097 / 1097`
+  - Result: passed, `1099 / 1099`
 - `npm run build`
   - Result: passed
 - `npx tsx --test tests\codex-cli-host.test.ts`

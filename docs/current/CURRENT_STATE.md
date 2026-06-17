@@ -12,21 +12,21 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `aa0df92` |
+| Current head | `a65a7fb` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
 | Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `aa0df92` |
+| Latest validated commit | `a65a7fb` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
 ## Validation Baseline
 
-Latest validated commands for `aa0df92`:
+Latest validated commands for `a65a7fb`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `12 / 12`.
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `14 / 14`.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1097 / 1097`.
+- `npm test`: passed, `1099 / 1099`.
 - `npm run build`: passed.
 - `npm run audit:state-sync`: passed before state refresh.
 
@@ -60,9 +60,9 @@ State sync command:
 Current state-sync slice validation:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `12 / 12`.
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `14 / 14`.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1097 / 1097`.
+- `npm test`: passed, `1099 / 1099`.
 - `npm run build`: passed.
 - `npm run audit:state-sync`: passed before state refresh.
 

@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `aa0df92`
+- `a65a7fb`
 
 Upstream:
 
@@ -35,12 +35,12 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `aa0df92`:
+Validation baseline for `a65a7fb`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `12 / 12`
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `14 / 14`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1097 / 1097`
+- `npm test`: passed, `1099 / 1099`
 - `npm run build`: passed
 - `npm run audit:state-sync`: passed before state refresh
 
@@ -59,6 +59,9 @@ Latest local optimization:
   checkouts can validate the PR head parent without downloading it
 - state-sync audit regression tests derive the recorded state head dynamically
   instead of baking in a previous refresh hash
+- state-sync audit allows clean synthetic single-commit review checkouts only
+  when `CURRENT_STATE.md` explicitly marks them as allowed and the recorded
+  state fields are self-consistent
 - read-only audit freshness collectors fail closed when `origin/main`
   divergence is unknown
 - pure state-sync audit rules extracted to
