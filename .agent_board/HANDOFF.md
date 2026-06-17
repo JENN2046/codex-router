@@ -6,16 +6,17 @@ boundaries, documentation drift, and maintainability pressure.
 Current status:
 
 - Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head at this metadata refresh: `b2f0c1d`
+- Current head at this metadata refresh: `ebd1906`
 - Upstream: `origin/fix/codex-cli-policy-bypass-flags`
 - Current state source: `docs/current/CURRENT_STATE.md`
-- Work in progress: post-commit state metadata refresh after PR review fixes.
+- Work in progress: post-commit state metadata refresh after upstream
+  divergence review fix.
 
 Validated before this broader state-sync cleanup:
 
-- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`: passed, `137 / 137`
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `8 / 8`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1089 / 1089`
+- `npm test`: passed, `1091 / 1091`
 - `npm run build`: passed
 - `npm run audit:state-sync`: passed after state refresh
 
@@ -39,6 +40,8 @@ Local optimizations committed:
 - `b2f0c1d` makes `turn.failed` JSONL events blocking even with exit code `0`.
 - `b2f0c1d` tightens state-sync commit fields to the real head or the
   stale-after-commit parent head.
+- `ebd1906` tightens `Upstream divergence` to the actual ahead/behind result
+  and blocks unknown divergence.
 - `b2f0c1d` makes selected read-only audit freshness checks fail closed when
   `origin/main` divergence is unknown.
 - `packages/state-sync-audit/src/index.ts` now owns pure review and formatting

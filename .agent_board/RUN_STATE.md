@@ -1,6 +1,6 @@
 # Run State
 
-Status: PR review fixes committed locally; state metadata refresh is in
+Status: upstream divergence review fix pushed; state metadata refresh is in
 progress.
 
 Current truth source:
@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `b2f0c1d`
+- `ebd1906`
 
 Upstream:
 
@@ -35,12 +35,12 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `b2f0c1d`:
+Validation baseline for `ebd1906`:
 
-- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`: passed, `137 / 137`
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `8 / 8`
 - `npm run audit:state-sync`: passed after state refresh
 - `npm run typecheck`: passed
-- `npm test`: passed, `1089 / 1089`
+- `npm test`: passed, `1091 / 1091`
 - `npm run build`: passed
 
 Latest local optimization:
@@ -48,6 +48,8 @@ Latest local optimization:
 - `turn.failed` JSONL events fail closed even if Codex CLI exits with code `0`
 - state-sync audit checks recorded commit hashes against the real head or the
   stale-after-commit parent head
+- state-sync audit checks recorded upstream divergence against the actual
+  ahead/behind result and blocks unknown divergence
 - read-only audit freshness collectors fail closed when `origin/main`
   divergence is unknown
 - pure state-sync audit rules extracted to
@@ -57,7 +59,7 @@ Latest local optimization:
 
 Completed validation for this slice:
 
-- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`
+- `npx tsx --test tests\state-sync-audit.test.ts`
 - `npm run audit:state-sync`
 - `npm run typecheck`
 - `npm test`

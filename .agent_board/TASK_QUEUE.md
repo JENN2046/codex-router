@@ -42,6 +42,12 @@
   build.
 - Refresh `CURRENT_STATE.md` and `.agent_board` after commit `b2f0c1d`.
 - Validate the state refresh with `npm run audit:state-sync`.
+- Fix PR review feedback requiring `Upstream divergence` to match actual
+  ahead/behind state.
+- Validate upstream divergence fix with targeted state-sync tests, typecheck,
+  full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after commit `ebd1906`.
+- Validate the state refresh with `npm run audit:state-sync`.
 
 ## In Progress
 

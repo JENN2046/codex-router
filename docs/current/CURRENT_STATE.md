@@ -12,21 +12,21 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `b2f0c1d` |
+| Current head | `ebd1906` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `b2f0c1d` |
+| Upstream divergence | `ahead 0 / behind 0` |
+| Latest validated commit | `ebd1906` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `b2f0c1d`:
+Latest validated commands for `ebd1906`:
 
-- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`: passed, `137 / 137`.
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `8 / 8`.
 - `npx tsx --test tests\codex-cli-host.test.ts`: baseline marker retained;
-  covered by the combined targeted run above.
+  covered by earlier PR review validation in this branch.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1089 / 1089`.
+- `npm test`: passed, `1091 / 1091`.
 - `npm run build`: passed.
 - `npm run audit:state-sync`: passed after state refresh.
 
@@ -59,10 +59,10 @@ State sync command:
 
 Current state-sync slice validation:
 
-- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`: passed, `137 / 137`.
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `8 / 8`.
 - `npm run audit:state-sync`: passed after state refresh.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1089 / 1089`.
+- `npm test`: passed, `1091 / 1091`.
 - `npm run build`: passed.
 
 Latest local optimization:
@@ -72,6 +72,8 @@ Latest local optimization:
 - State-sync audit now requires `Current head` and `Latest validated commit` to
   match the real head, or the parent head when this file intentionally records
   `Stale after commit: true`.
+- State-sync audit now requires `Upstream divergence` to match the actual
+  `git rev-list --left-right --count` result and blocks unknown divergence.
 - Read-only audit freshness collectors now fail closed when `origin/main`
   divergence is unknown instead of pretending `0 / 0`.
 - Pure state-sync audit rules were extracted to

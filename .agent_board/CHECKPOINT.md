@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `b2f0c1d`.
+`fix/codex-cli-policy-bypass-flags` after local commit `ebd1906`.
 
 The current operational state should now be read from:
 
@@ -38,6 +38,8 @@ The current operational state should now be read from:
   with exit code `0`.
 - Tightened state-sync audit to require recorded commit hashes to match the
   real head, or the parent head when `Stale after commit: true`.
+- Tightened state-sync audit to require recorded upstream divergence to match
+  the actual ahead/behind result, with unknown divergence blocked.
 
 ## Validation
 
@@ -55,6 +57,12 @@ Run for this slice:
   - Result: passed, `1082 / 1082`
 - `npm run build`
   - Result: passed
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `8 / 8`
+- `npm test`
+  - Result: passed, `1091 / 1091`
+- `npm run audit:state-sync`
+  - Result: passed after state refresh
 - `npm run audit:state-sync`
   - Result: passed after state refresh
 - `npx tsx --test tests\codex-cli-host.test.ts`
@@ -79,4 +87,4 @@ Run for this slice:
   should be treated as current.
 - The state-sync audit is a local read-only audit. It does not authorize
   execution, provider work, workspace-write, or remote actions.
-- The PR review fix is committed locally at `b2f0c1d`.
+- The upstream divergence review fix is committed and pushed at `ebd1906`.
