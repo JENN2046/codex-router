@@ -66,11 +66,12 @@ export async function collectStateSyncAuditInput(
     input.parentHead = trimmedParentHead;
   }
 
-  const allowedStateCommits = uniqueNonEmpty([
+  const allowedStateCommits = collectAllowedStateCommits({
+    mergeBaseHead: trimmedParentHead,
     mergeParentHead,
     mergeParentParentHead,
-    ...shortCommitParents(mergeParentDeclaredParents)
-  ]);
+    mergeParentDeclaredParents
+  });
   if (allowedStateCommits.length > 0) {
     input.allowedStateCommits = allowedStateCommits;
   }
@@ -100,6 +101,20 @@ async function git(args: string[], cwd: string): Promise<string> {
 
 function uniqueNonEmpty(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+export function collectAllowedStateCommits(input: {
+  mergeBaseHead: string;
+  mergeParentHead: string;
+  mergeParentParentHead: string;
+  mergeParentDeclaredParents: string;
+}): string[] {
+  const mergeBaseHead = input.mergeBaseHead.trim();
+  return uniqueNonEmpty([
+    input.mergeParentHead,
+    input.mergeParentParentHead,
+    ...shortCommitParents(input.mergeParentDeclaredParents)
+  ]).filter((commit) => commit !== mergeBaseHead);
 }
 
 function shortCommitParents(value: string): string[] {

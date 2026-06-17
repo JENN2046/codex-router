@@ -6,6 +6,7 @@ import {
   reviewStateSyncAudit,
   type StateSyncAuditInput
 } from "../packages/state-sync-audit/src/index.js";
+import { collectAllowedStateCommits } from "../scripts/run-state-sync-audit.js";
 
 test("state sync audit passes for current state surfaces", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace());
@@ -148,6 +149,20 @@ test("state sync audit blocks merge base as state when merge ancestry is availab
   assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
+});
+
+test("state sync audit collector excludes merge base from allowed commits", () => {
+  const allowed = collectAllowedStateCommits({
+    mergeBaseHead: "f37f174",
+    mergeParentHead: "c1db64a",
+    mergeParentParentHead: "f37f174",
+    mergeParentDeclaredParents: [
+      "f37f174aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "abc1234bbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ].join(" ")
+  });
+
+  assert.deepEqual(allowed, ["c1db64a", "abc1234"]);
 });
 
 test("state sync audit blocks mismatched upstream divergence", async () => {
