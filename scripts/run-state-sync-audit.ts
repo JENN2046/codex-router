@@ -34,7 +34,7 @@ export async function collectStateSyncAuditInput(
       git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd)
         .catch(() => ""),
       git(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], cwd)
-        .catch(() => "0\t0")
+        .catch(() => "unknown\tunknown")
     ]);
 
   const input: StateSyncAuditInput = {

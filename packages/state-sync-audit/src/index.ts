@@ -90,6 +90,10 @@ export function reviewStateSyncAudit(
     input.currentStateText,
     "Latest validated commit"
   );
+  const upstreamDivergence = fieldValue(
+    input.currentStateText,
+    "Upstream divergence"
+  );
   const staleAfterCommit = fieldIncludes(
     input.currentStateText,
     "Stale after commit",
@@ -112,7 +116,7 @@ export function reviewStateSyncAudit(
     ),
     upstreamRecorded:
       input.upstream === "" || fieldIncludes(input.currentStateText, "Upstream", input.upstream),
-    divergenceRecorded: fieldValueIsPresent(input.currentStateText, "Upstream divergence"),
+    divergenceRecorded: upstreamDivergenceMatches(upstreamDivergence, ahead, behind),
     latestValidatedCommitRecorded:
       stateCommitMatchesHead(
         latestValidatedCommit,
@@ -232,6 +236,14 @@ function stateCommitMatchesHead(
     || (staleAfterCommit && parentHead !== undefined && value === parentHead);
 }
 
+function upstreamDivergenceMatches(
+  value: string | undefined,
+  ahead: number,
+  behind: number
+): boolean {
+  return value === `ahead ${ahead} / behind ${behind}`;
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -264,11 +276,11 @@ function parseAheadBehind(value: string): { ahead: number; behind: number } {
 
 function parseCount(value: string | undefined): number {
   if (value === undefined) {
-    return 0;
+    return -1;
   }
 
   const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) ? parsed : -1;
 }
 
 function countStatusEntries(value: string): number {

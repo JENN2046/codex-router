@@ -53,6 +53,33 @@ test("state sync audit blocks mismatched current head hashes", async () => {
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
+test("state sync audit blocks mismatched upstream divergence", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream divergence \| `[^`]+` \|/,
+      "| Upstream divergence | `ahead 999 / behind 999` |"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_divergenceRecorded"));
+});
+
+test("state sync audit fails closed when upstream divergence is unknown", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    aheadBehind: "unknown\tunknown"
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_divergenceRecorded"));
+  assert.equal(review.summary.ahead, -1);
+  assert.equal(review.summary.behind, -1);
+});
+
 test("state sync audit blocks stale agent board facts", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
@@ -116,6 +143,8 @@ async function createInputFromWorkspace(
   ]).then((texts) => texts.join("\n"));
   const recordedHead = extractStateField(currentStateText, "Current head")
     ?? "UNKNOWN_HEAD";
+  const recordedDivergence = extractStateDivergence(currentStateText)
+    ?? "0\t0";
 
   return {
     gitStatusShort: "",
@@ -123,7 +152,7 @@ async function createInputFromWorkspace(
     head: recordedHead,
     parentHead: recordedHead,
     upstream: "origin/fix/codex-cli-policy-bypass-flags",
-    aheadBehind: "0\t0",
+    aheadBehind: recordedDivergence,
     packageJsonText: await readFile("package.json", "utf8"),
     currentStateText,
     agentBoardText,
@@ -133,4 +162,14 @@ async function createInputFromWorkspace(
 
 function extractStateField(text: string, field: string): string | undefined {
   return new RegExp(`\\| ${field} \\| \`([^\\\`]+)\` \\|`).exec(text)?.[1];
+}
+
+function extractStateDivergence(text: string): string | undefined {
+  const value = extractStateField(text, "Upstream divergence");
+  const match = /^ahead (\d+) \/ behind (\d+)$/.exec(value ?? "");
+  if (match === null) {
+    return undefined;
+  }
+
+  return `${match[1]}\t${match[2]}`;
 }
