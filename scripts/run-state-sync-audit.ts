@@ -25,18 +25,19 @@ const AGENT_BOARD_FILES = [
 export async function collectStateSyncAuditInput(
   cwd = process.cwd()
 ): Promise<StateSyncAuditInput> {
-  const [gitStatusShort, branch, head, upstream, aheadBehind] =
+  const [gitStatusShort, branch, head, parentHead, upstream, aheadBehind] =
     await Promise.all([
       git(["status", "--short"], cwd),
       git(["branch", "--show-current"], cwd),
       git(["rev-parse", "--short", "HEAD"], cwd),
+      git(["rev-parse", "--short", "HEAD^"], cwd).catch(() => ""),
       git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd)
         .catch(() => ""),
       git(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], cwd)
         .catch(() => "0\t0")
     ]);
 
-  return {
+  const input: StateSyncAuditInput = {
     gitStatusShort,
     branch: branch.trim(),
     head: head.trim(),
@@ -46,6 +47,13 @@ export async function collectStateSyncAuditInput(
     currentStateText: await read(cwd, CURRENT_STATE_DOC),
     agentBoardText: await readAgentBoard(cwd)
   };
+
+  const trimmedParentHead = parentHead.trim();
+  if (trimmedParentHead !== "") {
+    input.parentHead = trimmedParentHead;
+  }
+
+  return input;
 }
 
 async function readAgentBoard(cwd: string): Promise<string> {

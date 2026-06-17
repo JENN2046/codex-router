@@ -117,7 +117,7 @@ export async function collectFormalRealReadonlySmokeRcLocalCloseoutAuditInput(
     git(["status", "--short"], cwd),
     git(["branch", "--show-current"], cwd),
     git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd)
-      .catch(() => "0\t0")
+      .catch(() => "unknown\tunknown")
   ]);
   const read = (path: string) => readFile(join(cwd, path), "utf8");
   const [
@@ -268,9 +268,18 @@ function reviewPackageScripts(packageJson: Record<string, unknown> | undefined):
 function parseAheadBehind(value: string): { ahead: number; behind: number } {
   const [aheadText, behindText] = value.split(/\s+/);
   return {
-    ahead: Number(aheadText ?? 0),
-    behind: Number(behindText ?? 0)
+    ahead: parseCount(aheadText),
+    behind: parseCount(behindText)
   };
+}
+
+function parseCount(value: string | undefined): number {
+  if (value === undefined) {
+    return -1;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : -1;
 }
 
 function pr18cCloseoutRecorded(text: string): boolean {

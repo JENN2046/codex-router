@@ -39,6 +39,20 @@ test("state sync audit blocks stale current branch and missing head fields", asy
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
+test("state sync audit blocks mismatched current head hashes", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText
+      .replace(/\| Current head \| `[^`]+` \|/, "| Current head | `deadbee` |")
+      .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit | `feed123` |")
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
 test("state sync audit blocks stale agent board facts", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
@@ -100,11 +114,14 @@ async function createInputFromWorkspace(
     readFile(".agent_board/HANDOFF.md", "utf8"),
     readFile(".agent_board/VALIDATION_LOG.md", "utf8")
   ]).then((texts) => texts.join("\n"));
+  const recordedHead = extractStateField(currentStateText, "Current head")
+    ?? "UNKNOWN_HEAD";
 
   return {
     gitStatusShort: "",
     branch: "fix/codex-cli-policy-bypass-flags",
-    head: "1687e61",
+    head: recordedHead,
+    parentHead: recordedHead,
     upstream: "origin/fix/codex-cli-policy-bypass-flags",
     aheadBehind: "0\t0",
     packageJsonText: await readFile("package.json", "utf8"),
@@ -112,4 +129,8 @@ async function createInputFromWorkspace(
     agentBoardText,
     ...overrides
   };
+}
+
+function extractStateField(text: string, field: string): string | undefined {
+  return new RegExp(`\\| ${field} \\| \`([^\\\`]+)\` \\|`).exec(text)?.[1];
 }

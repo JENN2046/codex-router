@@ -1805,6 +1805,26 @@ test("codex cli semantic inspection recognizes official jsonl event families", (
 
   assert.equal(inspection.status, "failed");
   assert.ok(inspection.blockingReasons.includes("codex_cli_exit_code:1"));
+  assert.ok(inspection.blockingReasons.includes("codex_cli_turn_failed"));
+  assert.equal(
+    inspection.blockingReasons.some((reason) =>
+      reason.startsWith("codex_cli_jsonl_unknown_event_type:")
+    ),
+    false
+  );
+});
+
+test("codex cli semantic inspection fails closed on turn failed with zero exit", () => {
+  const inspection = inspectCodexCliCommandOutput({
+    exitCode: 0,
+    stdout:
+      "{\"type\":\"turn.failed\",\"turn_id\":\"turn_1\",\"error\":{\"message\":\"simulated failure\"}}\n"
+  }, {
+    strictUnknownEvents: true
+  });
+
+  assert.equal(inspection.status, "failed");
+  assert.ok(inspection.blockingReasons.includes("codex_cli_turn_failed"));
   assert.equal(
     inspection.blockingReasons.some((reason) =>
       reason.startsWith("codex_cli_jsonl_unknown_event_type:")

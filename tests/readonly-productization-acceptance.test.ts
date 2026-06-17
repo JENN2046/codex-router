@@ -82,6 +82,18 @@ test("read-only productization acceptance blocks missing package script", async 
   );
 });
 
+test("read-only productization acceptance fails closed when origin freshness is unknown", async () => {
+  const review = reviewReadonlyProductizationAcceptance({
+    ...(await createInputFromWorkspace()),
+    aheadBehind: "unknown\tunknown"
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(
+    review.reasons.includes("readonly_productization_notBehindOrigin")
+  );
+});
+
 test("read-only productization acceptance blocks missing evidence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewReadonlyProductizationAcceptance({

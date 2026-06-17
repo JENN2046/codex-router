@@ -428,7 +428,7 @@ export async function collectReadonlyProductizationAcceptanceInput(
     git(["status", "--short"], cwd),
     git(["branch", "--show-current"], cwd),
     git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd)
-      .catch(() => "0\t0"),
+      .catch(() => "unknown\tunknown"),
     git(["rev-parse", "--short", "HEAD"], cwd)
   ]);
 
@@ -726,9 +726,18 @@ function parseAheadBehind(value: string): { ahead: number; behind: number } {
   const [aheadText, behindText] = value.split(/\s+/);
 
   return {
-    ahead: Number(aheadText ?? 0),
-    behind: Number(behindText ?? 0)
+    ahead: parseCount(aheadText),
+    behind: parseCount(behindText)
   };
+}
+
+function parseCount(value: string | undefined): number {
+  if (value === undefined) {
+    return -1;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : -1;
 }
 
 function parseObject(value: string | null): Record<string, unknown> | undefined {

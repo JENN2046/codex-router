@@ -33,6 +33,7 @@ export interface StateSyncAuditInput {
   gitStatusShort: string;
   branch: string;
   head: string;
+  parentHead?: string;
   upstream: string;
   aheadBehind: string;
   packageJsonText: string;
@@ -84,6 +85,16 @@ export function reviewStateSyncAudit(
   const packageJson = parseObject(input.packageJsonText);
   const packageScriptReview = reviewPackageScripts(packageJson);
   const { ahead, behind } = parseAheadBehind(input.aheadBehind);
+  const currentHead = fieldValue(input.currentStateText, "Current head");
+  const latestValidatedCommit = fieldValue(
+    input.currentStateText,
+    "Latest validated commit"
+  );
+  const staleAfterCommit = fieldIncludes(
+    input.currentStateText,
+    "Stale after commit",
+    "true"
+  );
   const staleMarkerHits = FORBIDDEN_STALE_MARKERS.filter((marker) =>
     input.agentBoardText.includes(marker) || input.currentStateText.includes(marker)
   );
@@ -93,14 +104,23 @@ export function reviewStateSyncAudit(
     packageScriptPresent: packageScriptReview.mismatchCount === 0,
     currentStateRecorded: input.currentStateText.includes("CURRENT_STATE_RECORDED"),
     currentBranchMatches: fieldIncludes(input.currentStateText, "Current branch", input.branch),
-    currentHeadRecorded: fieldValueIsPresent(input.currentStateText, "Current head"),
+    currentHeadRecorded: stateCommitMatchesHead(
+      currentHead,
+      input.head,
+      input.parentHead,
+      staleAfterCommit
+    ),
     upstreamRecorded:
       input.upstream === "" || fieldIncludes(input.currentStateText, "Upstream", input.upstream),
     divergenceRecorded: fieldValueIsPresent(input.currentStateText, "Upstream divergence"),
     latestValidatedCommitRecorded:
-      fieldValueIsPresent(input.currentStateText, "Latest validated commit"),
-    staleAfterCommitRecorded:
-      fieldIncludes(input.currentStateText, "Stale after commit", "true"),
+      stateCommitMatchesHead(
+        latestValidatedCommit,
+        input.head,
+        input.parentHead,
+        staleAfterCommit
+      ),
+    staleAfterCommitRecorded: staleAfterCommit,
     validationBaselineRecorded:
       REQUIRED_VALIDATION_COMMANDS.every((command) =>
         input.currentStateText.includes(command)
@@ -189,7 +209,27 @@ function fieldIncludes(text: string, field: string, value: string): boolean {
 }
 
 function fieldValueIsPresent(text: string, field: string): boolean {
-  return new RegExp(`\\| ${escapeRegExp(field)} \\| \`[^\\\`]+\` \\|`).test(text);
+  return fieldValue(text, field) !== undefined;
+}
+
+function fieldValue(text: string, field: string): string | undefined {
+  const match = new RegExp(`\\| ${escapeRegExp(field)} \\| \`([^\\\`]+)\` \\|`)
+    .exec(text);
+  return match?.[1];
+}
+
+function stateCommitMatchesHead(
+  value: string | undefined,
+  head: string,
+  parentHead: string | undefined,
+  staleAfterCommit: boolean
+): boolean {
+  if (value === undefined) {
+    return false;
+  }
+
+  return value === head
+    || (staleAfterCommit && parentHead !== undefined && value === parentHead);
 }
 
 function escapeRegExp(value: string): string {

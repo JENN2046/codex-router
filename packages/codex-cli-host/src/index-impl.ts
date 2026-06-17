@@ -1957,6 +1957,10 @@ function inspectCodexCliJsonlSemantics(
       blockingReasons.push("codex_cli_jsonl_secret_like_content");
     }
 
+    if (isCodexCliFailedTurnEventType(semanticType)) {
+      blockingReasons.push("codex_cli_turn_failed");
+    }
+
     if (isCodexCliFileChangeLikeEventType(semanticType)) {
       if (options.sandbox === "read-only") {
         blockingReasons.push(
@@ -2160,6 +2164,10 @@ function isCodexCliCommandExecutionLikeEventType(type: string): boolean {
     || normalized === "exec_command"
     || normalized.includes("command_execution")
     || normalized.includes("shell_command");
+}
+
+function isCodexCliFailedTurnEventType(type: string): boolean {
+  return type.toLowerCase() === "turn.failed";
 }
 
 function isCodexCliWriteToolLikeEventType(type: string): boolean {

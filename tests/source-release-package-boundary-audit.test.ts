@@ -56,6 +56,16 @@ test("source/release package boundary blocks stale package configuration", async
   assert.ok(review.reasons.includes("source_release_package_boundary_boundaryDocRecorded"));
 });
 
+test("source/release package boundary fails closed when origin freshness is unknown", async () => {
+  const review = reviewSourceReleasePackageBoundaryAudit({
+    ...(await createInputFromWorkspace()),
+    aheadBehind: "unknown\tunknown"
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("source_release_package_boundary_notBehindOrigin"));
+});
+
 test("source/release package boundary blocks dirty source-review manifests", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewSourceReleasePackageBoundaryAudit({

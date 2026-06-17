@@ -145,7 +145,7 @@ export async function collectReadonlyFormalIntegrationReadinessMatrixAuditInput(
     git(["status", "--short"], cwd),
     git(["branch", "--show-current"], cwd),
     git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd)
-      .catch(() => "0\t0")
+      .catch(() => "unknown\tunknown")
   ]);
 
   return {
@@ -345,9 +345,18 @@ function collectReasons(checks: Record<string, boolean>): string[] {
 function parseAheadBehind(value: string): { ahead: number; behind: number } {
   const [aheadText, behindText] = value.split(/\s+/);
   return {
-    ahead: Number(aheadText ?? 0),
-    behind: Number(behindText ?? 0)
+    ahead: parseCount(aheadText),
+    behind: parseCount(behindText)
   };
+}
+
+function parseCount(value: string | undefined): number {
+  if (value === undefined) {
+    return -1;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : -1;
 }
 
 function parseObject(value: string): Record<string, unknown> | undefined {
