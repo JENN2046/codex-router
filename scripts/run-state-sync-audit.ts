@@ -25,12 +25,23 @@ const AGENT_BOARD_FILES = [
 export async function collectStateSyncAuditInput(
   cwd = process.cwd()
 ): Promise<StateSyncAuditInput> {
-  const [gitStatusShort, branch, head, parentHead, upstream, aheadBehind] =
+  const [
+    gitStatusShort,
+    branch,
+    head,
+    parentHead,
+    mergeParentHead,
+    mergeParentParentHead,
+    upstream,
+    aheadBehind
+  ] =
     await Promise.all([
       git(["status", "--short"], cwd),
       git(["branch", "--show-current"], cwd),
       git(["rev-parse", "--short", "HEAD"], cwd),
       git(["rev-parse", "--short", "HEAD^"], cwd).catch(() => ""),
+      git(["rev-parse", "--short", "HEAD^2"], cwd).catch(() => ""),
+      git(["rev-parse", "--short", "HEAD^2^"], cwd).catch(() => ""),
       git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd)
         .catch(() => ""),
       git(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], cwd)
@@ -51,6 +62,14 @@ export async function collectStateSyncAuditInput(
   const trimmedParentHead = parentHead.trim();
   if (trimmedParentHead !== "") {
     input.parentHead = trimmedParentHead;
+  }
+
+  const allowedStateCommits = uniqueNonEmpty([
+    mergeParentHead,
+    mergeParentParentHead
+  ]);
+  if (allowedStateCommits.length > 0) {
+    input.allowedStateCommits = allowedStateCommits;
   }
 
   return input;
@@ -74,6 +93,10 @@ async function git(args: string[], cwd: string): Promise<string> {
   });
 
   return stdout;
+}
+
+function uniqueNonEmpty(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 async function read(cwd: string, filePath: string): Promise<string> {

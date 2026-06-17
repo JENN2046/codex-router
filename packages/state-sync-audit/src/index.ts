@@ -34,6 +34,7 @@ export interface StateSyncAuditInput {
   branch: string;
   head: string;
   parentHead?: string;
+  allowedStateCommits?: string[];
   upstream: string;
   aheadBehind: string;
   packageJsonText: string;
@@ -112,6 +113,7 @@ export function reviewStateSyncAudit(
       currentHead,
       input.head,
       input.parentHead,
+      input.allowedStateCommits,
       staleAfterCommit
     ),
     upstreamRecorded:
@@ -122,6 +124,7 @@ export function reviewStateSyncAudit(
         latestValidatedCommit,
         input.head,
         input.parentHead,
+        input.allowedStateCommits,
         staleAfterCommit
       ),
     staleAfterCommitRecorded: staleAfterCommit,
@@ -140,6 +143,7 @@ export function reviewStateSyncAudit(
         input.agentBoardText,
         input.head,
         input.parentHead,
+        input.allowedStateCommits,
         staleAfterCommit
       ),
     staleMarkersAbsent: staleMarkerHits.length === 0,
@@ -232,6 +236,7 @@ function stateCommitMatchesHead(
   value: string | undefined,
   head: string,
   parentHead: string | undefined,
+  allowedStateCommits: string[] | undefined,
   staleAfterCommit: boolean
 ): boolean {
   if (value === undefined) {
@@ -239,7 +244,11 @@ function stateCommitMatchesHead(
   }
 
   return value === head
-    || (staleAfterCommit && parentHead !== undefined && value === parentHead);
+    || (staleAfterCommit && stateCommitIsAllowed(
+      value,
+      parentHead,
+      allowedStateCommits
+    ));
 }
 
 function upstreamDivergenceMatches(
@@ -254,14 +263,35 @@ function agentBoardCommitsMatchState(
   text: string,
   head: string,
   parentHead: string | undefined,
+  allowedStateCommits: string[] | undefined,
   staleAfterCommit: boolean
 ): boolean {
   const allowed = new Set([head]);
-  if (staleAfterCommit && parentHead !== undefined) {
-    allowed.add(parentHead);
+  if (staleAfterCommit) {
+    for (const commit of stateCompatibleCommits(parentHead, allowedStateCommits)) {
+      allowed.add(commit);
+    }
   }
 
   return commitLikeTokens(text).every((token) => allowed.has(token));
+}
+
+function stateCommitIsAllowed(
+  value: string,
+  parentHead: string | undefined,
+  allowedStateCommits: string[] | undefined
+): boolean {
+  return stateCompatibleCommits(parentHead, allowedStateCommits).includes(value);
+}
+
+function stateCompatibleCommits(
+  parentHead: string | undefined,
+  allowedStateCommits: string[] | undefined
+): string[] {
+  return Array.from(new Set([
+    ...(parentHead !== undefined ? [parentHead] : []),
+    ...(allowedStateCommits ?? [])
+  ]));
 }
 
 function commitLikeTokens(text: string): string[] {

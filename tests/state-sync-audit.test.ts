@@ -53,6 +53,33 @@ test("state sync audit blocks mismatched current head hashes", async () => {
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
+test("state sync audit accepts stale state from merge checkout second-parent ancestry", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "83b8770",
+    parentHead: "f37f174",
+    allowedStateCommits: [input.head, input.parentHead ?? input.head]
+  });
+
+  assert.equal(review.status, "passed");
+});
+
+test("state sync audit blocks stale state outside merge checkout ancestry", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "83b8770",
+    parentHead: "f37f174",
+    allowedStateCommits: ["abc1234"]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
+});
+
 test("state sync audit blocks mismatched upstream divergence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
