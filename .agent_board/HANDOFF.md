@@ -6,19 +6,19 @@ boundaries, documentation drift, and maintainability pressure.
 Current status:
 
 - Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head at this metadata refresh: `e324718`
+- Current head at this metadata refresh: `c1bbc9d`
 - Upstream: `origin/fix/codex-cli-policy-bypass-flags`
 - Current state source: `docs/current/CURRENT_STATE.md`
-- Work in progress: post-commit state metadata refresh after web search probe
-  review fix.
+- Work in progress: post-commit state metadata refresh after PR merge checkout
+  state-sync review fix.
 
-Validated before this broader state-sync cleanup:
+Validated for current PR merge checkout state-sync review fix:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1094 / 1094`
+- `npm test`: passed, `1096 / 1096`
 - `npm run build`: passed
-- `npm run audit:state-sync`: passed after state refresh
+- `npm run audit:state-sync`: passed before state refresh
 
 Validation for this slice:
 
@@ -45,6 +45,8 @@ Local optimizations committed:
   result and blocks unknown divergence.
 - The review fix treats web search events as unexpected tool use during Codex
   CLI probes and read-only smoke validation.
+- The review fix accepts stale state hashes from PR merge checkout
+  second-parent ancestry while still blocking unrelated stale hashes.
 - The review fix makes selected read-only audit freshness checks fail closed when
   `origin/main` divergence is unknown.
 - `packages/state-sync-audit/src/index.ts` now owns pure review and formatting

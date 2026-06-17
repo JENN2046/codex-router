@@ -12,23 +12,21 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `e324718` |
+| Current head | `c1bbc9d` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
 | Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `e324718` |
+| Latest validated commit | `c1bbc9d` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `e324718`:
+Latest validated commands for `c1bbc9d`:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npx tsx --test tests\codex-cli-host.test.ts`: baseline marker retained;
-  covered by earlier PR review validation in this branch.
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1094 / 1094`.
+- `npm test`: passed, `1096 / 1096`.
 - `npm run build`: passed.
-- `npm run audit:state-sync`: passed after state refresh.
+- `npm run audit:state-sync`: passed before state refresh.
 
 ## Execution Boundary
 
@@ -59,11 +57,11 @@ State sync command:
 
 Current state-sync slice validation:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npm run audit:state-sync`: passed after state refresh.
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1094 / 1094`.
+- `npm test`: passed, `1096 / 1096`.
 - `npm run build`: passed.
+- `npm run audit:state-sync`: passed before state refresh.
 
 Latest local optimization:
 
@@ -76,6 +74,9 @@ Latest local optimization:
   `git rev-list --left-right --count` result and blocks unknown divergence.
 - Codex CLI probe and read-only smoke validation now treat web search events as
   unexpected tool use.
+- State-sync audit now accepts stale state hashes from PR merge checkout
+  second-parent ancestry while still blocking stale hashes outside that
+  ancestry.
 - Read-only audit freshness collectors now fail closed when `origin/main`
   divergence is unknown instead of pretending `0 / 0`.
 - Pure state-sync audit rules were extracted to

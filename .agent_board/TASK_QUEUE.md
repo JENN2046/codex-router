@@ -53,6 +53,12 @@
   tool use during probes and read-only smoke validation.
 - Validate web search probe fix with Codex CLI host targeted tests, typecheck,
   full tests, build, and state-sync audit.
+- Fix PR review feedback requiring state hashes to remain valid when
+  `audit:state-sync` runs on a PR merge checkout.
+- Validate PR merge checkout state-sync fix with targeted state-sync tests,
+  typecheck, state-sync audit, full tests, and build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after the PR merge checkout
+  state-sync review fix.
 
 ## In Progress
 

@@ -1,7 +1,7 @@
 # Run State
 
-Status: upstream divergence review fix pushed; state metadata refresh is in
-progress.
+Status: PR merge checkout state-sync review fix committed; state metadata
+refresh is in progress.
 
 Current truth source:
 
@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `e324718`
+- `c1bbc9d`
 
 Upstream:
 
@@ -25,7 +25,7 @@ Upstream:
 
 Worktree at last board refresh:
 
-- dirty only with the post-review-fix state metadata refresh
+- dirty only with the post-merge-checkout-review-fix state metadata refresh
 
 Current scope:
 
@@ -35,13 +35,13 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `e324718`:
+Validation baseline for `c1bbc9d`:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
-- `npm run audit:state-sync`: passed after state refresh
+- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `11 / 11`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1094 / 1094`
+- `npm test`: passed, `1096 / 1096`
 - `npm run build`: passed
+- `npm run audit:state-sync`: passed before state refresh
 
 Latest local optimization:
 
@@ -52,6 +52,8 @@ Latest local optimization:
   ahead/behind result and blocks unknown divergence
 - Codex CLI probe and read-only smoke checks treat web search events as
   unexpected tool use
+- state-sync audit accepts PR merge checkout second-parent ancestry for stale
+  state hashes while still blocking unrelated stale hashes
 - read-only audit freshness collectors fail closed when `origin/main`
   divergence is unknown
 - pure state-sync audit rules extracted to
@@ -61,7 +63,7 @@ Latest local optimization:
 
 Completed validation for this slice:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`
+- `npx tsx --test tests\state-sync-audit.test.ts`
 - `npm run audit:state-sync`
 - `npm run typecheck`
 - `npm test`

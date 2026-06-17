@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `e324718`.
+`fix/codex-cli-policy-bypass-flags` after local commit `c1bbc9d`.
 
 The current operational state should now be read from:
 
@@ -42,6 +42,9 @@ The current operational state should now be read from:
   the actual ahead/behind result, with unknown divergence blocked.
 - Tightened Codex CLI probe and read-only smoke validation to treat web search
   events as unexpected tool use.
+- Tightened state-sync audit for PR merge checkout contexts by accepting stale
+  state hashes from second-parent ancestry while still blocking unrelated stale
+  hashes.
 
 ## Validation
 
@@ -67,6 +70,16 @@ Run for this slice:
   - Result: passed after state refresh
 - `npm run audit:state-sync`
   - Result: passed after state refresh
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `11 / 11`
+- `npm run typecheck`
+  - Result: passed
+- `npm run audit:state-sync`
+  - Result: passed before state refresh
+- `npm test`
+  - Result: passed, `1096 / 1096`
+- `npm run build`
+  - Result: passed
 - `npx tsx --test tests\codex-cli-host.test.ts`
   - Result: passed, `101 / 101`
 - `npx tsx --test tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts`
