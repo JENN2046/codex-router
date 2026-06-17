@@ -20,6 +20,8 @@ Commands:
   - Result: passed, `1074 / 1074`
 - `npm run build`
   - Result: passed
+- `npm run audit:state-sync`
+  - Result: passed after state refresh
 
 ## State-Sync Slice
 
@@ -78,4 +80,17 @@ Results:
 - `npm run build`
   - Result: passed
 - `npm run audit:state-sync`
+  - Result: passed
+
+## PR Review Fixes
+
+Results:
+
+- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`
+  - Result: passed, `137 / 137`
+- `npm run typecheck`
+  - Result: passed
+- `npm test`
+  - Result: passed, `1089 / 1089`
+- `npm run build`
   - Result: passed

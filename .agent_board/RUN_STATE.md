@@ -1,7 +1,7 @@
 # Run State
 
-Status: CI shallow checkout audit fix committed locally; state metadata refresh
-is in progress.
+Status: PR review fixes committed locally; state metadata refresh is in
+progress.
 
 Current truth source:
 
@@ -17,7 +17,7 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `ebd7967`
+- `b2f0c1d`
 
 Upstream:
 
@@ -25,7 +25,7 @@ Upstream:
 
 Worktree at last board refresh:
 
-- dirty only with the post-commit state metadata refresh
+- dirty only with the post-review-fix state metadata refresh
 
 Current scope:
 
@@ -35,19 +35,21 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `ebd7967`:
+Validation baseline for `b2f0c1d`:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `101 / 101`
-- `npx tsx --test tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts`: passed, `16 / 16`
-- `npx tsx --test tests\readonly-real-smoke-chain-index-audit.test.ts tests\readonly-real-smoke-chain-local-candidate-consistency.test.ts tests\readonly-real-smoke-chain-local-closeout-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts`: passed, `16 / 16`
+- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`: passed, `137 / 137`
+- `npm run audit:state-sync`: passed after state refresh
 - `npm run typecheck`: passed
-- `npm test`: passed, `1082 / 1082`
+- `npm test`: passed, `1089 / 1089`
 - `npm run build`: passed
 
 Latest local optimization:
 
-- read-only audit collectors tolerate missing `origin/main` in CI shallow PR
-  checkouts
+- `turn.failed` JSONL events fail closed even if Codex CLI exits with code `0`
+- state-sync audit checks recorded commit hashes against the real head or the
+  stale-after-commit parent head
+- read-only audit freshness collectors fail closed when `origin/main`
+  divergence is unknown
 - pure state-sync audit rules extracted to
   `packages/state-sync-audit/src/index.ts`
 - `scripts/run-state-sync-audit.ts` remains the CLI and repo collection shell
@@ -55,7 +57,7 @@ Latest local optimization:
 
 Completed validation for this slice:
 
-- `npx tsx --test tests\state-sync-audit.test.ts`
+- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`
 - `npm run audit:state-sync`
 - `npm run typecheck`
 - `npm test`

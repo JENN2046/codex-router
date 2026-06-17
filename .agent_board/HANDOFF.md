@@ -6,18 +6,18 @@ boundaries, documentation drift, and maintainability pressure.
 Current status:
 
 - Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head at this metadata refresh: `ebd7967`
+- Current head at this metadata refresh: `b2f0c1d`
 - Upstream: `origin/fix/codex-cli-policy-bypass-flags`
 - Current state source: `docs/current/CURRENT_STATE.md`
-- Work in progress: post-commit state metadata refresh after the CI shallow
-  checkout audit fix.
+- Work in progress: post-commit state metadata refresh after PR review fixes.
 
 Validated before this broader state-sync cleanup:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `101 / 101`
+- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`: passed, `137 / 137`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1082 / 1082`
+- `npm test`: passed, `1089 / 1089`
 - `npm run build`: passed
+- `npm run audit:state-sync`: passed after state refresh
 
 Validation for this slice:
 
@@ -36,8 +36,11 @@ Validation for this slice:
 
 Local optimizations committed:
 
-- `ebd7967` allows selected read-only audit collectors to tolerate missing
-  `origin/main` during CI shallow PR checkouts.
+- `b2f0c1d` makes `turn.failed` JSONL events blocking even with exit code `0`.
+- `b2f0c1d` tightens state-sync commit fields to the real head or the
+  stale-after-commit parent head.
+- `b2f0c1d` makes selected read-only audit freshness checks fail closed when
+  `origin/main` divergence is unknown.
 - `packages/state-sync-audit/src/index.ts` now owns pure review and formatting
   logic.
 - `scripts/run-state-sync-audit.ts` now owns Git/file collection and CLI
@@ -56,6 +59,5 @@ Hard boundaries:
 Next safe action:
 
 1. Inspect diff and report validation honestly.
-2. Commit this post-commit state refresh, push the branch, then wait for PR #41
-   checks.
-3. Commit and push only after explicit authorization.
+2. Commit this post-commit state refresh.
+3. Push PR #41, then wait for checks.

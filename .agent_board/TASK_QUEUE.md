@@ -36,6 +36,12 @@
   `origin/main`.
 - Validate the failed CI test files, nested smoke-chain audit files, typecheck,
   full tests, build, and state-sync audit after the CI fix.
+- Fix PR review feedback for `turn.failed`, state-sync hash freshness, and
+  unknown `origin/main` freshness.
+- Validate PR review fixes with targeted tests, typecheck, full tests, and
+  build.
+- Refresh `CURRENT_STATE.md` and `.agent_board` after commit `b2f0c1d`.
+- Validate the state refresh with `npm run audit:state-sync`.
 
 ## In Progress
 
@@ -51,9 +57,5 @@
 
 ## Remaining
 
-- Inspect diff.
-- Refresh `CURRENT_STATE.md` to a new commit after any local commit.
-- Next implementation slice: push the CI fix and state refresh to PR #41, then
-  wait for checks.
-- Commit and push only if explicitly requested after validation, or if a later
-  instruction clearly authorizes that remote action.
+- Commit the state refresh.
+- Push PR #41 and wait for checks.

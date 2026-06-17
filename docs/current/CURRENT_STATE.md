@@ -12,22 +12,23 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `ebd7967` |
+| Current head | `b2f0c1d` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
 | Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `ebd7967` |
+| Latest validated commit | `b2f0c1d` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `ebd7967`:
+Latest validated commands for `b2f0c1d`:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `101 / 101`.
-- `npx tsx --test tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts`: passed, `16 / 16`.
-- `npx tsx --test tests\readonly-real-smoke-chain-index-audit.test.ts tests\readonly-real-smoke-chain-local-candidate-consistency.test.ts tests\readonly-real-smoke-chain-local-closeout-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts`: passed, `16 / 16`.
+- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`: passed, `137 / 137`.
+- `npx tsx --test tests\codex-cli-host.test.ts`: baseline marker retained;
+  covered by the combined targeted run above.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1082 / 1082`.
+- `npm test`: passed, `1089 / 1089`.
 - `npm run build`: passed.
+- `npm run audit:state-sync`: passed after state refresh.
 
 ## Execution Boundary
 
@@ -58,17 +59,21 @@ State sync command:
 
 Current state-sync slice validation:
 
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `5 / 5`.
-- `npm run audit:state-sync`: passed.
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `101 / 101`.
+- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`: passed, `137 / 137`.
+- `npm run audit:state-sync`: passed after state refresh.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1082 / 1082`.
+- `npm test`: passed, `1089 / 1089`.
 - `npm run build`: passed.
 
 Latest local optimization:
 
-- CI shallow checkout compatibility was added for read-only audit collectors
-  that inspect divergence from `origin/main`.
+- PR review fixes now fail closed on `turn.failed` JSONL events even when the
+  Codex CLI exits with code `0`.
+- State-sync audit now requires `Current head` and `Latest validated commit` to
+  match the real head, or the parent head when this file intentionally records
+  `Stale after commit: true`.
+- Read-only audit freshness collectors now fail closed when `origin/main`
+  divergence is unknown instead of pretending `0 / 0`.
 - Pure state-sync audit rules were extracted to
   `packages/state-sync-audit/src/index.ts`.
 - `scripts/run-state-sync-audit.ts` now stays focused on repository collection
@@ -87,4 +92,4 @@ Continue the state-surface cleanup locally:
 
 1. keep `CURRENT_STATE.md` as the source of current operational facts
 2. keep `.agent_board` aligned with this file
-3. push the CI fix and state refresh to update PR #41, then wait for checks
+3. commit this state refresh, push PR #41, then wait for checks

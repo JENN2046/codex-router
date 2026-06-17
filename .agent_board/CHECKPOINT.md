@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `ebd7967`.
+`fix/codex-cli-policy-bypass-flags` after local commit `b2f0c1d`.
 
 The current operational state should now be read from:
 
@@ -33,7 +33,11 @@ The current operational state should now be read from:
   output.
 - Updated state-sync tests to import the reusable audit module.
 - Fixed CI shallow checkout failures by allowing selected read-only audit
-  collectors to tolerate missing `origin/main` during input collection.
+  collectors to fail closed when `origin/main` divergence is unknown.
+- Fixed PR review feedback by making `turn.failed` JSONL events blocking even
+  with exit code `0`.
+- Tightened state-sync audit to require recorded commit hashes to match the
+  real head, or the parent head when `Stale after commit: true`.
 
 ## Validation
 
@@ -51,12 +55,22 @@ Run for this slice:
   - Result: passed, `1082 / 1082`
 - `npm run build`
   - Result: passed
+- `npm run audit:state-sync`
+  - Result: passed after state refresh
 - `npx tsx --test tests\codex-cli-host.test.ts`
   - Result: passed, `101 / 101`
 - `npx tsx --test tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts`
   - Result: passed, `16 / 16`
 - `npx tsx --test tests\readonly-real-smoke-chain-index-audit.test.ts tests\readonly-real-smoke-chain-local-candidate-consistency.test.ts tests\readonly-real-smoke-chain-local-closeout-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts`
   - Result: passed, `16 / 16`
+- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`
+  - Result: passed, `137 / 137`
+- `npm run typecheck`
+  - Result: passed
+- `npm test`
+  - Result: passed, `1089 / 1089`
+- `npm run build`
+  - Result: passed
 
 ## Remaining Risk
 
@@ -65,4 +79,4 @@ Run for this slice:
   should be treated as current.
 - The state-sync audit is a local read-only audit. It does not authorize
   execution, provider work, workspace-write, or remote actions.
-- The audit-core extraction is committed locally at `986cd8b`.
+- The PR review fix is committed locally at `b2f0c1d`.
