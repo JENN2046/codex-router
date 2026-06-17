@@ -12,15 +12,15 @@ but current operational facts should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `1687e61` |
+| Current head | `e574f95` |
 | Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
-| Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `1687e61` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `e574f95` |
 | Stale after commit | `true` |
 
 ## Validation Baseline
 
-Latest validated commands for `1687e61`:
+Latest validated commands for `e574f95`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `98 / 98`.
 - `npm run typecheck`: passed.

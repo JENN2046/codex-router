@@ -6,7 +6,7 @@ boundaries, documentation drift, and maintainability pressure.
 Current status:
 
 - Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head before this state-sync slice: `1687e61`
+- Current head before this metadata refresh: `e574f95`
 - Upstream: `origin/fix/codex-cli-policy-bypass-flags`
 - Current state source: `docs/current/CURRENT_STATE.md`
 - Work in progress: current-state document, state-sync audit script, state-sync

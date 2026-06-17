@@ -3,7 +3,7 @@
 ## Current Stage
 
 State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` at base head `1687e61`.
+`fix/codex-cli-policy-bypass-flags` after local commit `e574f95`.
 
 The current operational state should now be read from:
 
@@ -19,7 +19,7 @@ The current operational state should now be read from:
   detection.
 - Wired `npm run audit:state-sync`.
 - Replaced stale `.agent_board` references to old mainline state with the
-  current branch and `1687e61` baseline.
+  current branch and `e574f95` baseline.
 - Added a Codex CLI production argv allowlist validator that rejects forged
   unknown flags and positional argv before spawn.
 - Added Codex CLI host regression coverage for allowlist enforcement.

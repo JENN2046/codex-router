@@ -14,9 +14,9 @@ Branch:
 
 - `fix/codex-cli-policy-bypass-flags`
 
-Current head:
+Current head before metadata refresh:
 
-- `1687e61`
+- `e574f95`
 
 Upstream:
 
@@ -24,7 +24,7 @@ Upstream:
 
 Worktree at last board refresh:
 
-- dirty only because the state-sync/current-state work is in progress
+- dirty only because the post-commit state metadata refresh is in progress
 
 Current scope:
 
@@ -34,7 +34,7 @@ Current scope:
 - no workspace-write execution
 - no release, tag, deployment, or protected remote action
 
-Validation baseline for `1687e61` before this state-sync slice:
+Validation baseline for `e574f95` before the post-commit metadata refresh:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `98 / 98`
 - `npm run typecheck`: passed

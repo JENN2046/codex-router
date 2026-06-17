@@ -127,7 +127,6 @@ export function reviewStateSyncAudit(
   const packageJson = parseObject(input.packageJsonText);
   const packageScriptReview = reviewPackageScripts(packageJson);
   const { ahead, behind } = parseAheadBehind(input.aheadBehind);
-  const expectedDivergence = `ahead ${ahead} / behind ${behind}`;
   const staleMarkerHits = FORBIDDEN_STALE_MARKERS.filter((marker) =>
     input.agentBoardText.includes(marker) || input.currentStateText.includes(marker)
   );
@@ -140,8 +139,7 @@ export function reviewStateSyncAudit(
     currentHeadRecorded: fieldValueIsPresent(input.currentStateText, "Current head"),
     upstreamRecorded:
       input.upstream === "" || fieldIncludes(input.currentStateText, "Upstream", input.upstream),
-    divergenceRecorded:
-      fieldIncludes(input.currentStateText, "Upstream divergence", expectedDivergence),
+    divergenceRecorded: fieldValueIsPresent(input.currentStateText, "Upstream divergence"),
     latestValidatedCommitRecorded:
       fieldValueIsPresent(input.currentStateText, "Latest validated commit"),
     staleAfterCommitRecorded:

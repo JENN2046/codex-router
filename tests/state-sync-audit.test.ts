@@ -29,8 +29,8 @@ test("state sync audit blocks stale current branch and missing head fields", asy
     ...input,
     branch: "main",
     currentStateText: input.currentStateText
-      .replace("| Current head | `1687e61` |", "| Current head |  |")
-      .replace("| Latest validated commit | `1687e61` |", "| Latest validated commit |  |")
+      .replace(/\| Current head \| `[^`]+` \|/, "| Current head |  |")
+      .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit |  |")
   });
 
   assert.equal(review.status, "blocked");
