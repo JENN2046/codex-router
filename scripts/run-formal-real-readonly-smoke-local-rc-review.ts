@@ -9,14 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:formal-real-readonly-smoke-execution-local":
-    "tsx scripts/run-formal-real-readonly-smoke-execution-local-closeout-audit.ts",
-  "audit:formal-real-readonly-smoke-receipt-local":
-    "tsx scripts/run-formal-real-readonly-smoke-receipt-local-audit.ts",
-  "audit:formal-real-readonly-smoke-local-rc":
-    "tsx scripts/run-formal-real-readonly-smoke-local-rc-review.ts",
-  "acceptance:formal-real-readonly-smoke-final-preflight":
-    "tsx scripts/run-formal-real-readonly-smoke-final-preflight-acceptance.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {
@@ -277,15 +270,15 @@ function pr19aReceiptAuditRecorded(text: string): boolean {
   return text.includes(
     "PR_19A_FORMAL_REAL_READONLY_SMOKE_RECEIPT_LOCAL_AUDIT_RECORDED"
   )
-    && text.includes("npm run audit:formal-real-readonly-smoke-receipt-local")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-receipt-local")
     && text.includes(REQUIRED_EVIDENCE.defaultReceipt)
     && normalized.includes("without re-running the real CLI");
 }
 
 function pr19bLocalRcRecorded(text: string): boolean {
   return text.includes("PR_19B_FORMAL_REAL_READONLY_SMOKE_LOCAL_RC_REVIEW_RECORDED")
-    && text.includes("npm run audit:formal-real-readonly-smoke-local-rc")
-    && text.includes("npm run audit:formal-real-readonly-smoke-local-rc -- --json")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-local-rc")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-local-rc -- --json")
     && text.includes(REQUIRED_EVIDENCE.finalPreflight)
     && text.includes(REQUIRED_EVIDENCE.defaultReceipt);
 }

@@ -139,7 +139,7 @@ Additional validation:
 
 | Check | Result |
 | --- | --- |
-| `npm run acceptance:workspace-write-governance` | pass |
+| `npm run governance -- acceptance workspace-write-governance` | pass |
 | `npx tsx --test tests\workspace-write-governance-acceptance.test.ts` | pass, 2 tests |
 | `npm run typecheck` | pass |
 | `npm test` | pass, 837 tests |

@@ -52,7 +52,7 @@ test("read-only productization acceptance passes for clean local evidence", asyn
     noWorkspaceWriteDuringAudit: true,
     noEvidenceWriteDuringAudit: true
   });
-  assert.equal(review.summary.packageScriptTargetCount, 6);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.evidenceTargetCount, 10);
   assert.equal(review.summary.evidencePresentCount, 10);
@@ -61,12 +61,12 @@ test("read-only productization acceptance passes for clean local evidence", asyn
   assert.equal(review.summary.readinessMatrixStatus, "passed");
 });
 
-test("read-only productization acceptance blocks missing package script", async () => {
+test("read-only productization acceptance blocks missing governance runner script", async () => {
   const input = await createInputFromWorkspace();
   const packageJson = JSON.parse(input.packageJsonText ?? "{}") as {
     scripts?: Record<string, string>;
   };
-  delete packageJson.scripts?.["audit:readonly-productization"];
+  delete packageJson.scripts?.governance;
 
   const review = reviewReadonlyProductizationAcceptance({
     ...input,
@@ -78,7 +78,7 @@ test("read-only productization acceptance blocks missing package script", async 
     review.reasons.includes("readonly_productization_packageScriptsPresent")
   );
   assert.ok(
-    review.missingItems.includes("package_script_readonly_productization")
+    review.missingItems.includes("package_script_governance")
   );
 });
 

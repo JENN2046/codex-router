@@ -104,7 +104,7 @@ Still closed:
 Observed existing real read-only surfaces:
 
 - package script: `smoke:readonly:real`
-- package script: `acceptance:real-readonly-smoke-auth`
+- governance runner: `npm run governance -- acceptance real-readonly-smoke-auth`
 - script: `scripts/run-codex-cli-real-readonly-smoke.ts`
 - script: `scripts/run-real-readonly-smoke-authorization-acceptance.ts`
 - test: `tests/codex-cli-real-readonly-smoke-script.test.ts`
@@ -126,8 +126,8 @@ Validation run for this local closeout:
 - `git diff --check`
 - `npx tsx --test tests\codex-cli-real-readonly-smoke-script.test.ts tests\real-readonly-dispatch-acceptance.test.ts tests\host-dispatcher.test.ts`
 - `npx tsx --test tests\real-readonly-smoke-authorization-acceptance.test.ts tests\pr-13a-real-readonly-preflight-taskbook.test.ts tests\codex-cli-real-readonly-smoke-script.test.ts tests\real-readonly-dispatch-acceptance.test.ts tests\host-dispatcher.test.ts`
-- `npm run acceptance:real-readonly-dispatch`
-- `npm run acceptance:real-readonly-smoke-auth`
+- `npm run governance -- acceptance real-readonly-dispatch`
+- `npm run governance -- acceptance real-readonly-smoke-auth`
 - `npm run typecheck`
 - `npm test`
 

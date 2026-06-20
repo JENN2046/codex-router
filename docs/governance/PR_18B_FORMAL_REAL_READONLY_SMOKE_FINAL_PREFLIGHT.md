@@ -14,7 +14,7 @@ protected remote execution, and does not authorize push, release, or tag.
 
 Local acceptance command:
 
-- `npm run acceptance:formal-real-readonly-smoke-final-preflight`
+- `npm run governance -- acceptance formal-real-readonly-smoke-final-preflight`
 
 Evidence:
 
@@ -39,9 +39,9 @@ Before a later task may run the real read-only smoke, rerun and inspect:
 - `npx tsx --test tests\formal-real-readonly-smoke-execution-authorization-acceptance.test.ts`
 - `npx tsx --test tests\formal-real-readonly-smoke-final-preflight-acceptance.test.ts`
 - `npx tsx --test tests\codex-cli-real-readonly-smoke-script.test.ts`
-- `npm run acceptance:formal-real-readonly-smoke-execution-auth`
-- `npm run acceptance:formal-real-readonly-smoke-final-preflight`
-- `npm run audit:formal-real-readonly-smoke-local`
+- `npm run governance -- acceptance formal-real-readonly-smoke-execution-auth`
+- `npm run governance -- acceptance formal-real-readonly-smoke-final-preflight`
+- `npm run governance -- audit formal-real-readonly-smoke-local`
 - `npm test`
 
 Required results:

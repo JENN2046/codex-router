@@ -15,14 +15,7 @@ const DEFAULT_EVIDENCE_PATH = join(
 const DEFAULT_GENERATED_AT = "2026-06-15T00:00:00.000Z";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "acceptance:real-readonly-dispatch":
-    "tsx scripts/run-real-readonly-dispatch-acceptance.ts",
-  "acceptance:formal-readonly-integration":
-    "tsx scripts/run-formal-readonly-cli-integration-readiness.ts",
-  "acceptance:real-readonly-smoke-auth":
-    "tsx scripts/run-real-readonly-smoke-authorization-acceptance.ts",
-  "audit:real-readonly-smoke-local":
-    "tsx scripts/run-real-readonly-smoke-local-closeout-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const FORBIDDEN_EVIDENCE_MARKERS = [

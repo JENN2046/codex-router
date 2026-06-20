@@ -16,13 +16,13 @@ Formal dispatch boundary:
 
 - `docs/governance/PR_16A_FORMAL_READONLY_DISPATCH_BOUNDARY.md`
 - `docs/evidence/codex-cli-formal-readonly-dispatch-boundary-acceptance.json`
-- `npm run acceptance:formal-readonly-dispatch-boundary`
+- `npm run governance -- acceptance formal-readonly-dispatch-boundary`
 
 Local closeout audit:
 
 - `docs/governance/PR_16B_FORMAL_READONLY_DISPATCH_BOUNDARY_LOCAL_CLOSEOUT.md`
-- `npm run audit:formal-readonly-dispatch-boundary-local`
-- `npm run audit:formal-readonly-dispatch-boundary-local -- --json`
+- `npm run governance -- audit formal-readonly-dispatch-boundary-local`
+- `npm run governance -- audit formal-readonly-dispatch-boundary-local -- --json`
 
 ## 3. Required Local Audit Result
 

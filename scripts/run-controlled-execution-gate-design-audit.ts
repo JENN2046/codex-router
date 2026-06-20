@@ -22,18 +22,7 @@ const PR_12B_PRE_EXECUTION_EVIDENCE =
   "docs/evidence/workspace-write-real-canary-pre-execution-acceptance.json";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:controlled-execution-gate-design":
-    "tsx scripts/run-controlled-execution-gate-design-audit.ts",
-  "audit:readonly-real-smoke-chain-local-closeout":
-    "tsx scripts/run-readonly-real-smoke-chain-local-closeout-audit.ts",
-  "acceptance:workspace-write-real-canary-auth":
-    "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
-  "acceptance:workspace-write-real-canary-pre-execution":
-    "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
-  "audit:workspace-write-real-canary-sensitive-scan":
-    "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
-  "audit:workspace-write-real-canary-final-local":
-    "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const FORBIDDEN_OUTPUT_MARKERS = [

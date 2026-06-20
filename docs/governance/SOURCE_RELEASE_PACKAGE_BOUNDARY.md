@@ -77,7 +77,7 @@ It must not include source roots or local state:
 Run:
 
 ```bash
-npm run audit:source-release-package-boundary
+npm run governance -- audit source-release-package-boundary
 ```
 
 The audit scans the archive pack-plan manifest that would feed

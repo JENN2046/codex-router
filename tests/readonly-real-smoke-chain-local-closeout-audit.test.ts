@@ -53,7 +53,7 @@ test("read-only real smoke chain local closeout passes for the local chain", asy
     noRealCodexCliDuringCloseout: true,
     noWorkspaceWriteExecuteDuringCloseout: true
   });
-  assert.equal(review.summary.packageScriptTargetCount, 4);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.candidateDecision, "APPROVE_LOCAL_CANDIDATE");
   assert.equal(review.summary.realSmokeSandbox, "read-only");
@@ -202,9 +202,9 @@ async function createInputFromWorkspace(
 function createPr20cCloseoutText(): string {
   return [
     "PR_20C_READONLY_REAL_SMOKE_CHAIN_LOCAL_CLOSEOUT_COMPLETE",
-    "npm run audit:readonly-real-smoke-chain-local-closeout",
-    "npm run audit:readonly-real-smoke-chain-candidate",
-    "npm run audit:readonly-real-smoke-chain-index",
+    "npm run governance -- audit readonly-real-smoke-chain-local-closeout",
+    "npm run governance -- audit readonly-real-smoke-chain-candidate",
+    "npm run governance -- audit readonly-real-smoke-chain-index",
     "docs/governance/PR_20A_READONLY_REAL_SMOKE_CHAIN_INDEX.md",
     "docs/governance/PR_20B_READONLY_REAL_SMOKE_CHAIN_LOCAL_CANDIDATE.md",
     "docs/governance/PR_20C_READONLY_REAL_SMOKE_CHAIN_LOCAL_CLOSEOUT.md",

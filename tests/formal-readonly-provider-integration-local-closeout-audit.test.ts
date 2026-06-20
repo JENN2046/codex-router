@@ -54,7 +54,7 @@ test("formal read-only provider integration local closeout audit passes for comm
     evidenceSanitized: true,
     closeoutNonAuthorizing: true
   });
-  assert.equal(review.summary.packageScriptTargetCount, 3);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.providerId, "codex-cli");
   assert.equal(review.summary.sideEffectClass, "read_only");
@@ -177,8 +177,8 @@ async function createInputFromWorkspace(
 function createCloseoutDocumentText(): string {
   return [
     "PR_15C_FORMAL_READONLY_PROVIDER_INTEGRATION_LOCAL_CLOSEOUT_COMPLETE",
-    "npm run audit:formal-readonly-provider-integration-local",
-    "npm run audit:formal-readonly-provider-integration-local -- --json",
+    "npm run governance -- audit formal-readonly-provider-integration-local",
+    "npm run governance -- audit formal-readonly-provider-integration-local -- --json",
     "docs/evidence/codex-cli-formal-readonly-provider-integration-taskbook-acceptance.json",
     "docs/evidence/codex-cli-formal-readonly-provider-integration-acceptance.json",
     "does not authorize real Codex CLI invocation",

@@ -15,19 +15,19 @@ Preflight readiness:
 
 - `docs/governance/PR_14A_FORMAL_READONLY_CLI_INTEGRATION_PREFLIGHT.md`
 - `docs/evidence/codex-cli-formal-readonly-integration-readiness.json`
-- `npm run acceptance:formal-readonly-integration`
+- `npm run governance -- acceptance formal-readonly-integration`
 
 Authorization compatibility:
 
 - `docs/governance/PR_14B_FORMAL_READONLY_CLI_INTEGRATION_AUTHORIZATION_PACKET.md`
 - `docs/evidence/codex-cli-formal-readonly-integration-authorization-acceptance.json`
-- `npm run acceptance:formal-readonly-integration-auth`
+- `npm run governance -- acceptance formal-readonly-integration-auth`
 
 Local closeout audit:
 
 - `docs/governance/PR_14C_FORMAL_READONLY_CLI_INTEGRATION_LOCAL_CLOSEOUT.md`
-- `npm run audit:formal-readonly-integration-local`
-- `npm run audit:formal-readonly-integration-local -- --json`
+- `npm run governance -- audit formal-readonly-integration-local`
+- `npm run governance -- audit formal-readonly-integration-local -- --json`
 
 ## 3. Required Local Audit Result
 

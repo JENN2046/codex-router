@@ -44,7 +44,7 @@ work, but the CLI host line has since been extended further:
 Read-only operator acceptance:
 
 ```powershell
-npm run operator:acceptance
+npm run governance -- operator default
 ```
 
 Workspace-write operator acceptance:
@@ -53,13 +53,13 @@ Workspace-write operator acceptance:
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_MODE="workspace-write"
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_ALLOW_WRITE="true"
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_CONFIRMATION="ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE"
-npm run operator:acceptance
+npm run governance -- operator default
 ```
 
 Read-only operator telemetry acceptance:
 
 ```powershell
-npm run operator:acceptance:telemetry
+npm run governance -- operator telemetry
 ```
 
 Workspace-write operator telemetry acceptance:
@@ -68,7 +68,7 @@ Workspace-write operator telemetry acceptance:
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_TELEMETRY_MODE="workspace-write"
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_TELEMETRY_ALLOW_WRITE="true"
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_TELEMETRY_CONFIRMATION="ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE"
-npm run operator:acceptance:telemetry
+npm run governance -- operator telemetry
 ```
 
 ## Validation
@@ -82,10 +82,10 @@ Code validation:
 
 Live acceptance (revalidated `2026-04-27`):
 
-- `npm run operator:acceptance` passed in read-only mode.
-- gated `npm run operator:acceptance` passed in workspace-write mode.
-- `npm run operator:acceptance:telemetry` passed in read-only mode.
-- gated `npm run operator:acceptance:telemetry` passed in workspace-write mode.
+- `npm run governance -- operator default` passed in read-only mode.
+- gated `npm run governance -- operator default` passed in workspace-write mode.
+- `npm run governance -- operator telemetry` passed in read-only mode.
+- gated `npm run governance -- operator telemetry` passed in workspace-write mode.
 - `npm run smoke:telemetry` passed (miss→hit).
 - gated `npm run smoke:workspace-write:telemetry` passed (miss→hit).
 

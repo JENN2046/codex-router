@@ -9,13 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:real-readonly-smoke-local":
-    "tsx scripts/run-real-readonly-smoke-local-closeout-audit.ts",
-  "audit:formal-real-readonly-smoke-execution-local":
-    "tsx scripts/run-formal-real-readonly-smoke-execution-local-closeout-audit.ts",
-  "audit:formal-real-readonly-smoke-receipt-local":
-    "tsx scripts/run-formal-real-readonly-smoke-receipt-local-audit.ts",
-  "smoke:readonly:real": "tsx scripts/run-codex-cli-real-readonly-smoke.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {
@@ -286,8 +280,8 @@ function pr19aAuditRecorded(text: string): boolean {
   return text.includes(
     "PR_19A_FORMAL_REAL_READONLY_SMOKE_RECEIPT_LOCAL_AUDIT_RECORDED"
   )
-    && text.includes("npm run audit:formal-real-readonly-smoke-receipt-local")
-    && text.includes("npm run audit:formal-real-readonly-smoke-receipt-local -- --json")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-receipt-local")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-receipt-local -- --json")
     && text.includes(REQUIRED_EVIDENCE.defaultReceipt)
     && text.includes(REQUIRED_EVIDENCE.finalPreflight);
 }

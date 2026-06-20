@@ -9,14 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:formal-real-readonly-smoke-execution-local":
-    "tsx scripts/run-formal-real-readonly-smoke-execution-local-closeout-audit.ts",
-  "audit:formal-real-readonly-smoke-receipt-local":
-    "tsx scripts/run-formal-real-readonly-smoke-receipt-local-audit.ts",
-  "audit:formal-real-readonly-smoke-local-rc":
-    "tsx scripts/run-formal-real-readonly-smoke-local-rc-review.ts",
-  "audit:formal-real-readonly-smoke-rc-local-closeout":
-    "tsx scripts/run-formal-real-readonly-smoke-rc-local-closeout-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {
@@ -296,21 +289,21 @@ function pr19aReceiptAuditRecorded(text: string): boolean {
   return text.includes(
     "PR_19A_FORMAL_REAL_READONLY_SMOKE_RECEIPT_LOCAL_AUDIT_RECORDED"
   )
-    && text.includes("npm run audit:formal-real-readonly-smoke-receipt-local")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-receipt-local")
     && normalized.includes("without re-running the real CLI");
 }
 
 function pr19bLocalRcRecorded(text: string): boolean {
   const normalized = text.replace(/\s+/g, " ");
   return text.includes("PR_19B_FORMAL_REAL_READONLY_SMOKE_LOCAL_RC_REVIEW_RECORDED")
-    && text.includes("npm run audit:formal-real-readonly-smoke-local-rc")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-local-rc")
     && normalized.includes("without re-running the real CLI");
 }
 
 function pr19cCloseoutRecorded(text: string): boolean {
   return text.includes("PR_19C_FORMAL_REAL_READONLY_SMOKE_LOCAL_RC_CLOSEOUT_COMPLETE")
-    && text.includes("npm run audit:formal-real-readonly-smoke-rc-local-closeout")
-    && text.includes("npm run audit:formal-real-readonly-smoke-rc-local-closeout -- --json")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-rc-local-closeout")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-rc-local-closeout -- --json")
     && text.includes(REQUIRED_EVIDENCE.finalPreflight)
     && text.includes(REQUIRED_EVIDENCE.defaultReceipt);
 }

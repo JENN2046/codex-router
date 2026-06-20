@@ -15,19 +15,19 @@ Formal real read-only smoke taskbook:
 
 - `docs/governance/PR_17A_FORMAL_REAL_READONLY_SMOKE_TASKBOOK.md`
 - `docs/evidence/codex-cli-formal-real-readonly-smoke-taskbook-acceptance.json`
-- `npm run acceptance:formal-real-readonly-smoke-taskbook`
+- `npm run governance -- acceptance formal-real-readonly-smoke-taskbook`
 
 Formal real read-only smoke pre-execution:
 
 - `docs/governance/PR_17B_FORMAL_REAL_READONLY_SMOKE_PRE_EXECUTION.md`
 - `docs/evidence/codex-cli-formal-real-readonly-smoke-pre-execution-acceptance.json`
-- `npm run acceptance:formal-real-readonly-smoke-pre-execution`
+- `npm run governance -- acceptance formal-real-readonly-smoke-pre-execution`
 
 Local closeout audit:
 
 - `docs/governance/PR_17C_FORMAL_REAL_READONLY_SMOKE_LOCAL_CLOSEOUT.md`
-- `npm run audit:formal-real-readonly-smoke-local`
-- `npm run audit:formal-real-readonly-smoke-local -- --json`
+- `npm run governance -- audit formal-real-readonly-smoke-local`
+- `npm run governance -- audit formal-real-readonly-smoke-local -- --json`
 
 ## 3. Required Local Audit Result
 

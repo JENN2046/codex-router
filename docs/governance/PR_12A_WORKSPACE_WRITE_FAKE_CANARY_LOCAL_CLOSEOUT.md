@@ -19,7 +19,7 @@ Implemented:
 - Rollback evidence using a recorded before commit.
 - Canary readiness preflight proving the default missing operator gate is blocked.
 - Sanitized evidence at `docs/evidence/workspace-write-fake-canary-acceptance.json`.
-- Acceptance script: `npm run acceptance:workspace-write-fake-canary`.
+- Acceptance script: `npm run governance -- acceptance workspace-write-fake-canary`.
 
 ## 3. Safety Boundary
 
@@ -56,7 +56,7 @@ Leak check result:
 Validation run:
 
 - `npx tsx --test tests\workspace-write-fake-canary-acceptance.test.ts`
-- `npm run acceptance:workspace-write-fake-canary`
+- `npm run governance -- acceptance workspace-write-fake-canary`
 
 Additional validation should include:
 

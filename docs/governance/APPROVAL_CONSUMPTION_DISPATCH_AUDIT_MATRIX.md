@@ -14,8 +14,8 @@ external service write.
 
 Local matrix audit:
 
-- `npm run audit:approval-consumption-dispatch-matrix`
-- `npm run audit:approval-consumption-dispatch-matrix -- --json`
+- `npm run governance -- audit approval-consumption-dispatch-matrix`
+- `npm run governance -- audit approval-consumption-dispatch-matrix -- --json`
 
 ## 3. Matrix Rows
 

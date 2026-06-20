@@ -9,14 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "acceptance:formal-real-readonly-smoke-execution-auth":
-    "tsx scripts/run-formal-real-readonly-smoke-execution-authorization-acceptance.ts",
-  "acceptance:formal-real-readonly-smoke-final-preflight":
-    "tsx scripts/run-formal-real-readonly-smoke-final-preflight-acceptance.ts",
-  "audit:formal-real-readonly-smoke-local":
-    "tsx scripts/run-formal-real-readonly-smoke-local-closeout-audit.ts",
-  "audit:formal-real-readonly-smoke-execution-local":
-    "tsx scripts/run-formal-real-readonly-smoke-execution-local-closeout-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {
@@ -376,7 +369,7 @@ function reviewPackageScripts(packageJson: Record<string, unknown> | undefined):
 
 function priorLocalCloseoutRecorded(text: string): boolean {
   return text.includes("PR_17C_FORMAL_REAL_READONLY_SMOKE_LOCAL_CLOSEOUT_COMPLETE")
-    && text.includes("npm run audit:formal-real-readonly-smoke-local")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-local")
     && text.includes(
       "docs/evidence/codex-cli-formal-real-readonly-smoke-taskbook-acceptance.json"
     )
@@ -390,7 +383,7 @@ function pr18aAuthorizationRecorded(text: string): boolean {
   return text.includes(
     "PR_18A_FORMAL_REAL_READONLY_SMOKE_EXECUTION_AUTHORIZATION_PACKET_RECORDED"
   )
-    && text.includes("npm run acceptance:formal-real-readonly-smoke-execution-auth")
+    && text.includes("npm run governance -- acceptance formal-real-readonly-smoke-execution-auth")
     && text.includes(REQUIRED_EVIDENCE.executionAuthorization)
     && normalized.includes("does not execute the real Codex CLI")
     && normalized.includes("does not authorize this PR to run provider execute")
@@ -401,7 +394,7 @@ function pr18aAuthorizationRecorded(text: string): boolean {
 function pr18bFinalPreflightRecorded(text: string): boolean {
   const normalized = text.replace(/\s+/g, " ");
   return text.includes("PR_18B_FORMAL_REAL_READONLY_SMOKE_FINAL_PREFLIGHT_RECORDED")
-    && text.includes("npm run acceptance:formal-real-readonly-smoke-final-preflight")
+    && text.includes("npm run governance -- acceptance formal-real-readonly-smoke-final-preflight")
     && text.includes(REQUIRED_EVIDENCE.finalPreflight)
     && normalized.includes("does not set the future execution operator flag")
     && normalized.includes("does not run the real Codex CLI")
@@ -413,8 +406,8 @@ function pr18cCloseoutRecorded(text: string): boolean {
   return text.includes(
     "PR_18C_FORMAL_REAL_READONLY_SMOKE_EXECUTION_LOCAL_CLOSEOUT_COMPLETE"
   )
-    && text.includes("npm run audit:formal-real-readonly-smoke-execution-local")
-    && text.includes("npm run audit:formal-real-readonly-smoke-execution-local -- --json")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-execution-local")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-execution-local -- --json")
     && text.includes(REQUIRED_EVIDENCE.executionAuthorization)
     && text.includes(REQUIRED_EVIDENCE.finalPreflight);
 }

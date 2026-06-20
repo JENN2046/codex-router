@@ -27,7 +27,7 @@ Exact future command shape:
 
 Required local acceptance command:
 
-- `npm run acceptance:formal-real-readonly-smoke-execution-auth`
+- `npm run governance -- acceptance formal-real-readonly-smoke-execution-auth`
 
 Required acceptance evidence:
 
@@ -44,7 +44,7 @@ The future execution packet depends on the PR-17 local chain:
 - `docs/evidence/codex-cli-formal-real-readonly-smoke-taskbook-acceptance.json`
 - `docs/evidence/codex-cli-formal-real-readonly-smoke-pre-execution-acceptance.json`
 - `docs/governance/PR_17C_FORMAL_REAL_READONLY_SMOKE_LOCAL_CLOSEOUT.md`
-- `npm run audit:formal-real-readonly-smoke-local`
+- `npm run governance -- audit formal-real-readonly-smoke-local`
 
 ## 4. Required Execution Boundary
 

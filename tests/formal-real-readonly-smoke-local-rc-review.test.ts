@@ -47,7 +47,7 @@ test("formal real read-only smoke local RC review approves the local candidate",
     evidenceSanitized: true,
     rcNonAuthorizing: true
   });
-  assert.equal(review.summary.packageScriptTargetCount, 4);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.behind, 0);
   assert.equal(review.summary.receiptStatus, "passed");
@@ -179,8 +179,8 @@ async function createInputFromWorkspace(
 function createPr19bLocalRcText(): string {
   return [
     "PR_19B_FORMAL_REAL_READONLY_SMOKE_LOCAL_RC_REVIEW_RECORDED",
-    "npm run audit:formal-real-readonly-smoke-local-rc",
-    "npm run audit:formal-real-readonly-smoke-local-rc -- --json",
+    "npm run governance -- audit formal-real-readonly-smoke-local-rc",
+    "npm run governance -- audit formal-real-readonly-smoke-local-rc -- --json",
     "docs/evidence/codex-cli-formal-real-readonly-smoke-final-preflight-acceptance.json",
     "docs/evidence/codex-cli-real-readonly-smoke.json",
     "does not authorize invoking the real Codex CLI",

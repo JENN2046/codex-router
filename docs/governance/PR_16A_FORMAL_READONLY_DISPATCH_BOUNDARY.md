@@ -21,7 +21,7 @@ command execution, protected remote execution, push, release, or tag.
 
 Local acceptance command:
 
-- `npm run acceptance:formal-readonly-dispatch-boundary`
+- `npm run governance -- acceptance formal-readonly-dispatch-boundary`
 
 Evidence:
 

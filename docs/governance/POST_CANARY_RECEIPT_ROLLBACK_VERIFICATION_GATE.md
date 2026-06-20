@@ -23,7 +23,7 @@ The gate depends on:
 
 Required local audit command:
 
-- `npm run audit:post-canary-receipt-rollback-gate`
+- `npm run governance -- audit post-canary-receipt-rollback-gate`
 
 ## 3. Required Receipt Fields
 

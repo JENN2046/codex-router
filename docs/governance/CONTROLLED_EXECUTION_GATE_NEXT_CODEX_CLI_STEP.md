@@ -48,13 +48,13 @@ Required gate properties:
 Before any future real canary execution packet can be considered, these local
 checks must pass:
 
-- `npm run audit:approval-consumption-dispatch-matrix`
-- `npm run audit:readonly-real-smoke-chain-local-closeout`
-- `npm run acceptance:workspace-write-real-canary-auth`
-- `npm run acceptance:workspace-write-real-canary-pre-execution`
-- `npm run audit:workspace-write-real-canary-sensitive-scan`
-- `npm run audit:workspace-write-real-canary-final-local`
-- `npm run audit:controlled-execution-gate-design`
+- `npm run governance -- audit approval-consumption-dispatch-matrix`
+- `npm run governance -- audit readonly-real-smoke-chain-local-closeout`
+- `npm run governance -- acceptance workspace-write-real-canary-auth`
+- `npm run governance -- acceptance workspace-write-real-canary-pre-execution`
+- `npm run governance -- audit workspace-write-real-canary-sensitive-scan`
+- `npm run governance -- audit workspace-write-real-canary-final-local`
+- `npm run governance -- audit controlled-execution-gate-design`
 
 ## 5. Explicit Future Authorization Boundary
 

@@ -1,5 +1,160 @@
 # Validation Log
 
+## PR2 Governance Surface Split Validation
+
+Branch:
+
+- `chore/governance-validation-surface-slimming`
+
+Commit:
+
+- `dcb7b2d`
+
+Results:
+
+- `git diff --check`
+  - Result: passed.
+- Legacy package-script alias reference search
+  - Result: passed by no matches.
+- `npx tsx --test tests\codex-cli-host.test.ts`
+  - Result: passed, `104 / 104`.
+- `npm run validate:daily -- --test tests\governance-check.test.ts`
+  - Result: passed; included `npm run typecheck` and
+    `tests\governance-check.test.ts` with `6 / 6`.
+- `npm test`
+  - Result: passed, `1107 / 1107`.
+- `npm run build`
+  - Result: passed.
+- `npm run governance -- list`
+  - Result: passed.
+
+## Document Governance Surface Slimming
+
+Branch:
+
+- `chore/governance-validation-surface-slimming`
+
+Commit:
+
+- `dcb7b2d`
+
+Results:
+
+- `wc -l README.md docs/README.md docs/governance/README.md docs/current/CURRENT_STATE.md .agent_board/RUN_STATE.md .agent_board/HANDOFF.md .agent_board/CHECKPOINT.md .agent_board/TASK_QUEUE.md .agent_board/VALIDATION_LOG.md`
+  - Result: current mapped surfaces total `1126` lines after slimming and
+    validation-log recording.
+- Absolute Windows docs-root link search across current docs surfaces
+  - Result: passed by no matches.
+- `git diff --check`
+  - Result: passed.
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `16 / 16`.
+- `npm run governance -- audit state-sync`
+  - Result: passed.
+
+## Legacy Alias Cleanup Follow-Up
+
+Branch:
+
+- `chore/governance-validation-surface-slimming`
+
+Commit:
+
+- `dcb7b2d`
+
+Results:
+
+- `npm run governance -- list`
+  - Result: passed after removing old per-check package script aliases and
+    migrating remaining command references.
+- `npm run validate:daily -- --test tests\governance-check.test.ts`
+  - Result: passed; included `npm run typecheck` and
+    `tests\governance-check.test.ts` with `5 / 5`.
+- `npm run validate:pr`
+  - Result: passed; included `npm run typecheck`, `npm test`
+    (`1108 / 1108`), `npm run build`, and direct
+    `tsx scripts/run-state-sync-audit.ts` dispatch.
+- `rg -n 'npm run (audit|acceptance|operator:acceptance)' . -g '!node_modules' -g '!dist'`
+  - Result: passed by no matches.
+- `rg -n '"(audit|acceptance|operator:acceptance)[^"]*"\s*:' package.json scripts tests packages -g '!node_modules'`
+  - Result: passed by no matches.
+- `rg -n 'audit:state-sync|acceptance:real-readonly-smoke-auth|operator:acceptance|audit:\*|acceptance:\*|operator:acceptance\*' . -g '!node_modules' -g '!dist'`
+  - Result: passed by no matches.
+
+## Validation Tier And Governance Runner Slice
+
+Branch:
+
+- `chore/governance-validation-surface-slimming`
+
+Commit:
+
+- `dcb7b2d`
+
+Results:
+
+- `npm run governance -- list`
+  - Result: passed
+- `npm run validate:daily -- --test tests\governance-check.test.ts`
+  - Result: passed; included `npm run typecheck` and
+    `tests\governance-check.test.ts` with `5 / 5`
+- `npm run typecheck`
+  - Result: passed
+- `npm test`
+  - Result: passed, `1108 / 1108`
+- `git diff --check`
+  - Result: passed
+- `npm run validate:pr`
+  - Result: passed; included `npm run typecheck`, `npm test`
+    (`1108 / 1108`), `npm run build`, and `npm run governance -- audit state-sync`
+- `npm run governance -- audit state-sync`
+  - Result: passed
+
+## Current State-Sync And Governance Runner Slice
+
+Branch:
+
+- `chore/governance-validation-surface-slimming`
+
+Commit:
+
+- `dcb7b2d`
+
+Results before this state refresh:
+
+- `npm run typecheck`
+  - Result: passed
+- `npm test`
+  - Result: passed, `1101 / 1101`
+- `npm run build`
+  - Result: passed
+- `npm run governance -- audit state-sync`
+  - Result: blocked because `CURRENT_STATE.md` still recorded stale branch and
+    upstream facts
+
+Results after implementation:
+
+- `npm run governance -- audit state-sync`
+  - Result: passed
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `16 / 16`
+- `npm run typecheck`
+  - Result: passed
+- `npm test`
+  - Result: first run failed, `1098 / 1103`, because
+    `tests/state-sync-audit.test.ts` still hardcoded the merged PR branch and
+    upstream
+- `npx tsx --test tests\state-sync-audit.test.ts`
+  - Result: passed, `16 / 16`, after fixture refresh
+- `npm run governance -- audit state-sync`
+  - Result: passed after fixture refresh
+- `npm run typecheck`
+  - Result: passed
+- `npm test`
+  - Result: passed, `1103 / 1103`
+- `npm run build`
+  - Result: passed
+
 ## Baseline Before State-Sync Slice
 
 Branch:
@@ -20,9 +175,9 @@ Commands:
   - Result: passed, `1074 / 1074`
 - `npm run build`
   - Result: passed
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed after state refresh
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed after state refresh
 
 ## State-Sync Slice
@@ -30,7 +185,7 @@ Commands:
 Planned commands:
 
 - `npx tsx --test tests\state-sync-audit.test.ts`
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
@@ -39,7 +194,7 @@ Results:
 
 - `npx tsx --test tests\state-sync-audit.test.ts`
   - Result: passed, `5 / 5`
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed
 - `npx tsx --test tests\codex-cli-host.test.ts`
   - Result: passed, `101 / 101`
@@ -56,7 +211,7 @@ Results:
 
 - `npx tsx --test tests\state-sync-audit.test.ts`
   - Result: passed, `5 / 5`
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed
 - `npm run typecheck`
   - Result: passed
@@ -81,7 +236,7 @@ Results:
   - Result: passed, `1082 / 1082`
 - `npm run build`
   - Result: passed
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed
 
 ## PR Review Fixes
@@ -122,7 +277,7 @@ Results:
   - Result: passed, `1094 / 1094`
 - `npm run build`
   - Result: passed
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed before state refresh
 
 ## PR Merge Checkout State-Sync Review Fix
@@ -135,7 +290,7 @@ Results:
   - Result: passed, `104 / 104`
 - `npm run typecheck`
   - Result: passed
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed before state refresh
 - `npm test`
   - Result: passed, `1096 / 1096`
@@ -150,7 +305,7 @@ Results:
   - Result: passed, `12 / 12`
 - `npm run typecheck`
   - Result: passed
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed before state refresh
 - `npm test`
   - Result: passed, `1097 / 1097`
@@ -165,7 +320,7 @@ Results:
   - Result: passed, `12 / 12`
 - `npm run typecheck`
   - Result: passed
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed before state refresh
 - `npm test`
   - Result: passed, `1097 / 1097`
@@ -180,7 +335,7 @@ Results:
   - Result: passed, `14 / 14`
 - `npm run typecheck`
   - Result: passed
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed before state refresh
 - `npm test`
   - Result: passed, `1099 / 1099`
@@ -195,7 +350,7 @@ Results:
   - Result: passed, `15 / 15`
 - `npm run typecheck`
   - Result: passed
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed before state refresh
 - `npm test`
   - Result: passed, `1100 / 1100`
@@ -210,7 +365,7 @@ Results:
   - Result: passed, `16 / 16`
 - `npm run typecheck`
   - Result: passed
-- `npm run audit:state-sync`
+- `npm run governance -- audit state-sync`
   - Result: passed before state refresh
 - `npm test`
   - Result: passed, `1101 / 1101`

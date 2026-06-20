@@ -27,7 +27,7 @@ The taxonomy depends on these already-recorded facts:
 
 Required local audit command:
 
-- `npm run audit:capability-taxonomy-escalation-policy`
+- `npm run governance -- audit capability-taxonomy-escalation-policy`
 
 ## 3. Capability Taxonomy
 

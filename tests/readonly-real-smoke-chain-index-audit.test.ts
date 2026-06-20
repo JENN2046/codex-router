@@ -54,7 +54,7 @@ test("read-only real smoke chain index audit passes for the local chain", async 
     noRealCodexCliDuringIndex: true,
     noWorkspaceWriteExecuteDuringIndex: true
   });
-  assert.equal(review.summary.packageScriptTargetCount, 4);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.realSmokeStatus, "passed");
   assert.equal(review.summary.realSmokeSandbox, "read-only");
@@ -192,8 +192,8 @@ async function createInputFromWorkspace(
 function createPr20aIndexText(): string {
   return [
     "PR_20A_READONLY_REAL_SMOKE_CHAIN_INDEX_RECORDED",
-    "npm run audit:readonly-real-smoke-chain-index",
-    "npm run audit:readonly-real-smoke-chain-index -- --json",
+    "npm run governance -- audit readonly-real-smoke-chain-index",
+    "npm run governance -- audit readonly-real-smoke-chain-index -- --json",
     "docs/evidence/codex-cli-real-readonly-smoke.json",
     "docs/evidence/codex-cli-formal-real-readonly-smoke-execution-authorization-acceptance.json",
     "docs/evidence/codex-cli-formal-real-readonly-smoke-final-preflight-acceptance.json",

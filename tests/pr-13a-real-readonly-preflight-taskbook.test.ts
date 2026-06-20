@@ -24,8 +24,8 @@ test("PR-13A real read-only preflight taskbook keeps the exact future authorizat
     "tsx scripts/run-codex-cli-real-readonly-smoke.ts"
   );
   assert.equal(
-    packageJson.scripts?.["acceptance:real-readonly-smoke-auth"],
-    "tsx scripts/run-real-readonly-smoke-authorization-acceptance.ts"
+    packageJson.scripts?.governance,
+    "tsx scripts/run-governance-check.ts"
   );
 });
 
@@ -63,8 +63,8 @@ test("PR-13A real read-only preflight taskbook preserves the required fresh loca
     "`npx tsx --test tests\\real-readonly-smoke-authorization-acceptance.test.ts`",
     "`npx tsx --test tests\\real-readonly-dispatch-acceptance.test.ts`",
     "`npx tsx --test tests\\host-dispatcher.test.ts`",
-    "`npm run acceptance:real-readonly-smoke-auth`",
-    "`npm run acceptance:real-readonly-dispatch`"
+    "`npm run governance -- acceptance real-readonly-smoke-auth`",
+    "`npm run governance -- acceptance real-readonly-dispatch`"
   ]) {
     assert.ok(taskbook.includes(command), `expected preflight command ${command}`);
   }

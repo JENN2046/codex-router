@@ -34,18 +34,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:formal-readonly-integration-local":
-    "tsx scripts/run-formal-readonly-cli-integration-local-closeout-audit.ts",
-  "audit:formal-readonly-provider-integration-local":
-    "tsx scripts/run-formal-readonly-provider-integration-local-closeout-audit.ts",
-  "audit:formal-readonly-dispatch-boundary-local":
-    "tsx scripts/run-formal-readonly-dispatch-boundary-local-closeout-audit.ts",
-  "audit:formal-real-readonly-smoke-rc-local-closeout":
-    "tsx scripts/run-formal-real-readonly-smoke-rc-local-closeout-audit.ts",
-  "audit:readonly-real-smoke-chain-local-closeout":
-    "tsx scripts/run-readonly-real-smoke-chain-local-closeout-audit.ts",
-  "audit:readonly-formal-integration-matrix":
-    "tsx scripts/run-readonly-formal-integration-readiness-matrix-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const PR21A_DOC =
@@ -317,8 +306,8 @@ function reviewPackageScripts(packageJson: Record<string, unknown> | undefined):
 
 function matrixDocRecorded(text: string): boolean {
   return text.includes("PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX_RECORDED")
-    && text.includes("npm run audit:readonly-formal-integration-matrix")
-    && text.includes("npm run audit:readonly-real-smoke-chain-local-closeout")
+    && text.includes("npm run governance -- audit readonly-formal-integration-matrix")
+    && text.includes("npm run governance -- audit readonly-real-smoke-chain-local-closeout")
     && REQUIRED_DOC_MARKERS.every((marker) => text.includes(marker));
 }
 

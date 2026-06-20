@@ -13,7 +13,7 @@ local command execution, protected remote execution, push, release, or tag.
 
 Local acceptance command:
 
-- `npm run acceptance:formal-readonly-provider-integration`
+- `npm run governance -- acceptance formal-readonly-provider-integration`
 
 Evidence:
 

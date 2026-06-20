@@ -28,7 +28,7 @@ test("state sync audit blocks stale current branch and missing head fields", asy
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
-    branch: "main",
+    branch: `${input.branch}-stale`,
     currentStateText: input.currentStateText
       .replace(/\| Current head \| `[^`]+` \|/, "| Current head |  |")
       .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit |  |")
@@ -225,7 +225,7 @@ test("state sync audit blocks missing script and boundary markers", async () => 
   const packageJson = JSON.parse(input.packageJsonText) as {
     scripts: Record<string, string>;
   };
-  delete packageJson.scripts["audit:state-sync"];
+  delete packageJson.scripts.governance;
   const review = reviewStateSyncAudit({
     ...input,
     packageJsonText: JSON.stringify(packageJson),
@@ -269,15 +269,19 @@ async function createInputFromWorkspace(
   ]).then((texts) => texts.join("\n"));
   const recordedHead = extractStateField(currentStateText, "Current head")
     ?? "UNKNOWN_HEAD";
+  const recordedBranch = extractStateField(currentStateText, "Current branch")
+    ?? "UNKNOWN_BRANCH";
+  const recordedUpstream = extractStateField(currentStateText, "Upstream")
+    ?? "";
   const recordedDivergence = extractStateDivergence(currentStateText)
     ?? "0\t0";
 
   return {
     gitStatusShort: "",
-    branch: "fix/codex-cli-policy-bypass-flags",
+    branch: recordedBranch,
     head: recordedHead,
     parentHead: recordedHead,
-    upstream: "origin/fix/codex-cli-policy-bypass-flags",
+    upstream: recordedUpstream,
     aheadBehind: recordedDivergence,
     packageJsonText: await readFile("package.json", "utf8"),
     currentStateText,

@@ -52,7 +52,7 @@ test("formal read-only dispatch boundary local closeout audit passes for PR-16A 
     evidenceSanitized: true,
     closeoutNonAuthorizing: true
   });
-  assert.equal(review.summary.packageScriptTargetCount, 2);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.providerId, "codex-cli");
   assert.equal(review.summary.sideEffectClass, "read_only");
@@ -170,8 +170,8 @@ async function createInputFromWorkspace(
 function createCloseoutDocumentText(): string {
   return [
     "PR_16B_FORMAL_READONLY_DISPATCH_BOUNDARY_LOCAL_CLOSEOUT_COMPLETE",
-    "npm run audit:formal-readonly-dispatch-boundary-local",
-    "npm run audit:formal-readonly-dispatch-boundary-local -- --json",
+    "npm run governance -- audit formal-readonly-dispatch-boundary-local",
+    "npm run governance -- audit formal-readonly-dispatch-boundary-local -- --json",
     "docs/evidence/codex-cli-formal-readonly-dispatch-boundary-acceptance.json",
     "does not authorize real Codex CLI invocation",
     "does not authorize workspace-write",

@@ -47,7 +47,7 @@ test("PR-17A taskbook records the formal real read-only smoke gate", async () =>
   assert.match(taskbook, /PR_17A_FORMAL_REAL_READONLY_SMOKE_TASKBOOK_RECORDED/);
   assert.match(taskbook, /APPROVE_FORMAL_REAL_CODEX_CLI_READONLY_SMOKE_PR_17A/);
   assert.match(taskbook, /ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real/);
-  assert.match(taskbook, /npm run acceptance:formal-real-readonly-smoke-taskbook/);
+  assert.match(taskbook, /npm run governance -- acceptance formal-real-readonly-smoke-taskbook/);
   assert.match(
     taskbook,
     /docs\/evidence\/codex-cli-formal-real-readonly-smoke-taskbook-acceptance\.json/

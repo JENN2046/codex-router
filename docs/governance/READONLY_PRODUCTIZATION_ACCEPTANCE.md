@@ -17,12 +17,12 @@ does not refresh evidence, and does not set an execution operator flag.
 
 Local acceptance commands:
 
-- `npm run audit:readonly-productization`
-- `npm run audit:readonly-productization -- --json`
+- `npm run governance -- audit readonly-productization`
+- `npm run governance -- audit readonly-productization -- --json`
 
 Required upstream audit:
 
-- `npm run audit:readonly-formal-integration-matrix`
+- `npm run governance -- audit readonly-formal-integration-matrix`
 
 ## 3. Required Evidence
 
@@ -127,7 +127,7 @@ were aligned at `f985c6c`.
 
 Command:
 
-- `npm run audit:readonly-productization`
+- `npm run governance -- audit readonly-productization`
 
 Observed local result:
 
@@ -137,7 +137,7 @@ branch: main
 ahead: 0
 behind: 0
 head: f985c6c
-package scripts: 6/6
+package scripts: 1/1
 evidence files: 10/10
 evidence schema/status: 10/10
 governance docs: 2/2

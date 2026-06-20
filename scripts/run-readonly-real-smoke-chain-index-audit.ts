@@ -9,14 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:real-readonly-smoke-local":
-    "tsx scripts/run-real-readonly-smoke-local-closeout-audit.ts",
-  "audit:formal-real-readonly-smoke-execution-local":
-    "tsx scripts/run-formal-real-readonly-smoke-execution-local-closeout-audit.ts",
-  "audit:formal-real-readonly-smoke-rc-local-closeout":
-    "tsx scripts/run-formal-real-readonly-smoke-rc-local-closeout-audit.ts",
-  "audit:readonly-real-smoke-chain-index":
-    "tsx scripts/run-readonly-real-smoke-chain-index-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {
@@ -315,7 +308,7 @@ function parseCount(value: string | undefined): number {
 
 function pr13aIndexRecorded(text: string): boolean {
   return text.includes("PR_13A_REAL_READONLY_SMOKE_LOCAL_AUDIT_INDEX_RECORDED")
-    && text.includes("npm run audit:real-readonly-smoke-local")
+    && text.includes("npm run governance -- audit real-readonly-smoke-local")
     && text.includes(REQUIRED_EVIDENCE.realSmoke)
     && text.includes("workspace-write execute")
     && text.includes("broader real provider execution remain closed");
@@ -333,14 +326,14 @@ function pr18cCloseoutRecorded(text: string): boolean {
 function pr19cCloseoutRecorded(text: string): boolean {
   const normalized = text.replace(/\s+/g, " ");
   return text.includes("PR_19C_FORMAL_REAL_READONLY_SMOKE_LOCAL_RC_CLOSEOUT_COMPLETE")
-    && text.includes("npm run audit:formal-real-readonly-smoke-rc-local-closeout")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-rc-local-closeout")
     && normalized.includes("without re-running the real CLI");
 }
 
 function pr20aIndexRecorded(text: string): boolean {
   return text.includes("PR_20A_READONLY_REAL_SMOKE_CHAIN_INDEX_RECORDED")
-    && text.includes("npm run audit:readonly-real-smoke-chain-index")
-    && text.includes("npm run audit:readonly-real-smoke-chain-index -- --json")
+    && text.includes("npm run governance -- audit readonly-real-smoke-chain-index")
+    && text.includes("npm run governance -- audit readonly-real-smoke-chain-index -- --json")
     && text.includes(REQUIRED_EVIDENCE.realSmoke)
     && text.includes(REQUIRED_EVIDENCE.formalExecutionAuth)
     && text.includes(REQUIRED_EVIDENCE.formalFinalPreflight);

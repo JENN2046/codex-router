@@ -22,10 +22,10 @@ remain valid:
 
 Required local audit commands:
 
-- `npm run audit:controlled-execution-gate-design`
-- `npm run audit:readonly-real-smoke-chain-local-closeout`
-- `npm run audit:workspace-write-real-canary-final-local`
-- `npm run audit:future-codex-cli-canary-packet-checklist`
+- `npm run governance -- audit controlled-execution-gate-design`
+- `npm run governance -- audit readonly-real-smoke-chain-local-closeout`
+- `npm run governance -- audit workspace-write-real-canary-final-local`
+- `npm run governance -- audit future-codex-cli-canary-packet-checklist`
 
 ## 3. Exact Future Packet Fields
 

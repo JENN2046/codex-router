@@ -14,12 +14,12 @@ not set an execution operator flag.
 
 Local matrix audit:
 
-- `npm run audit:readonly-formal-integration-matrix`
-- `npm run audit:readonly-formal-integration-matrix -- --json`
+- `npm run governance -- audit readonly-formal-integration-matrix`
+- `npm run governance -- audit readonly-formal-integration-matrix -- --json`
 
 Required upstream closeout:
 
-- `npm run audit:readonly-real-smoke-chain-local-closeout`
+- `npm run governance -- audit readonly-real-smoke-chain-local-closeout`
 
 ## 3. Matrix Rows
 

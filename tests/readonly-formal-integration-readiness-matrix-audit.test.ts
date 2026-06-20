@@ -70,7 +70,7 @@ test("read-only formal integration readiness matrix passes for local chain", asy
   });
   assert.equal(review.summary.matrixRowCount, 5);
   assert.equal(review.summary.passedMatrixRowCount, 5);
-  assert.equal(review.summary.packageScriptTargetCount, 6);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.providerExecuteCallsDuringMatrix, 0);
   assert.equal(review.summary.realCodexCliCallsDuringMatrix, 0);
@@ -231,8 +231,8 @@ async function createInputFromWorkspace(
 function createPr21aMatrixText(): string {
   return [
     "PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX_RECORDED",
-    "npm run audit:readonly-formal-integration-matrix",
-    "npm run audit:readonly-real-smoke-chain-local-closeout",
+    "npm run governance -- audit readonly-formal-integration-matrix",
+    "npm run governance -- audit readonly-real-smoke-chain-local-closeout",
     "PR_14C_FORMAL_READONLY_CLI_INTEGRATION_LOCAL_CLOSEOUT_COMPLETE",
     "PR_15C_FORMAL_READONLY_PROVIDER_INTEGRATION_LOCAL_CLOSEOUT_COMPLETE",
     "PR_16B_FORMAL_READONLY_DISPATCH_BOUNDARY_LOCAL_CLOSEOUT_COMPLETE",

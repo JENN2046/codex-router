@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 export const PR_14B_FORMAL_READONLY_INTEGRATION_AUTHORIZATION_TOKEN =
   "APPROVE_FORMAL_CODEX_CLI_READONLY_PROVIDER_INTEGRATION_PR_14B";
 export const PR_14B_FORMAL_READONLY_INTEGRATION_COMMAND =
-  "npm run acceptance:formal-readonly-integration";
+  "npm run governance -- acceptance formal-readonly-integration";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const DEFAULT_EVIDENCE_PATH = join(

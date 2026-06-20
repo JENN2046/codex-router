@@ -10,12 +10,7 @@ import {
 } from "./run-readonly-real-smoke-chain-index-audit.js";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:readonly-real-smoke-chain-index":
-    "tsx scripts/run-readonly-real-smoke-chain-index-audit.ts",
-  "audit:readonly-real-smoke-chain-candidate":
-    "tsx scripts/run-readonly-real-smoke-chain-local-candidate-consistency.ts",
-  "audit:formal-real-readonly-smoke-rc-local-closeout":
-    "tsx scripts/run-formal-real-readonly-smoke-rc-local-closeout-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_EVIDENCE = {
@@ -206,8 +201,8 @@ function reviewPackageScripts(packageJson: Record<string, unknown> | undefined):
 
 function pr20bCandidateRecorded(text: string): boolean {
   return text.includes("PR_20B_READONLY_REAL_SMOKE_CHAIN_LOCAL_CANDIDATE_RECORDED")
-    && text.includes("npm run audit:readonly-real-smoke-chain-candidate")
-    && text.includes("npm run audit:readonly-real-smoke-chain-index")
+    && text.includes("npm run governance -- audit readonly-real-smoke-chain-candidate")
+    && text.includes("npm run governance -- audit readonly-real-smoke-chain-index")
     && text.includes(REQUIRED_EVIDENCE.realSmoke)
     && text.includes(REQUIRED_EVIDENCE.formalExecutionAuth)
     && text.includes(REQUIRED_EVIDENCE.formalFinalPreflight);

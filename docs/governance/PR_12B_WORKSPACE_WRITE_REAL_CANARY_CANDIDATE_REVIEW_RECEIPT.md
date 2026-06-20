@@ -8,9 +8,9 @@ It is intentionally not a point-in-time push receipt. It does not rely on a fixe
 
 Current state must be rechecked with:
 
-- `npm run audit:workspace-write-real-canary-final-local`
-- `npm run audit:workspace-write-real-canary-candidate`
-- `npm run audit:workspace-write-real-canary-candidate -- --json`
+- `npm run governance -- audit workspace-write-real-canary-final-local`
+- `npm run governance -- audit workspace-write-real-canary-candidate`
+- `npm run governance -- audit workspace-write-real-canary-candidate -- --json`
 
 ## 2. Scope
 
@@ -30,7 +30,7 @@ The final local audit command is the authoritative local review entry point.
 
 It must pass before treating the local candidate as internally consistent:
 
-- `npm run audit:workspace-write-real-canary-final-local`
+- `npm run governance -- audit workspace-write-real-canary-final-local`
 
 The final local audit runs the fixed PR-12B validation set:
 
@@ -40,10 +40,10 @@ The final local audit runs the fixed PR-12B validation set:
 - `npx tsx --test tests\workspace-write-real-canary-pre-execution-acceptance.test.ts`
 - `npx tsx --test tests\workspace-write-real-canary-local-candidate-consistency.test.ts`
 - `npx tsx --test tests\workspace-write-real-canary-sensitive-scan.test.ts`
-- `npm run acceptance:workspace-write-real-canary-auth`
-- `npm run acceptance:workspace-write-real-canary-pre-execution`
-- `npm run audit:workspace-write-real-canary-candidate -- --json`
-- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
+- `npm run governance -- acceptance workspace-write-real-canary-auth`
+- `npm run governance -- acceptance workspace-write-real-canary-pre-execution`
+- `npm run governance -- audit workspace-write-real-canary-candidate -- --json`
+- `npm run governance -- audit workspace-write-real-canary-sensitive-scan -- --json`
 
 The fixed validation set is covered by tests that bind the command ids,
 command arguments, and required `package.json` script names and exact command
@@ -122,7 +122,7 @@ Expected safe JSON audit properties:
 - `checks.finalAuditJsonContractValid` is `true`
 - `checks.canaryFileAbsent` is `true`
 - `summary.unexpectedChangedFileCount` is `0`
-- `summary.packageScriptTargetCount` is `6`
+- `summary.packageScriptTargetCount` is `1`
 - `summary.packageScriptTargetMismatchCount` is `0`
 - `summary.finalAuditNoForbiddenCommands` is `true`
 - `summary.providerExecuteCalls` is `0`
@@ -150,9 +150,9 @@ condition.
 
 Refresh commands:
 
-- `npm run audit:workspace-write-real-canary-candidate -- --json`
-- `npm run audit:workspace-write-real-canary-final-local -- --json`
-- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
+- `npm run governance -- audit workspace-write-real-canary-candidate -- --json`
+- `npm run governance -- audit workspace-write-real-canary-final-local -- --json`
+- `npm run governance -- audit workspace-write-real-canary-sensitive-scan -- --json`
 - canary target absence check
 
 Latest verified boundary:
@@ -164,7 +164,7 @@ Latest verified boundary:
 - final local audit sensitiveScanTargetCount: `14`
 - final local audit sensitiveScanMarkerHitCount: `0`
 - candidate audit finalAuditNoForbiddenCommands: `true`
-- candidate audit packageScriptTargetCount: `6`
+- candidate audit packageScriptTargetCount: `1`
 - candidate audit packageScriptTargetMismatchCount: `0`
 - candidate audit auditFieldValuesRecorded: `true`
 - unexpected changed files: `0`

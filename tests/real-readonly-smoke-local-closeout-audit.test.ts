@@ -45,7 +45,7 @@ test("real read-only smoke local closeout audit passes for the committed PR-13A 
     evidenceSanitized: true,
     boundariesClosed: true
   });
-  assert.equal(review.summary.packageScriptTargetCount, 3);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.smokeStatus, "passed");
   assert.equal(review.summary.smokeSandbox, "read-only");

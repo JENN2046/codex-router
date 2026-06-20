@@ -33,14 +33,14 @@ This taskbook only prepares the next gate. It does not run:
 Observed local surfaces already exist:
 
 - package script: `smoke:readonly:real`
-- package script: `acceptance:real-readonly-smoke-auth`
+- governance runner: `npm run governance -- acceptance real-readonly-smoke-auth`
 - script: `scripts/run-codex-cli-real-readonly-smoke.ts`
 - script: `scripts/run-real-readonly-smoke-authorization-acceptance.ts`
 - test: `tests/codex-cli-real-readonly-smoke-script.test.ts`
 - test: `tests/real-readonly-smoke-authorization-acceptance.test.ts`
 - evidence path: `docs/evidence/codex-cli-real-readonly-smoke.json`
 - authorization acceptance evidence path: `docs/evidence/codex-cli-real-readonly-smoke-authorization-acceptance.json`
-- fake-only dispatch acceptance: `npm run acceptance:real-readonly-dispatch`
+- fake-only dispatch acceptance: `npm run governance -- acceptance real-readonly-dispatch`
 - fake-only dispatch evidence: `docs/evidence/codex-cli-real-readonly-dispatch-acceptance.json`
 - PR-10 closeout: `docs/governance/PR_10_REAL_READONLY_EXECUTE_LOCAL_CLOSEOUT.md`
 
@@ -88,8 +88,8 @@ Before any future real read-only smoke, run and review:
 - `npx tsx --test tests\real-readonly-smoke-authorization-acceptance.test.ts`
 - `npx tsx --test tests\real-readonly-dispatch-acceptance.test.ts`
 - `npx tsx --test tests\host-dispatcher.test.ts`
-- `npm run acceptance:real-readonly-smoke-auth`
-- `npm run acceptance:real-readonly-dispatch`
+- `npm run governance -- acceptance real-readonly-smoke-auth`
+- `npm run governance -- acceptance real-readonly-dispatch`
 
 Required preflight results:
 

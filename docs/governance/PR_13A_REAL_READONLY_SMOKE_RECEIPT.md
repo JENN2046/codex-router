@@ -41,8 +41,8 @@ Fresh preflight before the real smoke:
 - `npm run typecheck`: pass
 - `npx tsx --test tests\codex-cli-real-readonly-smoke-script.test.ts tests\real-readonly-dispatch-acceptance.test.ts tests\host-dispatcher.test.ts tests\real-readonly-smoke-authorization-acceptance.test.ts tests\pr-13a-real-readonly-preflight-taskbook.test.ts`:
   pass, `30 / 30`
-- `npm run acceptance:real-readonly-dispatch`: pass
-- `npm run acceptance:real-readonly-smoke-auth`: pass
+- `npm run governance -- acceptance real-readonly-dispatch`: pass
+- `npm run governance -- acceptance real-readonly-smoke-auth`: pass
 
 These preflight commands did not invoke the real Codex CLI.
 

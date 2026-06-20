@@ -52,7 +52,7 @@ test("formal real read-only smoke RC local closeout passes for the local RC chai
     noRealCodexCliDuringCloseout: true,
     noWorkspaceWriteExecuteDuringCloseout: true
   });
-  assert.equal(review.summary.packageScriptTargetCount, 4);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.behind, 0);
   assert.equal(review.summary.receiptStatus, "passed");
@@ -208,8 +208,8 @@ async function createInputFromWorkspace(
 function createPr19cCloseoutText(): string {
   return [
     "PR_19C_FORMAL_REAL_READONLY_SMOKE_LOCAL_RC_CLOSEOUT_COMPLETE",
-    "npm run audit:formal-real-readonly-smoke-rc-local-closeout",
-    "npm run audit:formal-real-readonly-smoke-rc-local-closeout -- --json",
+    "npm run governance -- audit formal-real-readonly-smoke-rc-local-closeout",
+    "npm run governance -- audit formal-real-readonly-smoke-rc-local-closeout -- --json",
     "docs/evidence/codex-cli-formal-real-readonly-smoke-final-preflight-acceptance.json",
     "docs/evidence/codex-cli-real-readonly-smoke.json",
     "does not authorize invoking the real Codex CLI",

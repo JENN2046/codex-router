@@ -1,7 +1,7 @@
 const CURRENT_STATE_DOC = "docs/current/CURRENT_STATE.md";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:state-sync": "tsx scripts/run-state-sync-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_BOUNDARY_MARKERS = [

@@ -156,7 +156,7 @@ Primary evidence:
 These matrices are local-only. They do not authorize provider execute,
 workspace-write, real CLI invocation, push, release, or tag.
 The productization acceptance entry point is
-`npm run audit:readonly-productization`; it is also local-only and does not
+`npm run governance -- audit readonly-productization`; it is also local-only and does not
 authorize evidence refresh or any real execution path.
 
 ## Current Reviewable Slice
@@ -188,9 +188,9 @@ Current local closeout slice:
 - Current post-canary receipt gate:
   `docs/governance/POST_CANARY_RECEIPT_ROLLBACK_VERIFICATION_GATE.md`
 - Current local audit:
-  `npm run audit:post-canary-receipt-rollback-gate`
+  `npm run governance -- audit post-canary-receipt-rollback-gate`
 - Current read-only productization audit:
-  `npm run audit:readonly-productization`
+  `npm run governance -- audit readonly-productization`
 - Current controlled provider execution taskbook:
   `PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_RECORDED`
 
@@ -231,32 +231,32 @@ After local review/evidence hardening:
 Latest local validation on 2026-06-15 through `main` / `origin/main` at
 `5566777`:
 
-- `npm run audit:approval-consumption-dispatch-matrix` passed on clean `main`.
+- `npm run governance -- audit approval-consumption-dispatch-matrix` passed on clean `main`.
 - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
 - read-only real smoke chain audits passed on clean `main`.
-- `npm run audit:controlled-execution-gate-design` passed on clean `main`.
-- `npm run audit:future-codex-cli-canary-packet-checklist` passed on clean
+- `npm run governance -- audit controlled-execution-gate-design` passed on clean `main`.
+- `npm run governance -- audit future-codex-cli-canary-packet-checklist` passed on clean
   `main`.
 - `npx tsx --test tests\future-codex-cli-canary-authorization-packet-audit.test.ts`
   passed on `docs/future-canary-authorization-packet`.
-- `npm run audit:future-codex-cli-canary-authorization-packet` passed on clean
+- `npm run governance -- audit future-codex-cli-canary-authorization-packet` passed on clean
   local `main` at `57ae4a7`.
 - `git push origin main` succeeded after one retry, pushing `4db8174..c73fa1b`.
 - `git push origin main` pushed `c73fa1b..19b3a5e`.
 - `npx tsx --test tests\future-codex-cli-canary-execution-gate-audit.test.ts`
   passed on `docs/future-canary-execution-gate`.
-- `npm run audit:future-codex-cli-canary-execution-gate` passed on clean local
+- `npm run governance -- audit future-codex-cli-canary-execution-gate` passed on clean local
   `main` at `6d05762`.
 - `git push origin main` pushed `19b3a5e..c679c58`.
 - `git push origin main` pushed `c679c58..fe181cb`.
 - `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
   passed on `docs/future-canary-pre-execution-review`.
-- `npm run audit:future-codex-cli-canary-pre-execution-review` blocked on clean
+- `npm run governance -- audit future-codex-cli-canary-pre-execution-review` blocked on clean
   local `main` only because local `main` is not aligned with `origin/main`.
 - `git push origin main` pushed `fe181cb..3a71acc`.
-- `npm run audit:future-codex-cli-canary-pre-execution-review` passed on
+- `npm run governance -- audit future-codex-cli-canary-pre-execution-review` passed on
   aligned clean `main`.
-- `npm run audit:workspace-write-real-canary-final-local` passed after the
+- `npm run governance -- audit workspace-write-real-canary-final-local` passed after the
   clean-main gate alignment fix.
 - `npm test` passed: `1027 / 1027`.
 - `git push origin main` pushed `3a71acc..590dbd4`.
@@ -277,7 +277,7 @@ Latest local validation on 2026-06-15 through `main` / `origin/main` at
 - `npm test` passed: `1032 / 1032`.
 - `npm run build` passed.
 - `git push origin main` pushed `5642b43..5566777`.
-- `npm run audit:post-canary-receipt-rollback-gate` passed on clean aligned
+- `npm run governance -- audit post-canary-receipt-rollback-gate` passed on clean aligned
   `main`:
   - provider execute calls during review: `0`
   - real Codex CLI calls during review: `0`
