@@ -74,7 +74,9 @@ jobs:
         if: always()
         with:
           name: canary-evidence-node${{ matrix.node }}-${{ matrix.risk }}
-          path: docs/evidence/codex-cli-canary-latest.json
+          path: |
+            docs/evidence/codex-cli-canary-${{ matrix.risk }}-latest.json
+            docs/evidence/codex-cli-canary-latest.json
 
   smoke-contract:
     name: Smoke Contract (Node ${{ matrix.node }})

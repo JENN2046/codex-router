@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { parse } from "yaml";
 import { collectEvidenceManifest } from "../scripts/collect-evidence.js";
 import {
   getCanaryEvidencePaths,
@@ -69,6 +70,35 @@ test("release canary evidence preserves low and medium results", async () => {
   }
 });
 
+test("CI uploads per-risk canary evidence before collecting the manifest", async () => {
+  const workflow = parse(
+    await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf-8")
+  ) as {
+    jobs: {
+      canary: { steps: WorkflowStep[] };
+      evidence: { steps: WorkflowStep[] };
+    };
+  };
+
+  const canaryUpload = workflow.jobs.canary.steps.find((step) =>
+    step.uses === "actions/upload-artifact@v4"
+    && step.with?.name === "canary-evidence-node${{ matrix.node }}-${{ matrix.risk }}"
+  );
+  const canaryUploadPaths = splitWorkflowPath(canaryUpload?.with?.path);
+  const evidenceDownload = workflow.jobs.evidence.steps.find((step) =>
+    step.uses === "actions/download-artifact@v4"
+  );
+
+  assert.ok(canaryUpload);
+  assert.deepEqual(canaryUploadPaths, [
+    "docs/evidence/codex-cli-canary-${{ matrix.risk }}-latest.json",
+    "docs/evidence/codex-cli-canary-latest.json"
+  ]);
+  assert.equal(evidenceDownload?.with?.pattern, "*-evidence-*");
+  assert.equal(evidenceDownload?.with?.path, "docs/evidence/");
+  assert.equal(evidenceDownload?.with?.["merge-multiple"], true);
+});
+
 function createResult(risk: RiskLevel): CanaryResult {
   return {
     status: "passed",
@@ -81,6 +111,23 @@ function createResult(risk: RiskLevel): CanaryResult {
     observationPersisted: true,
     requiresArbitration: false
   };
+}
+
+interface WorkflowStep {
+  uses?: string;
+  with?: {
+    name?: string;
+    path?: string;
+    pattern?: string;
+    "merge-multiple"?: boolean;
+  };
+}
+
+function splitWorkflowPath(value: string | undefined): string[] {
+  return (value ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 async function readJson(filePath: string): Promise<{
