@@ -468,6 +468,38 @@ test("desktop live adapter respects explicit failure envelopes from handlers", a
   assert.equal(execution.steps[1]?.error, "agent_capacity_exceeded");
 });
 
+test("desktop live adapter reports thrown failure reasons when continuing after failure", async () => {
+  const ready = await createReadyRunnerResult();
+  const calls: string[] = [];
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => {
+        calls.push("read_thread_terminal");
+        throw new Error("read_thread_terminal_crashed");
+      },
+      spawn_agent: () => {
+        calls.push("spawn_agent");
+        return { agentId: "agent-1" };
+      },
+      wait_agent: () => {
+        calls.push("wait_agent");
+        return { status: "completed" };
+      }
+    },
+    stopOnFailure: false,
+    now: () => "2026-04-23T12:10:00.000Z"
+  });
+
+  assert.equal(execution.status, "failed");
+  assert.deepEqual(calls, ["read_thread_terminal", "spawn_agent", "wait_agent"]);
+  assert.equal(execution.steps[0]?.status, "failed");
+  assert.equal(execution.steps[1]?.status, "completed");
+  assert.equal(execution.steps[2]?.status, "completed");
+  assert.deepEqual(execution.blockingReasons, ["read_thread_terminal_crashed"]);
+});
+
 test("runDesktopTask composes decision runner and live adapter", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const calls: string[] = [];
@@ -970,4 +1002,29 @@ test("desktop live adapter triggers governance step_back after three failures", 
   });
 
   assert.equal(execution.status, "failed");
+});
+
+test("desktop live adapter falls back when continuing failure envelope omits error", async () => {
+  const ready = await createReadyRunnerResult();
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => "thread context",
+      spawn_agent: () => ({
+        primitive: "spawn_agent",
+        ok: false
+      }),
+      wait_agent: () => ({ status: "completed" })
+    },
+    now: () => "2026-04-27T00:10:00.000Z",
+    stopOnFailure: false
+  });
+
+  const failedStep = execution.steps.find((step) => step.primitive === "spawn_agent");
+
+  assert.equal(execution.status, "failed");
+  assert.equal(failedStep?.status, "failed");
+  assert.equal(failedStep?.error, "primitive_failed:spawn_agent");
+  assert.ok(execution.blockingReasons.includes("primitive_failed:spawn_agent"));
 });

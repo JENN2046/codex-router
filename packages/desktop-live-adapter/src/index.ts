@@ -556,6 +556,16 @@ export async function executeDesktopPlan(
   });
 
   const steps: PrimitiveExecutionResult[] = [];
+  const persistFinalState = () => persistFinalExecutionState({
+    taskId: result.task.taskId,
+    steps,
+    auditEvents,
+    checkpointFrequency,
+    now,
+    ...(input.auditStore ? { auditStore: input.auditStore } : {}),
+    ...(input.checkpointStore ? { checkpointStore: input.checkpointStore } : {}),
+    ...(input.memoryAdapter ? { memoryAdapter: input.memoryAdapter } : {})
+  });
 
   for (const [stepIndex, operation] of result.executionPlan.primitives.entries()) {
     const handler = input.handlers[operation.primitive];
@@ -613,6 +623,7 @@ export async function executeDesktopPlan(
           arbitrationPacket: failureResult.arbitrationPacket
         });
         if (governance) {
+          await persistFinalState();
           return {
             status: "failed",
             taskId: result.task.taskId,
@@ -662,12 +673,13 @@ export async function executeDesktopPlan(
       const output = normalizePrimitiveHandlerOutput(operation.primitive, rawOutput);
 
       if (!output.ok) {
+        const errorMessage = getPrimitiveFailureError(operation.primitive, output);
         const failedStep: PrimitiveExecutionResult = {
           primitive: operation.primitive,
           status: "failed",
           reason: operation.reason,
           output,
-          error: output.error
+          error: errorMessage
         };
         steps.push(failedStep);
         auditEvents.push({
@@ -676,7 +688,7 @@ export async function executeDesktopPlan(
           timestamp: now(),
           details: {
             primitive: operation.primitive,
-            error: output.error,
+            error: errorMessage,
             stepIndex
           }
         });
@@ -686,7 +698,7 @@ export async function executeDesktopPlan(
           primitiveId: `${operation.primitive}:${stepIndex}`,
           stage: "execution",
           status: "failed",
-          error: output.error,
+          error: errorMessage,
           createdAt: now()
         });
 
@@ -696,7 +708,7 @@ export async function executeDesktopPlan(
             state: governanceState,
             task: result.task,
             primitiveId: `${operation.primitive}:${stepIndex}`,
-            errorClass: output.error ?? "handler returned failure",
+            errorClass: errorMessage,
             stepIndex,
             now
           });
@@ -714,6 +726,7 @@ export async function executeDesktopPlan(
             arbitrationPacket: failureResult.arbitrationPacket
           });
           if (governance) {
+            await persistFinalState();
             return {
               status: "failed",
               taskId: result.task.taskId,
@@ -730,7 +743,7 @@ export async function executeDesktopPlan(
           await maybePersistExecutionCheckpoint({
             taskId: result.task.taskId,
             stage: `execution-failed-${stepIndex + 1}`,
-            summary: `execution failed at ${operation.primitive}: ${output.error}`,
+            summary: `execution failed at ${operation.primitive}: ${errorMessage}`,
             frequency: checkpointFrequency,
             trigger: "final",
             now,
@@ -743,7 +756,7 @@ export async function executeDesktopPlan(
             taskId: result.task.taskId,
             plan: result.executionPlan,
             steps,
-            blockingReasons: [output.error],
+            blockingReasons: [errorMessage],
             auditEvents
           };
         }
@@ -818,43 +831,42 @@ export async function executeDesktopPlan(
         createdAt: now()
       });
 
-      if (stopOnFailure) {
-        // Update governance state on thrown error before returning
-        if (governanceState) {
-          const failureResult = applyExecutionFailureToGovernanceState({
-            state: governanceState,
-            task: result.task,
-            primitiveId: `${operation.primitive}:${stepIndex}`,
-            errorClass: errorMessage,
-            stepIndex,
-            now
-          });
-          governanceState = failureResult.state;
-          strategyDecision = failureResult.strategyDecision;
+      if (governanceState) {
+        const failureResult = applyExecutionFailureToGovernanceState({
+          state: governanceState,
+          task: result.task,
+          primitiveId: `${operation.primitive}:${stepIndex}`,
+          errorClass: errorMessage,
+          stepIndex,
+          now
+        });
+        governanceState = failureResult.state;
+        strategyDecision = failureResult.strategyDecision;
 
-          // Notify callback
-          if (input.onGovernanceUpdate && strategyDecision) {
-            await input.onGovernanceUpdate(governanceState, strategyDecision);
-          }
-
-          const governance = createRecoveryGovernanceIfRequired({
-            state: governanceState,
-            strategyDecision,
-            arbitrationPacket: failureResult.arbitrationPacket
-          });
-          if (governance) {
-            return {
-              status: "failed",
-              taskId: result.task.taskId,
-              plan: result.executionPlan,
-              steps,
-              blockingReasons: createGovernanceBlockingReasons(governance),
-              auditEvents,
-              governance
-            };
-          }
+        if (input.onGovernanceUpdate && strategyDecision) {
+          await input.onGovernanceUpdate(governanceState, strategyDecision);
         }
 
+        const governance = createRecoveryGovernanceIfRequired({
+          state: governanceState,
+          strategyDecision,
+          arbitrationPacket: failureResult.arbitrationPacket
+        });
+        if (governance) {
+          await persistFinalState();
+          return {
+            status: "failed",
+            taskId: result.task.taskId,
+            plan: result.executionPlan,
+            steps,
+            blockingReasons: createGovernanceBlockingReasons(governance),
+            auditEvents,
+            governance
+          };
+        }
+      }
+
+      if (stopOnFailure) {
         await maybePersistExecutionCheckpoint({
           taskId: result.task.taskId,
           stage: `execution-failed-${stepIndex + 1}`,
@@ -878,28 +890,89 @@ export async function executeDesktopPlan(
     }
   }
 
-  await maybePersistExecutionCheckpoint({
-    taskId: result.task.taskId,
-    stage: "execution-completed",
-    summary: steps.some((step) => step.status === "failed")
-      ? "desktop live adapter completed with failures"
-      : "desktop live adapter completed successfully",
-    frequency: checkpointFrequency,
-    trigger: "final",
-    now,
-    ...(input.checkpointStore ? { checkpointStore: input.checkpointStore } : {}),
-    ...(input.memoryAdapter ? { memoryAdapter: input.memoryAdapter } : {})
-  });
-  await persistAudit(auditEvents, input.auditStore);
+  await persistFinalState();
+
+  const finalBlockingReasons = createFailedStepBlockingReasons(steps);
 
   return {
-    status: steps.some((step) => step.status === "failed") ? "failed" : "completed",
+    status: finalBlockingReasons.length > 0 ? "failed" : "completed",
     taskId: result.task.taskId,
     plan: result.executionPlan,
     steps,
-    blockingReasons: [],
+    blockingReasons: finalBlockingReasons,
     auditEvents
   };
+}
+
+async function persistFinalExecutionState(input: {
+  taskId: string;
+  steps: PrimitiveExecutionResult[];
+  auditEvents: AuditEvent[];
+  checkpointFrequency: MemoryCheckpointFrequency;
+  now: () => string;
+  auditStore?: { record(event: AuditEvent): Promise<void> };
+  checkpointStore?: {
+    record(checkpoint: CheckpointRef): Promise<void>;
+  };
+  memoryAdapter?: MemoryAdapter;
+}): Promise<void> {
+  await maybePersistExecutionCheckpoint({
+    taskId: input.taskId,
+    stage: "execution-completed",
+    summary: input.steps.some((step) => step.status === "failed")
+      ? "desktop live adapter completed with failures"
+      : "desktop live adapter completed successfully",
+    frequency: input.checkpointFrequency,
+    trigger: "final",
+    now: input.now,
+    ...(input.checkpointStore ? { checkpointStore: input.checkpointStore } : {}),
+    ...(input.memoryAdapter ? { memoryAdapter: input.memoryAdapter } : {})
+  });
+  await persistAudit(input.auditEvents, input.auditStore);
+}
+
+function createFailedStepBlockingReasons(
+  steps: PrimitiveExecutionResult[]
+): string[] {
+  const reasons = steps
+    .filter((step) => step.status === "failed")
+    .map((step) => {
+      const stepError = asNonEmptyString(step.error);
+      if (stepError) {
+        return stepError;
+      }
+
+      if (
+        step.output?.ok === false &&
+        typeof step.output.error === "string" &&
+        step.output.error.length > 0
+      ) {
+        return step.output.error;
+      }
+
+      return `primitive_failed:${step.primitive}`;
+    });
+
+  return [...new Set(reasons)];
+}
+
+function getPrimitiveFailureError(
+  primitive: DesktopPrimitive,
+  output: DesktopPrimitiveResultEnvelope
+): string {
+  if (
+    output.ok === false &&
+    typeof output.error === "string" &&
+    output.error.length > 0
+  ) {
+    return output.error;
+  }
+
+  return `primitive_failed:${primitive}`;
+}
+
+function asNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 async function persistAudit(
