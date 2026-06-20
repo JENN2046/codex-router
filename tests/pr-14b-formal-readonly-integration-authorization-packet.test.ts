@@ -26,7 +26,7 @@ test("PR-14B formal read-only integration authorization packet records exact loc
     packet,
     /APPROVE_FORMAL_CODEX_CLI_READONLY_PROVIDER_INTEGRATION_PR_14B/
   );
-  assert.match(packet, /npm run acceptance:formal-readonly-integration/);
+  assert.match(packet, /npm run governance -- acceptance formal-readonly-integration/);
   assert.equal(evidence.checks.exactAuthorizationAccepted, true);
   assert.equal(evidence.checks.executionAuthorizationRejected, true);
   assert.equal(evidence.summary.providerExecutionMustRemainSeparate, true);
@@ -57,7 +57,7 @@ test("PR-14B formal read-only integration authorization evidence omits raw packe
 
   for (const marker of [
     "APPROVE_FORMAL_CODEX_CLI_READONLY_PROVIDER_INTEGRATION_PR_14B",
-    "npm run acceptance:formal-readonly-integration",
+    "npm run governance -- acceptance formal-readonly-integration",
     "APPROVE_FORMAL_CODEX_CLI_PROVIDER_INTEGRATION",
     "npm run smoke:readonly:real",
     "workspace-write",

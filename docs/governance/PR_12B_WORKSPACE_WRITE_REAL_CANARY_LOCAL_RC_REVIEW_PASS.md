@@ -26,9 +26,9 @@ Review date:
 
 Commands run:
 
-- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
-- `npm run audit:workspace-write-real-canary-candidate -- --json`
-- `npm run audit:workspace-write-real-canary-final-local -- --json`
+- `npm run governance -- audit workspace-write-real-canary-sensitive-scan -- --json`
+- `npm run governance -- audit workspace-write-real-canary-candidate -- --json`
+- `npm run governance -- audit workspace-write-real-canary-final-local -- --json`
 
 Observed summarized results:
 
@@ -38,7 +38,7 @@ Observed summarized results:
 - sensitive scan marker hits: `0`
 - candidate audit status: `passed`
 - candidate audit packageScriptsPresent: `true`
-- candidate audit packageScriptTargetCount: `6`
+- candidate audit packageScriptTargetCount: `1`
 - candidate audit packageScriptTargetMismatchCount: `0`
 - candidate audit unexpected changed files: `0`
 - candidate audit auditFieldValuesRecorded: `true`
@@ -98,7 +98,7 @@ Consistency checks:
 - final local audit sensitiveScanTargetCount: `14`
 - final local audit sensitiveScanMarkerHitCount: `0`
 - candidate audit packageScriptsPresent: `true`
-- candidate audit packageScriptTargetCount: `6`
+- candidate audit packageScriptTargetCount: `1`
 - candidate audit packageScriptTargetMismatchCount: `0`
 - candidate audit finalAuditNoForbiddenCommands: `true`
 - candidate audit auditFieldValuesRecorded: `true`

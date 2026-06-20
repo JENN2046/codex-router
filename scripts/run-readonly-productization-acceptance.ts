@@ -17,38 +17,9 @@ const PRODUCTIZATION_DOC =
   "docs/governance/READONLY_PRODUCTIZATION_ACCEPTANCE.md";
 const ROADMAP_DOC = "docs/agent-os-transformation/current-roadmap-20260610.md";
 
-const REQUIRED_PACKAGE_SCRIPTS = [
-  {
-    name: "audit:readonly-productization",
-    command: "tsx scripts/run-readonly-productization-acceptance.ts",
-    label: "package_script_readonly_productization"
-  },
-  {
-    name: "audit:readonly-formal-integration-matrix",
-    command: "tsx scripts/run-readonly-formal-integration-readiness-matrix-audit.ts",
-    label: "package_script_readonly_formal_integration_matrix"
-  },
-  {
-    name: "audit:readonly-real-smoke-chain-local-closeout",
-    command: "tsx scripts/run-readonly-real-smoke-chain-local-closeout-audit.ts",
-    label: "package_script_readonly_real_smoke_chain_local_closeout"
-  },
-  {
-    name: "audit:readonly-real-smoke-chain-candidate",
-    command: "tsx scripts/run-readonly-real-smoke-chain-local-candidate-consistency.ts",
-    label: "package_script_readonly_real_smoke_chain_candidate"
-  },
-  {
-    name: "audit:readonly-real-smoke-chain-index",
-    command: "tsx scripts/run-readonly-real-smoke-chain-index-audit.ts",
-    label: "package_script_readonly_real_smoke_chain_index"
-  },
-  {
-    name: "smoke:readonly:real",
-    command: "tsx scripts/run-codex-cli-real-readonly-smoke.ts",
-    label: "package_script_real_readonly_refresh_manual_only"
-  }
-] as const;
+const REQUIRED_PACKAGE_SCRIPTS = {
+  governance: "tsx scripts/run-governance-check.ts"
+} as const;
 
 const REQUIRED_EVIDENCE = [
   {
@@ -313,8 +284,8 @@ const REQUIRED_EVIDENCE = [
 
 const REQUIRED_PRODUCTIZATION_DOC_MARKERS = [
   "READONLY_PRODUCTIZATION_ACCEPTANCE_RECORDED",
-  "npm run audit:readonly-productization",
-  "npm run audit:readonly-productization -- --json",
+  "npm run governance -- audit readonly-productization",
+  "npm run governance -- audit readonly-productization -- --json",
   "PR_21A_READONLY_FORMAL_INTEGRATION_READINESS_MATRIX_RECORDED",
   "PR_20C_READONLY_REAL_SMOKE_CHAIN_LOCAL_CLOSEOUT_COMPLETE",
   "does not authorize invoking the real Codex CLI",
@@ -327,7 +298,7 @@ const REQUIRED_PRODUCTIZATION_DOC_MARKERS = [
 
 const REQUIRED_ROADMAP_MARKERS = [
   "READONLY_PRODUCTIZATION_ACCEPTANCE_RECORDED",
-  "audit:readonly-productization",
+  "npm run governance -- audit readonly-productization",
   "source and release package boundary fixes"
 ] as const;
 
@@ -549,7 +520,7 @@ export function reviewReadonlyProductizationAcceptance(
       ahead,
       behind,
       headShort: input.headShort,
-      packageScriptTargetCount: REQUIRED_PACKAGE_SCRIPTS.length,
+      packageScriptTargetCount: Object.keys(REQUIRED_PACKAGE_SCRIPTS).length,
       packageScriptMismatchCount: packageScriptReview.mismatchLabels.length,
       evidenceTargetCount: REQUIRED_EVIDENCE.length,
       evidencePresentCount:
@@ -625,12 +596,12 @@ function reviewPackageScripts(
   const scripts = packageJson?.scripts;
 
   return {
-    mismatchLabels: REQUIRED_PACKAGE_SCRIPTS
+    mismatchLabels: Object.entries(REQUIRED_PACKAGE_SCRIPTS)
       .filter(
-        (requirement) =>
-          !isRecord(scripts) || scripts[requirement.name] !== requirement.command
+        ([name, command]) =>
+          !isRecord(scripts) || scripts[name] !== command
       )
-      .map((requirement) => requirement.label)
+      .map(([name]) => `package_script_${name}`)
   };
 }
 

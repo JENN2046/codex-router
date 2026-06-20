@@ -37,7 +37,7 @@ Added local acceptance script:
 
 Added package script:
 
-- `npm run acceptance:real-readonly-smoke-auth`
+- `npm run governance -- acceptance real-readonly-smoke-auth`
 
 Added test:
 
@@ -97,7 +97,7 @@ Validation observed for this compatibility check:
 
 - `npx tsx --test tests\real-readonly-smoke-authorization-acceptance.test.ts`:
   pass, `5 / 5`
-- `npm run acceptance:real-readonly-smoke-auth`: pass
+- `npm run governance -- acceptance real-readonly-smoke-auth`: pass
 - `npm run typecheck`: pass
 
 Additional validation should be run before local closeout:

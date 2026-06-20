@@ -104,7 +104,7 @@ Evidence summary:
 | `git diff --stat origin/main..HEAD` | pass, 7 files reviewed |
 | `git diff --name-only origin/main..HEAD` | pass, changed file list reviewed |
 | `npm run typecheck` | pass |
-| `npm run acceptance:real-readonly-dispatch` | pass |
+| `npm run governance -- acceptance real-readonly-dispatch` | pass |
 | `npx tsx --test tests\real-readonly-dispatch-acceptance.test.ts` | pass, 2 tests |
 | `npx tsx --test tests\codex-cli-provider.test.ts` | pass, 25 tests |
 | `npx tsx --test tests\host-dispatcher.test.ts` | pass, 16 tests |

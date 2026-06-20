@@ -9,12 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "acceptance:formal-readonly-integration":
-    "tsx scripts/run-formal-readonly-cli-integration-readiness.ts",
-  "acceptance:formal-readonly-integration-auth":
-    "tsx scripts/run-formal-readonly-cli-integration-authorization-acceptance.ts",
-  "audit:formal-readonly-integration-local":
-    "tsx scripts/run-formal-readonly-cli-integration-local-closeout-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {
@@ -35,7 +30,7 @@ const REQUIRED_EVIDENCE = {
 
 const FORBIDDEN_OUTPUT_MARKERS = [
   "APPROVE_FORMAL_CODEX_CLI_READONLY_PROVIDER_INTEGRATION_PR_14B",
-  "npm run acceptance:formal-readonly-integration",
+  "npm run governance -- acceptance formal-readonly-integration",
   "APPROVE_FORMAL_CODEX_CLI_PROVIDER_INTEGRATION",
   "npm run smoke:readonly:real",
   "requestedAction",
@@ -260,7 +255,7 @@ function pr14bAuthorizationRecorded(text: string): boolean {
 
 function pr14cCloseoutRecorded(text: string): boolean {
   return text.includes("PR_14C_FORMAL_READONLY_CLI_INTEGRATION_LOCAL_CLOSEOUT_COMPLETE")
-    && text.includes("npm run audit:formal-readonly-integration-local -- --json")
+    && text.includes("npm run governance -- audit formal-readonly-integration-local -- --json")
     && text.includes(REQUIRED_EVIDENCE.readiness)
     && text.includes(REQUIRED_EVIDENCE.authorization);
 }

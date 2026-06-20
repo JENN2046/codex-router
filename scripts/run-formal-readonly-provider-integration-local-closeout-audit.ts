@@ -9,12 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "acceptance:formal-readonly-provider-integration-taskbook":
-    "tsx scripts/run-formal-readonly-provider-integration-taskbook-acceptance.ts",
-  "acceptance:formal-readonly-provider-integration":
-    "tsx scripts/run-formal-readonly-provider-integration-acceptance.ts",
-  "audit:formal-readonly-provider-integration-local":
-    "tsx scripts/run-formal-readonly-provider-integration-local-closeout-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {
@@ -271,7 +266,7 @@ function reviewPackageScripts(packageJson: Record<string, unknown> | undefined):
 function pr15aTaskbookRecorded(text: string): boolean {
   const normalized = text.replace(/\s+/g, " ");
   return text.includes("PR_15A_FORMAL_READONLY_PROVIDER_INTEGRATION_TASKBOOK_RECORDED")
-    && text.includes("npm run acceptance:formal-readonly-provider-integration-taskbook")
+    && text.includes("npm run governance -- acceptance formal-readonly-provider-integration-taskbook")
     && text.includes(REQUIRED_EVIDENCE.taskbook)
     && normalized.includes("not an authorization to invoke the real Codex CLI")
     && normalized.includes("does not authorize workspace-write");
@@ -280,7 +275,7 @@ function pr15aTaskbookRecorded(text: string): boolean {
 function pr15bLocalRecorded(text: string): boolean {
   const normalized = text.replace(/\s+/g, " ");
   return text.includes("PR_15B_FORMAL_READONLY_PROVIDER_INTEGRATION_LOCAL_RECORDED")
-    && text.includes("npm run acceptance:formal-readonly-provider-integration")
+    && text.includes("npm run governance -- acceptance formal-readonly-provider-integration")
     && text.includes(REQUIRED_EVIDENCE.integration)
     && normalized.includes("provider dispatch completes through fake spawner")
     && normalized.includes("Real CLI invocation remains closed");
@@ -288,8 +283,8 @@ function pr15bLocalRecorded(text: string): boolean {
 
 function pr15cCloseoutRecorded(text: string): boolean {
   return text.includes("PR_15C_FORMAL_READONLY_PROVIDER_INTEGRATION_LOCAL_CLOSEOUT_COMPLETE")
-    && text.includes("npm run audit:formal-readonly-provider-integration-local")
-    && text.includes("npm run audit:formal-readonly-provider-integration-local -- --json")
+    && text.includes("npm run governance -- audit formal-readonly-provider-integration-local")
+    && text.includes("npm run governance -- audit formal-readonly-provider-integration-local -- --json")
     && text.includes(REQUIRED_EVIDENCE.taskbook)
     && text.includes(REQUIRED_EVIDENCE.integration);
 }

@@ -21,9 +21,9 @@ candidate, final audit, sensitive scan, file-scope, and stop-condition review.
 
 Fresh local review must use these commands:
 
-- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
-- `npm run audit:workspace-write-real-canary-candidate -- --json`
-- `npm run audit:workspace-write-real-canary-final-local -- --json`
+- `npm run governance -- audit workspace-write-real-canary-sensitive-scan -- --json`
+- `npm run governance -- audit workspace-write-real-canary-candidate -- --json`
+- `npm run governance -- audit workspace-write-real-canary-final-local -- --json`
 
 These commands are local-only. They do not invoke real Codex CLI, provider
 execute, workspace-write execute, or canary file writes.

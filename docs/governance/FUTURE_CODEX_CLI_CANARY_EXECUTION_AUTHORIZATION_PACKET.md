@@ -21,10 +21,10 @@ The packet draft depends on:
 
 Required local review commands before any future execution:
 
-- `npm run audit:controlled-execution-gate-design`
-- `npm run audit:future-codex-cli-canary-packet-checklist`
-- `npm run audit:workspace-write-real-canary-final-local`
-- `npm run audit:future-codex-cli-canary-authorization-packet`
+- `npm run governance -- audit controlled-execution-gate-design`
+- `npm run governance -- audit future-codex-cli-canary-packet-checklist`
+- `npm run governance -- audit workspace-write-real-canary-final-local`
+- `npm run governance -- audit future-codex-cli-canary-authorization-packet`
 
 ## 3. Exact Future Authorization Packet
 

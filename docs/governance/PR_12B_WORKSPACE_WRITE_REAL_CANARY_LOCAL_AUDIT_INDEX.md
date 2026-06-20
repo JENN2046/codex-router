@@ -36,25 +36,25 @@ Authorization preflight:
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_LOCAL_CLOSEOUT.md`
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET_COMPATIBILITY.md`
 - `docs/evidence/workspace-write-real-canary-authorization-acceptance.json`
-- `npm run acceptance:workspace-write-real-canary-auth`
+- `npm run governance -- acceptance workspace-write-real-canary-auth`
 
 Pre-execution gate:
 
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_LOCAL_CLOSEOUT.md`
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_PRE_EXECUTION_BOUNDARY_AUDIT.md`
 - `docs/evidence/workspace-write-real-canary-pre-execution-acceptance.json`
-- `npm run acceptance:workspace-write-real-canary-pre-execution`
+- `npm run governance -- acceptance workspace-write-real-canary-pre-execution`
 
 Candidate and final local audit:
 
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_CANDIDATE_REVIEW_RECEIPT.md`
 - `docs/governance/PR_12B_WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT.md`
-- `npm run audit:workspace-write-real-canary-candidate`
-- `npm run audit:workspace-write-real-canary-candidate -- --json`
-- `npm run audit:workspace-write-real-canary-sensitive-scan`
-- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
-- `npm run audit:workspace-write-real-canary-final-local`
-- `npm run audit:workspace-write-real-canary-final-local -- --json`
+- `npm run governance -- audit workspace-write-real-canary-candidate`
+- `npm run governance -- audit workspace-write-real-canary-candidate -- --json`
+- `npm run governance -- audit workspace-write-real-canary-sensitive-scan`
+- `npm run governance -- audit workspace-write-real-canary-sensitive-scan -- --json`
+- `npm run governance -- audit workspace-write-real-canary-final-local`
+- `npm run governance -- audit workspace-write-real-canary-final-local -- --json`
 
 ## 4. Dynamic Local Validation
 
@@ -63,9 +63,9 @@ evidence.
 
 Minimum local validation set:
 
-- `npm run audit:workspace-write-real-canary-candidate -- --json`
-- `npm run audit:workspace-write-real-canary-final-local -- --json`
-- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
+- `npm run governance -- audit workspace-write-real-canary-candidate -- --json`
+- `npm run governance -- audit workspace-write-real-canary-final-local -- --json`
+- `npm run governance -- audit workspace-write-real-canary-sensitive-scan -- --json`
 - canary target absence check
 
 Sensitive marker scan targets:
@@ -94,7 +94,7 @@ Expected safe results:
 
 - candidate audit status is `passed`
 - candidate audit packageScriptsPresent is `true`
-- candidate audit packageScriptTargetCount is `6`
+- candidate audit packageScriptTargetCount is `1`
 - candidate audit packageScriptTargetMismatchCount is `0`
 - candidate audit auditFieldValuesRecorded is `true`
 - final local audit status is `passed`

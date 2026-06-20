@@ -40,8 +40,8 @@ test("PR-18B final preflight packet records the local-only gate", async () => {
   const normalized = packet.replace(/\s+/g, " ");
 
   assert.match(packet, /PR_18B_FORMAL_REAL_READONLY_SMOKE_FINAL_PREFLIGHT_RECORDED/);
-  assert.match(packet, /npm run acceptance:formal-real-readonly-smoke-final-preflight/);
-  assert.match(packet, /npm run acceptance:formal-real-readonly-smoke-execution-auth/);
+  assert.match(packet, /npm run governance -- acceptance formal-real-readonly-smoke-final-preflight/);
+  assert.match(packet, /npm run governance -- acceptance formal-real-readonly-smoke-execution-auth/);
 
   for (const phrase of [
     "does not set the future execution operator flag",

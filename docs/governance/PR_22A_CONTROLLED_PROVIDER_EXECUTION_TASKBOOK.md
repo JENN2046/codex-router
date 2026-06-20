@@ -25,7 +25,7 @@ Exact taskbook:
 Required prior local closeout:
 
 - `READONLY_PRODUCTIZATION_FINAL_CLOSEOUT_RECORDED`
-- `npm run audit:readonly-productization`
+- `npm run governance -- audit readonly-productization`
 
 Required prior policy artifact:
 
@@ -116,7 +116,7 @@ Before any future PR-22A implementation can be considered complete, rerun:
 - `git status --short`
 - `git branch -vv`
 - `git log --oneline --decorate -n 10`
-- `npm run audit:readonly-productization`
+- `npm run governance -- audit readonly-productization`
 - `npm run typecheck`
 - targeted provider execution runner tests
 - targeted host dispatcher tests

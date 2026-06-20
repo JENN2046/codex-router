@@ -14,7 +14,7 @@ A future PR-14 formal integration implementation task is compatible only when
 the operator packet exactly preserves these facts:
 
 - authorization token: `APPROVE_FORMAL_CODEX_CLI_READONLY_PROVIDER_INTEGRATION_PR_14B`
-- command: `npm run acceptance:formal-readonly-integration`
+- command: `npm run governance -- acceptance formal-readonly-integration`
 - provider: `codex-cli`
 - sandbox: `read-only`
 - side effect class: `read_only`
@@ -46,7 +46,7 @@ Provider execution and real CLI invocation must remain separate future gates.
 
 Local acceptance command:
 
-- `npm run acceptance:formal-readonly-integration-auth`
+- `npm run governance -- acceptance formal-readonly-integration-auth`
 
 Expected evidence:
 

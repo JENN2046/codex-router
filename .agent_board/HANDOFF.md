@@ -1,71 +1,45 @@
 # Handoff
 
-Original goal: reduce project drag from stale state surfaces, unclear execution
-boundaries, documentation drift, and maintainability pressure.
+PR2 scope: reduce meta-governance weight, remove old per-check aliases, align
+state-sync with the consolidated runner, and slim the document governance
+surface.
 
 Current status:
 
-- Branch: `fix/codex-cli-policy-bypass-flags`
-- Current head at this metadata refresh: `a24fad2`
-- Upstream: `origin/fix/codex-cli-policy-bypass-flags`
+- Branch: `chore/governance-validation-surface-slimming`
+- Current head at this metadata refresh: `8480a6f`
+- Upstream: `origin/chore/governance-validation-surface-slimming`
 - Current state source: `docs/current/CURRENT_STATE.md`
-- Work in progress: post-commit state metadata refresh after merge-base
-  allowlist collection fix.
+- Work in progress: address PR #43 P1 state metadata refresh
 
-Validated for current PR merge checkout state-sync review fix:
+What changed in this PR2 scope:
 
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `16 / 16`
+- Added `scripts/run-governance-check.ts` as the consolidated validation and
+  governance check runner.
+- Removed legacy per-check package script aliases from `package.json`.
+- Migrated old package-script command references to `npm run governance -- ...`.
+- Updated state-sync audit to require the consolidated `governance` package
+  script.
+- Added `docs/README.md` as the current documentation map.
+- Added `docs/governance/README.md` as the compact governance evidence map.
+- Reduced README's long historical document chain to a short current docs list.
+- Compacted `docs/current/CURRENT_STATE.md` to current facts and boundaries.
+- Compacted `.agent_board` current surfaces; detailed historical validation
+  remains in `.agent_board/VALIDATION_LOG.md`.
+- Preserved low risk canary evidence by writing per-risk canary latest
+  files before updating the legacy latest alias.
+
+Latest recorded PR #43 validation before this P1 refresh:
+
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
+- `npx tsx --test tests\canary-evidence.test.ts tests\governance-check.test.ts`:
+  passed, `8 / 8`
 - `npm run typecheck`: passed
-- `npm test`: passed, `1101 / 1101`
+- `npm test`: passed, `1109 / 1109`
 - `npm run build`: passed
-- `npm run audit:state-sync`: passed before state refresh
-
-Validation for this slice:
-
-- `npx tsx --test tests\state-sync-audit.test.ts`
-  - passed, `5 / 5`
-- `npm run audit:state-sync`
-  - passed
-- `npx tsx --test tests\codex-cli-host.test.ts`
-  - passed, `101 / 101`
-- `npm run typecheck`
-  - passed
-- `npm test`
-  - passed, `1082 / 1082`
-- `npm run build`
-  - passed
-
-Local optimizations committed:
-
-- The review fix makes `turn.failed` JSONL events blocking even with exit code
-  `0`.
-- The review fix tightens state-sync commit fields to the real head or the
-  stale-after-commit parent head.
-- The review fix tightens `Upstream divergence` to the actual ahead/behind
-  result and blocks unknown divergence.
-- The review fix treats web search events as unexpected tool use during Codex
-  CLI probes and read-only smoke validation.
-- The review fix accepts stale state hashes from PR merge checkout
-  second-parent ancestry while still blocking unrelated stale hashes.
-- The review fix reads declared parents from `HEAD^2`, covering shallow PR
-  merge checkouts where `HEAD^2^` cannot be resolved locally.
-- The regression test now derives the recorded state head dynamically instead
-  of baking in a previous state refresh hash.
-- The audit now accepts clean synthetic single-commit review checkouts only when
-  the state document explicitly allows them and recorded state fields are
-  self-consistent.
-- The audit now excludes the merge checkout base parent from acceptable state
-  commits whenever PR-side merge ancestry evidence is available.
-- The state-sync collector now filters the merge checkout base parent out of
-  `allowedStateCommits` before review, including shallow checkout parent data.
-- The review fix makes selected read-only audit freshness checks fail closed when
-  `origin/main` divergence is unknown.
-- `packages/state-sync-audit/src/index.ts` now owns pure review and formatting
-  logic.
-- `scripts/run-state-sync-audit.ts` now owns Git/file collection and CLI
-  execution.
-- `tests/state-sync-audit.test.ts` imports the reusable audit module.
+- `git diff --check`: passed
+- `npm run governance -- audit state-sync`: passed
+- `npm run validate:pr`: passed
 
 Hard boundaries:
 
@@ -78,6 +52,7 @@ Hard boundaries:
 
 Next safe action:
 
-1. Inspect diff and report validation honestly.
-2. Commit this post-commit state refresh.
-3. Push PR #41, then wait for checks.
+1. commit the PR #43 P1 state refresh
+2. run `npm run governance -- audit state-sync`
+3. run `npm run validate:pr`
+4. push `chore/governance-validation-surface-slimming`

@@ -72,12 +72,7 @@ const REQUIRED_DOC_FILES = [
 ] as const;
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  typecheck: "tsc -p tsconfig.json --noEmit",
-  "acceptance:workspace-write-real-canary-auth": "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
-  "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
-  "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
-  "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
-  "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_AUDIT_FIELD_DOCS = [
@@ -88,7 +83,7 @@ const REQUIRED_AUDIT_FIELD_DOCS = [
 
 const REQUIRED_AUDIT_FIELD_VALUES = [
   ["packageScriptsPresent", "true"],
-  ["packageScriptTargetCount", "6"],
+  ["packageScriptTargetCount", "1"],
   ["packageScriptTargetMismatchCount", "0"],
   ["finalAuditNoForbiddenCommands", "true"],
   ["sensitiveScanJsonContractValid", "true"],

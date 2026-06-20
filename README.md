@@ -314,7 +314,7 @@ handlers, `packages/desktop-live-adapter` also provides:
 - `createHostBridgeFromBindings()`
 - `createRecordingHostBridge()`
 
-See [docs/host-bridge-contract.md](A:/codex-router/docs/host-bridge-contract.md)
+See [docs/host-bridge-contract.md](docs/host-bridge-contract.md)
 for the minimal bridge contract and example adapter shape.
 
 ## Memory Integration
@@ -339,118 +339,41 @@ talks directly to a live `codex-memory` HTTP MCP endpoint and maps the native
 If that client is passed into the Desktop runner path, `memory_overview()` can
 now be consumed automatically during preflight.
 
-## End-To-End Example
+## Docs
 
-`packages/host-client-example` provides a runnable host-side example that
-combines:
+Start with [docs/README.md](docs/README.md). It separates current operating
+facts from historical closeouts and evidence.
 
-- `CodexMemoryAdapter`
-- `runDesktopTask()`
-- `resumeDesktopTask()`
-- typed primitive result envelopes
+Current docs:
 
-For cross-session recovery, the example can now:
-
-- reuse a shared or real `memoryClient` for memory-backed resume across host instances
-- persist the local checkpoint fallback with `checkpointStorePath`
-- persist alert suppression continuity with `telemetryAlertDeliveryWindowStorePath`
-
-See [docs/end-to-end-host-client-example.md](A:/codex-router/docs/end-to-end-host-client-example.md)
-for the walkthrough.
-
-For the real host-side memory bridge, see
-[docs/real-codex-memory-host-client.md](A:/codex-router/docs/real-codex-memory-host-client.md).
-
-For the production-shaped host starter that keeps real bridge and persistence
-wiring but drops the in-memory demo defaults, see
-[docs/desktop-host-client.md](A:/codex-router/docs/desktop-host-client.md).
-
-For the concrete Codex Desktop primitive adapter that maps runner primitives into
-runtime calls, task-local agent tracking, and direct host-tool mapping, see
-[docs/codex-desktop-bindings.md](A:/codex-router/docs/codex-desktop-bindings.md).
-
-For the composed live host bundle that wires Desktop runtime + memory host ops +
-host client into one surface, including `createCodexDesktopLiveHostStarter()`,
-`createCodexDesktopLiveHostBundleFromHostObject()`, and direct current-host tool
-composition, plus the final-host
-`createCodexDesktopLiveHostEmbeddingStarter()` readiness scaffold, fail-fast
-current-host validation, structured current-host readiness inspection, and
-host-source-aware smoke tasks with compact final-host evidence capture, which
-can also model a future Codex CLI host, see
-[docs/codex-desktop-live-host.md](A:/codex-router/docs/codex-desktop-live-host.md).
-
-For the first narrow Codex CLI host seam that builds safe
-`codex exec --json` command plans, parses JSONL output, and now includes
-guarded read-only and workspace-write smoke helpers with compact evidence
-persistence, see
-[docs/codex-cli-host.md](A:/codex-router/docs/codex-cli-host.md).
-
-For the concrete checklist to wire this SDK into the final Codex Desktop host,
-see
-[docs/final-codex-desktop-host-integration-checklist-20260424.md](A:/codex-router/docs/final-codex-desktop-host-integration-checklist-20260424.md).
-
-For the read-only preflight that records what is currently known about the final
-host source boundary and the VCPChat reference seams, see
-[docs/final-host-readonly-preflight-20260424.md](A:/codex-router/docs/final-host-readonly-preflight-20260424.md).
-
-For the reusable read-only gate that classifies final-host source candidates,
-packaged runtimes, and reference hosts, see
-[docs/final-host-locator.md](A:/codex-router/docs/final-host-locator.md).
-
-The older `target-host-*` docs remain useful for external or trial embedding
-repos. For the final Codex Desktop host, prefer the `codex-desktop-live-host`
-starter above. For the copyable target embedding module that turns a real host
-object plus directive builders into a host-layer skeleton, see
-[docs/target-host-layer-skeleton.md](A:/codex-router/docs/target-host-layer-skeleton.md).
-
-For the copyable host-object contract template that wires explicit placeholder
-methods and preflight-ready inspection into target embeddings, see
-[docs/target-host-object-contract.md](A:/codex-router/docs/target-host-object-contract.md).
-
-For the highest-level copyable embedding helper that combines the host contract,
-inspection, and target host-layer bundle creation, see
-[docs/target-host-embedding-starter.md](A:/codex-router/docs/target-host-embedding-starter.md).
-
-For the concrete step-by-step checklist to wire `codex-router` into a real
-embedding repo, see
-[docs/target-host-embedding-implementation-checklist.md](A:/codex-router/docs/target-host-embedding-implementation-checklist.md).
-
-For the execution sheet to use on the first real target repo, see
-[docs/first-target-embedding-repo-task-sheet.md](A:/codex-router/docs/first-target-embedding-repo-task-sheet.md).
-
-For the current repo-specific first target choice, see
-[docs/first-target-embedding-repo-task-sheet-vcpchat.md](A:/codex-router/docs/first-target-embedding-repo-task-sheet-vcpchat.md).
-
-For the prefilled working draft of that first target task sheet, see
-[docs/first-target-embedding-repo-task-sheet-prefill.md](A:/codex-router/docs/first-target-embedding-repo-task-sheet-prefill.md).
-
-For the first direct MCP transport client, see
-[docs/transport-native-codex-memory-mcp-client.md](A:/codex-router/docs/transport-native-codex-memory-mcp-client.md).
-
-For the current Agent OS Phase 4-8 execution-foundation completion report, see
-[docs/agent-os-transformation/phase-4-8-completion-report.md](A:/codex-router/docs/agent-os-transformation/phase-4-8-completion-report.md).
-
-For the current Agent OS roadmap and the next local review/evidence slice, see
-[docs/agent-os-transformation/current-roadmap-20260610.md](docs/agent-os-transformation/current-roadmap-20260610.md).
-
-For the current V1 closeout snapshot, validated baseline, and remaining gaps,
-see [docs/v1-closeout-status-20260423.md](A:/codex-router/docs/v1-closeout-status-20260423.md).
-
-For the frozen V1 release-candidate and integration-ready definition, see
-[docs/v1-release-candidate-definition-20260423.md](A:/codex-router/docs/v1-release-candidate-definition-20260423.md).
-
-For the short final-gate note that marks the current snapshot integration-ready
-within the Desktop-first V1 scope, see
-[docs/v1-integration-ready-final-gate-20260423.md](A:/codex-router/docs/v1-integration-ready-final-gate-20260423.md).
-
-For the post-freeze update that adds the final Codex Desktop host readiness
-starter, smoke harness, and current `145/145` validation baseline, see
-[docs/v1-final-host-readiness-addendum-20260424.md](A:/codex-router/docs/v1-final-host-readiness-addendum-20260424.md).
+- [current state](docs/current/CURRENT_STATE.md)
+- [validation tiers](docs/validation-tiers.md)
+- [governance docs](docs/governance/README.md)
+- [Codex CLI host](docs/codex-cli-host.md)
+- [Desktop live host](docs/codex-desktop-live-host.md)
+- [host-client example](docs/end-to-end-host-client-example.md)
 
 ## Commands
 
 ```bash
 npm install
-npm run typecheck
-npm test
+npm run validate:daily
+npm run validate:pr
+npm run governance -- list
 ```
+
+Validation is tiered to keep routine checks lightweight:
+
+- `npm run validate:daily`: typecheck plus optional targeted tests, for example `npm run validate:daily -- --test tests/desktop-live-adapter.test.ts`.
+- `npm run validate:pr`: typecheck, full tests, build, and `npm run governance -- audit state-sync`.
+- `npm run validate:release`: PR tier plus deterministic canary, contract smoke, and evidence collection. Real Codex CLI smoke and external canary checks stay explicitly local and are not included by default.
+
+Audit and acceptance checks are available through the consolidated runner:
+
+```bash
+npm run governance -- audit state-sync
+npm run governance -- acceptance readonly-chain
+npm run governance -- operator readonly
+```
+
+The old per-check package script aliases have been removed; use `npm run governance -- audit|acceptance|operator ...` instead.

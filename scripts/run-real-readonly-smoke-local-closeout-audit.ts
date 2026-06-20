@@ -9,11 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "acceptance:real-readonly-smoke-auth":
-    "tsx scripts/run-real-readonly-smoke-authorization-acceptance.ts",
-  "smoke:readonly:real": "tsx scripts/run-codex-cli-real-readonly-smoke.ts",
-  "audit:real-readonly-smoke-local":
-    "tsx scripts/run-real-readonly-smoke-local-closeout-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {
@@ -265,8 +261,8 @@ function reviewPackageScripts(packageJson: Record<string, unknown> | undefined):
 
 function auditIndexIsRecorded(text: string): boolean {
   return text.includes("PR_13A_REAL_READONLY_SMOKE_LOCAL_AUDIT_INDEX_RECORDED")
-    && text.includes("npm run audit:real-readonly-smoke-local -- --json")
-    && text.includes("packageScriptTargetCount is `3`")
+    && text.includes("npm run governance -- audit real-readonly-smoke-local -- --json")
+    && text.includes("packageScriptTargetCount is `1`")
     && /This index does not authorize:[\s\S]*real Codex CLI invocation/.test(text)
     && /This index does not authorize:[\s\S]*workspace-write execute/.test(text)
     && /This index does not authorize:[\s\S]*remote push/.test(text)
@@ -290,7 +286,7 @@ function receiptIsRecorded(text: string): boolean {
 function taskbookIsStillGated(text: string): boolean {
   return text.includes("APPROVE_REAL_CODEX_CLI_READONLY_SMOKE_PR_13A")
     && text.includes("ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real")
-    && text.includes("`npm run acceptance:real-readonly-smoke-auth`")
+    && text.includes("`npm run governance -- acceptance real-readonly-smoke-auth`")
     && text.includes("This taskbook does not authorize:");
 }
 

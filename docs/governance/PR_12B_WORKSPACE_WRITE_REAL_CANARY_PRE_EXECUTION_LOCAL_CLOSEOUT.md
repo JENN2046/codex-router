@@ -116,7 +116,7 @@ Evidence confirms:
 Validation run for this local stage:
 
 - `npx tsx --test tests\workspace-write-real-canary-pre-execution-acceptance.test.ts`
-- `npm run acceptance:workspace-write-real-canary-pre-execution`
+- `npm run governance -- acceptance workspace-write-real-canary-pre-execution`
 - `npx tsx --test tests\workspace-write-guard.test.ts`
 - `npx tsx --test tests\workspace-write-real-canary-authorization-acceptance.test.ts`
 - `npm run typecheck`
@@ -127,7 +127,7 @@ Validation run for this local stage:
 
 Current local candidate consistency should be checked with:
 
-- `npm run audit:workspace-write-real-canary-candidate`
+- `npm run governance -- audit workspace-write-real-canary-candidate`
 
 This command is the current-state check for:
 

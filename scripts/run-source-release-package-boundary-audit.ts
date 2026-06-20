@@ -11,8 +11,7 @@ const execFileAsync = promisify(execFile);
 const BOUNDARY_DOC = "docs/governance/SOURCE_RELEASE_PACKAGE_BOUNDARY.md";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:source-release-package-boundary":
-    "tsx scripts/run-source-release-package-boundary-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const SOURCE_REVIEW_ROOT_FILES = [
@@ -60,7 +59,7 @@ const REQUIRED_BOUNDARY_DOC_MARKERS = [
   "SOURCE_RELEASE_PACKAGE_BOUNDARY_RECORDED",
   "source-review.zip",
   "release-evidence.zip",
-  "npm run audit:source-release-package-boundary",
+  "npm run governance -- audit source-release-package-boundary",
   "archive pack-plan manifest",
   ".git/",
   ".agent_board/",

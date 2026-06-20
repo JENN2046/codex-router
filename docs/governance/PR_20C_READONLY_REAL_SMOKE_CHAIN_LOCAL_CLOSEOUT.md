@@ -15,13 +15,13 @@ authorize push, release, or tag, and does not set an execution operator flag.
 
 Local closeout audit:
 
-- `npm run audit:readonly-real-smoke-chain-local-closeout`
-- `npm run audit:readonly-real-smoke-chain-local-closeout -- --json`
+- `npm run governance -- audit readonly-real-smoke-chain-local-closeout`
+- `npm run governance -- audit readonly-real-smoke-chain-local-closeout -- --json`
 
 Required upstream audits:
 
-- `npm run audit:readonly-real-smoke-chain-candidate`
-- `npm run audit:readonly-real-smoke-chain-index`
+- `npm run governance -- audit readonly-real-smoke-chain-candidate`
+- `npm run governance -- audit readonly-real-smoke-chain-index`
 
 ## 3. Required Inputs
 

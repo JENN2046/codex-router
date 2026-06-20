@@ -53,7 +53,7 @@ test("formal real read-only smoke local closeout audit passes for PR-17A/B state
     evidenceSanitized: true,
     closeoutNonAuthorizing: true
   });
-  assert.equal(review.summary.packageScriptTargetCount, 3);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.providerId, "codex-cli");
   assert.equal(review.summary.sideEffectClass, "read_only");
@@ -182,8 +182,8 @@ async function createInputFromWorkspace(
 function createCloseoutDocumentText(): string {
   return [
     "PR_17C_FORMAL_REAL_READONLY_SMOKE_LOCAL_CLOSEOUT_COMPLETE",
-    "npm run audit:formal-real-readonly-smoke-local",
-    "npm run audit:formal-real-readonly-smoke-local -- --json",
+    "npm run governance -- audit formal-real-readonly-smoke-local",
+    "npm run governance -- audit formal-real-readonly-smoke-local -- --json",
     "docs/evidence/codex-cli-formal-real-readonly-smoke-taskbook-acceptance.json",
     "docs/evidence/codex-cli-formal-real-readonly-smoke-pre-execution-acceptance.json",
     "does not authorize invoking the real Codex CLI",

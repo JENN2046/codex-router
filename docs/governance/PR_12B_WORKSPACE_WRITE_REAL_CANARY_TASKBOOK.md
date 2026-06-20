@@ -22,7 +22,7 @@ Before any PR-12B implementation or execution work, all of the following must be
 - Local `main` equals `origin/main`.
 - PR-12A is remote-confirmed.
 - `npm run typecheck` passes.
-- `npm run acceptance:workspace-write-fake-canary` passes.
+- `npm run governance -- acceptance workspace-write-fake-canary` passes.
 - `npx tsx --test tests\workspace-write-guard.test.ts` passes.
 - `npx tsx --test tests\workspace-write-fake-canary-acceptance.test.ts` passes.
 - `npm test` passes.
@@ -128,7 +128,7 @@ Stop immediately and report blocked if:
 Future PR-12B validation should include:
 
 - `npm run typecheck`
-- `npm run acceptance:workspace-write-fake-canary`
+- `npm run governance -- acceptance workspace-write-fake-canary`
 - targeted workspace-write guard tests
 - targeted fake canary acceptance tests
 - a PR-12B-specific canary test, if implemented

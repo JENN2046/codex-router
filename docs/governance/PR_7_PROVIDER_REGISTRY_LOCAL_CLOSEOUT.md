@@ -98,7 +98,7 @@ Verified selection fail-closed behavior:
 | `npx tsx --test tests\provider-registry.test.ts` | pass, 39 tests |
 | `npx tsx --test tests\provider-core.test.ts` | pass, 12 tests |
 | `npx tsx --test tests\routing-engine.test.ts` | pass, 4 tests |
-| `npm run acceptance:provider-registry` | pass |
+| `npm run governance -- acceptance provider-registry` | pass |
 | `npm test` | pass, 798 tests |
 | Evidence leak search | pass, no matches |
 

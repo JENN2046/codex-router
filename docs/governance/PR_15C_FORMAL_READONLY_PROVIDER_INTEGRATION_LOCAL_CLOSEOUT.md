@@ -16,19 +16,19 @@ Taskbook gate:
 
 - `docs/governance/PR_15A_FORMAL_READONLY_PROVIDER_INTEGRATION_TASKBOOK.md`
 - `docs/evidence/codex-cli-formal-readonly-provider-integration-taskbook-acceptance.json`
-- `npm run acceptance:formal-readonly-provider-integration-taskbook`
+- `npm run governance -- acceptance formal-readonly-provider-integration-taskbook`
 
 Formal local integration:
 
 - `docs/governance/PR_15B_FORMAL_READONLY_PROVIDER_INTEGRATION_LOCAL.md`
 - `docs/evidence/codex-cli-formal-readonly-provider-integration-acceptance.json`
-- `npm run acceptance:formal-readonly-provider-integration`
+- `npm run governance -- acceptance formal-readonly-provider-integration`
 
 Local closeout audit:
 
 - `docs/governance/PR_15C_FORMAL_READONLY_PROVIDER_INTEGRATION_LOCAL_CLOSEOUT.md`
-- `npm run audit:formal-readonly-provider-integration-local`
-- `npm run audit:formal-readonly-provider-integration-local -- --json`
+- `npm run governance -- audit formal-readonly-provider-integration-local`
+- `npm run governance -- audit formal-readonly-provider-integration-local -- --json`
 
 ## 3. Required Local Audit Result
 

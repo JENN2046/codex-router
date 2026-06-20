@@ -17,12 +17,12 @@ execution operator flag.
 
 Local candidate audit:
 
-- `npm run audit:readonly-real-smoke-chain-candidate`
-- `npm run audit:readonly-real-smoke-chain-candidate -- --json`
+- `npm run governance -- audit readonly-real-smoke-chain-candidate`
+- `npm run governance -- audit readonly-real-smoke-chain-candidate -- --json`
 
 Underlying chain index:
 
-- `npm run audit:readonly-real-smoke-chain-index`
+- `npm run governance -- audit readonly-real-smoke-chain-index`
 
 ## 3. Required Inputs
 

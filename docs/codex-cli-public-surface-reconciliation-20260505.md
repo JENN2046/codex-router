@@ -126,7 +126,7 @@ This reconciliation did not run:
 - `codex exec`
 - `npm run smoke:telemetry`
 - `npm run smoke:workspace-write:telemetry`
-- `npm run operator:acceptance`
+- `npm run governance -- operator default`
 - `npm run evidence:collect`
 
 ## 9. Findings Table

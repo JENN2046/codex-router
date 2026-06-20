@@ -18,7 +18,7 @@ Current evidence baseline:
   - `npm run typecheck` passed.
   - `npm test` passed: `1027 / 1027`.
   - `npm run build` passed.
-  - `npm run audit:approval-consumption-dispatch-matrix` passed on clean
+  - `npm run governance -- audit approval-consumption-dispatch-matrix` passed on clean
     `main`.
   - `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real`
     passed and refreshed `docs/evidence/codex-cli-real-readonly-smoke.json`.
@@ -26,27 +26,27 @@ Current evidence baseline:
   - `npx tsx --test tests\future-codex-cli-canary-authorization-packet-audit.test.ts`
     passed on the packet draft branch.
   - `npm run typecheck` passed on the packet draft branch.
-  - `npm run audit:future-codex-cli-canary-authorization-packet` passed on
+  - `npm run governance -- audit future-codex-cli-canary-authorization-packet` passed on
     clean local `main` after the fast-forward merge.
   - `git push origin main` succeeded after one retry, pushing `4db8174..c73fa1b`.
   - `git push origin main` later pushed `c73fa1b..19b3a5e`.
   - `npx tsx --test tests\future-codex-cli-canary-execution-gate-audit.test.ts`
     passed on the execution gate design branch.
   - `npm run typecheck` passed on the execution gate design branch.
-  - `npm run audit:future-codex-cli-canary-execution-gate` passed on clean
+  - `npm run governance -- audit future-codex-cli-canary-execution-gate` passed on clean
     local `main` after the fast-forward merge.
   - `git push origin main` pushed `19b3a5e..c679c58`.
   - `git push origin main` pushed `c679c58..fe181cb`.
   - `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
     passed on the pre-execution review branch.
   - `npm run typecheck` passed on the pre-execution review branch.
-  - `npm run audit:future-codex-cli-canary-pre-execution-review` blocked on
+  - `npm run governance -- audit future-codex-cli-canary-pre-execution-review` blocked on
     clean local `main` only because local `main` is not aligned with
     `origin/main`.
   - `git push origin main` pushed `fe181cb..3a71acc`.
-  - `npm run audit:future-codex-cli-canary-pre-execution-review` passed on
+  - `npm run governance -- audit future-codex-cli-canary-pre-execution-review` passed on
     aligned clean `main`.
-  - `npm run audit:workspace-write-real-canary-final-local` passed after the
+  - `npm run governance -- audit workspace-write-real-canary-final-local` passed after the
     clean-main gate alignment fix.
   - `git push origin main` pushed `3a71acc..590dbd4`.
   - A bounded real Codex CLI workspace-write canary passed under exact operator
@@ -62,7 +62,7 @@ Current evidence baseline:
   - `npm test` passed: `1032 / 1032`.
   - `npm run build` passed.
   - `git push origin main` pushed `5642b43..5566777`.
-  - `npm run audit:post-canary-receipt-rollback-gate` passed on clean aligned
+  - `npm run governance -- audit post-canary-receipt-rollback-gate` passed on clean aligned
     `main`.
 
 ## Current Mainline Facts
@@ -173,14 +173,14 @@ GitHub, pushing, opening a PR, closing an issue, or adding an issue comment.
 Use existing scripts only:
 
 ```powershell
-npm run audit:approval-consumption-dispatch-matrix
-npm run audit:controlled-execution-gate-design
-npm run audit:future-codex-cli-canary-packet-checklist
-npm run audit:future-codex-cli-canary-authorization-packet
-npm run audit:future-codex-cli-canary-execution-gate
-npm run audit:future-codex-cli-canary-pre-execution-review
-npm run audit:workspace-write-real-canary-final-local
-npm run audit:post-canary-receipt-rollback-gate
+npm run governance -- audit approval-consumption-dispatch-matrix
+npm run governance -- audit controlled-execution-gate-design
+npm run governance -- audit future-codex-cli-canary-packet-checklist
+npm run governance -- audit future-codex-cli-canary-authorization-packet
+npm run governance -- audit future-codex-cli-canary-execution-gate
+npm run governance -- audit future-codex-cli-canary-pre-execution-review
+npm run governance -- audit workspace-write-real-canary-final-local
+npm run governance -- audit post-canary-receipt-rollback-gate
 npm run smoke:readonly:real
 npm run typecheck
 npm test
@@ -200,7 +200,7 @@ rollback verification gate are pushed. The real workspace-write canary passed
 for target `tmp/codex-cli-write-canary.txt`, its evidence is
 `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`, the temporary
 canary file has been removed, and
-`npm run audit:post-canary-receipt-rollback-gate` passed on clean aligned
+`npm run governance -- audit post-canary-receipt-rollback-gate` passed on clean aligned
 `main`. Next safe work is capability taxonomy / escalation policy design. Do
 not open general workspace-write, general provider execution, or unrelated
 remote actions.

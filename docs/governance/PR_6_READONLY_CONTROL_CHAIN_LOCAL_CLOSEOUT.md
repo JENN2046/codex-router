@@ -60,7 +60,7 @@ Current local chain supports a constrained read-only provider path:
 
 `TaskEnvelope -> classify -> route -> preflight -> approval -> providerGrant -> providerPlan -> executionPermit -> read-only fake dispatch -> sanitized result`
 
-The chain is proven by `npm run acceptance:readonly-chain`.
+The chain is proven by `npm run governance -- acceptance readonly-chain`.
 
 Implemented capability boundaries:
 
@@ -104,7 +104,7 @@ Workspace-write remains blocked by tests that verify provider execute and dispat
 | `npx tsx --test tests\provider-core.test.ts` | pass, 12 tests |
 | `npx tsx --test tests\codex-desktop-bindings.test.ts` | pass, 9 tests |
 | `npx tsx --test tests\desktop-live-adapter.test.ts` | pass, 20 tests |
-| `npm run acceptance:readonly-chain` | pass |
+| `npm run governance -- acceptance readonly-chain` | pass |
 | `npm test` | pass, 775 tests |
 | Evidence leak search | pass, no matches |
 

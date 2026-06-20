@@ -26,14 +26,7 @@ const WORKSPACE_WRITE_PRE_EXECUTION_EVIDENCE =
   "docs/evidence/workspace-write-real-canary-pre-execution-acceptance.json";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:future-codex-cli-canary-authorization-packet":
-    "tsx scripts/run-future-codex-cli-canary-authorization-packet-audit.ts",
-  "audit:future-codex-cli-canary-packet-checklist":
-    "tsx scripts/run-future-codex-cli-canary-packet-checklist-audit.ts",
-  "audit:controlled-execution-gate-design":
-    "tsx scripts/run-controlled-execution-gate-design-audit.ts",
-  "audit:workspace-write-real-canary-final-local":
-    "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_PACKET_FIELDS = [

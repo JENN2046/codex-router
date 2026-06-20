@@ -50,7 +50,7 @@ test("PR-18A execution authorization packet records exact local gate", async () 
   );
   assert.match(packet, /APPROVE_FORMAL_REAL_CODEX_CLI_READONLY_SMOKE_EXECUTION_PR_18A/);
   assert.match(packet, /ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real/);
-  assert.match(packet, /npm run acceptance:formal-real-readonly-smoke-execution-auth/);
+  assert.match(packet, /npm run governance -- acceptance formal-real-readonly-smoke-execution-auth/);
 
   for (const phrase of [
     "does not execute the real Codex CLI",

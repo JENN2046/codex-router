@@ -20,10 +20,7 @@ const REAL_CANARY_EVIDENCE =
   "docs/evidence/codex-cli-workspace-write-real-canary-latest.json";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:capability-taxonomy-escalation-policy":
-    "tsx scripts/run-capability-taxonomy-escalation-policy-audit.ts",
-  "audit:post-canary-receipt-rollback-gate":
-    "tsx scripts/run-post-canary-receipt-rollback-verification-gate-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_CAPABILITY_CLASSES = [

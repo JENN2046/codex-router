@@ -17,8 +17,8 @@ execution operator flag.
 
 Local index audit:
 
-- `npm run audit:readonly-real-smoke-chain-index`
-- `npm run audit:readonly-real-smoke-chain-index -- --json`
+- `npm run governance -- audit readonly-real-smoke-chain-index`
+- `npm run governance -- audit readonly-real-smoke-chain-index -- --json`
 
 ## 3. Required Inputs
 

@@ -13,8 +13,8 @@ does not set the future execution operator flag.
 
 Local review command:
 
-- `npm run audit:formal-real-readonly-smoke-local-rc`
-- `npm run audit:formal-real-readonly-smoke-local-rc -- --json`
+- `npm run governance -- audit formal-real-readonly-smoke-local-rc`
+- `npm run governance -- audit formal-real-readonly-smoke-local-rc -- --json`
 
 ## 3. Required Inputs
 

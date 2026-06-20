@@ -18,12 +18,7 @@ const REAL_CANARY_EVIDENCE =
   "docs/evidence/codex-cli-workspace-write-real-canary-latest.json";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:post-canary-receipt-rollback-gate":
-    "tsx scripts/run-post-canary-receipt-rollback-verification-gate-audit.ts",
-  "audit:future-codex-cli-canary-pre-execution-review":
-    "tsx scripts/run-future-codex-cli-canary-pre-execution-review-audit.ts",
-  "audit:workspace-write-real-canary-final-local":
-    "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_RECEIPT_FIELDS = [

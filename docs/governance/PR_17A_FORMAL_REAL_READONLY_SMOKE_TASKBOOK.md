@@ -26,7 +26,7 @@ Exact future command shape:
 
 Required local acceptance command:
 
-- `npm run acceptance:formal-real-readonly-smoke-taskbook`
+- `npm run governance -- acceptance formal-real-readonly-smoke-taskbook`
 
 Required acceptance evidence:
 
@@ -43,9 +43,9 @@ The next stage may only be considered after these local artifacts remain valid:
 - `docs/evidence/codex-cli-real-readonly-smoke-authorization-acceptance.json`
 - `docs/evidence/codex-cli-formal-readonly-dispatch-boundary-acceptance.json`
 - `docs/governance/PR_16B_FORMAL_READONLY_DISPATCH_BOUNDARY_LOCAL_CLOSEOUT.md`
-- `npm run acceptance:real-readonly-smoke-auth`
-- `npm run acceptance:formal-readonly-dispatch-boundary`
-- `npm run audit:formal-readonly-dispatch-boundary-local`
+- `npm run governance -- acceptance real-readonly-smoke-auth`
+- `npm run governance -- acceptance formal-readonly-dispatch-boundary`
+- `npm run governance -- audit formal-readonly-dispatch-boundary-local`
 
 ## 4. Required Formal Boundary
 
@@ -75,10 +75,10 @@ Before any separate authorization to run the future real read-only smoke, rerun:
 - `npx tsx --test tests\real-readonly-smoke-authorization-acceptance.test.ts`
 - `npx tsx --test tests\formal-readonly-dispatch-boundary-acceptance.test.ts`
 - `npx tsx --test tests\host-dispatcher.test.ts`
-- `npm run acceptance:formal-real-readonly-smoke-taskbook`
-- `npm run acceptance:real-readonly-smoke-auth`
-- `npm run acceptance:formal-readonly-dispatch-boundary`
-- `npm run audit:formal-readonly-dispatch-boundary-local`
+- `npm run governance -- acceptance formal-real-readonly-smoke-taskbook`
+- `npm run governance -- acceptance real-readonly-smoke-auth`
+- `npm run governance -- acceptance formal-readonly-dispatch-boundary`
+- `npm run governance -- audit formal-readonly-dispatch-boundary-local`
 
 Required preflight results:
 

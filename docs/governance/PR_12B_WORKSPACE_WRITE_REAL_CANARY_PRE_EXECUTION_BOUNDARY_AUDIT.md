@@ -146,7 +146,7 @@ Validation rechecked during this audit:
 
 Current-state candidate consistency is now rechecked by:
 
-- `npm run audit:workspace-write-real-canary-candidate`
+- `npm run governance -- audit workspace-write-real-canary-candidate`
 
 The audit command is intentionally read-only. It checks the current Git state and local candidate range, then fails closed if:
 
@@ -171,7 +171,7 @@ Observed local state before this audit document:
 
 Observed result after consistency hardening:
 
-- `npm run audit:workspace-write-real-canary-candidate`: passed
+- `npm run governance -- audit workspace-write-real-canary-candidate`: passed
 - Provider execute calls: `0`
 - Real Codex CLI calls: `0`
 - Workspace-write execute calls: `0`

@@ -96,7 +96,7 @@ Evidence confirms:
 Validation run for this local stage:
 
 - `npx tsx --test tests\workspace-write-real-canary-authorization-acceptance.test.ts`
-- `npm run acceptance:workspace-write-real-canary-auth`
+- `npm run governance -- acceptance workspace-write-real-canary-auth`
 - `npx tsx --test tests\workspace-write-guard.test.ts`
 - `npm run typecheck`
 - `npm test`

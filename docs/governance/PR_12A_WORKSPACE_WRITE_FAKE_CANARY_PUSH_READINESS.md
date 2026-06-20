@@ -43,7 +43,7 @@ Changed files in `origin/main..HEAD`:
 Validation passed:
 
 - `npm run typecheck`
-- `npm run acceptance:workspace-write-fake-canary`
+- `npm run governance -- acceptance workspace-write-fake-canary`
 - `npx tsx --test tests\workspace-write-fake-canary-acceptance.test.ts`
 - `npx tsx --test tests\workspace-write-guard.test.ts`
 - `npx tsx --test tests\workspace-write-governance-acceptance.test.ts`

@@ -14,7 +14,7 @@ protected remote execution, and does not authorize push, release, or tag.
 
 Local acceptance command:
 
-- `npm run acceptance:formal-real-readonly-smoke-pre-execution`
+- `npm run governance -- acceptance formal-real-readonly-smoke-pre-execution`
 
 Evidence:
 

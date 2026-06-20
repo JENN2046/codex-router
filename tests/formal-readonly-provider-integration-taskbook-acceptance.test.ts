@@ -47,7 +47,7 @@ test("PR-15A taskbook records exact gate and non-authorizations", async () => {
     /PR_15A_FORMAL_READONLY_PROVIDER_INTEGRATION_TASKBOOK_RECORDED/
   );
   assert.match(taskbook, /APPROVE_FORMAL_CODEX_CLI_READONLY_PROVIDER_INTEGRATION_PR_15A/);
-  assert.match(taskbook, /npm run acceptance:formal-readonly-provider-integration-taskbook/);
+  assert.match(taskbook, /npm run governance -- acceptance formal-readonly-provider-integration-taskbook/);
 
   for (const phrase of [
     "not an authorization to invoke the real Codex CLI",

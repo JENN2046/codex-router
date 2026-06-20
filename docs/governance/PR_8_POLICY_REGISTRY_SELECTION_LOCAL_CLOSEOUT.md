@@ -60,7 +60,7 @@ Implemented capabilities:
 - Runner selection failures block as `blocked_preflight`.
 - `dispatchReadOnlyRunnerResultToProvider()` optionally validates registry selection before provider planning.
 - Dispatcher registry failures block before provider plan, permit, and provider run path.
-- Policy registry selection acceptance evidence is reproducible with `npm run acceptance:policy-registry-selection`.
+- Policy registry selection acceptance evidence is reproducible with `npm run governance -- acceptance policy-registry-selection`.
 
 ## 6. Selection Fail-closed Summary
 
@@ -105,7 +105,7 @@ Evidence summary:
 | `git diff --stat origin/main..HEAD` | pass, 13 files reviewed |
 | `git diff --name-only origin/main..HEAD` | pass, changed file list reviewed |
 | `npm run typecheck` | pass |
-| `npm run acceptance:policy-registry-selection` | pass |
+| `npm run governance -- acceptance policy-registry-selection` | pass |
 | `npx tsx --test tests\policy-registry-selection-acceptance.test.ts` | pass, 2 tests |
 | `npx tsx --test tests\provider-registry.test.ts` | pass, 43 tests |
 | `npx tsx --test tests\desktop-decision-runner.test.ts` | pass, 15 tests |

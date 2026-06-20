@@ -28,7 +28,7 @@ facts are present:
 
 Local acceptance command:
 
-- `npm run acceptance:formal-readonly-integration`
+- `npm run governance -- acceptance formal-readonly-integration`
 
 Expected evidence:
 

@@ -9,12 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "acceptance:formal-real-readonly-smoke-taskbook":
-    "tsx scripts/run-formal-real-readonly-smoke-taskbook-acceptance.ts",
-  "acceptance:formal-real-readonly-smoke-pre-execution":
-    "tsx scripts/run-formal-real-readonly-smoke-pre-execution-acceptance.ts",
-  "audit:formal-real-readonly-smoke-local":
-    "tsx scripts/run-formal-real-readonly-smoke-local-closeout-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {
@@ -291,7 +286,7 @@ function reviewPackageScripts(packageJson: Record<string, unknown> | undefined):
 function pr17aTaskbookRecorded(text: string): boolean {
   const normalized = text.replace(/\s+/g, " ");
   return text.includes("PR_17A_FORMAL_REAL_READONLY_SMOKE_TASKBOOK_RECORDED")
-    && text.includes("npm run acceptance:formal-real-readonly-smoke-taskbook")
+    && text.includes("npm run governance -- acceptance formal-real-readonly-smoke-taskbook")
     && text.includes(REQUIRED_EVIDENCE.taskbook)
     && normalized.includes("does not authorize invoking the real Codex CLI")
     && normalized.includes("does not authorize workspace-write");
@@ -300,7 +295,7 @@ function pr17aTaskbookRecorded(text: string): boolean {
 function pr17bPreExecutionRecorded(text: string): boolean {
   const normalized = text.replace(/\s+/g, " ");
   return text.includes("PR_17B_FORMAL_REAL_READONLY_SMOKE_PRE_EXECUTION_RECORDED")
-    && text.includes("npm run acceptance:formal-real-readonly-smoke-pre-execution")
+    && text.includes("npm run governance -- acceptance formal-real-readonly-smoke-pre-execution")
     && text.includes(REQUIRED_EVIDENCE.preExecution)
     && normalized.includes("does not authorize invoking the real Codex CLI")
     && normalized.includes("does not authorize provider execute")
@@ -309,8 +304,8 @@ function pr17bPreExecutionRecorded(text: string): boolean {
 
 function pr17cCloseoutRecorded(text: string): boolean {
   return text.includes("PR_17C_FORMAL_REAL_READONLY_SMOKE_LOCAL_CLOSEOUT_COMPLETE")
-    && text.includes("npm run audit:formal-real-readonly-smoke-local")
-    && text.includes("npm run audit:formal-real-readonly-smoke-local -- --json")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-local")
+    && text.includes("npm run governance -- audit formal-real-readonly-smoke-local -- --json")
     && text.includes(REQUIRED_EVIDENCE.taskbook)
     && text.includes(REQUIRED_EVIDENCE.preExecution);
 }

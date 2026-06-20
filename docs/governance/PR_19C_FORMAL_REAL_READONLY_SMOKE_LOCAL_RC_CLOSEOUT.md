@@ -13,8 +13,8 @@ and does not set the future execution operator flag.
 
 Local closeout command:
 
-- `npm run audit:formal-real-readonly-smoke-rc-local-closeout`
-- `npm run audit:formal-real-readonly-smoke-rc-local-closeout -- --json`
+- `npm run governance -- audit formal-real-readonly-smoke-rc-local-closeout`
+- `npm run governance -- audit formal-real-readonly-smoke-rc-local-closeout -- --json`
 
 ## 3. Required Inputs
 

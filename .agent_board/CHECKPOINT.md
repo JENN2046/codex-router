@@ -2,127 +2,49 @@
 
 ## Current Stage
 
-State-surface cleanup is in progress on branch
-`fix/codex-cli-policy-bypass-flags` after local commit `a24fad2`.
+Validation tier simplification, legacy alias cleanup, state-sync script
+alignment, and document governance surface slimming are implemented on branch
+`chore/governance-validation-surface-slimming` after PR branch commit `8480a6f`.
 
-The current operational state should now be read from:
+The current operational state should be read from:
 
 - `docs/current/CURRENT_STATE.md`
 
 ## Completed In This Slice
 
-- Created a compact current-state document with branch, head, upstream,
-  validation baseline, execution boundary, blocked capabilities, and next safe
-  action.
-- Added a local read-only state-sync audit script.
-- Added regression tests for stale current-state and stale `.agent_board`
-  detection.
-- Wired `npm run audit:state-sync`.
-- Replaced stale `.agent_board` references to old mainline state with the
-  current branch baseline.
-- Added a Codex CLI production argv allowlist validator that rejects forged
-  unknown flags and positional argv before spawn.
-- Added Codex CLI host regression coverage for allowlist enforcement.
-- Added official JSONL fixture coverage for known Codex event families and
-  read-only write evidence in official item shapes.
-- Added `turn.failed` and web search item recognition to strict JSONL known
-  event handling.
-- Extracted pure state-sync audit review and formatting logic into
-  `packages/state-sync-audit/src/index.ts`.
-- Kept `scripts/run-state-sync-audit.ts` focused on Git/file collection and CLI
-  output.
-- Updated state-sync tests to import the reusable audit module.
-- Fixed CI shallow checkout failures by allowing selected read-only audit
-  collectors to fail closed when `origin/main` divergence is unknown.
-- Fixed PR review feedback by making `turn.failed` JSONL events blocking even
-  with exit code `0`.
-- Tightened state-sync audit to require recorded commit hashes to match the
-  real head, or the parent head when `Stale after commit: true`.
-- Tightened state-sync audit to require recorded upstream divergence to match
-  the actual ahead/behind result, with unknown divergence blocked.
-- Tightened Codex CLI probe and read-only smoke validation to treat web search
-  events as unexpected tool use.
-- Tightened state-sync audit for PR merge checkout contexts by accepting stale
-  state hashes from second-parent ancestry while still blocking unrelated stale
-  hashes.
-- Tightened state-sync audit for shallow PR merge checkout contexts by reading
-  declared parents from `HEAD^2` when `HEAD^2^` is unavailable.
-- Stabilized the shallow merge regression test so it derives the recorded state
-  head dynamically instead of baking in a previous refresh hash.
-- Added an explicit synthetic single-commit review checkout rule for state-sync
-  audit, gated on a clean checkout, `ahead 0 / behind 0`, matching recorded
-  state fields, and the `Synthetic review checkout` state marker.
-- Excluded the merge checkout base parent from acceptable state commits whenever
-  PR-side merge ancestry evidence is available.
-- Filtered the merge checkout base parent out of collected
-  `allowedStateCommits` before state-sync review.
+- Added the consolidated `governance` runner and validation tier entrypoints.
+- Removed legacy per-check package script aliases.
+- Migrated old package-script command references out of docs, tests, scripts,
+  and `package.json`.
+- Updated `packages/state-sync-audit` to require the consolidated `governance`
+  package script.
+- Added `docs/README.md` and `docs/governance/README.md` as compact document
+  entrypoints.
+- Reduced README's historical document link chain.
+- Compacted current state and agent-board surfaces; detailed validation history
+  remains in `.agent_board/VALIDATION_LOG.md`.
+- Fixed the governance runner to use Windows command shims for both `npm` and
+  `tsx` child commands.
+- Fixed canary evidence writes so low risk and medium risk canary results are
+  preserved separately during release validation before the legacy latest alias
+  is updated.
 
-## Validation
+## Latest Validated Baseline
 
-Run for this slice:
-
-- `npx tsx --test tests\state-sync-audit.test.ts`
-  - Result: passed, `5 / 5`
-- `npm run audit:state-sync`
-  - Result: passed
-- `npx tsx --test tests\codex-cli-host.test.ts`
-  - Result: passed, `101 / 101`
-- `npm run typecheck`
-  - Result: passed
-- `npm test`
-  - Result: passed, `1082 / 1082`
-- `npm run build`
-  - Result: passed
-- `npx tsx --test tests\state-sync-audit.test.ts`
-  - Result: passed, `16 / 16`
-- `npm run typecheck`
-  - Result: passed
-- `npm run audit:state-sync`
-  - Result: passed before state refresh
-- `npm test`
-  - Result: passed, `1101 / 1101`
-- `npm run build`
-  - Result: passed
-- `npx tsx --test tests\codex-cli-host.test.ts`
-  - Result: passed, `104 / 104`
-- `npm test`
-  - Result: passed, `1094 / 1094`
-- `npm run audit:state-sync`
-  - Result: passed after state refresh
-- `npm run audit:state-sync`
-  - Result: passed after state refresh
-- `npx tsx --test tests\state-sync-audit.test.ts`
-  - Result: passed, `15 / 15`
-- `npx tsx --test tests\codex-cli-host.test.ts`
-  - Result: passed, `104 / 104`
-- `npm run typecheck`
-  - Result: passed
-- `npm run audit:state-sync`
-  - Result: passed before state refresh
-- `npm test`
-  - Result: passed, `1100 / 1100`
-- `npm run build`
-  - Result: passed
-- `npx tsx --test tests\codex-cli-host.test.ts`
-  - Result: passed, `101 / 101`
-- `npx tsx --test tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts`
-  - Result: passed, `16 / 16`
-- `npx tsx --test tests\readonly-real-smoke-chain-index-audit.test.ts tests\readonly-real-smoke-chain-local-candidate-consistency.test.ts tests\readonly-real-smoke-chain-local-closeout-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts`
-  - Result: passed, `16 / 16`
-- `npx tsx --test tests\codex-cli-host.test.ts tests\state-sync-audit.test.ts tests\readonly-formal-integration-readiness-matrix-audit.test.ts tests\readonly-productization-acceptance.test.ts tests\source-release-package-boundary-audit.test.ts tests\formal-real-readonly-smoke-rc-local-closeout-audit.test.ts tests\readonly-real-smoke-chain-index-audit.test.ts`
-  - Result: passed, `137 / 137`
-- `npm run typecheck`
-  - Result: passed
-- `npm test`
-  - Result: passed, `1089 / 1089`
-- `npm run build`
-  - Result: passed
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
+- `npx tsx --test tests\canary-evidence.test.ts tests\governance-check.test.ts`:
+  passed, `8 / 8`.
+- `npm run typecheck`: passed.
+- `npm test`: passed, `1109 / 1109`.
+- `npm run build`: passed.
+- `git diff --check`: passed.
+- `npm run governance -- audit state-sync`: passed.
+- `npm run validate:pr`: passed.
 
 ## Remaining Risk
 
-- `CURRENT_STATE.md` intentionally records `Stale after commit: true`; after a
-  new commit, the state surface must be refreshed to the new commit before it
-  should be treated as current.
-- The state-sync audit is a local read-only audit. It does not authorize
+- This branch is local and not reviewed in CI.
+- The state-sync audit is a local read-only audit. It does not authorize real
   execution, provider work, workspace-write, or remote actions.
-- The web search probe review fix is committed and pushed.
+- No push, release, tag, deployment, external write, or secret change is
+  authorized by this state refresh.

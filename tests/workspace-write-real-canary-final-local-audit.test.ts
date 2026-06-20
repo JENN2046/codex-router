@@ -37,29 +37,25 @@ const expectedFinalLocalAuditCommands = [
   },
   {
     id: "future-canary-pre-execution-review-audit",
-    args: ["run", "audit:future-codex-cli-canary-pre-execution-review"]
+    args: ["run", "governance", "--", "audit", "future-codex-cli-canary-pre-execution-review"]
   },
   {
     id: "real-canary-authorization-acceptance",
-    args: ["run", "acceptance:workspace-write-real-canary-auth"]
+    args: ["run", "governance", "--", "acceptance", "workspace-write-real-canary-auth"]
   },
   {
     id: "real-canary-pre-execution-acceptance",
-    args: ["run", "acceptance:workspace-write-real-canary-pre-execution"]
+    args: ["run", "governance", "--", "acceptance", "workspace-write-real-canary-pre-execution"]
   },
   {
     id: "real-canary-sensitive-scan-json",
-    args: ["run", "audit:workspace-write-real-canary-sensitive-scan", "--", "--json"]
+    args: ["run", "governance", "--", "audit", "workspace-write-real-canary-sensitive-scan", "--", "--json"]
   }
 ] as const;
 
 const requiredPackageScripts = [
   "typecheck",
-  "acceptance:workspace-write-real-canary-auth",
-  "acceptance:workspace-write-real-canary-pre-execution",
-  "audit:future-codex-cli-canary-pre-execution-review",
-  "audit:workspace-write-real-canary-sensitive-scan",
-  "audit:workspace-write-real-canary-final-local"
+  "governance"
 ] as const;
 
 test("workspace-write real canary final local audit runs the fixed local validation set", async () => {

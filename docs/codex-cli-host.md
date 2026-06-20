@@ -521,7 +521,7 @@ acceptance result object.
 For a one-shot CLI entrypoint that also persists a sanitized artifact, use:
 
 ```powershell
-npm run operator:acceptance
+npm run governance -- operator default
 ```
 
 That default mode is read-only. It writes a compact artifact to:
@@ -547,14 +547,14 @@ Workspace-write mode remains explicitly gated:
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_MODE="workspace-write"
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_ALLOW_WRITE="true"
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_CONFIRMATION="ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE"
-npm run operator:acceptance
+npm run governance -- operator default
 ```
 
 For manual release-only acceptance, command wrappers are available:
 
 ```powershell
-npm run operator:acceptance:readonly
-npm run operator:acceptance:release
+npm run governance -- operator readonly
+npm run governance -- operator release
 ```
 
 The release wrapper pre-fills:
@@ -570,7 +570,7 @@ run result, and captured telemetry messages.
 For a formal double-run telemetry acceptance, use:
 
 ```powershell
-npm run operator:acceptance:telemetry
+npm run governance -- operator telemetry
 ```
 
 That default mode is read-only. It clears the in-memory model probe cache, runs
@@ -589,7 +589,7 @@ Workspace-write telemetry acceptance remains gated:
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_TELEMETRY_MODE="workspace-write"
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_TELEMETRY_ALLOW_WRITE="true"
 $env:CODEX_CLI_OPERATOR_ACCEPTANCE_TELEMETRY_CONFIRMATION="ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE"
-npm run operator:acceptance:telemetry
+npm run governance -- operator telemetry
 ```
 
 The workspace-write telemetry artifact is written to:
@@ -638,7 +638,7 @@ Validated on `2026-04-27`:
 
 - `npm run build` passed.
 - `npm test` passed, `202/202`.
-- the documented `operator:acceptance` and smoke wrappers were exercised live:
+- the documented operator acceptance and smoke wrappers were exercised live:
   all lanes passed (read-only, workspace-write, telemetry miss→hit).
 - previous `spawn EPERM` blocker is resolved in this environment; the default
   spawner now falls back to `shell: true` when the native `.exe` spawn hits

@@ -85,7 +85,7 @@ const auditFieldConsistencyDocs = [
 
 const requiredAuditFieldValues = [
   ["packageScriptsPresent", "true"],
-  ["packageScriptTargetCount", "6"],
+  ["packageScriptTargetCount", "1"],
   ["packageScriptTargetMismatchCount", "0"],
   ["finalAuditNoForbiddenCommands", "true"],
   ["sensitiveScanJsonContractValid", "true"],
@@ -122,7 +122,7 @@ test("workspace-write real canary local candidate consistency passes for local-o
   assert.equal(review.summary.ahead, 8);
   assert.equal(review.summary.behind, 0);
   assert.equal(review.summary.unexpectedChangedFileCount, 0);
-  assert.equal(review.summary.packageScriptTargetCount, 6);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptTargetMismatchCount, 0);
   assert.equal(review.summary.finalAuditNoForbiddenCommands, true);
   assert.equal(review.summary.providerExecuteCalls, 0);
@@ -206,11 +206,7 @@ test("workspace-write real canary local candidate consistency blocks stale or un
 test("workspace-write real canary local candidate consistency requires full audit script chain", () => {
   const packageJson = {
     scripts: {
-      typecheck: "tsc -p tsconfig.json --noEmit",
-      "acceptance:workspace-write-real-canary-auth": "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
-      "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
-      "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
-      "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts"
+      typecheck: "tsc -p tsconfig.json --noEmit"
     }
   };
   const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
@@ -221,7 +217,7 @@ test("workspace-write real canary local candidate consistency requires full audi
 
   assert.equal(review.status, "blocked");
   assert.equal(review.checks.packageScriptsPresent, false);
-  assert.equal(review.summary.packageScriptTargetCount, 6);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptTargetMismatchCount, 1);
   assert.ok(review.reasons.includes(
     "workspace_write_real_canary_candidate_package_scripts_missing"
@@ -232,11 +228,7 @@ test("workspace-write real canary local candidate consistency blocks changed aud
   const packageJson = {
     scripts: {
       typecheck: "tsc -p tsconfig.json --noEmit",
-      "acceptance:workspace-write-real-canary-auth": "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
-      "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
-      "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
-      "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
-      "audit:workspace-write-real-canary-final-local": "npm run smoke:readonly:real"
+      governance: "npm run smoke:readonly:real"
     }
   };
   const review = reviewWorkspaceWriteRealCanaryLocalCandidateConsistency(
@@ -327,7 +319,7 @@ test("workspace-write real canary local candidate consistency formats text and j
 
   assert.match(text, /status: passed/);
   assert.match(text, /unexpected changed files: 0/);
-  assert.match(text, /package script targets: 6/);
+  assert.match(text, /package script targets: 1/);
   assert.match(text, /package script target mismatches: 0/);
   assert.match(text, /audit field values recorded: true/);
   assert.match(text, /final audit forbidden commands: false/);
@@ -335,7 +327,7 @@ test("workspace-write real canary local candidate consistency formats text and j
   assert.equal(parsed.checks.auditFieldValuesRecorded, true);
   assert.equal(parsed.checks.finalAuditJsonContractValid, true);
   assert.equal(parsed.summary.unexpectedChangedFileCount, 0);
-  assert.equal(parsed.summary.packageScriptTargetCount, 6);
+  assert.equal(parsed.summary.packageScriptTargetCount, 1);
   assert.equal(parsed.summary.packageScriptTargetMismatchCount, 0);
   assert.equal(parsed.summary.finalAuditNoForbiddenCommands, true);
   assert.equal(parsed.summary.providerExecuteCalls, 0);
@@ -367,7 +359,7 @@ test("workspace-write real canary local candidate consistency blocks stale audit
     "Workspace-write execute: no",
     "Canary file write: no",
     "- candidate audit packageScriptsPresent: `true`",
-    "- candidate audit packageScriptTargetCount: `6`",
+    "- candidate audit packageScriptTargetCount: `1`",
     "- candidate audit packageScriptTargetMismatchCount: `1`",
     "- candidate audit finalAuditNoForbiddenCommands: `true`",
     "- final local audit sensitiveScanJsonContractValid: `true`",
@@ -399,11 +391,7 @@ function createConsistentInput(
     packageJsonText: JSON.stringify({
       scripts: {
         typecheck: "tsc -p tsconfig.json --noEmit",
-        "acceptance:workspace-write-real-canary-auth": "tsx scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
-        "acceptance:workspace-write-real-canary-pre-execution": "tsx scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",
-        "audit:workspace-write-real-canary-candidate": "tsx scripts/run-workspace-write-real-canary-local-candidate-consistency.ts",
-        "audit:workspace-write-real-canary-sensitive-scan": "tsx scripts/run-workspace-write-real-canary-sensitive-scan.ts",
-        "audit:workspace-write-real-canary-final-local": "tsx scripts/run-workspace-write-real-canary-final-local-audit.ts"
+        governance: "tsx scripts/run-governance-check.ts"
       }
     }),
     authorizationEvidenceText: createEvidenceText(
@@ -426,7 +414,7 @@ function createGovernanceDocs(): Record<string, string> {
       "Workspace-write execute: no",
       "Canary file write: no",
       "- candidate audit packageScriptsPresent: `true`",
-      "- candidate audit packageScriptTargetCount: `6`",
+      "- candidate audit packageScriptTargetCount: `1`",
       "- candidate audit packageScriptTargetMismatchCount: `0`",
       "- candidate audit finalAuditNoForbiddenCommands: `true`",
       "- final local audit sensitiveScanJsonContractValid: `true`",

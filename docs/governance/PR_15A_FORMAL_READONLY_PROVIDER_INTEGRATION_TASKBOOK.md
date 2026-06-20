@@ -22,7 +22,7 @@ Exact taskbook:
 
 Required local acceptance command:
 
-- `npm run acceptance:formal-readonly-provider-integration-taskbook`
+- `npm run governance -- acceptance formal-readonly-provider-integration-taskbook`
 
 Required evidence:
 
@@ -48,7 +48,7 @@ PR-15A depends on the PR-14 local preflight chain:
 
 - `docs/evidence/codex-cli-formal-readonly-integration-readiness.json`
 - `docs/evidence/codex-cli-formal-readonly-integration-authorization-acceptance.json`
-- `npm run audit:formal-readonly-integration-local`
+- `npm run governance -- audit formal-readonly-integration-local`
 
 ## 5. Explicit Non-authorizations
 

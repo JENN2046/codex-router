@@ -37,7 +37,7 @@ Preflight and authorization gate:
 - `docs/governance/PR_13A_READONLY_REAL_CLI_PREFLIGHT_GUARD_TEST_REVIEW.md`
 - `docs/governance/PR_13A_READONLY_REAL_CLI_AUTHORIZATION_PACKET_COMPATIBILITY.md`
 - `docs/evidence/codex-cli-real-readonly-smoke-authorization-acceptance.json`
-- `npm run acceptance:real-readonly-smoke-auth`
+- `npm run governance -- acceptance real-readonly-smoke-auth`
 
 Pre-smoke review and authorized smoke receipt:
 
@@ -49,8 +49,8 @@ Local closeout and audit:
 
 - `docs/governance/PR_13A_REAL_READONLY_SMOKE_LOCAL_CLOSEOUT.md`
 - `docs/governance/PR_13A_REAL_READONLY_SMOKE_LOCAL_AUDIT_INDEX.md`
-- `npm run audit:real-readonly-smoke-local`
-- `npm run audit:real-readonly-smoke-local -- --json`
+- `npm run governance -- audit real-readonly-smoke-local`
+- `npm run governance -- audit real-readonly-smoke-local -- --json`
 
 ## 4. Dynamic Local Validation
 
@@ -59,7 +59,7 @@ evidence.
 
 Minimum local validation set:
 
-- `npm run audit:real-readonly-smoke-local -- --json`
+- `npm run governance -- audit real-readonly-smoke-local -- --json`
 - `npx tsx --test tests\real-readonly-smoke-local-closeout-audit.test.ts tests\pr-13a-real-readonly-smoke-local-closeout.test.ts tests\pr-13a-real-readonly-preflight-taskbook.test.ts tests\real-readonly-smoke-authorization-acceptance.test.ts`
 - `npm run typecheck`
 - `npm test`
@@ -68,7 +68,7 @@ Expected safe audit results:
 
 - audit status is `passed`
 - packageScriptsPresent is `true`
-- packageScriptTargetCount is `3`
+- packageScriptTargetCount is `1`
 - packageScriptMismatchCount is `0`
 - smoke status is `passed`
 - smoke sandbox is `read-only`

@@ -15,8 +15,8 @@ execution operator flag.
 
 Local audit command:
 
-- `npm run audit:formal-real-readonly-smoke-execution-local`
-- `npm run audit:formal-real-readonly-smoke-execution-local -- --json`
+- `npm run governance -- audit formal-real-readonly-smoke-execution-local`
+- `npm run governance -- audit formal-real-readonly-smoke-execution-local -- --json`
 
 ## 3. Required Evidence
 

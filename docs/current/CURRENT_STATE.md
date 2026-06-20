@@ -2,33 +2,47 @@
 
 CURRENT_STATE_RECORDED
 
-This file is the compact state surface for the repository. Historical closeout
-documents and `.agent_board` files may explain how the project arrived here,
-but current operational facts should be refreshed here first.
+This is the compact operational state surface for the repository. Historical
+closeouts, receipts, and `.agent_board` files remain evidence; current facts
+should be refreshed here first.
 
 ## Snapshot
 
 | Field | Value |
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
-| Current branch | `fix/codex-cli-policy-bypass-flags` |
-| Current head | `a24fad2` |
-| Upstream | `origin/fix/codex-cli-policy-bypass-flags` |
+| Current branch | `chore/governance-validation-surface-slimming` |
+| Current head | `8480a6f` |
+| Upstream | `origin/chore/governance-validation-surface-slimming` |
 | Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `a24fad2` |
+| Latest validated commit | `8480a6f` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
+## Current Entrypoints
+
+- Current docs map: `docs/README.md`
+- Governance docs map: `docs/governance/README.md`
+- Validation policy: `docs/validation-tiers.md`
+- Current state audit: `npm run governance -- audit state-sync`
+- Governance runner discovery: `npm run governance -- list`
+
 ## Validation Baseline
 
-Latest validated commands for `a24fad2`:
+Latest PR #43 validation for the working tree based on `8480a6f`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `16 / 16`.
+- `npx tsx --test tests\canary-evidence.test.ts tests\governance-check.test.ts`:
+  passed, `8 / 8`.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1101 / 1101`.
+- `npm test`: passed, `1109 / 1109`.
 - `npm run build`: passed.
-- `npm run audit:state-sync`: passed before state refresh.
+- `git diff --check`: passed.
+- `npm run governance -- audit state-sync`: passed.
+- `npm run validate:pr`: passed; included `npm run typecheck`, `npm test`,
+  `npm run build`, and final state-sync audit.
+
+Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
 ## Execution Boundary
 
@@ -51,66 +65,43 @@ Blocked capabilities:
 - `secret_or_credential_change`
 - `external_service_write`
 
-## State Sync
+## Current Local Changes
 
-State sync command:
+- `scripts/run-governance-check.ts` consolidates validation tiers and
+  audit/acceptance/operator dispatch.
+- `scripts/run-governance-check.ts` now resolves both `npm` and `tsx` through
+  Windows command shims when `process.platform` is `win32`.
+- `scripts/run-canary-test.ts` now writes per-risk canary evidence files
+  while preserving the legacy latest alias.
+- `tests/canary-evidence.test.ts` covers low-risk and medium-risk canary
+  evidence preservation across sequential release validation canaries.
+- `package.json` keeps recommended validation entrypoints:
+  `governance`, `validate:daily`, `validate:pr`, and `validate:release`.
+- `packages/state-sync-audit` now requires the consolidated `governance`
+  package script instead of the removed dedicated state-sync script alias.
+- Legacy per-check package script aliases have been removed; use
+  `npm run governance -- audit|acceptance|operator ...`.
+- Old package-script command references and old package script keys were
+  migrated out of docs, tests, scripts, and `package.json`.
+- `README.md` now points to a compact documentation map instead of listing the
+  full historical governance chain.
+- `docs/README.md` and `docs/governance/README.md` separate current docs from
+  historical evidence.
+- Current state and `.agent_board` current surfaces were compacted; detailed
+  validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
-- `npm run audit:state-sync`
+## State Sync Expectations
 
-Current state-sync slice validation:
-
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npx tsx --test tests\state-sync-audit.test.ts`: passed, `16 / 16`.
-- `npm run typecheck`: passed.
-- `npm test`: passed, `1101 / 1101`.
-- `npm run build`: passed.
-- `npm run audit:state-sync`: passed before state refresh.
-
-Latest local optimization:
-
-- PR review fixes now fail closed on `turn.failed` JSONL events even when the
-  Codex CLI exits with code `0`.
-- State-sync audit now requires `Current head` and `Latest validated commit` to
-  match the real head, or the parent head when this file intentionally records
-  `Stale after commit: true`.
-- State-sync audit now requires `Upstream divergence` to match the actual
-  `git rev-list --left-right --count` result and blocks unknown divergence.
-- Codex CLI probe and read-only smoke validation now treat web search events as
-  unexpected tool use.
-- State-sync audit now accepts stale state hashes from PR merge checkout
-  second-parent ancestry while still blocking stale hashes outside that
-  ancestry.
-- State-sync audit now also reads the declared parents of `HEAD^2`, so shallow
-  PR merge checkouts can validate a state refresh that records the PR head's
-  parent commit.
-- State-sync audit merge-checkout regression tests now derive the recorded
-  state head dynamically instead of baking in a previous refresh hash.
-- State-sync audit allows synthetic single-commit review checkouts only when
-  this file explicitly records `Synthetic review checkout` as `allowed`, the
-  recorded head and latest validated commit match each other, the checkout is
-  clean, and upstream divergence is `ahead 0 / behind 0`.
-- State-sync audit no longer treats the merge checkout base parent as an
-  acceptable state commit when PR-side merge ancestry commits are available.
-- State-sync audit collection now filters the merge checkout base parent out of
-  `allowedStateCommits` before review, including shallow checkout parent data.
-- Read-only audit freshness collectors now fail closed when `origin/main`
-  divergence is unknown instead of pretending `0 / 0`.
-- Pure state-sync audit rules were extracted to
-  `packages/state-sync-audit/src/index.ts`.
-- `scripts/run-state-sync-audit.ts` now stays focused on repository collection
-  and CLI output.
-- `tests/state-sync-audit.test.ts` now imports the reusable audit module instead
-  of the CLI script.
-
-The audit should check this file, package script wiring, and `.agent_board`
-handoff surfaces for stale current-state facts. If a new commit is created,
-refresh `Current head`, `Latest validated commit`, validation facts, and
-`.agent_board` before treating this state surface as current.
+The audit should verify this file, package script wiring, and `.agent_board`
+handoff surfaces for stale current-state facts. After a new commit, refresh
+`Current head`, `Latest validated commit`, validation facts, and `.agent_board`
+before treating this state surface as current.
 
 ## Next Safe Action
 
-Continue the state-surface cleanup locally:
+Commit the PR #43 P1 state refresh and validate the synced branch:
 
-1. keep `CURRENT_STATE.md` as the source of current operational facts
-2. keep `.agent_board` aligned with this file
-3. commit this state refresh, push PR #41, then wait for checks
+1. run `npm run governance -- audit state-sync`
+2. run `npm run validate:pr`
+3. push `chore/governance-validation-surface-slimming`
+4. report PR #43 commit, validation, and remaining risk

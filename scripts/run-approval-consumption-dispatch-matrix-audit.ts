@@ -14,13 +14,12 @@ const APPROVAL_CLOSEOUT_DOC =
   "docs/governance/APPROVAL_CONSUMPTION_HARDENING_LOCAL_CLOSEOUT.md";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "audit:approval-consumption-dispatch-matrix":
-    "tsx scripts/run-approval-consumption-dispatch-matrix-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_MATRIX_MARKERS = [
   "APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX_RECORDED",
-  "npm run audit:approval-consumption-dispatch-matrix",
+  "npm run governance -- audit approval-consumption-dispatch-matrix",
   "APPROVAL_CONSUMPTION_HARDENING_LOCAL_CLOSEOUT_COMPLETE",
   "tests/approval-permit.test.ts",
   "tests/execution-eligibility.test.ts",

@@ -10,11 +10,11 @@ It is a local-only audit record. It is not a push receipt, release note, tag not
 
 The authoritative local check is:
 
-- `npm run audit:workspace-write-real-canary-final-local`
+- `npm run governance -- audit workspace-write-real-canary-final-local`
 
 Machine-readable local review output is available with:
 
-- `npm run audit:workspace-write-real-canary-final-local -- --json`
+- `npm run governance -- audit workspace-write-real-canary-final-local -- --json`
 
 The command must be run from:
 
@@ -50,10 +50,10 @@ The final local audit runs:
 - `npx tsx --test tests\workspace-write-real-canary-pre-execution-acceptance.test.ts`
 - `npx tsx --test tests\workspace-write-real-canary-local-candidate-consistency.test.ts`
 - `npx tsx --test tests\workspace-write-real-canary-sensitive-scan.test.ts`
-- `npm run acceptance:workspace-write-real-canary-auth`
-- `npm run acceptance:workspace-write-real-canary-pre-execution`
-- `npm run audit:workspace-write-real-canary-candidate -- --json`
-- `npm run audit:workspace-write-real-canary-sensitive-scan -- --json`
+- `npm run governance -- acceptance workspace-write-real-canary-auth`
+- `npm run governance -- acceptance workspace-write-real-canary-pre-execution`
+- `npm run governance -- audit workspace-write-real-canary-candidate -- --json`
+- `npm run governance -- audit workspace-write-real-canary-sensitive-scan -- --json`
 
 The JSON output is sanitized. It includes command ids, statuses, exit codes,
 checks, summary counters, and reason codes only. It does not include command

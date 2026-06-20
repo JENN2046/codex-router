@@ -28,7 +28,7 @@ test("state sync audit blocks stale current branch and missing head fields", asy
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
-    branch: "main",
+    branch: `${input.branch}-stale`,
     currentStateText: input.currentStateText
       .replace(/\| Current head \| `[^`]+` \|/, "| Current head |  |")
       .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit |  |")
@@ -84,27 +84,15 @@ test("state sync audit accepts stale state from shallow merge second-parent pare
 
 test("state sync audit accepts clean synthetic review checkouts when explicitly allowed", async () => {
   const input = await createInputFromWorkspace();
-  const review = reviewStateSyncAudit({
-    ...input,
-    gitStatusShort: "",
-    head: "8c05119",
-    parentHead: "f37f174",
-    allowedStateCommits: [],
-    aheadBehind: "0\t0"
-  });
+  const review = reviewStateSyncAudit(asCleanSyntheticReviewInput(input));
 
   assert.equal(review.status, "passed");
 });
 
 test("state sync audit blocks synthetic review checkouts without explicit state marker", async () => {
-  const input = await createInputFromWorkspace();
+  const input = asCleanSyntheticReviewInput(await createInputFromWorkspace());
   const review = reviewStateSyncAudit({
     ...input,
-    gitStatusShort: "",
-    head: "8c05119",
-    parentHead: "f37f174",
-    allowedStateCommits: [],
-    aheadBehind: "0\t0",
     currentStateText: input.currentStateText.replace(
       /\| Synthetic review checkout \| `allowed` \|\n/,
       ""
@@ -225,7 +213,7 @@ test("state sync audit blocks missing script and boundary markers", async () => 
   const packageJson = JSON.parse(input.packageJsonText) as {
     scripts: Record<string, string>;
   };
-  delete packageJson.scripts["audit:state-sync"];
+  delete packageJson.scripts.governance;
   const review = reviewStateSyncAudit({
     ...input,
     packageJsonText: JSON.stringify(packageJson),
@@ -269,15 +257,19 @@ async function createInputFromWorkspace(
   ]).then((texts) => texts.join("\n"));
   const recordedHead = extractStateField(currentStateText, "Current head")
     ?? "UNKNOWN_HEAD";
+  const recordedBranch = extractStateField(currentStateText, "Current branch")
+    ?? "UNKNOWN_BRANCH";
+  const recordedUpstream = extractStateField(currentStateText, "Upstream")
+    ?? "";
   const recordedDivergence = extractStateDivergence(currentStateText)
     ?? "0\t0";
 
   return {
     gitStatusShort: "",
-    branch: "fix/codex-cli-policy-bypass-flags",
+    branch: recordedBranch,
     head: recordedHead,
     parentHead: recordedHead,
-    upstream: "origin/fix/codex-cli-policy-bypass-flags",
+    upstream: recordedUpstream,
     aheadBehind: recordedDivergence,
     packageJsonText: await readFile("package.json", "utf8"),
     currentStateText,
@@ -298,4 +290,21 @@ function extractStateDivergence(text: string): string | undefined {
   }
 
   return `${match[1]}\t${match[2]}`;
+}
+
+function asCleanSyntheticReviewInput(
+  input: StateSyncAuditInput
+): StateSyncAuditInput {
+  return {
+    ...input,
+    gitStatusShort: "",
+    head: "8c05119",
+    parentHead: "f37f174",
+    allowedStateCommits: [],
+    aheadBehind: "0\t0",
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream divergence \| `[^`]+` \|/,
+      "| Upstream divergence | `ahead 0 / behind 0` |"
+    )
+  };
 }

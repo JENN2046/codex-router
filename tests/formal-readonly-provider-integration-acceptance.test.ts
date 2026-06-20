@@ -39,7 +39,7 @@ test("PR-15B local document records fake-spawner boundary", async () => {
     document,
     /PR_15B_FORMAL_READONLY_PROVIDER_INTEGRATION_LOCAL_RECORDED/
   );
-  assert.match(document, /npm run acceptance:formal-readonly-provider-integration/);
+  assert.match(document, /npm run governance -- acceptance formal-readonly-provider-integration/);
 
   for (const phrase of [
     "This is not a real Codex CLI invocation",

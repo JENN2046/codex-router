@@ -13,8 +13,8 @@ or tag, and does not set the future execution operator flag.
 
 Local audit command:
 
-- `npm run audit:formal-real-readonly-smoke-receipt-local`
-- `npm run audit:formal-real-readonly-smoke-receipt-local -- --json`
+- `npm run governance -- audit formal-real-readonly-smoke-receipt-local`
+- `npm run governance -- audit formal-real-readonly-smoke-receipt-local -- --json`
 
 ## 3. Required Inputs
 

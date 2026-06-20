@@ -48,7 +48,7 @@ test("formal real read-only smoke receipt local audit passes for the default rec
     noWorkspaceWriteExecuteDuringAudit: true,
     auditNonAuthorizing: true
   });
-  assert.equal(review.summary.packageScriptTargetCount, 4);
+  assert.equal(review.summary.packageScriptTargetCount, 1);
   assert.equal(review.summary.packageScriptMismatchCount, 0);
   assert.equal(review.summary.receiptStatus, "passed");
   assert.equal(review.summary.receiptSandbox, "read-only");
@@ -183,8 +183,8 @@ async function createInputFromWorkspace(
 function createPr19aAuditText(): string {
   return [
     "PR_19A_FORMAL_REAL_READONLY_SMOKE_RECEIPT_LOCAL_AUDIT_RECORDED",
-    "npm run audit:formal-real-readonly-smoke-receipt-local",
-    "npm run audit:formal-real-readonly-smoke-receipt-local -- --json",
+    "npm run governance -- audit formal-real-readonly-smoke-receipt-local",
+    "npm run governance -- audit formal-real-readonly-smoke-receipt-local -- --json",
     "docs/evidence/codex-cli-real-readonly-smoke.json",
     "docs/evidence/codex-cli-formal-real-readonly-smoke-final-preflight-acceptance.json",
     "does not authorize invoking the real Codex CLI",

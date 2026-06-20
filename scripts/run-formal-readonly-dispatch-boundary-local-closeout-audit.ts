@@ -9,10 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  "acceptance:formal-readonly-dispatch-boundary":
-    "tsx scripts/run-formal-readonly-dispatch-boundary-acceptance.ts",
-  "audit:formal-readonly-dispatch-boundary-local":
-    "tsx scripts/run-formal-readonly-dispatch-boundary-local-closeout-audit.ts"
+  governance: "tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {
@@ -271,7 +268,7 @@ function formalWrapperRequiresMetadata(source: string): boolean {
 function pr16aBoundaryRecorded(text: string): boolean {
   const normalized = text.replace(/\s+/g, " ");
   return text.includes("PR_16A_FORMAL_READONLY_DISPATCH_BOUNDARY_RECORDED")
-    && text.includes("npm run acceptance:formal-readonly-dispatch-boundary")
+    && text.includes("npm run governance -- acceptance formal-readonly-dispatch-boundary")
     && text.includes(REQUIRED_EVIDENCE.boundary)
     && normalized.includes("does not authorize real Codex CLI invocation")
     && normalized.includes("workspace-write");
@@ -279,8 +276,8 @@ function pr16aBoundaryRecorded(text: string): boolean {
 
 function pr16bCloseoutRecorded(text: string): boolean {
   return text.includes("PR_16B_FORMAL_READONLY_DISPATCH_BOUNDARY_LOCAL_CLOSEOUT_COMPLETE")
-    && text.includes("npm run audit:formal-readonly-dispatch-boundary-local")
-    && text.includes("npm run audit:formal-readonly-dispatch-boundary-local -- --json")
+    && text.includes("npm run governance -- audit formal-readonly-dispatch-boundary-local")
+    && text.includes("npm run governance -- audit formal-readonly-dispatch-boundary-local -- --json")
     && text.includes(REQUIRED_EVIDENCE.boundary);
 }
 
