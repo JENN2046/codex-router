@@ -79,6 +79,50 @@ async function createReadyRunnerResult() {
   });
 }
 
+function createHighRiskStateWithTwoExecutionFailures(taskId: string): GovernanceState {
+  return {
+    schemaVersion: "governance-state.v1",
+    taskId,
+    branchId: "main",
+    phase: "execution",
+    trustBalance: { centralOrder: 0.5, distributedVitality: 0.5 },
+    risk: {
+      entanglement: 0.6,
+      entropy: 0.7,
+      failureCost: 0.8,
+      reversibility: 0.3,
+      contextPressure: 0.5,
+      historicalTrust: 0.4,
+      globalCoherence: 0.6,
+      finalRiskLevel: "high"
+    },
+    anomalies: [
+      {
+        anomalyId: "anomaly:gov-integration-ready:a1",
+        taskId,
+        kind: "execution_failure",
+        message: "failure one",
+        strikeNumber: 1,
+        createdAt: "2026-04-28T10:00:00.000Z",
+        evidenceRefs: []
+      },
+      {
+        anomalyId: "anomaly:gov-integration-ready:a2",
+        taskId,
+        kind: "execution_failure",
+        message: "failure two",
+        strikeNumber: 2,
+        createdAt: "2026-04-28T11:00:00.000Z",
+        evidenceRefs: []
+      }
+    ],
+    approvals: [],
+    taskGraphRef: `task-graph:${taskId}`,
+    createdAt: "2026-04-28T09:00:00.000Z",
+    updatedAt: "2026-04-28T11:00:00.000Z"
+  };
+}
+
 // ── 21.1.1: missing handler updates governanceState ─────────────────────────
 
 test("governance: missing handler appends anomaly, re-scores risk, re-routes strategy, and calls onGovernanceUpdate", async () => {
@@ -351,51 +395,19 @@ test("governance: onGovernanceUpdate receives correct state and strategy decisio
 
 test("governance: step_back is triggered and blocks execution when risk crosses threshold", async () => {
   const ready = await createReadyRunnerResult();
+  ready.preflight.memory.guidance = {
+    memoryRequired: false,
+    resumeExpected: false,
+    telemetryMandatory: false,
+    checkpointFrequency: "standard"
+  };
   const govUpdates: GovernanceUpdateRecord[] = [];
+  const persistedAuditEvents: Array<{ type: string }> = [];
+  const persistedCheckpoints: Array<{ stage: string; summary: string }> = [];
 
   // Start with high-risk state and two pre-existing execution_failure anomalies
   // so the next failure produces strikeNumber=3 and triggers step_back
-  const highRiskState: GovernanceState = {
-    schemaVersion: "governance-state.v1",
-    taskId: ready.task.taskId,
-    branchId: "main",
-    phase: "execution",
-    trustBalance: { centralOrder: 0.5, distributedVitality: 0.5 },
-    risk: {
-      entanglement: 0.6,
-      entropy: 0.7,
-      failureCost: 0.8,
-      reversibility: 0.3,
-      contextPressure: 0.5,
-      historicalTrust: 0.4,
-      globalCoherence: 0.6,
-      finalRiskLevel: "high"
-    },
-    anomalies: [
-      {
-        anomalyId: "anomaly:gov-integration-ready:a1",
-        taskId: ready.task.taskId,
-        kind: "execution_failure",
-        message: "failure one",
-        strikeNumber: 1,
-        createdAt: "2026-04-28T10:00:00.000Z",
-        evidenceRefs: []
-      },
-      {
-        anomalyId: "anomaly:gov-integration-ready:a2",
-        taskId: ready.task.taskId,
-        kind: "execution_failure",
-        message: "failure two",
-        strikeNumber: 2,
-        createdAt: "2026-04-28T11:00:00.000Z",
-        evidenceRefs: []
-      }
-    ],
-    approvals: [],
-    taskGraphRef: `task-graph:${ready.task.taskId}`,
-    createdAt: "2026-04-28T09:00:00.000Z",
-    updatedAt: "2026-04-28T11:00:00.000Z"
-  };
+  const highRiskState = createHighRiskStateWithTwoExecutionFailures(ready.task.taskId);
 
   const execution = await executeDesktopPlan({
     runnerResult: ready,
@@ -406,6 +418,16 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
     governanceState: highRiskState,
     onGovernanceUpdate: async (state, strategy) => {
       govUpdates.push({ state, strategy });
+    },
+    auditStore: {
+      async record(event) {
+        persistedAuditEvents.push(event);
+      }
+    },
+    checkpointStore: {
+      async record(checkpoint) {
+        persistedCheckpoints.push(checkpoint);
+      }
     },
     stopOnFailure: false,
     now: () => "2026-04-28T12:00:00.000Z"
@@ -434,6 +456,75 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
   );
   assert.ok(execution.governance?.availableRecoveryActions.includes("rollback"));
   assert.ok(execution.governance?.availableRecoveryActions.includes("abort"));
+  assert.ok(
+    persistedAuditEvents.some((event) => event.type === "primitive_failed"),
+    "governance early return should persist primitive_failed audit"
+  );
+  assert.ok(
+    persistedCheckpoints.some((checkpoint) =>
+      checkpoint.stage === "execution-completed" &&
+      checkpoint.summary === "desktop live adapter completed with failures"
+    ),
+    "governance early return should persist a final execution checkpoint"
+  );
+});
+
+test("governance: thrown handler step_back persists audit and final checkpoint before returning", async () => {
+  const ready = await createReadyRunnerResult();
+  ready.preflight.memory.guidance = {
+    memoryRequired: false,
+    resumeExpected: false,
+    telemetryMandatory: false,
+    checkpointFrequency: "standard"
+  };
+  const persistedAuditEvents: Array<{ type: string; details: Record<string, unknown> }> = [];
+  const persistedCheckpoints: Array<{ stage: string; summary: string }> = [];
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => {
+        throw new Error("thrown_step_back_failure");
+      },
+      spawn_agent: () => ({ agentId: "agent-1" }),
+      wait_agent: () => ({ status: "completed" })
+    },
+    governanceState: createHighRiskStateWithTwoExecutionFailures(ready.task.taskId),
+    auditStore: {
+      async record(event) {
+        persistedAuditEvents.push(event);
+      }
+    },
+    checkpointStore: {
+      async record(checkpoint) {
+        persistedCheckpoints.push(checkpoint);
+      }
+    },
+    stopOnFailure: false,
+    now: () => "2026-04-28T12:30:00.000Z"
+  });
+
+  assert.equal(execution.status, "failed");
+  assert.equal(execution.steps.length, 1);
+  assert.equal(execution.steps[0]?.primitive, "read_thread_terminal");
+  assert.equal(execution.steps[0]?.error, "thrown_step_back_failure");
+  assert.equal(execution.governance?.strategyDecision.actionFamily, "step_back");
+  assert.ok(execution.blockingReasons.includes("governance_step_back_triggered"));
+  assert.ok(
+    persistedAuditEvents.some((event) =>
+      event.type === "primitive_failed" &&
+      event.details.primitive === "read_thread_terminal" &&
+      event.details.error === "thrown_step_back_failure"
+    ),
+    "thrown-handler governance early return should persist primitive_failed audit"
+  );
+  assert.ok(
+    persistedCheckpoints.some((checkpoint) =>
+      checkpoint.stage === "execution-completed" &&
+      checkpoint.summary === "desktop live adapter completed with failures"
+    ),
+    "thrown-handler governance early return should persist a final execution checkpoint"
+  );
 });
 
 // ── 21.1.7: governance is not called when no governanceState provided ───────

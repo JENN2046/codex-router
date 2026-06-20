@@ -1003,3 +1003,28 @@ test("desktop live adapter triggers governance step_back after three failures", 
 
   assert.equal(execution.status, "failed");
 });
+
+test("desktop live adapter falls back when continuing failure envelope omits error", async () => {
+  const ready = await createReadyRunnerResult();
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => "thread context",
+      spawn_agent: () => ({
+        primitive: "spawn_agent",
+        ok: false
+      }),
+      wait_agent: () => ({ status: "completed" })
+    },
+    now: () => "2026-04-27T00:10:00.000Z",
+    stopOnFailure: false
+  });
+
+  const failedStep = execution.steps.find((step) => step.primitive === "spawn_agent");
+
+  assert.equal(execution.status, "failed");
+  assert.equal(failedStep?.status, "failed");
+  assert.equal(failedStep?.error, "primitive_failed:spawn_agent");
+  assert.ok(execution.blockingReasons.includes("primitive_failed:spawn_agent"));
+});
