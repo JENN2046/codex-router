@@ -1,7 +1,7 @@
 # Run State
 
-Status: governance validation surface slimming is split from the runtime fix
-and locally validated before PR2 commit.
+Status: governance validation surface slimming is split from the runtime fix;
+PR #43 state metadata is being refreshed for the P1 review finding.
 
 Current truth source:
 
@@ -17,16 +17,15 @@ Branch:
 
 Current head at latest local status refresh:
 
-- `bcaf257`
+- `99f66db`
 
 Upstream:
 
-- `origin/main`
+- `origin/chore/governance-validation-surface-slimming`
 
 Worktree:
 
-- dirty with intended validation-runner, alias-cleanup, state-sync, and
-  document-surface slimming changes
+- clean at the latest PR #43 state refresh before this P1 metadata update
 
 Current scope:
 

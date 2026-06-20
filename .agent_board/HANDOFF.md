@@ -7,10 +7,10 @@ surface.
 Current status:
 
 - Branch: `chore/governance-validation-surface-slimming`
-- Current head at this metadata refresh: `bcaf257`
-- Upstream: `origin/main`
+- Current head at this metadata refresh: `99f66db`
+- Upstream: `origin/chore/governance-validation-surface-slimming`
 - Current state source: `docs/current/CURRENT_STATE.md`
-- Work in progress: prepare local PR2 commit after branch split
+- Work in progress: address PR #43 P1 state metadata refresh
 
 What changed in this PR2 scope:
 
@@ -27,7 +27,7 @@ What changed in this PR2 scope:
 - Compacted `.agent_board` current surfaces; detailed historical validation
   remains in `.agent_board/VALIDATION_LOG.md`.
 
-Latest PR2 validation before commit:
+Latest recorded PR2 validation before this P1 refresh:
 
 - Absolute Windows docs-root link search across current docs surfaces: passed by
   no matches
@@ -51,7 +51,7 @@ Hard boundaries:
 
 Next safe action:
 
-1. commit the local PR2 branch
+1. commit the PR #43 P1 state refresh
 2. run `npm run governance -- audit state-sync`
 3. run `npm run validate:pr`
-4. open a new PR only after explicit user direction
+4. push `chore/governance-validation-surface-slimming`

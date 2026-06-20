@@ -4,7 +4,7 @@
 
 Validation tier simplification, legacy alias cleanup, state-sync script
 alignment, and document governance surface slimming are implemented on branch
-`chore/governance-validation-surface-slimming` after local commit `bcaf257`.
+`chore/governance-validation-surface-slimming` after PR branch commit `99f66db`.
 
 The current operational state should be read from:
 

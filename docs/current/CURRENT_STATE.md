@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `chore/governance-validation-surface-slimming` |
-| Current head | `bcaf257` |
-| Upstream | `origin/main` |
-| Upstream divergence | `ahead 2 / behind 0` |
-| Latest validated commit | `bcaf257` |
+| Current head | `99f66db` |
+| Upstream | `origin/chore/governance-validation-surface-slimming` |
+| Upstream divergence | `ahead 0 / behind 0` |
+| Latest validated commit | `99f66db` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -29,7 +29,7 @@ should be refreshed here first.
 
 ## Validation Baseline
 
-Latest PR2 validation for the working tree based on `bcaf257`:
+Latest PR2 validation for the working tree based on `99f66db`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
 - `npm run validate:daily -- --test tests\governance-check.test.ts`: passed;
@@ -93,9 +93,9 @@ before treating this state surface as current.
 
 ## Next Safe Action
 
-Commit the PR2 branch and validate the committed split:
+Commit the PR #43 P1 state refresh and validate the synced branch:
 
 1. run `npm run governance -- audit state-sync`
 2. run `npm run validate:pr`
-3. report split branch names and commits
-4. open a PR only after explicit user direction
+3. push `chore/governance-validation-surface-slimming`
+4. report PR #43 commit, validation, and remaining risk

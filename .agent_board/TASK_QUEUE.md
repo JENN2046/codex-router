@@ -29,7 +29,7 @@
 
 ## In Progress
 
-- Commit PR2 and run committed-branch validation.
+- Commit the PR #43 P1 state metadata refresh and run synced-branch validation.
 
 ## Blocked
 
@@ -41,7 +41,7 @@
 
 ## Remaining
 
-- Run `npm run governance -- audit state-sync` after commit.
-- Run `npm run validate:pr` after commit.
-- Report split branch names, commits, validation, and remaining risk.
-- Open a new PR only after explicit user direction.
+- Run `npm run governance -- audit state-sync` after the P1 refresh commit is synced.
+- Run `npm run validate:pr` after the P1 refresh commit is synced.
+- Report PR #43 branch, commit, validation, and remaining risk.
+- Do not open or retarget another PR in this slice.
