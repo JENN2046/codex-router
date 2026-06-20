@@ -7,7 +7,7 @@ surface.
 Current status:
 
 - Branch: `chore/governance-validation-surface-slimming`
-- Current head at this metadata refresh: `dcb7b2d`
+- Current head at this metadata refresh: `bcaf257`
 - Upstream: `origin/main`
 - Current state source: `docs/current/CURRENT_STATE.md`
 - Work in progress: prepare local PR2 commit after branch split

@@ -84,27 +84,15 @@ test("state sync audit accepts stale state from shallow merge second-parent pare
 
 test("state sync audit accepts clean synthetic review checkouts when explicitly allowed", async () => {
   const input = await createInputFromWorkspace();
-  const review = reviewStateSyncAudit({
-    ...input,
-    gitStatusShort: "",
-    head: "8c05119",
-    parentHead: "f37f174",
-    allowedStateCommits: [],
-    aheadBehind: "0\t0"
-  });
+  const review = reviewStateSyncAudit(asCleanSyntheticReviewInput(input));
 
   assert.equal(review.status, "passed");
 });
 
 test("state sync audit blocks synthetic review checkouts without explicit state marker", async () => {
-  const input = await createInputFromWorkspace();
+  const input = asCleanSyntheticReviewInput(await createInputFromWorkspace());
   const review = reviewStateSyncAudit({
     ...input,
-    gitStatusShort: "",
-    head: "8c05119",
-    parentHead: "f37f174",
-    allowedStateCommits: [],
-    aheadBehind: "0\t0",
     currentStateText: input.currentStateText.replace(
       /\| Synthetic review checkout \| `allowed` \|\n/,
       ""
@@ -302,4 +290,21 @@ function extractStateDivergence(text: string): string | undefined {
   }
 
   return `${match[1]}\t${match[2]}`;
+}
+
+function asCleanSyntheticReviewInput(
+  input: StateSyncAuditInput
+): StateSyncAuditInput {
+  return {
+    ...input,
+    gitStatusShort: "",
+    head: "8c05119",
+    parentHead: "f37f174",
+    allowedStateCommits: [],
+    aheadBehind: "0\t0",
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream divergence \| `[^`]+` \|/,
+      "| Upstream divergence | `ahead 0 / behind 0` |"
+    )
+  };
 }

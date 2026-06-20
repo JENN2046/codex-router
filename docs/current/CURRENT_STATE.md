@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `chore/governance-validation-surface-slimming` |
-| Current head | `dcb7b2d` |
+| Current head | `bcaf257` |
 | Upstream | `origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `dcb7b2d` |
+| Upstream divergence | `ahead 2 / behind 0` |
+| Latest validated commit | `bcaf257` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -29,7 +29,7 @@ should be refreshed here first.
 
 ## Validation Baseline
 
-Latest PR2 validation for the working tree based on `dcb7b2d`:
+Latest PR2 validation for the working tree based on `bcaf257`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
 - `npm run validate:daily -- --test tests\governance-check.test.ts`: passed;
