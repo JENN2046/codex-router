@@ -13,7 +13,7 @@
 
 import { mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
 import { runDesktopDecisionWithGovernance } from "../packages/desktop-decision-runner/src/index.js";
@@ -21,12 +21,19 @@ import { createFileCheckpointLedgerStore } from "../packages/checkpoint-ledger-v
 import { createFileExecutionObservationStore } from "../packages/execution-observation/src/index.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const EVIDENCE_PATH = join(__dirname, "..", "docs", "evidence", "codex-cli-canary-latest.json");
+const EVIDENCE_DIR = join(__dirname, "..", "docs", "evidence");
+const LEGACY_EVIDENCE_FILENAME = "codex-cli-canary-latest.json";
 const TEST_BASE_PATH = join(__dirname, "..", ".test-canary");
 
-type RiskLevel = "low" | "medium" | "high";
+export type RiskLevel = "low" | "medium" | "high";
 
-interface CanaryResult {
+export const CANARY_EVIDENCE_FILENAMES: Record<RiskLevel, string> = {
+  low: "codex-cli-canary-low-latest.json",
+  medium: "codex-cli-canary-medium-latest.json",
+  high: "codex-cli-canary-high-latest.json"
+};
+
+export interface CanaryResult {
   status: "passed" | "failed" | "blocked";
   taskId: string;
   governancePhase: string;
@@ -40,6 +47,60 @@ interface CanaryResult {
   error?: string;
 }
 
+export interface CanaryEvidence {
+  schemaVersion: "codex-router-evidence.v1";
+  generatedAt: string;
+  phase: "phase20";
+  scenarioId: "CANARY-01" | "CANARY-02" | "CANARY-03";
+  host: "cli";
+  result: CanaryResult;
+}
+
+export function getCanaryEvidencePaths(
+  risk: RiskLevel,
+  evidenceDir = EVIDENCE_DIR
+): string[] {
+  return [
+    join(evidenceDir, CANARY_EVIDENCE_FILENAMES[risk]),
+    join(evidenceDir, LEGACY_EVIDENCE_FILENAME)
+  ];
+}
+
+export function buildCanaryEvidence(
+  risk: RiskLevel,
+  result: CanaryResult,
+  generatedAt = new Date().toISOString()
+): CanaryEvidence {
+  return {
+    schemaVersion: "codex-router-evidence.v1",
+    generatedAt,
+    phase: "phase20",
+    scenarioId: canaryScenarioId(risk),
+    host: "cli",
+    result
+  };
+}
+
+export async function writeCanaryEvidence(
+  risk: RiskLevel,
+  result: CanaryResult,
+  options: {
+    evidenceDir?: string;
+    generatedAt?: string;
+  } = {}
+): Promise<{ evidence: CanaryEvidence; paths: string[] }> {
+  const evidenceDir = options.evidenceDir ?? EVIDENCE_DIR;
+  const evidence = buildCanaryEvidence(risk, result, options.generatedAt);
+  const paths = getCanaryEvidencePaths(risk, evidenceDir);
+
+  await mkdir(evidenceDir, { recursive: true });
+  for (const evidencePath of paths) {
+    await writeFile(evidencePath, JSON.stringify(evidence, null, 2), "utf-8");
+  }
+
+  return { evidence, paths };
+}
+
 function parseRiskArg(): RiskLevel {
   const riskIdx = process.argv.indexOf("--risk");
   if (riskIdx >= 0) {
@@ -47,6 +108,19 @@ function parseRiskArg(): RiskLevel {
     if (val === "medium" || val === "high") return val;
   }
   return "low";
+}
+
+function canaryScenarioId(
+  risk: RiskLevel
+): "CANARY-01" | "CANARY-02" | "CANARY-03" {
+  switch (risk) {
+    case "high":
+      return "CANARY-03";
+    case "medium":
+      return "CANARY-02";
+    default:
+      return "CANARY-01";
+  }
 }
 
 function buildIntent(risk: RiskLevel) {
@@ -190,24 +264,18 @@ async function main(): Promise<void> {
     console.log(`Error: ${result.error}`);
   }
 
-  // Write evidence
-  const evidence = {
-    schemaVersion: "codex-router-evidence.v1",
-    generatedAt: new Date().toISOString(),
-    phase: "phase20",
-    scenarioId: `CANARY-${risk === "high" ? "03" : risk === "medium" ? "02" : "01"}`,
-    host: "cli",
-    result
-  };
-
-  await mkdir(join(__dirname, "..", "docs", "evidence"), { recursive: true });
-  await writeFile(EVIDENCE_PATH, JSON.stringify(evidence, null, 2), "utf-8");
-  console.log(`\nEvidence written to: ${EVIDENCE_PATH}`);
+  const write = await writeCanaryEvidence(risk, result);
+  console.log("\nEvidence written to:");
+  for (const evidencePath of write.paths) {
+    console.log(`- ${evidencePath}`);
+  }
 
   process.exitCode = result.status === "passed" ? 0 : 1;
 }
 
-main().catch((err) => {
-  console.error("Canary test failed:", err);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error("Canary test failed:", err);
+    process.exitCode = 1;
+  });
+}
