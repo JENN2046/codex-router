@@ -70,12 +70,20 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run canary -- --risk ${{ matrix.risk }}
+      - name: Preserve node-scoped canary evidence
+        if: always()
+        run: |
+          if [ -f "docs/evidence/codex-cli-canary-${{ matrix.risk }}-latest.json" ]; then
+            cp \
+              "docs/evidence/codex-cli-canary-${{ matrix.risk }}-latest.json" \
+              "docs/evidence/codex-cli-canary-node${{ matrix.node }}-${{ matrix.risk }}-latest.json"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: canary-evidence-node${{ matrix.node }}-${{ matrix.risk }}
           path: |
-            docs/evidence/codex-cli-canary-${{ matrix.risk }}-latest.json
+            docs/evidence/codex-cli-canary-node${{ matrix.node }}-${{ matrix.risk }}-latest.json
             docs/evidence/codex-cli-canary-latest.json
 
   smoke-contract:

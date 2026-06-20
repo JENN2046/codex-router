@@ -70,12 +70,15 @@ test("release canary evidence preserves low and medium results", async () => {
   }
 });
 
-test("CI uploads per-risk canary evidence before collecting the manifest", async () => {
+test("CI uploads node-scoped canary evidence before collecting the manifest", async () => {
   const workflow = parse(
     await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf-8")
   ) as {
     jobs: {
-      canary: { steps: WorkflowStep[] };
+      canary: {
+        strategy: { matrix: { node: number[]; risk: RiskLevel[] } };
+        steps: WorkflowStep[];
+      };
       evidence: { steps: WorkflowStep[] };
     };
   };
@@ -88,11 +91,32 @@ test("CI uploads per-risk canary evidence before collecting the manifest", async
   const evidenceDownload = workflow.jobs.evidence.steps.find((step) =>
     step.uses === "actions/download-artifact@v4"
   );
+  const nodeScopedCopy = workflow.jobs.canary.steps.find((step) =>
+    step.name === "Preserve node-scoped canary evidence"
+  );
+  const nodeRiskEvidenceNames = workflow.jobs.canary.strategy.matrix.node.flatMap((node) =>
+    workflow.jobs.canary.strategy.matrix.risk.map((risk) =>
+      `codex-cli-canary-node${node}-${risk}-latest.json`
+    )
+  );
 
   assert.ok(canaryUpload);
+  assert.ok(nodeScopedCopy?.run?.includes(
+    "docs/evidence/codex-cli-canary-${{ matrix.risk }}-latest.json"
+  ));
+  assert.ok(nodeScopedCopy?.run?.includes(
+    "docs/evidence/codex-cli-canary-node${{ matrix.node }}-${{ matrix.risk }}-latest.json"
+  ));
   assert.deepEqual(canaryUploadPaths, [
-    "docs/evidence/codex-cli-canary-${{ matrix.risk }}-latest.json",
+    "docs/evidence/codex-cli-canary-node${{ matrix.node }}-${{ matrix.risk }}-latest.json",
     "docs/evidence/codex-cli-canary-latest.json"
+  ]);
+  assert.equal(new Set(nodeRiskEvidenceNames).size, 4);
+  assert.deepEqual(nodeRiskEvidenceNames, [
+    "codex-cli-canary-node20-low-latest.json",
+    "codex-cli-canary-node20-medium-latest.json",
+    "codex-cli-canary-node22-low-latest.json",
+    "codex-cli-canary-node22-medium-latest.json"
   ]);
   assert.equal(evidenceDownload?.with?.pattern, "*-evidence-*");
   assert.equal(evidenceDownload?.with?.path, "docs/evidence/");
@@ -114,7 +138,9 @@ function createResult(risk: RiskLevel): CanaryResult {
 }
 
 interface WorkflowStep {
+  name?: string;
   uses?: string;
+  run?: string;
   with?: {
     name?: string;
     path?: string;
