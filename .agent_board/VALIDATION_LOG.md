@@ -8,7 +8,7 @@ Branch:
 
 Commit:
 
-- `99f66db`
+- `8480a6f`
 
 Results:
 
@@ -22,7 +22,7 @@ Results:
   - Result: passed; included `npm run typecheck` and
     `tests\governance-check.test.ts` with `6 / 6`.
 - `npm test`
-  - Result: passed, `1107 / 1107`.
+  - Result: passed, `1109 / 1109`.
 - `npm run build`
   - Result: passed.
 - `npm run governance -- list`
@@ -36,7 +36,7 @@ Branch:
 
 Commit:
 
-- `99f66db`
+- `8480a6f`
 
 Results:
 
@@ -60,7 +60,7 @@ Branch:
 
 Commit:
 
-- `99f66db`
+- `8480a6f`
 
 Results:
 
@@ -89,7 +89,7 @@ Branch:
 
 Commit:
 
-- `99f66db`
+- `8480a6f`
 
 Results:
 
@@ -118,7 +118,7 @@ Branch:
 
 Commit:
 
-- `99f66db`
+- `8480a6f`
 
 Results before this state refresh:
 

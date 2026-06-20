@@ -4,7 +4,7 @@
 
 Validation tier simplification, legacy alias cleanup, state-sync script
 alignment, and document governance surface slimming are implemented on branch
-`chore/governance-validation-surface-slimming` after PR branch commit `99f66db`.
+`chore/governance-validation-surface-slimming` after PR branch commit `8480a6f`.
 
 The current operational state should be read from:
 
@@ -25,17 +25,21 @@ The current operational state should be read from:
   remains in `.agent_board/VALIDATION_LOG.md`.
 - Fixed the governance runner to use Windows command shims for both `npm` and
   `tsx` child commands.
+- Fixed canary evidence writes so low risk and medium risk canary results are
+  preserved separately during release validation before the legacy latest alias
+  is updated.
 
 ## Latest Validated Baseline
 
-- `git diff --check`: passed.
-- Legacy package-script alias reference search: passed by no matches.
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npm run validate:daily -- --test tests\governance-check.test.ts`: passed;
-  included `npm run typecheck` and `6 / 6`.
-- `npm test`: passed, `1107 / 1107`.
+- `npx tsx --test tests\canary-evidence.test.ts tests\governance-check.test.ts`:
+  passed, `8 / 8`.
+- `npm run typecheck`: passed.
+- `npm test`: passed, `1109 / 1109`.
 - `npm run build`: passed.
-- `npm run governance -- list`: passed.
+- `git diff --check`: passed.
+- `npm run governance -- audit state-sync`: passed.
+- `npm run validate:pr`: passed.
 
 ## Remaining Risk
 

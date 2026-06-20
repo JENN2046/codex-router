@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
 | Current branch | `chore/governance-validation-surface-slimming` |
-| Current head | `99f66db` |
+| Current head | `8480a6f` |
 | Upstream | `origin/chore/governance-validation-surface-slimming` |
 | Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `99f66db` |
+| Latest validated commit | `8480a6f` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -29,16 +29,18 @@ should be refreshed here first.
 
 ## Validation Baseline
 
-Latest PR2 validation for the working tree based on `99f66db`:
+Latest PR #43 validation for the working tree based on `8480a6f`:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
-- `npm run validate:daily -- --test tests\governance-check.test.ts`: passed;
-  included `npm run typecheck` and `6 / 6`.
-- `npm test`: passed, `1107 / 1107`.
+- `npx tsx --test tests\canary-evidence.test.ts tests\governance-check.test.ts`:
+  passed, `8 / 8`.
+- `npm run typecheck`: passed.
+- `npm test`: passed, `1109 / 1109`.
 - `npm run build`: passed.
-- `npm run governance -- list`: passed.
 - `git diff --check`: passed.
-- Legacy package-script alias reference search: passed by no matches.
+- `npm run governance -- audit state-sync`: passed.
+- `npm run validate:pr`: passed; included `npm run typecheck`, `npm test`,
+  `npm run build`, and final state-sync audit.
 
 Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
@@ -69,6 +71,10 @@ Blocked capabilities:
   audit/acceptance/operator dispatch.
 - `scripts/run-governance-check.ts` now resolves both `npm` and `tsx` through
   Windows command shims when `process.platform` is `win32`.
+- `scripts/run-canary-test.ts` now writes per-risk canary evidence files
+  while preserving the legacy latest alias.
+- `tests/canary-evidence.test.ts` covers low-risk and medium-risk canary
+  evidence preservation across sequential release validation canaries.
 - `package.json` keeps recommended validation entrypoints:
   `governance`, `validate:daily`, `validate:pr`, and `validate:release`.
 - `packages/state-sync-audit` now requires the consolidated `governance`

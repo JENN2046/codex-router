@@ -26,6 +26,10 @@
   `tsx` child commands.
 - Validated the runner shim fix with targeted governance runner tests and
   `npm run validate:pr`.
+- Fixed PR review finding: low risk canary evidence is preserved across
+  sequential release validation canaries.
+- Refreshed `CURRENT_STATE.md` and `.agent_board` commit facts to the current
+  PR #43 branch baseline.
 
 ## In Progress
 
