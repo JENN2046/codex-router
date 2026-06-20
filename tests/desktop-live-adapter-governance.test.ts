@@ -554,3 +554,73 @@ test("governance: thrown object with no message falls back to unknown_execution_
   // Strategy should still be usable
   assert.ok(firstUpdate.strategy.actionFamily.length > 0);
 });
+
+test("governance: thrown handler with stopOnFailure false still updates governance and can trigger step_back", async () => {
+  const ready = await createReadyRunnerResult();
+  const govUpdates: GovernanceUpdateRecord[] = [];
+  const highRiskState: GovernanceState = {
+    ...createLowRiskGovernanceState(ready.task.taskId),
+    risk: {
+      entanglement: 0.6,
+      entropy: 0.7,
+      failureCost: 0.8,
+      reversibility: 0.3,
+      contextPressure: 0.5,
+      historicalTrust: 0.4,
+      globalCoherence: 0.6,
+      finalRiskLevel: "high"
+    },
+    anomalies: [
+      {
+        anomalyId: "anomaly:gov-integration-ready:throw-pre1",
+        taskId: ready.task.taskId,
+        kind: "execution_failure",
+        message: "first failure",
+        strikeNumber: 1,
+        createdAt: "2026-04-28T10:00:00.000Z",
+        evidenceRefs: []
+      },
+      {
+        anomalyId: "anomaly:gov-integration-ready:throw-pre2",
+        taskId: ready.task.taskId,
+        kind: "execution_failure",
+        message: "second failure",
+        strikeNumber: 2,
+        createdAt: "2026-04-28T11:00:00.000Z",
+        evidenceRefs: []
+      }
+    ],
+    updatedAt: "2026-04-28T11:00:00.000Z"
+  };
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => {
+        throw new Error("continued_throw_failure");
+      },
+      spawn_agent: () => ({ agentId: "agent-1" }),
+      wait_agent: () => ({ status: "completed" })
+    },
+    governanceState: highRiskState,
+    onGovernanceUpdate: async (state, strategy) => {
+      govUpdates.push({ state, strategy });
+    },
+    stopOnFailure: false,
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  assert.equal(execution.status, "failed");
+  assert.ok(execution.blockingReasons.includes("governance_step_back_triggered"));
+  assert.ok(execution.blockingReasons.includes("arbitration_required"));
+  assert.ok(govUpdates.length >= 1, "onGovernanceUpdate should be called for thrown handler in continuing mode");
+
+  const firstUpdate = govUpdates[0]!;
+  const anomaly = firstUpdate.state.anomalies[firstUpdate.state.anomalies.length - 1]!;
+  assert.equal(anomaly.kind, "execution_failure");
+  assert.equal(anomaly.message, "continued_throw_failure");
+  assert.equal(anomaly.strikeNumber, 3);
+  assert.equal(firstUpdate.strategy.actionFamily, "step_back");
+  assert.equal(execution.governance?.recoveryRequired, true);
+  assert.equal(execution.governance?.state.anomalies.at(-1)?.message, "continued_throw_failure");
+});

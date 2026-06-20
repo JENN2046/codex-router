@@ -818,43 +818,41 @@ export async function executeDesktopPlan(
         createdAt: now()
       });
 
-      if (stopOnFailure) {
-        // Update governance state on thrown error before returning
-        if (governanceState) {
-          const failureResult = applyExecutionFailureToGovernanceState({
-            state: governanceState,
-            task: result.task,
-            primitiveId: `${operation.primitive}:${stepIndex}`,
-            errorClass: errorMessage,
-            stepIndex,
-            now
-          });
-          governanceState = failureResult.state;
-          strategyDecision = failureResult.strategyDecision;
+      if (governanceState) {
+        const failureResult = applyExecutionFailureToGovernanceState({
+          state: governanceState,
+          task: result.task,
+          primitiveId: `${operation.primitive}:${stepIndex}`,
+          errorClass: errorMessage,
+          stepIndex,
+          now
+        });
+        governanceState = failureResult.state;
+        strategyDecision = failureResult.strategyDecision;
 
-          // Notify callback
-          if (input.onGovernanceUpdate && strategyDecision) {
-            await input.onGovernanceUpdate(governanceState, strategyDecision);
-          }
-
-          const governance = createRecoveryGovernanceIfRequired({
-            state: governanceState,
-            strategyDecision,
-            arbitrationPacket: failureResult.arbitrationPacket
-          });
-          if (governance) {
-            return {
-              status: "failed",
-              taskId: result.task.taskId,
-              plan: result.executionPlan,
-              steps,
-              blockingReasons: createGovernanceBlockingReasons(governance),
-              auditEvents,
-              governance
-            };
-          }
+        if (input.onGovernanceUpdate && strategyDecision) {
+          await input.onGovernanceUpdate(governanceState, strategyDecision);
         }
 
+        const governance = createRecoveryGovernanceIfRequired({
+          state: governanceState,
+          strategyDecision,
+          arbitrationPacket: failureResult.arbitrationPacket
+        });
+        if (governance) {
+          return {
+            status: "failed",
+            taskId: result.task.taskId,
+            plan: result.executionPlan,
+            steps,
+            blockingReasons: createGovernanceBlockingReasons(governance),
+            auditEvents,
+            governance
+          };
+        }
+      }
+
+      if (stopOnFailure) {
         await maybePersistExecutionCheckpoint({
           taskId: result.task.taskId,
           stage: `execution-failed-${stepIndex + 1}`,
@@ -878,10 +876,12 @@ export async function executeDesktopPlan(
     }
   }
 
+  const finalBlockingReasons = createFailedStepBlockingReasons(steps);
+
   await maybePersistExecutionCheckpoint({
     taskId: result.task.taskId,
     stage: "execution-completed",
-    summary: steps.some((step) => step.status === "failed")
+    summary: finalBlockingReasons.length > 0
       ? "desktop live adapter completed with failures"
       : "desktop live adapter completed successfully",
     frequency: checkpointFrequency,
@@ -893,13 +893,33 @@ export async function executeDesktopPlan(
   await persistAudit(auditEvents, input.auditStore);
 
   return {
-    status: steps.some((step) => step.status === "failed") ? "failed" : "completed",
+    status: finalBlockingReasons.length > 0 ? "failed" : "completed",
     taskId: result.task.taskId,
     plan: result.executionPlan,
     steps,
-    blockingReasons: [],
+    blockingReasons: finalBlockingReasons,
     auditEvents
   };
+}
+
+function createFailedStepBlockingReasons(
+  steps: PrimitiveExecutionResult[]
+): string[] {
+  const reasons = steps
+    .filter((step) => step.status === "failed")
+    .map((step) => {
+      if (step.error && step.error.length > 0) {
+        return step.error;
+      }
+
+      if (step.output?.ok === false && step.output.error.length > 0) {
+        return step.output.error;
+      }
+
+      return `primitive_failed:${step.primitive}`;
+    });
+
+  return [...new Set(reasons)];
 }
 
 async function persistAudit(

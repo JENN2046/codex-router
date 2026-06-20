@@ -468,6 +468,38 @@ test("desktop live adapter respects explicit failure envelopes from handlers", a
   assert.equal(execution.steps[1]?.error, "agent_capacity_exceeded");
 });
 
+test("desktop live adapter reports thrown failure reasons when continuing after failure", async () => {
+  const ready = await createReadyRunnerResult();
+  const calls: string[] = [];
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => {
+        calls.push("read_thread_terminal");
+        throw new Error("read_thread_terminal_crashed");
+      },
+      spawn_agent: () => {
+        calls.push("spawn_agent");
+        return { agentId: "agent-1" };
+      },
+      wait_agent: () => {
+        calls.push("wait_agent");
+        return { status: "completed" };
+      }
+    },
+    stopOnFailure: false,
+    now: () => "2026-04-23T12:10:00.000Z"
+  });
+
+  assert.equal(execution.status, "failed");
+  assert.deepEqual(calls, ["read_thread_terminal", "spawn_agent", "wait_agent"]);
+  assert.equal(execution.steps[0]?.status, "failed");
+  assert.equal(execution.steps[1]?.status, "completed");
+  assert.equal(execution.steps[2]?.status, "completed");
+  assert.deepEqual(execution.blockingReasons, ["read_thread_terminal_crashed"]);
+});
+
 test("runDesktopTask composes decision runner and live adapter", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const calls: string[] = [];
