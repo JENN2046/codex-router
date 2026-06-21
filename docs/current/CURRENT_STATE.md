@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router` |
 | Current branch | `feature/pr-22a-controlled-provider-execution` |
-| Current head | `409bbad` |
+| Current head | `29422d4` |
 | Upstream | `none` |
 | Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `409bbad` |
+| Latest validated commit | `29422d4` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -110,6 +110,8 @@ Blocked capabilities:
 - `scripts/run-governance-check.ts` registers
   `controlled-provider-execution-taskbook-review`.
 - `docs/governance/README.md` links the PR-22A taskbook and review command.
+- `docs/governance/CLI_LINE_LOCAL_CLOSEOUT.md` records the prior closeout
+  marker required by the PR-22A review audit.
 - Current state and `.agent_board` surfaces were refreshed for the new
   implementation branch.
 

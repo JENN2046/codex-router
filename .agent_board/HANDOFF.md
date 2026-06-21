@@ -6,7 +6,7 @@ fresh implementation branch from clean `main`.
 Current status:
 
 - Branch: `feature/pr-22a-controlled-provider-execution`
-- State baseline: `409bbad`
+- State baseline: `29422d4`
 - Upstream: none
 - Current state source: `docs/current/CURRENT_STATE.md`
 - PR-22A taskbook source:
@@ -20,6 +20,8 @@ What changed in this line:
 - `npm run governance -- audit readonly-productization` passed on `main`
 - a fresh implementation branch was created from that baseline
 - PR-22A taskbook review audit files were migrated onto the branch
+- the prior CLI line closeout marker document was restored for the PR-22A
+  review audit precondition
 
 Hard boundaries:
 

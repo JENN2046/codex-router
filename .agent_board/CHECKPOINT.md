@@ -10,7 +10,7 @@ Current state source:
 
 Baseline:
 
-- `409bbad`
+- `29422d4`
 
 Completed:
 
@@ -21,6 +21,8 @@ Completed:
 - ran `npm run governance -- audit readonly-productization` on `main`
 - created the fresh implementation branch
 - migrated the PR-22A taskbook review gate
+- restored the prior CLI line closeout marker document required by the review
+  audit
 
 In progress:
 
