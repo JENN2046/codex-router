@@ -10,12 +10,12 @@ should be refreshed here first.
 
 | Field | Value |
 | --- | --- |
-| Workspace | `A:\AGENTS_OS_Workspace\governance\codex-router` |
-| Current branch | `chore/governance-validation-surface-slimming` |
-| Current head | `8480a6f` |
-| Upstream | `origin/chore/governance-validation-surface-slimming` |
-| Upstream divergence | `ahead 0 / behind 0` |
-| Latest validated commit | `8480a6f` |
+| Workspace | `/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router` |
+| Current branch | `feature/pr-22a-controlled-provider-execution` |
+| Current head | `dea03b5` |
+| Upstream | `none` |
+| Upstream divergence | `ahead -1 / behind -1` |
+| Latest validated commit | `dea03b5` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -25,11 +25,32 @@ should be refreshed here first.
 - Governance docs map: `docs/governance/README.md`
 - Validation policy: `docs/validation-tiers.md`
 - Current state audit: `npm run governance -- audit state-sync`
+- Controlled provider execution taskbook review audit:
+  `npm run governance -- audit controlled-provider-execution-taskbook-review`
 - Governance runner discovery: `npm run governance -- list`
+
+## Current Baseline
+
+The implementation branch was created from clean `main` at `dea03b5` after
+`npm run governance -- audit readonly-productization` passed on `main` with
+ahead `0`, behind `0`, evidence `10/10`, readiness matrix `passed`, and
+provider execute / real CLI / workspace-write / evidence writes all `0`.
+
+The PR-22A controlled provider execution planning line is recorded by:
+
+- `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
+- `PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_RECORDED`
+- `PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED`
+- `npm run governance -- audit controlled-provider-execution-taskbook-review`
+
+This review line is local-only and non-executing. It records that the next safe
+provider execution implementation slice is gated behind exact authorization,
+clean-main productization preflight, provider metadata, read-only sandbox,
+approval policy `never`, and injected execution dependency checks.
 
 ## Validation Baseline
 
-Latest PR #43 validation for the working tree based on `8480a6f`:
+Latest PR #43 validation for the updated `main` baseline:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`.
 - `npx tsx --test tests\canary-evidence.test.ts tests\governance-check.test.ts`:
@@ -41,6 +62,14 @@ Latest PR #43 validation for the working tree based on `8480a6f`:
 - `npm run governance -- audit state-sync`: passed.
 - `npm run validate:pr`: passed; included `npm run typecheck`, `npm test`,
   `npm run build`, and final state-sync audit.
+
+Pre-implementation gate validation on clean `main`:
+
+- `git pull --ff-only origin main`: already up to date.
+- `npm run governance -- audit readonly-productization`: passed.
+
+PR-22A review validation on this branch is pending after the taskbook review
+state is migrated onto the fresh implementation branch.
 
 Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
@@ -54,6 +83,10 @@ specific task and approval gate says otherwise.
 - `bounded_workspace_write_canary`: one historical fixed-target canary was
   recorded; it does not authorize general writes.
 - `state_sync_audit`: local read-only audit only.
+- `controlled_provider_execution_taskbook_review`: local read-only planning
+  audit only; it does not authorize provider execute, real Codex CLI execution,
+  workspace-write, evidence refresh, push, release, tag, deployment, external
+  write, or secret changes.
 
 Blocked capabilities:
 
@@ -67,41 +100,27 @@ Blocked capabilities:
 
 ## Current Local Changes
 
-- `scripts/run-governance-check.ts` consolidates validation tiers and
-  audit/acceptance/operator dispatch.
-- `scripts/run-governance-check.ts` now resolves both `npm` and `tsx` through
-  Windows command shims when `process.platform` is `win32`.
-- `scripts/run-canary-test.ts` now writes per-risk canary evidence files
-  while preserving the legacy latest alias.
-- `tests/canary-evidence.test.ts` covers low-risk and medium-risk canary
-  evidence preservation across sequential release validation canaries.
-- `package.json` keeps recommended validation entrypoints:
-  `governance`, `validate:daily`, `validate:pr`, and `validate:release`.
-- `packages/state-sync-audit` now requires the consolidated `governance`
-  package script instead of the removed dedicated state-sync script alias.
-- Legacy per-check package script aliases have been removed; use
-  `npm run governance -- audit|acceptance|operator ...`.
-- Old package-script command references and old package script keys were
-  migrated out of docs, tests, scripts, and `package.json`.
-- `README.md` now points to a compact documentation map instead of listing the
-  full historical governance chain.
-- `docs/README.md` and `docs/governance/README.md` separate current docs from
-  historical evidence.
-- Current state and `.agent_board` current surfaces were compacted; detailed
-  validation history remains in `.agent_board/VALIDATION_LOG.md`.
+- `scripts/run-controlled-provider-execution-taskbook-review-audit.ts` records
+  the PR-22A taskbook review gate.
+- `tests/controlled-provider-execution-taskbook-review-audit.test.ts` covers
+  the review gate.
+- `scripts/run-governance-check.ts` registers
+  `controlled-provider-execution-taskbook-review`.
+- `docs/governance/README.md` links the PR-22A taskbook and review command.
+- Current state and `.agent_board` surfaces were refreshed for the new
+  implementation branch.
 
 ## State Sync Expectations
 
-The audit should verify this file, package script wiring, and `.agent_board`
-handoff surfaces for stale current-state facts. After a new commit, refresh
+This branch currently has no configured upstream, so audit divergence uses the
+current `ahead -1 / behind -1` sentinel. After each new commit, refresh
 `Current head`, `Latest validated commit`, validation facts, and `.agent_board`
 before treating this state surface as current.
 
 ## Next Safe Action
 
-Commit the PR #43 P1 state refresh and validate the synced branch:
-
-1. run `npm run governance -- audit state-sync`
-2. run `npm run validate:pr`
-3. push `chore/governance-validation-surface-slimming`
-4. report PR #43 commit, validation, and remaining risk
+Finish migrating the PR-22A taskbook review state onto this fresh branch, run
+the targeted review validation, then implement only the minimal controlled
+read-only provider execution slice. Do not run real Codex CLI, workspace-write
+execution, push, tag, release, deploy, modify secrets, or write external
+services without a separate explicit instruction.

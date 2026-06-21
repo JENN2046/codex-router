@@ -17,6 +17,9 @@ current map, not as the primary operating surface.
   capability classes and escalation stops.
 - [approval consumption dispatch matrix](APPROVAL_CONSUMPTION_DISPATCH_AUDIT_MATRIX.md):
   approval consumption and dispatch evidence matrix.
+- [PR-22A controlled provider execution taskbook](PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md):
+  local-only planning line for the next controlled provider execution slice;
+  this is not execution authorization.
 
 ## Runner Entry Points
 
@@ -25,6 +28,7 @@ Use the consolidated runner instead of per-check package scripts:
 ```bash
 npm run governance -- list
 npm run governance -- audit state-sync
+npm run governance -- audit controlled-provider-execution-taskbook-review
 npm run governance -- acceptance readonly-chain
 npm run governance -- operator readonly
 ```

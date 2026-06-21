@@ -75,6 +75,7 @@ const GOVERNANCE_CHECKS: readonly GovernanceCheckDefinition[] = [
   auditCheck("future-codex-cli-canary-pre-execution-review", "scripts/run-future-codex-cli-canary-pre-execution-review-audit.ts"),
   auditCheck("post-canary-receipt-rollback-gate", "scripts/run-post-canary-receipt-rollback-verification-gate-audit.ts"),
   auditCheck("capability-taxonomy-escalation-policy", "scripts/run-capability-taxonomy-escalation-policy-audit.ts"),
+  auditCheck("controlled-provider-execution-taskbook-review", "scripts/run-controlled-provider-execution-taskbook-review-audit.ts"),
   auditCheck("workspace-write-real-canary-candidate", "scripts/run-workspace-write-real-canary-local-candidate-consistency.ts"),
   auditCheck("workspace-write-real-canary-sensitive-scan", "scripts/run-workspace-write-real-canary-sensitive-scan.ts"),
   auditCheck("workspace-write-real-canary-final-local", "scripts/run-workspace-write-real-canary-final-local-audit.ts"),

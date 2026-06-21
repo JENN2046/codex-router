@@ -1,68 +1,41 @@
 # Run State
 
-Status: governance validation surface slimming is split from the runtime fix;
-PR #43 state metadata is being refreshed for the P1 review finding.
+Status: PR-22A controlled provider execution work has moved to a fresh
+implementation branch based on clean `main`.
 
 Current truth source:
 
 - `docs/current/CURRENT_STATE.md`
-
-Workspace:
-
-- `A:\AGENTS_OS_Workspace\governance\codex-router`
+- `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
 
 Branch:
 
-- `chore/governance-validation-surface-slimming`
+- `feature/pr-22a-controlled-provider-execution`
 
-Current head at latest local status refresh:
+State baseline:
 
-- `8480a6f`
+- `dea03b5`
 
 Upstream:
 
-- `origin/chore/governance-validation-surface-slimming`
+- none
 
 Worktree:
 
-- clean at the latest PR #43 state refresh before this P1 metadata update
+- resolving the PR-22A taskbook review migration onto the fresh branch
 
 Current scope:
 
-- local docs, tests, audit surfaces, and governance runner wiring
+- PR-22A controlled provider execution taskbook review migration
+- minimal controlled read-only provider execution implementation after gates
 - no real Codex CLI execution
-- no provider execute
 - no workspace-write execution
-- no release, tag, deployment, or protected remote action
+- no push, release, tag, deployment, external write, or secret change
 
-Latest PR #43 validation for this split:
+Validation baseline:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
-- `npx tsx --test tests\canary-evidence.test.ts tests\governance-check.test.ts`:
-  passed, `8 / 8`
-- `npm run typecheck`: passed
-- `npm test`: passed, `1109 / 1109`
-- `npm run build`: passed
-- `git diff --check`: passed
-- `npm run governance -- audit state-sync`: passed
-- `npm run validate:pr`: passed
-
-Current local changes:
-
-- `scripts/run-governance-check.ts` consolidates validation tiers and
-  audit/acceptance/operator dispatch
-- `scripts/run-governance-check.ts` resolves `npm` and `tsx` through Windows
-  command shims on `win32`
-- `scripts/run-canary-test.ts` preserves low risk canary evidence by writing
-  per-risk latest files before updating the legacy latest alias
-- legacy per-check package script aliases were removed
-- `packages/state-sync-audit` checks the consolidated `governance` package
-  script
-- `docs/README.md` and `docs/governance/README.md` now provide compact current
-  doc maps
-- `README.md` no longer carries the long historical governance link chain
-- `docs/current/CURRENT_STATE.md` is compacted to current state, validation,
-  execution boundary, and next action
+- clean `main` at `dea03b5`
+- `npm run governance -- audit readonly-productization`: passed on `main`
 
 Detailed validation history:
 
