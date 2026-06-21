@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { hashApprovalScope } from "../packages/approval-permit/src/index.js";
 import { InMemoryArtifactStore } from "../packages/artifact-store/src/index.js";
+import {
+  type CodexCliProcessSpawner
+} from "../packages/codex-cli-host/src/index.js";
 import {
   planProviderExecution,
   ProviderExecutionPlanSchema,
@@ -21,17 +25,23 @@ import {
   type Task
 } from "../packages/kernel-contracts/src/index.js";
 import {
+  createApprovedProviderExecutionPermit,
   parseExecutorExecutionPlan,
   parseProviderManifest,
+  hashProviderManifest,
   type ExecutionPlanInput,
   type ExecutionValidationResult,
   type ExecutorExecutionPlan,
   type ExecutorProvider,
   type ProviderExecutionContext,
+  type ProviderExecutionPermit,
   type ProviderExecutionResult,
   type ProviderManifest
 } from "../packages/provider-core/src/index.js";
-import { runProviderExecutionPlanDryRun } from "../packages/provider-execution-runner/src/index.js";
+import {
+  runProviderExecutionPlanControlledReadOnly,
+  runProviderExecutionPlanDryRun
+} from "../packages/provider-execution-runner/src/index.js";
 import { ProviderRegistry } from "../packages/provider-registry/src/index.js";
 import { CodexCliExecutorProvider } from "../packages/providers/codex-cli/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
@@ -521,6 +531,184 @@ test("provider execution runner validates codex-cli dry-runs without invoking ex
   assert.equal(result.executorPlan.metadata.codexCliProvider !== undefined, true);
 });
 
+test("provider execution runner executes controlled read-only codex-cli plans with explicit permit and guard", async () => {
+  let spawnCalls = 0;
+  const fixture = createControlledReadOnlyCodexFixture(() => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "{\"type\":\"agent_message\",\"message\":\"CONTROLLED_READONLY_OK\"}\n",
+      exitCode: 0
+    });
+  });
+  const kernelStore = new InMemoryKernelStore();
+  const artifactStore = new InMemoryArtifactStore({ now: createClock() });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: fixture.registry,
+    kernelStore,
+    artifactStore,
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(fixture.provider.manifest)
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+  const providerArtifacts = result.providerResultSummary?.artifacts as Array<{
+    summary?: { status?: string; approvalPolicy?: string; sandbox?: string };
+  }>;
+  const serializedEvidence = JSON.stringify({
+    executionEvidence: result.executionEvidence,
+    providerResultSummary: result.providerResultSummary
+  });
+
+  assert.equal(result.status, "controlled_readonly_succeeded", result.reasons.join(","));
+  assert.equal(result.dryRun, false);
+  assert.equal(result.executeInvoked, true);
+  assert.equal(spawnCalls, 1);
+  assert.equal(result.validation?.valid, true);
+  assert.equal(result.providerResultSummary?.ok, true);
+  assert.equal(providerArtifacts[0]?.summary?.status, "completed");
+  assert.equal(providerArtifacts[0]?.summary?.approvalPolicy, "never");
+  assert.equal(providerArtifacts[0]?.summary?.sandbox, "read-only");
+  assert.deepEqual(
+    kernelStore.listEvents({ runId: fixture.run.runId }).map((event) => event.eventType),
+    [
+      "kernel.provider.execution.controlled_readonly.started",
+      "kernel.provider.execution.controlled_readonly.succeeded"
+    ]
+  );
+  assert.equal((await artifactStore.listArtifacts({ runId: fixture.run.runId })).length, 1);
+  assert.equal(kernelStore.listArtifacts({ runId: fixture.run.runId }).length, 1);
+  assert.equal(serializedEvidence.includes("CONTROLLED_READONLY_OK"), false);
+  assert.equal(serializedEvidence.includes("\"prompt\""), false);
+  assert.equal(serializedEvidence.includes("\"args\""), false);
+  assert.equal(serializedEvidence.includes("\"stdout\""), false);
+  assert.equal(serializedEvidence.includes("\"stderr\""), false);
+  assert.equal(serializedEvidence.includes("requestedAction"), false);
+});
+
+test("provider execution runner blocks controlled read-only execution without metadata before spawn", async () => {
+  let spawnCalls = 0;
+  const fixture = createControlledReadOnlyCodexFixture(() => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    });
+  });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: fixture.registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(spawnCalls, 0);
+  assert.ok(result.reasons.includes("controlled_readonly_provider_execution_metadata_required"));
+});
+
+test("provider execution runner blocks controlled read-only execution without a provider permit before spawn", async () => {
+  let spawnCalls = 0;
+  const fixture = createControlledReadOnlyCodexFixture(() => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    });
+  });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: fixture.registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(fixture.provider.manifest)
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(spawnCalls, 0);
+  assert.ok(result.reasons.includes("controlled_readonly_provider_execution_permit_required"));
+});
+
+test("provider execution runner blocks controlled read-only execution for non-codex providers", async () => {
+  const provider = createFakeExecutorProvider();
+  const registry = createRegistry(provider);
+  const task = createTask();
+  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const run = createRun(task, policyDecision, "running");
+  const providerExecutionPlan = planProviderExecution(createPlannerInput({
+    task,
+    run,
+    policyDecision,
+    providerRegistry: registry,
+    preferredProviderId: provider.manifest.providerId
+  }));
+  const executorPlan = await provider.planExecution({
+    task,
+    run,
+    policyDecision,
+    sandboxProfile: providerExecutionPlan.sandboxProfile,
+    inputHash: providerExecutionPlan.inputHash,
+    now
+  });
+  const permit = createApprovedProviderExecutionPermit({
+    plan: executorPlan,
+    manifest: provider.manifest,
+    issuedAt: now
+  });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan,
+    task,
+    run,
+    principal: validPrincipal,
+    policyDecision,
+    providerRegistry: registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan,
+    permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.ok(result.reasons.includes("controlled_readonly_requires_codex_cli_provider"));
+  assert.equal(provider.calls.execute, 0);
+});
+
 test("provider execution runner records provider attestation in dry-run evidence", async () => {
   const provider = createFakeExecutorProvider();
   const registry = createRegistry(provider);
@@ -806,6 +994,148 @@ function createFakeExecutorManifest(options: {
     enabled: options.enabled ?? true,
     metadata: {}
   });
+}
+
+type ControlledReadOnlyCodexFixture = {
+  provider: CodexCliExecutorProvider;
+  registry: ProviderRegistry;
+  task: Task;
+  policyDecision: PolicyDecision;
+  run: Run;
+  providerExecutionPlan: ReturnType<typeof planProviderExecution>;
+  executorPlan: ExecutorExecutionPlan;
+  permit: ProviderExecutionPermit;
+};
+
+function createControlledReadOnlyCodexFixture(
+  spawn: CodexCliProcessSpawner
+): ControlledReadOnlyCodexFixture {
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: true,
+    timeoutMs: 1_000,
+    spawn
+  });
+  const registry = createRegistry(provider);
+  const task = createTask();
+  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const run = createRun(task, policyDecision, "running");
+  const providerExecutionPlan = planProviderExecution(createPlannerInput({
+    task,
+    run,
+    policyDecision,
+    providerRegistry: registry,
+    preferredProviderId: provider.manifest.providerId
+  }));
+  const executorPlan = provider.planExecution({
+    task,
+    run,
+    policyDecision,
+    sandboxProfile: providerExecutionPlan.sandboxProfile,
+    inputHash: providerExecutionPlan.inputHash,
+    now
+  });
+  const permit = createApprovedProviderExecutionPermit({
+    plan: executorPlan,
+    manifest: provider.manifest,
+    permitId: `permit-${executorPlan.planId}`,
+    issuedAt: now
+  });
+
+  return {
+    provider,
+    registry,
+    task,
+    policyDecision,
+    run,
+    providerExecutionPlan,
+    executorPlan,
+    permit
+  };
+}
+
+function createRunnerRealExecutionGuard(manifest: ProviderManifest): Record<string, unknown> {
+  return {
+    schemaVersion: "codex-cli-provider-real-execution-guard.v1",
+    realExecutionAllowed: true,
+    providerRegistrySelection: {
+      selected: true,
+      providerId: manifest.providerId,
+      manifestHash: hashProviderManifest(manifest),
+      kind: manifest.kind,
+      enabled: manifest.enabled
+    },
+    environmentPreflight: {
+      status: "ready",
+      checks: {
+        injectedSpawner: true,
+        realCliAllowed: true,
+        versionProbe: "passed",
+        noTaskEnvelope: true,
+        noPromptSent: true,
+        noWorkspaceWrite: true,
+        noRealCliFallback: true
+      },
+      blockingReasons: []
+    }
+  };
+}
+
+class FakeCodexCliStream extends EventEmitter {
+  setEncoding(_encoding: BufferEncoding): void {}
+  destroy(): void {}
+}
+
+class FakeCodexCliWritableStream {
+  end(): void {}
+  destroy(): void {}
+}
+
+class FakeCodexCliChild extends EventEmitter {
+  readonly stdin = new FakeCodexCliWritableStream();
+  readonly stdout = new FakeCodexCliStream();
+  readonly stderr = new FakeCodexCliStream();
+
+  constructor(
+    private readonly closeCode: number,
+    private readonly closeSignal: NodeJS.Signals | null
+  ) {
+    super();
+  }
+
+  kill(_signal?: NodeJS.Signals | number): boolean {
+    queueMicrotask(() => {
+      this.emit("close", this.closeCode, this.closeSignal);
+    });
+    return true;
+  }
+
+  unref(): void {}
+}
+
+function createFakeCodexCliChild(options: {
+  stdout: string;
+  stderr?: string;
+  exitCode: number;
+  signal?: NodeJS.Signals | null;
+}): FakeCodexCliChild {
+  const child = new FakeCodexCliChild(
+    options.exitCode,
+    options.signal ?? null
+  );
+
+  queueMicrotask(() => {
+    if (options.stdout) {
+      child.stdout.emit("data", options.stdout);
+    }
+    if (options.stderr) {
+      child.stderr.emit("data", options.stderr);
+    }
+    child.emit("close", options.exitCode, options.signal ?? null);
+  });
+
+  return child;
 }
 
 function createRegistry(provider: ExecutorProvider): ProviderRegistry {

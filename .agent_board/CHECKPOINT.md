@@ -10,7 +10,7 @@ Current state source:
 
 Baseline:
 
-- `29422d4`
+- `e25b3b3`
 
 Completed:
 
@@ -23,11 +23,18 @@ Completed:
 - migrated the PR-22A taskbook review gate
 - restored the prior CLI line closeout marker document required by the review
   audit
+- implemented explicit controlled read-only provider execution in
+  `packages/provider-execution-runner`
+- mapped no-approval routing decisions to Codex CLI approval policy `never`
+- added fake-spawner local acceptance evidence for the controlled read-only
+  slice
+- validated with typecheck, targeted provider/host tests, acceptance, full
+  `npm test`, and build
 
 In progress:
 
-- finish the state refresh commit
-- run targeted PR-22A review validation
+- commit the implementation slice
+- rerun clean-worktree governance audits if preparing a PR
 
 Blocked capabilities:
 

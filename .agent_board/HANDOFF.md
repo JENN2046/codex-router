@@ -1,18 +1,18 @@
 # Handoff
 
-Current scope: PR-22A controlled provider execution is being prepared on a
-fresh implementation branch from clean `main`.
+Current scope: PR-22A minimal controlled read-only provider execution is
+implemented on a fresh branch from clean `main`.
 
 Current status:
 
 - Branch: `feature/pr-22a-controlled-provider-execution`
-- State baseline: `29422d4`
+- State baseline: `e25b3b3`
 - Upstream: none
 - Current state source: `docs/current/CURRENT_STATE.md`
 - PR-22A taskbook source:
   `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
-- Work in progress: complete the taskbook review migration and implement the
-  minimal controlled read-only provider execution slice.
+- Work in progress: commit the implementation slice and rerun clean-worktree
+  audits if preparing a PR.
 
 What changed in this line:
 
@@ -22,6 +22,16 @@ What changed in this line:
 - PR-22A taskbook review audit files were migrated onto the branch
 - the prior CLI line closeout marker document was restored for the PR-22A
   review audit precondition
+- `runProviderExecutionPlanControlledReadOnly` was added with explicit mode,
+  `codex-cli` provider, read-only sandbox, approval policy `never`, metadata,
+  and permit gates before provider execute
+- `createCodexCliExecPlanFromRoutingDecision` now maps no-approval decisions to
+  CLI approval policy `never`
+- local acceptance uses a fake injected spawner and records real Codex CLI
+  calls `0`, workspace-write execute calls `0`, and external write calls `0`
+- validation passed: `npm run typecheck`, targeted runner/provider/host tests,
+  `npm run governance -- acceptance controlled-readonly-provider-execution`,
+  targeted state-sync tests, full `npm test`, and `npm run build`
 
 Hard boundaries:
 
@@ -35,7 +45,7 @@ Hard boundaries:
 
 Next safe action:
 
-1. run targeted taskbook review validation
-2. implement the minimal controlled read-only provider execution slice
-3. validate with targeted provider runner, host dispatcher, eligibility,
-   approval permit, redaction, typecheck, full tests, and build
+1. commit the PR-22A implementation slice
+2. rerun clean-worktree `npm run governance -- audit state-sync`
+3. rerun clean-worktree
+   `npm run governance -- audit controlled-provider-execution-taskbook-review`

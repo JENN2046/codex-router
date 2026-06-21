@@ -53,6 +53,7 @@ const GOVERNANCE_CHECKS: readonly GovernanceCheckDefinition[] = [
   acceptanceCheck("workspace-write-fake-canary", "scripts/run-workspace-write-fake-canary-acceptance.ts"),
   acceptanceCheck("workspace-write-real-canary-auth", "scripts/run-workspace-write-real-canary-authorization-acceptance.ts"),
   acceptanceCheck("workspace-write-real-canary-pre-execution", "scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts"),
+  acceptanceCheck("controlled-readonly-provider-execution", "scripts/run-controlled-readonly-provider-execution-acceptance.ts"),
   auditCheck("real-readonly-smoke-local", "scripts/run-real-readonly-smoke-local-closeout-audit.ts"),
   auditCheck("formal-readonly-integration-local", "scripts/run-formal-readonly-cli-integration-local-closeout-audit.ts"),
   auditCheck("formal-readonly-provider-integration-local", "scripts/run-formal-readonly-provider-integration-local-closeout-audit.ts"),

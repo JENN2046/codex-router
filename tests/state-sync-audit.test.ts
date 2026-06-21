@@ -171,7 +171,11 @@ test("state sync audit fails closed when upstream divergence is unknown", async 
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
-    aheadBehind: "unknown\tunknown"
+    aheadBehind: "unknown\tunknown",
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream divergence \| `[^`]+` \|/,
+      "| Upstream divergence | `ahead 0 / behind 0` |"
+    )
   });
 
   assert.equal(review.status, "blocked");
@@ -284,7 +288,7 @@ function extractStateField(text: string, field: string): string | undefined {
 
 function extractStateDivergence(text: string): string | undefined {
   const value = extractStateField(text, "Upstream divergence");
-  const match = /^ahead (\d+) \/ behind (\d+)$/.exec(value ?? "");
+  const match = /^ahead (-?\d+) \/ behind (-?\d+)$/.exec(value ?? "");
   if (match === null) {
     return undefined;
   }

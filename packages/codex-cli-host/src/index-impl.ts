@@ -1147,6 +1147,7 @@ export function createCodexCliExecPlanFromRoutingDecision(
   );
   const plan = createCodexCliExecPlan(task, {
     ...planOptions,
+    approvalPolicy: decision.approval.required ? "on-request" : "never",
     ignoreUserConfig: true,
     model: modelResolution.selectedModel,
     sandbox: resolveCodexCliSandboxForRoutingDecision(decision)

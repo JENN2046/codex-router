@@ -2,19 +2,18 @@
 
 Active:
 
-- Finish PR-22A taskbook review migration on
-  `feature/pr-22a-controlled-provider-execution`.
-- Run targeted taskbook review validation.
-- Implement the minimal controlled read-only provider execution slice.
+- Commit the PR-22A minimal controlled read-only provider execution slice.
+- Rerun clean-worktree state sync and taskbook review audits if preparing a PR.
 
-Queued validation:
+Completed validation:
 
 - `npm run governance -- audit controlled-provider-execution-taskbook-review`
-- targeted provider execution runner tests
-- targeted host dispatcher tests
-- targeted execution eligibility and approval permit tests
-- targeted redaction tests
 - `npm run typecheck`
+- `npx tsx --test tests/provider-execution-runner.test.ts`
+- `npx tsx --test tests/codex-cli-provider.test.ts`
+- `npx tsx --test tests/codex-cli-host.test.ts`
+- `npm run governance -- acceptance controlled-readonly-provider-execution`
+- `npx tsx --test tests/state-sync-audit.test.ts`
 - `npm test`
 - `npm run build`
 

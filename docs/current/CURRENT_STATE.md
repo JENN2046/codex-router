@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router` |
 | Current branch | `feature/pr-22a-controlled-provider-execution` |
-| Current head | `29422d4` |
+| Current head | `e25b3b3` |
 | Upstream | `none` |
 | Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `29422d4` |
+| Latest validated commit | `e25b3b3` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -43,10 +43,11 @@ The PR-22A controlled provider execution planning line is recorded by:
 - `PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED`
 - `npm run governance -- audit controlled-provider-execution-taskbook-review`
 
-This review line is local-only and non-executing. It records that the next safe
-provider execution implementation slice is gated behind exact authorization,
-clean-main productization preflight, provider metadata, read-only sandbox,
-approval policy `never`, and injected execution dependency checks.
+The PR-22A implementation line now includes the minimal controlled read-only
+provider execution slice. It remains bounded to explicit `controlled-read-only`
+mode, provider id `codex-cli`, side effect class `read_only`, sandbox
+`read-only`, approval policy `never`, provider execution metadata, exact
+provider execution permit validation, and injected execution dependency checks.
 
 ## Validation Baseline
 
@@ -70,9 +71,23 @@ Pre-implementation gate validation on clean `main`:
 
 PR-22A review validation on this branch:
 
-- `npm run governance -- list`: pending after clean worktree.
 - `npm run governance -- audit controlled-provider-execution-taskbook-review`:
-  pending after clean worktree.
+  passed before implementation on the fresh branch.
+- `npm run governance -- audit state-sync`: passed before implementation on the
+  fresh branch.
+
+PR-22A minimal controlled read-only provider execution validation:
+
+- `npm run typecheck`: passed.
+- `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `17 / 17`.
+- `npx tsx --test tests/codex-cli-provider.test.ts`: passed, `29 / 29`.
+- `npx tsx --test tests/codex-cli-host.test.ts`: passed, `104 / 104`.
+- `npm run governance -- acceptance controlled-readonly-provider-execution`:
+  passed; fake spawner calls `1`, real Codex CLI calls `0`, workspace-write
+  execute calls `0`, external write calls `0`, sanitized evidence `true`.
+- `npx tsx --test tests/state-sync-audit.test.ts`: passed, `16 / 16`.
+- `npm test`: passed, `1123 / 1123`.
+- `npm run build`: passed.
 
 Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
@@ -90,6 +105,9 @@ specific task and approval gate says otherwise.
   audit only; it does not authorize provider execute, real Codex CLI execution,
   workspace-write, evidence refresh, push, release, tag, deployment, external
   write, or secret changes.
+- `controlled_readonly_provider_execution`: explicit minimal implementation
+  slice only; acceptance uses a fake injected spawner, records real Codex CLI
+  calls `0`, workspace-write execute calls `0`, and external write calls `0`.
 
 Blocked capabilities:
 
@@ -103,17 +121,20 @@ Blocked capabilities:
 
 ## Current Local Changes
 
-- `scripts/run-controlled-provider-execution-taskbook-review-audit.ts` records
-  the PR-22A taskbook review gate.
-- `tests/controlled-provider-execution-taskbook-review-audit.test.ts` covers
-  the review gate.
+- `packages/provider-execution-runner/src/index.ts` adds the explicit
+  controlled read-only execution runner while preserving dry-run behavior.
+- `packages/codex-cli-host/src/index-impl.ts` maps routing decisions with
+  `approval.required=false` to CLI approval policy `never`.
+- `scripts/run-controlled-readonly-provider-execution-acceptance.ts` records the
+  fake-spawner local acceptance for the minimal slice.
+- `docs/evidence/codex-cli-controlled-readonly-provider-execution-acceptance.json`
+  stores the sanitized acceptance evidence.
 - `scripts/run-governance-check.ts` registers
-  `controlled-provider-execution-taskbook-review`.
-- `docs/governance/README.md` links the PR-22A taskbook and review command.
-- `docs/governance/CLI_LINE_LOCAL_CLOSEOUT.md` records the prior closeout
-  marker required by the PR-22A review audit.
-- Current state and `.agent_board` surfaces were refreshed for the new
-  implementation branch.
+  `controlled-readonly-provider-execution`.
+- `tests/provider-execution-runner.test.ts` covers success and blocked paths for
+  the controlled read-only runner.
+- `tests/state-sync-audit.test.ts` handles the no-upstream `-1/-1` divergence
+  sentinel used by this fresh local branch.
 
 ## State Sync Expectations
 
@@ -124,7 +145,8 @@ before treating this state surface as current.
 
 ## Next Safe Action
 
-Run the targeted PR-22A review validation, then implement only the minimal
-controlled read-only provider execution slice. Do not run real Codex CLI,
-workspace-write execution, push, tag, release, deploy, modify secrets, or write
-external services without a separate explicit instruction.
+Commit the PR-22A minimal controlled read-only provider execution slice, then
+rerun clean-worktree state sync / taskbook review audits if preparing a PR. Do
+not run real Codex CLI, workspace-write execution, push, tag, release, deploy,
+modify secrets, or write external services without a separate explicit
+instruction.
