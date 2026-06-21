@@ -2,7 +2,7 @@
 
 Active:
 
-- Resolve PR-22A taskbook review migration on
+- Finish PR-22A taskbook review migration on
   `feature/pr-22a-controlled-provider-execution`.
 - Run targeted taskbook review validation.
 - Implement the minimal controlled read-only provider execution slice.

@@ -1,7 +1,7 @@
 # Run State
 
-Status: PR-22A controlled provider execution work has moved to a fresh
-implementation branch based on clean `main`.
+Status: PR-22A controlled provider execution work is on a fresh implementation
+branch from clean `main`.
 
 Current truth source:
 
@@ -14,7 +14,7 @@ Branch:
 
 State baseline:
 
-- `dea03b5`
+- `409bbad`
 
 Upstream:
 
@@ -22,7 +22,7 @@ Upstream:
 
 Worktree:
 
-- resolving the PR-22A taskbook review migration onto the fresh branch
+- resolving the PR-22A state refresh cherry-pick
 
 Current scope:
 
@@ -34,8 +34,7 @@ Current scope:
 
 Validation baseline:
 
-- clean `main` at `dea03b5`
-- `npm run governance -- audit readonly-productization`: passed on `main`
+- `npm run governance -- audit readonly-productization`: passed on clean `main`
 
 Detailed validation history:
 

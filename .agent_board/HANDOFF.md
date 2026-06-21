@@ -6,20 +6,20 @@ fresh implementation branch from clean `main`.
 Current status:
 
 - Branch: `feature/pr-22a-controlled-provider-execution`
-- State baseline: `dea03b5`
+- State baseline: `409bbad`
 - Upstream: none
 - Current state source: `docs/current/CURRENT_STATE.md`
 - PR-22A taskbook source:
   `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
-- Work in progress: migrate the local taskbook review gate and then implement
-  the minimal controlled read-only provider execution slice.
+- Work in progress: complete the taskbook review migration and implement the
+  minimal controlled read-only provider execution slice.
 
-What changed in this slice:
+What changed in this line:
 
 - clean `main` was updated with `git pull --ff-only origin main`
 - `npm run governance -- audit readonly-productization` passed on `main`
 - a fresh implementation branch was created from that baseline
-- PR-22A taskbook review audit files are being migrated onto the branch
+- PR-22A taskbook review audit files were migrated onto the branch
 
 Hard boundaries:
 
@@ -33,8 +33,7 @@ Hard boundaries:
 
 Next safe action:
 
-1. finish the PR-22A taskbook review migration
-2. run the targeted taskbook review validation
-3. implement the minimal controlled read-only provider execution slice
-4. validate with targeted provider runner, host dispatcher, eligibility,
+1. run targeted taskbook review validation
+2. implement the minimal controlled read-only provider execution slice
+3. validate with targeted provider runner, host dispatcher, eligibility,
    approval permit, redaction, typecheck, full tests, and build

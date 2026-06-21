@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router` |
 | Current branch | `feature/pr-22a-controlled-provider-execution` |
-| Current head | `dea03b5` |
+| Current head | `409bbad` |
 | Upstream | `none` |
 | Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `dea03b5` |
+| Latest validated commit | `409bbad` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -31,7 +31,7 @@ should be refreshed here first.
 
 ## Current Baseline
 
-The implementation branch was created from clean `main` at `dea03b5` after
+The implementation branch was created from clean `main` after
 `npm run governance -- audit readonly-productization` passed on `main` with
 ahead `0`, behind `0`, evidence `10/10`, readiness matrix `passed`, and
 provider execute / real CLI / workspace-write / evidence writes all `0`.
@@ -68,8 +68,11 @@ Pre-implementation gate validation on clean `main`:
 - `git pull --ff-only origin main`: already up to date.
 - `npm run governance -- audit readonly-productization`: passed.
 
-PR-22A review validation on this branch is pending after the taskbook review
-state is migrated onto the fresh implementation branch.
+PR-22A review validation on this branch:
+
+- `npm run governance -- list`: pending after clean worktree.
+- `npm run governance -- audit controlled-provider-execution-taskbook-review`:
+  pending after clean worktree.
 
 Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
@@ -119,8 +122,7 @@ before treating this state surface as current.
 
 ## Next Safe Action
 
-Finish migrating the PR-22A taskbook review state onto this fresh branch, run
-the targeted review validation, then implement only the minimal controlled
-read-only provider execution slice. Do not run real Codex CLI, workspace-write
-execution, push, tag, release, deploy, modify secrets, or write external
-services without a separate explicit instruction.
+Run the targeted PR-22A review validation, then implement only the minimal
+controlled read-only provider execution slice. Do not run real Codex CLI,
+workspace-write execution, push, tag, release, deploy, modify secrets, or write
+external services without a separate explicit instruction.

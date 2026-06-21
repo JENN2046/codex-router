@@ -6,7 +6,7 @@ Current branch:
 
 Baseline:
 
-- `dea03b5`
+- `409bbad`
 
 Pre-branch validation:
 
@@ -19,6 +19,7 @@ Pre-branch validation:
 
 Pending after migration:
 
+- `npm run governance -- list`
 - `npm run governance -- audit controlled-provider-execution-taskbook-review`
 - targeted tests for the PR-22A minimal execution slice
 - `npm run typecheck`

@@ -10,9 +10,9 @@ Current state source:
 
 Baseline:
 
-- `dea03b5`
+- `409bbad`
 
-Completed in this handoff:
+Completed:
 
 - confirmed clean worktree on the previous feature branch
 - switched to `main`
@@ -20,11 +20,12 @@ Completed in this handoff:
 - confirmed `main` was already up to date
 - ran `npm run governance -- audit readonly-productization` on `main`
 - created the fresh implementation branch
+- migrated the PR-22A taskbook review gate
 
 In progress:
 
-- resolve PR-22A taskbook review migration conflicts
-- keep `main` baseline facts while adding the PR-22A review gate
+- finish the state refresh commit
+- run targeted PR-22A review validation
 
 Blocked capabilities:
 
