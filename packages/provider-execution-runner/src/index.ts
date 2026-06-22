@@ -440,7 +440,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
   } catch (error) {
     validation = {
       valid: false,
-      reasons: [`provider_validation_failed:${normalizeErrorMessage(error)}`]
+      reasons: [`provider_validation_failed:${normalizeSafeErrorMessage(error)}`]
     };
   }
 
@@ -914,6 +914,9 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
   const failureClass = input.failureClass === undefined
     ? undefined
     : sanitizeProviderFailureClass(input.failureClass);
+  const validation = input.validation === undefined
+    ? undefined
+    : sanitizeExecutionValidationResult(input.validation);
   const executionEvidence = createControlledReadOnlyExecutionEvidence({
     input: input.input,
     providerExecutionPlan: input.providerExecutionPlan,
@@ -938,7 +941,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     executionEvidence,
     ...(input.providerAttestation !== undefined ? { providerAttestation: input.providerAttestation } : {}),
     ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
-    ...(input.validation !== undefined ? { validation: input.validation } : {}),
+    ...(validation !== undefined ? { validation } : {}),
     ...(input.providerResultSummary !== undefined
       ? { providerResultSummary: input.providerResultSummary }
       : {}),
@@ -971,7 +974,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       ...(input.providerAttestation !== undefined
         ? { providerAttestation: summarizeProviderAttestation(input.providerAttestation) }
         : {}),
-      ...(input.validation !== undefined ? { validation: input.validation } : {}),
+      ...(validation !== undefined ? { validation } : {}),
       ...(input.executorPlan !== undefined
         ? { executorPlan: summarizeExecutorPlan(input.executorPlan) }
         : {}),
@@ -1005,7 +1008,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       ? { providerAttestation: input.providerAttestation }
       : {}),
     ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
-    ...(input.validation !== undefined ? { validation: input.validation } : {}),
+    ...(validation !== undefined ? { validation } : {}),
     ...(input.providerResultSummary !== undefined
       ? { providerResultSummary: input.providerResultSummary }
       : {}),
@@ -1570,6 +1573,15 @@ function sanitizeProviderResultError(
         )
       : []
   }) as Record<string, unknown>;
+}
+
+function sanitizeExecutionValidationResult(
+  validation: ExecutionValidationResult
+): ExecutionValidationResult {
+  return {
+    valid: validation.valid,
+    reasons: sanitizeProviderFailureReasons(validation.reasons)
+  };
 }
 
 function sanitizeProviderFailureClass(
