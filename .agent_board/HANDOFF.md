@@ -6,13 +6,13 @@ implemented on a fresh branch from clean `main`.
 Current status:
 
 - Branch: `feature/pr-22a-controlled-provider-execution`
-- State baseline: `cfcf100`
+- State baseline: `4a39eac`
 - Upstream: `origin/feature/pr-22a-controlled-provider-execution`
 - Current state source: `docs/current/CURRENT_STATE.md`
 - PR-22A taskbook source:
   `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
-- Work in progress: commit the refreshed current-state validation record and
-  rerun clean-worktree `npm run validate:pr`.
+- Work in progress: commit the final validation record and rerun clean-worktree
+  `npm run governance -- audit state-sync`.
 
 What changed in this line:
 
@@ -37,8 +37,9 @@ What changed in this line:
   controlled-readonly-provider-execution`, targeted state-sync tests, full
   `npm test`, and `npm run build`
 - post-review regression validation passed targeted provider-runner tests
-  `19 / 19`, typecheck, full tests `1125 / 1125`, and build; final full
-  `validate:pr` is being rerun after the state refresh commit
+  `19 / 19`, typecheck, full tests `1125 / 1125`, and build
+- final clean-worktree `npm run validate:pr` passed on `4a39eac`; typecheck,
+  full tests `1125 / 1125`, build, and state-sync passed
 
 Hard boundaries:
 
@@ -52,6 +53,6 @@ Hard boundaries:
 
 Next safe action:
 
-1. commit the refreshed PR-22A current-state validation record
-2. rerun clean-worktree `npm run validate:pr`
+1. commit the final PR-22A validation record
+2. rerun clean-worktree `npm run governance -- audit state-sync`
 3. push the branch only after explicit external-write confirmation

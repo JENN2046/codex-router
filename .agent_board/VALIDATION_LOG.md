@@ -6,7 +6,7 @@ Current branch:
 
 Baseline:
 
-- `cfcf100`
+- `4a39eac`
 
 Pre-branch validation:
 
@@ -51,5 +51,7 @@ Post-review failure-surface fix validation:
 - Pre-state-refresh `npm run validate:pr`: typecheck passed, full `npm test`
   passed `1125 / 1125`, and `npm run build` passed; final state-sync blocked
   because current-state records still described the pre-push upstream state.
-- Final clean-worktree `npm run validate:pr`: pending after the state refresh
-  commit.
+- Final clean-worktree `npm run validate:pr`: passed on `4a39eac`; included
+  `npm run typecheck`, full `npm test` passed `1125 / 1125`,
+  `npm run build`, and final state-sync passed with git status entries `0`,
+  state writes `0`, and remote writes `0`.

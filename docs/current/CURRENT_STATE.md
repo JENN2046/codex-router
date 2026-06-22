@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router` |
 | Current branch | `feature/pr-22a-controlled-provider-execution` |
-| Current head | `cfcf100` |
+| Current head | `4a39eac` |
 | Upstream | `origin/feature/pr-22a-controlled-provider-execution` |
-| Upstream divergence | `ahead 2 / behind 0` |
-| Latest validated commit | `cfcf100` |
+| Upstream divergence | `ahead 3 / behind 0` |
+| Latest validated commit | `4a39eac` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -97,8 +97,13 @@ post-review failure-surface fix:
   `npm run typecheck` passed, and the pre-state-refresh `npm run validate:pr`
   run passed typecheck, full tests `1125 / 1125`, and build before blocking on
   the intentionally stale state-sync surface.
-- Final clean-worktree `npm run validate:pr` is pending after this state refresh
-  commit.
+- Final clean-worktree `npm run validate:pr`: passed on `4a39eac`; included
+  `npm run typecheck`, `npm test` passed `1125 / 1125`, `npm run build`, and
+  final state-sync passed with branch
+  `feature/pr-22a-controlled-provider-execution`, upstream
+  `origin/feature/pr-22a-controlled-provider-execution`, divergence
+  `ahead 2 / behind 0`, git status entries `0`, state writes `0`, and remote
+  writes `0`.
 
 Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
@@ -154,13 +159,14 @@ Blocked capabilities:
 
 This branch tracks `origin/feature/pr-22a-controlled-provider-execution`. After
 the post-review fix and state refresh commits, audit divergence is expected to
-be `ahead 2 / behind 0` until the branch is pushed. After each new commit,
+be `ahead 3 / behind 0` until the branch is pushed. After each new commit,
 refresh `Current head`, `Latest validated commit`, validation facts, and
 `.agent_board` before treating this state surface as current.
 
 ## Next Safe Action
 
-Commit the refreshed PR-22A current-state validation record, then rerun
-`npm run validate:pr` on the clean worktree. Do not run real Codex CLI,
-workspace-write execution, push, tag, release, deploy, modify secrets, or write
-external services without a separate explicit instruction.
+Run `npm run governance -- audit state-sync` after this validation record
+commit, then push the branch only after explicit external-write confirmation. Do
+not run real Codex CLI, workspace-write execution, tag, release, deploy, modify
+secrets, or write other external services without a separate explicit
+instruction.

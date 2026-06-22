@@ -1,8 +1,8 @@
 # Run State
 
-Status: PR-22A minimal controlled read-only provider execution slice is
-implemented, the post-review failure-surface fix is committed, and current-state
-records are being refreshed.
+Status: PR-22A minimal controlled read-only provider execution slice and the
+post-review failure-surface fix are implemented, validated, and awaiting push
+confirmation.
 
 Current truth source:
 
@@ -15,7 +15,7 @@ Branch:
 
 State baseline:
 
-- `cfcf100`
+- `4a39eac`
 
 Upstream:
 
@@ -23,7 +23,7 @@ Upstream:
 
 Worktree:
 
-- refreshed current-state validation record pending commit
+- final validation record pending commit
 
 Current scope:
 
@@ -50,8 +50,8 @@ Validation baseline:
 - `npm run build`: passed
 - pre-state-refresh `npm run validate:pr`: typecheck, full tests, and build
   passed; final state-sync blocked on stale state records before this refresh
-- final clean-worktree `npm run validate:pr`: pending after this state refresh
-  commit
+- final clean-worktree `npm run validate:pr`: passed on `4a39eac`; typecheck,
+  full tests `1125 / 1125`, build, and state-sync passed
 
 Detailed validation history:
 

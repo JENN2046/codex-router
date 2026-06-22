@@ -10,7 +10,7 @@ Current state source:
 
 Baseline:
 
-- `cfcf100`
+- `4a39eac`
 
 Completed:
 
@@ -35,11 +35,13 @@ Completed:
   before runner result/event/report/evidence emission
 - added regression coverage for provider-returned failures and thrown execution
   failures
+- ran final clean-worktree `npm run validate:pr`; typecheck, full tests
+  `1125 / 1125`, build, and state-sync passed
 
 In progress:
 
-- commit the refreshed current-state validation record
-- rerun clean-worktree `npm run validate:pr`
+- commit the final validation record
+- run clean-worktree `npm run governance -- audit state-sync`
 
 Blocked capabilities:
 
