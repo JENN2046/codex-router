@@ -6,13 +6,13 @@ implemented on a fresh branch from clean `main`.
 Current status:
 
 - Branch: `feature/pr-22a-controlled-provider-execution`
-- State baseline: `4a39eac`
+- State baseline: `b531807`
 - Upstream: `origin/feature/pr-22a-controlled-provider-execution`
 - Current state source: `docs/current/CURRENT_STATE.md`
 - PR-22A taskbook source:
   `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
-- Work in progress: commit the final validation record and rerun clean-worktree
-  `npm run governance -- audit state-sync`.
+- Work in progress: commit the P1 validation payload state refresh and rerun
+  clean-worktree `npm run validate:pr`.
 
 What changed in this line:
 
@@ -32,14 +32,20 @@ What changed in this line:
 - post-review failure-surface handling now sanitizes provider failure classes,
   provider reasons, and thrown execution messages before they reach runner
   results, events, reports, or evidence
+- P1 validation payload follow-up now sanitizes validation reasons and thrown
+  validation messages before controlled read-only result, event, and report
+  emission
 - pre-review validation passed: `npm run validate:pr`, `npm run typecheck`,
   targeted runner/provider/host tests, `npm run governance -- acceptance
   controlled-readonly-provider-execution`, targeted state-sync tests, full
   `npm test`, and `npm run build`
 - post-review regression validation passed targeted provider-runner tests
   `19 / 19`, typecheck, full tests `1125 / 1125`, and build
-- final clean-worktree `npm run validate:pr` passed on `4a39eac`; typecheck,
-  full tests `1125 / 1125`, build, and state-sync passed
+- final clean-worktree `npm run validate:pr` passed before the P1 validation
+  payload follow-up; typecheck, full tests `1125 / 1125`, build, and
+  state-sync passed
+- P1 validation payload follow-up targeted provider-runner tests passed
+  `21 / 21`, and `npm run typecheck` passed
 
 Hard boundaries:
 
@@ -53,6 +59,6 @@ Hard boundaries:
 
 Next safe action:
 
-1. commit the final PR-22A validation record
-2. rerun clean-worktree `npm run governance -- audit state-sync`
+1. commit the P1 validation payload state refresh
+2. rerun clean-worktree `npm run validate:pr`
 3. push the branch only after explicit external-write confirmation

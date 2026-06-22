@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router` |
 | Current branch | `feature/pr-22a-controlled-provider-execution` |
-| Current head | `4a39eac` |
+| Current head | `b531807` |
 | Upstream | `origin/feature/pr-22a-controlled-provider-execution` |
-| Upstream divergence | `ahead 3 / behind 0` |
-| Latest validated commit | `4a39eac` |
+| Upstream divergence | `ahead 2 / behind 0` |
+| Latest validated commit | `b531807` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -97,13 +97,15 @@ post-review failure-surface fix:
   `npm run typecheck` passed, and the pre-state-refresh `npm run validate:pr`
   run passed typecheck, full tests `1125 / 1125`, and build before blocking on
   the intentionally stale state-sync surface.
-- Final clean-worktree `npm run validate:pr`: passed on `4a39eac`; included
+- Final clean-worktree `npm run validate:pr`: passed before the P1 validation
+  payload follow-up; included
   `npm run typecheck`, `npm test` passed `1125 / 1125`, `npm run build`, and
-  final state-sync passed with branch
-  `feature/pr-22a-controlled-provider-execution`, upstream
-  `origin/feature/pr-22a-controlled-provider-execution`, divergence
-  `ahead 2 / behind 0`, git status entries `0`, state writes `0`, and remote
-  writes `0`.
+  final state-sync passed with git status entries `0`, state writes `0`, and
+  remote writes `0`.
+- P1 validation payload follow-up:
+  `npx tsx --test tests/provider-execution-runner.test.ts` passed `21 / 21`,
+  `npm run typecheck` passed, and final clean-worktree `npm run validate:pr`
+  is pending after this state refresh commit.
 
 Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
@@ -139,8 +141,9 @@ Blocked capabilities:
 
 - `packages/provider-execution-runner/src/index.ts` adds the explicit
   controlled read-only execution runner while preserving dry-run behavior, and
-  sanitizes controlled read-only provider failure classes and reasons before
-  they are emitted to results, events, reports, or execution evidence.
+  sanitizes controlled read-only provider failure classes, provider reasons,
+  validation reasons, and thrown validation / execution messages before they are
+  emitted to results, events, reports, or execution evidence.
 - `packages/codex-cli-host/src/index-impl.ts` maps routing decisions with
   `approval.required=false` to CLI approval policy `never`.
 - `scripts/run-controlled-readonly-provider-execution-acceptance.ts` records the
@@ -150,23 +153,22 @@ Blocked capabilities:
 - `scripts/run-governance-check.ts` registers
   `controlled-readonly-provider-execution`.
 - `tests/provider-execution-runner.test.ts` covers success, blocked paths,
-  provider-returned failures, and thrown execution failures for the controlled
-  read-only runner.
+  provider-returned failures, thrown execution failures, provider validation
+  failures, and thrown validation failures for the controlled read-only runner.
 - `tests/state-sync-audit.test.ts` handles the no-upstream `-1/-1` divergence
   sentinel used by this fresh local branch.
 
 ## State Sync Expectations
 
 This branch tracks `origin/feature/pr-22a-controlled-provider-execution`. After
-the post-review fix and state refresh commits, audit divergence is expected to
-be `ahead 3 / behind 0` until the branch is pushed. After each new commit,
-refresh `Current head`, `Latest validated commit`, validation facts, and
-`.agent_board` before treating this state surface as current.
+the P1 validation payload fix and state refresh commit, audit divergence is
+expected to be `ahead 2 / behind 0` until the branch is pushed. After each new
+commit, refresh `Current head`, `Latest validated commit`, validation facts,
+and `.agent_board` before treating this state surface as current.
 
 ## Next Safe Action
 
-Run `npm run governance -- audit state-sync` after this validation record
-commit, then push the branch only after explicit external-write confirmation. Do
-not run real Codex CLI, workspace-write execution, tag, release, deploy, modify
-secrets, or write other external services without a separate explicit
-instruction.
+Run `npm run validate:pr` after this state refresh commit, then push the branch
+only after explicit external-write confirmation. Do not run real Codex CLI,
+workspace-write execution, tag, release, deploy, modify secrets, or write other
+external services without a separate explicit instruction.
