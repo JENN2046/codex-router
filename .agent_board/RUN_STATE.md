@@ -2,7 +2,7 @@
 
 Status: PR-22A minimal controlled read-only provider execution slice, the
 post-review failure-surface fix, and the P1 validation payload follow-up are
-implemented; final PR validation is pending after state refresh.
+implemented and validated; push confirmation is pending.
 
 Current truth source:
 
@@ -15,7 +15,7 @@ Branch:
 
 State baseline:
 
-- `b531807`
+- `df67058`
 
 Upstream:
 
@@ -23,7 +23,7 @@ Upstream:
 
 Worktree:
 
-- P1 validation payload state refresh pending commit
+- P1 validation payload final validation record pending commit
 
 Current scope:
 
@@ -57,8 +57,8 @@ Validation baseline:
 - P1 validation payload follow-up:
   `npx tsx --test tests/provider-execution-runner.test.ts` passed `21 / 21`
 - P1 validation payload follow-up: `npm run typecheck` passed
-- final clean-worktree `npm run validate:pr`: pending after this state refresh
-  commit
+- final clean-worktree `npm run validate:pr`: passed; typecheck, full tests
+  `1127 / 1127`, build, and state-sync passed
 
 Detailed validation history:
 

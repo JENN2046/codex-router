@@ -6,7 +6,7 @@ Current branch:
 
 Baseline:
 
-- `b531807`
+- `df67058`
 
 Pre-branch validation:
 
@@ -61,5 +61,7 @@ P1 validation payload follow-up:
 
 - `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `21 / 21`.
 - `npm run typecheck`: passed.
-- Final clean-worktree `npm run validate:pr`: pending after the state refresh
-  commit.
+- Final clean-worktree `npm run validate:pr`: passed; included
+  `npm run typecheck`, full `npm test` passed `1127 / 1127`,
+  `npm run build`, and final state-sync passed with git status entries `0`,
+  state writes `0`, and remote writes `0`.

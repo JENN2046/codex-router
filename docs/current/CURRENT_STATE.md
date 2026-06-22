@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router` |
 | Current branch | `feature/pr-22a-controlled-provider-execution` |
-| Current head | `b531807` |
+| Current head | `df67058` |
 | Upstream | `origin/feature/pr-22a-controlled-provider-execution` |
-| Upstream divergence | `ahead 2 / behind 0` |
-| Latest validated commit | `b531807` |
+| Upstream divergence | `ahead 3 / behind 0` |
+| Latest validated commit | `df67058` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -105,7 +105,12 @@ post-review failure-surface fix:
 - P1 validation payload follow-up:
   `npx tsx --test tests/provider-execution-runner.test.ts` passed `21 / 21`,
   `npm run typecheck` passed, and final clean-worktree `npm run validate:pr`
-  is pending after this state refresh commit.
+  passed; included `npm run typecheck`, `npm test` passed `1127 / 1127`,
+  `npm run build`, and final state-sync passed with branch
+  `feature/pr-22a-controlled-provider-execution`, head `df67058`, upstream
+  `origin/feature/pr-22a-controlled-provider-execution`, divergence
+  `ahead 2 / behind 0`, git status entries `0`, state writes `0`, and remote
+  writes `0`.
 
 Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
@@ -161,14 +166,15 @@ Blocked capabilities:
 ## State Sync Expectations
 
 This branch tracks `origin/feature/pr-22a-controlled-provider-execution`. After
-the P1 validation payload fix and state refresh commit, audit divergence is
-expected to be `ahead 2 / behind 0` until the branch is pushed. After each new
+the P1 validation payload fix and validation record commits, audit divergence is
+expected to be `ahead 3 / behind 0` until the branch is pushed. After each new
 commit, refresh `Current head`, `Latest validated commit`, validation facts,
 and `.agent_board` before treating this state surface as current.
 
 ## Next Safe Action
 
-Run `npm run validate:pr` after this state refresh commit, then push the branch
-only after explicit external-write confirmation. Do not run real Codex CLI,
-workspace-write execution, tag, release, deploy, modify secrets, or write other
-external services without a separate explicit instruction.
+Run `npm run governance -- audit state-sync` after this validation record
+commit, then push the branch only after explicit external-write confirmation. Do
+not run real Codex CLI, workspace-write execution, tag, release, deploy, modify
+secrets, or write other external services without a separate explicit
+instruction.

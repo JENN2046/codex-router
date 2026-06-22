@@ -6,13 +6,13 @@ implemented on a fresh branch from clean `main`.
 Current status:
 
 - Branch: `feature/pr-22a-controlled-provider-execution`
-- State baseline: `b531807`
+- State baseline: `df67058`
 - Upstream: `origin/feature/pr-22a-controlled-provider-execution`
 - Current state source: `docs/current/CURRENT_STATE.md`
 - PR-22A taskbook source:
   `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
-- Work in progress: commit the P1 validation payload state refresh and rerun
-  clean-worktree `npm run validate:pr`.
+- Work in progress: commit the P1 validation payload final validation record and
+  rerun clean-worktree `npm run governance -- audit state-sync`.
 
 What changed in this line:
 
@@ -46,6 +46,8 @@ What changed in this line:
   state-sync passed
 - P1 validation payload follow-up targeted provider-runner tests passed
   `21 / 21`, and `npm run typecheck` passed
+- P1 validation payload final clean-worktree `npm run validate:pr` passed;
+  typecheck, full tests `1127 / 1127`, build, and state-sync passed
 
 Hard boundaries:
 
@@ -59,6 +61,6 @@ Hard boundaries:
 
 Next safe action:
 
-1. commit the P1 validation payload state refresh
-2. rerun clean-worktree `npm run validate:pr`
+1. commit the P1 validation payload final validation record
+2. rerun clean-worktree `npm run governance -- audit state-sync`
 3. push the branch only after explicit external-write confirmation

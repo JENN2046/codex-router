@@ -10,7 +10,7 @@ Current state source:
 
 Baseline:
 
-- `b531807`
+- `df67058`
 
 Completed:
 
@@ -43,11 +43,13 @@ Completed:
   errors carrying execution material
 - ran targeted provider-runner tests, `21 / 21`
 - ran `npm run typecheck`
+- ran final clean-worktree `npm run validate:pr`; typecheck, full tests
+  `1127 / 1127`, build, and state-sync passed
 
 In progress:
 
-- commit the P1 validation payload state refresh
-- run clean-worktree `npm run validate:pr`
+- commit the P1 validation payload final validation record
+- run clean-worktree `npm run governance -- audit state-sync`
 
 Blocked capabilities:
 

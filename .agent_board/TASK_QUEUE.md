@@ -2,8 +2,8 @@
 
 Active:
 
-- Commit the P1 validation payload state refresh.
-- Rerun clean-worktree `npm run validate:pr`.
+- Commit the P1 validation payload final validation record.
+- Rerun clean-worktree `npm run governance -- audit state-sync`.
 - Push the branch only after explicit external-write confirmation.
 
 Completed validation:
@@ -25,6 +25,8 @@ Completed validation:
   `1125 / 1125`, build, and state-sync
 - P1 validation payload targeted provider-runner regression test, `21 / 21`
 - P1 validation payload `npm run typecheck`
+- P1 validation payload final clean-worktree `npm run validate:pr`, including
+  typecheck, full tests `1127 / 1127`, build, and state-sync
 
 Boundaries:
 
