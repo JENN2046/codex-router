@@ -709,6 +709,124 @@ test("provider execution runner blocks controlled read-only execution for non-co
   assert.equal(provider.calls.execute, 0);
 });
 
+test("provider execution runner sanitizes controlled read-only provider failure reasons", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      return {
+        ok: false,
+        error: {
+          code: "provider_failed_OPENAI_API_KEY",
+          reasons: [
+            "\"stdout\" contained execution output",
+            "sk-redacted-marker",
+            "safe_provider_failure"
+          ]
+        }
+      };
+    }
+  };
+  const kernelStore = new InMemoryKernelStore();
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore,
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+  const serialized = JSON.stringify({
+    result,
+    events: kernelStore.listEvents({ runId: fixture.run.runId })
+  });
+
+  assert.equal(result.status, "execution_failed");
+  assert.equal(result.executeInvoked, true);
+  assert.equal(result.failureClass, "provider_execution_failed");
+  assert.ok(result.reasons.includes("provider_execution_failed"));
+  assert.ok(result.reasons.includes("provider_execution_reason_redacted"));
+  assert.ok(result.reasons.includes("safe_provider_failure"));
+  assert.equal(serialized.includes("OPENAI_API_KEY"), false);
+  assert.equal(serialized.includes("sk-redacted-marker"), false);
+  assert.equal(serialized.includes("\"stdout\" contained execution output"), false);
+});
+
+test("provider execution runner sanitizes controlled read-only thrown execution errors", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("raw env OPENAI_API_KEY and \"args\" were exposed");
+    }
+  };
+  const kernelStore = new InMemoryKernelStore();
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore,
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+  const serialized = JSON.stringify({
+    result,
+    events: kernelStore.listEvents({ runId: fixture.run.runId })
+  });
+
+  assert.equal(result.status, "execution_failed");
+  assert.equal(result.executeInvoked, true);
+  assert.equal(result.failureClass, "provider_execute_threw");
+  assert.ok(result.reasons.includes("provider_execute_threw:redacted_execution_error"));
+  assert.equal(serialized.includes("OPENAI_API_KEY"), false);
+  assert.equal(serialized.includes("raw env"), false);
+  assert.equal(serialized.includes("\"args\" were exposed"), false);
+});
+
 test("provider execution runner records provider attestation in dry-run evidence", async () => {
   const provider = createFakeExecutorProvider();
   const registry = createRegistry(provider);

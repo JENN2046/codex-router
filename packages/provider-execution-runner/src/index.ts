@@ -499,7 +499,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
       providerExecutionPlan,
       status: "execution_failed",
       executeInvoked: true,
-      reasons: [`provider_execute_threw:${normalizeErrorMessage(error)}`],
+      reasons: [`provider_execute_threw:${normalizeSafeErrorMessage(error)}`],
       eventIds,
       artifactIds,
       createdAt,
@@ -910,24 +910,28 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
   failureClass?: string;
 }): Promise<ControlledReadOnlyProviderExecutionRunnerResult> {
   const completedAt = input.input.now();
+  const reasons = sanitizeProviderFailureReasons(input.reasons);
+  const failureClass = input.failureClass === undefined
+    ? undefined
+    : sanitizeProviderFailureClass(input.failureClass);
   const executionEvidence = createControlledReadOnlyExecutionEvidence({
     input: input.input,
     providerExecutionPlan: input.providerExecutionPlan,
     executeInvoked: input.executeInvoked,
     status: input.status,
-    reasons: input.reasons,
+    reasons,
     ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
     ...(input.providerResultSummary !== undefined
       ? { providerResultSummary: input.providerResultSummary }
       : {}),
-    ...(input.failureClass !== undefined ? { failureClass: input.failureClass } : {})
+    ...(failureClass !== undefined ? { failureClass } : {})
   });
   const reportArtifact = await writeControlledReadOnlyRunnerReportArtifact({
     input: input.input,
     providerExecutionPlan: input.providerExecutionPlan,
     status: input.status,
     executeInvoked: input.executeInvoked,
-    reasons: input.reasons,
+    reasons,
     eventIds: input.eventIds,
     createdAt: input.createdAt,
     completedAt,
@@ -938,7 +942,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     ...(input.providerResultSummary !== undefined
       ? { providerResultSummary: input.providerResultSummary }
       : {}),
-    ...(input.failureClass !== undefined ? { failureClass: input.failureClass } : {})
+    ...(failureClass !== undefined ? { failureClass } : {})
   });
   input.artifactIds.push(reportArtifact.artifactId);
 
@@ -961,7 +965,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       status: input.status,
       dryRun: false,
       executeInvoked: input.executeInvoked,
-      reasons: input.reasons,
+      reasons,
       artifactIds: input.artifactIds,
       control: "controlled-read-only",
       ...(input.providerAttestation !== undefined
@@ -974,7 +978,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       ...(input.providerResultSummary !== undefined
         ? { providerResultSummary: input.providerResultSummary }
         : {}),
-      ...(input.failureClass !== undefined ? { failureClass: input.failureClass } : {})
+      ...(failureClass !== undefined ? { failureClass } : {})
     }
   });
   input.eventIds.push(completedEvent.eventId);
@@ -989,7 +993,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     providerKind: input.providerExecutionPlan.providerKind,
     dryRun: false,
     executeInvoked: input.executeInvoked,
-    reasons: uniqueStrings(input.reasons),
+    reasons,
     eventIds: [...input.eventIds],
     artifactIds: [...input.artifactIds],
     createdAt: input.createdAt,
@@ -1005,7 +1009,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     ...(input.providerResultSummary !== undefined
       ? { providerResultSummary: input.providerResultSummary }
       : {}),
-    ...(input.failureClass !== undefined ? { failureClass: input.failureClass } : {})
+    ...(failureClass !== undefined ? { failureClass } : {})
   };
 }
 
@@ -1411,6 +1415,17 @@ function normalizeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function normalizeSafeErrorMessage(error: unknown): string {
+  const message = normalizeErrorMessage(error).trim();
+  if (message.length === 0) {
+    return "unknown_execution_error";
+  }
+
+  return containsForbiddenExecutionMaterial(message)
+    ? "redacted_execution_error"
+    : message;
+}
+
 function collectControlledReadOnlyExecutionMetadataReasons(input: {
   executionMetadata?: Record<string, unknown>;
   manifestHash?: string;
@@ -1526,7 +1541,7 @@ function extractProviderResultFailureClass(result: ProviderExecutionResult): str
     ? result.error.code
     : undefined;
 
-  return errorCode ?? "provider_execution_failed";
+  return sanitizeProviderFailureClass(errorCode);
 }
 
 function extractProviderResultReasons(result: ProviderExecutionResult): string[] {
@@ -1536,7 +1551,7 @@ function extractProviderResultReasons(result: ProviderExecutionResult): string[]
 
   const reasons = result.error.reasons;
   if (Array.isArray(reasons) && reasons.every((reason) => typeof reason === "string")) {
-    return reasons;
+    return sanitizeProviderFailureReasons(reasons);
   }
 
   return [extractProviderResultFailureClass(result)];
@@ -1546,11 +1561,38 @@ function sanitizeProviderResultError(
   error: Record<string, unknown>
 ): Record<string, unknown> {
   return sanitizeJsonValue({
-    code: typeof error.code === "string" ? error.code : "provider_execution_failed",
+    code: sanitizeProviderFailureClass(
+      typeof error.code === "string" ? error.code : undefined
+    ),
     reasons: Array.isArray(error.reasons)
-      ? error.reasons.filter((reason): reason is string => typeof reason === "string")
+      ? sanitizeProviderFailureReasons(
+          error.reasons.filter((reason): reason is string => typeof reason === "string")
+        )
       : []
   }) as Record<string, unknown>;
+}
+
+function sanitizeProviderFailureClass(
+  value: string | undefined,
+  fallback = "provider_execution_failed"
+): string {
+  const candidate = value?.trim() || fallback;
+  return containsForbiddenExecutionMaterial(candidate) ? fallback : candidate;
+}
+
+function sanitizeProviderFailureReason(reason: string): string {
+  const candidate = reason.trim();
+  if (candidate.length === 0) {
+    return "provider_execution_reason_unknown";
+  }
+
+  return containsForbiddenExecutionMaterial(candidate)
+    ? "provider_execution_reason_redacted"
+    : candidate;
+}
+
+function sanitizeProviderFailureReasons(reasons: string[]): string[] {
+  return uniqueStrings(reasons.map(sanitizeProviderFailureReason));
 }
 
 function sanitizeJsonValue(value: unknown): unknown {
