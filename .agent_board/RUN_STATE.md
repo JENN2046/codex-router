@@ -14,7 +14,7 @@ Branch:
 
 State baseline:
 
-- `e25b3b3`
+- `d15631a`
 
 Upstream:
 
@@ -22,7 +22,7 @@ Upstream:
 
 Worktree:
 
-- implementation changes pending commit
+- refreshed current-state validation record pending commit
 
 Current scope:
 
@@ -35,6 +35,7 @@ Current scope:
 Validation baseline:
 
 - `npm run governance -- audit readonly-productization`: passed on clean `main`
+- `npm run validate:pr`: passed on `d15631a`
 - `npm run typecheck`: passed
 - `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `17 / 17`
 - `npx tsx --test tests/codex-cli-provider.test.ts`: passed, `29 / 29`

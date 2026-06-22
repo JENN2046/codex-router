@@ -2,12 +2,13 @@
 
 Active:
 
-- Commit the PR-22A minimal controlled read-only provider execution slice.
+- Commit the refreshed PR-22A current-state validation record.
 - Rerun clean-worktree state sync and taskbook review audits if preparing a PR.
 
 Completed validation:
 
 - `npm run governance -- audit controlled-provider-execution-taskbook-review`
+- `npm run validate:pr`
 - `npm run typecheck`
 - `npx tsx --test tests/provider-execution-runner.test.ts`
 - `npx tsx --test tests/codex-cli-provider.test.ts`

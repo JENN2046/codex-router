@@ -6,7 +6,7 @@ Current branch:
 
 Baseline:
 
-- `e25b3b3`
+- `d15631a`
 
 Pre-branch validation:
 
@@ -26,6 +26,9 @@ PR-22A review validation before implementation:
 
 PR-22A minimal controlled read-only provider execution validation:
 
+- `npm run validate:pr`: passed on `d15631a`; included `npm run typecheck`,
+  `npm test` passed `1123 / 1123`, `npm run build`, and final
+  `npm run governance -- audit state-sync`.
 - `npm run typecheck`: passed.
 - `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `17 / 17`.
 - `npx tsx --test tests/codex-cli-provider.test.ts`: passed, `29 / 29`.

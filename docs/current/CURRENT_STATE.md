@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router` |
 | Current branch | `feature/pr-22a-controlled-provider-execution` |
-| Current head | `e25b3b3` |
+| Current head | `d15631a` |
 | Upstream | `none` |
 | Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `e25b3b3` |
+| Latest validated commit | `d15631a` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -78,6 +78,12 @@ PR-22A review validation on this branch:
 
 PR-22A minimal controlled read-only provider execution validation:
 
+- `npm run validate:pr`: passed on `d15631a`; included `npm run typecheck`,
+  `npm test` passed `1123 / 1123`, `npm run build`, and final
+  `npm run governance -- audit state-sync` passed with branch
+  `feature/pr-22a-controlled-provider-execution`, head `d15631a`, upstream
+  `none`, divergence `ahead -1 / behind -1`, git status entries `0`, state
+  writes `0`, and remote writes `0`.
 - `npm run typecheck`: passed.
 - `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `17 / 17`.
 - `npx tsx --test tests/codex-cli-provider.test.ts`: passed, `29 / 29`.
@@ -145,8 +151,8 @@ before treating this state surface as current.
 
 ## Next Safe Action
 
-Commit the PR-22A minimal controlled read-only provider execution slice, then
-rerun clean-worktree state sync / taskbook review audits if preparing a PR. Do
-not run real Codex CLI, workspace-write execution, push, tag, release, deploy,
+Commit the refreshed PR-22A current-state validation record, then rerun
+clean-worktree state sync / taskbook review audits if preparing a PR. Do not
+run real Codex CLI, workspace-write execution, push, tag, release, deploy,
 modify secrets, or write external services without a separate explicit
 instruction.

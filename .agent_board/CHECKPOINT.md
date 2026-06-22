@@ -10,7 +10,7 @@ Current state source:
 
 Baseline:
 
-- `e25b3b3`
+- `d15631a`
 
 Completed:
 
@@ -33,7 +33,7 @@ Completed:
 
 In progress:
 
-- commit the implementation slice
+- commit the refreshed current-state validation record
 - rerun clean-worktree governance audits if preparing a PR
 
 Blocked capabilities:
