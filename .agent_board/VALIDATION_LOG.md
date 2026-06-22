@@ -6,7 +6,7 @@ Current branch:
 
 Baseline:
 
-- `d15631a`
+- `cfcf100`
 
 Pre-branch validation:
 
@@ -24,10 +24,11 @@ PR-22A review validation before implementation:
 - `npm run governance -- audit state-sync`: passed on
   `feature/pr-22a-controlled-provider-execution`.
 
-PR-22A minimal controlled read-only provider execution validation:
+PR-22A minimal controlled read-only provider execution validation before the
+post-review failure-surface fix:
 
-- `npm run validate:pr`: passed on `d15631a`; included `npm run typecheck`,
-  `npm test` passed `1123 / 1123`, `npm run build`, and final
+- `npm run validate:pr`: passed; included `npm run typecheck`, `npm test`
+  passed `1123 / 1123`, `npm run build`, and final
   `npm run governance -- audit state-sync`.
 - `npm run typecheck`: passed.
 - `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `17 / 17`.
@@ -42,3 +43,13 @@ PR-22A minimal controlled read-only provider execution validation:
   no-upstream `ahead -1 / behind -1` sentinel; after the targeted helper fix,
   the final full run passed, `1123 / 1123`.
 - `npx tsx --test tests/state-sync-audit.test.ts`: passed, `16 / 16`.
+
+Post-review failure-surface fix validation:
+
+- `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `19 / 19`.
+- `npm run typecheck`: passed.
+- Pre-state-refresh `npm run validate:pr`: typecheck passed, full `npm test`
+  passed `1125 / 1125`, and `npm run build` passed; final state-sync blocked
+  because current-state records still described the pre-push upstream state.
+- Final clean-worktree `npm run validate:pr`: pending after the state refresh
+  commit.

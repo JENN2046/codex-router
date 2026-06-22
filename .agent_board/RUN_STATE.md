@@ -1,7 +1,8 @@
 # Run State
 
 Status: PR-22A minimal controlled read-only provider execution slice is
-implemented and locally validated on a fresh branch from clean `main`.
+implemented, the post-review failure-surface fix is committed, and current-state
+records are being refreshed.
 
 Current truth source:
 
@@ -14,11 +15,11 @@ Branch:
 
 State baseline:
 
-- `d15631a`
+- `cfcf100`
 
 Upstream:
 
-- none
+- `origin/feature/pr-22a-controlled-provider-execution`
 
 Worktree:
 
@@ -28,6 +29,7 @@ Current scope:
 
 - PR-22A controlled provider execution taskbook review migration
 - minimal controlled read-only provider execution implementation
+- controlled read-only provider failure-surface sanitization
 - no real Codex CLI execution
 - no workspace-write execution
 - no push, release, tag, deployment, external write, or secret change
@@ -35,17 +37,21 @@ Current scope:
 Validation baseline:
 
 - `npm run governance -- audit readonly-productization`: passed on clean `main`
-- `npm run validate:pr`: passed on `d15631a`
+- pre-review `npm run validate:pr`: passed
 - `npm run typecheck`: passed
-- `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `17 / 17`
+- `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `19 / 19`
 - `npx tsx --test tests/codex-cli-provider.test.ts`: passed, `29 / 29`
 - `npx tsx --test tests/codex-cli-host.test.ts`: passed, `104 / 104`
 - `npm run governance -- acceptance controlled-readonly-provider-execution`:
   passed; fake spawner `1`, real Codex CLI `0`, workspace-write execute `0`,
   external write `0`
 - `npx tsx --test tests/state-sync-audit.test.ts`: passed, `16 / 16`
-- `npm test`: passed, `1123 / 1123`
+- `npm test`: passed, `1125 / 1125`
 - `npm run build`: passed
+- pre-state-refresh `npm run validate:pr`: typecheck, full tests, and build
+  passed; final state-sync blocked on stale state records before this refresh
+- final clean-worktree `npm run validate:pr`: pending after this state refresh
+  commit
 
 Detailed validation history:
 

@@ -3,7 +3,8 @@
 Active:
 
 - Commit the refreshed PR-22A current-state validation record.
-- Rerun clean-worktree state sync and taskbook review audits if preparing a PR.
+- Rerun clean-worktree `npm run validate:pr`.
+- Push the branch only after explicit external-write confirmation.
 
 Completed validation:
 
@@ -17,6 +18,9 @@ Completed validation:
 - `npx tsx --test tests/state-sync-audit.test.ts`
 - `npm test`
 - `npm run build`
+- post-review targeted provider-runner regression test, `19 / 19`
+- post-review pre-state-refresh PR validation through typecheck, full tests,
+  and build
 
 Boundaries:
 

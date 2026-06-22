@@ -12,10 +12,10 @@ should be refreshed here first.
 | --- | --- |
 | Workspace | `/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router` |
 | Current branch | `feature/pr-22a-controlled-provider-execution` |
-| Current head | `d15631a` |
-| Upstream | `none` |
-| Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `d15631a` |
+| Current head | `cfcf100` |
+| Upstream | `origin/feature/pr-22a-controlled-provider-execution` |
+| Upstream divergence | `ahead 2 / behind 0` |
+| Latest validated commit | `cfcf100` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -76,14 +76,12 @@ PR-22A review validation on this branch:
 - `npm run governance -- audit state-sync`: passed before implementation on the
   fresh branch.
 
-PR-22A minimal controlled read-only provider execution validation:
+PR-22A minimal controlled read-only provider execution validation before the
+post-review failure-surface fix:
 
-- `npm run validate:pr`: passed on `d15631a`; included `npm run typecheck`,
-  `npm test` passed `1123 / 1123`, `npm run build`, and final
-  `npm run governance -- audit state-sync` passed with branch
-  `feature/pr-22a-controlled-provider-execution`, head `d15631a`, upstream
-  `none`, divergence `ahead -1 / behind -1`, git status entries `0`, state
-  writes `0`, and remote writes `0`.
+- `npm run validate:pr`: passed; included `npm run typecheck`, `npm test`
+  passed `1123 / 1123`, `npm run build`, and final
+  `npm run governance -- audit state-sync`.
 - `npm run typecheck`: passed.
 - `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `17 / 17`.
 - `npx tsx --test tests/codex-cli-provider.test.ts`: passed, `29 / 29`.
@@ -94,6 +92,13 @@ PR-22A minimal controlled read-only provider execution validation:
 - `npx tsx --test tests/state-sync-audit.test.ts`: passed, `16 / 16`.
 - `npm test`: passed, `1123 / 1123`.
 - `npm run build`: passed.
+- Post-review failure-surface regression validation:
+  `npx tsx --test tests/provider-execution-runner.test.ts` passed `19 / 19`,
+  `npm run typecheck` passed, and the pre-state-refresh `npm run validate:pr`
+  run passed typecheck, full tests `1125 / 1125`, and build before blocking on
+  the intentionally stale state-sync surface.
+- Final clean-worktree `npm run validate:pr` is pending after this state refresh
+  commit.
 
 Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
@@ -128,7 +133,9 @@ Blocked capabilities:
 ## Current Local Changes
 
 - `packages/provider-execution-runner/src/index.ts` adds the explicit
-  controlled read-only execution runner while preserving dry-run behavior.
+  controlled read-only execution runner while preserving dry-run behavior, and
+  sanitizes controlled read-only provider failure classes and reasons before
+  they are emitted to results, events, reports, or execution evidence.
 - `packages/codex-cli-host/src/index-impl.ts` maps routing decisions with
   `approval.required=false` to CLI approval policy `never`.
 - `scripts/run-controlled-readonly-provider-execution-acceptance.ts` records the
@@ -137,22 +144,23 @@ Blocked capabilities:
   stores the sanitized acceptance evidence.
 - `scripts/run-governance-check.ts` registers
   `controlled-readonly-provider-execution`.
-- `tests/provider-execution-runner.test.ts` covers success and blocked paths for
-  the controlled read-only runner.
+- `tests/provider-execution-runner.test.ts` covers success, blocked paths,
+  provider-returned failures, and thrown execution failures for the controlled
+  read-only runner.
 - `tests/state-sync-audit.test.ts` handles the no-upstream `-1/-1` divergence
   sentinel used by this fresh local branch.
 
 ## State Sync Expectations
 
-This branch currently has no configured upstream, so audit divergence uses the
-current `ahead -1 / behind -1` sentinel. After each new commit, refresh
-`Current head`, `Latest validated commit`, validation facts, and `.agent_board`
-before treating this state surface as current.
+This branch tracks `origin/feature/pr-22a-controlled-provider-execution`. After
+the post-review fix and state refresh commits, audit divergence is expected to
+be `ahead 2 / behind 0` until the branch is pushed. After each new commit,
+refresh `Current head`, `Latest validated commit`, validation facts, and
+`.agent_board` before treating this state surface as current.
 
 ## Next Safe Action
 
 Commit the refreshed PR-22A current-state validation record, then rerun
-clean-worktree state sync / taskbook review audits if preparing a PR. Do not
-run real Codex CLI, workspace-write execution, push, tag, release, deploy,
-modify secrets, or write external services without a separate explicit
-instruction.
+`npm run validate:pr` on the clean worktree. Do not run real Codex CLI,
+workspace-write execution, push, tag, release, deploy, modify secrets, or write
+external services without a separate explicit instruction.

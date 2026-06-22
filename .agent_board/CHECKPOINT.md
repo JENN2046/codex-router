@@ -10,7 +10,7 @@ Current state source:
 
 Baseline:
 
-- `d15631a`
+- `cfcf100`
 
 Completed:
 
@@ -30,11 +30,16 @@ Completed:
   slice
 - validated with typecheck, targeted provider/host tests, acceptance, full
   `npm test`, and build
+- fixed the post-review controlled read-only failure-surface leak by sanitizing
+  provider failure classes, provider reasons, and thrown execution messages
+  before runner result/event/report/evidence emission
+- added regression coverage for provider-returned failures and thrown execution
+  failures
 
 In progress:
 
 - commit the refreshed current-state validation record
-- rerun clean-worktree governance audits if preparing a PR
+- rerun clean-worktree `npm run validate:pr`
 
 Blocked capabilities:
 
