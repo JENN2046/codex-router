@@ -1,68 +1,64 @@
 # Run State
 
-Status: governance validation surface slimming is split from the runtime fix;
-PR #43 state metadata is being refreshed for the P1 review finding.
+Status: PR-22A minimal controlled read-only provider execution slice, the
+post-review failure-surface fix, and the P1 validation payload follow-up are
+implemented and validated; push confirmation is pending.
 
 Current truth source:
 
 - `docs/current/CURRENT_STATE.md`
-
-Workspace:
-
-- `A:\AGENTS_OS_Workspace\governance\codex-router`
+- `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
 
 Branch:
 
-- `chore/governance-validation-surface-slimming`
+- `feature/pr-22a-controlled-provider-execution`
 
-Current head at latest local status refresh:
+State baseline:
 
-- `8480a6f`
+- `df67058`
 
 Upstream:
 
-- `origin/chore/governance-validation-surface-slimming`
+- `origin/feature/pr-22a-controlled-provider-execution`
 
 Worktree:
 
-- clean at the latest PR #43 state refresh before this P1 metadata update
+- P1 validation payload final validation record pending commit
 
 Current scope:
 
-- local docs, tests, audit surfaces, and governance runner wiring
+- PR-22A controlled provider execution taskbook review migration
+- minimal controlled read-only provider execution implementation
+- controlled read-only provider failure-surface sanitization
+- controlled read-only validation payload sanitization
 - no real Codex CLI execution
-- no provider execute
 - no workspace-write execution
-- no release, tag, deployment, or protected remote action
+- no push, release, tag, deployment, external write, or secret change
 
-Latest PR #43 validation for this split:
+Validation baseline:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
-- `npx tsx --test tests\canary-evidence.test.ts tests\governance-check.test.ts`:
-  passed, `8 / 8`
+- `npm run governance -- audit readonly-productization`: passed on clean `main`
+- pre-review `npm run validate:pr`: passed
 - `npm run typecheck`: passed
-- `npm test`: passed, `1109 / 1109`
+- `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `19 / 19`
+- `npx tsx --test tests/codex-cli-provider.test.ts`: passed, `29 / 29`
+- `npx tsx --test tests/codex-cli-host.test.ts`: passed, `104 / 104`
+- `npm run governance -- acceptance controlled-readonly-provider-execution`:
+  passed; fake spawner `1`, real Codex CLI `0`, workspace-write execute `0`,
+  external write `0`
+- `npx tsx --test tests/state-sync-audit.test.ts`: passed, `16 / 16`
+- `npm test`: passed, `1125 / 1125`
 - `npm run build`: passed
-- `git diff --check`: passed
-- `npm run governance -- audit state-sync`: passed
-- `npm run validate:pr`: passed
-
-Current local changes:
-
-- `scripts/run-governance-check.ts` consolidates validation tiers and
-  audit/acceptance/operator dispatch
-- `scripts/run-governance-check.ts` resolves `npm` and `tsx` through Windows
-  command shims on `win32`
-- `scripts/run-canary-test.ts` preserves low risk canary evidence by writing
-  per-risk latest files before updating the legacy latest alias
-- legacy per-check package script aliases were removed
-- `packages/state-sync-audit` checks the consolidated `governance` package
-  script
-- `docs/README.md` and `docs/governance/README.md` now provide compact current
-  doc maps
-- `README.md` no longer carries the long historical governance link chain
-- `docs/current/CURRENT_STATE.md` is compacted to current state, validation,
-  execution boundary, and next action
+- pre-state-refresh `npm run validate:pr`: typecheck, full tests, and build
+  passed; final state-sync blocked on stale state records before this refresh
+- final clean-worktree `npm run validate:pr`: passed before the P1 validation
+  payload follow-up; typecheck, full tests `1125 / 1125`, build, and
+  state-sync passed
+- P1 validation payload follow-up:
+  `npx tsx --test tests/provider-execution-runner.test.ts` passed `21 / 21`
+- P1 validation payload follow-up: `npm run typecheck` passed
+- final clean-worktree `npm run validate:pr`: passed; typecheck, full tests
+  `1127 / 1127`, build, and state-sync passed
 
 Detailed validation history:
 

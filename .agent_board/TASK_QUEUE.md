@@ -1,51 +1,36 @@
 # Task Queue
 
-## Done
+Active:
 
-- Refreshed `CURRENT_STATE.md` and `.agent_board` for the current branch.
-- Split the runtime failure fix onto a separate local branch; this branch
-  excludes those runtime files.
-- Added `scripts/run-governance-check.ts` as the consolidated validation and
-  governance check runner.
-- Added recommended validation tiers: `validate:daily`, `validate:pr`, and
-  `validate:release`.
-- Removed legacy per-check package script aliases after moving dispatch into the
-  consolidated `governance` runner.
-- Migrated old package-script command references out of docs, tests, and
-  `package.json`.
-- Updated state-sync audit to require the consolidated `governance` package
-  script.
-- Added `docs/README.md` as the compact documentation map.
-- Added `docs/governance/README.md` as the compact governance docs map.
-- Reduced README's long historical document link chain.
-- Compacted `docs/current/CURRENT_STATE.md` and `.agent_board` current
-  surfaces.
-- Validated document surface slimming with docs-level link search,
-  `git diff --check`, state-sync targeted tests, and state-sync audit.
-- Fixed PR review finding: governance runner now uses Windows command shims for
-  `tsx` child commands.
-- Validated the runner shim fix with targeted governance runner tests and
-  `npm run validate:pr`.
-- Fixed PR review finding: low risk canary evidence is preserved across
-  sequential release validation canaries.
-- Refreshed `CURRENT_STATE.md` and `.agent_board` commit facts to the current
-  PR #43 branch baseline.
+- Commit the P1 validation payload final validation record.
+- Rerun clean-worktree `npm run governance -- audit state-sync`.
+- Push the branch only after explicit external-write confirmation.
 
-## In Progress
+Completed validation:
 
-- Commit the PR #43 P1 state metadata refresh and run synced-branch validation.
+- `npm run governance -- audit controlled-provider-execution-taskbook-review`
+- `npm run validate:pr`
+- `npm run typecheck`
+- `npx tsx --test tests/provider-execution-runner.test.ts`
+- `npx tsx --test tests/codex-cli-provider.test.ts`
+- `npx tsx --test tests/codex-cli-host.test.ts`
+- `npm run governance -- acceptance controlled-readonly-provider-execution`
+- `npx tsx --test tests/state-sync-audit.test.ts`
+- `npm test`
+- `npm run build`
+- post-review targeted provider-runner regression test, `19 / 19`
+- post-review pre-state-refresh PR validation through typecheck, full tests,
+  and build
+- final clean-worktree `npm run validate:pr`, including typecheck, full tests
+  `1125 / 1125`, build, and state-sync
+- P1 validation payload targeted provider-runner regression test, `21 / 21`
+- P1 validation payload `npm run typecheck`
+- P1 validation payload final clean-worktree `npm run validate:pr`, including
+  typecheck, full tests `1127 / 1127`, build, and state-sync
 
-## Blocked
+Boundaries:
 
-- General workspace-write or general provider execution remains blocked until a
-  separate exact operator authorization and a new controlled execution gate are
-  provided.
-- Protected remote writes, release, tag, deployment, and secret changes remain
-  blocked unless explicitly authorized in a future task.
-
-## Remaining
-
-- Run `npm run governance -- audit state-sync` after the P1 refresh commit is synced.
-- Run `npm run validate:pr` after the P1 refresh commit is synced.
-- Report PR #43 branch, commit, validation, and remaining risk.
-- Do not open or retarget another PR in this slice.
+- no real Codex CLI execution
+- no workspace-write execution
+- no external writes
+- no secret changes

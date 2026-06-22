@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "codex-cli-controlled-readonly-provider-execution-acceptance.v1",
+  "generatedAt": "2026-06-22T00:00:00.000Z",
+  "mode": "controlled-readonly-provider-execution-fake-spawner-local-only",
+  "taskId": "codex-cli-controlled-readonly-provider-execution-acceptance",
+  "checks": {
+    "runnerStatusOk": true,
+    "permitApproved": true,
+    "providerExecuteInvoked": true,
+    "fakeSpawnerUsed": true,
+    "metadataGuarded": true,
+    "readOnlySandbox": true,
+    "approvalPolicyNever": true,
+    "missingPermitBlocked": true,
+    "missingMetadataBlocked": true,
+    "workspaceWriteBlocked": true,
+    "noRealCodexCli": true,
+    "noWorkspaceWriteExecute": true,
+    "noExternalWrite": true,
+    "evidenceSanitized": true
+  },
+  "summary": {
+    "providerId": "codex-cli",
+    "sideEffectClass": "read_only",
+    "sandbox": "read-only",
+    "status": "controlled_readonly_succeeded",
+    "approvalPolicy": "never",
+    "providerExecuteCalls": 1,
+    "fakeSpawnerCalls": 1,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0,
+    "externalWriteCalls": 0
+  },
+  "counters": {
+    "successSpawnCalls": 1,
+    "missingPermitSpawnCalls": 0,
+    "missingMetadataSpawnCalls": 0,
+    "workspaceWriteSpawnCalls": 0,
+    "realCodexCliCalls": 0,
+    "workspaceWriteExecuteCalls": 0,
+    "externalWriteCalls": 0
+  },
+  "blockingReasons": [
+    "controlled_readonly_provider_execution_permit_required",
+    "controlled_readonly_provider_execution_metadata_required",
+    "controlled_readonly_requires_read_only_side_effect:workspace_write",
+    "controlled_readonly_requires_read_only_sandbox:workspace-write",
+    "controlled_readonly_requires_no_writable_roots"
+  ]
+}

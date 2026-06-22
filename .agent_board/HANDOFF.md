@@ -1,58 +1,66 @@
 # Handoff
 
-PR2 scope: reduce meta-governance weight, remove old per-check aliases, align
-state-sync with the consolidated runner, and slim the document governance
-surface.
+Current scope: PR-22A minimal controlled read-only provider execution is
+implemented on a fresh branch from clean `main`.
 
 Current status:
 
-- Branch: `chore/governance-validation-surface-slimming`
-- Current head at this metadata refresh: `8480a6f`
-- Upstream: `origin/chore/governance-validation-surface-slimming`
+- Branch: `feature/pr-22a-controlled-provider-execution`
+- State baseline: `df67058`
+- Upstream: `origin/feature/pr-22a-controlled-provider-execution`
 - Current state source: `docs/current/CURRENT_STATE.md`
-- Work in progress: address PR #43 P1 state metadata refresh
+- PR-22A taskbook source:
+  `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
+- Work in progress: commit the P1 validation payload final validation record and
+  rerun clean-worktree `npm run governance -- audit state-sync`.
 
-What changed in this PR2 scope:
+What changed in this line:
 
-- Added `scripts/run-governance-check.ts` as the consolidated validation and
-  governance check runner.
-- Removed legacy per-check package script aliases from `package.json`.
-- Migrated old package-script command references to `npm run governance -- ...`.
-- Updated state-sync audit to require the consolidated `governance` package
-  script.
-- Added `docs/README.md` as the current documentation map.
-- Added `docs/governance/README.md` as the compact governance evidence map.
-- Reduced README's long historical document chain to a short current docs list.
-- Compacted `docs/current/CURRENT_STATE.md` to current facts and boundaries.
-- Compacted `.agent_board` current surfaces; detailed historical validation
-  remains in `.agent_board/VALIDATION_LOG.md`.
-- Preserved low risk canary evidence by writing per-risk canary latest
-  files before updating the legacy latest alias.
-
-Latest recorded PR #43 validation before this P1 refresh:
-
-- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `104 / 104`
-- `npx tsx --test tests\canary-evidence.test.ts tests\governance-check.test.ts`:
-  passed, `8 / 8`
-- `npm run typecheck`: passed
-- `npm test`: passed, `1109 / 1109`
-- `npm run build`: passed
-- `git diff --check`: passed
-- `npm run governance -- audit state-sync`: passed
-- `npm run validate:pr`: passed
+- clean `main` was updated with `git pull --ff-only origin main`
+- `npm run governance -- audit readonly-productization` passed on `main`
+- a fresh implementation branch was created from that baseline
+- PR-22A taskbook review audit files were migrated onto the branch
+- the prior CLI line closeout marker document was restored for the PR-22A
+  review audit precondition
+- `runProviderExecutionPlanControlledReadOnly` was added with explicit mode,
+  `codex-cli` provider, read-only sandbox, approval policy `never`, metadata,
+  and permit gates before provider execute
+- `createCodexCliExecPlanFromRoutingDecision` now maps no-approval decisions to
+  CLI approval policy `never`
+- local acceptance uses a fake injected spawner and records real Codex CLI
+  calls `0`, workspace-write execute calls `0`, and external write calls `0`
+- post-review failure-surface handling now sanitizes provider failure classes,
+  provider reasons, and thrown execution messages before they reach runner
+  results, events, reports, or evidence
+- P1 validation payload follow-up now sanitizes validation reasons and thrown
+  validation messages before controlled read-only result, event, and report
+  emission
+- pre-review validation passed: `npm run validate:pr`, `npm run typecheck`,
+  targeted runner/provider/host tests, `npm run governance -- acceptance
+  controlled-readonly-provider-execution`, targeted state-sync tests, full
+  `npm test`, and `npm run build`
+- post-review regression validation passed targeted provider-runner tests
+  `19 / 19`, typecheck, full tests `1125 / 1125`, and build
+- final clean-worktree `npm run validate:pr` passed before the P1 validation
+  payload follow-up; typecheck, full tests `1125 / 1125`, build, and
+  state-sync passed
+- P1 validation payload follow-up targeted provider-runner tests passed
+  `21 / 21`, and `npm run typecheck` passed
+- P1 validation payload final clean-worktree `npm run validate:pr` passed;
+  typecheck, full tests `1127 / 1127`, build, and state-sync passed
 
 Hard boundaries:
 
-- Do not treat the recorded bounded workspace-write canary as general
-  workspace-write permission.
-- Do not run general provider execution.
+- Do not treat bounded canary scope as `general_workspace_write`.
+- Do not run another real Codex CLI task.
+- Do not run workspace-write execution.
+- Do not refresh evidence unless the current task explicitly requires it.
 - Do not push to `main`, release, tag, deploy, or write to external services
   without a separate explicit instruction.
 - Do not modify secrets or env files.
 
 Next safe action:
 
-1. commit the PR #43 P1 state refresh
-2. run `npm run governance -- audit state-sync`
-3. run `npm run validate:pr`
-4. push `chore/governance-validation-surface-slimming`
+1. commit the P1 validation payload final validation record
+2. rerun clean-worktree `npm run governance -- audit state-sync`
+3. push the branch only after explicit external-write confirmation
