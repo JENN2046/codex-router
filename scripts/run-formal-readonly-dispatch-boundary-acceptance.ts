@@ -11,7 +11,10 @@ import {
   dispatchFormalReadOnlyRunnerResultToProvider
 } from "../packages/host-dispatcher/src/index.js";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
-import { hashProviderManifest } from "../packages/provider-core/src/index.js";
+import {
+  InMemoryProviderExecutionPermitConsumptionStore,
+  hashProviderManifest
+} from "../packages/provider-core/src/index.js";
 import { createProviderRegistry } from "../packages/provider-registry/src/index.js";
 import {
   CodexCliExecutorProvider,
@@ -103,6 +106,7 @@ export async function runFormalReadonlyDispatchBoundaryAcceptance(
     now: () => generatedAt
   });
 
+  const permitConsumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
   let successSpawnCalls = 0;
   const successProvider = createRealModeProvider(() => {
     successSpawnCalls += 1;
@@ -110,7 +114,7 @@ export async function runFormalReadonlyDispatchBoundaryAcceptance(
       stdout: "{\"type\":\"agent_message\",\"message\":\"FORMAL_BOUNDARY_OK\"}\n",
       exitCode: 0
     });
-  });
+  }, permitConsumptionStore, generatedAt);
   const successDispatch = await dispatchFormalReadOnlyRunnerResultToProvider({
     runnerResult,
     provider: successProvider,
@@ -130,7 +134,7 @@ export async function runFormalReadonlyDispatchBoundaryAcceptance(
         stdout: "",
         exitCode: 0
       });
-    }),
+    }, permitConsumptionStore, generatedAt),
     providerRegistry: undefined,
     now: generatedAt,
     providerExecutionMetadata: {
@@ -147,7 +151,7 @@ export async function runFormalReadonlyDispatchBoundaryAcceptance(
         stdout: "",
         exitCode: 0
       });
-    }),
+    }, permitConsumptionStore, generatedAt),
     providerRegistry: registry,
     now: generatedAt,
     providerExecutionMetadata: undefined
@@ -162,7 +166,7 @@ export async function runFormalReadonlyDispatchBoundaryAcceptance(
         stdout: "",
         exitCode: 0
       });
-    }),
+    }, permitConsumptionStore, generatedAt),
     providerRegistry: registry,
     now: generatedAt,
     providerExecutionMetadata: {
@@ -198,7 +202,7 @@ export async function runFormalReadonlyDispatchBoundaryAcceptance(
         stdout: "",
         exitCode: 0
       });
-    }),
+    }, permitConsumptionStore, generatedAt),
     providerRegistry: registry,
     now: generatedAt,
     providerExecutionMetadata: {
@@ -306,12 +310,18 @@ export async function writeFormalReadonlyDispatchBoundaryAcceptanceEvidence(
   };
 }
 
-function createRealModeProvider(spawn: CodexCliProcessSpawner): CodexCliExecutorProvider {
+function createRealModeProvider(
+  spawn: CodexCliProcessSpawner,
+  permitConsumptionStore: InMemoryProviderExecutionPermitConsumptionStore,
+  generatedAt: string
+): CodexCliExecutorProvider {
   return new CodexCliExecutorProvider({
     executionEnabled: true,
     executionMode: "real",
     realExecutionAllowed: true,
+    nowMs: () => Date.parse(generatedAt),
     timeoutMs: 1_000,
+    permitConsumptionStore,
     spawn
   });
 }

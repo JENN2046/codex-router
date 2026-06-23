@@ -4,21 +4,26 @@ import { EventEmitter } from "node:events";
 import {
   CodexCliExecutorProvider,
   CODEX_CLI_PROVIDER_PROMPT_OMITTED,
-  codexCliProviderManifest
+  codexCliProviderManifest,
+  type CodexCliProviderPromptHandoffRecord,
+  type CodexCliProviderPromptHandoffStore
 } from "../packages/providers/codex-cli/src/index.js";
 import {
   type CodexCliProcessSpawner
 } from "../packages/codex-cli-host/src/index.js";
 import {
   ProviderManifestSchema,
+  InMemoryProviderExecutionPermitConsumptionStore,
   createApprovedProviderExecutionPermit,
   createBlockedProviderExecutionPermit,
+  createProviderExecutionPermitConsumptionKey,
   hashProviderManifest,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass,
   type ExecutionPlanInput,
   type ExecutorExecutionPlan,
-  type ProviderExecutionPermit
+  type ProviderExecutionPermit,
+  type ProviderExecutionPermitConsumptionStore
 } from "../packages/provider-core/src/index.js";
 import {
   CapabilityScopeSchema,
@@ -420,7 +425,10 @@ test("codex cli provider execute is disabled by default", async () => {
 
 test("codex cli provider read-only execute rejects without injected spawn", async () => {
   const provider = new CodexCliExecutorProvider({
-    executionEnabled: true
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: true,
+    timeoutMs: 1_000
   });
   const plan = provider.planExecution(createExecutionInput({
     taskId: "task_codex_cli_provider_execute_no_spawn",
@@ -429,7 +437,10 @@ test("codex cli provider read-only execute rejects without injected spawn", asyn
   }));
 
   const result = await provider.execute(plan, {
-    permit: createApprovedPermitForPlan(plan)
+    permit: createApprovedPermitForPlan(plan),
+    metadata: {
+      codexCliProviderRealExecutionGuard: createRealExecutionGuard()
+    }
   });
 
   assert.equal(result.ok, false);
@@ -517,6 +528,44 @@ test("codex cli provider execute rejects unapproved permits before spawn", async
     }),
     expectedReason: "codex_cli_provider_execution_permit_not_approved:blocked"
   });
+});
+
+test("codex cli provider execute rejects expired permits before spawn", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    nowMs: () => Date.parse("2026-06-14T00:10:00.000Z"),
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_execute_expired_permit",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+  const permit = createApprovedProviderExecutionPermit({
+    plan,
+    manifest: codexCliProviderManifest,
+    permitId: `permit-${plan.planId}`,
+    issuedAt: "2026-06-14T00:00:00.000Z",
+    expiresAt: "2026-06-14T00:01:00.000Z"
+  });
+
+  const result = await provider.execute(plan, {
+    permit
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.error?.code, "codex_cli_provider_execution_permit_invalid");
+  assert.ok((result.error?.reasons as string[]).includes(
+    "codex_cli_provider_execution_permit_expired"
+  ));
 });
 
 test("codex cli provider execute rejects mismatched permits before spawn", async () => {
@@ -663,20 +712,7 @@ test("codex cli provider execute rejects provider-core permit for another plan",
   )));
 });
 
-test("codex cli provider read-only execute succeeds with approved permit and fake spawn", async () => {
-  let spawnCalls = 0;
-  const calls: Array<{ args: string[]; env?: NodeJS.ProcessEnv }> = [];
-  const spawn: CodexCliProcessSpawner = (_command, args, options) => {
-    spawnCalls += 1;
-    calls.push({
-      args,
-      ...(options.env ? { env: options.env } : {})
-    });
-    return createFakeCodexCliChild({
-      stdout: "{\"type\":\"agent_message\",\"message\":\"completed\"}\n",
-      exitCode: 0
-    });
-  };
+test("codex cli provider fake mode succeeds without process spawn", async () => {
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
     env: {
@@ -687,11 +723,10 @@ test("codex cli provider read-only execute succeeds with approved permit and fak
     },
     oneShotEnv: {
       CODEX_API_KEY: "sk-codex-one-shot"
-    },
-    spawn
+    }
   });
   const plan = provider.planExecution(createExecutionInput({
-    taskId: "task_codex_cli_provider_execute_fake_spawn_success",
+    taskId: "task_codex_cli_provider_execute_fake_mode_success",
     taskClass: "read_only",
     sandboxMode: "read-only"
   }));
@@ -703,26 +738,22 @@ test("codex cli provider read-only execute succeeds with approved permit and fak
   const serialized = JSON.stringify(result);
 
   assert.equal(result.ok, true);
-  assert.equal(spawnCalls, 1);
-  assert.equal(calls[0]?.args.at(-1)?.includes("Task envelope:"), true);
-  assert.equal(calls[0]?.args.at(-1)?.includes(CODEX_CLI_PROVIDER_PROMPT_OMITTED), false);
-  assert.equal(calls[0]?.env?.PATH, "C:/Windows/System32");
-  assert.equal(calls[0]?.env?.CODEX_API_KEY, "sk-codex-one-shot");
-  assert.equal(calls[0]?.env?.OPENAI_API_KEY, undefined);
-  assert.equal(calls[0]?.env?.CODEX_TEST_ENV, undefined);
-  assert.equal(summary.status, "completed");
+  assert.equal(summary.status, "fake_completed");
+  assert.equal(summary.processSpawned, false);
+  assert.equal(summary.promptDeliveredToProcess, false);
   assert.equal(summary.inspection.status, "completed");
-  assert.equal(summary.inspection.eventCount, 1);
-  assert.equal(summary.exitCode, 0);
+  assert.equal(summary.inspection.eventCount, 0);
+  assert.equal("exitCode" in summary, false);
   assert.equal(serialized.includes("agent_message"), false);
   assert.equal(serialized.includes("requestedAction"), false);
   assert.equal(serialized.includes("args"), false);
   assert.equal(serialized.includes("stdout"), false);
   assert.equal(serialized.includes("stderr"), false);
-  assert.equal(serialized.includes("prompt"), false);
+  assert.equal(serialized.includes("Task envelope:"), false);
+  assert.equal(serialized.includes(CODEX_CLI_PROVIDER_PROMPT_OMITTED), false);
 });
 
-test("codex cli provider execute consumes handoff only once", async () => {
+test("codex cli provider fake mode rejects configured process spawners", async () => {
   let spawnCalls = 0;
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
@@ -733,6 +764,28 @@ test("codex cli provider execute consumes handoff only once", async () => {
         exitCode: 0
       });
     }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_fake_mode_process_spawner_rejected",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {
+    permit: createApprovedPermitForPlan(plan)
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(spawnCalls, 0);
+  assert.equal(result.error?.code, "codex_cli_provider_fake_execute_rejected");
+  assert.deepEqual(result.error?.reasons, [
+    "codex_cli_provider_fake_execute_disallows_process_spawner"
+  ]);
+});
+
+test("codex cli provider execute consumes handoff only once", async () => {
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true
   });
   const plan = provider.planExecution(createExecutionInput({
     taskId: "task_codex_cli_provider_handoff_once",
@@ -746,24 +799,82 @@ test("codex cli provider execute consumes handoff only once", async () => {
 
   assert.equal(first.ok, true);
   assert.equal(second.ok, false);
-  assert.equal(spawnCalls, 1);
-  assert.equal(second.error?.code, "codex_cli_provider_handoff_invalid");
-  assert.deepEqual(second.error?.reasons, ["codex_cli_provider_handoff_missing"]);
+  assert.equal(second.error?.code, "codex_cli_provider_execution_permit_replay_rejected");
+  assert.deepEqual(second.error?.reasons, [
+    "codex_cli_provider_execution_permit_already_consumed_by_store"
+  ]);
   assert.equal(JSON.stringify(second).includes("prompt"), false);
 });
 
-test("codex cli provider execute rejects missing handoff before spawn", async () => {
-  let spawnCalls = 0;
+test("codex cli provider permit store blocks replay even when handoff is re-presented", async () => {
+  const handoffStore = new ReplayablePromptHandoffStore();
+  const permitStore = new InMemoryProviderExecutionPermitConsumptionStore();
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    permitConsumptionStore: permitStore,
+    promptHandoffStore: handoffStore
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_permit_replay_store",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+  const permit = createApprovedPermitForPlan(plan);
+
+  const first = await provider.execute(plan, { permit });
+  const second = await provider.execute(plan, {
+    permit: {
+      ...permit,
+      permitId: "permit_replayed_by_caller"
+    }
+  });
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, false);
+  assert.equal(second.error?.code, "codex_cli_provider_execution_permit_replay_rejected");
+  assert.deepEqual(second.error?.reasons, [
+    "codex_cli_provider_execution_permit_already_consumed_by_store"
+  ]);
+  assert.equal(permitStore.get(createProviderExecutionPermitConsumptionKey(permit))?.permitId, permit.permitId);
+});
+
+test("codex cli provider default permit store blocks replay across provider instances", async () => {
+  const handoffStore = new ReplayablePromptHandoffStore();
+  const firstProvider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    promptHandoffStore: handoffStore
+  });
+  const secondProvider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    promptHandoffStore: handoffStore
+  });
+  const plan = firstProvider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_cross_instance_permit_replay",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+  const permit = createApprovedPermitForPlan(plan);
+
+  const first = await firstProvider.execute(plan, { permit });
+  const second = await secondProvider.execute(plan, {
+    permit: {
+      ...permit,
+      permitId: "permit_cross_instance_replay"
+    }
+  });
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, false);
+  assert.equal(second.error?.code, "codex_cli_provider_execution_permit_replay_rejected");
+  assert.deepEqual(second.error?.reasons, [
+    "codex_cli_provider_execution_permit_already_consumed_by_store"
+  ]);
+});
+
+test("codex cli provider execute rejects missing handoff before execution", async () => {
   const planner = new CodexCliExecutorProvider();
   const executor = new CodexCliExecutorProvider({
-    executionEnabled: true,
-    spawn: () => {
-      spawnCalls += 1;
-      return createFakeCodexCliChild({
-        stdout: "",
-        exitCode: 0
-      });
-    }
+    executionEnabled: true
   });
   const plan = planner.planExecution(createExecutionInput({
     taskId: "task_codex_cli_provider_handoff_missing",
@@ -776,23 +887,14 @@ test("codex cli provider execute rejects missing handoff before spawn", async ()
   });
 
   assert.equal(result.ok, false);
-  assert.equal(spawnCalls, 0);
   assert.equal(result.error?.code, "codex_cli_provider_handoff_invalid");
   assert.deepEqual(result.error?.reasons, ["codex_cli_provider_handoff_missing"]);
   assert.equal(JSON.stringify(result).includes("prompt"), false);
 });
 
-test("codex cli provider execute rejects handoff hash mismatch before spawn", async () => {
-  let spawnCalls = 0;
+test("codex cli provider execute rejects handoff hash mismatch before execution", async () => {
   const provider = new CodexCliExecutorProvider({
-    executionEnabled: true,
-    spawn: () => {
-      spawnCalls += 1;
-      return createFakeCodexCliChild({
-        stdout: "",
-        exitCode: 0
-      });
-    }
+    executionEnabled: true
   });
   const plan = provider.planExecution(createExecutionInput({
     taskId: "task_codex_cli_provider_handoff_hash_mismatch",
@@ -819,7 +921,6 @@ test("codex cli provider execute rejects handoff hash mismatch before spawn", as
   });
 
   assert.equal(result.ok, false);
-  assert.equal(spawnCalls, 0);
   assert.equal(result.error?.code, "codex_cli_provider_handoff_invalid");
   assert.ok((result.error?.reasons as string[]).includes(
     "codex_cli_provider_handoff_content_hash_mismatch"
@@ -1019,6 +1120,137 @@ test("codex cli provider real read-only guard can pass with fake spawner in test
   assert.equal(serialized.includes("stdout"), false);
   assert.equal(serialized.includes("stderr"), false);
   assert.equal(serialized.includes("prompt"), false);
+});
+
+test("codex cli provider concurrent reuse only lets one execution reach spawn", async () => {
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: true,
+    timeoutMs: 1_000,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"completed\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_concurrent_permit_reuse",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+  const permit = createApprovedPermitForPlan(plan);
+  const context = {
+    permit,
+    metadata: {
+      codexCliProviderRealExecutionGuard: createRealExecutionGuard()
+    }
+  };
+
+  const [first, second] = await Promise.all([
+    provider.execute(plan, context),
+    provider.execute(plan, context)
+  ]);
+  const results = [first, second];
+
+  assert.equal(results.filter((result) => result.ok).length, 1);
+  assert.equal(results.filter((result) => !result.ok).length, 1);
+  assert.equal(spawnCalls, 1);
+  assert.equal(JSON.stringify(results.find((result) => !result.ok)).includes("prompt"), false);
+});
+
+test("codex cli provider consumes permit before real spawn and blocks retry after spawn failure", async () => {
+  const permitStore = new InMemoryProviderExecutionPermitConsumptionStore();
+  let permit: ProviderExecutionPermit | undefined;
+  let spawnCalls = 0;
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: true,
+    timeoutMs: 1_000,
+    permitConsumptionStore: permitStore,
+    spawn: () => {
+      spawnCalls += 1;
+      assert.ok(permit !== undefined);
+      assert.notEqual(
+        permitStore.get(createProviderExecutionPermitConsumptionKey(permit)),
+        undefined
+      );
+      throw new Error("codex_cli_spawn_failed_after_permit_consumed");
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_permit_consumed_before_spawn_throw",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+  permit = createApprovedPermitForPlan(plan);
+  const context = {
+    permit,
+    metadata: {
+      codexCliProviderRealExecutionGuard: createRealExecutionGuard()
+    }
+  };
+
+  const first = await provider.execute(plan, context);
+  const second = await provider.execute(plan, context);
+  const summary = first.artifacts?.[0]?.metadata.summary as any;
+
+  assert.equal(first.ok, false);
+  assert.equal(summary.status, "failed");
+  assert.equal(second.ok, false);
+  assert.equal(second.error?.code, "codex_cli_provider_execution_permit_replay_rejected");
+  assert.deepEqual(second.error?.reasons, [
+    "codex_cli_provider_execution_permit_already_consumed_by_store"
+  ]);
+  assert.equal(spawnCalls, 1);
+  assert.equal(JSON.stringify(second).includes("prompt"), false);
+});
+
+test("codex cli provider fails closed before spawn when permit consumption store throws", async () => {
+  let spawnCalls = 0;
+  const throwingPermitStore: ProviderExecutionPermitConsumptionStore = {
+    consumeIfUnused: () => {
+      throw new Error("permit consumption store unavailable");
+    },
+    get: () => undefined
+  };
+  const provider = new CodexCliExecutorProvider({
+    executionEnabled: true,
+    executionMode: "real",
+    realExecutionAllowed: true,
+    timeoutMs: 1_000,
+    permitConsumptionStore: throwingPermitStore,
+    spawn: () => {
+      spawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const plan = provider.planExecution(createExecutionInput({
+    taskId: "task_codex_cli_provider_permit_store_failure",
+    taskClass: "read_only",
+    sandboxMode: "read-only"
+  }));
+
+  const result = await provider.execute(plan, {
+    permit: createApprovedPermitForPlan(plan),
+    metadata: {
+      codexCliProviderRealExecutionGuard: createRealExecutionGuard()
+    }
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error?.code, "codex_cli_provider_execution_permit_replay_rejected");
+  assert.deepEqual(result.error?.reasons, [
+    "codex_cli_provider_execution_permit_consumption_store_failed"
+  ]);
+  assert.equal(spawnCalls, 0);
 });
 
 test("codex cli provider execute rejects workspace-write plans before spawn", async () => {
@@ -1279,11 +1511,14 @@ function readProviderMetadata(plan: ExecutorExecutionPlan): any {
 function createApprovedPermitForPlan(
   plan: ExecutorExecutionPlan
 ): ProviderExecutionPermit {
+  const issuedAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
   return createApprovedProviderExecutionPermit({
     plan,
     manifest: codexCliProviderManifest,
     permitId: `permit-${plan.planId}`,
-    issuedAt: now
+    issuedAt,
+    expiresAt
   });
 }
 
@@ -1371,6 +1606,26 @@ class FakeCodexCliStream extends EventEmitter {
 class FakeCodexCliWritableStream {
   end(): void {}
   destroy(): void {}
+}
+
+class ReplayablePromptHandoffStore implements CodexCliProviderPromptHandoffStore {
+  private record: CodexCliProviderPromptHandoffRecord | undefined;
+
+  put(record: CodexCliProviderPromptHandoffRecord): void {
+    this.record = {
+      ...record
+    };
+  }
+
+  consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
+    if (this.record === undefined || this.record.handle !== handle) {
+      return undefined;
+    }
+
+    return {
+      ...this.record
+    };
+  }
 }
 
 class FakeCodexCliChild extends EventEmitter {

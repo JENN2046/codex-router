@@ -36,7 +36,7 @@ test("read-only control chain acceptance produces safe evidence", async () => {
   assert.equal(evidence.summary.providerId, "codex-cli");
   assert.equal(evidence.summary.sideEffectClass, "read_only");
   assert.equal(evidence.summary.sandbox, "read-only");
-  assert.equal(evidence.summary.eventCount, 1);
+  assert.equal(evidence.summary.eventCount, 0);
   assert.deepEqual(evidence.checks, {
     runnerReady: true,
     preflightOk: true,

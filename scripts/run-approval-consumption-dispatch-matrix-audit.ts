@@ -329,7 +329,9 @@ function publicWrapperConsumptionCoveragePresent(
 function providerDispatchPreconditionsCovered(
   input: ApprovalConsumptionDispatchMatrixAuditInput
 ): boolean {
-  return input.hostDispatcherTestText.includes("read-only provider dispatch creates permit and executes fake spawn")
+  return input.hostDispatcherTestText.includes(
+    "read-only provider dispatch creates permit and uses fake in-memory execution"
+  )
     && input.hostDispatcherTestText.includes("dry-runs read-only runner provider dispatch without spawn");
 }
 
