@@ -62,7 +62,10 @@ export const ProviderExecutionPlanSchema = z.object({
   schemaVersion: z.literal("provider-execution-plan.v2").default("provider-execution-plan.v2"),
   planId: z.string().min(1),
   taskId: z.string().min(1),
+  taskHash: z.string().regex(/^[a-f0-9]{64}$/),
   runId: z.string().min(1),
+  principalId: z.string().min(1),
+  principalHash: z.string().regex(/^[a-f0-9]{64}$/),
   providerId: z.string().min(1),
   providerKind: ProviderExecutionPlanProviderKindSchema,
   providerManifestHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
@@ -360,10 +363,14 @@ export function planProviderExecution(
   const providerManifestHash = providerResolution.entry
     ? hashProviderManifest(providerResolution.entry.manifest)
     : undefined;
+  const taskHash = hashProviderExecutionPlannerObject(task);
+  const principalHash = hashProviderExecutionPlannerObject(principal);
   const inputHash = createInputHash({
     taskId: task.taskId,
+    taskHash,
     runId: run.runId,
     principalId: principal.principalId,
+    principalHash,
     providerId,
     providerKind,
     providerManifestHash,
@@ -377,7 +384,10 @@ export function planProviderExecution(
     schemaVersion: "provider-execution-plan.v2" as const,
     planId: createPlanId(run.runId, providerId, inputHash),
     taskId: task.taskId,
+    taskHash,
     runId: run.runId,
+    principalId: principal.principalId,
+    principalHash,
     providerId,
     providerKind,
     ...(providerManifestHash !== undefined ? { providerManifestHash } : {}),
