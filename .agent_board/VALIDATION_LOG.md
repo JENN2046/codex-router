@@ -6,7 +6,7 @@ Current branch:
 
 Baseline:
 
-- `fd1f49d`
+- `c29e494`
 
 Review hardening validation:
 
@@ -81,6 +81,12 @@ PR #45 state-sync CI event-scope follow-up validation:
 - `npm run typecheck`: passed.
 - `git diff --check`: passed before the state documentation commit.
 
+PR #45 state-sync absolute path sanitizer follow-up validation:
+
+- `npx tsx --test tests/state-sync-audit.test.ts`: passed, `18 / 18`.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed before the state documentation commit.
+
 Coverage added:
 
 - controlled result no longer returns full executor metadata
@@ -116,3 +122,6 @@ Coverage added:
 - branch-specific state-sync audit runs only on `pull_request` events in CI,
   preventing post-merge `push` runs on `main` from failing on PR branch/head
   and divergence records
+- state-sync audit blocks common absolute workspace paths in state surfaces,
+  including macOS user-home, devcontainer, Codespaces, Linux mount/home, and
+  Windows user-home forms

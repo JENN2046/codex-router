@@ -12,10 +12,10 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router` |
 | Current branch | `fix/p1-controlled-output-safety` |
-| Current head | `fd1f49d` |
+| Current head | `c29e494` |
 | Upstream | `origin/main` |
-| Upstream divergence | `ahead 14 / behind 0` |
-| Latest validated commit | `fd1f49d` |
+| Upstream divergence | `ahead 16 / behind 0` |
+| Latest validated commit | `c29e494` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -38,7 +38,7 @@ execution line after PR #44 was merged into `main`.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
-Implemented in local commits through `fd1f49d`:
+Implemented in local commits through `c29e494`:
 
 - controlled read-only runner result/report/event outputs now use one safe
   representation for executor plans and provider summaries
@@ -72,7 +72,9 @@ Implemented in local commits through `fd1f49d`:
 - the default Codex CLI process spawner no longer falls back to `shell: true`
 - CI now runs a real state-sync audit before evidence collection on
   `pull_request` events only, because the audit is branch-state-specific
-- state-sync audit now blocks machine absolute paths in state surfaces
+- state-sync audit now blocks common machine absolute paths in state surfaces,
+  including Linux mount/home roots, macOS user-home roots, devcontainer and
+  Codespaces workspace roots, and Windows user-home roots
 - state-sync audit accepts explicitly allowed, clean, detached PR merge
   checkouts with unknown upstream divergence
 - PR #45 review follow-up keeps legacy file plan-store records without the new
@@ -126,6 +128,12 @@ Validation already completed before the local commit split:
 - `npm run typecheck`: passed after the state-sync CI event-scope fix.
 - `git diff --check`: passed before the state-sync CI event-scope state
   documentation commit.
+- `npx tsx --test tests/state-sync-audit.test.ts`: passed after the common
+  absolute workspace path sanitizer fix, `18 / 18`.
+- `npm run typecheck`: passed after the common absolute workspace path
+  sanitizer fix.
+- `git diff --check`: passed before the common absolute workspace path
+  sanitizer state documentation commit.
 
 Validation commands required by the state-sync audit remain:
 
@@ -177,6 +185,7 @@ Local commits on `fix/p1-controlled-output-safety`:
 - `test(state-sync): omit absent merge parent`
 - `fix(provider): preserve legacy execution audit paths`
 - `ci(state-sync): limit branch audit to pull requests`
+- `fix(state-sync): cover common absolute workspace paths`
 - final state documentation commit
 
 After the final state documentation commit, the intended worktree state is
@@ -186,7 +195,7 @@ without separate explicit authorization.
 
 ## State Sync Expectations
 
-This branch tracks `origin/main`. This state surface records `fd1f49d`, the
+This branch tracks `origin/main`. This state surface records `c29e494`, the
 last code/test commit before the final state documentation commit. Because
 `Stale after commit` is `true`, the state-sync audit accepts the documented
 parent commit after the final state documentation commit changes `HEAD`.

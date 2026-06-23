@@ -6,7 +6,7 @@ Checkpoint branch:
 
 Baseline:
 
-- `fd1f49d`
+- `c29e494`
 
 Current state source:
 
@@ -16,7 +16,7 @@ Current checkpoint:
 
 - GPT Pro review P1/P2 hardening, the PR merge-checkout state-sync fix, and
   PR #45 automated review follow-ups are implemented in local commits through
-  `fd1f49d`
+  `c29e494`
 - final `npm run validate:pr` passed before the local commit split
 - follow-up permit replay hardening is implemented with targeted tests
 
@@ -39,6 +39,8 @@ Completed locally:
   plans omit `policyDecisionHash`
 - branch-specific state-sync CI audit is limited to `pull_request` events and
   does not run on post-merge `push` events to `main`
+- state-sync state surface sanitizer blocks common absolute workspace paths
+  including macOS Desktop and devcontainer/Codespaces forms
 
 Validation checkpoint:
 
@@ -57,6 +59,10 @@ Validation checkpoint:
 - state-sync CI event-scope targeted test passed, `4 / 4`
 - state-sync CI event-scope `npm run typecheck` passed
 - `git diff --check` passed before the event-scope state documentation commit
+- state-sync common absolute path sanitizer targeted test passed, `18 / 18`
+- state-sync common absolute path sanitizer `npm run typecheck` passed
+- `git diff --check` passed before the absolute path sanitizer state
+  documentation commit
 
 Known boundary:
 

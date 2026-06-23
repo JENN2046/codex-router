@@ -28,6 +28,11 @@ Completed validation:
   `npx tsx --test tests/canary-evidence.test.ts`, `4 / 4`
 - PR #45 state-sync CI event-scope `npm run typecheck`
 - PR #45 state-sync CI event-scope pre-state-doc `git diff --check`
+- PR #45 state-sync common absolute path sanitizer targeted test:
+  `npx tsx --test tests/state-sync-audit.test.ts`, `18 / 18`
+- PR #45 state-sync common absolute path sanitizer `npm run typecheck`
+- PR #45 state-sync common absolute path sanitizer pre-state-doc
+  `git diff --check`
 
 Boundaries:
 

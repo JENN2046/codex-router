@@ -12,7 +12,7 @@ Branch:
 
 Recorded code head:
 
-- `fd1f49d`
+- `c29e494`
 
 Upstream:
 
@@ -55,6 +55,9 @@ Implemented:
   reasons when old provider execution plans lack binding fields
 - PR #45 state-sync review follow-up prevents branch-specific state-sync audit
   from running on post-merge `push` events to `main`
+- PR #45 state-sync sanitizer follow-up blocks common absolute workspace paths
+  including macOS user-home, devcontainer, Codespaces, Linux mount/home, and
+  Windows user-home forms
 
 Validation already run:
 
@@ -79,6 +82,10 @@ Validation already run:
 - state-sync CI event-scope test passed, `4 / 4`
 - state-sync CI event-scope `npm run typecheck` passed
 - `git diff --check` passed before the event-scope state documentation commit
+- state-sync common absolute path sanitizer test passed, `18 / 18`
+- state-sync common absolute path sanitizer `npm run typecheck` passed
+- `git diff --check` passed before the absolute path sanitizer state
+  documentation commit
 
 Known boundary:
 
