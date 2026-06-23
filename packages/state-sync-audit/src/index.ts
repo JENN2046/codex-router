@@ -393,7 +393,7 @@ function outputIsSanitized(text: string): boolean {
     "raw env"
   ].every((marker) => !text.includes(marker));
 
-  const localAbsolutePathsAbsent = !/(?:\/mnt\/|\/home\/|[A-Za-z]:\\Users\\)/.test(text);
+  const localAbsolutePathsAbsent = !/(?:\/(?:mnt|home|Users|workspace|workspaces)\/|[A-Za-z]:\\Users\\)/.test(text);
 
   return forbiddenMarkersAbsent && localAbsolutePathsAbsent;
 }

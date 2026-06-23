@@ -265,16 +265,25 @@ test("state sync audit output stays summarized", async () => {
 
 test("state sync audit blocks machine absolute paths in state surfaces", async () => {
   const input = await createInputFromWorkspace();
-  const review = reviewStateSyncAudit({
-    ...input,
-    currentStateText: input.currentStateText.replace(
-      "| Workspace | `codex-router` |",
-      "| Workspace | `/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router` |"
-    )
-  });
+  for (const machinePath of [
+    "/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router",
+    "/home/ubuntu/apps/codex-router",
+    "/Users/alice/src/codex-router",
+    "/workspace/codex-router",
+    "/workspaces/codex-router",
+    "C:\\Users\\alice\\codex-router"
+  ]) {
+    const review = reviewStateSyncAudit({
+      ...input,
+      currentStateText: input.currentStateText.replace(
+        "| Workspace | `codex-router` |",
+        `| Workspace | \`${machinePath}\` |`
+      )
+    });
 
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_outputSanitized"));
+    assert.equal(review.status, "blocked", machinePath);
+    assert.ok(review.reasons.includes("state_sync_outputSanitized"), machinePath);
+  }
 });
 
 async function createInputFromWorkspace(
