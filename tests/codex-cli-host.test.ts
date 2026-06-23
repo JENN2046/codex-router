@@ -370,12 +370,14 @@ test("codex cli host derives CLI model and sandbox from routing decisions", asyn
 
   assert.equal(smallEditDecision.execution.selectedModel, "gpt-5.3-codex-spark");
   assert.equal(smallEditPlan.sandbox, "workspace-write");
+  assert.equal(smallEditPlan.approvalPolicy, "on-request");
   assert.equal(smallEditPlan.model, "gpt-5.3-codex-spark");
   assert.equal(smallEditPlan.modelResolution?.mode, "auto");
   assert.equal(smallEditPlan.modelResolution?.source, "router");
   assert.equal(resolveCodexCliSandboxForRoutingDecision(smallEditDecision), "workspace-write");
   assert.equal(getArgValue(smallEditPlan.args, "--model"), smallEditDecision.execution.selectedModel);
   assert.equal(getArgValue(smallEditPlan.args, "--sandbox"), "workspace-write");
+  assert.equal(getArgValue(smallEditPlan.args, "-a"), "on-request");
 });
 
 test("codex cli model strength ranks gpt-5.4-mini above codex spark on capability", () => {
@@ -2173,6 +2175,21 @@ test("codex cli runner converts synchronous spawner failure into a failed execut
   ]);
 });
 
+test("codex cli default process spawner never enables shell fallback", async () => {
+  const source = await readFile(
+    fileURLToPath(new URL("../packages/codex-cli-host/src/index-impl.ts", import.meta.url)),
+    "utf8"
+  );
+  const match = source.match(
+    /function defaultCodexCliProcessSpawner[\s\S]*?\n}\n\nfunction normalizeCodexCliSpawnError/
+  );
+
+  assert.notEqual(match, null);
+  assert.equal(match?.[0].includes("shell: false"), true);
+  assert.equal(match?.[0].includes("shell: true"), false);
+  assert.equal(source.includes("quoteWindowsCommandForShell"), false);
+});
+
 test("codex cli runner redacts sensitive process errors from results and evidence", async () => {
   const result = await runCodexCliReadOnlySmoke({
     spawn: () => {
@@ -2196,6 +2213,70 @@ test("codex cli runner redacts sensitive process errors from results and evidenc
   ));
   assert.equal(serialized.includes("auth.json"), false);
   assert.equal(serialized.includes("sk-test-token"), false);
+});
+
+test("codex cli smoke and operator evidence never writes raw error or telemetry payloads", () => {
+  const rawSecret = "sk-p2rawtoken";
+  const rawError = `spawn EPERM C:/Users/codex/.codex/auth.json OPENAI_API_KEY=${rawSecret}`;
+  const readOnlyTask = parseTaskEnvelope(createCodexCliReadOnlySmokeTask({
+    taskId: "cli-evidence-safe-error-readonly"
+  }));
+  const readOnlyPlan = createCodexCliExecPlan(readOnlyTask, {
+    sandbox: "read-only",
+    approvalPolicy: "never"
+  });
+  const operatorEvidence = createCodexCliOperatorAcceptanceEvidence({
+    status: "failed",
+    task: readOnlyTask,
+    plan: readOnlyPlan,
+    validationBlockers: [],
+    telemetryEvents: [
+      {
+        level: "error",
+        message: `telemetry failed ${rawSecret}`,
+        correlationId: "cli-evidence-safe-error",
+        context: {
+          apiKey: rawSecret,
+          nested: {
+            path: "C:/Users/codex/.codex/auth.json"
+          }
+        }
+      }
+    ],
+    error: rawError
+  });
+  const readOnlyEvidence = createCodexCliReadOnlySmokeEvidence({
+    status: "failed",
+    task: readOnlyTask,
+    plan: readOnlyPlan,
+    validationBlockers: [],
+    error: rawError
+  });
+  const workspaceTask = parseTaskEnvelope(createCodexCliWorkspaceWriteSmokeTask({
+    taskId: "cli-evidence-safe-error-workspace-write"
+  }));
+  const workspacePreflight = createCodexCliWorkspaceWriteSmokePreflight({
+    task: workspaceTask
+  });
+  const workspaceEvidence = createCodexCliWorkspaceWriteSmokeEvidence({
+    status: "failed",
+    preflight: workspacePreflight,
+    task: workspaceTask,
+    plan: workspacePreflight.plan,
+    validationBlockers: [],
+    error: rawError
+  });
+  const serialized = JSON.stringify({
+    operatorEvidence,
+    readOnlyEvidence,
+    workspaceEvidence
+  });
+
+  assert.equal(serialized.includes(rawSecret), false);
+  assert.equal(serialized.includes("auth.json"), false);
+  assert.equal(operatorEvidence.run.error?.includes("<REDACTED_SECRET>"), true);
+  assert.equal(readOnlyEvidence.summary.error?.includes("<REDACTED_SECRET>"), true);
+  assert.equal(workspaceEvidence.summary.error?.includes("<REDACTED_SECRET>"), true);
 });
 
 test("codex cli operator acceptance runs a task through the guarded exec runner and captures telemetry", async () => {
@@ -2411,6 +2492,61 @@ test("codex cli operator acceptance blocks workspace-write plans without explici
     "codex_cli_write_sandbox_requires_explicit_allowance"
   ));
   assert.equal(result.run, undefined);
+});
+
+test("codex cli host runner rejects workspace-write plans with approval never", async () => {
+  const task = parseTaskEnvelope({
+    taskId: "cli-runner-write-never-blocked",
+    source: "cli",
+    intent: {
+      summary: "edit",
+      requestedAction: "edit a file",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router",
+      worktreeClean: true
+    },
+    target: {
+      branches: [],
+      files: ["README.md"],
+      modules: ["codex-cli-host"]
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const plan = createCodexCliExecPlan(task, {
+    sandbox: "workspace-write",
+    approvalPolicy: "never",
+    ephemeral: true
+  });
+  const validationBlockers = validateCodexCliExecPlanForRun(plan, {
+    allowWriteSandbox: true,
+    workspaceWritePreflight: createTestWorkspaceWritePreflight(["README.md"])
+  });
+
+  assert.ok(validationBlockers.includes(
+    "codex_cli_workspace_write_disallows_approval_policy_never"
+  ));
+  assert.ok(validationBlockers.includes(
+    "codex_cli_workspace_write_disallows_approval_arg_never"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(plan, {
+      allowWriteSandbox: true,
+      workspaceWritePreflight: createTestWorkspaceWritePreflight(["README.md"]),
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_workspace_write_disallows_approval_policy_never/
+  );
 });
 
 test("codex cli host runner blocks write sandbox unless explicitly allowed", async () => {
