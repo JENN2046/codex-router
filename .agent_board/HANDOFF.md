@@ -12,7 +12,7 @@ Branch:
 
 Recorded code head:
 
-- `c01871f`
+- `fd1f49d`
 
 Upstream:
 
@@ -42,7 +42,8 @@ Implemented:
 - provider fake mode rejects configured process spawners and uses in-memory
   execution summaries
 - default Codex CLI spawning no longer has a Windows `shell: true` fallback
-- CI runs a real state-sync audit before evidence collection
+- CI runs a real state-sync audit before evidence collection on
+  `pull_request` events only
 - state-sync audit blocks machine absolute paths in current state surfaces
 - state-sync audit accepts explicitly allowed clean detached PR merge checkouts
 - PR #45 review follow-up keeps legacy provider plan-store records without
@@ -52,6 +53,8 @@ Implemented:
   plans omit `policyDecisionHash`
 - controlled runner preflight fails closed with explicit `provider_plan_*_required`
   reasons when old provider execution plans lack binding fields
+- PR #45 state-sync review follow-up prevents branch-specific state-sync audit
+  from running on post-merge `push` events to `main`
 
 Validation already run:
 
@@ -73,6 +76,9 @@ Validation already run:
 - PR #45 review follow-up execution-planner/provider-core/provider-runner tests
   passed, `66 / 66`
 - `git diff --check` passed before the state documentation commit
+- state-sync CI event-scope test passed, `4 / 4`
+- state-sync CI event-scope `npm run typecheck` passed
+- `git diff --check` passed before the event-scope state documentation commit
 
 Known boundary:
 

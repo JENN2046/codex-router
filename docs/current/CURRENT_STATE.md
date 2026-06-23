@@ -12,10 +12,10 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router` |
 | Current branch | `fix/p1-controlled-output-safety` |
-| Current head | `c01871f` |
+| Current head | `fd1f49d` |
 | Upstream | `origin/main` |
-| Upstream divergence | `ahead 12 / behind 0` |
-| Latest validated commit | `c01871f` |
+| Upstream divergence | `ahead 14 / behind 0` |
+| Latest validated commit | `fd1f49d` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -38,7 +38,7 @@ execution line after PR #44 was merged into `main`.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
-Implemented in local commits through `c01871f`:
+Implemented in local commits through `fd1f49d`:
 
 - controlled read-only runner result/report/event outputs now use one safe
   representation for executor plans and provider summaries
@@ -70,7 +70,8 @@ Implemented in local commits through `c01871f`:
 - Codex provider fake mode now uses in-memory execution only and rejects
   configured process spawners
 - the default Codex CLI process spawner no longer falls back to `shell: true`
-- CI now runs a real state-sync audit before evidence collection
+- CI now runs a real state-sync audit before evidence collection on
+  `pull_request` events only, because the audit is branch-state-specific
 - state-sync audit now blocks machine absolute paths in state surfaces
 - state-sync audit accepts explicitly allowed, clean, detached PR merge
   checkouts with unknown upstream divergence
@@ -82,6 +83,9 @@ Implemented in local commits through `c01871f`:
 - controlled runner preflight now fails closed with explicit
   `provider_plan_*_required` reasons if an old provider execution plan lacks
   Task or Principal binding fields
+- PR #45 review follow-up limits the branch-specific state-sync CI job to
+  `pull_request` events so post-merge `push` runs on `main` are not blocked by
+  PR branch/head/divergence state records
 
 ## Validation Baseline
 
@@ -116,6 +120,11 @@ Validation already completed before the local commit split:
 - `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts tests/provider-execution-runner.test.ts`:
   passed after the PR #45 review follow-up, `66 / 66`.
 - `git diff --check`: passed before the PR #45 review follow-up state
+  documentation commit.
+- `npx tsx --test tests/canary-evidence.test.ts`: passed after the
+  state-sync CI event-scope fix, `4 / 4`.
+- `npm run typecheck`: passed after the state-sync CI event-scope fix.
+- `git diff --check`: passed before the state-sync CI event-scope state
   documentation commit.
 
 Validation commands required by the state-sync audit remain:
@@ -167,6 +176,7 @@ Local commits on `fix/p1-controlled-output-safety`:
 - `fix(state-sync): accept detached PR merge checkout`
 - `test(state-sync): omit absent merge parent`
 - `fix(provider): preserve legacy execution audit paths`
+- `ci(state-sync): limit branch audit to pull requests`
 - final state documentation commit
 
 After the final state documentation commit, the intended worktree state is
@@ -176,7 +186,7 @@ without separate explicit authorization.
 
 ## State Sync Expectations
 
-This branch tracks `origin/main`. This state surface records `c01871f`, the
+This branch tracks `origin/main`. This state surface records `fd1f49d`, the
 last code/test commit before the final state documentation commit. Because
 `Stale after commit` is `true`, the state-sync audit accepts the documented
 parent commit after the final state documentation commit changes `HEAD`.

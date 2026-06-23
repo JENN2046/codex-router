@@ -24,6 +24,10 @@ Completed validation:
   `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts tests/provider-execution-runner.test.ts`,
   `66 / 66`
 - PR #45 review follow-up pre-state-doc `git diff --check`
+- PR #45 state-sync CI event-scope targeted test:
+  `npx tsx --test tests/canary-evidence.test.ts`, `4 / 4`
+- PR #45 state-sync CI event-scope `npm run typecheck`
+- PR #45 state-sync CI event-scope pre-state-doc `git diff --check`
 
 Boundaries:
 

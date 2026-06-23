@@ -1,9 +1,9 @@
 # Run State
 
 Status: GPT Pro review P1/P2 hardening, the PR merge-checkout state-sync fix,
-and PR #45 automated review follow-up are implemented in local commits through
-`c01871f`; the final state documentation commit is expected to leave a clean
-worktree before post-commit validation.
+and PR #45 automated review follow-ups are implemented in local commits
+through `fd1f49d`; the final state documentation commit is expected to leave a
+clean worktree before post-commit validation.
 
 Current truth source:
 
@@ -15,7 +15,7 @@ Branch:
 
 Recorded code head:
 
-- `c01871f`
+- `fd1f49d`
 
 Upstream:
 
@@ -38,6 +38,7 @@ Current scope:
 - provider fake mode in-memory execution boundary
 - Windows/default process spawn fail-closed shell policy
 - CI and state-sync coverage for current state surfaces
+- PR-only CI state-sync event scope for branch-specific audit
 - legacy provider execution plan-store record compatibility
 - blocked read-only permit audit path when old/custom executor plans omit
   `policyDecisionHash`
@@ -71,6 +72,9 @@ Validation baseline:
 - PR #45 review follow-up execution-planner/provider-core/provider-runner tests
   passed, `66 / 66`
 - `git diff --check` passed before the state documentation commit
+- state-sync CI event-scope test passed, `4 / 4`
+- state-sync CI event-scope `npm run typecheck` passed
+- `git diff --check` passed before the event-scope state documentation commit
 
 Known replay boundary:
 

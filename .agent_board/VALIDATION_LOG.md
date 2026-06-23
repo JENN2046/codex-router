@@ -6,7 +6,7 @@ Current branch:
 
 Baseline:
 
-- `c01871f`
+- `fd1f49d`
 
 Review hardening validation:
 
@@ -75,6 +75,12 @@ PR #45 automated review follow-up validation:
   passed, `66 / 66`.
 - `git diff --check`: passed before the state documentation commit.
 
+PR #45 state-sync CI event-scope follow-up validation:
+
+- `npx tsx --test tests/canary-evidence.test.ts`: passed, `4 / 4`.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed before the state documentation commit.
+
 Coverage added:
 
 - controlled result no longer returns full executor metadata
@@ -107,3 +113,6 @@ Coverage added:
 - missing `policyDecisionHash` on old/custom read-only executor plans returns
   a blocked permit with `provider_execution_permit_policy_hash_required`
   instead of throwing a Zod parsing error
+- branch-specific state-sync audit runs only on `pull_request` events in CI,
+  preventing post-merge `push` runs on `main` from failing on PR branch/head
+  and divergence records
