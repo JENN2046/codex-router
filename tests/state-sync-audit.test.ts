@@ -89,6 +89,22 @@ test("state sync audit accepts clean synthetic review checkouts when explicitly 
   assert.equal(review.status, "passed");
 });
 
+test("state sync audit accepts shallow detached PR merge checkouts when explicitly allowed", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    gitStatusShort: "",
+    branch: "",
+    head: "8a5c580",
+    parentHead: undefined,
+    allowedStateCommits: [],
+    upstream: "",
+    aheadBehind: "unknown\tunknown"
+  });
+
+  assert.equal(review.status, "passed");
+});
+
 test("state sync audit blocks synthetic review checkouts without explicit state marker", async () => {
   const input = asCleanSyntheticReviewInput(await createInputFromWorkspace());
   const review = reviewStateSyncAudit({

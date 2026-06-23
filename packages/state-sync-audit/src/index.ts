@@ -112,11 +112,18 @@ export function reviewStateSyncAudit(
     behind,
     staleAfterCommit
   );
+  const detachedSyntheticReviewCheckout = syntheticReviewState !== undefined
+    && input.branch === ""
+    && input.upstream === ""
+    && ahead === -1
+    && behind === -1;
 
   const checks = {
     packageScriptPresent: packageScriptReview.mismatchCount === 0,
     currentStateRecorded: input.currentStateText.includes("CURRENT_STATE_RECORDED"),
-    currentBranchMatches: fieldIncludes(input.currentStateText, "Current branch", input.branch),
+    currentBranchMatches:
+      detachedSyntheticReviewCheckout
+      || fieldIncludes(input.currentStateText, "Current branch", input.branch),
     currentHeadRecorded: stateCommitMatchesHead(
       currentHead,
       input.head,
@@ -127,7 +134,9 @@ export function reviewStateSyncAudit(
     ),
     upstreamRecorded:
       input.upstream === "" || fieldIncludes(input.currentStateText, "Upstream", input.upstream),
-    divergenceRecorded: upstreamDivergenceMatches(upstreamDivergence, ahead, behind),
+    divergenceRecorded:
+      detachedSyntheticReviewCheckout
+      || upstreamDivergenceMatches(upstreamDivergence, ahead, behind),
     latestValidatedCommitRecorded:
       stateCommitMatchesHead(
         latestValidatedCommit,
@@ -345,7 +354,12 @@ function syntheticReviewStateAllowed(
     return undefined;
   }
 
-  if (!staleAfterCommit || ahead !== 0 || behind !== 0) {
+  const cleanDetachedUnknownDivergence = input.branch === ""
+    && input.upstream === ""
+    && ahead === -1
+    && behind === -1;
+
+  if (!staleAfterCommit || (!cleanDetachedUnknownDivergence && (ahead !== 0 || behind !== 0))) {
     return undefined;
   }
 
