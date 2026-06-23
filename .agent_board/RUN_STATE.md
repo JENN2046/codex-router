@@ -1,7 +1,7 @@
 # Run State
 
 Status: GPT Pro review P1 and P2 hardening plus the PR merge-checkout
-state-sync fix are implemented in local commits through `1d2077c`; the final
+state-sync fix are implemented in local commits through `66ea923`; the final
 state documentation commit is expected to leave a clean worktree before
 post-commit validation.
 
@@ -15,7 +15,7 @@ Branch:
 
 State baseline:
 
-- `1d2077c`
+- `66ea923`
 
 Upstream:
 
@@ -60,6 +60,8 @@ Validation baseline:
 - replay hardening `npm run validate:pr`: passed; includes typecheck,
   `npm test` with `1146 / 1146`, build, and state-sync
 - state-sync detached PR merge checkout test passed, `18 / 18`
+- exact optional typecheck regression was corrected; `npm run typecheck`
+  passed
 
 Known replay boundary:
 

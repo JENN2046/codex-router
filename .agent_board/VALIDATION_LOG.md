@@ -6,7 +6,7 @@ Current branch:
 
 Baseline:
 
-- `1d2077c`
+- `66ea923`
 
 Review hardening validation:
 
@@ -63,6 +63,8 @@ PR closeout validation before local commits:
   PR merge checkout compatibility fix, `18 / 18`.
 - `npm run governance -- audit state-sync`: passed locally after restoring
   local upstream tracking to `origin/main`.
+- `npm run typecheck`: passed after removing the explicit `undefined`
+  optional property from the detached merge checkout test fixture.
 
 Coverage added:
 

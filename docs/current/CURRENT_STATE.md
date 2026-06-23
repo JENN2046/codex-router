@@ -12,10 +12,10 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router` |
 | Current branch | `fix/p1-controlled-output-safety` |
-| Current head | `1d2077c` |
+| Current head | `66ea923` |
 | Upstream | `origin/main` |
-| Upstream divergence | `ahead 8 / behind 0` |
-| Latest validated commit | `1d2077c` |
+| Upstream divergence | `ahead 10 / behind 0` |
+| Latest validated commit | `66ea923` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -38,7 +38,7 @@ execution line after PR #44 was merged into `main`.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
-Implemented in local commits through `1d2077c`:
+Implemented in local commits through `66ea923`:
 
 - controlled read-only runner result/report/event outputs now use one safe
   representation for executor plans and provider summaries
@@ -150,6 +150,7 @@ Local commits on `fix/p1-controlled-output-safety`:
 - `fix(codex-cli-host): sanitize evidence before persistence`
 - `ci(governance): audit state sync before evidence`
 - `fix(state-sync): accept detached PR merge checkout`
+- `test(state-sync): omit absent merge parent`
 - final state documentation commit
 
 After the final state documentation commit, the intended worktree state is
@@ -158,7 +159,7 @@ authorization.
 
 ## State Sync Expectations
 
-This branch tracks `origin/main`. This state surface records `1d2077c`, the
+This branch tracks `origin/main`. This state surface records `66ea923`, the
 last code/CI commit before the final state documentation commit. Because
 `Stale after commit` is `true`, the state-sync audit accepts the documented
 parent commit after the final state documentation commit changes `HEAD`.

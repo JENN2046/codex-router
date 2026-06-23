@@ -12,7 +12,7 @@ Branch:
 
 Baseline:
 
-- `1d2077c`
+- `66ea923`
 
 Upstream:
 
@@ -59,6 +59,7 @@ Validation already run:
 - final replay `npm run validate:pr` passed with `1146 / 1146` full tests,
   build, and state-sync
 - state-sync detached PR merge checkout test passed, `18 / 18`
+- `npm run typecheck` passed after the exact optional test fix
 
 Known boundary:
 
