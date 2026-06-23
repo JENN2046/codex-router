@@ -6,7 +6,7 @@ Checkpoint branch:
 
 Baseline:
 
-- `66ea923`
+- `c01871f`
 
 Current state source:
 
@@ -14,8 +14,9 @@ Current state source:
 
 Current checkpoint:
 
-- GPT Pro review P1 and P2 hardening plus the PR merge-checkout state-sync fix
-  are implemented in local commits through `66ea923`
+- GPT Pro review P1/P2 hardening, the PR merge-checkout state-sync fix, and
+  PR #45 automated review follow-up are implemented in local commits through
+  `c01871f`
 - final `npm run validate:pr` passed before the local commit split
 - follow-up permit replay hardening is implemented with targeted tests
 
@@ -33,6 +34,9 @@ Completed locally:
 - default process spawn fail-closed shell policy
 - CI state-sync job and state-sync local path checks
 - detached PR merge checkout state-sync compatibility
+- legacy provider execution plan-store records remain loadable and appendable
+- read-only blocked permits return audit reasons when old/custom executor
+  plans omit `policyDecisionHash`
 
 Validation checkpoint:
 
@@ -44,6 +48,10 @@ Validation checkpoint:
 - replay final `npm run validate:pr` passed with `1146 / 1146` full tests
 - state-sync detached PR merge checkout test passed, `18 / 18`
 - `npm run typecheck` passed after the exact optional test fix
+- PR #45 review follow-up targeted tests passed, `41 / 41`
+- PR #45 review follow-up `npm run typecheck` passed
+- PR #45 review follow-up affected tests passed, `66 / 66`
+- `git diff --check` passed before the state documentation commit
 
 Known boundary:
 

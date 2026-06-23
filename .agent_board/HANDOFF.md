@@ -10,9 +10,9 @@ Branch:
 
 - `fix/p1-controlled-output-safety`
 
-Baseline:
+Recorded code head:
 
-- `66ea923`
+- `c01871f`
 
 Upstream:
 
@@ -45,6 +45,13 @@ Implemented:
 - CI runs a real state-sync audit before evidence collection
 - state-sync audit blocks machine absolute paths in current state surfaces
 - state-sync audit accepts explicitly allowed clean detached PR merge checkouts
+- PR #45 review follow-up keeps legacy provider plan-store records without
+  Task/Principal binding hashes loadable and appendable
+- PR #45 review follow-up returns blocked read-only permits with
+  `provider_execution_permit_policy_hash_required` when old/custom executor
+  plans omit `policyDecisionHash`
+- controlled runner preflight fails closed with explicit `provider_plan_*_required`
+  reasons when old provider execution plans lack binding fields
 
 Validation already run:
 
@@ -60,6 +67,12 @@ Validation already run:
   build, and state-sync
 - state-sync detached PR merge checkout test passed, `18 / 18`
 - `npm run typecheck` passed after the exact optional test fix
+- PR #45 review follow-up targeted execution-planner/provider-core tests
+  passed, `41 / 41`
+- PR #45 review follow-up `npm run typecheck` passed
+- PR #45 review follow-up execution-planner/provider-core/provider-runner tests
+  passed, `66 / 66`
+- `git diff --check` passed before the state documentation commit
 
 Known boundary:
 
@@ -71,8 +84,7 @@ Do not do without explicit instruction:
 
 - real Codex CLI execution
 - workspace-write execution
-- push, merge, tag, release, deploy
-- external service write
+- merge, tag, release, deploy, push to `main`
 - secret or credential changes
 
 Next safe action:

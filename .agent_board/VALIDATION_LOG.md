@@ -6,7 +6,7 @@ Current branch:
 
 Baseline:
 
-- `66ea923`
+- `c01871f`
 
 Review hardening validation:
 
@@ -66,6 +66,15 @@ PR closeout validation before local commits:
 - `npm run typecheck`: passed after removing the explicit `undefined`
   optional property from the detached merge checkout test fixture.
 
+PR #45 automated review follow-up validation:
+
+- `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts`:
+  passed, `41 / 41`.
+- `npm run typecheck`: passed.
+- `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts tests/provider-execution-runner.test.ts`:
+  passed, `66 / 66`.
+- `git diff --check`: passed before the state documentation commit.
+
 Coverage added:
 
 - controlled result no longer returns full executor metadata
@@ -93,3 +102,8 @@ Coverage added:
 - CI contains a real state-sync audit job before evidence collection
 - state-sync audit blocks machine absolute paths in state surfaces
 - state-sync audit accepts explicitly allowed clean detached PR merge checkouts
+- legacy provider execution plan-store records without Task/Principal binding
+  fields remain loadable and appendable
+- missing `policyDecisionHash` on old/custom read-only executor plans returns
+  a blocked permit with `provider_execution_permit_policy_hash_required`
+  instead of throwing a Zod parsing error

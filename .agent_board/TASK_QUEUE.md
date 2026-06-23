@@ -16,12 +16,20 @@ Completed validation:
 - permit replay hardening `npm run typecheck`
 - permit replay hardening final `npm run validate:pr`, including typecheck,
   full tests `1146 / 1146`, build, and state-sync
+- PR #45 review follow-up targeted tests:
+  `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts`,
+  `41 / 41`
+- PR #45 review follow-up `npm run typecheck`
+- PR #45 review follow-up affected tests:
+  `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts tests/provider-execution-runner.test.ts`,
+  `66 / 66`
+- PR #45 review follow-up pre-state-doc `git diff --check`
 
 Boundaries:
 
 - no real Codex CLI execution
 - no workspace-write execution
-- no external writes
+- no merge, tag, release, deploy, push to `main`
 - no secret changes
 - default provider permit consumption remains single-process and in-memory;
   persistent replay coverage requires an injected durable consumption store

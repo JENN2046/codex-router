@@ -1,9 +1,9 @@
 # Run State
 
-Status: GPT Pro review P1 and P2 hardening plus the PR merge-checkout
-state-sync fix are implemented in local commits through `66ea923`; the final
-state documentation commit is expected to leave a clean worktree before
-post-commit validation.
+Status: GPT Pro review P1/P2 hardening, the PR merge-checkout state-sync fix,
+and PR #45 automated review follow-up are implemented in local commits through
+`c01871f`; the final state documentation commit is expected to leave a clean
+worktree before post-commit validation.
 
 Current truth source:
 
@@ -13,9 +13,9 @@ Branch:
 
 - `fix/p1-controlled-output-safety`
 
-State baseline:
+Recorded code head:
 
-- `66ea923`
+- `c01871f`
 
 Upstream:
 
@@ -38,9 +38,12 @@ Current scope:
 - provider fake mode in-memory execution boundary
 - Windows/default process spawn fail-closed shell policy
 - CI and state-sync coverage for current state surfaces
+- legacy provider execution plan-store record compatibility
+- blocked read-only permit audit path when old/custom executor plans omit
+  `policyDecisionHash`
 - no real Codex CLI execution
 - no workspace-write execution
-- no push, release, tag, deployment, external write, or secret change
+- no merge, release, tag, deployment, push to `main`, or secret change
 
 Validation baseline:
 
@@ -62,6 +65,12 @@ Validation baseline:
 - state-sync detached PR merge checkout test passed, `18 / 18`
 - exact optional typecheck regression was corrected; `npm run typecheck`
   passed
+- PR #45 review follow-up targeted execution-planner/provider-core tests
+  passed, `41 / 41`
+- PR #45 review follow-up `npm run typecheck` passed
+- PR #45 review follow-up execution-planner/provider-core/provider-runner tests
+  passed, `66 / 66`
+- `git diff --check` passed before the state documentation commit
 
 Known replay boundary:
 

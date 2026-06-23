@@ -12,10 +12,10 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router` |
 | Current branch | `fix/p1-controlled-output-safety` |
-| Current head | `66ea923` |
+| Current head | `c01871f` |
 | Upstream | `origin/main` |
-| Upstream divergence | `ahead 10 / behind 0` |
-| Latest validated commit | `66ea923` |
+| Upstream divergence | `ahead 12 / behind 0` |
+| Latest validated commit | `c01871f` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -38,7 +38,7 @@ execution line after PR #44 was merged into `main`.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
-Implemented in local commits through `66ea923`:
+Implemented in local commits through `c01871f`:
 
 - controlled read-only runner result/report/event outputs now use one safe
   representation for executor plans and provider summaries
@@ -74,6 +74,14 @@ Implemented in local commits through `66ea923`:
 - state-sync audit now blocks machine absolute paths in state surfaces
 - state-sync audit accepts explicitly allowed, clean, detached PR merge
   checkouts with unknown upstream divergence
+- PR #45 review follow-up keeps legacy file plan-store records without the new
+  Task/Principal binding fields loadable and appendable
+- PR #45 review follow-up returns blocked read-only provider permits with
+  `provider_execution_permit_policy_hash_required` when an old/custom executor
+  plan omits `policyDecisionHash`, instead of throwing during permit parsing
+- controlled runner preflight now fails closed with explicit
+  `provider_plan_*_required` reasons if an old provider execution plan lacks
+  Task or Principal binding fields
 
 ## Validation Baseline
 
@@ -102,6 +110,13 @@ Validation already completed before the local commit split:
 - `npm run validate:pr`: passed after the PR closeout review; this includes
   `npm run typecheck`, `npm test` with `1146 / 1146`,
   `npm run build`, and `npm run governance -- audit state-sync`.
+- `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts`:
+  passed after the PR #45 review follow-up, `41 / 41`.
+- `npm run typecheck`: passed after the PR #45 review follow-up.
+- `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts tests/provider-execution-runner.test.ts`:
+  passed after the PR #45 review follow-up, `66 / 66`.
+- `git diff --check`: passed before the PR #45 review follow-up state
+  documentation commit.
 
 Validation commands required by the state-sync audit remain:
 
@@ -151,16 +166,18 @@ Local commits on `fix/p1-controlled-output-safety`:
 - `ci(governance): audit state sync before evidence`
 - `fix(state-sync): accept detached PR merge checkout`
 - `test(state-sync): omit absent merge parent`
+- `fix(provider): preserve legacy execution audit paths`
 - final state documentation commit
 
 After the final state documentation commit, the intended worktree state is
-clean. Push and PR writes remain prohibited without explicit external-write
-authorization.
+clean. PR #45 update is authorized by the current PR-fix task; merge, tag,
+release, deployment, secret changes, and push to `main` remain prohibited
+without separate explicit authorization.
 
 ## State Sync Expectations
 
-This branch tracks `origin/main`. This state surface records `66ea923`, the
-last code/CI commit before the final state documentation commit. Because
+This branch tracks `origin/main`. This state surface records `c01871f`, the
+last code/test commit before the final state documentation commit. Because
 `Stale after commit` is `true`, the state-sync audit accepts the documented
 parent commit after the final state documentation commit changes `HEAD`.
 
@@ -169,5 +186,5 @@ parent commit after the final state documentation commit changes `HEAD`.
 After the final state documentation commit, rerun `git status --short`,
 `npm run governance -- audit state-sync`, `npm run validate:pr`, and
 `git diff --check`. Do not run real Codex CLI, workspace-write execution, tag,
-release, deploy, modify secrets, push, open a PR, or write external services
-without a separate explicit instruction.
+release, deploy, modify secrets, push to `main`, or merge without a separate
+explicit instruction.
