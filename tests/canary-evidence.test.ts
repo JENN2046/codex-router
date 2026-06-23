@@ -129,6 +129,7 @@ test("CI runs real state-sync audit before evidence collection", async () => {
   ) as {
     jobs: {
       "state-sync": {
+        if: string;
         needs: string;
         steps: WorkflowStep[];
       };
@@ -144,6 +145,7 @@ test("CI runs real state-sync audit before evidence collection", async () => {
   );
 
   assert.equal(stateSyncJob.needs, "test");
+  assert.equal(stateSyncJob.if, "github.event_name == 'pull_request'");
   assert.ok(auditStep);
   assert.ok(workflow.jobs.evidence.needs.includes("state-sync"));
 });
