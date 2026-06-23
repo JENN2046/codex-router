@@ -8,6 +8,7 @@ import { hashApprovalScope } from "../packages/approval-permit/src/index.js";
 import { InMemoryArtifactStore } from "../packages/artifact-store/src/index.js";
 import { type CodexCliProcessSpawner } from "../packages/codex-cli-host/src/index.js";
 import {
+  hashProviderExecutionPlannerObject,
   planProviderExecution,
   type ProviderExecutionPlan
 } from "../packages/execution-planner/src/index.js";
@@ -293,6 +294,7 @@ function createControlledReadonlyFixture(input: {
     executionEnabled: true,
     executionMode: "real",
     realExecutionAllowed: true,
+    nowMs: () => Date.parse(input.generatedAt),
     timeoutMs: 1_000,
     spawn: input.spawn
   });
@@ -341,6 +343,13 @@ function createControlledReadonlyFixture(input: {
     policyDecision,
     sandboxProfile: providerExecutionPlan.sandboxProfile,
     inputHash: providerExecutionPlan.inputHash,
+    taskHash: providerExecutionPlan.taskHash,
+    principalId: providerExecutionPlan.principalId,
+    principalHash: providerExecutionPlan.principalHash,
+    providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+    ...(providerExecutionPlan.providerManifestHash !== undefined
+      ? { providerManifestHash: providerExecutionPlan.providerManifestHash }
+      : {}),
     now: input.generatedAt
   });
   const permit = sandboxMode === "read-only"

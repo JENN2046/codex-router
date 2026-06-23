@@ -45,6 +45,10 @@ import {
 import type {
   ProviderRegistry
 } from "../../provider-registry/src/index.js";
+import {
+  createSafeAuditDetails,
+  redactText
+} from "../../redaction/src/index.js";
 
 export const ProviderExecutionRunnerStatusSchema = z.enum([
   "dry_run_succeeded",
@@ -136,7 +140,7 @@ export type ControlledReadOnlyProviderExecutionRunnerResult = {
   createdAt: string;
   completedAt: string;
   providerAttestation?: ProviderAttestation;
-  executorPlan?: ExecutorExecutionPlan;
+  executorPlan?: Record<string, unknown>;
   validation?: ExecutionValidationResult;
   providerResultSummary?: Record<string, unknown>;
   failureClass?: string;
@@ -166,6 +170,7 @@ export async function runProviderExecutionPlanDryRun(
     providerExecutionPlan,
     task,
     run,
+    principal,
     policyDecision,
     providerRegistry: input.providerRegistry
   });
@@ -220,6 +225,13 @@ export async function runProviderExecutionPlanDryRun(
       policyDecision,
       sandboxProfile: providerExecutionPlan.sandboxProfile,
       inputHash: providerExecutionPlan.inputHash,
+      taskHash: providerExecutionPlan.taskHash,
+      principalId: providerExecutionPlan.principalId,
+      principalHash: providerExecutionPlan.principalHash,
+      providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+      ...(providerExecutionPlan.providerManifestHash !== undefined
+        ? { providerManifestHash: providerExecutionPlan.providerManifestHash }
+        : {}),
       ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
       now: input.now()
     }));
@@ -323,6 +335,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
     providerExecutionPlan,
     task,
     run,
+    principal,
     policyDecision,
     providerRegistry: input.providerRegistry,
     ...(input.permit !== undefined ? { permit: input.permit } : {}),
@@ -385,6 +398,13 @@ export async function runProviderExecutionPlanControlledReadOnly(
           policyDecision,
           sandboxProfile: providerExecutionPlan.sandboxProfile,
           inputHash: providerExecutionPlan.inputHash,
+          taskHash: providerExecutionPlan.taskHash,
+          principalId: providerExecutionPlan.principalId,
+          principalHash: providerExecutionPlan.principalHash,
+          providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+          ...(providerExecutionPlan.providerManifestHash !== undefined
+            ? { providerManifestHash: providerExecutionPlan.providerManifestHash }
+            : {}),
           ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
           now: input.now()
         }))
@@ -467,7 +487,8 @@ export async function runProviderExecutionPlanControlledReadOnly(
         executorPlan,
         providerEntry.manifest,
         {
-          reasonPrefix: "controlled_readonly_provider_execution_permit"
+          reasonPrefix: "controlled_readonly_provider_execution_permit",
+          now: input.now()
         }
       );
   if (permitReasons.length > 0) {
@@ -554,6 +575,7 @@ function collectRunnerPreflightReasons(input: {
   providerExecutionPlan: ProviderExecutionPlan;
   task: Task;
   run: Run;
+  principal: Principal;
   policyDecision: PolicyDecision;
   providerRegistry: ProviderRegistry;
 }): string[] {
@@ -581,6 +603,22 @@ function collectRunnerPreflightReasons(input: {
 
   if (input.run.taskId !== input.task.taskId) {
     reasons.push(`task_run_mismatch:${input.task.taskId}:${input.run.taskId}`);
+  }
+
+  const expectedTaskHash = hashProviderExecutionPlannerObject(input.task);
+  if (input.providerExecutionPlan.taskHash !== expectedTaskHash) {
+    reasons.push("provider_plan_task_hash_mismatch");
+  }
+
+  if (input.providerExecutionPlan.principalId !== input.principal.principalId) {
+    reasons.push(
+      `provider_plan_principal_mismatch:${input.providerExecutionPlan.principalId}:${input.principal.principalId}`
+    );
+  }
+
+  const expectedPrincipalHash = hashProviderExecutionPlannerObject(input.principal);
+  if (input.providerExecutionPlan.principalHash !== expectedPrincipalHash) {
+    reasons.push("provider_plan_principal_hash_mismatch");
   }
 
   if (input.run.status !== "running") {
@@ -634,6 +672,7 @@ function collectControlledReadOnlyPreflightReasons(input: {
   providerExecutionPlan: ProviderExecutionPlan;
   task: Task;
   run: Run;
+  principal: Principal;
   policyDecision: PolicyDecision;
   providerRegistry: ProviderRegistry;
   permit?: ProviderExecutionPermit;
@@ -644,6 +683,7 @@ function collectControlledReadOnlyPreflightReasons(input: {
     providerExecutionPlan: input.providerExecutionPlan,
     task: input.task,
     run: input.run,
+    principal: input.principal,
     policyDecision: input.policyDecision,
     providerRegistry: input.providerRegistry
   });
@@ -772,14 +812,38 @@ function collectExecutorPlanInvariantReasons(input: {
     reasons.push(`executor_plan_task_mismatch:${executorPlan.taskId}:${providerExecutionPlan.taskId}`);
   }
 
+  if (executorPlan.taskHash !== providerExecutionPlan.taskHash) {
+    reasons.push("executor_plan_task_hash_mismatch");
+  }
+
   if (executorPlan.runId !== providerExecutionPlan.runId) {
     reasons.push(`executor_plan_run_mismatch:${executorPlan.runId}:${providerExecutionPlan.runId}`);
+  }
+
+  if (executorPlan.principalId !== providerExecutionPlan.principalId) {
+    reasons.push("executor_plan_principal_mismatch");
+  }
+
+  if (executorPlan.principalHash !== providerExecutionPlan.principalHash) {
+    reasons.push("executor_plan_principal_hash_mismatch");
   }
 
   if (executorPlan.providerId !== providerExecutionPlan.providerId) {
     reasons.push(
       `executor_plan_provider_mismatch:${executorPlan.providerId}:${providerExecutionPlan.providerId}`
     );
+  }
+
+  const expectedProviderExecutionPlanHash = hashProviderExecutionPlannerObject(providerExecutionPlan);
+  if (executorPlan.providerExecutionPlanHash !== expectedProviderExecutionPlanHash) {
+    reasons.push("executor_plan_provider_execution_plan_hash_mismatch");
+  }
+
+  if (
+    providerExecutionPlan.providerManifestHash !== undefined
+    && executorPlan.providerManifestHash !== providerExecutionPlan.providerManifestHash
+  ) {
+    reasons.push("executor_plan_provider_manifest_hash_mismatch");
   }
 
   if (executorPlan.policyDecisionHash !== providerExecutionPlan.policyDecisionHash) {
@@ -917,6 +981,12 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
   const validation = input.validation === undefined
     ? undefined
     : sanitizeExecutionValidationResult(input.validation);
+  const executorPlanSummary = input.executorPlan === undefined
+    ? undefined
+    : summarizeExecutorPlan(input.executorPlan);
+  const providerResultSummary = input.providerResultSummary === undefined
+    ? undefined
+    : sanitizeSafeRecord(input.providerResultSummary);
   const executionEvidence = createControlledReadOnlyExecutionEvidence({
     input: input.input,
     providerExecutionPlan: input.providerExecutionPlan,
@@ -924,8 +994,8 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     status: input.status,
     reasons,
     ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
-    ...(input.providerResultSummary !== undefined
-      ? { providerResultSummary: input.providerResultSummary }
+    ...(providerResultSummary !== undefined
+      ? { providerResultSummary }
       : {}),
     ...(failureClass !== undefined ? { failureClass } : {})
   });
@@ -940,10 +1010,10 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     completedAt,
     executionEvidence,
     ...(input.providerAttestation !== undefined ? { providerAttestation: input.providerAttestation } : {}),
-    ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
+    ...(executorPlanSummary !== undefined ? { executorPlan: executorPlanSummary } : {}),
     ...(validation !== undefined ? { validation } : {}),
-    ...(input.providerResultSummary !== undefined
-      ? { providerResultSummary: input.providerResultSummary }
+    ...(providerResultSummary !== undefined
+      ? { providerResultSummary }
       : {}),
     ...(failureClass !== undefined ? { failureClass } : {})
   });
@@ -975,11 +1045,11 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
         ? { providerAttestation: summarizeProviderAttestation(input.providerAttestation) }
         : {}),
       ...(validation !== undefined ? { validation } : {}),
-      ...(input.executorPlan !== undefined
-        ? { executorPlan: summarizeExecutorPlan(input.executorPlan) }
+      ...(executorPlanSummary !== undefined
+        ? { executorPlan: executorPlanSummary }
         : {}),
-      ...(input.providerResultSummary !== undefined
-        ? { providerResultSummary: input.providerResultSummary }
+      ...(providerResultSummary !== undefined
+        ? { providerResultSummary }
         : {}),
       ...(failureClass !== undefined ? { failureClass } : {})
     }
@@ -1007,10 +1077,10 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     ...(input.providerAttestation !== undefined
       ? { providerAttestation: input.providerAttestation }
       : {}),
-    ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
+    ...(executorPlanSummary !== undefined ? { executorPlan: executorPlanSummary } : {}),
     ...(validation !== undefined ? { validation } : {}),
-    ...(input.providerResultSummary !== undefined
-      ? { providerResultSummary: input.providerResultSummary }
+    ...(providerResultSummary !== undefined
+      ? { providerResultSummary }
       : {}),
     ...(failureClass !== undefined ? { failureClass } : {})
   };
@@ -1085,7 +1155,7 @@ async function writeControlledReadOnlyRunnerReportArtifact(input: {
   completedAt: string;
   executionEvidence: Record<string, unknown>;
   providerAttestation?: ProviderAttestation;
-  executorPlan?: ExecutorExecutionPlan;
+  executorPlan?: Record<string, unknown>;
   validation?: ExecutionValidationResult;
   providerResultSummary?: Record<string, unknown>;
   failureClass?: string;
@@ -1113,9 +1183,7 @@ async function writeControlledReadOnlyRunnerReportArtifact(input: {
       ...(input.providerAttestation !== undefined
         ? { providerAttestation: summarizeProviderAttestation(input.providerAttestation) }
         : {}),
-      ...(input.executorPlan !== undefined
-        ? { executorPlan: summarizeExecutorPlan(input.executorPlan) }
-        : {}),
+      ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
       ...(input.validation !== undefined ? { validation: input.validation } : {}),
       ...(input.providerResultSummary !== undefined
         ? { providerResultSummary: input.providerResultSummary }
@@ -1214,7 +1282,10 @@ function summarizeProviderExecutionPlan(plan: ProviderExecutionPlan): Record<str
     schemaVersion: plan.schemaVersion,
     planId: plan.planId,
     taskId: plan.taskId,
+    taskHash: plan.taskHash,
     runId: plan.runId,
+    principalId: plan.principalId,
+    principalHash: plan.principalHash,
     providerId: plan.providerId,
     providerKind: plan.providerKind,
     providerManifestHash: plan.providerManifestHash ?? null,
@@ -1236,7 +1307,12 @@ function summarizeExecutorPlan(plan: ExecutorExecutionPlan): Record<string, unkn
     kind: plan.kind,
     planId: plan.planId,
     taskId: plan.taskId,
+    taskHash: plan.taskHash ?? null,
     runId: plan.runId,
+    principalId: plan.principalId ?? null,
+    principalHash: plan.principalHash ?? null,
+    providerExecutionPlanHash: plan.providerExecutionPlanHash ?? null,
+    providerManifestHash: plan.providerManifestHash ?? null,
     providerId: plan.providerId,
     inputHash: plan.inputHash,
     policyDecisionHash: plan.policyDecisionHash,
@@ -1274,25 +1350,32 @@ function summarizeProviderExecutionResult(
     ...(result.error !== undefined ? { error: sanitizeProviderResultError(result.error) } : {}),
     ...(result.artifacts !== undefined
       ? {
-          artifacts: result.artifacts.map((artifact) => ({
-            artifactId: artifact.artifactId,
-            kind: artifact.kind,
-            uri: artifact.uri,
-            sha256: artifact.sha256,
-            sizeBytes: artifact.sizeBytes,
-            createdAt: artifact.createdAt,
-            summaryKind: isRecord(artifact.metadata)
-              && typeof artifact.metadata.summaryKind === "string"
-              ? artifact.metadata.summaryKind
-              : undefined,
-            summary: isRecord(artifact.metadata)
-              && isRecord(artifact.metadata.summary)
-              ? sanitizeJsonValue(artifact.metadata.summary)
-              : undefined
-          }))
+          artifacts: result.artifacts.map((artifact, index) => summarizeProviderArtifact(artifact, index))
         }
       : {})
   };
+}
+
+function summarizeProviderArtifact(
+  artifact: Artifact,
+  index: number
+): Record<string, unknown> {
+  return sanitizeSafeRecord({
+    artifactIndex: index,
+    artifactRef: shortHash({
+      artifactId: artifact.artifactId,
+      uri: artifact.uri,
+      kind: artifact.kind,
+      sha256: artifact.sha256
+    }),
+    kind: artifact.kind,
+    sha256: artifact.sha256,
+    sizeBytes: artifact.sizeBytes,
+    createdAt: artifact.createdAt,
+    summary: isRecord(artifact.metadata) && isRecord(artifact.metadata.summary)
+      ? sanitizeJsonValue(artifact.metadata.summary)
+      : undefined
+  });
 }
 
 function createControlledReadOnlyExecutionEvidence(input: {
@@ -1563,7 +1646,7 @@ function extractProviderResultReasons(result: ProviderExecutionResult): string[]
 function sanitizeProviderResultError(
   error: Record<string, unknown>
 ): Record<string, unknown> {
-  return sanitizeJsonValue({
+  return sanitizeSafeRecord({
     code: sanitizeProviderFailureClass(
       typeof error.code === "string" ? error.code : undefined
     ),
@@ -1572,7 +1655,7 @@ function sanitizeProviderResultError(
           error.reasons.filter((reason): reason is string => typeof reason === "string")
         )
       : []
-  }) as Record<string, unknown>;
+  });
 }
 
 function sanitizeExecutionValidationResult(
@@ -1593,7 +1676,7 @@ function sanitizeProviderFailureClass(
 }
 
 function sanitizeProviderFailureReason(reason: string): string {
-  const candidate = reason.trim();
+  const candidate = sanitizeSafeText(reason.trim(), "provider_execution_reason_unknown", 256);
   if (candidate.length === 0) {
     return "provider_execution_reason_unknown";
   }
@@ -1613,9 +1696,10 @@ function sanitizeJsonValue(value: unknown): unknown {
   }
 
   if (typeof value === "string") {
-    return containsForbiddenExecutionMaterial(value)
+    const sanitized = sanitizeSafeText(value, "<redacted>", 512);
+    return containsForbiddenExecutionMaterial(sanitized)
       ? "<redacted>"
-      : value;
+      : sanitized;
   }
 
   if (typeof value === "number" || typeof value === "boolean") {
@@ -1623,7 +1707,7 @@ function sanitizeJsonValue(value: unknown): unknown {
   }
 
   if (Array.isArray(value)) {
-    return value.map(sanitizeJsonValue);
+    return value.slice(0, 20).map(sanitizeJsonValue);
   }
 
   if (!isRecord(value)) {
@@ -1631,12 +1715,17 @@ function sanitizeJsonValue(value: unknown): unknown {
   }
 
   const sanitized: Record<string, unknown> = {};
+  let omittedUnsafeFields = 0;
   for (const [key, nestedValue] of Object.entries(value)) {
     if (isForbiddenExecutionMaterialKey(key)) {
-      sanitized[key] = "<redacted>";
+      omittedUnsafeFields += 1;
       continue;
     }
     sanitized[key] = sanitizeJsonValue(nestedValue);
+  }
+
+  if (omittedUnsafeFields > 0) {
+    sanitized.omittedUnsafeFields = omittedUnsafeFields;
   }
 
   return sanitized;
@@ -1644,25 +1733,24 @@ function sanitizeJsonValue(value: unknown): unknown {
 
 function containsForbiddenExecutionMaterial(value: unknown): boolean {
   const serialized = typeof value === "string" ? value : JSON.stringify(value);
+  if (typeof serialized !== "string") {
+    return false;
+  }
+
   return [
-    "requestedAction",
-    "raw command",
-    "raw task envelope",
-    "raw env",
-    "raw token",
-    "raw patch",
-    "OPENAI_API_KEY",
-    "sk-",
-    "Bearer",
-    "\"prompt\"",
-    "\"args\"",
-    "\"stdout\"",
-    "\"stderr\""
-  ].some((marker) => serialized.includes(marker));
+    /\brequestedaction\b/i,
+    /\braw\s+(?:command|task envelope|env|token|patch|prompt|stdout|stderr|output)\b/i,
+    /openai_api_key/i,
+    /\bsk-(?:proj-)?[a-z0-9_-]{4,}\b/i,
+    /\bbearer\s+[a-z0-9._~+/=-]+/i,
+    /["'](?:prompt|args|argv|stdout|stderr|environment|env|processenv|token|secret|patch|authorization|apikey|api_key|access[-_]?token|client[-_]?secret|output|command|workdir|cwd)["']\s*:/i,
+    /\b(?:prompt|stdout|stderr|processenv|authorization|apikey|api_key|access[-_]?token|client[-_]?secret)\b/i
+  ].some((pattern) => pattern.test(serialized));
 }
 
 function isForbiddenExecutionMaterialKey(key: string): boolean {
-  return [
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return new Set([
     "prompt",
     "args",
     "argv",
@@ -1670,10 +1758,84 @@ function isForbiddenExecutionMaterialKey(key: string): boolean {
     "stderr",
     "environment",
     "env",
+    "processenv",
+    "processenvironment",
     "token",
     "secret",
-    "patch"
-  ].includes(key);
+    "patch",
+    "authorization",
+    "apikey",
+    "accesskey",
+    "accesstoken",
+    "clientsecret",
+    "output",
+    "rawoutput",
+    "rawstdout",
+    "rawstderr",
+    "rawprompt",
+    "rawenv",
+    "rawtoken",
+    "command",
+    "workdir",
+    "cwd",
+    "requestedaction"
+  ]).has(normalized);
+}
+
+function sanitizeSafeRecord(value: Record<string, unknown>): Record<string, unknown> {
+  const sanitized = sanitizeJsonValue(value);
+  const record = isRecord(sanitized) ? sanitized : {};
+  return createSafeAuditDetails(record, {
+    additionalSecretKeys: [
+      "prompt",
+      "args",
+      "argv",
+      "stdout",
+      "stderr",
+      "environment",
+      "env",
+      "processEnv",
+      "authorization",
+      "apiKey",
+      "accessToken",
+      "clientSecret",
+      "output",
+      "command",
+      "workdir",
+      "cwd"
+    ],
+    maxFieldChars: 512,
+    maxRecordChars: 8192
+  });
+}
+
+function sanitizeSafeText(
+  value: string,
+  fallback: string,
+  maxFieldChars: number
+): string {
+  const redacted = redactText(value, {
+    additionalSecretKeys: [
+      "prompt",
+      "args",
+      "argv",
+      "stdout",
+      "stderr",
+      "environment",
+      "env",
+      "processEnv",
+      "authorization",
+      "apiKey",
+      "accessToken",
+      "clientSecret",
+      "output",
+      "command",
+      "workdir",
+      "cwd"
+    ],
+    maxFieldChars
+  }).trim();
+  return redacted || fallback;
 }
 
 function resolvePolicySideEffectClass(policyDecision: PolicyDecision): ProviderSideEffectClass {

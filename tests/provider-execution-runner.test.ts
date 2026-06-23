@@ -7,18 +7,22 @@ import {
   type CodexCliProcessSpawner
 } from "../packages/codex-cli-host/src/index.js";
 import {
+  hashProviderExecutionPlannerObject,
   planProviderExecution,
   ProviderExecutionPlanSchema,
   type PlanProviderExecutionInput
 } from "../packages/execution-planner/src/index.js";
 import { InMemoryKernelStore } from "../packages/kernel-store/src/index.js";
 import {
+  ArtifactSchema,
   CapabilityScopeSchema,
+  PrincipalSchema,
   PolicyDecisionSchema,
   RunSchema,
   SandboxProfileSchema,
   TaskSchema,
   type CapabilityScope,
+  type Principal,
   type PolicyDecision,
   type Run,
   type SandboxProfile,
@@ -574,6 +578,9 @@ test("provider execution runner executes controlled read-only codex-cli plans wi
   assert.equal(spawnCalls, 1);
   assert.equal(result.validation?.valid, true);
   assert.equal(result.providerResultSummary?.ok, true);
+  assert.ok(result.executorPlan);
+  assert.equal(result.executorPlan.providerId, fixture.provider.manifest.providerId);
+  assert.equal("metadata" in result.executorPlan, false);
   assert.equal(providerArtifacts[0]?.summary?.status, "completed");
   assert.equal(providerArtifacts[0]?.summary?.approvalPolicy, "never");
   assert.equal(providerArtifacts[0]?.summary?.sandbox, "read-only");
@@ -656,6 +663,135 @@ test("provider execution runner blocks controlled read-only execution without a 
   assert.equal(result.executeInvoked, false);
   assert.equal(spawnCalls, 0);
   assert.ok(result.reasons.includes("controlled_readonly_provider_execution_permit_required"));
+});
+
+test("provider execution runner rejects controlled read-only executor plan metadata tampering", async () => {
+  let spawnCalls = 0;
+  const fixture = createControlledReadOnlyCodexFixture(() => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    });
+  });
+  const codexMetadata = fixture.executorPlan.metadata.codexCliProvider as Record<string, unknown>;
+  const codexCliPlan = codexMetadata.codexCliPlan as Record<string, unknown>;
+  const tamperedExecutorPlan = parseExecutorExecutionPlan({
+    ...fixture.executorPlan,
+    metadata: {
+      ...fixture.executorPlan.metadata,
+      codexCliProvider: {
+        ...codexMetadata,
+        codexCliPlan: {
+          ...codexCliPlan,
+          command: "evil-codex"
+        }
+      }
+    }
+  });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: fixture.registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: tamperedExecutorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(fixture.provider.manifest)
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "validation_failed");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(spawnCalls, 0);
+  assert.ok(result.reasons.includes("provider_execution_permit_invalid"));
+  assert.ok(result.reasons.includes(
+    "controlled_readonly_provider_execution_permit_plan_hash_mismatch"
+  ));
+});
+
+test("provider execution runner rejects controlled read-only task content replacement", async () => {
+  let spawnCalls = 0;
+  const fixture = createControlledReadOnlyCodexFixture(() => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    });
+  });
+  const replacedTask = TaskSchema.parse({
+    ...fixture.task,
+    requestedAction: "read a different file with the same task id"
+  });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: replacedTask,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: fixture.registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(fixture.provider.manifest)
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(spawnCalls, 0);
+  assert.ok(result.reasons.includes("provider_plan_task_hash_mismatch"));
+});
+
+test("provider execution runner rejects controlled read-only principal replacement", async () => {
+  let spawnCalls = 0;
+  const fixture = createControlledReadOnlyCodexFixture(() => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    });
+  });
+  const otherPrincipal: Principal = PrincipalSchema.parse({
+    ...validPrincipal,
+    principalId: "principal_other_controlled_readonly"
+  });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: otherPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: fixture.registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(fixture.provider.manifest)
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(spawnCalls, 0);
+  assert.ok(result.reasons.some((reason) => reason.startsWith("provider_plan_principal_mismatch:")));
+  assert.ok(result.reasons.includes("provider_plan_principal_hash_mismatch"));
 });
 
 test("provider execution runner blocks controlled read-only execution for non-codex providers", async () => {
@@ -895,6 +1031,127 @@ test("provider execution runner sanitizes controlled read-only provider failure 
   assert.equal(serialized.includes("OPENAI_API_KEY"), false);
   assert.equal(serialized.includes("sk-redacted-marker"), false);
   assert.equal(serialized.includes("\"stdout\" contained execution output"), false);
+});
+
+test("provider execution runner serializes controlled read-only outputs with one safe schema", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const executorPlan = parseExecutorExecutionPlan({
+    ...fixture.executorPlan,
+    metadata: {
+      ...fixture.executorPlan.metadata,
+      injectedPrompt: "Prompt EXECUTOR_PROMPT_SENTINEL",
+      injectedStdout: "STDOUT EXECUTOR_STDOUT_SENTINEL",
+      accessToken: "EXECUTOR_ACCESS_TOKEN_SENTINEL"
+    }
+  });
+  const permit = createApprovedProviderExecutionPermit({
+    plan: executorPlan,
+    manifest: fixture.provider.manifest,
+    permitId: `permit-${executorPlan.planId}-safe-schema`,
+    issuedAt: now
+  });
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      return {
+        ok: true,
+        artifacts: [
+          ArtifactSchema.parse({
+            schemaVersion: "artifact.v1",
+            artifactId: "artifact_PROMPT_CHANNEL_SENTINEL",
+            taskId: fixture.task.taskId,
+            runId: fixture.run.runId,
+            kind: "evidence",
+            uri: "artifact://URI_CHANNEL_SENTINEL/payload",
+            sha256: "2".repeat(64),
+            sizeBytes: 42,
+            createdAt: now,
+            metadata: {
+              summaryKind: "STDOUT_CHANNEL_SENTINEL",
+              summary: {
+                status: "completed",
+                approvalPolicy: "never",
+                sandbox: "read-only",
+                Prompt: "PROMPT_VALUE_SENTINEL",
+                STDOUT: "STDOUT_VALUE_SENTINEL",
+                processEnv: {
+                  OPENAI_API_KEY: "PROCESS_ENV_VALUE_SENTINEL"
+                },
+                apiKey: "API_KEY_VALUE_SENTINEL",
+                accessToken: "ACCESS_TOKEN_VALUE_SENTINEL",
+                clientSecret: "CLIENT_SECRET_VALUE_SENTINEL",
+                output: "OUTPUT_VALUE_SENTINEL",
+                safeNote: "safe_summary_value"
+              }
+            }
+          })
+        ]
+      };
+    }
+  };
+  const kernelStore = new InMemoryKernelStore();
+  const artifactStore = new CapturingArtifactStore({ now: createClock() });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore,
+    artifactStore,
+    executorPlan,
+    permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+  const providerArtifacts = result.providerResultSummary?.artifacts as Array<Record<string, unknown>>;
+  const serialized = JSON.stringify({
+    result,
+    events: kernelStore.listEvents({ runId: fixture.run.runId }),
+    artifactWrites: artifactStore.putInputs
+  });
+
+  assert.equal(result.status, "controlled_readonly_succeeded", result.reasons.join(","));
+  assert.ok(result.executorPlan);
+  assert.equal("metadata" in result.executorPlan, false);
+  assert.equal(providerArtifacts[0]?.artifactId, undefined);
+  assert.equal(providerArtifacts[0]?.uri, undefined);
+  assert.equal(providerArtifacts[0]?.summaryKind, undefined);
+  assert.equal(serialized.includes("safe_summary_value"), true);
+  for (const sentinel of [
+    "EXECUTOR_PROMPT_SENTINEL",
+    "EXECUTOR_STDOUT_SENTINEL",
+    "EXECUTOR_ACCESS_TOKEN_SENTINEL",
+    "PROMPT_CHANNEL_SENTINEL",
+    "URI_CHANNEL_SENTINEL",
+    "STDOUT_CHANNEL_SENTINEL",
+    "PROMPT_VALUE_SENTINEL",
+    "STDOUT_VALUE_SENTINEL",
+    "PROCESS_ENV_VALUE_SENTINEL",
+    "API_KEY_VALUE_SENTINEL",
+    "ACCESS_TOKEN_VALUE_SENTINEL",
+    "CLIENT_SECRET_VALUE_SENTINEL",
+    "OUTPUT_VALUE_SENTINEL"
+  ]) {
+    assert.equal(serialized.includes(sentinel), false, sentinel);
+  }
 });
 
 test("provider execution runner sanitizes controlled read-only thrown execution errors", async () => {
@@ -1178,6 +1435,13 @@ function createFakeExecutorProvider(options: {
         planId: `executor_${input.run.runId}`,
         runId: input.run.runId,
         taskId: input.task.taskId,
+        ...(input.taskHash !== undefined ? { taskHash: input.taskHash } : {}),
+        ...(input.principalId !== undefined ? { principalId: input.principalId } : {}),
+        ...(input.principalHash !== undefined ? { principalHash: input.principalHash } : {}),
+        ...(input.providerExecutionPlanHash !== undefined
+          ? { providerExecutionPlanHash: input.providerExecutionPlanHash }
+          : {}),
+        ...(input.providerManifestHash !== undefined ? { providerManifestHash: input.providerManifestHash } : {}),
         providerId: manifest.providerId,
         inputHash: input.inputHash ?? "1".repeat(64),
         policyDecisionHash: hashApprovalScope(input.policyDecision),
@@ -1207,6 +1471,17 @@ function createFakeExecutorProvider(options: {
       throw new Error("fake_executor_execute_should_not_be_called");
     }
   };
+}
+
+class CapturingArtifactStore extends InMemoryArtifactStore {
+  readonly putInputs: Array<Parameters<InMemoryArtifactStore["putArtifact"]>[0]> = [];
+
+  override async putArtifact(
+    input: Parameters<InMemoryArtifactStore["putArtifact"]>[0]
+  ): ReturnType<InMemoryArtifactStore["putArtifact"]> {
+    this.putInputs.push(input);
+    return super.putArtifact(input);
+  }
 }
 
 function createFakeExecutorManifest(options: {
@@ -1255,6 +1530,7 @@ function createControlledReadOnlyCodexFixture(
     executionEnabled: true,
     executionMode: "real",
     realExecutionAllowed: true,
+    nowMs: () => Date.parse(now),
     timeoutMs: 1_000,
     spawn
   });
@@ -1275,6 +1551,13 @@ function createControlledReadOnlyCodexFixture(
     policyDecision,
     sandboxProfile: providerExecutionPlan.sandboxProfile,
     inputHash: providerExecutionPlan.inputHash,
+    taskHash: providerExecutionPlan.taskHash,
+    principalId: providerExecutionPlan.principalId,
+    principalHash: providerExecutionPlan.principalHash,
+    providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+    ...(providerExecutionPlan.providerManifestHash !== undefined
+      ? { providerManifestHash: providerExecutionPlan.providerManifestHash }
+      : {}),
     now
   });
   const permit = createApprovedProviderExecutionPermit({
