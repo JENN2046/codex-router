@@ -123,6 +123,31 @@ test("CI uploads node-scoped canary evidence before collecting the manifest", as
   assert.equal(evidenceDownload?.with?.["merge-multiple"], true);
 });
 
+test("CI runs real state-sync audit before evidence collection", async () => {
+  const workflow = parse(
+    await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf-8")
+  ) as {
+    jobs: {
+      "state-sync": {
+        needs: string;
+        steps: WorkflowStep[];
+      };
+      evidence: {
+        needs: string[];
+      };
+    };
+  };
+
+  const stateSyncJob = workflow.jobs["state-sync"];
+  const auditStep = stateSyncJob.steps.find((step) =>
+    step.run === "npm run governance -- audit state-sync"
+  );
+
+  assert.equal(stateSyncJob.needs, "test");
+  assert.ok(auditStep);
+  assert.ok(workflow.jobs.evidence.needs.includes("state-sync"));
+});
+
 function createResult(risk: RiskLevel): CanaryResult {
   return {
     status: "passed",

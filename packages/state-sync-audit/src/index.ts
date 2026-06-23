@@ -369,7 +369,7 @@ function escapeRegExp(value: string): string {
 }
 
 function outputIsSanitized(text: string): boolean {
-  return [
+  const forbiddenMarkersAbsent = [
     "OPENAI_API_KEY",
     "CODEX_API_KEY",
     "CODEX_ACCESS_TOKEN",
@@ -378,6 +378,10 @@ function outputIsSanitized(text: string): boolean {
     "raw token",
     "raw env"
   ].every((marker) => !text.includes(marker));
+
+  const localAbsolutePathsAbsent = !/(?:\/mnt\/|\/home\/|[A-Za-z]:\\Users\\)/.test(text);
+
+  return forbiddenMarkersAbsent && localAbsolutePathsAbsent;
 }
 
 function collectReasons(checks: Record<string, boolean>): string[] {
