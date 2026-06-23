@@ -96,7 +96,7 @@ export const ProviderExecutionPermitSchema = z.object({
   providerExecutionPlanHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   providerId: z.string().min(1),
   providerManifestHash: z.string().regex(/^[a-f0-9]{64}$/),
-  policyDecisionHash: z.string().min(1),
+  policyDecisionHash: z.string().min(1).optional(),
   principalId: z.string().min(1).optional(),
   principalHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   sideEffectClass: ProviderSideEffectClassSchema,
@@ -251,7 +251,7 @@ export type ProviderExecutionPermitConsumptionRecord = {
   providerExecutionPlanHash?: string;
   providerId: string;
   providerManifestHash: string;
-  policyDecisionHash: string;
+  policyDecisionHash?: string;
   principalId?: string;
   principalHash?: string;
   sideEffectClass: ProviderSideEffectClass;
@@ -637,7 +637,9 @@ export function validateProviderExecutionPermitForPlan(
     reasons.push(`${prefix}_plan_manifest_hash_mismatch`);
   }
 
-  if (permit.policyDecisionHash !== plan.policyDecisionHash) {
+  if (plan.policyDecisionHash === undefined || permit.policyDecisionHash === undefined) {
+    reasons.push(`${prefix}_policy_hash_required`);
+  } else if (permit.policyDecisionHash !== plan.policyDecisionHash) {
     reasons.push(`${prefix}_policy_mismatch`);
   }
 
@@ -713,7 +715,7 @@ export function consumeProviderExecutionPermitForPlan(
         : {}),
       providerId: permit.providerId,
       providerManifestHash: permit.providerManifestHash,
-      policyDecisionHash: permit.policyDecisionHash,
+      ...(permit.policyDecisionHash !== undefined ? { policyDecisionHash: permit.policyDecisionHash } : {}),
       ...(permit.principalId !== undefined ? { principalId: permit.principalId } : {}),
       ...(permit.principalHash !== undefined ? { principalHash: permit.principalHash } : {}),
       sideEffectClass: permit.sideEffectClass,
@@ -944,7 +946,7 @@ function createProviderExecutionPermit(
       : {}),
     providerId: plan.providerId,
     providerManifestHash: hashProviderManifest(manifest),
-    policyDecisionHash: plan.policyDecisionHash,
+    ...(plan.policyDecisionHash !== undefined ? { policyDecisionHash: plan.policyDecisionHash } : {}),
     ...(plan.principalId !== undefined ? { principalId: plan.principalId } : {}),
     ...(plan.principalHash !== undefined ? { principalHash: plan.principalHash } : {}),
     sideEffectClass: plan.sideEffectClass,

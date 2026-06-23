@@ -1551,9 +1551,9 @@ function createControlledReadOnlyCodexFixture(
     policyDecision,
     sandboxProfile: providerExecutionPlan.sandboxProfile,
     inputHash: providerExecutionPlan.inputHash,
-    taskHash: providerExecutionPlan.taskHash,
-    principalId: providerExecutionPlan.principalId,
-    principalHash: providerExecutionPlan.principalHash,
+    ...(providerExecutionPlan.taskHash !== undefined ? { taskHash: providerExecutionPlan.taskHash } : {}),
+    ...(providerExecutionPlan.principalId !== undefined ? { principalId: providerExecutionPlan.principalId } : {}),
+    ...(providerExecutionPlan.principalHash !== undefined ? { principalHash: providerExecutionPlan.principalHash } : {}),
     providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
     ...(providerExecutionPlan.providerManifestHash !== undefined
       ? { providerManifestHash: providerExecutionPlan.providerManifestHash }

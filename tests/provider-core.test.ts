@@ -152,6 +152,13 @@ test("provider-core rejects provider execution permit mismatches", () => {
     ...permit,
     policyDecisionHash: "policy_hash_other"
   }, plan, manifest).includes("provider_execution_permit_policy_mismatch"));
+  const permitWithoutPolicyHash = { ...permit };
+  delete permitWithoutPolicyHash.policyDecisionHash;
+  assert.ok(validateProviderExecutionPermitForPlan(
+    permitWithoutPolicyHash,
+    plan,
+    manifest
+  ).includes("provider_execution_permit_policy_hash_required"));
   assert.ok(validateProviderExecutionPermitForPlan({
     ...permit,
     nonce: "caller_supplied_nonce"
@@ -296,6 +303,35 @@ test("provider-core blocks non-read-only provider execution permits", () => {
       issuedAt: "2026-06-14T00:00:00.000Z"
     }),
     /provider_execution_permit_not_approvable:/
+  );
+});
+
+test("provider-core returns blocked read-only permits when policy hash is missing", () => {
+  const manifest = createProviderManifest();
+  const legacyPlanInput: Record<string, unknown> = { ...createExecutorPlan() };
+  delete legacyPlanInput.policyDecisionHash;
+  const legacyPlan = ExecutorExecutionPlanSchema.parse(legacyPlanInput);
+  const blocked = createBlockedProviderExecutionPermit({
+    plan: legacyPlan,
+    manifest,
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(blocked.status, "blocked");
+  assert.equal(blocked.policyDecisionHash, undefined);
+  assert.ok(blocked.reasons.includes("provider_execution_permit_policy_hash_required"));
+  assert.ok(validateProviderExecutionPermitForPlan(
+    blocked,
+    legacyPlan,
+    manifest
+  ).includes("provider_execution_permit_policy_hash_required"));
+  assert.throws(
+    () => createApprovedProviderExecutionPermit({
+      plan: legacyPlan,
+      manifest,
+      issuedAt: "2026-06-14T00:00:00.000Z"
+    }),
+    /provider_execution_permit_not_approvable:provider_execution_permit_policy_hash_required/
   );
 });
 

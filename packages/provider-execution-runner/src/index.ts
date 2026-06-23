@@ -225,9 +225,9 @@ export async function runProviderExecutionPlanDryRun(
       policyDecision,
       sandboxProfile: providerExecutionPlan.sandboxProfile,
       inputHash: providerExecutionPlan.inputHash,
-      taskHash: providerExecutionPlan.taskHash,
-      principalId: providerExecutionPlan.principalId,
-      principalHash: providerExecutionPlan.principalHash,
+      ...(providerExecutionPlan.taskHash !== undefined ? { taskHash: providerExecutionPlan.taskHash } : {}),
+      ...(providerExecutionPlan.principalId !== undefined ? { principalId: providerExecutionPlan.principalId } : {}),
+      ...(providerExecutionPlan.principalHash !== undefined ? { principalHash: providerExecutionPlan.principalHash } : {}),
       providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
       ...(providerExecutionPlan.providerManifestHash !== undefined
         ? { providerManifestHash: providerExecutionPlan.providerManifestHash }
@@ -398,9 +398,11 @@ export async function runProviderExecutionPlanControlledReadOnly(
           policyDecision,
           sandboxProfile: providerExecutionPlan.sandboxProfile,
           inputHash: providerExecutionPlan.inputHash,
-          taskHash: providerExecutionPlan.taskHash,
-          principalId: providerExecutionPlan.principalId,
-          principalHash: providerExecutionPlan.principalHash,
+          ...(providerExecutionPlan.taskHash !== undefined ? { taskHash: providerExecutionPlan.taskHash } : {}),
+          ...(providerExecutionPlan.principalId !== undefined ? { principalId: providerExecutionPlan.principalId } : {}),
+          ...(providerExecutionPlan.principalHash !== undefined
+            ? { principalHash: providerExecutionPlan.principalHash }
+            : {}),
           providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
           ...(providerExecutionPlan.providerManifestHash !== undefined
             ? { providerManifestHash: providerExecutionPlan.providerManifestHash }
@@ -606,18 +608,24 @@ function collectRunnerPreflightReasons(input: {
   }
 
   const expectedTaskHash = hashProviderExecutionPlannerObject(input.task);
-  if (input.providerExecutionPlan.taskHash !== expectedTaskHash) {
+  if (input.providerExecutionPlan.taskHash === undefined) {
+    reasons.push("provider_plan_task_hash_required");
+  } else if (input.providerExecutionPlan.taskHash !== expectedTaskHash) {
     reasons.push("provider_plan_task_hash_mismatch");
   }
 
-  if (input.providerExecutionPlan.principalId !== input.principal.principalId) {
+  if (input.providerExecutionPlan.principalId === undefined) {
+    reasons.push("provider_plan_principal_required");
+  } else if (input.providerExecutionPlan.principalId !== input.principal.principalId) {
     reasons.push(
       `provider_plan_principal_mismatch:${input.providerExecutionPlan.principalId}:${input.principal.principalId}`
     );
   }
 
   const expectedPrincipalHash = hashProviderExecutionPlannerObject(input.principal);
-  if (input.providerExecutionPlan.principalHash !== expectedPrincipalHash) {
+  if (input.providerExecutionPlan.principalHash === undefined) {
+    reasons.push("provider_plan_principal_hash_required");
+  } else if (input.providerExecutionPlan.principalHash !== expectedPrincipalHash) {
     reasons.push("provider_plan_principal_hash_mismatch");
   }
 
