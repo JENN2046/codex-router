@@ -1,64 +1,69 @@
 # Run State
 
-Status: PR-22A minimal controlled read-only provider execution slice, the
-post-review failure-surface fix, and the P1 validation payload follow-up are
-implemented and validated; push confirmation is pending.
+Status: GPT Pro review P1 and P2 hardening is implemented in local commits
+through `56d3ada`; the final state documentation commit is expected to leave a
+clean worktree before post-commit validation.
 
 Current truth source:
 
 - `docs/current/CURRENT_STATE.md`
-- `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
 
 Branch:
 
-- `feature/pr-22a-controlled-provider-execution`
+- `fix/p1-controlled-output-safety`
 
 State baseline:
 
-- `df67058`
+- `56d3ada`
 
 Upstream:
 
-- `origin/feature/pr-22a-controlled-provider-execution`
+- `origin/main`
 
 Worktree:
 
-- P1 validation payload final validation record pending commit
+- expected clean after the final state documentation commit
+- post-commit state-sync audit is required before external writes
 
 Current scope:
 
-- PR-22A controlled provider execution taskbook review migration
-- minimal controlled read-only provider execution implementation
-- controlled read-only provider failure-surface sanitization
-- controlled read-only validation payload sanitization
+- controlled read-only output safety
+- workspace-write approval policy invariant
+- Task, Principal, provider plan, manifest, and executor plan binding
+- read-only provider permit hardening
+- trusted in-memory provider permit consumption before fake/real execution
+- one-shot handoff replay and duplicate permit execution prevention
+- smoke/operator evidence safe error and telemetry persistence
+- provider fake mode in-memory execution boundary
+- Windows/default process spawn fail-closed shell policy
+- CI and state-sync coverage for current state surfaces
 - no real Codex CLI execution
 - no workspace-write execution
 - no push, release, tag, deployment, external write, or secret change
 
 Validation baseline:
 
-- `npm run governance -- audit readonly-productization`: passed on clean `main`
-- pre-review `npm run validate:pr`: passed
+- targeted host evidence tests passed, `2 / 2`
+- targeted host shell/evidence tests passed, `4 / 4`
+- targeted provider/dispatcher fake-mode tests passed, `8 / 8`
+- canary/state-sync tests passed, `21 / 21`
+- provider/dispatcher/runner affected tests passed, `89 / 89`
+- read-only chain and approval matrix tests passed, `6 / 6`
 - `npm run typecheck`: passed
-- `npx tsx --test tests/provider-execution-runner.test.ts`: passed, `19 / 19`
-- `npx tsx --test tests/codex-cli-provider.test.ts`: passed, `29 / 29`
-- `npx tsx --test tests/codex-cli-host.test.ts`: passed, `104 / 104`
-- `npm run governance -- acceptance controlled-readonly-provider-execution`:
-  passed; fake spawner `1`, real Codex CLI `0`, workspace-write execute `0`,
-  external write `0`
-- `npx tsx --test tests/state-sync-audit.test.ts`: passed, `16 / 16`
-- `npm test`: passed, `1125 / 1125`
-- `npm run build`: passed
-- pre-state-refresh `npm run validate:pr`: typecheck, full tests, and build
-  passed; final state-sync blocked on stale state records before this refresh
-- final clean-worktree `npm run validate:pr`: passed before the P1 validation
-  payload follow-up; typecheck, full tests `1125 / 1125`, build, and
-  state-sync passed
-- P1 validation payload follow-up:
-  `npx tsx --test tests/provider-execution-runner.test.ts` passed `21 / 21`
-- P1 validation payload follow-up: `npm run typecheck` passed
-- final clean-worktree `npm run validate:pr`: passed; typecheck, full tests
-  `1127 / 1127`, build, and state-sync passed
+- `npm test`: passed, `1146 / 1146`
+- `npm run validate:pr`: passed; includes typecheck, full tests, build, and
+  state-sync
+- replay hardening `npm run typecheck`: passed
+- replay hardening provider-core/codex-provider/provider-runner tests passed,
+  `79 / 79`
+- replay hardening `npm run validate:pr`: passed; includes typecheck,
+  `npm test` with `1146 / 1146`, build, and state-sync
+
+Known replay boundary:
+
+- default provider permit consumption is single-process and in-memory
+- process restart or multi-process replay requires a persistent or distributed
+  `ProviderExecutionPermitConsumptionStore` before claiming stronger coverage
 
 Detailed validation history:
 

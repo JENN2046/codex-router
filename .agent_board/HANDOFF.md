@@ -1,66 +1,81 @@
 # Handoff
 
-Current scope: PR-22A minimal controlled read-only provider execution is
-implemented on a fresh branch from clean `main`.
+Current scope: GPT Pro review P1 and P2 hardening on a focused branch.
 
-Current status:
+Workspace:
 
-- Branch: `feature/pr-22a-controlled-provider-execution`
-- State baseline: `df67058`
-- Upstream: `origin/feature/pr-22a-controlled-provider-execution`
-- Current state source: `docs/current/CURRENT_STATE.md`
-- PR-22A taskbook source:
-  `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
-- Work in progress: commit the P1 validation payload final validation record and
-  rerun clean-worktree `npm run governance -- audit state-sync`.
+- `codex-router`
 
-What changed in this line:
+Branch:
 
-- clean `main` was updated with `git pull --ff-only origin main`
-- `npm run governance -- audit readonly-productization` passed on `main`
-- a fresh implementation branch was created from that baseline
-- PR-22A taskbook review audit files were migrated onto the branch
-- the prior CLI line closeout marker document was restored for the PR-22A
-  review audit precondition
-- `runProviderExecutionPlanControlledReadOnly` was added with explicit mode,
-  `codex-cli` provider, read-only sandbox, approval policy `never`, metadata,
-  and permit gates before provider execute
-- `createCodexCliExecPlanFromRoutingDecision` now maps no-approval decisions to
-  CLI approval policy `never`
-- local acceptance uses a fake injected spawner and records real Codex CLI
-  calls `0`, workspace-write execute calls `0`, and external write calls `0`
-- post-review failure-surface handling now sanitizes provider failure classes,
-  provider reasons, and thrown execution messages before they reach runner
-  results, events, reports, or evidence
-- P1 validation payload follow-up now sanitizes validation reasons and thrown
-  validation messages before controlled read-only result, event, and report
-  emission
-- pre-review validation passed: `npm run validate:pr`, `npm run typecheck`,
-  targeted runner/provider/host tests, `npm run governance -- acceptance
-  controlled-readonly-provider-execution`, targeted state-sync tests, full
-  `npm test`, and `npm run build`
-- post-review regression validation passed targeted provider-runner tests
-  `19 / 19`, typecheck, full tests `1125 / 1125`, and build
-- final clean-worktree `npm run validate:pr` passed before the P1 validation
-  payload follow-up; typecheck, full tests `1125 / 1125`, build, and
-  state-sync passed
-- P1 validation payload follow-up targeted provider-runner tests passed
-  `21 / 21`, and `npm run typecheck` passed
-- P1 validation payload final clean-worktree `npm run validate:pr` passed;
-  typecheck, full tests `1127 / 1127`, build, and state-sync passed
+- `fix/p1-controlled-output-safety`
 
-Hard boundaries:
+Baseline:
 
-- Do not treat bounded canary scope as `general_workspace_write`.
-- Do not run another real Codex CLI task.
-- Do not run workspace-write execution.
-- Do not refresh evidence unless the current task explicitly requires it.
-- Do not push to `main`, release, tag, deploy, or write to external services
-  without a separate explicit instruction.
-- Do not modify secrets or env files.
+- `56d3ada`
+
+Upstream:
+
+- `origin/main`
+
+Work in progress:
+
+- final state documentation commit and post-commit validation
+
+Implemented:
+
+- controlled runner outputs use a shared safe executor/provider summary
+- validation, failure, and artifact summary payloads are sanitized before
+  report/event/result persistence
+- executor plan, provider plan, Task, Principal, manifest, and permit bindings
+  are checked before provider execution
+- provider permits are consumed through a trusted in-memory registry after
+  handoff validation and before fake/real provider execution
+- repeated handoff/permit use, concurrent duplicate calls, caller-side
+  permit-id tampering, and retry after spawn failure are blocked before a
+  second provider spawn
+- host validation rejects forged `workspace-write + never` plans before spawn
+- provider read-only permits require plan hash, run, policy, manifest, Task,
+  Principal, nonce, expiration, and consumed-state checks where available
+- smoke/operator evidence builders no longer write raw `error` or telemetry
+  payloads
+- provider fake mode rejects configured process spawners and uses in-memory
+  execution summaries
+- default Codex CLI spawning no longer has a Windows `shell: true` fallback
+- CI runs a real state-sync audit before evidence collection
+- state-sync audit blocks machine absolute paths in current state surfaces
+
+Validation already run:
+
+- targeted evidence/shell/provider/dispatcher/state-sync/read-only-chain tests
+  passed
+- `npm run typecheck` passed
+- `npm test` passed, `1146 / 1146`
+- `npm run validate:pr` passed
+- permit replay targeted tests passed:
+  `npx tsx --test tests/provider-core.test.ts tests/codex-cli-provider.test.ts tests/provider-execution-runner.test.ts`
+  with `79 / 79`
+- final replay `npm run validate:pr` passed with `1146 / 1146` full tests,
+  build, and state-sync
+
+Known boundary:
+
+- default permit consumption is single-process and in-memory; process restart
+  and multi-process replay need a durable injected
+  `ProviderExecutionPermitConsumptionStore`
+
+Do not do without explicit instruction:
+
+- real Codex CLI execution
+- workspace-write execution
+- push, merge, tag, release, deploy
+- external service write
+- secret or credential changes
 
 Next safe action:
 
-1. commit the P1 validation payload final validation record
-2. rerun clean-worktree `npm run governance -- audit state-sync`
-3. push the branch only after explicit external-write confirmation
+1. commit the final state documentation update
+2. rerun `git status --short`
+3. rerun `npm run governance -- audit state-sync`
+4. rerun `npm run validate:pr`
+5. rerun `git diff --check`
