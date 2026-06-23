@@ -96,7 +96,6 @@ test("state sync audit accepts shallow detached PR merge checkouts when explicit
     gitStatusShort: "",
     branch: "",
     head: "8a5c580",
-    parentHead: undefined,
     allowedStateCommits: [],
     upstream: "",
     aheadBehind: "unknown\tunknown"
