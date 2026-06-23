@@ -6,7 +6,7 @@ Checkpoint branch:
 
 Baseline:
 
-- `56d3ada`
+- `1d2077c`
 
 Current state source:
 
@@ -14,8 +14,8 @@ Current state source:
 
 Current checkpoint:
 
-- GPT Pro review P1 and P2 hardening is implemented in local commits through
-  `56d3ada`
+- GPT Pro review P1 and P2 hardening plus the PR merge-checkout state-sync fix
+  are implemented in local commits through `1d2077c`
 - final `npm run validate:pr` passed before the local commit split
 - follow-up permit replay hardening is implemented with targeted tests
 
@@ -32,6 +32,7 @@ Completed locally:
 - fake provider mode in-memory execution boundary
 - default process spawn fail-closed shell policy
 - CI state-sync job and state-sync local path checks
+- detached PR merge checkout state-sync compatibility
 
 Validation checkpoint:
 
@@ -41,6 +42,7 @@ Validation checkpoint:
 - `npm run validate:pr` passed
 - replay targeted tests passed, `79 / 79`
 - replay final `npm run validate:pr` passed with `1146 / 1146` full tests
+- state-sync detached PR merge checkout test passed, `18 / 18`
 
 Known boundary:
 

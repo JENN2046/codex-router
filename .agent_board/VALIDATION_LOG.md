@@ -6,7 +6,7 @@ Current branch:
 
 Baseline:
 
-- `56d3ada`
+- `1d2077c`
 
 Review hardening validation:
 
@@ -56,6 +56,13 @@ PR closeout validation before local commits:
 - `npm run governance -- audit state-sync`: passed before local commits.
 - `npm run validate:pr`: passed; includes typecheck, `npm test` with
   `1146 / 1146`, build, and state-sync.
+- After opening draft PR #45, remote GitHub Actions initially failed only
+  `State Sync Audit` because `actions/checkout` used a shallow detached PR
+  merge ref with empty branch/upstream and unknown divergence.
+- `npx tsx --test tests/state-sync-audit.test.ts`: passed after the detached
+  PR merge checkout compatibility fix, `18 / 18`.
+- `npm run governance -- audit state-sync`: passed locally after restoring
+  local upstream tracking to `origin/main`.
 
 Coverage added:
 
@@ -83,3 +90,4 @@ Coverage added:
 - default Codex CLI process spawning stays `shell: false`
 - CI contains a real state-sync audit job before evidence collection
 - state-sync audit blocks machine absolute paths in state surfaces
+- state-sync audit accepts explicitly allowed clean detached PR merge checkouts

@@ -12,7 +12,7 @@ Branch:
 
 Baseline:
 
-- `56d3ada`
+- `1d2077c`
 
 Upstream:
 
@@ -44,6 +44,7 @@ Implemented:
 - default Codex CLI spawning no longer has a Windows `shell: true` fallback
 - CI runs a real state-sync audit before evidence collection
 - state-sync audit blocks machine absolute paths in current state surfaces
+- state-sync audit accepts explicitly allowed clean detached PR merge checkouts
 
 Validation already run:
 
@@ -57,6 +58,7 @@ Validation already run:
   with `79 / 79`
 - final replay `npm run validate:pr` passed with `1146 / 1146` full tests,
   build, and state-sync
+- state-sync detached PR merge checkout test passed, `18 / 18`
 
 Known boundary:
 
