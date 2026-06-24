@@ -1,4 +1,5 @@
 import { spawn as spawnChildProcess, type StdioOptions } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -36,6 +37,7 @@ export * from "./governance-v2.js";
 export type CodexCliSandboxMode = "read-only" | "workspace-write";
 export type CodexCliApprovalPolicy = "untrusted" | "on-request" | "never";
 export type CodexCliExecutionStatus = "completed" | "failed";
+export type CodexCliRuntimeProtocol = "exec-json-stdin-prompt.v1";
 
 export const DEFAULT_CODEX_CLI_READ_ONLY_SMOKE_TIMEOUT_MS = 180_000;
 export const DEFAULT_CODEX_CLI_WORKSPACE_WRITE_SMOKE_TIMEOUT_MS = 180_000;
@@ -55,6 +57,10 @@ const CODEX_CLI_EVIDENCE_SECRET_KEYS = [
   "OPENAI_API_KEY",
   "CODEX_ACCESS_TOKEN"
 ];
+const CODEX_CLI_RUNTIME_PROTOCOL: CodexCliRuntimeProtocol =
+  "exec-json-stdin-prompt.v1";
+const CODEX_CLI_DEFAULT_RUNTIME_ID = "codex-cli:default";
+const CODEX_CLI_INVALID_RUNTIME_ID = "codex-cli:invalid-command";
 
 export interface CodexCliExecPlanOptions {
   codexCommand?: string;
@@ -336,6 +342,26 @@ export interface CodexCliModelAvailabilityCheck {
   detection?: CodexCliModelCatalogDetection;
 }
 
+export interface CodexCliRuntimeDescriptor {
+  schemaVersion: "codex-cli-runtime-descriptor.v1";
+  runtimeId: string;
+  command: string;
+  protocol: CodexCliRuntimeProtocol;
+  platform: string;
+}
+
+export interface CodexCliRuntimeBinding {
+  schemaVersion: "codex-cli-runtime-binding.v1";
+  runtimeId: string;
+  descriptorHash: string;
+  commandHash: string;
+  argvShapeHash: string;
+  promptChannel: "stdin";
+  protocol: CodexCliRuntimeProtocol;
+  trusted: true;
+  workdirHash?: string;
+}
+
 export interface CodexCliExecPlan {
   command: string;
   args: string[];
@@ -343,6 +369,7 @@ export interface CodexCliExecPlan {
   task: TaskEnvelope;
   sandbox: CodexCliSandboxMode;
   approvalPolicy: CodexCliApprovalPolicy;
+  runtimeBinding: CodexCliRuntimeBinding;
   model?: string;
   modelResolution?: CodexCliModelResolution;
   workdir?: string;
@@ -528,7 +555,7 @@ export interface CodexCliChildProcess {
 }
 
 export interface CodexCliProcessWritableStream {
-  end(): void;
+  end(chunk?: string): void;
   destroy?(error?: Error): void;
 }
 
@@ -1051,6 +1078,40 @@ const CODEX_CLI_MODEL_STRENGTH_PROFILES = {
   }
 } satisfies Record<ModelId, CodexCliModelStrengthProfile>;
 
+class ImmutableCodexCliRuntimeRegistry {
+  private readonly descriptors = new Map<string, CodexCliRuntimeDescriptor>();
+
+  bindInvocation(input: {
+    command: string;
+    args: string[];
+    workdir?: string;
+  }): CodexCliRuntimeBinding {
+    const descriptor = this.resolveDescriptor(input.command);
+    return createCodexCliRuntimeBindingFromDescriptor(descriptor, input);
+  }
+
+  private resolveDescriptor(command: string): CodexCliRuntimeDescriptor {
+    const descriptor = createCodexCliRuntimeDescriptor(command);
+    const existing = this.descriptors.get(descriptor.runtimeId);
+
+    if (existing !== undefined) {
+      const existingHash = hashCodexCliRuntimeDescriptor(existing);
+      const nextHash = hashCodexCliRuntimeDescriptor(descriptor);
+      if (existingHash !== nextHash) {
+        throw new Error(
+          `codex_cli_runtime_descriptor_conflict:${descriptor.runtimeId}`
+        );
+      }
+      return existing;
+    }
+
+    this.descriptors.set(descriptor.runtimeId, descriptor);
+    return descriptor;
+  }
+}
+
+const defaultCodexCliRuntimeRegistry = new ImmutableCodexCliRuntimeRegistry();
+
 export function createCodexCliExecPlan(
   taskInput: TaskEnvelopeInput,
   options: CodexCliExecPlanOptions = {}
@@ -1108,7 +1169,7 @@ export function createCodexCliExecPlan(
     args.push("--ignore-rules");
   }
 
-  args.push(...(options.extraArgs ?? []), prompt);
+  args.push(...(options.extraArgs ?? []));
   assertNoDuplicateCodexCliSecurityArgs(args);
   assertNoCodexCliWorkspaceExpansionArgs(args);
   assertNoCodexCliProviderOverrideArgs(args);
@@ -1128,6 +1189,11 @@ export function createCodexCliExecPlan(
     task,
     sandbox,
     approvalPolicy,
+    runtimeBinding: defaultCodexCliRuntimeRegistry.bindInvocation({
+      command,
+      args,
+      ...(workdir !== undefined ? { workdir } : {})
+    }),
     ...(options.model !== undefined ? { model: options.model } : {}),
     ...(workdir !== undefined ? { workdir } : {}),
     warnings: createCodexCliExecPlanWarnings(task, options)
@@ -2561,6 +2627,10 @@ export function validateCodexCliExecPlanForRun(
     blockingReasons.push(`codex_cli_workdir_arg_mismatch:${workdirArg}:${plan.workdir ?? "undefined"}`);
   }
 
+  if (plan.args.includes(plan.prompt)) {
+    blockingReasons.push("codex_cli_prompt_must_use_stdin");
+  }
+
   try {
     assertNoDangerousCodexCliArgs(plan.args);
   } catch (error) {
@@ -2632,6 +2702,8 @@ export function validateCodexCliExecPlanForRun(
   } catch (error) {
     blockingReasons.push(error instanceof Error ? error.message : String(error));
   }
+
+  blockingReasons.push(...validateCodexCliRuntimeBindingForRun(plan));
 
   const modelAvailability = checkCodexCliExecPlanModelAvailability(plan, options);
   blockingReasons.push(...modelAvailability.blockingReasons);
@@ -2806,7 +2878,7 @@ export async function runCodexCliExecPlan(
   }
 
   try {
-    child.stdin?.end();
+    child.stdin?.end(plan.prompt);
     stdinClosed = true;
     if (child.stdin?.destroy !== undefined) {
       child.stdin.destroy();
@@ -3148,15 +3220,17 @@ export function createCodexCliWorkspaceWriteSmokePreflightEvidence(
     schemaVersion: "codex-cli-workspace-write-smoke-preflight.v1",
     generatedAt: options.generatedAt ?? new Date().toISOString(),
     host: options.host ?? "Codex CLI",
-    ...(repoRoot !== undefined ? { repoRoot } : {}),
+    ...(repoRoot !== undefined ? { repoRoot: createCodexCliSafePathRef(repoRoot, "repo-root") } : {}),
     status: preflight.status,
     taskId: preflight.task.taskId,
     requiredConfirmation: preflight.requiredConfirmation,
     plan: {
-      command: preflight.plan.command,
+      command: createCodexCliRuntimePreview(preflight.plan),
       sandbox: preflight.plan.sandbox,
       approvalPolicy: preflight.plan.approvalPolicy,
-      ...(preflight.plan.workdir !== undefined ? { workdir: preflight.plan.workdir } : {}),
+      ...(preflight.plan.workdir !== undefined
+        ? { workdir: createCodexCliSafePathRef(preflight.plan.workdir, "workdir") }
+        : {}),
       targetFiles: [...preflight.task.target.files],
       targetAllowlist: [...preflight.guards.targetAllowlist],
       modules: [...preflight.task.target.modules],
@@ -3196,7 +3270,10 @@ export function createCodexCliWorkspaceWriteSmokeApprovalPacket(
   preflight: CodexCliWorkspaceWriteSmokePreflight,
   options: CodexCliWorkspaceWriteSmokeApprovalPacketOptions = {}
 ): CodexCliWorkspaceWriteSmokeApprovalPacket {
-  const workspace = preflight.plan.workdir ?? preflight.task.repoContext.repoRoot ?? "";
+  const workspace = createCodexCliSafePathRef(
+    preflight.plan.workdir ?? preflight.task.repoContext.repoRoot ?? "",
+    "workspace"
+  );
   const targetFiles = [...preflight.task.target.files];
 
   return {
@@ -4105,18 +4182,9 @@ function createCodexCliReadOnlySmokeExecPlan(
     ignoreUserConfig: options.ignoreUserConfig ?? true
   });
   const prompt = createCodexCliReadOnlySmokePrompt();
-  const args = [...basePlan.args];
-  const promptIndex = args.lastIndexOf(basePlan.prompt);
-
-  if (promptIndex < 0) {
-    throw new Error("codex_cli_readonly_smoke_prompt_arg_missing");
-  }
-
-  args[promptIndex] = prompt;
 
   return {
     ...basePlan,
-    args,
     prompt,
     sandbox: "read-only",
     approvalPolicy: options.approvalPolicy ?? "never",
@@ -4151,13 +4219,9 @@ function createCodexCliModelProbeExecPlan(
     ignoreUserConfig: true
   });
   const prompt = createCodexCliModelProbePrompt();
-  const args = basePlan.args.map((arg) => (
-    arg === basePlan.prompt ? prompt : arg
-  ));
 
   return {
     ...basePlan,
-    args,
     prompt,
     warnings: []
   };
@@ -5222,6 +5286,166 @@ function createCodexCliModelProbePlanSummary(
   };
 }
 
+function createCodexCliRuntimeDescriptor(command: string): CodexCliRuntimeDescriptor {
+  const commandHash = hashCodexCliRuntimeValue({
+    codexCliRuntimeCommand: command
+  });
+  const runtimeId = command.trim().length === 0
+    ? CODEX_CLI_INVALID_RUNTIME_ID
+    : command === "codex"
+      ? CODEX_CLI_DEFAULT_RUNTIME_ID
+      : `codex-cli:command:${commandHash.slice(0, 16)}`;
+
+  return Object.freeze({
+    schemaVersion: "codex-cli-runtime-descriptor.v1",
+    runtimeId,
+    command,
+    protocol: CODEX_CLI_RUNTIME_PROTOCOL,
+    platform: process.platform
+  });
+}
+
+function createCodexCliRuntimeBindingFromDescriptor(
+  descriptor: CodexCliRuntimeDescriptor,
+  input: {
+    command: string;
+    args: string[];
+    workdir?: string;
+  }
+): CodexCliRuntimeBinding {
+  return Object.freeze({
+    schemaVersion: "codex-cli-runtime-binding.v1",
+    runtimeId: descriptor.runtimeId,
+    descriptorHash: hashCodexCliRuntimeDescriptor(descriptor),
+    commandHash: hashCodexCliRuntimeValue({
+      codexCliRuntimeCommand: input.command
+    }),
+    argvShapeHash: hashCodexCliRuntimeValue({
+      codexCliRuntimeArgvShape: createCodexCliArgvShape(input.args)
+    }),
+    promptChannel: "stdin",
+    protocol: descriptor.protocol,
+    trusted: true,
+    ...(input.workdir !== undefined
+      ? {
+          workdirHash: hashCodexCliRuntimeValue({
+            codexCliRuntimeWorkdir: input.workdir
+          })
+        }
+      : {})
+  });
+}
+
+function createCodexCliRuntimeBindingForPlan(
+  plan: CodexCliExecPlan
+): CodexCliRuntimeBinding {
+  return createCodexCliRuntimeBindingFromDescriptor(
+    createCodexCliRuntimeDescriptor(plan.command),
+    {
+      command: plan.command,
+      args: plan.args,
+      ...(plan.workdir !== undefined ? { workdir: plan.workdir } : {})
+    }
+  );
+}
+
+function createCodexCliArgvShape(args: string[]): string[] {
+  return [...args];
+}
+
+function hashCodexCliRuntimeDescriptor(
+  descriptor: CodexCliRuntimeDescriptor
+): string {
+  return hashCodexCliRuntimeValue({
+    schemaVersion: descriptor.schemaVersion,
+    runtimeId: descriptor.runtimeId,
+    command: descriptor.command,
+    protocol: descriptor.protocol,
+    platform: descriptor.platform
+  });
+}
+
+function hashCodexCliRuntimeValue(value: unknown): string {
+  return createHash("sha256")
+    .update(JSON.stringify(value), "utf8")
+    .digest("hex");
+}
+
+function validateCodexCliRuntimeBindingForRun(plan: CodexCliExecPlan): string[] {
+  if (plan.command.trim().length === 0) {
+    return [];
+  }
+
+  const binding = (plan as unknown as {
+    runtimeBinding?: CodexCliRuntimeBinding;
+  }).runtimeBinding;
+
+  if (!isCodexCliRuntimeBinding(binding)) {
+    return ["codex_cli_runtime_binding_missing"];
+  }
+
+  const expected = createCodexCliRuntimeBindingForPlan(plan);
+  const reasons: string[] = [];
+
+  if (binding.runtimeId !== expected.runtimeId) {
+    reasons.push("codex_cli_runtime_binding_runtime_mismatch");
+  }
+
+  if (binding.descriptorHash !== expected.descriptorHash) {
+    reasons.push("codex_cli_runtime_binding_descriptor_mismatch");
+  }
+
+  if (binding.commandHash !== expected.commandHash) {
+    reasons.push("codex_cli_runtime_binding_command_mismatch");
+  }
+
+  if (binding.argvShapeHash !== expected.argvShapeHash) {
+    reasons.push("codex_cli_runtime_binding_argv_shape_mismatch");
+  }
+
+  if (binding.workdirHash !== expected.workdirHash) {
+    reasons.push("codex_cli_runtime_binding_workdir_mismatch");
+  }
+
+  if (binding.protocol !== CODEX_CLI_RUNTIME_PROTOCOL) {
+    reasons.push(`codex_cli_runtime_binding_protocol_unsupported:${binding.protocol}`);
+  }
+
+  if (binding.promptChannel !== "stdin") {
+    reasons.push("codex_cli_runtime_binding_prompt_channel_mismatch");
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function isCodexCliRuntimeBinding(
+  value: unknown
+): value is CodexCliRuntimeBinding {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const hashKeys = [
+    "descriptorHash",
+    "commandHash",
+    "argvShapeHash"
+  ];
+
+  return value.schemaVersion === "codex-cli-runtime-binding.v1"
+    && typeof value.runtimeId === "string"
+    && hashKeys.every((key) => (
+      typeof value[key] === "string"
+      && /^[a-f0-9]{64}$/.test(value[key])
+    ))
+    && (value.workdirHash === undefined || (
+      typeof value.workdirHash === "string"
+      && /^[a-f0-9]{64}$/.test(value.workdirHash)
+    ))
+    && value.promptChannel === "stdin"
+    && value.protocol === CODEX_CLI_RUNTIME_PROTOCOL
+    && value.trusted === true;
+}
+
 function canAcceptModelDowngrade(
   decision: ReturnType<typeof parseRoutingDecision>,
   selection: CodexCliModelSelection
@@ -5285,11 +5509,34 @@ function getCodexCliArgValueAt(
 }
 
 function createCodexCliSanitizedCommandPreview(plan: CodexCliExecPlan): string {
-  const args = plan.args.map((arg) => (
-    arg === plan.prompt ? "<task-envelope-prompt omitted>" : arg
-  ));
+  const args: string[] = [];
 
-  return [plan.command, ...args].map(quoteCommandPart).join(" ");
+  for (let index = 0; index < plan.args.length; index += 1) {
+    const arg = plan.args[index];
+    if (arg === undefined) {
+      continue;
+    }
+
+    args.push(arg === plan.prompt ? "<task-envelope-prompt omitted>" : arg);
+
+    if (["-C", "--cd", "--cwd"].includes(arg)) {
+      const value = plan.args[index + 1];
+      if (value !== undefined) {
+        args.push(createCodexCliSafePathRef(value, "workdir"));
+        index += 1;
+      }
+    }
+  }
+
+  return [createCodexCliRuntimePreview(plan), ...args].map(quoteCommandPart).join(" ");
+}
+
+function createCodexCliRuntimePreview(plan: CodexCliExecPlan): string {
+  return `<codex-cli-runtime:${plan.runtimeBinding.runtimeId}:${plan.runtimeBinding.commandHash.slice(0, 16)}>`;
+}
+
+function createCodexCliSafePathRef(value: string, label: string): string {
+  return `<${label}-hash:${hashCodexCliRuntimeValue({ [label]: value }).slice(0, 16)}>`;
 }
 
 function quoteCommandPart(part: string): string {
