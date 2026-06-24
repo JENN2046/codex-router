@@ -1,44 +1,35 @@
 # Task Queue
 
-Active:
+Current task:
 
-- Commit the final state documentation update.
-- Rerun post-commit status, state-sync, PR validation, and diff whitespace
-  checks.
-- Push only after explicit external-write confirmation.
+- PR-23A-S1 trusted runtime binding V2 local closeout on
+  `feat/pr-23a-s1-trusted-runtime`
 
-Completed validation:
+Done:
 
-- review hardening targeted tests recorded in `.agent_board/VALIDATION_LOG.md`
-- permit replay hardening targeted tests:
-  `npx tsx --test tests/provider-core.test.ts tests/codex-cli-provider.test.ts tests/provider-execution-runner.test.ts`,
-  `79 / 79`
-- permit replay hardening `npm run typecheck`
-- permit replay hardening final `npm run validate:pr`, including typecheck,
-  full tests `1146 / 1146`, build, and state-sync
-- PR #45 review follow-up targeted tests:
-  `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts`,
-  `41 / 41`
-- PR #45 review follow-up `npm run typecheck`
-- PR #45 review follow-up affected tests:
-  `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts tests/provider-execution-runner.test.ts`,
-  `66 / 66`
-- PR #45 review follow-up pre-state-doc `git diff --check`
-- PR #45 state-sync CI event-scope targeted test:
-  `npx tsx --test tests/canary-evidence.test.ts`, `4 / 4`
-- PR #45 state-sync CI event-scope `npm run typecheck`
-- PR #45 state-sync CI event-scope pre-state-doc `git diff --check`
-- PR #45 state-sync common absolute path sanitizer targeted test:
-  `npx tsx --test tests/state-sync-audit.test.ts`, `18 / 18`
-- PR #45 state-sync common absolute path sanitizer `npm run typecheck`
-- PR #45 state-sync common absolute path sanitizer pre-state-doc
-  `git diff --check`
+- verified branch, starting local state, allowed file set, and diff fingerprint
+- completed V2 pre-commit validation
+- created authorized local Commit 1 for trusted runtime binding
+- validated Commit 1 with typecheck and provider/host/runner targeted tests
+- created authorized local Commit 2 for portable state-sync hardening
+- validated Commit 2 with state-sync/governance targeted tests
+- started the documentation-only state surface refresh for Commit 3
+- passed state-sync audit after the state surface refresh
 
-Boundaries:
+Todo:
 
-- no real Codex CLI execution
-- no workspace-write execution
-- no merge, tag, release, deploy, push to `main`
-- no secret changes
-- default provider permit consumption remains single-process and in-memory;
-  persistent replay coverage requires an injected durable consumption store
+- create authorized local Commit 3 for state documentation
+- run the V2 post-commit validation set
+- inspect final status, ahead/behind count, and local commit chain
+- send closeout receipt to the web GPT commander
+- wait up to 7 minutes for the next exact task book or authorization token
+
+Blocked until separately authorized:
+
+- push
+- PR creation
+- merge
+- release, deploy, npm publish, tag
+- real Codex CLI smoke
+- workspace-write telemetry smoke
+- env, secret, user config, or system config edits

@@ -1,79 +1,58 @@
 # Checkpoint
 
-Checkpoint branch:
-
-- `fix/p1-controlled-output-safety`
-
-Baseline:
-
-- `c29e494`
-
 Current state source:
 
 - `docs/current/CURRENT_STATE.md`
 
-Current checkpoint:
+Branch:
 
-- GPT Pro review P1/P2 hardening, the PR merge-checkout state-sync fix, and
-  PR #45 automated review follow-ups are implemented in local commits through
-  `c29e494`
-- final `npm run validate:pr` passed before the local commit split
-- follow-up permit replay hardening is implemented with targeted tests
+- `feat/pr-23a-s1-trusted-runtime`
 
-Completed locally:
+Recorded code head:
 
-- safe controlled runner result/report/event payloads
-- Task, Principal, provider plan, manifest, and executor plan binding checks
-- read-only provider permit hardening
-- trusted in-memory provider permit consumption before fake/real execution
-- replay rejection for repeated handoff/permit use, concurrent duplicate
-  execution, caller-side permit-id tampering, and retry after spawn failure
-- workspace-write approval `never` rejection
-- smoke/operator evidence error and telemetry sanitization
-- fake provider mode in-memory execution boundary
-- default process spawn fail-closed shell policy
-- CI state-sync job and state-sync local path checks
-- detached PR merge checkout state-sync compatibility
-- legacy provider execution plan-store records remain loadable and appendable
-- read-only blocked permits return audit reasons when old/custom executor
-  plans omit `policyDecisionHash`
-- branch-specific state-sync CI audit is limited to `pull_request` events and
-  does not run on post-merge `push` events to `main`
-- state-sync state surface sanitizer blocks common absolute workspace paths
-  including macOS Desktop and devcontainer/Codespaces forms
+- `3396b2b`
 
-Validation checkpoint:
+Completed in this checkpoint:
 
-- targeted affected tests passed
-- `npm run typecheck` passed
-- `npm test` passed, `1146 / 1146`
-- `npm run validate:pr` passed
-- replay targeted tests passed, `79 / 79`
-- replay final `npm run validate:pr` passed with `1146 / 1146` full tests
-- state-sync detached PR merge checkout test passed, `18 / 18`
-- `npm run typecheck` passed after the exact optional test fix
-- PR #45 review follow-up targeted tests passed, `41 / 41`
-- PR #45 review follow-up `npm run typecheck` passed
-- PR #45 review follow-up affected tests passed, `66 / 66`
-- `git diff --check` passed before the state documentation commit
-- state-sync CI event-scope targeted test passed, `4 / 4`
-- state-sync CI event-scope `npm run typecheck` passed
-- `git diff --check` passed before the event-scope state documentation commit
-- state-sync common absolute path sanitizer targeted test passed, `18 / 18`
-- state-sync common absolute path sanitizer `npm run typecheck` passed
-- `git diff --check` passed before the absolute path sanitizer state
-  documentation commit
+- created the first authorized local commit for trusted runtime binding
+- created the second authorized local commit for portable state-sync hardening
+- bound controlled Codex CLI prompts to stdin through
+  `exec-json-stdin-prompt.v1`
+- removed prompt delivery through argv
+- added host and provider validation for forged runtime bindings
+- removed raw command, raw argv, and prompt text from provider metadata
+- added safe runtime hash summaries to dry-run, fake execution, real
+  execution, approval, and evidence surfaces
+- hardened state-sync audit against Windows drive paths, UNC paths, extended
+  Windows paths, selected POSIX workspace paths, and secret markers
+- kept state-sync diagnostics sanitized to issue code, relative path, line,
+  and risk
+- refreshed current state and agent board surfaces for the documentation-only
+  closeout commit
 
-Known boundary:
+Validation completed:
 
-- provider permit consumption is not persistent by default; process restart or
-  multi-process replay requires an injected durable consumption store before it
-  can be treated as covered
+- V2 pre-commit `git diff --check`: passed
+- V2 pre-commit `npm run typecheck`: passed
+- V2 pre-commit state-sync/governance targeted tests passed, `26 / 26`
+- V2 pre-commit provider/host/runner targeted tests passed, `169 / 169`
+- V2 pre-commit `npm test`: passed, `1152 / 1152`
+- V2 pre-commit `npm run build`: passed
+- V2 pre-commit `npm run governance -- audit state-sync`: passed
+- V2 pre-commit `npm run validate:pr`: passed
+- Commit 1 follow-up typecheck passed
+- Commit 1 follow-up provider/host/runner targeted tests passed, `169 / 169`
+- Commit 2 follow-up state-sync/governance targeted tests passed, `26 / 26`
+- state-sync audit after the state surface refresh passed
 
-Pending checkpoint:
+Remaining validation:
 
-- final state documentation commit
-- post-commit `git status --short`
-- post-commit `npm run governance -- audit state-sync`
-- post-commit `npm run validate:pr`
-- post-commit `git diff --check`
+- create the documentation-only Commit 3
+- run the V2 post-commit validation set and final inspection
+- commander receipt
+
+Boundary:
+
+- local commits were explicitly authorized for this closeout
+- no push, PR, merge, release, deploy, npm publish, secret edit, real Codex CLI
+  smoke, or workspace-write telemetry smoke has been performed

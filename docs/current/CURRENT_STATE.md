@@ -10,12 +10,12 @@ refreshed here first.
 
 | Field | Value |
 | --- | --- |
-| Workspace | `codex-router` |
-| Current branch | `fix/p1-controlled-output-safety` |
-| Current head | `c29e494` |
-| Upstream | `origin/main` |
-| Upstream divergence | `ahead 16 / behind 0` |
-| Latest validated commit | `c29e494` |
+| Workspace | `codex-router/repo` |
+| Current branch | `feat/pr-23a-s1-trusted-runtime` |
+| Current head | `3396b2b` |
+| Upstream | `none` |
+| Upstream divergence | `ahead -1 / behind -1` |
+| Latest validated commit | `3396b2b` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -25,115 +25,77 @@ refreshed here first.
 - Governance docs map: `docs/governance/README.md`
 - Validation policy: `docs/validation-tiers.md`
 - Current state audit: `npm run governance -- audit state-sync`
-- Controlled provider execution taskbook:
-  `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
-- Controlled provider execution taskbook review audit:
-  `npm run governance -- audit controlled-provider-execution-taskbook-review`
 - Governance runner discovery: `npm run governance -- list`
 
 ## Current Scope
 
-This branch addresses the GPT Pro review blockers for the controlled provider
-execution line after PR #44 was merged into `main`.
+This branch closes the PR-23A-S1 trusted Codex CLI runtime slice under the web
+GPT commander V2 local-closeout task book.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
-Implemented in local commits through `c29e494`:
+The controlled provider execution taskbook review audit remains part of the
+current safety baseline:
 
-- controlled read-only runner result/report/event outputs now use one safe
-  representation for executor plans and provider summaries
-- controlled runner results no longer expose full executor metadata
-- provider failure, validation, and artifact summary surfaces use stricter
-  redaction, field omission, and size limits before `alreadyRedacted` reports
-  are written
-- routing-derived `workspace-write` Codex CLI plans now use `on-request`
-  approval instead of `never`
-- host run validation rejects every `workspace-write + approvalPolicy never`
-  combination before spawn
-- provider execution plans bind full Task and Principal snapshots through
-  stable hashes
-- controlled executor plans copy Task, Principal, provider plan, and manifest
-  bindings, and the runner rejects mismatches before provider execution
-- read-only provider permits bind the full executor plan hash, required run,
-  plan, manifest, policy, Task, Principal, nonce, expiration, and consumed
-  status where available
-- provider-core now owns a trusted in-memory read-only permit consumption
-  registry keyed by execution identity rather than caller-controlled
-  `permitId`, `nonce`, or `consumedAt` fields
-- Codex provider execution consumes both the one-shot prompt handoff and the
-  provider permit before fake/real execution; replayed handoffs, concurrent
-  duplicate execution, caller-side permit-id tampering, and post-spawn-failure
-  retries are blocked before a second spawn
-- Codex provider plans carry the new binding fields into executor plans
-- smoke/operator evidence builders now write sanitized errors and telemetry
-  payloads instead of raw `error` values
-- Codex provider fake mode now uses in-memory execution only and rejects
-  configured process spawners
-- the default Codex CLI process spawner no longer falls back to `shell: true`
-- CI now runs a real state-sync audit before evidence collection on
-  `pull_request` events only, because the audit is branch-state-specific
-- state-sync audit now blocks common machine absolute paths in state surfaces,
-  including Linux mount/home roots, macOS user-home roots, devcontainer and
-  Codespaces workspace roots, and Windows user-home roots
-- state-sync audit accepts explicitly allowed, clean, detached PR merge
-  checkouts with unknown upstream divergence
-- PR #45 review follow-up keeps legacy file plan-store records without the new
-  Task/Principal binding fields loadable and appendable
-- PR #45 review follow-up returns blocked read-only provider permits with
-  `provider_execution_permit_policy_hash_required` when an old/custom executor
-  plan omits `policyDecisionHash`, instead of throwing during permit parsing
-- controlled runner preflight now fails closed with explicit
-  `provider_plan_*_required` reasons if an old provider execution plan lacks
-  Task or Principal binding fields
-- PR #45 review follow-up limits the branch-specific state-sync CI job to
-  `pull_request` events so post-merge `push` runs on `main` are not blocked by
-  PR branch/head/divergence state records
+- `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
+- `controlled-provider-execution-taskbook-review`
+- `general_provider_execution` remains closed by default
+- `general_workspace_write` remains closed by default
+- `secret_or_credential_change` remains closed by default
+
+Implemented locally:
+
+- Codex CLI host plans now bind a trusted runtime descriptor with command,
+  argv-shape, workdir, workspace, and repository hash references.
+- The controlled Codex CLI prompt path is `exec-json-stdin-prompt.v1`, with
+  prompt delivery through stdin instead of argv.
+- `validateCodexCliExecPlanForRun()` rejects forged runtime bindings and
+  forged prompt-in-argv plans before spawning a process.
+- Codex provider plans reconstruct the controlled CLI argv from structured
+  fields and no longer persist raw command, raw argv, or prompt text in
+  provider metadata.
+- Provider dry-run, fake execution, real execution summaries, and evidence
+  artifacts expose only safe runtime hash summaries.
+- Workspace-write approval and preflight artifacts use sanitized runtime
+  previews and safe path references.
+- State-sync audit now blocks portable machine paths, including Windows drive
+  absolute paths, UNC paths, extended Windows paths, selected POSIX workspace
+  paths, and secret markers, while reporting only issue code, relative path,
+  line, and risk.
+- Focused tests cover stdin prompt binding, forged runtime rejection,
+  sanitized runtime summaries, Windows path blocking, UNC path blocking, URL
+  allowlisting, repo-relative allowlisting, and sentinel path non-disclosure.
+- Governance runner validation avoids Windows `.cmd` tsx shims by invoking the
+  local tsx CLI through the current Node executable.
 
 ## Validation Baseline
 
-Validation already completed before the local commit split:
+V2 pre-commit validation completed locally:
 
-- `npx tsx --test --test-name-pattern "evidence never writes raw|redacts sensitive process errors" tests/codex-cli-host.test.ts`:
-  passed, `2 / 2`.
-- `npx tsx --test --test-name-pattern "default process spawner|evidence never writes raw|redacts sensitive process errors|converts synchronous spawner failure" tests/codex-cli-host.test.ts`:
-  passed, `4 / 4`.
-- `npx tsx --test --test-name-pattern "fake mode|handoff|read-only provider dispatch|runner results through provider|registry selection" tests/codex-cli-provider.test.ts tests/host-dispatcher.test.ts`:
-  passed, `8 / 8`.
-- `npx tsx --test tests/canary-evidence.test.ts tests/state-sync-audit.test.ts`:
-  passed, `21 / 21`.
-- `npx tsx --test tests/codex-cli-provider.test.ts tests/host-dispatcher.test.ts tests/desktop-decision-runner.test.ts tests/provider-execution-runner.test.ts`:
-  passed, `89 / 89`.
-- `npx tsx --test tests/read-only-control-chain-acceptance.test.ts tests/approval-consumption-dispatch-matrix-audit.test.ts`:
-  passed, `6 / 6`.
+- `git diff --check`: passed.
 - `npm run typecheck`: passed.
-- `npm test`: passed, `1146 / 1146`.
+- `npx --no-install tsx --test tests/state-sync-audit.test.ts tests/governance-check.test.ts`:
+  passed, `26 / 26`.
+- `npx --no-install tsx --test tests/codex-cli-provider.test.ts tests/codex-cli-host.test.ts tests/provider-execution-runner.test.ts`:
+  passed, `169 / 169`.
+- `npm test`: passed, `1152 / 1152`.
+- `npm run build`: passed.
+- `npm run governance -- audit state-sync`: passed before local closeout
+  commits.
 - `npm run validate:pr`: passed; this includes `npm run typecheck`,
-  `npm test` with `1146 / 1146`, `npm run build`, and
-  `npm run governance -- audit state-sync`.
-- `npm run typecheck`: passed after the permit replay registry update.
-- `npx tsx --test tests/provider-core.test.ts tests/codex-cli-provider.test.ts tests/provider-execution-runner.test.ts`:
-  passed, `79 / 79`.
-- `npm run validate:pr`: passed after the PR closeout review; this includes
-  `npm run typecheck`, `npm test` with `1146 / 1146`,
-  `npm run build`, and `npm run governance -- audit state-sync`.
-- `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts`:
-  passed after the PR #45 review follow-up, `41 / 41`.
-- `npm run typecheck`: passed after the PR #45 review follow-up.
-- `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts tests/provider-execution-runner.test.ts`:
-  passed after the PR #45 review follow-up, `66 / 66`.
-- `git diff --check`: passed before the PR #45 review follow-up state
-  documentation commit.
-- `npx tsx --test tests/canary-evidence.test.ts`: passed after the
-  state-sync CI event-scope fix, `4 / 4`.
-- `npm run typecheck`: passed after the state-sync CI event-scope fix.
-- `git diff --check`: passed before the state-sync CI event-scope state
-  documentation commit.
-- `npx tsx --test tests/state-sync-audit.test.ts`: passed after the common
-  absolute workspace path sanitizer fix, `18 / 18`.
-- `npm run typecheck`: passed after the common absolute workspace path
-  sanitizer fix.
-- `git diff --check`: passed before the common absolute workspace path
-  sanitizer state documentation commit.
+  `npm test` with `1152 / 1152`, `npm run build`, and state-sync audit.
+
+Local closeout validation completed so far:
+
+- Commit 1 follow-up `npm run typecheck`: passed.
+- Commit 1 follow-up provider/host/runner targeted tests: passed,
+  `169 / 169`.
+- Commit 2 follow-up state-sync/governance targeted tests: passed,
+  `26 / 26`.
+- Commit 2 follow-up state-sync audit initially blocked because these state
+  surfaces still recorded the previous local head; this documentation refresh
+  is the corrective Commit 3 scope.
+- State-sync audit after this state surface refresh: passed.
 
 Validation commands required by the state-sync audit remain:
 
@@ -142,6 +104,7 @@ Validation commands required by the state-sync audit remain:
 - `npm test`
 - `npm run build`
 
+Post-Commit 3 validation remains required before the commander receipt.
 Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 
 ## Execution Boundary
@@ -149,18 +112,13 @@ Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
 Current allowed-by-default behavior remains local and non-executing unless a
 specific task and approval gate says otherwise.
 
-- `read_only_real_cli_smoke`: recorded and controlled; not a default execution
-  capability.
-- `bounded_workspace_write_canary`: historical fixed-target canary only; it
-  does not authorize general writes.
+- `trusted_codex_cli_runtime_binding`: local plan/validation hardening only.
+- `controlled_readonly_provider_execution`: tests use fake or injected
+  spawners where the test explicitly enters a guarded real-mode path.
 - `state_sync_audit`: local read-only audit only.
-- `controlled_readonly_provider_execution`: explicit controlled read-only
-  implementation slice only; tests use fake or injected spawners where the
-  test explicitly enters a guarded real-mode path.
 - `provider_permit_consumption`: single-process in-memory replay control by
-  default; the `ProviderExecutionPermitConsumptionStore` interface is the
-  injection point for a persistent or distributed registry if this boundary is
-  expanded later.
+  default; a persistent or distributed registry remains a future explicit
+  boundary.
 
 Blocked capabilities:
 
@@ -174,36 +132,32 @@ Blocked capabilities:
 
 ## Current Local Changes
 
-Local commits on `fix/p1-controlled-output-safety`:
+Two authorized local implementation commits have been created. The remaining
+local change is the documentation-only state surface refresh for Commit 3:
 
-- `feat(provider-core): harden read-only execution permits`
-- `fix(provider-runner): bind controlled execution outputs`
-- `fix(codex-provider): consume permits before execution`
-- `fix(codex-cli-host): sanitize evidence before persistence`
-- `ci(governance): audit state sync before evidence`
-- `fix(state-sync): accept detached PR merge checkout`
-- `test(state-sync): omit absent merge parent`
-- `fix(provider): preserve legacy execution audit paths`
-- `ci(state-sync): limit branch audit to pull requests`
-- `fix(state-sync): cover common absolute workspace paths`
-- final state documentation commit
+- `docs/current/CURRENT_STATE.md`
+- `.agent_board/CHECKPOINT.md`
+- `.agent_board/HANDOFF.md`
+- `.agent_board/RUN_STATE.md`
+- `.agent_board/TASK_QUEUE.md`
+- `.agent_board/VALIDATION_LOG.md`
 
-After the final state documentation commit, the intended worktree state is
-clean. PR #45 update is authorized by the current PR-fix task; merge, tag,
-release, deployment, secret changes, and push to `main` remain prohibited
-without separate explicit authorization.
+No push, PR creation, merge, release, deployment, npm publish, secret change,
+real Codex CLI smoke, or workspace-write telemetry smoke is authorized by the
+current local task book.
 
 ## State Sync Expectations
 
-This branch tracks `origin/main`. This state surface records `c29e494`, the
-last code/test commit before the final state documentation commit. Because
-`Stale after commit` is `true`, the state-sync audit accepts the documented
-parent commit after the final state documentation commit changes `HEAD`.
+This local branch does not currently track an upstream branch. The state-sync
+audit therefore expects unknown upstream divergence, recorded as
+`ahead -1 / behind -1`.
+
+Because `Stale after commit` is `true`, the documentation-only closeout commit
+may leave the recorded code head as its parent while still passing state-sync.
 
 ## Next Safe Action
 
-After the final state documentation commit, rerun `git status --short`,
-`npm run governance -- audit state-sync`, `npm run validate:pr`, and
-`git diff --check`. Do not run real Codex CLI, workspace-write execution, tag,
-release, deploy, modify secrets, push to `main`, or merge without a separate
-explicit instruction.
+Create the documentation-only Commit 3, then run the V2 post-commit validation
+set. Do not run real Codex CLI, workspace-write execution, tag, release,
+deploy, modify secrets, push, merge, or create remote objects without separate
+explicit authorization.
