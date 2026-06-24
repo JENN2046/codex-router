@@ -1210,13 +1210,19 @@ test("codex cli provider consumes permit before real spawn and blocks retry afte
   assert.equal(JSON.stringify(second).includes("prompt"), false);
 });
 
-test("codex cli provider fails closed before spawn when permit consumption store throws", async () => {
+test("codex cli provider preserves handoff when permit consumption store throws before spawn", async () => {
+  const permitStore = new InMemoryProviderExecutionPermitConsumptionStore();
+  let permitStoreUnavailable = true;
   let spawnCalls = 0;
   const throwingPermitStore: ProviderExecutionPermitConsumptionStore = {
-    consumeIfUnused: () => {
-      throw new Error("permit consumption store unavailable");
+    consumeIfUnused: (record) => {
+      if (permitStoreUnavailable) {
+        throw new Error("permit consumption store unavailable");
+      }
+
+      return permitStore.consumeIfUnused(record);
     },
-    get: () => undefined
+    get: (consumptionKey) => permitStore.get(consumptionKey)
   };
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
@@ -1237,20 +1243,24 @@ test("codex cli provider fails closed before spawn when permit consumption store
     taskClass: "read_only",
     sandboxMode: "read-only"
   }));
-
-  const result = await provider.execute(plan, {
+  const context = {
     permit: createApprovedPermitForPlan(plan),
     metadata: {
       codexCliProviderRealExecutionGuard: createRealExecutionGuard()
     }
-  });
+  };
 
-  assert.equal(result.ok, false);
-  assert.equal(result.error?.code, "codex_cli_provider_execution_permit_replay_rejected");
-  assert.deepEqual(result.error?.reasons, [
+  const failed = await provider.execute(plan, context);
+  permitStoreUnavailable = false;
+  const retried = await provider.execute(plan, context);
+
+  assert.equal(failed.ok, false);
+  assert.equal(failed.error?.code, "codex_cli_provider_execution_permit_replay_rejected");
+  assert.deepEqual(failed.error?.reasons, [
     "codex_cli_provider_execution_permit_consumption_store_failed"
   ]);
-  assert.equal(spawnCalls, 0);
+  assert.equal(retried.ok, true);
+  assert.equal(spawnCalls, 1);
 });
 
 test("codex cli provider execute rejects workspace-write plans before spawn", async () => {
@@ -1617,7 +1627,7 @@ class ReplayablePromptHandoffStore implements CodexCliProviderPromptHandoffStore
     };
   }
 
-  consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
+  peek(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
     if (this.record === undefined || this.record.handle !== handle) {
       return undefined;
     }
@@ -1625,6 +1635,10 @@ class ReplayablePromptHandoffStore implements CodexCliProviderPromptHandoffStore
     return {
       ...this.record
     };
+  }
+
+  consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
+    return this.peek(handle);
   }
 }
 

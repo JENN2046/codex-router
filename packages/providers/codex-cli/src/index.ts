@@ -151,6 +151,7 @@ export interface CodexCliProviderPromptHandoffRecord {
 
 export interface CodexCliProviderPromptHandoffStore {
   put(record: CodexCliProviderPromptHandoffRecord): void;
+  peek?(handle: string): CodexCliProviderPromptHandoffRecord | undefined;
   consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined;
 }
 
@@ -165,21 +166,22 @@ class InMemoryCodexCliProviderPromptHandoffStore implements CodexCliProviderProm
     });
   }
 
-  consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
+  peek(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
     const record = this.records.get(handle);
-    this.records.delete(handle);
-
-    if (record === undefined) {
+    if (record?.expiresAtMs !== undefined && record.expiresAtMs <= this.nowMs()) {
+      this.records.delete(handle);
       return undefined;
     }
 
-    if (record.expiresAtMs !== undefined && record.expiresAtMs <= this.nowMs()) {
-      return undefined;
-    }
-
-    return {
+    return record === undefined ? undefined : {
       ...record
     };
+  }
+
+  consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
+    const record = this.peek(handle);
+    this.records.delete(handle);
+    return record;
   }
 }
 
@@ -517,7 +519,10 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
       );
     }
 
-    const handoff = this.promptHandoffStore.consume(metadata.promptHandoff.handle);
+    const handoff = peekCodexCliProviderPromptHandoff(
+      this.promptHandoffStore,
+      metadata.promptHandoff.handle
+    );
     const handoffValidationReasons = validateCodexCliProviderPromptHandoff(
       parsedPlan,
       metadata,
@@ -557,6 +562,19 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
       return createCodexCliProviderErrorResult(
         "codex_cli_provider_execution_permit_replay_rejected",
         permitConsumptionReasons
+      );
+    }
+
+    const consumedHandoff = this.promptHandoffStore.consume(metadata.promptHandoff.handle);
+    const consumedHandoffValidationReasons = validateCodexCliProviderPromptHandoff(
+      parsedPlan,
+      metadata,
+      consumedHandoff
+    );
+    if (consumedHandoffValidationReasons.length > 0) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_handoff_invalid",
+        consumedHandoffValidationReasons
       );
     }
 
@@ -1731,6 +1749,22 @@ function validateCodexCliProviderPromptHandoff(
   }
 
   return uniqueStrings(reasons);
+}
+
+function peekCodexCliProviderPromptHandoff(
+  store: CodexCliProviderPromptHandoffStore,
+  handle: string
+): CodexCliProviderPromptHandoffRecord | undefined {
+  if (store.peek !== undefined) {
+    return store.peek(handle);
+  }
+
+  const record = store.consume(handle);
+  if (record !== undefined) {
+    store.put(record);
+  }
+
+  return record;
 }
 
 function createCodexCliProviderInputHash(input: ExecutionPlanInput): string {
