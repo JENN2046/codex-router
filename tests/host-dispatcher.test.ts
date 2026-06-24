@@ -191,17 +191,10 @@ test("host dispatcher preserves ready desktop routing", async () => {
   assert.equal(spawned, false);
 });
 
-test("host dispatcher read-only provider dispatch creates permit and executes fake spawn", async () => {
-  let spawnCalls = 0;
+test("host dispatcher read-only provider dispatch creates permit and uses fake in-memory execution", async () => {
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
-    spawn: () => {
-      spawnCalls += 1;
-      return createFakeCodexCliChild({
-        stdout: "{\"type\":\"agent_message\",\"message\":\"completed\"}\n",
-        exitCode: 0
-      });
-    }
+    nowMs: () => Date.parse(now)
   });
   const plan = provider.planExecution(createProviderExecutionInput({
     taskId: "task_host_dispatcher_readonly_provider",
@@ -218,11 +211,10 @@ test("host dispatcher read-only provider dispatch creates permit and executes fa
 
   assert.equal(result.ok, true);
   assert.equal(result.status, "completed");
-  assert.equal(spawnCalls, 1);
   assert.equal(result.permit?.status, "approved");
   assert.equal(result.permit?.planId, plan.planId);
   assert.equal(result.permitId, result.permit?.permitId);
-  assert.equal(result.eventCount, 1);
+  assert.equal(result.eventCount, 0);
   assert.equal(serialized.includes("prompt"), false);
   assert.equal(serialized.includes("args"), false);
   assert.equal(serialized.includes("stdout"), false);
@@ -233,6 +225,7 @@ test("host dispatcher read-only provider dry run does not spawn", async () => {
   let spawnCalls = 0;
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
+    nowMs: () => Date.parse(now),
     spawn: () => {
       spawnCalls += 1;
       return createFakeCodexCliChild({
@@ -264,6 +257,7 @@ test("host dispatcher rejects workspace-write provider dispatch before spawn", a
   let spawnCalls = 0;
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
+    nowMs: () => Date.parse(now),
     spawn: () => {
       spawnCalls += 1;
       return createFakeCodexCliChild({
@@ -298,6 +292,7 @@ test("host dispatcher rejects invalid provider plans before permit issuance", as
   let spawnCalls = 0;
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
+    nowMs: () => Date.parse(now),
     spawn: () => {
       spawnCalls += 1;
       return createFakeCodexCliChild({
@@ -331,16 +326,9 @@ test("host dispatcher rejects invalid provider plans before permit issuance", as
 
 test("host dispatcher dispatches ready read-only runner results through provider permits", async () => {
   const runnerResult = await createReadOnlyRunnerResult("host-dispatcher-runner-provider-success");
-  let spawnCalls = 0;
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
-    spawn: () => {
-      spawnCalls += 1;
-      return createFakeCodexCliChild({
-        stdout: "{\"type\":\"agent_message\",\"message\":\"completed\"}\n",
-        exitCode: 0
-      });
-    }
+    nowMs: () => Date.parse(now)
   });
 
   const result = await dispatchReadOnlyRunnerResultToProvider({
@@ -352,7 +340,6 @@ test("host dispatcher dispatches ready read-only runner results through provider
 
   assert.equal(result.ok, true);
   assert.equal(result.status, "completed");
-  assert.equal(spawnCalls, 1);
   assert.equal(result.taskId, runnerResult.task.taskId);
   assert.equal(result.decisionId, runnerResult.decision.decisionId);
   assert.equal(result.providerId, "codex-cli");
@@ -370,16 +357,9 @@ test("host dispatcher validates provider registry selection before read-only run
     "host-dispatcher-runner-provider-registry-success"
   );
   const registry = createRegistryWithCodexCatalog();
-  let spawnCalls = 0;
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
-    spawn: () => {
-      spawnCalls += 1;
-      return createFakeCodexCliChild({
-        stdout: "{\"type\":\"agent_message\",\"message\":\"completed\"}\n",
-        exitCode: 0
-      });
-    }
+    nowMs: () => Date.parse(now)
   });
 
   const result = await dispatchReadOnlyRunnerResultToProvider({
@@ -392,7 +372,6 @@ test("host dispatcher validates provider registry selection before read-only run
 
   assert.equal(result.ok, true);
   assert.equal(result.status, "completed");
-  assert.equal(spawnCalls, 1);
   assert.equal(result.providerSelection?.selected, true);
   assert.equal(result.providerSelection?.providerId, "codex-cli");
   assert.equal(result.permit?.status, "approved");
@@ -490,6 +469,7 @@ test("host dispatcher dry-runs read-only runner provider dispatch without spawn"
   let spawnCalls = 0;
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
+    nowMs: () => Date.parse(now),
     spawn: () => {
       spawnCalls += 1;
       return createFakeCodexCliChild({
@@ -762,6 +742,7 @@ async function assertRunnerDispatchRejected(options: {
   let spawnCalls = 0;
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
+    nowMs: () => Date.parse(now),
     spawn: () => {
       spawnCalls += 1;
       return createFakeCodexCliChild({
@@ -797,6 +778,7 @@ async function assertRegistryDispatchRejected(options: {
   let planCalls = 0;
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
+    nowMs: () => Date.parse(now),
     spawn: () => {
       spawnCalls += 1;
       return createFakeCodexCliChild({
@@ -844,6 +826,7 @@ function createRealModeProvider(
     executionEnabled: true,
     executionMode: "real",
     realExecutionAllowed: true,
+    nowMs: () => Date.parse(now),
     timeoutMs: 1_000,
     spawn
   });

@@ -89,11 +89,16 @@ export const ProviderExecutionPermitSchema = z.object({
   schemaVersion: z.literal("provider-execution-permit.v1").default("provider-execution-permit.v1"),
   permitId: z.string().min(1),
   taskId: z.string().min(1),
-  runId: z.string().min(1).optional(),
-  planId: z.string().min(1).optional(),
+  taskHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  runId: z.string().min(1),
+  planId: z.string().min(1),
+  planHash: z.string().regex(/^[a-f0-9]{64}$/),
+  providerExecutionPlanHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   providerId: z.string().min(1),
-  providerManifestHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  providerManifestHash: z.string().regex(/^[a-f0-9]{64}$/),
   policyDecisionHash: z.string().min(1).optional(),
+  principalId: z.string().min(1).optional(),
+  principalHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   sideEffectClass: ProviderSideEffectClassSchema,
   sandboxProfileId: z.string().min(1),
   status: z.enum(["candidate", "approved", "blocked"]),
@@ -103,9 +108,12 @@ export const ProviderExecutionPermitSchema = z.object({
     "pending",
     "rejected",
     "expired"
-  ]).optional(),
+  ]),
   reasons: z.array(z.string()).default([]),
-  issuedAt: z.string().min(1)
+  issuedAt: z.string().min(1),
+  expiresAt: z.string().min(1),
+  nonce: z.string().min(1),
+  consumedAt: z.string().min(1).optional()
 });
 
 export const WorkspaceWriteProviderExecutionPermitSchema = z.object({
@@ -156,6 +164,11 @@ export const ExecutorExecutionPlanSchema = ProviderPlanBaseSchema.extend({
   schemaVersion: z.literal("executor-execution-plan.v1").default("executor-execution-plan.v1"),
   kind: z.literal("executor").default("executor"),
   taskId: z.string().min(1),
+  taskHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  principalId: z.string().min(1).optional(),
+  principalHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  providerExecutionPlanHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  providerManifestHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   policyDecisionHash: z.string().min(1).optional(),
   sideEffectClass: ProviderSideEffectClassSchema,
   metadata: z.record(z.string(), z.unknown()).default({})
@@ -194,6 +207,7 @@ export type ProviderExecutionPermitIssueInput = {
   approvalStatus?: ProviderExecutionPermitApprovalStatus;
   reasons?: string[];
   issuedAt: string;
+  expiresAt?: string;
 };
 
 export type WorkspaceWriteProviderExecutionPermitIssueInput = {
@@ -215,7 +229,62 @@ export type WorkspaceWriteProviderExecutionPermitIssueInput = {
 
 export type ProviderExecutionPermitValidationOptions = {
   reasonPrefix?: string;
+  now?: string;
 };
+
+export type ProviderExecutionPermitConsumptionOptions = ProviderExecutionPermitValidationOptions & {
+  consumedAt?: string;
+};
+
+export type ProviderExecutionPermitConsumptionResult = "consumed" | "already_consumed";
+
+export type ProviderExecutionPermitConsumptionRecord = {
+  schemaVersion: "provider-execution-permit-consumption.v1";
+  consumptionKey: string;
+  permitId: string;
+  nonce: string;
+  taskId: string;
+  taskHash?: string;
+  runId: string;
+  planId: string;
+  planHash: string;
+  providerExecutionPlanHash?: string;
+  providerId: string;
+  providerManifestHash: string;
+  policyDecisionHash?: string;
+  principalId?: string;
+  principalHash?: string;
+  sideEffectClass: ProviderSideEffectClass;
+  sandboxProfileId: string;
+  issuedAt: string;
+  expiresAt: string;
+  consumedAt: string;
+};
+
+export interface ProviderExecutionPermitConsumptionStore {
+  consumeIfUnused(record: ProviderExecutionPermitConsumptionRecord): ProviderExecutionPermitConsumptionResult;
+  get(consumptionKey: string): ProviderExecutionPermitConsumptionRecord | undefined;
+}
+
+export class InMemoryProviderExecutionPermitConsumptionStore implements ProviderExecutionPermitConsumptionStore {
+  private readonly records = new Map<string, ProviderExecutionPermitConsumptionRecord>();
+
+  consumeIfUnused(record: ProviderExecutionPermitConsumptionRecord): ProviderExecutionPermitConsumptionResult {
+    if (this.records.has(record.consumptionKey)) {
+      return "already_consumed";
+    }
+
+    this.records.set(record.consumptionKey, {
+      ...record
+    });
+    return "consumed";
+  }
+
+  get(consumptionKey: string): ProviderExecutionPermitConsumptionRecord | undefined {
+    const record = this.records.get(consumptionKey);
+    return record === undefined ? undefined : { ...record };
+  }
+}
 
 export type ExecutionPlanInput = {
   task: Task;
@@ -223,6 +292,11 @@ export type ExecutionPlanInput = {
   policyDecision: PolicyDecision;
   sandboxProfile: SandboxProfile;
   inputHash?: string;
+  taskHash?: string;
+  principalId?: string;
+  principalHash?: string;
+  providerExecutionPlanHash?: string;
+  providerManifestHash?: string;
   proposedInput?: unknown;
   now: string;
 };
@@ -473,6 +547,14 @@ export function validateProviderExecutionPermitForPlan(
     reasons.push(`${prefix}_not_approved:${permit.status}`);
   }
 
+  if (permit.approvalStatus !== "not_required") {
+    reasons.push(`${prefix}_approval_status_must_be_not_required:${permit.approvalStatus}`);
+  }
+
+  if (permit.consumedAt !== undefined) {
+    reasons.push(`${prefix}_already_consumed`);
+  }
+
   if (permit.providerId !== plan.providerId) {
     reasons.push(`${prefix}_provider_mismatch:${permit.providerId}:${plan.providerId}`);
   }
@@ -481,12 +563,62 @@ export function validateProviderExecutionPermitForPlan(
     reasons.push(`${prefix}_task_mismatch:${permit.taskId}:${plan.taskId}`);
   }
 
-  if (permit.runId !== undefined && permit.runId !== plan.runId) {
+  if (permit.taskHash !== undefined && plan.taskHash !== undefined && permit.taskHash !== plan.taskHash) {
+    reasons.push(`${prefix}_task_hash_mismatch`);
+  }
+
+  if (plan.taskHash !== undefined && permit.taskHash === undefined) {
+    reasons.push(`${prefix}_task_hash_required`);
+  }
+
+  if (permit.runId !== plan.runId) {
     reasons.push(`${prefix}_run_mismatch:${permit.runId}:${plan.runId}`);
   }
 
-  if (permit.planId !== undefined && permit.planId !== plan.planId) {
+  if (permit.planId !== plan.planId) {
     reasons.push(`${prefix}_plan_mismatch:${permit.planId}:${plan.planId}`);
+  }
+
+  const expectedPlanHash = hashExecutorExecutionPlan(plan);
+  if (permit.planHash !== expectedPlanHash) {
+    reasons.push(`${prefix}_plan_hash_mismatch`);
+  }
+
+  const expectedNonce = createProviderPermitNonce(plan, permit.issuedAt, permit.expiresAt);
+  if (permit.nonce !== expectedNonce) {
+    reasons.push(`${prefix}_nonce_mismatch`);
+  }
+
+  if (
+    permit.providerExecutionPlanHash !== undefined
+    && plan.providerExecutionPlanHash !== undefined
+    && permit.providerExecutionPlanHash !== plan.providerExecutionPlanHash
+  ) {
+    reasons.push(`${prefix}_provider_plan_hash_mismatch`);
+  }
+
+  if (plan.providerExecutionPlanHash !== undefined && permit.providerExecutionPlanHash === undefined) {
+    reasons.push(`${prefix}_provider_plan_hash_required`);
+  }
+
+  if (permit.principalId !== undefined && plan.principalId !== undefined && permit.principalId !== plan.principalId) {
+    reasons.push(`${prefix}_principal_mismatch:${permit.principalId}:${plan.principalId}`);
+  }
+
+  if (plan.principalId !== undefined && permit.principalId === undefined) {
+    reasons.push(`${prefix}_principal_required`);
+  }
+
+  if (
+    permit.principalHash !== undefined
+    && plan.principalHash !== undefined
+    && permit.principalHash !== plan.principalHash
+  ) {
+    reasons.push(`${prefix}_principal_hash_mismatch`);
+  }
+
+  if (plan.principalHash !== undefined && permit.principalHash === undefined) {
+    reasons.push(`${prefix}_principal_hash_required`);
   }
 
   if (permit.sideEffectClass !== plan.sideEffectClass) {
@@ -497,21 +629,108 @@ export function validateProviderExecutionPermitForPlan(
     reasons.push(`${prefix}_sandbox_mismatch:${permit.sandboxProfileId}:${plan.sandboxProfile.sandboxId}`);
   }
 
-  if (
-    permit.providerManifestHash !== undefined
-    && permit.providerManifestHash !== hashProviderManifest(manifest)
-  ) {
+  if (permit.providerManifestHash !== hashProviderManifest(manifest)) {
     reasons.push(`${prefix}_manifest_mismatch`);
   }
 
-  if (
-    permit.policyDecisionHash !== undefined
-    && permit.policyDecisionHash !== plan.policyDecisionHash
-  ) {
+  if (plan.providerManifestHash !== undefined && permit.providerManifestHash !== plan.providerManifestHash) {
+    reasons.push(`${prefix}_plan_manifest_hash_mismatch`);
+  }
+
+  if (plan.policyDecisionHash === undefined || permit.policyDecisionHash === undefined) {
+    reasons.push(`${prefix}_policy_hash_required`);
+  } else if (permit.policyDecisionHash !== plan.policyDecisionHash) {
     reasons.push(`${prefix}_policy_mismatch`);
   }
 
+  reasons.push(...validateProviderExecutionPermitTimestamps(permit, prefix, options.now));
+
   return uniqueProviderCoreStrings(reasons);
+}
+
+export function createProviderExecutionPermitConsumptionKey(
+  permitInput: ProviderExecutionPermit
+): string {
+  const permit = ProviderExecutionPermitSchema.parse(permitInput);
+
+  return createHash("sha256")
+    .update(stableStringifyProviderObject({
+      schemaVersion: "provider-execution-permit-consumption-key.v1",
+      taskId: permit.taskId,
+      taskHash: permit.taskHash,
+      runId: permit.runId,
+      planId: permit.planId,
+      planHash: permit.planHash,
+      providerExecutionPlanHash: permit.providerExecutionPlanHash,
+      providerId: permit.providerId,
+      providerManifestHash: permit.providerManifestHash,
+      policyDecisionHash: permit.policyDecisionHash,
+      principalId: permit.principalId,
+      principalHash: permit.principalHash,
+      sideEffectClass: permit.sideEffectClass,
+      sandboxProfileId: permit.sandboxProfileId
+    }))
+    .digest("hex");
+}
+
+export function consumeProviderExecutionPermitForPlan(
+  permitInput: ProviderExecutionPermit,
+  planInput: ExecutorExecutionPlan,
+  manifestInput: ProviderManifest,
+  store: ProviderExecutionPermitConsumptionStore,
+  options: ProviderExecutionPermitConsumptionOptions = {}
+): string[] {
+  const prefix = options.reasonPrefix ?? "provider_execution_permit";
+  const validationReasons = validateProviderExecutionPermitForPlan(
+    permitInput,
+    planInput,
+    manifestInput,
+    options
+  );
+
+  if (validationReasons.length > 0) {
+    return validationReasons;
+  }
+
+  const permit = ProviderExecutionPermitSchema.parse(permitInput);
+  const consumedAt = options.consumedAt ?? new Date().toISOString();
+  if (!Number.isFinite(Date.parse(consumedAt))) {
+    return [`${prefix}_consumed_at_invalid`];
+  }
+
+  let result: ProviderExecutionPermitConsumptionResult;
+  try {
+    result = store.consumeIfUnused({
+      schemaVersion: "provider-execution-permit-consumption.v1",
+      consumptionKey: createProviderExecutionPermitConsumptionKey(permit),
+      permitId: permit.permitId,
+      nonce: permit.nonce,
+      taskId: permit.taskId,
+      ...(permit.taskHash !== undefined ? { taskHash: permit.taskHash } : {}),
+      runId: permit.runId,
+      planId: permit.planId,
+      planHash: permit.planHash,
+      ...(permit.providerExecutionPlanHash !== undefined
+        ? { providerExecutionPlanHash: permit.providerExecutionPlanHash }
+        : {}),
+      providerId: permit.providerId,
+      providerManifestHash: permit.providerManifestHash,
+      ...(permit.policyDecisionHash !== undefined ? { policyDecisionHash: permit.policyDecisionHash } : {}),
+      ...(permit.principalId !== undefined ? { principalId: permit.principalId } : {}),
+      ...(permit.principalHash !== undefined ? { principalHash: permit.principalHash } : {}),
+      sideEffectClass: permit.sideEffectClass,
+      sandboxProfileId: permit.sandboxProfileId,
+      issuedAt: permit.issuedAt,
+      expiresAt: permit.expiresAt,
+      consumedAt
+    });
+  } catch {
+    return [`${prefix}_consumption_store_failed`];
+  }
+
+  return result === "consumed"
+    ? []
+    : [`${prefix}_already_consumed_by_store`];
 }
 
 export function validateWorkspaceWriteProviderExecutionPermitForPlan(
@@ -590,6 +809,12 @@ export function validateWorkspaceWriteProviderExecutionPermitForPlan(
 export function hashProviderManifest(manifest: ProviderManifest): string {
   return createHash("sha256")
     .update(stableStringifyProviderObject(ProviderManifestSchema.parse(manifest)))
+    .digest("hex");
+}
+
+export function hashExecutorExecutionPlan(plan: ExecutorExecutionPlan): string {
+  return createHash("sha256")
+    .update(stableStringifyProviderObject(ExecutorExecutionPlanSchema.parse(plan)))
     .digest("hex");
 }
 
@@ -705,24 +930,33 @@ function createProviderExecutionPermit(
   const manifest = ProviderManifestSchema.parse(input.manifest);
   const approvalStatus = input.approvalStatus
     ?? (plan.approvalRequired ? "pending" : "not_required");
+  const expiresAt = input.expiresAt ?? createDefaultProviderPermitExpiresAt(input.issuedAt);
+  const nonce = createProviderPermitNonce(plan, input.issuedAt, expiresAt);
 
   return ProviderExecutionPermitSchema.parse({
     schemaVersion: "provider-execution-permit.v1",
     permitId: input.permitId ?? `permit_${plan.planId}`,
     taskId: plan.taskId,
+    ...(plan.taskHash !== undefined ? { taskHash: plan.taskHash } : {}),
     runId: plan.runId,
     planId: plan.planId,
+    planHash: hashExecutorExecutionPlan(plan),
+    ...(plan.providerExecutionPlanHash !== undefined
+      ? { providerExecutionPlanHash: plan.providerExecutionPlanHash }
+      : {}),
     providerId: plan.providerId,
     providerManifestHash: hashProviderManifest(manifest),
-    ...(plan.policyDecisionHash !== undefined
-      ? { policyDecisionHash: plan.policyDecisionHash }
-      : {}),
+    ...(plan.policyDecisionHash !== undefined ? { policyDecisionHash: plan.policyDecisionHash } : {}),
+    ...(plan.principalId !== undefined ? { principalId: plan.principalId } : {}),
+    ...(plan.principalHash !== undefined ? { principalHash: plan.principalHash } : {}),
     sideEffectClass: plan.sideEffectClass,
     sandboxProfileId: plan.sandboxProfile.sandboxId,
     status,
     approvalStatus,
     reasons,
-    issuedAt: input.issuedAt
+    issuedAt: input.issuedAt,
+    expiresAt,
+    nonce
   });
 }
 
@@ -783,7 +1017,77 @@ function getReadOnlyProviderExecutionPermitIssuanceBlockers(
     reasons.push("provider_execution_permit_approval_required");
   }
 
+  if (plan.policyDecisionHash === undefined) {
+    reasons.push("provider_execution_permit_policy_hash_required");
+  }
+
   return uniqueProviderCoreStrings(reasons);
+}
+
+function validateProviderExecutionPermitTimestamps(
+  permit: ProviderExecutionPermit,
+  prefix: string,
+  now?: string
+): string[] {
+  const reasons: string[] = [];
+  const issuedAtMs = Date.parse(permit.issuedAt);
+  const expiresAtMs = Date.parse(permit.expiresAt);
+
+  if (!Number.isFinite(issuedAtMs)) {
+    reasons.push(`${prefix}_issued_at_invalid`);
+  }
+
+  if (!Number.isFinite(expiresAtMs)) {
+    reasons.push(`${prefix}_expires_at_invalid`);
+  }
+
+  if (
+    Number.isFinite(issuedAtMs)
+    && Number.isFinite(expiresAtMs)
+    && expiresAtMs <= issuedAtMs
+  ) {
+    reasons.push(`${prefix}_expires_at_not_after_issued_at`);
+  }
+
+  if (now !== undefined) {
+    const nowMs = Date.parse(now);
+    if (!Number.isFinite(nowMs)) {
+      reasons.push(`${prefix}_validation_time_invalid`);
+    } else {
+      if (Number.isFinite(issuedAtMs) && issuedAtMs > nowMs + 60_000) {
+        reasons.push(`${prefix}_issued_at_in_future`);
+      }
+      if (Number.isFinite(expiresAtMs) && expiresAtMs <= nowMs) {
+        reasons.push(`${prefix}_expired`);
+      }
+    }
+  }
+
+  return reasons;
+}
+
+function createDefaultProviderPermitExpiresAt(issuedAt: string): string {
+  const issuedAtMs = Date.parse(issuedAt);
+  if (!Number.isFinite(issuedAtMs)) {
+    return issuedAt;
+  }
+
+  return new Date(issuedAtMs + 5 * 60_000).toISOString();
+}
+
+function createProviderPermitNonce(
+  plan: ExecutorExecutionPlan,
+  issuedAt: string,
+  expiresAt: string
+): string {
+  return createHash("sha256")
+    .update(stableStringifyProviderObject({
+      planHash: hashExecutorExecutionPlan(plan),
+      issuedAt,
+      expiresAt
+    }))
+    .digest("hex")
+    .slice(0, 24);
 }
 
 function getWorkspaceWriteProviderExecutionPermitIssuanceBlockers(

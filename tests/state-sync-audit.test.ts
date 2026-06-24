@@ -89,6 +89,21 @@ test("state sync audit accepts clean synthetic review checkouts when explicitly 
   assert.equal(review.status, "passed");
 });
 
+test("state sync audit accepts shallow detached PR merge checkouts when explicitly allowed", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    gitStatusShort: "",
+    branch: "",
+    head: "8a5c580",
+    allowedStateCommits: [],
+    upstream: "",
+    aheadBehind: "unknown\tunknown"
+  });
+
+  assert.equal(review.status, "passed");
+});
+
 test("state sync audit blocks synthetic review checkouts without explicit state marker", async () => {
   const input = asCleanSyntheticReviewInput(await createInputFromWorkspace());
   const review = reviewStateSyncAudit({
@@ -245,6 +260,29 @@ test("state sync audit output stays summarized", async () => {
   for (const marker of ["OPENAI_API_KEY", "sk-", "Bearer ", "raw token"]) {
     assert.equal(text.includes(marker), false, `text output must omit ${marker}`);
     assert.equal(json.includes(marker), false, `json output must omit ${marker}`);
+  }
+});
+
+test("state sync audit blocks machine absolute paths in state surfaces", async () => {
+  const input = await createInputFromWorkspace();
+  for (const machinePath of [
+    "/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router",
+    "/home/ubuntu/apps/codex-router",
+    "/Users/alice/src/codex-router",
+    "/workspace/codex-router",
+    "/workspaces/codex-router",
+    "C:\\Users\\alice\\codex-router"
+  ]) {
+    const review = reviewStateSyncAudit({
+      ...input,
+      currentStateText: input.currentStateText.replace(
+        "| Workspace | `codex-router` |",
+        `| Workspace | \`${machinePath}\` |`
+      )
+    });
+
+    assert.equal(review.status, "blocked", machinePath);
+    assert.ok(review.reasons.includes("state_sync_outputSanitized"), machinePath);
   }
 });
 

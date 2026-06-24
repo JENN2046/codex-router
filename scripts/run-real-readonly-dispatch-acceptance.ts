@@ -11,7 +11,10 @@ import {
   dispatchReadOnlyRunnerResultToProvider
 } from "../packages/host-dispatcher/src/index.js";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
-import { hashProviderManifest } from "../packages/provider-core/src/index.js";
+import {
+  InMemoryProviderExecutionPermitConsumptionStore,
+  hashProviderManifest
+} from "../packages/provider-core/src/index.js";
 import { createProviderRegistry } from "../packages/provider-registry/src/index.js";
 import {
   CodexCliExecutorProvider,
@@ -96,6 +99,7 @@ export async function runRealReadOnlyDispatchAcceptance(
     now: () => generatedAt
   });
 
+  const permitConsumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
   let successSpawnCalls = 0;
   const successProvider = createRealModeProvider(() => {
     successSpawnCalls += 1;
@@ -103,7 +107,7 @@ export async function runRealReadOnlyDispatchAcceptance(
       stdout: "{\"type\":\"agent_message\",\"message\":\"REAL_READONLY_DISPATCH_ACCEPTANCE_OK\"}\n",
       exitCode: 0
     });
-  });
+  }, permitConsumptionStore, generatedAt);
   const guard = createRealExecutionGuard(expectedHash);
   const dispatch = await dispatchReadOnlyRunnerResultToProvider({
     runnerResult,
@@ -124,7 +128,7 @@ export async function runRealReadOnlyDispatchAcceptance(
         stdout: "",
         exitCode: 0
       });
-    }),
+    }, permitConsumptionStore, generatedAt),
     providerRegistry: registry,
     now: generatedAt
   });
@@ -138,7 +142,7 @@ export async function runRealReadOnlyDispatchAcceptance(
         stdout: "",
         exitCode: 0
       });
-    }),
+    }, permitConsumptionStore, generatedAt),
     providerRegistry: registry,
     now: generatedAt,
     providerExecutionMetadata: {
@@ -174,7 +178,7 @@ export async function runRealReadOnlyDispatchAcceptance(
         stdout: "",
         exitCode: 0
       });
-    }),
+    }, permitConsumptionStore, generatedAt),
     providerRegistry: registry,
     now: generatedAt,
     providerExecutionMetadata: {
@@ -282,12 +286,18 @@ export async function writeRealReadOnlyDispatchAcceptanceEvidence(
   };
 }
 
-function createRealModeProvider(spawn: CodexCliProcessSpawner): CodexCliExecutorProvider {
+function createRealModeProvider(
+  spawn: CodexCliProcessSpawner,
+  permitConsumptionStore: InMemoryProviderExecutionPermitConsumptionStore,
+  generatedAt: string
+): CodexCliExecutorProvider {
   return new CodexCliExecutorProvider({
     executionEnabled: true,
     executionMode: "real",
     realExecutionAllowed: true,
+    nowMs: () => Date.parse(generatedAt),
     timeoutMs: 1_000,
+    permitConsumptionStore,
     spawn
   });
 }

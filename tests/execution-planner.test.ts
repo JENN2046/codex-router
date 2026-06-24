@@ -161,6 +161,64 @@ test("file provider execution plan store persists plans across instances", async
   }
 });
 
+test("file provider execution plan store keeps legacy records without binding hashes loadable", async () => {
+  const baseDir = await createExecutionPlannerTempDir();
+  try {
+    const legacyPlan = planProviderExecution(createPlannerInput({
+      preferredProviderId: "codex-cli"
+    }));
+    const legacyRecord: Record<string, unknown> = { ...legacyPlan };
+    delete legacyRecord.taskHash;
+    delete legacyRecord.principalId;
+    delete legacyRecord.principalHash;
+    await writeFile(
+      join(baseDir, "provider-execution-plans.json"),
+      `${JSON.stringify({
+        schemaVersion: "provider-execution-plan-store.v1",
+        plans: [legacyRecord]
+      }, null, 2)}\n`,
+      "utf8"
+    );
+
+    const task = TaskSchema.parse({
+      ...createTask(),
+      taskId: "task_execution_planner_legacy_append"
+    });
+    const policyDecision = createPolicyDecision({
+      taskId: task.taskId
+    });
+    const run = RunSchema.parse({
+      ...createRun(task, policyDecision),
+      runId: "run_execution_planner_legacy_append"
+    });
+    const nextPlan = planProviderExecution(createPlannerInput({
+      task,
+      run,
+      policyDecision,
+      executionEligibility: createEligibility({
+        taskId: task.taskId,
+        runId: run.runId,
+        policyDecisionHash: hashApprovalScope(policyDecision)
+      }),
+      preferredProviderId: "codex-cli"
+    }));
+    const store = new FileSystemProviderExecutionPlanStore({ baseDir });
+
+    const loadedLegacyPlan = store.getPlan(legacyPlan.planId);
+    assert.ok(loadedLegacyPlan);
+    assert.equal(loadedLegacyPlan.taskHash, undefined);
+    assert.equal(loadedLegacyPlan.principalId, undefined);
+    assert.equal(loadedLegacyPlan.principalHash, undefined);
+    assert.deepEqual(store.savePlan(nextPlan), nextPlan);
+    assert.deepEqual(
+      store.listPlans().map((plan) => plan.planId),
+      [legacyPlan.planId, nextPlan.planId]
+    );
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
 test("file provider execution plan store rejects duplicate ids after reload", async () => {
   const baseDir = await createExecutionPlannerTempDir();
   try {

@@ -2,35 +2,43 @@
 
 Active:
 
-- Commit the P1 validation payload final validation record.
-- Rerun clean-worktree `npm run governance -- audit state-sync`.
-- Push the branch only after explicit external-write confirmation.
+- Commit the final state documentation update.
+- Rerun post-commit status, state-sync, PR validation, and diff whitespace
+  checks.
+- Push only after explicit external-write confirmation.
 
 Completed validation:
 
-- `npm run governance -- audit controlled-provider-execution-taskbook-review`
-- `npm run validate:pr`
-- `npm run typecheck`
-- `npx tsx --test tests/provider-execution-runner.test.ts`
-- `npx tsx --test tests/codex-cli-provider.test.ts`
-- `npx tsx --test tests/codex-cli-host.test.ts`
-- `npm run governance -- acceptance controlled-readonly-provider-execution`
-- `npx tsx --test tests/state-sync-audit.test.ts`
-- `npm test`
-- `npm run build`
-- post-review targeted provider-runner regression test, `19 / 19`
-- post-review pre-state-refresh PR validation through typecheck, full tests,
-  and build
-- final clean-worktree `npm run validate:pr`, including typecheck, full tests
-  `1125 / 1125`, build, and state-sync
-- P1 validation payload targeted provider-runner regression test, `21 / 21`
-- P1 validation payload `npm run typecheck`
-- P1 validation payload final clean-worktree `npm run validate:pr`, including
-  typecheck, full tests `1127 / 1127`, build, and state-sync
+- review hardening targeted tests recorded in `.agent_board/VALIDATION_LOG.md`
+- permit replay hardening targeted tests:
+  `npx tsx --test tests/provider-core.test.ts tests/codex-cli-provider.test.ts tests/provider-execution-runner.test.ts`,
+  `79 / 79`
+- permit replay hardening `npm run typecheck`
+- permit replay hardening final `npm run validate:pr`, including typecheck,
+  full tests `1146 / 1146`, build, and state-sync
+- PR #45 review follow-up targeted tests:
+  `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts`,
+  `41 / 41`
+- PR #45 review follow-up `npm run typecheck`
+- PR #45 review follow-up affected tests:
+  `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts tests/provider-execution-runner.test.ts`,
+  `66 / 66`
+- PR #45 review follow-up pre-state-doc `git diff --check`
+- PR #45 state-sync CI event-scope targeted test:
+  `npx tsx --test tests/canary-evidence.test.ts`, `4 / 4`
+- PR #45 state-sync CI event-scope `npm run typecheck`
+- PR #45 state-sync CI event-scope pre-state-doc `git diff --check`
+- PR #45 state-sync common absolute path sanitizer targeted test:
+  `npx tsx --test tests/state-sync-audit.test.ts`, `18 / 18`
+- PR #45 state-sync common absolute path sanitizer `npm run typecheck`
+- PR #45 state-sync common absolute path sanitizer pre-state-doc
+  `git diff --check`
 
 Boundaries:
 
 - no real Codex CLI execution
 - no workspace-write execution
-- no external writes
+- no merge, tag, release, deploy, push to `main`
 - no secret changes
+- default provider permit consumption remains single-process and in-memory;
+  persistent replay coverage requires an injected durable consumption store

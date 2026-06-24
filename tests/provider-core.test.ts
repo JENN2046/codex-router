@@ -8,10 +8,14 @@ import {
   ToolProviderInvocationPlanSchema,
   assertProviderSupportsSandboxProfile,
   assertProviderSupportsSideEffectClass,
+  InMemoryProviderExecutionPermitConsumptionStore,
+  consumeProviderExecutionPermitForPlan,
   createApprovedProviderExecutionPermit,
   createApprovedWorkspaceWriteProviderExecutionPermit,
   createBlockedProviderExecutionPermit,
   createBlockedWorkspaceWriteProviderExecutionPermit,
+  createProviderExecutionPermitConsumptionKey,
+  hashExecutorExecutionPlan,
   hashProviderManifest,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass,
@@ -84,7 +88,11 @@ test("provider-core validates provider execution permits", () => {
   assert.equal(permit.schemaVersion, "provider-execution-permit.v1");
   assert.equal(permit.providerId, "provider_core_executor_001");
   assert.equal(permit.status, "approved");
+  assert.equal(permit.approvalStatus, "not_required");
   assert.equal(permit.providerManifestHash, hashProviderManifest(manifest));
+  assert.equal(permit.planHash, hashExecutorExecutionPlan(plan));
+  assert.equal(permit.expiresAt, "2026-06-14T00:05:00.000Z");
+  assert.equal(typeof permit.nonce, "string");
   assert.deepEqual(permit.reasons, []);
   assert.deepEqual(validateProviderExecutionPermitForPlan(
     permit,
@@ -102,6 +110,10 @@ test("provider-core rejects provider execution permit mismatches", () => {
     issuedAt: "2026-06-14T00:00:00.000Z"
   });
 
+  assert.ok(validateProviderExecutionPermitForPlan({
+    ...permit,
+    approvalStatus: "pending"
+  }, plan, manifest).includes("provider_execution_permit_approval_status_must_be_not_required:pending"));
   assert.ok(validateProviderExecutionPermitForPlan({
     ...permit,
     providerId: "other-provider"
@@ -140,6 +152,134 @@ test("provider-core rejects provider execution permit mismatches", () => {
     ...permit,
     policyDecisionHash: "policy_hash_other"
   }, plan, manifest).includes("provider_execution_permit_policy_mismatch"));
+  const permitWithoutPolicyHash = { ...permit };
+  delete permitWithoutPolicyHash.policyDecisionHash;
+  assert.ok(validateProviderExecutionPermitForPlan(
+    permitWithoutPolicyHash,
+    plan,
+    manifest
+  ).includes("provider_execution_permit_policy_hash_required"));
+  assert.ok(validateProviderExecutionPermitForPlan({
+    ...permit,
+    nonce: "caller_supplied_nonce"
+  }, plan, manifest).includes("provider_execution_permit_nonce_mismatch"));
+  assert.ok(validateProviderExecutionPermitForPlan({
+    ...permit,
+    consumedAt: "2026-06-14T00:01:00.000Z"
+  }, plan, manifest).includes("provider_execution_permit_already_consumed"));
+  assert.ok(validateProviderExecutionPermitForPlan(
+    permit,
+    {
+      ...plan,
+      metadata: {
+        command: "tampered"
+      }
+    },
+    manifest
+  ).includes("provider_execution_permit_plan_hash_mismatch"));
+  assert.ok(validateProviderExecutionPermitForPlan(
+    permit,
+    plan,
+    manifest,
+    { now: "2026-06-14T00:06:00.000Z" }
+  ).includes("provider_execution_permit_expired"));
+});
+
+test("provider-core consumes read-only provider permits once in trusted store", () => {
+  const manifest = createProviderManifest();
+  const plan = createExecutorPlan();
+  const permit = createApprovedProviderExecutionPermit({
+    plan,
+    manifest,
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+  const store = new InMemoryProviderExecutionPermitConsumptionStore();
+  const key = createProviderExecutionPermitConsumptionKey(permit);
+
+  assert.deepEqual(consumeProviderExecutionPermitForPlan(
+    permit,
+    plan,
+    manifest,
+    {
+      consumeIfUnused: (record) => store.consumeIfUnused(record),
+      get: (consumptionKey) => store.get(consumptionKey)
+    },
+    {
+      consumedAt: "2026-06-14T00:00:01.000Z"
+    }
+  ), []);
+  assert.equal(store.get(key)?.permitId, permit.permitId);
+  assert.equal(store.get(key)?.consumedAt, "2026-06-14T00:00:01.000Z");
+
+  assert.deepEqual(consumeProviderExecutionPermitForPlan(
+    permit,
+    plan,
+    manifest,
+    store,
+    {
+      consumedAt: "2026-06-14T00:00:02.000Z"
+    }
+  ), ["provider_execution_permit_already_consumed_by_store"]);
+});
+
+test("provider-core store blocks caller-side consumedAt and permit id tampering", () => {
+  const manifest = createProviderManifest();
+  const plan = createExecutorPlan();
+  const permit = createApprovedProviderExecutionPermit({
+    plan,
+    manifest,
+    permitId: "permit_original",
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+  const store = new InMemoryProviderExecutionPermitConsumptionStore();
+
+  assert.deepEqual(consumeProviderExecutionPermitForPlan(
+    permit,
+    plan,
+    manifest,
+    store,
+    {
+      consumedAt: "2026-06-14T00:00:01.000Z"
+    }
+  ), []);
+
+  assert.deepEqual(consumeProviderExecutionPermitForPlan(
+    {
+      ...permit,
+      permitId: "permit_attacker_changed"
+    },
+    plan,
+    manifest,
+    store,
+    {
+      consumedAt: "2026-06-14T00:00:02.000Z"
+    }
+  ), ["provider_execution_permit_already_consumed_by_store"]);
+});
+
+test("provider-core fails closed when permit consumption store throws", () => {
+  const manifest = createProviderManifest();
+  const plan = createExecutorPlan();
+  const permit = createApprovedProviderExecutionPermit({
+    plan,
+    manifest,
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.deepEqual(consumeProviderExecutionPermitForPlan(
+    permit,
+    plan,
+    manifest,
+    {
+      consumeIfUnused: () => {
+        throw new Error("store unavailable");
+      },
+      get: () => undefined
+    },
+    {
+      consumedAt: "2026-06-14T00:00:01.000Z"
+    }
+  ), ["provider_execution_permit_consumption_store_failed"]);
 });
 
 test("provider-core blocks non-read-only provider execution permits", () => {
@@ -163,6 +303,35 @@ test("provider-core blocks non-read-only provider execution permits", () => {
       issuedAt: "2026-06-14T00:00:00.000Z"
     }),
     /provider_execution_permit_not_approvable:/
+  );
+});
+
+test("provider-core returns blocked read-only permits when policy hash is missing", () => {
+  const manifest = createProviderManifest();
+  const legacyPlanInput: Record<string, unknown> = { ...createExecutorPlan() };
+  delete legacyPlanInput.policyDecisionHash;
+  const legacyPlan = ExecutorExecutionPlanSchema.parse(legacyPlanInput);
+  const blocked = createBlockedProviderExecutionPermit({
+    plan: legacyPlan,
+    manifest,
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(blocked.status, "blocked");
+  assert.equal(blocked.policyDecisionHash, undefined);
+  assert.ok(blocked.reasons.includes("provider_execution_permit_policy_hash_required"));
+  assert.ok(validateProviderExecutionPermitForPlan(
+    blocked,
+    legacyPlan,
+    manifest
+  ).includes("provider_execution_permit_policy_hash_required"));
+  assert.throws(
+    () => createApprovedProviderExecutionPermit({
+      plan: legacyPlan,
+      manifest,
+      issuedAt: "2026-06-14T00:00:00.000Z"
+    }),
+    /provider_execution_permit_not_approvable:provider_execution_permit_policy_hash_required/
   );
 });
 

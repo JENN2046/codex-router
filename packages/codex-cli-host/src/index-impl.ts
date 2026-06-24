@@ -11,8 +11,9 @@ import {
   type TelemetrySink
 } from "../../observability/src/index.js";
 import {
+  createSafeAuditDetails,
   redactSecretLikeFields,
-  redactSecretLikeText
+  redactText
 } from "../../redaction/src/index.js";
 import {
   ModelIdSchema,
@@ -48,6 +49,12 @@ export const CODEX_CLI_MODEL_PROBE_OK = "CODEX_CLI_MODEL_PROBE_OK";
 export const CODEX_CLI_READONLY_SMOKE_OK = "CODEX_CLI_READONLY_SMOKE_OK";
 export const CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION =
   "ALLOW_CODEX_CLI_WORKSPACE_WRITE_SMOKE";
+
+const CODEX_CLI_EVIDENCE_SECRET_KEYS = [
+  "CODEX_API_KEY",
+  "OPENAI_API_KEY",
+  "CODEX_ACCESS_TOKEN"
+];
 
 export interface CodexCliExecPlanOptions {
   codexCommand?: string;
@@ -1145,12 +1152,15 @@ export function createCodexCliExecPlanFromRoutingDecision(
     decision,
     modelSelection
   );
+  const sandbox = resolveCodexCliSandboxForRoutingDecision(decision);
   const plan = createCodexCliExecPlan(task, {
     ...planOptions,
-    approvalPolicy: decision.approval.required ? "on-request" : "never",
+    approvalPolicy: sandbox === "workspace-write" || decision.approval.required
+      ? "on-request"
+      : "never",
     ignoreUserConfig: true,
     model: modelResolution.selectedModel,
-    sandbox: resolveCodexCliSandboxForRoutingDecision(decision)
+    sandbox
   });
 
   return {
@@ -2328,23 +2338,57 @@ function sanitizeCodexCliJsonlParseErrorForResult(
 }
 
 function redactCodexCliSensitiveEvidenceText(value: string): string {
-  return redactCodexCliAuthJsonPaths(redactSecretLikeText(value, [
-    "CODEX_API_KEY",
-    "OPENAI_API_KEY",
-    "CODEX_ACCESS_TOKEN"
-  ]));
+  return redactCodexCliAuthJsonPaths(redactText(value, {
+    additionalSecretKeys: CODEX_CLI_EVIDENCE_SECRET_KEYS,
+    maxFieldChars: 4096
+  }));
 }
 
 function redactCodexCliSensitiveEvidenceValue(value: unknown): unknown {
   return redactCodexCliAuthJsonPathsInValue(redactSecretLikeFields(value, {
-    additionalSecretKeys: [
-      "CODEX_API_KEY",
-      "OPENAI_API_KEY",
-      "CODEX_ACCESS_TOKEN"
-    ],
+    additionalSecretKeys: CODEX_CLI_EVIDENCE_SECRET_KEYS,
     redactArgvSecrets: true,
     redactStrings: true
   }));
+}
+
+function createCodexCliSafeEvidenceRecord(
+  value: Record<string, unknown>
+): Record<string, unknown> {
+  const redacted = redactCodexCliSensitiveEvidenceValue(value);
+  if (!isRecord(redacted)) {
+    return {};
+  }
+
+  return createSafeAuditDetails(redacted, {
+    additionalSecretKeys: CODEX_CLI_EVIDENCE_SECRET_KEYS,
+    redactArgvSecrets: true,
+    redactStrings: true,
+    maxFieldChars: 4096,
+    maxRecordChars: 32768
+  });
+}
+
+function createCodexCliSafeEvidenceStrings(values: string[]): string[] {
+  return values.map(redactCodexCliSensitiveEvidenceText);
+}
+
+function createCodexCliSafeTelemetryEvidence(events: LogEvent[]): Array<{
+  level: LogEvent["level"];
+  message: string;
+  context?: Record<string, unknown>;
+}> {
+  return events.map((event) => {
+    const context = event.context
+      ? createCodexCliSafeEvidenceRecord(event.context)
+      : undefined;
+
+    return {
+      level: event.level,
+      message: redactCodexCliSensitiveEvidenceText(event.message),
+      ...(context && Object.keys(context).length > 0 ? { context } : {})
+    };
+  });
 }
 
 function redactCodexCliAuthJsonPathsInValue(value: unknown): unknown {
@@ -2500,6 +2544,14 @@ export function validateCodexCliExecPlanForRun(
 
   if (!["untrusted", "on-request", "never"].includes(plan.approvalPolicy)) {
     blockingReasons.push(`codex_cli_unsupported_approval_policy:${plan.approvalPolicy}`);
+  }
+
+  if (isWorkspaceWritePlan && plan.approvalPolicy === "never") {
+    blockingReasons.push("codex_cli_workspace_write_disallows_approval_policy_never");
+  }
+
+  if (isWorkspaceWritePlan && approvalArg === "never") {
+    blockingReasons.push("codex_cli_workspace_write_disallows_approval_arg_never");
   }
 
   const workdirArg = getCodexCliArgValue(plan.args, "--cd")
@@ -3572,11 +3624,13 @@ export function createCodexCliOperatorAcceptanceEvidence(
     ? redactCodexCliSensitiveEvidenceText(error)
     : undefined;
   const repoRoot = options.repoRoot ?? result.task.repoContext.repoRoot;
-  const blockingReasons = uniqueStrings([
+  const blockingReasons = createCodexCliSafeEvidenceStrings(uniqueStrings([
     ...result.validationBlockers,
     ...(inspection?.blockingReasons ?? []),
     ...(safeError !== undefined ? [`codex_cli_process_error:${safeError}`] : [])
-  ]);
+  ]));
+  const safeTelemetry = createCodexCliSafeTelemetryEvidence(result.telemetryEvents);
+  const safeTelemetryMessages = safeTelemetry.map((event) => event.message);
 
   return {
     schemaVersion: "codex-cli-operator-acceptance-evidence.v1",
@@ -3586,46 +3640,44 @@ export function createCodexCliOperatorAcceptanceEvidence(
     status: result.status,
     taskId: result.task.taskId,
     task: {
-      source: result.task.source,
-      summary: result.task.intent.summary,
-      requestedAction: result.task.intent.requestedAction,
-      targetFiles: [...result.task.target.files],
-      modules: [...result.task.target.modules]
+      source: redactCodexCliSensitiveEvidenceText(result.task.source),
+      summary: redactCodexCliSensitiveEvidenceText(result.task.intent.summary),
+      requestedAction: redactCodexCliSensitiveEvidenceText(result.task.intent.requestedAction),
+      targetFiles: createCodexCliSafeEvidenceStrings([...result.task.target.files]),
+      modules: createCodexCliSafeEvidenceStrings([...result.task.target.modules])
     },
     plan: {
-      command: result.plan.command,
+      command: redactCodexCliSensitiveEvidenceText(result.plan.command),
       sandbox: result.plan.sandbox,
       approvalPolicy: result.plan.approvalPolicy,
       ...(result.plan.model !== undefined ? { model: result.plan.model } : {}),
-      ...(result.plan.workdir !== undefined ? { workdir: result.plan.workdir } : {}),
+      ...(result.plan.workdir !== undefined
+        ? { workdir: redactCodexCliSensitiveEvidenceText(result.plan.workdir) }
+        : {}),
       usesJson: result.plan.args.includes("--json"),
       skipGitRepoCheck: result.plan.args.includes("--skip-git-repo-check"),
       ephemeral: result.plan.args.includes("--ephemeral"),
-      warnings: [...result.plan.warnings]
+      warnings: createCodexCliSafeEvidenceStrings([...result.plan.warnings])
     },
     run: {
       ...(result.run?.output.exitCode !== undefined ? { exitCode: result.run.output.exitCode } : {}),
       ...(inspection?.status !== undefined ? { executionStatus: inspection.status } : {}),
       eventCount: inspection?.events.length ?? 0,
       parseErrorCount: inspection?.parseErrors.length ?? 0,
-      warnings: inspection?.warnings ?? [],
+      warnings: createCodexCliSafeEvidenceStrings(inspection?.warnings ?? []),
       blockingReasons,
       ...(result.run?.timedOut !== undefined ? { timedOut: result.run.timedOut } : {}),
       ...(result.run?.killed !== undefined ? { killed: result.run.killed } : {}),
       ...createCodexCliProcessLifecycleEvidence(result.run),
-      ...(error !== undefined ? { error } : {})
+      ...(safeError !== undefined ? { error: safeError } : {})
     },
-    telemetry: result.telemetryEvents.map((event) => ({
-      level: event.level,
-      message: event.message,
-      ...(event.context ? { context: event.context } : {})
-    })),
+    telemetry: safeTelemetry,
     summary: {
       passed: result.status === "passed",
-      validationBlockers: [...result.validationBlockers],
+      validationBlockers: createCodexCliSafeEvidenceStrings([...result.validationBlockers]),
       blockingReasons,
-      telemetryMessages: result.telemetryEvents.map((event) => event.message),
-      ...(error !== undefined ? { error } : {})
+      telemetryMessages: safeTelemetryMessages,
+      ...(safeError !== undefined ? { error: safeError } : {})
     },
     ...(result.governance
       ? { governance: createCodexCliGovernanceEvidenceSummary(result.governance) }
@@ -3701,16 +3753,16 @@ export function createCodexCliWorkspaceWriteSmokeEvidence(
   const safeError = error !== undefined
     ? redactCodexCliSensitiveEvidenceText(error)
     : undefined;
-  const blockingReasons = uniqueStrings([
+  const blockingReasons = createCodexCliSafeEvidenceStrings(uniqueStrings([
     ...result.validationBlockers,
     ...(result.preflight.blockingReasons ?? []),
     ...(inspection?.blockingReasons ?? []),
     ...(safeError !== undefined ? [`codex_cli_process_error:${safeError}`] : [])
-  ]);
-  const warnings = uniqueStrings([
+  ]));
+  const warnings = createCodexCliSafeEvidenceStrings(uniqueStrings([
     ...result.plan.warnings,
     ...(inspection?.warnings ?? [])
-  ]);
+  ]));
 
   return {
     schemaVersion: "codex-cli-workspace-write-smoke-evidence.v1",
@@ -3722,46 +3774,48 @@ export function createCodexCliWorkspaceWriteSmokeEvidence(
     requiredConfirmation: CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
     preflight: {
       status: result.preflight.status,
-      blockingReasons: [...result.preflight.blockingReasons],
+      blockingReasons: createCodexCliSafeEvidenceStrings([...result.preflight.blockingReasons]),
       guards: {
         ...result.preflight.guards,
-        targetAllowlist: [...result.preflight.guards.targetAllowlist]
+        targetAllowlist: createCodexCliSafeEvidenceStrings([...result.preflight.guards.targetAllowlist])
       }
     },
     approvalPacket: {
       status: result.preflight.status,
       risk: "medium",
-      blockers: [...result.preflight.blockingReasons],
-      targetFiles: [...result.task.target.files],
+      blockers: createCodexCliSafeEvidenceStrings([...result.preflight.blockingReasons]),
+      targetFiles: createCodexCliSafeEvidenceStrings([...result.task.target.files]),
       commandPreview: createCodexCliSanitizedCommandPreview(result.plan)
     },
     plan: {
-      command: result.plan.command,
+      command: redactCodexCliSensitiveEvidenceText(result.plan.command),
       sandbox: result.plan.sandbox,
       approvalPolicy: result.plan.approvalPolicy,
-      ...(result.plan.workdir !== undefined ? { workdir: result.plan.workdir } : {}),
+      ...(result.plan.workdir !== undefined
+        ? { workdir: redactCodexCliSensitiveEvidenceText(result.plan.workdir) }
+        : {}),
       usesJson: result.plan.args.includes("--json"),
       skipGitRepoCheck: result.plan.args.includes("--skip-git-repo-check"),
       ephemeral: result.plan.args.includes("--ephemeral"),
-      warnings: [...result.plan.warnings]
+      warnings: createCodexCliSafeEvidenceStrings([...result.plan.warnings])
     },
     run: {
       ...(result.run !== undefined ? { exitCode: result.run.output.exitCode } : {}),
       ...(inspection !== undefined ? { executionStatus: inspection.status } : {}),
       eventCount: inspection?.events.length ?? 0,
       parseErrorCount: inspection?.parseErrors.length ?? 0,
-      warnings: [...(inspection?.warnings ?? [])],
+      warnings: createCodexCliSafeEvidenceStrings([...(inspection?.warnings ?? [])]),
       blockingReasons,
       ...(result.run !== undefined ? { timedOut: result.run.timedOut } : {}),
       ...(result.run !== undefined ? { killed: result.run.killed } : {}),
       ...createCodexCliProcessLifecycleEvidence(result.run),
-      ...(error !== undefined ? { error } : {})
+      ...(safeError !== undefined ? { error: safeError } : {})
     },
     summary: {
       passed: result.status === "passed",
       blockingReasons,
       warnings,
-      ...(error !== undefined ? { error } : {})
+      ...(safeError !== undefined ? { error: safeError } : {})
     },
     ...(result.governance
       ? { governance: createCodexCliGovernanceEvidenceSummary(result.governance) }
@@ -3836,15 +3890,15 @@ export function createCodexCliReadOnlySmokeEvidence(
   const safeError = error !== undefined
     ? redactCodexCliSensitiveEvidenceText(error)
     : undefined;
-  const blockingReasons = uniqueStrings([
+  const blockingReasons = createCodexCliSafeEvidenceStrings(uniqueStrings([
     ...result.validationBlockers,
     ...(inspection?.blockingReasons ?? []),
     ...(safeError !== undefined ? [`codex_cli_process_error:${safeError}`] : [])
-  ]);
-  const warnings = uniqueStrings([
+  ]));
+  const warnings = createCodexCliSafeEvidenceStrings(uniqueStrings([
     ...result.plan.warnings,
     ...(inspection?.warnings ?? [])
-  ]);
+  ]));
 
   return {
     schemaVersion: "codex-cli-readonly-smoke-evidence.v1",
@@ -3854,32 +3908,34 @@ export function createCodexCliReadOnlySmokeEvidence(
     status: result.status,
     taskId: result.task.taskId,
     plan: {
-      command: result.plan.command,
+      command: redactCodexCliSensitiveEvidenceText(result.plan.command),
       sandbox: result.plan.sandbox,
       approvalPolicy: result.plan.approvalPolicy,
-      ...(result.plan.workdir !== undefined ? { workdir: result.plan.workdir } : {}),
+      ...(result.plan.workdir !== undefined
+        ? { workdir: redactCodexCliSensitiveEvidenceText(result.plan.workdir) }
+        : {}),
       usesJson: result.plan.args.includes("--json"),
       skipGitRepoCheck: result.plan.args.includes("--skip-git-repo-check"),
       ephemeral: result.plan.args.includes("--ephemeral"),
-      warnings: [...result.plan.warnings]
+      warnings: createCodexCliSafeEvidenceStrings([...result.plan.warnings])
     },
     run: {
       ...(result.run !== undefined ? { exitCode: result.run.output.exitCode } : {}),
       ...(inspection !== undefined ? { executionStatus: inspection.status } : {}),
       eventCount: inspection?.events.length ?? 0,
       parseErrorCount: inspection?.parseErrors.length ?? 0,
-      warnings: [...(inspection?.warnings ?? [])],
+      warnings: createCodexCliSafeEvidenceStrings([...(inspection?.warnings ?? [])]),
       blockingReasons,
       ...(result.run !== undefined ? { timedOut: result.run.timedOut } : {}),
       ...(result.run !== undefined ? { killed: result.run.killed } : {}),
       ...createCodexCliProcessLifecycleEvidence(result.run),
-      ...(error !== undefined ? { error } : {})
+      ...(safeError !== undefined ? { error: safeError } : {})
     },
     summary: {
       passed: result.status === "passed",
       blockingReasons,
       warnings,
-      ...(error !== undefined ? { error } : {})
+      ...(safeError !== undefined ? { error: safeError } : {})
     },
     ...(result.governance
       ? { governance: createCodexCliGovernanceEvidenceSummary(result.governance) }
@@ -4249,21 +4305,10 @@ function defaultCodexCliProcessSpawner(
   args: string[],
   options: CodexCliSpawnOptions
 ): CodexCliChildProcess {
-  try {
-    return spawnChildProcess(command, args, {
-      ...options,
-      shell: false
-    });
-  } catch (error) {
-    if (isCodexCliCommandSpawnBlockedForShellFallback(command, error)) {
-      return spawnChildProcess(quoteWindowsCommandForShell(command), args, {
-        ...options,
-        shell: true
-      });
-    }
-
-    throw error;
-  }
+  return spawnChildProcess(command, args, {
+    ...options,
+    shell: false
+  });
 }
 
 function normalizeCodexCliSpawnError(error: unknown): string {
@@ -4294,30 +4339,6 @@ function sanitizeCodexCliVersionProbe(stdout: string): string | undefined {
 
 function containsSensitiveEvidenceToken(value: string): boolean {
   return /\b(OPENAI_API_KEY|CODEX_API_KEY|CODEX_ACCESS_TOKEN|Bearer|secret|password)\b|sk-|\bauth\.json\b/i.test(value);
-}
-
-function isCodexCliCommandSpawnBlockedForShellFallback(
-  command: string,
-  error: unknown
-): boolean {
-  if (process.platform !== "win32") {
-    return false;
-  }
-
-  if (!command.toLowerCase().endsWith(".exe")) {
-    return false;
-  }
-
-  const normalized = normalizeCodexCliSpawnError(error);
-  return normalized.includes("spawn EPERM") || normalized.includes("EPERM");
-}
-
-function quoteWindowsCommandForShell(command: string): string {
-  if (!command.includes(" ") && !command.includes("\"")) {
-    return command;
-  }
-
-  return `"${command.replace(/"/g, "\\\"")}"`;
 }
 
 function resolveCodexCliRuntimeCommand(): string {

@@ -36,6 +36,9 @@ import {
 import {
   assertProviderSupportsSandboxProfile,
   assertProviderSupportsSideEffectClass,
+  consumeProviderExecutionPermitForPlan,
+  createProviderExecutionPermitConsumptionKey,
+  InMemoryProviderExecutionPermitConsumptionStore,
   parseExecutorExecutionPlan,
   parseProviderManifest,
   validateProviderExecutionPermitForPlan,
@@ -46,6 +49,7 @@ import {
   type ExecutorProvider,
   type ProviderExecutionContext,
   type ProviderExecutionResult,
+  type ProviderExecutionPermitConsumptionStore,
   type ProviderManifest,
   type ProviderSideEffectClass
 } from "../../../provider-core/src/index.js";
@@ -55,6 +59,9 @@ export const CODEX_CLI_PROVIDER_EXECUTE_DISABLED =
   "codex_cli_provider_execute_disabled";
 export const CODEX_CLI_PROVIDER_PROMPT_OMITTED =
   "<codex-cli-provider-prompt-omitted>";
+
+const defaultCodexCliPermitConsumptionStore =
+  new InMemoryProviderExecutionPermitConsumptionStore();
 
 export interface CodexCliExecutorProviderOptions {
   manifest?: ProviderManifest;
@@ -66,6 +73,7 @@ export interface CodexCliExecutorProviderOptions {
   env?: NodeJS.ProcessEnv;
   oneShotEnv?: NodeJS.ProcessEnv;
   skipExecutionModelProbe?: boolean;
+  permitConsumptionStore?: ProviderExecutionPermitConsumptionStore;
   promptHandoffStore?: CodexCliProviderPromptHandoffStore;
   promptHandoffTtlMs?: number;
   nowMs?: () => number;
@@ -143,6 +151,7 @@ export interface CodexCliProviderPromptHandoffRecord {
 
 export interface CodexCliProviderPromptHandoffStore {
   put(record: CodexCliProviderPromptHandoffRecord): void;
+  peek?(handle: string): CodexCliProviderPromptHandoffRecord | undefined;
   consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined;
 }
 
@@ -157,21 +166,22 @@ class InMemoryCodexCliProviderPromptHandoffStore implements CodexCliProviderProm
     });
   }
 
-  consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
+  peek(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
     const record = this.records.get(handle);
-    this.records.delete(handle);
-
-    if (record === undefined) {
+    if (record?.expiresAtMs !== undefined && record.expiresAtMs <= this.nowMs()) {
+      this.records.delete(handle);
       return undefined;
     }
 
-    if (record.expiresAtMs !== undefined && record.expiresAtMs <= this.nowMs()) {
-      return undefined;
-    }
-
-    return {
+    return record === undefined ? undefined : {
       ...record
     };
+  }
+
+  consume(handle: string): CodexCliProviderPromptHandoffRecord | undefined {
+    const record = this.peek(handle);
+    this.records.delete(handle);
+    return record;
   }
 }
 
@@ -239,10 +249,12 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
   private readonly executionMode: CodexCliProviderExecutionMode;
   private readonly realExecutionAllowed: boolean;
   private readonly spawn: CodexCliProcessSpawner | undefined;
+  private readonly fakeModeProcessSpawnerConfigured: boolean;
   private readonly timeoutMs: number | undefined;
   private readonly env: NodeJS.ProcessEnv | undefined;
   private readonly oneShotEnv: NodeJS.ProcessEnv | undefined;
   private readonly skipExecutionModelProbe: boolean;
+  private readonly permitConsumptionStore: ProviderExecutionPermitConsumptionStore;
   private readonly promptHandoffStore: CodexCliProviderPromptHandoffStore;
   private readonly promptHandoffTtlMs: number;
   private readonly nowMs: () => number;
@@ -253,11 +265,15 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
     this.executionMode = options.executionMode ?? "fake";
     this.realExecutionAllowed = options.realExecutionAllowed ?? false;
     this.spawn = options.spawn;
+    this.fakeModeProcessSpawnerConfigured = this.executionMode !== "real"
+      && options.spawn !== undefined;
     this.timeoutMs = options.timeoutMs;
     this.env = options.env;
     this.oneShotEnv = options.oneShotEnv;
     this.skipExecutionModelProbe = options.skipExecutionModelProbe ?? true;
     this.nowMs = options.nowMs ?? (() => Date.now());
+    this.permitConsumptionStore = options.permitConsumptionStore
+      ?? defaultCodexCliPermitConsumptionStore;
     this.promptHandoffTtlMs = options.promptHandoffTtlMs ?? 5 * 60 * 1000;
     this.promptHandoffStore = options.promptHandoffStore
       ?? new InMemoryCodexCliProviderPromptHandoffStore(this.nowMs);
@@ -318,6 +334,13 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
       planId,
       runId: input.run.runId,
       taskId: input.task.taskId,
+      ...(input.taskHash !== undefined ? { taskHash: input.taskHash } : {}),
+      ...(input.principalId !== undefined ? { principalId: input.principalId } : {}),
+      ...(input.principalHash !== undefined ? { principalHash: input.principalHash } : {}),
+      ...(input.providerExecutionPlanHash !== undefined
+        ? { providerExecutionPlanHash: input.providerExecutionPlanHash }
+        : {}),
+      ...(input.providerManifestHash !== undefined ? { providerManifestHash: input.providerManifestHash } : {}),
       providerId: this.manifest.providerId,
       inputHash,
       policyDecisionHash,
@@ -451,10 +474,12 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
       };
     }
 
+    const executionNow = new Date(this.nowMs()).toISOString();
     const permitRejectionReasons = validateCodexCliProviderExecutionPermit(
       parsedPlan,
       context,
-      this.manifest
+      this.manifest,
+      executionNow
     );
     if (permitRejectionReasons.length > 0) {
       return createCodexCliProviderErrorResult(
@@ -462,6 +487,13 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
           ? "codex_cli_provider_execution_permit_required"
           : "codex_cli_provider_execution_permit_invalid",
         permitRejectionReasons
+      );
+    }
+
+    if (this.executionMode === "fake" && this.fakeModeProcessSpawnerConfigured) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_fake_execute_rejected",
+        ["codex_cli_provider_fake_execute_disallows_process_spawner"]
       );
     }
 
@@ -480,25 +512,90 @@ export class CodexCliExecutorProvider implements ExecutorProvider {
       );
     }
 
-    if (!this.spawn) {
+    if (this.executionMode === "real" && !this.spawn) {
       return createCodexCliProviderErrorResult(
         "codex_cli_provider_execute_requires_injected_spawn",
         ["codex_cli_provider_execute_requires_injected_spawn"]
       );
     }
 
-    const handoff = this.promptHandoffStore.consume(metadata.promptHandoff.handle);
+    const handoff = peekCodexCliProviderPromptHandoff(
+      this.promptHandoffStore,
+      metadata.promptHandoff.handle
+    );
     const handoffValidationReasons = validateCodexCliProviderPromptHandoff(
       parsedPlan,
       metadata,
       handoff
     );
     if (handoffValidationReasons.length > 0 || handoff === undefined) {
+      const consumedPermitReplayReasons = collectConsumedCodexCliProviderPermitReasons(
+        parsedPlan,
+        context,
+        this.manifest,
+        this.permitConsumptionStore,
+        executionNow
+      );
+      if (consumedPermitReplayReasons.length > 0) {
+        return createCodexCliProviderErrorResult(
+          "codex_cli_provider_execution_permit_replay_rejected",
+          consumedPermitReplayReasons
+        );
+      }
+
       return createCodexCliProviderErrorResult(
         "codex_cli_provider_handoff_invalid",
         handoffValidationReasons.length > 0
           ? handoffValidationReasons
           : ["codex_cli_provider_handoff_missing"]
+      );
+    }
+
+    const permitConsumptionReasons = consumeCodexCliProviderExecutionPermit(
+      parsedPlan,
+      context,
+      this.manifest,
+      this.permitConsumptionStore,
+      executionNow
+    );
+    if (permitConsumptionReasons.length > 0) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_execution_permit_replay_rejected",
+        permitConsumptionReasons
+      );
+    }
+
+    const consumedHandoff = this.promptHandoffStore.consume(metadata.promptHandoff.handle);
+    const consumedHandoffValidationReasons = validateCodexCliProviderPromptHandoff(
+      parsedPlan,
+      metadata,
+      consumedHandoff
+    );
+    if (consumedHandoffValidationReasons.length > 0) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_handoff_invalid",
+        consumedHandoffValidationReasons
+      );
+    }
+
+    if (this.executionMode === "fake") {
+      const summary = createCodexCliProviderFakeExecutionSummary(parsedPlan, metadata);
+      return {
+        ok: true,
+        artifacts: [
+          createCodexCliProviderSummaryArtifact(
+            parsedPlan,
+            "codex-cli-provider-fake-execution-summary",
+            summary
+          )
+        ]
+      };
+    }
+
+    if (!this.spawn) {
+      return createCodexCliProviderErrorResult(
+        "codex_cli_provider_execute_requires_injected_spawn",
+        ["codex_cli_provider_execute_requires_injected_spawn"]
       );
     }
 
@@ -1181,7 +1278,8 @@ function collectReadOnlyExecutionRejectionReasons(
 function validateCodexCliProviderExecutionPermit(
   plan: ExecutorExecutionPlan,
   context: ProviderExecutionContext,
-  manifest: ProviderManifest
+  manifest: ProviderManifest,
+  now: string
 ): string[] {
   if (context.permit === undefined) {
     return ["codex_cli_provider_execution_permit_required"];
@@ -1192,9 +1290,70 @@ function validateCodexCliProviderExecutionPermit(
     plan,
     manifest,
     {
-      reasonPrefix: "codex_cli_provider_execution_permit"
+      reasonPrefix: "codex_cli_provider_execution_permit",
+      now
     }
   );
+}
+
+function consumeCodexCliProviderExecutionPermit(
+  plan: ExecutorExecutionPlan,
+  context: ProviderExecutionContext,
+  manifest: ProviderManifest,
+  store: ProviderExecutionPermitConsumptionStore,
+  now: string
+): string[] {
+  if (context.permit === undefined) {
+    return ["codex_cli_provider_execution_permit_required"];
+  }
+
+  return consumeProviderExecutionPermitForPlan(
+    context.permit,
+    plan,
+    manifest,
+    store,
+    {
+      reasonPrefix: "codex_cli_provider_execution_permit",
+      consumedAt: now,
+      now
+    }
+  );
+}
+
+function collectConsumedCodexCliProviderPermitReasons(
+  plan: ExecutorExecutionPlan,
+  context: ProviderExecutionContext,
+  manifest: ProviderManifest,
+  store: ProviderExecutionPermitConsumptionStore,
+  now: string
+): string[] {
+  if (context.permit === undefined) {
+    return [];
+  }
+
+  const validationReasons = validateProviderExecutionPermitForPlan(
+    context.permit,
+    plan,
+    manifest,
+    {
+      reasonPrefix: "codex_cli_provider_execution_permit",
+      now
+    }
+  );
+  if (validationReasons.length > 0) {
+    return [];
+  }
+
+  try {
+    const consumedRecord = store.get(
+      createProviderExecutionPermitConsumptionKey(context.permit)
+    );
+    return consumedRecord === undefined
+      ? []
+      : ["codex_cli_provider_execution_permit_already_consumed_by_store"];
+  } catch {
+    return ["codex_cli_provider_execution_permit_consumption_store_failed"];
+  }
 }
 
 function collectRealExecutionRejectionReasons(input: {
@@ -1369,6 +1528,34 @@ function createCodexCliProviderDryRunSummary(
     taskId: plan.taskId,
     ...(plan.runId !== undefined ? { runId: plan.runId } : {}),
     executionSkipped: true,
+    model: metadata.codexCliPlan.model,
+    sandbox: metadata.codexCliPlan.sandbox,
+    approvalPolicy: metadata.codexCliPlan.approvalPolicy,
+    warningCount: metadata.codexCliPlan.warnings.length
+  };
+}
+
+function createCodexCliProviderFakeExecutionSummary(
+  plan: ExecutorExecutionPlan,
+  metadata: CodexCliProviderPlanMetadata
+): Record<string, unknown> {
+  return {
+    schemaVersion: "codex-cli-provider-execution-summary.v1",
+    status: "fake_completed",
+    providerId: plan.providerId,
+    planId: plan.planId,
+    taskId: plan.taskId,
+    ...(plan.runId !== undefined ? { runId: plan.runId } : {}),
+    executionMode: "fake",
+    processSpawned: false,
+    promptDeliveredToProcess: false,
+    inspection: {
+      status: "completed",
+      eventCount: 0,
+      parseErrorCount: 0,
+      warningCount: 0,
+      blockingReasons: []
+    },
     model: metadata.codexCliPlan.model,
     sandbox: metadata.codexCliPlan.sandbox,
     approvalPolicy: metadata.codexCliPlan.approvalPolicy,
@@ -1562,6 +1749,22 @@ function validateCodexCliProviderPromptHandoff(
   }
 
   return uniqueStrings(reasons);
+}
+
+function peekCodexCliProviderPromptHandoff(
+  store: CodexCliProviderPromptHandoffStore,
+  handle: string
+): CodexCliProviderPromptHandoffRecord | undefined {
+  if (store.peek !== undefined) {
+    return store.peek(handle);
+  }
+
+  const record = store.consume(handle);
+  if (record !== undefined) {
+    store.put(record);
+  }
+
+  return record;
 }
 
 function createCodexCliProviderInputHash(input: ExecutionPlanInput): string {

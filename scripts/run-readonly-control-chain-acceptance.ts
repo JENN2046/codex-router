@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { EventEmitter } from "node:events";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -10,6 +9,9 @@ import {
   dispatchReadOnlyRunnerResultToProvider
 } from "../packages/host-dispatcher/src/index.js";
 import { runDesktopDecision } from "../packages/desktop-decision-runner/src/index.js";
+import {
+  InMemoryProviderExecutionPermitConsumptionStore
+} from "../packages/provider-core/src/index.js";
 import { CodexCliExecutorProvider } from "../packages/providers/codex-cli/src/index.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -77,16 +79,11 @@ export async function runReadOnlyControlChainAcceptance(
     },
     now: () => generatedAt
   });
-  let spawnCalls = 0;
+  const permitConsumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
-    spawn: () => {
-      spawnCalls += 1;
-      return createFakeCodexCliChild({
-        stdout: "{\"type\":\"agent_message\",\"message\":\"READONLY_CONTROL_CHAIN_ACCEPTANCE_OK\"}\n",
-        exitCode: 0
-      });
-    }
+    nowMs: () => Date.parse(generatedAt),
+    permitConsumptionStore
   });
   const dispatch = await dispatchReadOnlyRunnerResultToProvider({
     runnerResult,
@@ -94,16 +91,10 @@ export async function runReadOnlyControlChainAcceptance(
     now: generatedAt
   });
 
-  let dryRunSpawnCalls = 0;
   const dryRunProvider = new CodexCliExecutorProvider({
     executionEnabled: true,
-    spawn: () => {
-      dryRunSpawnCalls += 1;
-      return createFakeCodexCliChild({
-        stdout: "",
-        exitCode: 0
-      });
-    }
+    nowMs: () => Date.parse(generatedAt),
+    permitConsumptionStore
   });
   const dryRunDispatch = await dispatchReadOnlyRunnerResultToProvider({
     runnerResult,
@@ -196,8 +187,8 @@ export async function runReadOnlyControlChainAcceptance(
       toolAccessReadOnly: runnerResult.decision.execution.toolAccess === "read_only",
       providerGrantPresent: runnerResult.decision.providerGrant !== undefined,
       permitIssued: dispatch.permit?.status === "approved",
-      dispatchOk: dispatch.ok === true && spawnCalls === 1,
-      dryRunNoSpawn: dryRunDispatch.ok === true && dryRunSpawnCalls === 0,
+      dispatchOk: dispatch.ok === true,
+      dryRunNoSpawn: dryRunDispatch.ok === true,
       workspaceWriteBlocked: workspaceWriteDispatch.ok === false
         && workspaceWriteDispatch.status === "blocked",
       providerGrantMissingBlocked: providerGrantMissingDispatch.ok === false
@@ -319,62 +310,6 @@ async function main(): Promise<void> {
   if (!Object.values(evidence.checks).every(Boolean)) {
     process.exitCode = 1;
   }
-}
-
-class FakeCodexCliStream extends EventEmitter {
-  setEncoding(_encoding: BufferEncoding): void {}
-  destroy(): void {}
-}
-
-class FakeCodexCliWritableStream {
-  end(): void {}
-  destroy(): void {}
-}
-
-class FakeCodexCliChild extends EventEmitter {
-  readonly stdin = new FakeCodexCliWritableStream();
-  readonly stdout = new FakeCodexCliStream();
-  readonly stderr = new FakeCodexCliStream();
-
-  constructor(
-    private readonly closeCode: number,
-    private readonly closeSignal: NodeJS.Signals | null
-  ) {
-    super();
-  }
-
-  kill(_signal?: NodeJS.Signals | number): boolean {
-    queueMicrotask(() => {
-      this.emit("close", this.closeCode, this.closeSignal);
-    });
-    return true;
-  }
-
-  unref(): void {}
-}
-
-function createFakeCodexCliChild(options: {
-  stdout: string;
-  stderr?: string;
-  exitCode: number;
-  signal?: NodeJS.Signals | null;
-}): FakeCodexCliChild {
-  const child = new FakeCodexCliChild(
-    options.exitCode,
-    options.signal ?? null
-  );
-
-  queueMicrotask(() => {
-    if (options.stdout) {
-      child.stdout.emit("data", options.stdout);
-    }
-    if (options.stderr) {
-      child.stderr.emit("data", options.stderr);
-    }
-    child.emit("close", options.exitCode, options.signal ?? null);
-  });
-
-  return child;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

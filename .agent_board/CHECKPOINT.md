@@ -1,62 +1,79 @@
 # Checkpoint
 
-Current branch:
+Checkpoint branch:
 
-- `feature/pr-22a-controlled-provider-execution`
+- `fix/p1-controlled-output-safety`
+
+Baseline:
+
+- `c29e494`
 
 Current state source:
 
 - `docs/current/CURRENT_STATE.md`
 
-Baseline:
+Current checkpoint:
 
-- `df67058`
+- GPT Pro review P1/P2 hardening, the PR merge-checkout state-sync fix, and
+  PR #45 automated review follow-ups are implemented in local commits through
+  `c29e494`
+- final `npm run validate:pr` passed before the local commit split
+- follow-up permit replay hardening is implemented with targeted tests
 
-Completed:
+Completed locally:
 
-- confirmed clean worktree on the previous feature branch
-- switched to `main`
-- ran `git pull --ff-only origin main`
-- confirmed `main` was already up to date
-- ran `npm run governance -- audit readonly-productization` on `main`
-- created the fresh implementation branch
-- migrated the PR-22A taskbook review gate
-- restored the prior CLI line closeout marker document required by the review
-  audit
-- implemented explicit controlled read-only provider execution in
-  `packages/provider-execution-runner`
-- mapped no-approval routing decisions to Codex CLI approval policy `never`
-- added fake-spawner local acceptance evidence for the controlled read-only
-  slice
-- validated with typecheck, targeted provider/host tests, acceptance, full
-  `npm test`, and build
-- fixed the post-review controlled read-only failure-surface leak by sanitizing
-  provider failure classes, provider reasons, and thrown execution messages
-  before runner result/event/report/evidence emission
-- added regression coverage for provider-returned failures and thrown execution
-  failures
-- ran final clean-worktree `npm run validate:pr`; typecheck, full tests
-  `1125 / 1125`, build, and state-sync passed
-- fixed the P1 validation payload report leak by sanitizing controlled
-  read-only validation reasons before result/event/report emission
-- added regression coverage for invalid validation results and thrown validation
-  errors carrying execution material
-- ran targeted provider-runner tests, `21 / 21`
-- ran `npm run typecheck`
-- ran final clean-worktree `npm run validate:pr`; typecheck, full tests
-  `1127 / 1127`, build, and state-sync passed
+- safe controlled runner result/report/event payloads
+- Task, Principal, provider plan, manifest, and executor plan binding checks
+- read-only provider permit hardening
+- trusted in-memory provider permit consumption before fake/real execution
+- replay rejection for repeated handoff/permit use, concurrent duplicate
+  execution, caller-side permit-id tampering, and retry after spawn failure
+- workspace-write approval `never` rejection
+- smoke/operator evidence error and telemetry sanitization
+- fake provider mode in-memory execution boundary
+- default process spawn fail-closed shell policy
+- CI state-sync job and state-sync local path checks
+- detached PR merge checkout state-sync compatibility
+- legacy provider execution plan-store records remain loadable and appendable
+- read-only blocked permits return audit reasons when old/custom executor
+  plans omit `policyDecisionHash`
+- branch-specific state-sync CI audit is limited to `pull_request` events and
+  does not run on post-merge `push` events to `main`
+- state-sync state surface sanitizer blocks common absolute workspace paths
+  including macOS Desktop and devcontainer/Codespaces forms
 
-In progress:
+Validation checkpoint:
 
-- commit the P1 validation payload final validation record
-- run clean-worktree `npm run governance -- audit state-sync`
+- targeted affected tests passed
+- `npm run typecheck` passed
+- `npm test` passed, `1146 / 1146`
+- `npm run validate:pr` passed
+- replay targeted tests passed, `79 / 79`
+- replay final `npm run validate:pr` passed with `1146 / 1146` full tests
+- state-sync detached PR merge checkout test passed, `18 / 18`
+- `npm run typecheck` passed after the exact optional test fix
+- PR #45 review follow-up targeted tests passed, `41 / 41`
+- PR #45 review follow-up `npm run typecheck` passed
+- PR #45 review follow-up affected tests passed, `66 / 66`
+- `git diff --check` passed before the state documentation commit
+- state-sync CI event-scope targeted test passed, `4 / 4`
+- state-sync CI event-scope `npm run typecheck` passed
+- `git diff --check` passed before the event-scope state documentation commit
+- state-sync common absolute path sanitizer targeted test passed, `18 / 18`
+- state-sync common absolute path sanitizer `npm run typecheck` passed
+- `git diff --check` passed before the absolute path sanitizer state
+  documentation commit
 
-Blocked capabilities:
+Known boundary:
 
-- `general_workspace_write`
-- `general_provider_execution`
-- `protected_remote_write`
-- `push_to_main`
-- `release_tag_deploy`
-- `secret_or_credential_change`
-- `external_service_write`
+- provider permit consumption is not persistent by default; process restart or
+  multi-process replay requires an injected durable consumption store before it
+  can be treated as covered
+
+Pending checkpoint:
+
+- final state documentation commit
+- post-commit `git status --short`
+- post-commit `npm run governance -- audit state-sync`
+- post-commit `npm run validate:pr`
+- post-commit `git diff --check`
