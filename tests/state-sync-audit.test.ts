@@ -236,9 +236,9 @@ test("state sync audit blocks missing script and boundary markers", async () => 
   const review = reviewStateSyncAudit({
     ...input,
     packageJsonText: JSON.stringify(packageJson),
-    currentStateText: input.currentStateText.replace(
-      "- `general_provider_execution`",
-      "- `provider_execution_open`"
+    currentStateText: input.currentStateText.replaceAll(
+      "general_provider_execution",
+      "provider_execution_open"
     )
   });
 
@@ -266,6 +266,15 @@ test("state sync audit output stays summarized", async () => {
 test("state sync audit blocks machine absolute paths in state surfaces", async () => {
   const input = await createInputFromWorkspace();
   for (const machinePath of [
+    "A:\\AGENTS_OS_Workspace\\governance\\codex-router\\repo",
+    "Z:\\build\\workspace\\repo",
+    "C:/Users/example/repo",
+    "D:/work/project",
+    "\\\\server\\share\\repo",
+    "\\\\build-host\\workspace\\codex-router",
+    "//server/share/repo",
+    "\\\\?\\C:\\workspace\\repo",
+    "\\\\?\\UNC\\server\\share\\repo",
     "/mnt/datadisk0/apps/AGENTS_OS_Workspace/governance/codex-router",
     "/home/ubuntu/apps/codex-router",
     "/Users/alice/src/codex-router",
@@ -276,14 +285,69 @@ test("state sync audit blocks machine absolute paths in state surfaces", async (
     const review = reviewStateSyncAudit({
       ...input,
       currentStateText: input.currentStateText.replace(
-        "| Workspace | `codex-router` |",
+        /\| Workspace \| `[^`]+` \|/,
         `| Workspace | \`${machinePath}\` |`
       )
     });
 
     assert.equal(review.status, "blocked", machinePath);
     assert.ok(review.reasons.includes("state_sync_outputSanitized"), machinePath);
+    assert.ok(
+      review.issues.some((issue) => issue.risk === "machine_path_disclosure"),
+      machinePath
+    );
   }
+});
+
+test("state sync audit allows governance markers, urls, and repository-relative paths", async () => {
+  const input = await createInputFromWorkspace();
+  const allowedFixtures = [
+    "packages/state-sync-audit/src/index.ts",
+    "tests/state-sync-audit.test.ts",
+    "PR_22A",
+    "PR-23A-S1",
+    "exec-json-stdin-prompt.v1",
+    "https://example.com/path",
+    "http://localhost/resource",
+    "C:",
+    "普通 Markdown 标题: value"
+  ];
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: [
+      input.currentStateText,
+      ...allowedFixtures.map((fixture) => `Allowed fixture: ${fixture}`)
+    ].join("\n")
+  });
+
+  assert.equal(review.status, "passed");
+  assert.equal(review.checks.outputSanitized, true);
+});
+
+test("state sync audit reports machine paths without echoing sentinel paths", async () => {
+  const input = await createInputFromWorkspace();
+  const sentinelPath = "A:\\PRIVATE_SENTINEL\\user\\secret-repo";
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText.replace(
+      /\| Workspace \| `[^`]+` \|/,
+      `| Workspace | \`${sentinelPath}\` |`
+    )
+  });
+  const text = formatStateSyncAuditResult(review);
+  const json = formatStateSyncAuditResult(review, "json");
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_outputSanitized"));
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_windows_drive_path"
+    && issue.path === "docs/current/CURRENT_STATE.md"
+    && issue.line > 0
+  )));
+  assert.equal(text.includes("PRIVATE_SENTINEL"), false);
+  assert.equal(json.includes("PRIVATE_SENTINEL"), false);
+  assert.equal(text.includes(sentinelPath), false);
+  assert.equal(json.includes(sentinelPath), false);
 });
 
 async function createInputFromWorkspace(

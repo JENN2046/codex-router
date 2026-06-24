@@ -42,6 +42,17 @@ export interface StateSyncAuditInput {
   agentBoardText: string;
 }
 
+export interface StateSyncAuditIssue {
+  code:
+    | "state_document_secret_marker"
+    | "state_document_windows_drive_path"
+    | "state_document_unc_path"
+    | "state_document_posix_machine_path";
+  path: string;
+  line: number;
+  risk: "secret_marker" | "machine_path_disclosure";
+}
+
 export interface StateSyncAuditResult {
   status: "passed" | "blocked";
   checks: {
@@ -76,6 +87,7 @@ export interface StateSyncAuditResult {
     remoteWritesDuringAudit: 0;
   };
   reasons: string[];
+  issues: StateSyncAuditIssue[];
 }
 
 export type StateSyncAuditOutputFormat = "text" | "json";
@@ -103,7 +115,16 @@ export function reviewStateSyncAudit(
   const staleMarkerHits = FORBIDDEN_STALE_MARKERS.filter((marker) =>
     input.agentBoardText.includes(marker) || input.currentStateText.includes(marker)
   );
-  const combinedStateText = `${input.currentStateText}\n${input.agentBoardText}`;
+  const sanitization = inspectStateSyncSanitization([
+    {
+      path: CURRENT_STATE_DOC,
+      text: input.currentStateText
+    },
+    {
+      path: ".agent_board/*",
+      text: input.agentBoardText
+    }
+  ]);
   const syntheticReviewState = syntheticReviewStateAllowed(
     input,
     currentHead,
@@ -167,7 +188,7 @@ export function reviewStateSyncAudit(
         staleAfterCommit
       ),
     staleMarkersAbsent: staleMarkerHits.length === 0,
-    outputSanitized: outputIsSanitized(combinedStateText),
+    outputSanitized: sanitization.issues.length === 0,
     auditReadOnly: true
   };
   const reasons = collectReasons(checks);
@@ -190,7 +211,8 @@ export function reviewStateSyncAudit(
       stateWritesDuringAudit: 0,
       remoteWritesDuringAudit: 0
     },
-    reasons
+    reasons,
+    issues: sanitization.issues
   };
 }
 
@@ -218,7 +240,10 @@ export function formatStateSyncAuditResult(
     `stale marker hits: ${review.summary.staleMarkerHitCount}`,
     `state writes during audit: ${review.summary.stateWritesDuringAudit}`,
     `remote writes during audit: ${review.summary.remoteWritesDuringAudit}`,
-    ...(review.reasons.length > 0 ? [`reasons: ${review.reasons.join(",")}`] : [])
+    ...(review.reasons.length > 0 ? [`reasons: ${review.reasons.join(",")}`] : []),
+    ...review.issues.map((issue) => (
+      `issue: ${issue.code} ${issue.path}:${issue.line} ${issue.risk}`
+    ))
   ].join("\n");
 }
 
@@ -382,8 +407,31 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function outputIsSanitized(text: string): boolean {
-  const forbiddenMarkersAbsent = [
+function inspectStateSyncSanitization(
+  surfaces: Array<{ path: string; text: string }>
+): { issues: StateSyncAuditIssue[] } {
+  const issues: StateSyncAuditIssue[] = [];
+
+  for (const surface of surfaces) {
+    const lines = surface.text.split(/\r?\n/);
+    for (const [index, line] of lines.entries()) {
+      issues.push(...inspectStateSyncLine(surface.path, index + 1, line));
+    }
+  }
+
+  return { issues };
+}
+
+function inspectStateSyncLine(
+  path: string,
+  line: number,
+  text: string
+): StateSyncAuditIssue[] {
+  const issues: StateSyncAuditIssue[] = [];
+  const withoutUrls = text.replace(/\bhttps?:\/\/[^\s`|)]+/gi, "<url>");
+  const slashText = withoutUrls.replace(/\\/g, "/");
+
+  const secretMarkers = [
     "OPENAI_API_KEY",
     "CODEX_API_KEY",
     "CODEX_ACCESS_TOKEN",
@@ -391,11 +439,58 @@ function outputIsSanitized(text: string): boolean {
     "Bearer ",
     "raw token",
     "raw env"
-  ].every((marker) => !text.includes(marker));
+  ];
+  if (secretMarkers.some((marker) => text.includes(marker))) {
+    issues.push({
+      code: "state_document_secret_marker",
+      path,
+      line,
+      risk: "secret_marker"
+    });
+  }
 
-  const localAbsolutePathsAbsent = !/(?:\/(?:mnt|home|Users|workspace|workspaces)\/|[A-Za-z]:\\Users\\)/.test(text);
+  if (containsPosixMachinePath(slashText)) {
+    issues.push({
+      code: "state_document_posix_machine_path",
+      path,
+      line,
+      risk: "machine_path_disclosure"
+    });
+  }
 
-  return forbiddenMarkersAbsent && localAbsolutePathsAbsent;
+  if (containsWindowsDrivePath(slashText)) {
+    issues.push({
+      code: "state_document_windows_drive_path",
+      path,
+      line,
+      risk: "machine_path_disclosure"
+    });
+  }
+
+  if (containsUncMachinePath(slashText)) {
+    issues.push({
+      code: "state_document_unc_path",
+      path,
+      line,
+      risk: "machine_path_disclosure"
+    });
+  }
+
+  return issues;
+}
+
+function containsPosixMachinePath(text: string): boolean {
+  return /(?:^|[\s`|])\/(?:mnt|home|Users|workspace|workspaces)\//.test(text);
+}
+
+function containsWindowsDrivePath(text: string): boolean {
+  return /(?:^|[^\w])[A-Za-z]:\/[^\s`|]+/.test(text)
+    || /(?:^|[^\w])\/\/\?\/[A-Za-z]:\/[^\s`|]+/i.test(text);
+}
+
+function containsUncMachinePath(text: string): boolean {
+  return /(?:^|[^\w])\/\/\?\/UNC\/[^/\s`|]+\/[^/\s`|]+/i.test(text)
+    || /(?:^|[^\w])\/\/(?!\?\/)(?:[^/\s`|]+\/){2,}[^/\s`|]*/.test(text);
 }
 
 function collectReasons(checks: Record<string, boolean>): string[] {
