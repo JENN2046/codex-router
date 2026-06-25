@@ -2084,15 +2084,15 @@ test("codex cli runner prepends packaged helper PATH for Windows bin executable 
       exitCode: 0
     });
   };
-  const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
-    taskId: "cli-runner-windows-bin-helper-path"
-  }), {
-    codexCommand: command,
-    ephemeral: true
-  });
 
   Object.defineProperty(process, "platform", { value: "win32" });
   try {
+    const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
+      taskId: "cli-runner-windows-bin-helper-path"
+    }), {
+      codexCommand: command,
+      ephemeral: true
+    });
     const result = await runCodexCliExecPlan(plan, {
       env: {
         Path: "C:/Windows/System32",
@@ -2115,6 +2115,42 @@ test("codex cli runner prepends packaged helper PATH for Windows bin executable 
     assert.equal(calls[0]?.env?.OPENAI_API_KEY, undefined);
     assert.equal(calls[0]?.env?.CODEX_API_KEY, undefined);
     assert.equal(calls[0]?.env?.CODEX_ACCESS_TOKEN, undefined);
+  } finally {
+    if (originalPlatform) {
+      Object.defineProperty(process, "platform", originalPlatform);
+    }
+  }
+});
+
+test("codex cli runner rejects platform drift before spawning", async () => {
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+  const calls: Array<{ command: string }> = [];
+
+  try {
+    Object.defineProperty(process, "platform", { value: "win32" });
+    const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
+      taskId: "cli-runner-platform-drift"
+    }), {
+      codexCommand: "codex",
+      ephemeral: true
+    });
+
+    Object.defineProperty(process, "platform", { value: "linux" });
+    await assert.rejects(
+      () => runCodexCliExecPlan(plan, {
+        skipExecutionModelProbe: true,
+        spawn: (command) => {
+          calls.push({ command });
+          return createFakeCodexCliChild({
+            stdout: "{\"type\":\"agent_message\",\"message\":\"ok\"}\n",
+            exitCode: 0
+          });
+        }
+      }),
+      /codex_cli_runtime_binding_descriptor_mismatch/
+    );
+
+    assert.equal(calls.length, 0);
   } finally {
     if (originalPlatform) {
       Object.defineProperty(process, "platform", originalPlatform);

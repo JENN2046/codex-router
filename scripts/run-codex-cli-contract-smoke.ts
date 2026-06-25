@@ -29,9 +29,17 @@ const generatedAt = new Date().toISOString();
 const workspaceWriteBeforeCommit = "codex-cli-contract-smoke-before";
 
 interface ContractSpawnCall {
-  kind: "model-probe" | "smoke-run";
-  command: string;
-  cwd?: string;
+  kind: "model-probe" | "smoke-run" | "unclassified";
+  commandMatchesConfigured: boolean;
+  cwdMatchesRequestedWorkspace: boolean;
+  promptChannel: "stdin";
+  stdinAvailable: boolean;
+  stdinObserved: boolean;
+  stdinEndCount: number;
+  responseEmittedAfterStdin: boolean;
+  modelProbeClassifiedFromStdin: boolean;
+  normalSmokeClassifiedFromStdin: boolean;
+  argvPromptFree: boolean;
   approvalPolicy?: string;
   sandbox: string;
   usesJson: boolean;
@@ -140,6 +148,42 @@ async function main(): Promise<void> {
   const nestedEvidenceOmitsRawPrompt = !serializedNestedEvidence.includes("Task envelope")
     && !serializedNestedEvidence.includes("requestedAction")
     && !serializedNestedEvidence.includes("successCriteria");
+  const serializedSpawnCalls = JSON.stringify(spawnCalls);
+  const modelProbeClassifiedFromStdin = spawnCalls.some((call) => (
+    call.kind === "model-probe"
+    && call.modelProbeClassifiedFromStdin
+  ));
+  const normalSmokeClassifiedFromStdin = spawnCalls.some((call) => (
+    call.kind === "smoke-run"
+    && call.normalSmokeClassifiedFromStdin
+  ));
+  const allPromptsDeliveredThroughStdin = spawnCalls.every((call) => (
+    call.promptChannel === "stdin"
+    && call.stdinAvailable
+    && call.stdinObserved
+    && call.stdinEndCount === 1
+    && call.responseEmittedAfterStdin
+  ));
+  const argvContainsNoPromptMarker = spawnCalls.every((call) => call.argvPromptFree);
+  const allCommandsMatchConfiguredRuntime = spawnCalls.every((call) => (
+    call.commandMatchesConfigured
+  ));
+  const allWorkdirsMatchRequestedWorkspace = spawnCalls.every((call) => (
+    call.cwdMatchesRequestedWorkspace
+  ));
+  const spawnCallEvidenceOmitsRawRuntimeMaterial = ![
+    /"command"\s*:/,
+    /"cwd"\s*:/,
+    /"args"\s*:/,
+    /"prompt"\s*:/,
+    /"stdin"\s*:/
+  ].some((pattern) => pattern.test(serializedSpawnCalls))
+    && !serializedSpawnCalls.includes(cwd)
+    && !serializedSpawnCalls.includes(CODEX_CLI_MODEL_PROBE_OK)
+    && !serializedSpawnCalls.includes(CODEX_CLI_READONLY_SMOKE_OK)
+    && !serializedSpawnCalls.includes(CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION);
+  const generatedEvidenceOmitsActiveWorkspacePath = !serializedNestedEvidence.includes(cwd)
+    && !serializedSpawnCalls.includes(cwd);
 
   const checks = {
     readOnlyFirstPassed: readOnlyFirst.status === "passed",
@@ -157,7 +201,15 @@ async function main(): Promise<void> {
       && workspaceWriteReady.plan.sandbox === "workspace-write",
     telemetryCacheMissAndHit: telemetryMessages.includes("codex cli model probe cache miss")
       && telemetryMessages.includes("codex cli model probe cache hit"),
-    nestedEvidenceOmitsRawPrompt
+    nestedEvidenceOmitsRawPrompt,
+    modelProbeClassifiedFromStdin,
+    normalSmokeClassifiedFromStdin,
+    allPromptsDeliveredThroughStdin,
+    argvContainsNoPromptMarker,
+    spawnCallEvidenceOmitsRawRuntimeMaterial,
+    allCommandsMatchConfiguredRuntime,
+    allWorkdirsMatchRequestedWorkspace,
+    generatedEvidenceOmitsActiveWorkspacePath
   };
   const passed = Object.values(checks).every(Boolean);
 
@@ -181,7 +233,9 @@ async function main(): Promise<void> {
         "workspace-write smoke preflight blocks before spawning when gates are missing",
         "workspace-write smoke can pass after explicit allowance and confirmation",
         "model probe telemetry emits cache miss and cache hit",
-        "nested smoke evidence omits raw task prompt and full argv"
+        "mock spawner validates stdin prompt transport",
+        "nested smoke evidence omits raw task prompt and full argv",
+        "spawn call evidence contains safe contract facts only"
       ],
       doesNotCover: [
         "real Codex CLI binary availability",
@@ -231,25 +285,34 @@ async function main(): Promise<void> {
 
 function createContractSpawner(calls: ContractSpawnCall[]): CodexCliProcessSpawner {
   return (command, args, options) => {
-    const isModelProbe = args.some((arg) => arg.includes(CODEX_CLI_MODEL_PROBE_OK));
     const approvalPolicy = getArgValue(args, "-a");
-    calls.push({
-      kind: isModelProbe ? "model-probe" : "smoke-run",
-      command,
-      ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
+    const call: ContractSpawnCall = {
+      kind: "unclassified",
+      commandMatchesConfigured: command === codexCommand,
+      cwdMatchesRequestedWorkspace: options.cwd === cwd,
+      promptChannel: "stdin",
+      stdinAvailable: true,
+      stdinObserved: false,
+      stdinEndCount: 0,
+      responseEmittedAfterStdin: false,
+      modelProbeClassifiedFromStdin: false,
+      normalSmokeClassifiedFromStdin: false,
+      argvPromptFree: [
+        CODEX_CLI_MODEL_PROBE_OK,
+        CODEX_CLI_READONLY_SMOKE_OK,
+        CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION,
+        "Task envelope",
+        "requestedAction"
+      ].every((marker) => !args.some((arg) => arg.includes(marker))),
       ...(approvalPolicy !== undefined ? { approvalPolicy } : {}),
       sandbox: getArgValue(args, "--sandbox") ?? "read-only",
       usesJson: args.includes("--json"),
       skipGitRepoCheck: args.includes("--skip-git-repo-check"),
       ephemeral: args.includes("--ephemeral")
-    });
+    };
 
-    return createFakeCodexCliChild({
-      stdout: isModelProbe
-        ? `{"type":"agent_message","message":"${CODEX_CLI_MODEL_PROBE_OK}"}\n`
-        : `{"type":"agent_message","message":"${CODEX_CLI_READONLY_SMOKE_OK}"}\n`,
-      exitCode: 0
-    });
+    calls.push(call);
+    return createFakeCodexCliChild(call);
   };
 }
 
@@ -320,45 +383,66 @@ class FakeCodexCliStream extends EventEmitter {
   setEncoding(_encoding: BufferEncoding): void {}
 }
 
+class FakeCodexCliWritableStream {
+  private readonly call: ContractSpawnCall;
+  private readonly child: FakeCodexCliChild;
+
+  constructor(call: ContractSpawnCall, child: FakeCodexCliChild) {
+    this.call = call;
+    this.child = child;
+  }
+
+  end(chunk?: string): void {
+    this.call.stdinEndCount += 1;
+    this.call.stdinObserved = true;
+
+    if (this.call.stdinEndCount !== 1) {
+      queueMicrotask(() => {
+        this.child.stderr.emit("data", "codex_cli_contract_smoke_duplicate_stdin_end\n");
+        this.child.emit("close", 1, null);
+      });
+      return;
+    }
+
+    const prompt = chunk ?? "";
+    const isModelProbe = prompt.includes(CODEX_CLI_MODEL_PROBE_OK);
+    this.call.kind = isModelProbe ? "model-probe" : "smoke-run";
+    this.call.modelProbeClassifiedFromStdin = isModelProbe;
+    this.call.normalSmokeClassifiedFromStdin = !isModelProbe;
+    const stdout = isModelProbe
+      ? `{"type":"agent_message","message":"${CODEX_CLI_MODEL_PROBE_OK}"}\n`
+      : `{"type":"agent_message","message":"${CODEX_CLI_READONLY_SMOKE_OK}"}\n`;
+
+    queueMicrotask(() => {
+      this.call.responseEmittedAfterStdin = true;
+      this.child.stdout.emit("data", stdout);
+      this.child.emit("close", 0, null);
+    });
+  }
+
+  destroy(): void {}
+}
+
 class FakeCodexCliChild extends EventEmitter implements CodexCliChildProcess {
+  readonly stdin: FakeCodexCliWritableStream;
   readonly stdout = new FakeCodexCliStream();
   readonly stderr = new FakeCodexCliStream();
-  private readonly closeCode: number;
-  private readonly closeSignal: NodeJS.Signals | null;
 
-  constructor(closeCode: number, closeSignal: NodeJS.Signals | null) {
+  constructor(call: ContractSpawnCall) {
     super();
-    this.closeCode = closeCode;
-    this.closeSignal = closeSignal;
+    this.stdin = new FakeCodexCliWritableStream(call, this);
   }
 
   kill(_signal?: NodeJS.Signals | number): boolean {
     queueMicrotask(() => {
-      this.emit("close", this.closeCode, this.closeSignal);
+      this.emit("close", 1, null);
     });
     return true;
   }
 }
 
-function createFakeCodexCliChild(options: {
-  stdout: string;
-  stderr?: string;
-  exitCode: number;
-  signal?: NodeJS.Signals | null;
-}): FakeCodexCliChild {
-  const child = new FakeCodexCliChild(options.exitCode, options.signal ?? null);
-
-  queueMicrotask(() => {
-    if (options.stdout) {
-      child.stdout.emit("data", options.stdout);
-    }
-    if (options.stderr) {
-      child.stderr.emit("data", options.stderr);
-    }
-    child.emit("close", options.exitCode, options.signal ?? null);
-  });
-
-  return child;
+function createFakeCodexCliChild(call: ContractSpawnCall): FakeCodexCliChild {
+  return new FakeCodexCliChild(call);
 }
 
 main().catch((error) => {
