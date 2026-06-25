@@ -8,56 +8,40 @@ Branch:
 
 - `feat/pr-23a-s1-trusted-runtime`
 
-Current R1-G1FIX4 status:
+Current R1-G1FIX5 status:
 
-- the local CI remediation code commit exists
-- the local CI remediation state commit exists
-- the remote feature branch has not received either remediation commit
-- PR #46 remains draft
-- remote validation of the remediation is still pending
-- state-sync anchor: `309d097`
+- the local code remediation commit exists
+- the local state documentation commit has not been created yet
+- the published feature branch has not received the remediation
+- PR #46 remains open and draft
+- failed remote CI existed before this local remediation
+- remote validation of the local remediation is still pending
+- the agent-board state anchor is recorded only in `RUN_STATE.md`
 
 Completed in this checkpoint:
 
-- made the contract smoke fake spawner stdin-aware
-- removed raw command, cwd, argv, prompt, and stdin contents from smoke spawn
-  evidence
-- added smoke checks for stdin prompt transport, argv prompt-marker absence,
-  safe spawn evidence, configured runtime matching, requested workdir matching,
-  and generated evidence path sanitization
-- changed the Windows helper-layout test to create and execute its plan under
-  the same simulated win32 platform
-- kept platform drift fail-closed with descriptor mismatch and zero spawner
-  calls
-- identified the R1-G1FIX state-sync blocker as documentation-only:
-  missing exact required targeted command literal and agent-board commit-like
-  tokens that were not current state references
-- identified the R1-G1FIX3 blocker as over-cleaning: the full test suite
-  expects one legal current-state anchor token in agent board text
-- ran the exact state-sync-required targeted command under process-scoped
-  offline protection, passing `109 / 109`
-
-Validation completed before this repair:
-
-- R1-G1FIX pre-code-commit diff check, typecheck, targeted host test, safe
-  contract smoke, full tests, and build passed
-- R1-G1FIX post-code-commit typecheck, targeted host test, and safe contract
-  smoke passed
-- R1-G1FIX final validation after the state commit failed only in state-sync
-  documentation checks
+- remediated smoke artifact projection so persisted contract smoke evidence
+  contains safe summaries instead of raw nested runtime evidence
+- added persisted smoke artifact inspection before writing evidence
+- kept raw nested smoke evidence in memory only for assertions
+- remediated platform-drift test isolation while preserving fail-closed
+  descriptor mismatch behavior and zero spawner calls
+- verified typecheck, targeted host tests, contract smoke, full tests, and
+  build before the local code remediation commit
+- verified typecheck, targeted host tests, and contract smoke after the local
+  code remediation commit
 
 Remaining validation:
 
-- run pre-commit state-sync after the six-file documentation repair
-- create exactly one R1-G1FIX4 docs-only commit
-- run final diff check, typecheck, targeted tests, safe contract smoke, full
-  tests, build, state-sync audit, and validate:pr
-- perform final local and remote read-only integrity checks
-- send commander receipt
+- verify the dirty set is exactly the six authorized state files
+- run the required pre-state-commit validation set
+- create exactly one local documentation-only state commit
+- run the required post-state-commit validation set
+- perform final local status and remote read-only integrity checks
+- send the commander receipt
 
 Boundary:
 
-- exactly one local docs-only commit is authorized for R1-G1FIX4
-- no amend, reset, stash, merge, rebase, push, PR edit/comment/review/ready,
-  workflow action, release, deploy, npm publish, secret edit, real Codex CLI,
+- no push, PR edit/comment/review/ready, workflow action, merge, rebase,
+  branch deletion, release, deploy, npm publish, secret edit, real Codex CLI,
   real provider execution, or workspace-write smoke has been performed

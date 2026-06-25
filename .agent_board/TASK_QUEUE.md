@@ -2,31 +2,31 @@
 
 Current task:
 
-- PR-23A-S1 trusted runtime binding R1-G1FIX4 state-sync documentation repair
-  on `feat/pr-23a-s1-trusted-runtime`
+- PR-23A-S1 trusted runtime binding R1-G1FIX5 local state update on
+  `feat/pr-23a-s1-trusted-runtime`
 
 Done:
 
-- completed R1-G1FIX local code remediation
-- completed R1-G1FIX local state documentation commit
-- confirmed R1-G1FIX final validation failure is documentation-only
-- confirmed remote feature branch and PR #46 have not changed
-- ran the exact state-sync-required targeted command with process-scoped
-  offline protection; result `109 / 109`
-- repaired the current state validation baseline to include the exact required
-  targeted command literal
-- paraphrased non-state commit-like tokens in agent board files
-- restored exactly one legal current-state anchor token in agent board files
+- completed local code remediation for smoke evidence projection
+- completed local code remediation for platform-drift test isolation
+- verified pre-code-commit diff check, typecheck, targeted host test, contract
+  smoke, full tests, and build
+- created the authorized local code remediation commit
+- verified post-code-commit typecheck, targeted host test, and contract smoke
+- prepared the six authorized state surfaces for the state commit
 
 Todo:
 
 - verify the modified file set is exactly the six authorized state files
 - run pre-commit `git diff --check`
+- run pre-commit process-scoped offline
+  `npx tsx --test tests\codex-cli-host.test.ts`
+- run pre-commit `npm test`
+- run pre-commit `npm run build`
 - run pre-commit `npm run governance -- audit state-sync`
-- scan the six changed files for machine-path material and unexpected
-  commit-like tokens without printing sensitive values
+- run pre-commit `npm run validate:pr`
 - create exactly one local commit:
-  `docs(state): align state-sync anchor to HEAD-only invariant`
+  `docs(state): record new-head CI remediation validation`
 - run final post-commit validation:
   - `git diff --check`
   - `npm run typecheck`
@@ -39,17 +39,18 @@ Todo:
   - `npm run validate:pr`
 - inspect final local status, ahead/behind count, commit chain, remote refs,
   and PR #46 metadata
-- send R1-G1FIX4 closeout receipt to the web GPT commander
+- send R1-G1FIX5 closeout receipt to the web GPT commander
 - wait up to 7 minutes for the next exact task book or authorization token
 
 Blocked until separately authorized:
 
 - push
 - PR edit, comment, review, or ready-for-review action
-- workflow rerun, cancel, dispatch, or any other CI action
-- merge, rebase, branch deletion
-- amend, reset, stash
+- workflow rerun, cancel, dispatch, watch, or any other CI action
+- fetch, pull, merge, rebase, branch deletion
+- amend, reset, clean, stash
 - release, deploy, npm publish, tag
+- additional CI logs or artifacts
 - real Codex CLI execution
 - real provider execution
 - workspace-write telemetry smoke
