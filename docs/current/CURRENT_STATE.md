@@ -12,10 +12,10 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `feat/pr-23a-s1-trusted-runtime` |
-| Current head | `2244797` |
+| Current head | `b273603` |
 | Upstream | `none` |
 | Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `2244797` |
+| Latest validated commit | `b273603` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -30,7 +30,7 @@ refreshed here first.
 ## Current Scope
 
 This branch is in PR-23A-S1 trusted Codex CLI runtime remediation under the web
-GPT commander R1-G1FIX local task book.
+GPT commander R1-G1FIX2 state-sync documentation repair task book.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -70,6 +70,8 @@ Implemented locally:
   through execution.
 - Platform drift remains fail-closed with
   `codex_cli_runtime_binding_descriptor_mismatch` and zero spawner calls.
+- R1-G1FIX2 repairs state documentation so state-sync does not misclassify CI
+  run or job identifiers as commit-like state tokens.
 
 ## Remote State
 
@@ -97,7 +99,7 @@ R1-G1FIX validation before the code-fix commit:
 - `npm test`: passed, `1153 / 1153`.
 - `npm run build`: passed.
 
-R1-G1FIX validation after code-fix commit `2244797`:
+R1-G1FIX validation after the code-fix commit:
 
 - `npm run typecheck`: passed.
 - `npx --no-install tsx --test tests/codex-cli-host.test.ts`: passed,
@@ -105,11 +107,31 @@ R1-G1FIX validation after code-fix commit `2244797`:
 - Safe contract smoke with process-scoped temporary evidence path: passed;
   spawn call count `4`.
 
-Validation still required after this state commit:
+R1-G1FIX final validation after the state commit found a documentation-only
+state-sync mismatch:
+
+- `git diff --check`: passed.
+- `npm run typecheck`: passed.
+- `npx --no-install tsx --test tests/codex-cli-host.test.ts`: passed,
+  `109 / 109`.
+- Safe contract smoke with process-scoped temporary evidence path: passed;
+  spawn call count `4`.
+- `npm test`: failed only in state-sync audit coverage because state docs
+  omitted the exact required command literal and agent board text retained
+  non-state commit-like tokens.
+- `npm run governance -- audit state-sync`: failed for the same documentation
+  mismatch.
+
+R1-G1FIX2 exact targeted validation before this documentation repair:
+
+- `npx tsx --test tests\codex-cli-host.test.ts`: passed, `109 / 109`.
+
+Validation still required after this state repair commit:
 
 - `git diff --check`
 - `npm run typecheck`
 - `npx --no-install tsx --test tests/codex-cli-host.test.ts`
+- `npx tsx --test tests\codex-cli-host.test.ts`
 - Safe contract smoke with process-scoped temporary evidence path
 - `npm test`
 - `npm run build`
@@ -131,7 +153,7 @@ Blocked capabilities:
 - `secret_or_credential_change`
 - `external_service_write`
 
-Boundary facts for R1-G1FIX:
+Boundary facts for R1-G1FIX2:
 
 - No real Codex CLI execution.
 - No real provider execution.
@@ -139,17 +161,17 @@ Boundary facts for R1-G1FIX:
 - No persistent env/config/secret edit.
 - No push, PR edit/comment/review/ready, workflow rerun/cancel, merge, branch
   deletion, release, deploy, or npm publish.
-- The only environment change was a process-scoped temporary smoke evidence
-  path during validation; the temporary evidence file was removed.
+- The only environment changes were process-scoped validation variables and
+  temporary smoke evidence paths; temporary evidence files were removed.
 
 ## Current Local Changes
 
-The code-fix commit exists locally:
+Local remediation commits exist, but they have not been pushed:
 
-- `2244797 fix(codex-runtime): align CI fixtures with stdin binding`
+- `fix(codex-runtime): align CI fixtures with stdin binding`
+- `docs(state): record trusted runtime CI remediation`
 
-This state documentation refresh is the only remaining R1-G1FIX local change
-before Commit 2:
+This R1-G1FIX2 repair is documentation-only and limited to:
 
 - `docs/current/CURRENT_STATE.md`
 - `.agent_board/CHECKPOINT.md`
@@ -164,11 +186,12 @@ This local branch does not currently track an upstream branch. The state-sync
 audit therefore expects unknown upstream divergence, recorded as
 `ahead -1 / behind -1`.
 
-Because `Stale after commit` is `true`, this documentation-only state commit
-may leave the recorded code head as its parent while still passing state-sync.
+Because `Stale after commit` is `true`, this documentation-only state repair
+commit may leave the recorded state head as its parent while still passing
+state-sync.
 
 ## Next Safe Action
 
-Create the documentation-only R1-G1FIX state commit, then run the required
-post-commit validation set. Do not push or otherwise modify remote state
-without a separate exact authorization token.
+Create the documentation-only R1-G1FIX2 state repair commit, then run the
+required post-commit validation set. Do not push or otherwise modify remote
+state without a separate exact authorization token.

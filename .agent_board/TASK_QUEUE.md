@@ -2,37 +2,35 @@
 
 Current task:
 
-- PR-23A-S1 trusted runtime binding R1-G1FIX local CI remediation on
-  `feat/pr-23a-s1-trusted-runtime`
+- PR-23A-S1 trusted runtime binding R1-G1FIX2 state-sync documentation repair
+  on `feat/pr-23a-s1-trusted-runtime`
 
 Done:
 
-- verified branch, starting local head, local `origin/main`, remote feature
-  head, PR #46 metadata, and failed run `28130303432`
-- confirmed the worktree was clean before R1-G1FIX edits
-- confirmed the allowed file set for R1-G1FIX
-- updated the contract smoke fake spawner so prompts are classified from stdin,
-  not argv
-- updated smoke spawn evidence to retain safe contract facts only
-- added smoke checks for stdin prompt transport, argv prompt-marker absence,
-  safe spawn evidence, configured runtime matching, requested workdir matching,
-  and generated evidence path sanitization
-- fixed the Windows helper-layout test so simulated win32 is established
-  before plan creation and stays active through execution
-- added platform-drift coverage that fails closed before spawn
-- completed pre-code-commit validation
-- created authorized local Commit 1:
-  `2244797 fix(codex-runtime): align CI fixtures with stdin binding`
-- completed post-code-commit validation
+- completed R1-G1FIX local code remediation
+- completed R1-G1FIX local state documentation commit
+- confirmed R1-G1FIX final validation failure is documentation-only
+- confirmed remote feature branch and PR #46 have not changed
+- ran the exact state-sync-required targeted command with process-scoped
+  offline protection; result `109 / 109`
+- repaired the current state validation baseline to include the exact required
+  targeted command literal
+- paraphrased non-state commit-like tokens in agent board files
 
 Todo:
 
-- create authorized local Commit 2 for this R1-G1FIX state documentation
-  refresh
-- run final post-state-commit validation:
+- verify the modified file set is exactly the six authorized state files
+- run pre-commit `git diff --check`
+- run pre-commit `npm run governance -- audit state-sync`
+- scan the six changed files for machine-path material and unexpected
+  commit-like tokens without printing sensitive values
+- create exactly one local commit:
+  `docs(state): repair CI remediation audit surface`
+- run final post-commit validation:
   - `git diff --check`
   - `npm run typecheck`
   - `npx --no-install tsx --test tests/codex-cli-host.test.ts`
+  - `npx tsx --test tests\codex-cli-host.test.ts`
   - safe contract smoke with a process-scoped temporary evidence path
   - `npm test`
   - `npm run build`
@@ -40,7 +38,7 @@ Todo:
   - `npm run validate:pr`
 - inspect final local status, ahead/behind count, commit chain, remote refs,
   and PR #46 metadata
-- send R1-G1FIX closeout receipt to the web GPT commander
+- send R1-G1FIX2 closeout receipt to the web GPT commander
 - wait up to 7 minutes for the next exact task book or authorization token
 
 Blocked until separately authorized:
@@ -49,6 +47,7 @@ Blocked until separately authorized:
 - PR edit, comment, review, or ready-for-review action
 - workflow rerun, cancel, dispatch, or any other CI action
 - merge, rebase, branch deletion
+- amend, reset, stash
 - release, deploy, npm publish, tag
 - real Codex CLI execution
 - real provider execution

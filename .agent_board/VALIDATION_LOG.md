@@ -4,21 +4,16 @@ Current branch:
 
 - `feat/pr-23a-s1-trusted-runtime`
 
-Recorded code head:
+Current state source:
 
-- `2244797`
+- `docs/current/CURRENT_STATE.md`
 
 R1-G1FIX preflight completed:
 
-- local `HEAD` matched expected start:
-  `398bf0c41beb222cc188328adc71c0f50a8b5ee5`
-- local `origin/main` matched expected:
-  `2eb320e1118499b5dcf373bc4ccca04ff9224356`
-- remote feature head matched expected:
-  `398bf0c41beb222cc188328adc71c0f50a8b5ee5`
-- PR #46 was `OPEN` and draft, with the expected head and base
-- failed run `28130303432` was completed with failure
-- failed job IDs observed: `83304696661`, `83304696663`
+- starting local head matched the expected old remote feature state
+- local `origin/main` matched the expected base state
+- PR #46 was `OPEN` and draft, with the expected old head and base
+- the initial failed CI run and the two failed Node jobs were identified
 - worktree was clean before remediation
 - `git diff --check`: passed
 - Node version observed: `v24.14.0`
@@ -33,16 +28,10 @@ R1-G1FIX pre-code-commit validation completed:
   passed, `109 / 109`
 - safe contract smoke with process-scoped temporary evidence path: passed
 - safe smoke spawn call count: `4`
-- safe smoke evidence SHA-256:
-  `38fada7ac3fba21eed02b0dc45125b54d5cb083841224cc04605d003298e453b`
 - safe smoke evidence omitted raw workspace path, raw command, raw cwd, raw
   argv, prompt text, and stdin contents from spawn call evidence
 - `npm test`: passed, `1153 / 1153`
 - `npm run build`: passed
-
-Commit 1 completed:
-
-- `2244797 fix(codex-runtime): align CI fixtures with stdin binding`
 
 R1-G1FIX post-code-commit validation completed:
 
@@ -51,10 +40,27 @@ R1-G1FIX post-code-commit validation completed:
   passed, `109 / 109`
 - safe contract smoke with process-scoped temporary evidence path: passed
 - safe smoke spawn call count: `4`
-- safe smoke evidence SHA-256:
-  `d2b86f32f320c52cfb77a8a39daa44bf12798e71c911bd3589c20f866cbbba46`
 
-Coverage added:
+R1-G1FIX final validation after the state commit:
+
+- `git diff --check`: passed
+- `npm run typecheck`: passed
+- `npx --no-install tsx --test tests/codex-cli-host.test.ts`:
+  passed, `109 / 109`
+- safe contract smoke with process-scoped temporary evidence path: passed
+- safe smoke spawn call count: `4`
+- `npm test`: failed only in state-sync audit coverage, `1146 / 1153`
+- `npm run governance -- audit state-sync`: failed with documentation-only
+  state-sync alignment reasons
+- `npm run build` and `npm run validate:pr` were not run after that failure
+
+R1-G1FIX2 pre-repair validation completed:
+
+- local `tsx` executable availability check: passed
+- `npx tsx --test tests\codex-cli-host.test.ts` with process-scoped
+  `npm_config_offline=true`: passed, `109 / 109`
+
+Coverage added by the local code remediation:
 
 - contract smoke mock classifies model probes from stdin instead of argv
 - contract smoke fake child does not emit stdout or close before stdin receipt
@@ -66,15 +72,16 @@ Coverage added:
 - smoke validation checks generated evidence omits the active workspace path
 - Windows helper-layout test creates and executes the plan under one simulated
   platform
-- platform drift before spawn rejects with
-  `codex_cli_runtime_binding_descriptor_mismatch`
+- platform drift before spawn rejects with descriptor mismatch and zero spawner
+  calls
 
-Final validation still pending:
+R1-G1FIX2 final validation still pending:
 
-- documentation-only state Commit 2
+- documentation-only repair commit
 - `git diff --check`
 - `npm run typecheck`
 - `npx --no-install tsx --test tests/codex-cli-host.test.ts`
+- `npx tsx --test tests\codex-cli-host.test.ts`
 - safe contract smoke with process-scoped temporary evidence path
 - `npm test`
 - `npm run build`

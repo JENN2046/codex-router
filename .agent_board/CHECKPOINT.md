@@ -8,54 +8,53 @@ Branch:
 
 - `feat/pr-23a-s1-trusted-runtime`
 
-Recorded code head:
+Current R1-G1FIX2 status:
 
-- `2244797`
+- the local CI remediation code commit exists
+- the local CI remediation state commit exists
+- the remote feature branch has not received either remediation commit
+- PR #46 remains draft
+- remote validation of the remediation is still pending
 
 Completed in this checkpoint:
 
-- created the R1-G1FIX code commit:
-  `2244797 fix(codex-runtime): align CI fixtures with stdin binding`
 - made the contract smoke fake spawner stdin-aware
 - removed raw command, cwd, argv, prompt, and stdin contents from smoke spawn
   evidence
 - added smoke checks for stdin prompt transport, argv prompt-marker absence,
-  safe spawn evidence, configured runtime matching, and requested workdir
-  matching
+  safe spawn evidence, configured runtime matching, requested workdir matching,
+  and generated evidence path sanitization
 - changed the Windows helper-layout test to create and execute its plan under
   the same simulated win32 platform
 - kept platform drift fail-closed with descriptor mismatch and zero spawner
   calls
-- kept PR #46 draft and remote feature at the old published head
-- recorded that failed run `28130303432` is locally remediated, remote
-  validation pending
+- identified the R1-G1FIX state-sync blocker as documentation-only:
+  missing exact required targeted command literal and agent-board commit-like
+  tokens that were not current state references
+- ran the exact state-sync-required targeted command under process-scoped
+  offline protection, passing `109 / 109`
 
-Validation completed:
+Validation completed before this repair:
 
-- pre-commit `git diff --check`: passed
-- pre-commit `npm run typecheck`: passed
-- pre-commit `npx --no-install tsx --test tests/codex-cli-host.test.ts`:
-  passed, `109 / 109`
-- pre-commit safe contract smoke: passed, spawn call count `4`
-- pre-commit `npm test`: passed, `1153 / 1153`
-- pre-commit `npm run build`: passed
-- post-code-commit `npm run typecheck`: passed
-- post-code-commit `npx --no-install tsx --test tests/codex-cli-host.test.ts`:
-  passed, `109 / 109`
-- post-code-commit safe contract smoke: passed, spawn call count `4`
+- R1-G1FIX pre-code-commit diff check, typecheck, targeted host test, safe
+  contract smoke, full tests, and build passed
+- R1-G1FIX post-code-commit typecheck, targeted host test, and safe contract
+  smoke passed
+- R1-G1FIX final validation after the state commit failed only in state-sync
+  documentation checks
 
 Remaining validation:
 
-- create the documentation-only R1-G1FIX state commit
-- run final diff check, typecheck, targeted test, safe contract smoke, full
+- run pre-commit state-sync after the six-file documentation repair
+- create exactly one R1-G1FIX2 docs-only commit
+- run final diff check, typecheck, targeted tests, safe contract smoke, full
   tests, build, state-sync audit, and validate:pr
 - perform final local and remote read-only integrity checks
 - send commander receipt
 
 Boundary:
 
-- exactly two local commits are authorized for R1-G1FIX
-- Commit 1 has been created; Commit 2 is this state documentation refresh
-- no push, PR edit/comment/review/ready, workflow action, merge, release,
-  deploy, npm publish, secret edit, real Codex CLI, real provider execution, or
-  workspace-write smoke has been performed
+- exactly one local docs-only commit is authorized for R1-G1FIX2
+- no amend, reset, stash, merge, rebase, push, PR edit/comment/review/ready,
+  workflow action, release, deploy, npm publish, secret edit, real Codex CLI,
+  real provider execution, or workspace-write smoke has been performed
