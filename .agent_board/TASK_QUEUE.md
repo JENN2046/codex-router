@@ -2,34 +2,55 @@
 
 Current task:
 
-- PR-23A-S1 trusted runtime binding V2 local closeout on
+- PR-23A-S1 trusted runtime binding R1-G1FIX local CI remediation on
   `feat/pr-23a-s1-trusted-runtime`
 
 Done:
 
-- verified branch, starting local state, allowed file set, and diff fingerprint
-- completed V2 pre-commit validation
-- created authorized local Commit 1 for trusted runtime binding
-- validated Commit 1 with typecheck and provider/host/runner targeted tests
-- created authorized local Commit 2 for portable state-sync hardening
-- validated Commit 2 with state-sync/governance targeted tests
-- started the documentation-only state surface refresh for Commit 3
-- passed state-sync audit after the state surface refresh
+- verified branch, starting local head, local `origin/main`, remote feature
+  head, PR #46 metadata, and failed run `28130303432`
+- confirmed the worktree was clean before R1-G1FIX edits
+- confirmed the allowed file set for R1-G1FIX
+- updated the contract smoke fake spawner so prompts are classified from stdin,
+  not argv
+- updated smoke spawn evidence to retain safe contract facts only
+- added smoke checks for stdin prompt transport, argv prompt-marker absence,
+  safe spawn evidence, configured runtime matching, requested workdir matching,
+  and generated evidence path sanitization
+- fixed the Windows helper-layout test so simulated win32 is established
+  before plan creation and stays active through execution
+- added platform-drift coverage that fails closed before spawn
+- completed pre-code-commit validation
+- created authorized local Commit 1:
+  `2244797 fix(codex-runtime): align CI fixtures with stdin binding`
+- completed post-code-commit validation
 
 Todo:
 
-- create authorized local Commit 3 for state documentation
-- run the V2 post-commit validation set
-- inspect final status, ahead/behind count, and local commit chain
-- send closeout receipt to the web GPT commander
+- create authorized local Commit 2 for this R1-G1FIX state documentation
+  refresh
+- run final post-state-commit validation:
+  - `git diff --check`
+  - `npm run typecheck`
+  - `npx --no-install tsx --test tests/codex-cli-host.test.ts`
+  - safe contract smoke with a process-scoped temporary evidence path
+  - `npm test`
+  - `npm run build`
+  - `npm run governance -- audit state-sync`
+  - `npm run validate:pr`
+- inspect final local status, ahead/behind count, commit chain, remote refs,
+  and PR #46 metadata
+- send R1-G1FIX closeout receipt to the web GPT commander
 - wait up to 7 minutes for the next exact task book or authorization token
 
 Blocked until separately authorized:
 
 - push
-- PR creation
-- merge
+- PR edit, comment, review, or ready-for-review action
+- workflow rerun, cancel, dispatch, or any other CI action
+- merge, rebase, branch deletion
 - release, deploy, npm publish, tag
-- real Codex CLI smoke
+- real Codex CLI execution
+- real provider execution
 - workspace-write telemetry smoke
 - env, secret, user config, or system config edits

@@ -12,10 +12,10 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `feat/pr-23a-s1-trusted-runtime` |
-| Current head | `3396b2b` |
+| Current head | `2244797` |
 | Upstream | `none` |
 | Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `3396b2b` |
+| Latest validated commit | `2244797` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -29,8 +29,8 @@ refreshed here first.
 
 ## Current Scope
 
-This branch closes the PR-23A-S1 trusted Codex CLI runtime slice under the web
-GPT commander V2 local-closeout task book.
+This branch is in PR-23A-S1 trusted Codex CLI runtime remediation under the web
+GPT commander R1-G1FIX local task book.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -45,80 +45,81 @@ current safety baseline:
 
 Implemented locally:
 
-- Codex CLI host plans now bind a trusted runtime descriptor with command,
+- Codex CLI host plans bind trusted runtime descriptors with command,
   argv-shape, workdir, workspace, and repository hash references.
-- The controlled Codex CLI prompt path is `exec-json-stdin-prompt.v1`, with
-  prompt delivery through stdin instead of argv.
-- `validateCodexCliExecPlanForRun()` rejects forged runtime bindings and
-  forged prompt-in-argv plans before spawning a process.
-- Codex provider plans reconstruct the controlled CLI argv from structured
-  fields and no longer persist raw command, raw argv, or prompt text in
-  provider metadata.
-- Provider dry-run, fake execution, real execution summaries, and evidence
-  artifacts expose only safe runtime hash summaries.
+- Controlled Codex CLI prompts use `exec-json-stdin-prompt.v1` and are sent
+  through stdin instead of argv.
+- Host validation rejects forged runtime bindings, platform drift, and
+  prompt-in-argv plans before spawning a process.
+- Codex provider plans reconstruct controlled CLI argv from structured fields
+  and do not persist raw command, raw argv, or prompt text in provider
+  metadata.
 - Workspace-write approval and preflight artifacts use sanitized runtime
   previews and safe path references.
-- State-sync audit now blocks portable machine paths, including Windows drive
+- State-sync audit blocks portable machine paths, including Windows drive
   absolute paths, UNC paths, extended Windows paths, selected POSIX workspace
   paths, and secret markers, while reporting only issue code, relative path,
   line, and risk.
-- Focused tests cover stdin prompt binding, forged runtime rejection,
-  sanitized runtime summaries, Windows path blocking, UNC path blocking, URL
-  allowlisting, repo-relative allowlisting, and sentinel path non-disclosure.
-- Governance runner validation avoids Windows `.cmd` tsx shims by invoking the
-  local tsx CLI through the current Node executable.
+- R1-G1FIX local remediation updated the contract smoke mock to classify model
+  probes from stdin, not argv.
+- R1-G1FIX local remediation updated smoke spawn evidence to safe contract
+  facts only; raw command, cwd, argv, prompt, and stdin contents are not
+  retained.
+- R1-G1FIX local remediation updated the Windows helper-layout test so the
+  simulated platform is established before plan creation and remains active
+  through execution.
+- Platform drift remains fail-closed with
+  `codex_cli_runtime_binding_descriptor_mismatch` and zero spawner calls.
+
+## Remote State
+
+- PR: `JENN2046/codex-router#46`
+- PR state: `OPEN`, draft.
+- Remote feature branch remains at
+  `398bf0c41beb222cc188328adc71c0f50a8b5ee5`.
+- Remote PR still contains the original three published commits.
+- Failed CI run `28130303432` remains the latest observed remote validation
+  evidence for that old remote head.
+- The two diagnosed CI root causes have been locally remediated, but the fix
+  has not been pushed and no new remote CI has run.
+- Correct status phrase: locally remediated, remote validation pending.
 
 ## Validation Baseline
 
-V2 pre-commit validation completed locally:
+R1-G1FIX validation before the code-fix commit:
 
 - `git diff --check`: passed.
 - `npm run typecheck`: passed.
-- `npx --no-install tsx --test tests/state-sync-audit.test.ts tests/governance-check.test.ts`:
-  passed, `26 / 26`.
-- `npx --no-install tsx --test tests/codex-cli-provider.test.ts tests/codex-cli-host.test.ts tests/provider-execution-runner.test.ts`:
-  passed, `169 / 169`.
-- `npm test`: passed, `1152 / 1152`.
+- `npx --no-install tsx --test tests/codex-cli-host.test.ts`: passed,
+  `109 / 109`.
+- Safe contract smoke with process-scoped temporary evidence path: passed;
+  spawn call count `4`; raw workspace path and raw runtime fields absent.
+- `npm test`: passed, `1153 / 1153`.
 - `npm run build`: passed.
-- `npm run governance -- audit state-sync`: passed before local closeout
-  commits.
-- `npm run validate:pr`: passed; this includes `npm run typecheck`,
-  `npm test` with `1152 / 1152`, `npm run build`, and state-sync audit.
 
-Local closeout validation completed so far:
+R1-G1FIX validation after code-fix commit `2244797`:
 
-- Commit 1 follow-up `npm run typecheck`: passed.
-- Commit 1 follow-up provider/host/runner targeted tests: passed,
-  `169 / 169`.
-- Commit 2 follow-up state-sync/governance targeted tests: passed,
-  `26 / 26`.
-- Commit 2 follow-up state-sync audit initially blocked because these state
-  surfaces still recorded the previous local head; this documentation refresh
-  is the corrective Commit 3 scope.
-- State-sync audit after this state surface refresh: passed.
+- `npm run typecheck`: passed.
+- `npx --no-install tsx --test tests/codex-cli-host.test.ts`: passed,
+  `109 / 109`.
+- Safe contract smoke with process-scoped temporary evidence path: passed;
+  spawn call count `4`.
 
-Validation commands required by the state-sync audit remain:
+Validation still required after this state commit:
 
-- `npx tsx --test tests\codex-cli-host.test.ts`
+- `git diff --check`
 - `npm run typecheck`
+- `npx --no-install tsx --test tests/codex-cli-host.test.ts`
+- Safe contract smoke with process-scoped temporary evidence path
 - `npm test`
 - `npm run build`
-
-Post-Commit 3 validation remains required before the commander receipt.
-Detailed validation history remains in `.agent_board/VALIDATION_LOG.md`.
+- `npm run governance -- audit state-sync`
+- `npm run validate:pr`
 
 ## Execution Boundary
 
 Current allowed-by-default behavior remains local and non-executing unless a
 specific task and approval gate says otherwise.
-
-- `trusted_codex_cli_runtime_binding`: local plan/validation hardening only.
-- `controlled_readonly_provider_execution`: tests use fake or injected
-  spawners where the test explicitly enters a guarded real-mode path.
-- `state_sync_audit`: local read-only audit only.
-- `provider_permit_consumption`: single-process in-memory replay control by
-  default; a persistent or distributed registry remains a future explicit
-  boundary.
 
 Blocked capabilities:
 
@@ -130,10 +131,25 @@ Blocked capabilities:
 - `secret_or_credential_change`
 - `external_service_write`
 
+Boundary facts for R1-G1FIX:
+
+- No real Codex CLI execution.
+- No real provider execution.
+- No workspace-write smoke.
+- No persistent env/config/secret edit.
+- No push, PR edit/comment/review/ready, workflow rerun/cancel, merge, branch
+  deletion, release, deploy, or npm publish.
+- The only environment change was a process-scoped temporary smoke evidence
+  path during validation; the temporary evidence file was removed.
+
 ## Current Local Changes
 
-Two authorized local implementation commits have been created. The remaining
-local change is the documentation-only state surface refresh for Commit 3:
+The code-fix commit exists locally:
+
+- `2244797 fix(codex-runtime): align CI fixtures with stdin binding`
+
+This state documentation refresh is the only remaining R1-G1FIX local change
+before Commit 2:
 
 - `docs/current/CURRENT_STATE.md`
 - `.agent_board/CHECKPOINT.md`
@@ -142,22 +158,17 @@ local change is the documentation-only state surface refresh for Commit 3:
 - `.agent_board/TASK_QUEUE.md`
 - `.agent_board/VALIDATION_LOG.md`
 
-No push, PR creation, merge, release, deployment, npm publish, secret change,
-real Codex CLI smoke, or workspace-write telemetry smoke is authorized by the
-current local task book.
-
 ## State Sync Expectations
 
 This local branch does not currently track an upstream branch. The state-sync
 audit therefore expects unknown upstream divergence, recorded as
 `ahead -1 / behind -1`.
 
-Because `Stale after commit` is `true`, the documentation-only closeout commit
+Because `Stale after commit` is `true`, this documentation-only state commit
 may leave the recorded code head as its parent while still passing state-sync.
 
 ## Next Safe Action
 
-Create the documentation-only Commit 3, then run the V2 post-commit validation
-set. Do not run real Codex CLI, workspace-write execution, tag, release,
-deploy, modify secrets, push, merge, or create remote objects without separate
-explicit authorization.
+Create the documentation-only R1-G1FIX state commit, then run the required
+post-commit validation set. Do not push or otherwise modify remote state
+without a separate exact authorization token.

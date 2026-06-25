@@ -1,7 +1,7 @@
 # Run State
 
-Status: PR-23A-S1 trusted runtime binding has two authorized local commits.
-The documentation-only state refresh for Commit 3 is in progress.
+Status: PR-23A-S1 R1-G1FIX has completed the local code remediation commit.
+The documentation-only state refresh is in progress.
 
 Current truth source:
 
@@ -13,7 +13,7 @@ Branch:
 
 Recorded code head:
 
-- `3396b2b`
+- `2244797`
 
 Upstream:
 
@@ -21,36 +21,35 @@ Upstream:
 
 Worktree:
 
-- only the documentation state surfaces remain modified
+- only the documentation state surfaces are expected to be modified before
+  Commit 2
 - no remote write, push, merge, release, deploy, npm publish, secret edit,
-  real Codex CLI smoke, or workspace-write telemetry smoke is authorized
+  real Codex CLI, real provider execution, or workspace-write smoke is
+  authorized
 
 Current scope:
 
-- trusted Codex CLI runtime binding on host execution plans
-- stdin prompt delivery through `exec-json-stdin-prompt.v1`
-- runtime binding validation before process spawn
-- provider metadata without raw command, raw argv, or prompt text
-- provider result and evidence runtime summaries limited to hashes
-- state-sync audit blocks machine-specific Windows, UNC, extended Windows, and
-  selected POSIX paths without echoing the sensitive value
-- no real Codex CLI execution
-- no workspace-write execution
+- contract smoke fake spawner validates stdin prompt transport
+- smoke spawn evidence contains safe contract facts only
+- Windows helper-layout test creates and runs its plan under one simulated
+  platform
+- platform drift still fails closed before spawn
+- PR #46 remains draft at the old remote feature head
+- remote validation is pending a separately authorized branch update
 
 Validation so far:
 
-- V2 pre-commit `git diff --check`: passed
-- V2 pre-commit `npm run typecheck`: passed
-- V2 pre-commit state-sync/governance targeted tests passed, `26 / 26`
-- V2 pre-commit provider/host/runner targeted tests passed, `169 / 169`
-- V2 pre-commit `npm test`: passed, `1152 / 1152`
-- V2 pre-commit `npm run build`: passed
-- V2 pre-commit `npm run governance -- audit state-sync`: passed
-- V2 pre-commit `npm run validate:pr`: passed
-- Commit 1 follow-up typecheck passed
-- Commit 1 follow-up provider/host/runner targeted tests passed, `169 / 169`
-- Commit 2 follow-up state-sync/governance targeted tests passed, `26 / 26`
-- state-sync audit after the state surface refresh passed
+- pre-commit `git diff --check`: passed
+- pre-commit `npm run typecheck`: passed
+- pre-commit `npx --no-install tsx --test tests/codex-cli-host.test.ts`:
+  passed, `109 / 109`
+- pre-commit safe contract smoke: passed
+- pre-commit `npm test`: passed, `1153 / 1153`
+- pre-commit `npm run build`: passed
+- post-code-commit `npm run typecheck`: passed
+- post-code-commit `npx --no-install tsx --test tests/codex-cli-host.test.ts`:
+  passed, `109 / 109`
+- post-code-commit safe contract smoke: passed
 
 Detailed validation history:
 

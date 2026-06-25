@@ -10,49 +10,52 @@ Branch:
 
 Recorded code head:
 
-- `3396b2b`
+- `2244797`
 
 Completed in this checkpoint:
 
-- created the first authorized local commit for trusted runtime binding
-- created the second authorized local commit for portable state-sync hardening
-- bound controlled Codex CLI prompts to stdin through
-  `exec-json-stdin-prompt.v1`
-- removed prompt delivery through argv
-- added host and provider validation for forged runtime bindings
-- removed raw command, raw argv, and prompt text from provider metadata
-- added safe runtime hash summaries to dry-run, fake execution, real
-  execution, approval, and evidence surfaces
-- hardened state-sync audit against Windows drive paths, UNC paths, extended
-  Windows paths, selected POSIX workspace paths, and secret markers
-- kept state-sync diagnostics sanitized to issue code, relative path, line,
-  and risk
-- refreshed current state and agent board surfaces for the documentation-only
-  closeout commit
+- created the R1-G1FIX code commit:
+  `2244797 fix(codex-runtime): align CI fixtures with stdin binding`
+- made the contract smoke fake spawner stdin-aware
+- removed raw command, cwd, argv, prompt, and stdin contents from smoke spawn
+  evidence
+- added smoke checks for stdin prompt transport, argv prompt-marker absence,
+  safe spawn evidence, configured runtime matching, and requested workdir
+  matching
+- changed the Windows helper-layout test to create and execute its plan under
+  the same simulated win32 platform
+- kept platform drift fail-closed with descriptor mismatch and zero spawner
+  calls
+- kept PR #46 draft and remote feature at the old published head
+- recorded that failed run `28130303432` is locally remediated, remote
+  validation pending
 
 Validation completed:
 
-- V2 pre-commit `git diff --check`: passed
-- V2 pre-commit `npm run typecheck`: passed
-- V2 pre-commit state-sync/governance targeted tests passed, `26 / 26`
-- V2 pre-commit provider/host/runner targeted tests passed, `169 / 169`
-- V2 pre-commit `npm test`: passed, `1152 / 1152`
-- V2 pre-commit `npm run build`: passed
-- V2 pre-commit `npm run governance -- audit state-sync`: passed
-- V2 pre-commit `npm run validate:pr`: passed
-- Commit 1 follow-up typecheck passed
-- Commit 1 follow-up provider/host/runner targeted tests passed, `169 / 169`
-- Commit 2 follow-up state-sync/governance targeted tests passed, `26 / 26`
-- state-sync audit after the state surface refresh passed
+- pre-commit `git diff --check`: passed
+- pre-commit `npm run typecheck`: passed
+- pre-commit `npx --no-install tsx --test tests/codex-cli-host.test.ts`:
+  passed, `109 / 109`
+- pre-commit safe contract smoke: passed, spawn call count `4`
+- pre-commit `npm test`: passed, `1153 / 1153`
+- pre-commit `npm run build`: passed
+- post-code-commit `npm run typecheck`: passed
+- post-code-commit `npx --no-install tsx --test tests/codex-cli-host.test.ts`:
+  passed, `109 / 109`
+- post-code-commit safe contract smoke: passed, spawn call count `4`
 
 Remaining validation:
 
-- create the documentation-only Commit 3
-- run the V2 post-commit validation set and final inspection
-- commander receipt
+- create the documentation-only R1-G1FIX state commit
+- run final diff check, typecheck, targeted test, safe contract smoke, full
+  tests, build, state-sync audit, and validate:pr
+- perform final local and remote read-only integrity checks
+- send commander receipt
 
 Boundary:
 
-- local commits were explicitly authorized for this closeout
-- no push, PR, merge, release, deploy, npm publish, secret edit, real Codex CLI
-  smoke, or workspace-write telemetry smoke has been performed
+- exactly two local commits are authorized for R1-G1FIX
+- Commit 1 has been created; Commit 2 is this state documentation refresh
+- no push, PR edit/comment/review/ready, workflow action, merge, release,
+  deploy, npm publish, secret edit, real Codex CLI, real provider execution, or
+  workspace-write smoke has been performed
