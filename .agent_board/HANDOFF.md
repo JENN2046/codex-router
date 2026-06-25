@@ -16,7 +16,7 @@ Current status:
 - R1-G1FIX local code remediation is complete
 - R1-G1FIX local state documentation commit is complete
 - R1-G1FIX final validation exposed a documentation-only state-sync mismatch
-- R1-G1FIX2 is repairing the state surfaces without amending prior commits
+- R1-G1FIX4 is repairing the state surfaces without amending prior commits
 - remote feature branch and PR #46 have not been updated
 
 Changed files authorized for the active repair:
@@ -39,13 +39,13 @@ Validation run:
 - R1-G1FIX final full tests and state-sync failed because the state surface
   omitted the exact state-sync-required targeted command literal and agent board
   text retained non-state commit-like tokens
-- R1-G1FIX2 exact targeted command passed under process-scoped offline
+- R1-G1FIX4 exact targeted command passed under process-scoped offline
   protection, `109 / 109`
 
 Validation not yet run:
 
-- R1-G1FIX2 pre-commit state-sync after this documentation repair
-- R1-G1FIX2 post-commit full validation set
+- R1-G1FIX4 pre-commit state-sync after this documentation repair
+- R1-G1FIX4 post-commit full validation set
 - final status, ahead/behind, commit-chain, PR, and remote ref inspection
 
 Known risks:
@@ -57,7 +57,7 @@ Known risks:
 
 Next safe action:
 
-- create the documentation-only R1-G1FIX2 repair commit after pre-commit
+- create the documentation-only R1-G1FIX4 repair commit after pre-commit
   state-sync passes, then run the required final validation.
 
 Not authorized:

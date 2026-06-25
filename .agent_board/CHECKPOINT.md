@@ -8,13 +8,14 @@ Branch:
 
 - `feat/pr-23a-s1-trusted-runtime`
 
-Current R1-G1FIX2 status:
+Current R1-G1FIX4 status:
 
 - the local CI remediation code commit exists
 - the local CI remediation state commit exists
 - the remote feature branch has not received either remediation commit
 - PR #46 remains draft
 - remote validation of the remediation is still pending
+- state-sync anchor: `309d097`
 
 Completed in this checkpoint:
 
@@ -31,6 +32,8 @@ Completed in this checkpoint:
 - identified the R1-G1FIX state-sync blocker as documentation-only:
   missing exact required targeted command literal and agent-board commit-like
   tokens that were not current state references
+- identified the R1-G1FIX3 blocker as over-cleaning: the full test suite
+  expects one legal current-state anchor token in agent board text
 - ran the exact state-sync-required targeted command under process-scoped
   offline protection, passing `109 / 109`
 
@@ -46,7 +49,7 @@ Validation completed before this repair:
 Remaining validation:
 
 - run pre-commit state-sync after the six-file documentation repair
-- create exactly one R1-G1FIX2 docs-only commit
+- create exactly one R1-G1FIX4 docs-only commit
 - run final diff check, typecheck, targeted tests, safe contract smoke, full
   tests, build, state-sync audit, and validate:pr
 - perform final local and remote read-only integrity checks
@@ -54,7 +57,7 @@ Remaining validation:
 
 Boundary:
 
-- exactly one local docs-only commit is authorized for R1-G1FIX2
+- exactly one local docs-only commit is authorized for R1-G1FIX4
 - no amend, reset, stash, merge, rebase, push, PR edit/comment/review/ready,
   workflow action, release, deploy, npm publish, secret edit, real Codex CLI,
   real provider execution, or workspace-write smoke has been performed

@@ -12,10 +12,10 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `feat/pr-23a-s1-trusted-runtime` |
-| Current head | `b273603` |
+| Current head | `309d097` |
 | Upstream | `none` |
 | Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `b273603` |
+| Latest validated commit | `309d097` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -30,7 +30,7 @@ refreshed here first.
 ## Current Scope
 
 This branch is in PR-23A-S1 trusted Codex CLI runtime remediation under the web
-GPT commander R1-G1FIX2 state-sync documentation repair task book.
+GPT commander R1-G1FIX4 state-sync documentation repair task book.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -70,8 +70,11 @@ Implemented locally:
   through execution.
 - Platform drift remains fail-closed with
   `codex_cli_runtime_binding_descriptor_mismatch` and zero spawner calls.
-- R1-G1FIX2 repairs state documentation so state-sync does not misclassify CI
+- R1-G1FIX4 repairs state documentation so state-sync does not misclassify CI
   run or job identifiers as commit-like state tokens.
+- R1-G1FIX4 records the state-sync anchor policy: only the current HEAD short
+  SHA is used as an agent-board anchor; parent and grandparent commits are not
+  used as documentation anchors.
 
 ## Remote State
 
@@ -122,7 +125,7 @@ state-sync mismatch:
 - `npm run governance -- audit state-sync`: failed for the same documentation
   mismatch.
 
-R1-G1FIX2 exact targeted validation before this documentation repair:
+R1-G1FIX4 exact targeted validation before this documentation repair:
 
 - `npx tsx --test tests\codex-cli-host.test.ts`: passed, `109 / 109`.
 
@@ -153,7 +156,7 @@ Blocked capabilities:
 - `secret_or_credential_change`
 - `external_service_write`
 
-Boundary facts for R1-G1FIX2:
+Boundary facts for R1-G1FIX4:
 
 - No real Codex CLI execution.
 - No real provider execution.
@@ -171,7 +174,7 @@ Local remediation commits exist, but they have not been pushed:
 - `fix(codex-runtime): align CI fixtures with stdin binding`
 - `docs(state): record trusted runtime CI remediation`
 
-This R1-G1FIX2 repair is documentation-only and limited to:
+This R1-G1FIX4 repair is documentation-only and limited to:
 
 - `docs/current/CURRENT_STATE.md`
 - `.agent_board/CHECKPOINT.md`
@@ -192,6 +195,6 @@ state-sync.
 
 ## Next Safe Action
 
-Create the documentation-only R1-G1FIX2 state repair commit, then run the
+Create the documentation-only R1-G1FIX4 state repair commit, then run the
 required post-commit validation set. Do not push or otherwise modify remote
 state without a separate exact authorization token.

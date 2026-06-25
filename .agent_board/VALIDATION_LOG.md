@@ -54,7 +54,7 @@ R1-G1FIX final validation after the state commit:
   state-sync alignment reasons
 - `npm run build` and `npm run validate:pr` were not run after that failure
 
-R1-G1FIX2 pre-repair validation completed:
+R1-G1FIX4 pre-repair validation completed:
 
 - local `tsx` executable availability check: passed
 - `npx tsx --test tests\codex-cli-host.test.ts` with process-scoped
@@ -75,7 +75,7 @@ Coverage added by the local code remediation:
 - platform drift before spawn rejects with descriptor mismatch and zero spawner
   calls
 
-R1-G1FIX2 final validation still pending:
+R1-G1FIX4 final validation still pending:
 
 - documentation-only repair commit
 - `git diff --check`

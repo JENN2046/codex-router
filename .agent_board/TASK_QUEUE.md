@@ -2,7 +2,7 @@
 
 Current task:
 
-- PR-23A-S1 trusted runtime binding R1-G1FIX2 state-sync documentation repair
+- PR-23A-S1 trusted runtime binding R1-G1FIX4 state-sync documentation repair
   on `feat/pr-23a-s1-trusted-runtime`
 
 Done:
@@ -16,6 +16,7 @@ Done:
 - repaired the current state validation baseline to include the exact required
   targeted command literal
 - paraphrased non-state commit-like tokens in agent board files
+- restored exactly one legal current-state anchor token in agent board files
 
 Todo:
 
@@ -25,7 +26,7 @@ Todo:
 - scan the six changed files for machine-path material and unexpected
   commit-like tokens without printing sensitive values
 - create exactly one local commit:
-  `docs(state): repair CI remediation audit surface`
+  `docs(state): align state-sync anchor to HEAD-only invariant`
 - run final post-commit validation:
   - `git diff --check`
   - `npm run typecheck`
@@ -38,7 +39,7 @@ Todo:
   - `npm run validate:pr`
 - inspect final local status, ahead/behind count, commit chain, remote refs,
   and PR #46 metadata
-- send R1-G1FIX2 closeout receipt to the web GPT commander
+- send R1-G1FIX4 closeout receipt to the web GPT commander
 - wait up to 7 minutes for the next exact task book or authorization token
 
 Blocked until separately authorized:
