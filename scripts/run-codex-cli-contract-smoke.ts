@@ -27,6 +27,24 @@ const cwd = process.cwd();
 const codexCommand = "codex-contract-smoke";
 const generatedAt = new Date().toISOString();
 const workspaceWriteBeforeCommit = "codex-cli-contract-smoke-before";
+const forbiddenPersistedEvidenceKeys = [
+  "command",
+  "cwd",
+  "repoRoot",
+  "workdir",
+  "args",
+  "argv",
+  "prompt",
+  "stdin",
+  "stdout",
+  "stderr",
+  "environment"
+] as const;
+const forbiddenPersistedEvidenceMarkers = [
+  CODEX_CLI_MODEL_PROBE_OK,
+  CODEX_CLI_READONLY_SMOKE_OK,
+  CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION
+];
 
 interface ContractSpawnCall {
   kind: "model-probe" | "smoke-run" | "unclassified";
@@ -45,6 +63,23 @@ interface ContractSpawnCall {
   usesJson: boolean;
   skipGitRepoCheck: boolean;
   ephemeral: boolean;
+}
+
+interface SafeNestedEvidenceSummary {
+  schemaVersion: string;
+  status: string;
+  taskId: string;
+  sandbox?: string;
+  approvalPolicy?: string;
+  usesJson?: boolean;
+  skipGitRepoCheck?: boolean;
+  ephemeral?: boolean;
+  executionStatus?: string;
+  eventCount?: number;
+  parseErrorCount?: number;
+  passed?: boolean;
+  blockingReasons: string[];
+  warningCount: number;
 }
 
 async function main(): Promise<void> {
@@ -148,6 +183,12 @@ async function main(): Promise<void> {
   const nestedEvidenceOmitsRawPrompt = !serializedNestedEvidence.includes("Task envelope")
     && !serializedNestedEvidence.includes("requestedAction")
     && !serializedNestedEvidence.includes("successCriteria");
+  const nestedEvidenceSummaries = {
+    readOnlyFirst: summarizeNestedEvidence(readOnlyFirstEvidence),
+    readOnlySecond: summarizeNestedEvidence(readOnlySecondEvidence),
+    workspaceWriteBlocked: summarizeNestedEvidence(workspaceWriteBlockedEvidence),
+    workspaceWriteReady: summarizeNestedEvidence(workspaceWriteReadyEvidence)
+  };
   const serializedSpawnCalls = JSON.stringify(spawnCalls);
   const modelProbeClassifiedFromStdin = spawnCalls.some((call) => (
     call.kind === "model-probe"
@@ -182,10 +223,8 @@ async function main(): Promise<void> {
     && !serializedSpawnCalls.includes(CODEX_CLI_MODEL_PROBE_OK)
     && !serializedSpawnCalls.includes(CODEX_CLI_READONLY_SMOKE_OK)
     && !serializedSpawnCalls.includes(CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION);
-  const generatedEvidenceOmitsActiveWorkspacePath = !serializedNestedEvidence.includes(cwd)
-    && !serializedSpawnCalls.includes(cwd);
 
-  const checks = {
+  const baseChecks = {
     readOnlyFirstPassed: readOnlyFirst.status === "passed",
     readOnlySecondPassed: readOnlySecond.status === "passed",
     workspaceWriteBlockedBeforeSpawn: workspaceWriteBlocked.status === "blocked"
@@ -208,22 +247,137 @@ async function main(): Promise<void> {
     argvContainsNoPromptMarker,
     spawnCallEvidenceOmitsRawRuntimeMaterial,
     allCommandsMatchConfiguredRuntime,
-    allWorkdirsMatchRequestedWorkspace,
-    generatedEvidenceOmitsActiveWorkspacePath
+    allWorkdirsMatchRequestedWorkspace
+  };
+  const provisionalArtifactChecks = {
+    generatedEvidenceOmitsActiveWorkspacePath: true,
+    generatedEvidenceOmitsForbiddenRawRuntimeKeys: true,
+    generatedEvidenceOmitsPromptMarkers: true
+  };
+  const provisionalChecks = {
+    ...baseChecks,
+    ...provisionalArtifactChecks
+  };
+  const commonRuns = {
+    readOnlyFirst: summarizeReadOnly(readOnlyFirst),
+    readOnlySecond: summarizeReadOnly(readOnlySecond),
+    workspaceWriteBlocked: summarizeWorkspaceWrite(workspaceWriteBlocked),
+    workspaceWriteReady: summarizeWorkspaceWrite(workspaceWriteReady)
+  };
+  const provisionalEvidence = createPersistedContractSmokeEvidence({
+    generatedAt,
+    model,
+    checks: provisionalChecks,
+    passed: Object.values(provisionalChecks).every(Boolean),
+    spawnCalls,
+    telemetryEvents,
+    nestedEvidenceSummaries,
+    runs: commonRuns
+  });
+  const artifactChecks = inspectPersistedContractSmokeArtifact(
+    `${JSON.stringify(provisionalEvidence, null, 2)}\n`,
+    cwd
+  );
+  const checks = {
+    ...baseChecks,
+    ...artifactChecks
   };
   const passed = Object.values(checks).every(Boolean);
-
-  const evidence = {
-    schemaVersion: "codex-cli-contract-smoke-evidence.v1",
+  const evidence = createPersistedContractSmokeEvidence({
     generatedAt,
-    host: "Codex CLI contract smoke",
     model,
+    checks,
+    passed,
+    spawnCalls,
+    telemetryEvents,
+    nestedEvidenceSummaries,
+    runs: commonRuns
+  });
+  const serializedEvidence = `${JSON.stringify(evidence, null, 2)}\n`;
+  const finalArtifactChecks = inspectPersistedContractSmokeArtifact(serializedEvidence, cwd);
+  if (!Object.entries(finalArtifactChecks).every(([key, value]) => (
+    checks[key as keyof typeof finalArtifactChecks] === value
+  ))) {
+    throw new Error("codex_cli_contract_smoke_artifact_check_drift");
+  }
+
+  await mkdir(dirname(evidencePath), { recursive: true });
+  await writeFile(evidencePath, serializedEvidence, "utf8");
+
+  console.log("Codex CLI contract smoke");
+  console.log(`model: ${model}`);
+  console.log(`read-only first: ${readOnlyFirst.status}`);
+  console.log(`read-only second: ${readOnlySecond.status}`);
+  console.log(`workspace-write blocked: ${workspaceWriteBlocked.status}`);
+  console.log(`workspace-write ready: ${workspaceWriteReady.status}`);
+  console.log(`telemetry events: ${telemetryMessages.join(", ") || "(none)"}`);
+  console.log(`evidence: ${evidencePath}`);
+
+  if (!passed) {
+    console.error("Codex CLI contract smoke failed");
+    console.error("failed checks:");
+    for (const [name, ok] of Object.entries(checks)) {
+      if (!ok) {
+        console.error(`- ${name}`);
+      }
+    }
+    process.exitCode = 1;
+  }
+}
+
+function createPersistedContractSmokeEvidence(input: {
+  generatedAt: string;
+  model: string;
+  checks: Record<string, boolean>;
+  passed: boolean;
+  spawnCalls: ContractSpawnCall[];
+  telemetryEvents: Array<{ level: string; message: string }>;
+  nestedEvidenceSummaries: {
+    readOnlyFirst: SafeNestedEvidenceSummary;
+    readOnlySecond: SafeNestedEvidenceSummary;
+    workspaceWriteBlocked: SafeNestedEvidenceSummary;
+    workspaceWriteReady: SafeNestedEvidenceSummary;
+  };
+  runs: {
+    readOnlyFirst: ReturnType<typeof summarizeReadOnly>;
+    readOnlySecond: ReturnType<typeof summarizeReadOnly>;
+    workspaceWriteBlocked: ReturnType<typeof summarizeWorkspaceWrite>;
+    workspaceWriteReady: ReturnType<typeof summarizeWorkspaceWrite>;
+  };
+}): {
+  schemaVersion: "codex-cli-contract-smoke-evidence.v1";
+  generatedAt: string;
+  host: string;
+  model: string;
+  summary: {
+    passed: boolean;
+    checks: Record<string, boolean>;
+    realCodexCliInvoked: false;
+    realHostSmoke: false;
+    spawnCallCount: number;
+  };
+  contract: {
+    boundary: string;
+    ciSafe: boolean;
+    covers: string[];
+    doesNotCover: string[];
+  };
+  telemetry: Array<{ level: string; message: string }>;
+  spawnCalls: ContractSpawnCall[];
+  runs: typeof input.runs;
+  nestedEvidenceSummaries: typeof input.nestedEvidenceSummaries;
+} {
+  return {
+    schemaVersion: "codex-cli-contract-smoke-evidence.v1",
+    generatedAt: input.generatedAt,
+    host: "Codex CLI contract smoke",
+    model: input.model,
     summary: {
-      passed,
-      checks,
+      passed: input.passed,
+      checks: input.checks,
       realCodexCliInvoked: false,
       realHostSmoke: false,
-      spawnCallCount: spawnCalls.length
+      spawnCallCount: input.spawnCalls.length
     },
     contract: {
       boundary: "mock CodexCliProcessSpawner",
@@ -245,42 +399,95 @@ async function main(): Promise<void> {
         "external writes or production host behavior"
       ]
     },
-    telemetry: telemetryEvents.map((event) => ({
+    telemetry: input.telemetryEvents.map((event) => ({
       level: event.level,
-      message: event.message,
-      context: event.context ?? {}
+      message: event.message
     })),
-    spawnCalls,
-    runs: {
-      readOnlyFirst: summarizeReadOnly(readOnlyFirst),
-      readOnlySecond: summarizeReadOnly(readOnlySecond),
-      workspaceWriteBlocked: summarizeWorkspaceWrite(workspaceWriteBlocked),
-      workspaceWriteReady: summarizeWorkspaceWrite(workspaceWriteReady)
-    },
-    nestedEvidence: {
-      readOnlyFirst: readOnlyFirstEvidence,
-      readOnlySecond: readOnlySecondEvidence,
-      workspaceWriteBlocked: workspaceWriteBlockedEvidence,
-      workspaceWriteReady: workspaceWriteReadyEvidence
-    }
+    spawnCalls: input.spawnCalls,
+    runs: input.runs,
+    nestedEvidenceSummaries: input.nestedEvidenceSummaries
   };
+}
 
-  await mkdir(dirname(evidencePath), { recursive: true });
-  await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+function summarizeNestedEvidence(input: {
+  schemaVersion: string;
+  status: string;
+  taskId: string;
+  plan: {
+    sandbox: string;
+    approvalPolicy: string;
+    usesJson: boolean;
+    skipGitRepoCheck: boolean;
+    ephemeral: boolean;
+    warnings?: string[];
+  };
+  run?: {
+    executionStatus?: string;
+    eventCount?: number;
+    parseErrorCount?: number;
+    warnings?: string[];
+  };
+  summary: {
+    passed?: boolean;
+    blockingReasons?: string[];
+    warnings?: string[];
+  };
+}): SafeNestedEvidenceSummary {
+  return {
+    schemaVersion: input.schemaVersion,
+    status: input.status,
+    taskId: input.taskId,
+    sandbox: input.plan.sandbox,
+    approvalPolicy: input.plan.approvalPolicy,
+    usesJson: input.plan.usesJson,
+    skipGitRepoCheck: input.plan.skipGitRepoCheck,
+    ephemeral: input.plan.ephemeral,
+    ...(input.run?.executionStatus !== undefined
+      ? { executionStatus: input.run.executionStatus }
+      : {}),
+    ...(input.run?.eventCount !== undefined ? { eventCount: input.run.eventCount } : {}),
+    ...(input.run?.parseErrorCount !== undefined
+      ? { parseErrorCount: input.run.parseErrorCount }
+      : {}),
+    ...(input.summary.passed !== undefined ? { passed: input.summary.passed } : {}),
+    blockingReasons: [...(input.summary.blockingReasons ?? [])],
+    warningCount: [
+      ...(input.plan.warnings ?? []),
+      ...(input.run?.warnings ?? []),
+      ...(input.summary.warnings ?? [])
+    ].length
+  };
+}
 
-  console.log("Codex CLI contract smoke");
-  console.log(`model: ${model}`);
-  console.log(`read-only first: ${readOnlyFirst.status}`);
-  console.log(`read-only second: ${readOnlySecond.status}`);
-  console.log(`workspace-write blocked: ${workspaceWriteBlocked.status}`);
-  console.log(`workspace-write ready: ${workspaceWriteReady.status}`);
-  console.log(`telemetry events: ${telemetryMessages.join(", ") || "(none)"}`);
-  console.log(`evidence: ${evidencePath}`);
+function inspectPersistedContractSmokeArtifact(
+  serializedEvidence: string,
+  workspace: string
+): {
+  generatedEvidenceOmitsActiveWorkspacePath: boolean;
+  generatedEvidenceOmitsForbiddenRawRuntimeKeys: boolean;
+  generatedEvidenceOmitsPromptMarkers: boolean;
+} {
+  const normalizedEvidence = serializedEvidence
+    .replace(/\\\\/g, "/")
+    .toLowerCase();
+  const normalizedWorkspace = workspace
+    .replace(/\\/g, "/")
+    .toLowerCase();
+  const forbiddenKeyPattern = new RegExp(
+    `"(${forbiddenPersistedEvidenceKeys.join("|")})"\\s*:`
+  );
 
-  if (!passed) {
-    console.error("Codex CLI contract smoke failed");
-    process.exitCode = 1;
-  }
+  return {
+    generatedEvidenceOmitsActiveWorkspacePath: !normalizedEvidence.includes(
+      normalizedWorkspace
+    ),
+    generatedEvidenceOmitsForbiddenRawRuntimeKeys: !forbiddenKeyPattern.test(
+      serializedEvidence
+    ),
+    generatedEvidenceOmitsPromptMarkers: forbiddenPersistedEvidenceMarkers.every(
+      (marker) => !serializedEvidence.includes(marker)
+    )
+  };
 }
 
 function createContractSpawner(calls: ContractSpawnCall[]): CodexCliProcessSpawner {

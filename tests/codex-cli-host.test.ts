@@ -2124,18 +2124,17 @@ test("codex cli runner prepends packaged helper PATH for Windows bin executable 
 
 test("codex cli runner rejects platform drift before spawning", async () => {
   const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+  const alternatePlatform = process.platform === "win32" ? "linux" : "win32";
   const calls: Array<{ command: string }> = [];
+  const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
+    taskId: "cli-runner-platform-drift"
+  }), {
+    codexCommand: "codex",
+    ephemeral: true
+  });
 
   try {
-    Object.defineProperty(process, "platform", { value: "win32" });
-    const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
-      taskId: "cli-runner-platform-drift"
-    }), {
-      codexCommand: "codex",
-      ephemeral: true
-    });
-
-    Object.defineProperty(process, "platform", { value: "linux" });
+    Object.defineProperty(process, "platform", { value: alternatePlatform });
     await assert.rejects(
       () => runCodexCliExecPlan(plan, {
         skipExecutionModelProbe: true,
