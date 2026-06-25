@@ -29,6 +29,7 @@ const GOVERNANCE_CHECK_CATEGORIES: readonly GovernanceCheckCategory[] = [
   "acceptance",
   "operator"
 ];
+const TSX_CLI_PATH = "node_modules/tsx/dist/cli.mjs";
 
 const GOVERNANCE_CHECKS: readonly GovernanceCheckDefinition[] = [
   operatorCheck("default", "scripts/run-codex-cli-operator-acceptance.ts"),
@@ -94,12 +95,11 @@ export function getValidationTierPlan(
   ];
 
   if (targetedTests.length > 0) {
-    dailyPlan.push({
-      id: "targeted-tests",
-      command: tsxExecutable(),
-      args: ["--test", ...targetedTests],
-      description: "Targeted test files supplied by the caller"
-    });
+    dailyPlan.push(tsxCommand(
+      "targeted-tests",
+      ["--test", ...targetedTests],
+      "Targeted test files supplied by the caller"
+    ));
   }
 
   if (tier === "daily") {
@@ -179,12 +179,7 @@ function npmScript(
     args.push("--", ...extraArgs);
   }
 
-  return {
-    id,
-    command: npmExecutable(),
-    args,
-    description
-  };
+  return npmCommand(id, args, description);
 }
 
 function tsxScript(
@@ -193,20 +188,52 @@ function tsxScript(
   description: string,
   extraArgs: readonly string[] = []
 ): CommandSpec {
+  return tsxCommand(id, [scriptPath, ...extraArgs], description);
+}
+
+function npmCommand(
+  id: string,
+  args: readonly string[],
+  description: string
+): CommandSpec {
+  const npmExecPath = process.env.npm_execpath;
+  if (process.platform === "win32" && npmExecPath) {
+    return {
+      id,
+      command: process.execPath,
+      args: [npmExecPath, ...args],
+      description
+    };
+  }
+
   return {
     id,
-    command: tsxExecutable(),
-    args: [scriptPath, ...extraArgs],
+    command: process.platform === "win32" ? "npm.cmd" : "npm",
+    args: [...args],
     description
   };
 }
 
-function npmExecutable(): string {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
-}
+function tsxCommand(
+  id: string,
+  args: readonly string[],
+  description: string
+): CommandSpec {
+  if (process.platform === "win32") {
+    return {
+      id,
+      command: process.execPath,
+      args: [TSX_CLI_PATH, ...args],
+      description
+    };
+  }
 
-function tsxExecutable(): string {
-  return process.platform === "win32" ? "tsx.cmd" : "tsx";
+  return {
+    id,
+    command: "tsx",
+    args: [...args],
+    description
+  };
 }
 
 function operatorCheck(name: string, scriptPath: string): GovernanceCheckDefinition {

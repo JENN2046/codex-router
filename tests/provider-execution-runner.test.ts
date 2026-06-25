@@ -711,9 +711,9 @@ test("provider execution runner rejects controlled read-only executor plan metad
   assert.equal(result.status, "validation_failed");
   assert.equal(result.executeInvoked, false);
   assert.equal(spawnCalls, 0);
-  assert.ok(result.reasons.includes("provider_execution_permit_invalid"));
+  assert.ok(result.reasons.includes("provider_validation_failed"));
   assert.ok(result.reasons.includes(
-    "controlled_readonly_provider_execution_permit_plan_hash_mismatch"
+    "codex_cli_provider_plan_must_not_store_raw_runtime"
   ));
 });
 
@@ -1612,7 +1612,7 @@ class FakeCodexCliStream extends EventEmitter {
 }
 
 class FakeCodexCliWritableStream {
-  end(): void {}
+  end(_chunk?: string): void {}
   destroy(): void {}
 }
 

@@ -1,109 +1,62 @@
 # Handoff
 
-Current scope: GPT Pro review P1 and P2 hardening on a focused branch.
+Original goal:
+
+- Complete PR-23A-S1 trusted Codex CLI runtime remediation under the web GPT
+  commander task books.
 
 Workspace:
 
-- `codex-router`
+- repository root: `codex-router/repo`
+- branch: `feat/pr-23a-s1-trusted-runtime`
+- current state source: `docs/current/CURRENT_STATE.md`
 
-Branch:
+Current status:
 
-- `fix/p1-controlled-output-safety`
+- R1-G1FIX5 local code remediation is complete
+- R1-G1FIX5 local state documentation update is in progress
+- the published feature branch and PR #46 have not been updated
+- remote CI has not run for the new local remediation commit
 
-Recorded code head:
+Changed files authorized for the active state update:
 
-- `c29e494`
+- `docs/current/CURRENT_STATE.md`
+- `.agent_board/CHECKPOINT.md`
+- `.agent_board/HANDOFF.md`
+- `.agent_board/RUN_STATE.md`
+- `.agent_board/TASK_QUEUE.md`
+- `.agent_board/VALIDATION_LOG.md`
 
-Upstream:
+Validation run:
 
-- `origin/main`
-
-Work in progress:
-
-- final state documentation commit and post-commit validation
-
-Implemented:
-
-- controlled runner outputs use a shared safe executor/provider summary
-- validation, failure, and artifact summary payloads are sanitized before
-  report/event/result persistence
-- executor plan, provider plan, Task, Principal, manifest, and permit bindings
-  are checked before provider execution
-- provider permits are consumed through a trusted in-memory registry after
-  handoff validation and before fake/real provider execution
-- repeated handoff/permit use, concurrent duplicate calls, caller-side
-  permit-id tampering, and retry after spawn failure are blocked before a
-  second provider spawn
-- host validation rejects forged `workspace-write + never` plans before spawn
-- provider read-only permits require plan hash, run, policy, manifest, Task,
-  Principal, nonce, expiration, and consumed-state checks where available
-- smoke/operator evidence builders no longer write raw `error` or telemetry
-  payloads
-- provider fake mode rejects configured process spawners and uses in-memory
-  execution summaries
-- default Codex CLI spawning no longer has a Windows `shell: true` fallback
-- CI runs a real state-sync audit before evidence collection on
-  `pull_request` events only
-- state-sync audit blocks machine absolute paths in current state surfaces
-- state-sync audit accepts explicitly allowed clean detached PR merge checkouts
-- PR #45 review follow-up keeps legacy provider plan-store records without
-  Task/Principal binding hashes loadable and appendable
-- PR #45 review follow-up returns blocked read-only permits with
-  `provider_execution_permit_policy_hash_required` when old/custom executor
-  plans omit `policyDecisionHash`
-- controlled runner preflight fails closed with explicit `provider_plan_*_required`
-  reasons when old provider execution plans lack binding fields
-- PR #45 state-sync review follow-up prevents branch-specific state-sync audit
-  from running on post-merge `push` events to `main`
-- PR #45 state-sync sanitizer follow-up blocks common absolute workspace paths
-  including macOS user-home, devcontainer, Codespaces, Linux mount/home, and
-  Windows user-home forms
-
-Validation already run:
-
-- targeted evidence/shell/provider/dispatcher/state-sync/read-only-chain tests
+- pre-code-commit diff check, typecheck, targeted host test, safe contract
+  smoke, full tests, and build passed
+- post-code-commit typecheck, targeted host test, and safe contract smoke
   passed
-- `npm run typecheck` passed
-- `npm test` passed, `1146 / 1146`
-- `npm run validate:pr` passed
-- permit replay targeted tests passed:
-  `npx tsx --test tests/provider-core.test.ts tests/codex-cli-provider.test.ts tests/provider-execution-runner.test.ts`
-  with `79 / 79`
-- final replay `npm run validate:pr` passed with `1146 / 1146` full tests,
-  build, and state-sync
-- state-sync detached PR merge checkout test passed, `18 / 18`
-- `npm run typecheck` passed after the exact optional test fix
-- PR #45 review follow-up targeted execution-planner/provider-core tests
-  passed, `41 / 41`
-- PR #45 review follow-up `npm run typecheck` passed
-- PR #45 review follow-up execution-planner/provider-core/provider-runner tests
-  passed, `66 / 66`
-- `git diff --check` passed before the state documentation commit
-- state-sync CI event-scope test passed, `4 / 4`
-- state-sync CI event-scope `npm run typecheck` passed
-- `git diff --check` passed before the event-scope state documentation commit
-- state-sync common absolute path sanitizer test passed, `18 / 18`
-- state-sync common absolute path sanitizer `npm run typecheck` passed
-- `git diff --check` passed before the absolute path sanitizer state
-  documentation commit
 
-Known boundary:
+Validation not yet run:
 
-- default permit consumption is single-process and in-memory; process restart
-  and multi-process replay need a durable injected
-  `ProviderExecutionPermitConsumptionStore`
+- R1-G1FIX5 pre-state-commit dirty-set check, diff check, exact offline
+  targeted host test, full tests, build, state-sync audit, and validate:pr
+- R1-G1FIX5 post-state-commit full validation set
+- final status, ahead/behind, commit-chain, PR, and remote ref inspection
 
-Do not do without explicit instruction:
+Known risks:
 
-- real Codex CLI execution
-- workspace-write execution
-- merge, tag, release, deploy, push to `main`
-- secret or credential changes
+- PR #46 still points at the pre-remediation remote feature head
+- the earlier remote CI failure remains the latest remote validation state
+- current remediation is local only; new remote CI cannot exist until a
+  separately authorized push updates the branch
 
 Next safe action:
 
-1. commit the final state documentation update
-2. rerun `git status --short`
-3. rerun `npm run governance -- audit state-sync`
-4. rerun `npm run validate:pr`
-5. rerun `git diff --check`
+- run the required pre-state-commit validation set, create the documentation-only
+  state commit if it passes, then run the required post-commit validation.
+
+Not authorized:
+
+- push, PR edit/comment/review/ready, workflow rerun/cancel/dispatch/watch,
+  merge, release, deploy, npm publish, tag, branch deletion
+- fetch, pull, amend, reset, clean, stash, merge, rebase
+- additional CI logs, artifacts, workflow actions, real Codex CLI, real provider
+  execution, workspace-write smoke, env/config/secret edits

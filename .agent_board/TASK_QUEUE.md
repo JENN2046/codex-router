@@ -1,44 +1,57 @@
 # Task Queue
 
-Active:
+Current task:
 
-- Commit the final state documentation update.
-- Rerun post-commit status, state-sync, PR validation, and diff whitespace
-  checks.
-- Push only after explicit external-write confirmation.
+- PR-23A-S1 trusted runtime binding R1-G1FIX5 local state update on
+  `feat/pr-23a-s1-trusted-runtime`
 
-Completed validation:
+Done:
 
-- review hardening targeted tests recorded in `.agent_board/VALIDATION_LOG.md`
-- permit replay hardening targeted tests:
-  `npx tsx --test tests/provider-core.test.ts tests/codex-cli-provider.test.ts tests/provider-execution-runner.test.ts`,
-  `79 / 79`
-- permit replay hardening `npm run typecheck`
-- permit replay hardening final `npm run validate:pr`, including typecheck,
-  full tests `1146 / 1146`, build, and state-sync
-- PR #45 review follow-up targeted tests:
-  `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts`,
-  `41 / 41`
-- PR #45 review follow-up `npm run typecheck`
-- PR #45 review follow-up affected tests:
-  `npx tsx --test tests/execution-planner.test.ts tests/provider-core.test.ts tests/provider-execution-runner.test.ts`,
-  `66 / 66`
-- PR #45 review follow-up pre-state-doc `git diff --check`
-- PR #45 state-sync CI event-scope targeted test:
-  `npx tsx --test tests/canary-evidence.test.ts`, `4 / 4`
-- PR #45 state-sync CI event-scope `npm run typecheck`
-- PR #45 state-sync CI event-scope pre-state-doc `git diff --check`
-- PR #45 state-sync common absolute path sanitizer targeted test:
-  `npx tsx --test tests/state-sync-audit.test.ts`, `18 / 18`
-- PR #45 state-sync common absolute path sanitizer `npm run typecheck`
-- PR #45 state-sync common absolute path sanitizer pre-state-doc
-  `git diff --check`
+- completed local code remediation for smoke evidence projection
+- completed local code remediation for platform-drift test isolation
+- verified pre-code-commit diff check, typecheck, targeted host test, contract
+  smoke, full tests, and build
+- created the authorized local code remediation commit
+- verified post-code-commit typecheck, targeted host test, and contract smoke
+- prepared the six authorized state surfaces for the state commit
 
-Boundaries:
+Todo:
 
-- no real Codex CLI execution
-- no workspace-write execution
-- no merge, tag, release, deploy, push to `main`
-- no secret changes
-- default provider permit consumption remains single-process and in-memory;
-  persistent replay coverage requires an injected durable consumption store
+- verify the modified file set is exactly the six authorized state files
+- run pre-commit `git diff --check`
+- run pre-commit process-scoped offline
+  `npx tsx --test tests\codex-cli-host.test.ts`
+- run pre-commit `npm test`
+- run pre-commit `npm run build`
+- run pre-commit `npm run governance -- audit state-sync`
+- run pre-commit `npm run validate:pr`
+- create exactly one local commit:
+  `docs(state): record new-head CI remediation validation`
+- run final post-commit validation:
+  - `git diff --check`
+  - `npm run typecheck`
+  - `npx --no-install tsx --test tests/codex-cli-host.test.ts`
+  - `npx tsx --test tests\codex-cli-host.test.ts`
+  - safe contract smoke with a process-scoped temporary evidence path
+  - `npm test`
+  - `npm run build`
+  - `npm run governance -- audit state-sync`
+  - `npm run validate:pr`
+- inspect final local status, ahead/behind count, commit chain, remote refs,
+  and PR #46 metadata
+- send R1-G1FIX5 closeout receipt to the web GPT commander
+- wait up to 7 minutes for the next exact task book or authorization token
+
+Blocked until separately authorized:
+
+- push
+- PR edit, comment, review, or ready-for-review action
+- workflow rerun, cancel, dispatch, watch, or any other CI action
+- fetch, pull, merge, rebase, branch deletion
+- amend, reset, clean, stash
+- release, deploy, npm publish, tag
+- additional CI logs or artifacts
+- real Codex CLI execution
+- real provider execution
+- workspace-write telemetry smoke
+- env, secret, user config, or system config edits

@@ -78,18 +78,22 @@ test("codex cli provider creates a read-only plan without storing the prompt", (
   assert.match(plan.inputHash, /^[a-f0-9]{64}$/);
   assert.equal("prompt" in metadata, false);
   assert.equal("prompt" in metadata.codexCliPlan, false);
+  assert.equal("command" in metadata.codexCliPlan, false);
+  assert.equal("args" in metadata.codexCliPlan, false);
+  assert.equal("argv" in metadata.codexCliPlan, false);
+  assert.equal("argsWithoutPrompt" in metadata.codexCliPlan, false);
   assert.equal("prompt" in metadata.promptHandoff, false);
   assert.equal("content" in metadata.promptHandoff, false);
   assert.equal(metadata.codexCliPlan.promptOmitted, true);
+  assert.equal(metadata.codexCliPlan.runtimeBinding.schemaVersion, "codex-cli-runtime-binding.v1");
+  assert.equal(metadata.codexCliPlan.runtimeBinding.trusted, true);
+  assert.match(metadata.codexCliPlan.runtimeBinding.descriptorHash, /^[a-f0-9]{64}$/);
+  assert.match(metadata.codexCliPlan.runtimeBinding.commandHash, /^[a-f0-9]{64}$/);
+  assert.match(metadata.codexCliPlan.runtimeBinding.argvShapeHash, /^[a-f0-9]{64}$/);
   assert.equal(metadata.promptHandoff.storage, "one-shot");
   assert.equal(metadata.promptHandoff.inputHash, plan.inputHash);
   assert.match(metadata.promptHandoff.contentHash, /^[a-f0-9]{64}$/);
   assert.equal(typeof metadata.promptHandoff.handle, "string");
-  assert.equal(metadata.codexCliPlan.argsWithoutPrompt.includes("--ignore-user-config"), true);
-  assert.equal(
-    metadata.codexCliPlan.argsWithoutPrompt.some((arg: string) => arg.includes("Task envelope:")),
-    false
-  );
   assert.deepEqual(validation, {
     valid: true,
     reasons: []
@@ -354,7 +358,7 @@ test("codex cli provider rejects direct model override", () => {
   );
 });
 
-test("codex cli provider validation rejects dangerous CLI args", () => {
+test("codex cli provider validation rejects injected raw argv fields", () => {
   const provider = new CodexCliExecutorProvider();
   const plan = provider.planExecution(createExecutionInput({
     taskId: "task_codex_cli_provider_dangerous_args",
@@ -371,7 +375,12 @@ test("codex cli provider validation rejects dangerous CLI args", () => {
         codexCliPlan: {
           ...metadata.codexCliPlan,
           argsWithoutPrompt: [
-            ...metadata.codexCliPlan.argsWithoutPrompt,
+            "-a",
+            "never",
+            "exec",
+            "--json",
+            "--sandbox",
+            "read-only",
             "--full-auto"
           ]
         }
@@ -382,7 +391,7 @@ test("codex cli provider validation rejects dangerous CLI args", () => {
 
   assert.equal(validation.valid, false);
   assert.ok(validation.reasons.includes(
-    "codex_cli_dangerous_arg_not_allowed:--full-auto"
+    "codex_cli_provider_plan_must_not_store_raw_runtime"
   ));
 
   const yoloTamperedPlan = {
@@ -393,10 +402,7 @@ test("codex cli provider validation rejects dangerous CLI args", () => {
         ...metadata,
         codexCliPlan: {
           ...metadata.codexCliPlan,
-          argsWithoutPrompt: [
-            ...metadata.codexCliPlan.argsWithoutPrompt,
-            "--yolo=true"
-          ]
+          argv: ["--yolo=true"]
         }
       }
     }
@@ -405,7 +411,7 @@ test("codex cli provider validation rejects dangerous CLI args", () => {
 
   assert.equal(yoloValidation.valid, false);
   assert.ok(yoloValidation.reasons.includes(
-    "codex_cli_dangerous_arg_not_allowed:--yolo=true"
+    "codex_cli_provider_plan_must_not_store_raw_runtime"
   ));
 });
 
@@ -1614,7 +1620,7 @@ class FakeCodexCliStream extends EventEmitter {
 }
 
 class FakeCodexCliWritableStream {
-  end(): void {}
+  end(_chunk?: string): void {}
   destroy(): void {}
 }
 

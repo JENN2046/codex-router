@@ -1,79 +1,47 @@
 # Checkpoint
 
-Checkpoint branch:
-
-- `fix/p1-controlled-output-safety`
-
-Baseline:
-
-- `c29e494`
-
 Current state source:
 
 - `docs/current/CURRENT_STATE.md`
 
-Current checkpoint:
+Branch:
 
-- GPT Pro review P1/P2 hardening, the PR merge-checkout state-sync fix, and
-  PR #45 automated review follow-ups are implemented in local commits through
-  `c29e494`
-- final `npm run validate:pr` passed before the local commit split
-- follow-up permit replay hardening is implemented with targeted tests
+- `feat/pr-23a-s1-trusted-runtime`
 
-Completed locally:
+Current R1-G1FIX5 status:
 
-- safe controlled runner result/report/event payloads
-- Task, Principal, provider plan, manifest, and executor plan binding checks
-- read-only provider permit hardening
-- trusted in-memory provider permit consumption before fake/real execution
-- replay rejection for repeated handoff/permit use, concurrent duplicate
-  execution, caller-side permit-id tampering, and retry after spawn failure
-- workspace-write approval `never` rejection
-- smoke/operator evidence error and telemetry sanitization
-- fake provider mode in-memory execution boundary
-- default process spawn fail-closed shell policy
-- CI state-sync job and state-sync local path checks
-- detached PR merge checkout state-sync compatibility
-- legacy provider execution plan-store records remain loadable and appendable
-- read-only blocked permits return audit reasons when old/custom executor
-  plans omit `policyDecisionHash`
-- branch-specific state-sync CI audit is limited to `pull_request` events and
-  does not run on post-merge `push` events to `main`
-- state-sync state surface sanitizer blocks common absolute workspace paths
-  including macOS Desktop and devcontainer/Codespaces forms
+- the local code remediation commit exists
+- the local state documentation commit has not been created yet
+- the published feature branch has not received the remediation
+- PR #46 remains open and draft
+- failed remote CI existed before this local remediation
+- remote validation of the local remediation is still pending
+- the agent-board state anchor is recorded only in `RUN_STATE.md`
 
-Validation checkpoint:
+Completed in this checkpoint:
 
-- targeted affected tests passed
-- `npm run typecheck` passed
-- `npm test` passed, `1146 / 1146`
-- `npm run validate:pr` passed
-- replay targeted tests passed, `79 / 79`
-- replay final `npm run validate:pr` passed with `1146 / 1146` full tests
-- state-sync detached PR merge checkout test passed, `18 / 18`
-- `npm run typecheck` passed after the exact optional test fix
-- PR #45 review follow-up targeted tests passed, `41 / 41`
-- PR #45 review follow-up `npm run typecheck` passed
-- PR #45 review follow-up affected tests passed, `66 / 66`
-- `git diff --check` passed before the state documentation commit
-- state-sync CI event-scope targeted test passed, `4 / 4`
-- state-sync CI event-scope `npm run typecheck` passed
-- `git diff --check` passed before the event-scope state documentation commit
-- state-sync common absolute path sanitizer targeted test passed, `18 / 18`
-- state-sync common absolute path sanitizer `npm run typecheck` passed
-- `git diff --check` passed before the absolute path sanitizer state
-  documentation commit
+- remediated smoke artifact projection so persisted contract smoke evidence
+  contains safe summaries instead of raw nested runtime evidence
+- added persisted smoke artifact inspection before writing evidence
+- kept raw nested smoke evidence in memory only for assertions
+- remediated platform-drift test isolation while preserving fail-closed
+  descriptor mismatch behavior and zero spawner calls
+- verified typecheck, targeted host tests, contract smoke, full tests, and
+  build before the local code remediation commit
+- verified typecheck, targeted host tests, and contract smoke after the local
+  code remediation commit
 
-Known boundary:
+Remaining validation:
 
-- provider permit consumption is not persistent by default; process restart or
-  multi-process replay requires an injected durable consumption store before it
-  can be treated as covered
+- verify the dirty set is exactly the six authorized state files
+- run the required pre-state-commit validation set
+- create exactly one local documentation-only state commit
+- run the required post-state-commit validation set
+- perform final local status and remote read-only integrity checks
+- send the commander receipt
 
-Pending checkpoint:
+Boundary:
 
-- final state documentation commit
-- post-commit `git status --short`
-- post-commit `npm run governance -- audit state-sync`
-- post-commit `npm run validate:pr`
-- post-commit `git diff --check`
+- no push, PR edit/comment/review/ready, workflow action, merge, rebase,
+  branch deletion, release, deploy, npm publish, secret edit, real Codex CLI,
+  real provider execution, or workspace-write smoke has been performed

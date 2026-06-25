@@ -287,8 +287,16 @@ test("codex cli host builds a read-only exec json plan without running the CLI",
   ]);
   assert.equal(plan.args.includes("--skip-git-repo-check"), false);
   assert.ok(plan.args.includes("--ephemeral"));
-  assert.equal(plan.args.at(-1), plan.prompt);
+  assert.equal(plan.args.includes(plan.prompt), false);
   assert.match(plan.prompt, /"source": "cli"/);
+  assert.equal(plan.runtimeBinding.schemaVersion, "codex-cli-runtime-binding.v1");
+  assert.equal(plan.runtimeBinding.runtimeId, "codex-cli:default");
+  assert.equal(plan.runtimeBinding.trusted, true);
+  assert.equal(plan.runtimeBinding.promptChannel, "stdin");
+  assert.equal(plan.runtimeBinding.protocol, "exec-json-stdin-prompt.v1");
+  assert.match(plan.runtimeBinding.descriptorHash, /^[a-f0-9]{64}$/);
+  assert.match(plan.runtimeBinding.commandHash, /^[a-f0-9]{64}$/);
+  assert.match(plan.runtimeBinding.argvShapeHash, /^[a-f0-9]{64}$/);
 });
 
 test("codex cli host derives CLI model and sandbox from routing decisions", async () => {
@@ -756,6 +764,7 @@ test("codex cli runner checks selected model against startup catalog before spaw
 
 test("codex cli model probe evidence uses logged-in CLI path without API key", async () => {
   const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
+  let child: FakeCodexCliChild | undefined;
   const evidence = await createCodexCliModelCliProbeEvidence({
     generatedAt: "2026-04-25T14:03:00.000Z",
     model: "gpt-5.4-mini",
@@ -767,10 +776,11 @@ test("codex cli model probe evidence uses logged-in CLI path without API key", a
         args,
         ...(options.cwd ? { cwd: options.cwd } : {})
       });
-      return createFakeCodexCliChild({
+      child = createFakeCodexCliChild({
         stdout: "{\"type\":\"agent_message\",\"message\":\"CODEX_CLI_MODEL_PROBE_OK\"}\n",
         exitCode: 0
       });
+      return child;
     }
   });
 
@@ -790,7 +800,8 @@ test("codex cli model probe evidence uses logged-in CLI path without API key", a
   assert.equal(calls[0]?.cwd, "A:/codex-router");
   assert.equal(calls[0]?.args.includes("--model"), true);
   assert.equal(getArgValue(calls[0]?.args ?? [], "--model"), "gpt-5.4-mini");
-  const prompt = calls[0]?.args.at(-1) ?? "";
+  assert.equal(calls[0]?.args.some((arg) => arg.includes("CODEX_CLI_MODEL_PROBE_OK")), false);
+  const prompt = child?.stdin.written ?? "";
   assert.equal(prompt.includes("Task envelope"), false);
   assert.equal(prompt.includes("requestedAction"), false);
   assert.ok(prompt.includes("CODEX_CLI_MODEL_PROBE_OK"));
@@ -2042,9 +2053,11 @@ test("codex cli host runner captures read-only process output through an injecta
     "exec",
     "--json"
   ]);
+  assert.equal(calls[0]?.args.includes(plan.prompt), false);
   assert.equal(result.output.exitCode, 0);
   assert.equal(result.inspection.status, "completed");
   assert.equal(result.inspection.events.length, 1);
+  assert.equal(child?.stdin.written, plan.prompt);
   assert.equal(child?.stdin.ended, true);
   assert.equal(child?.stdin.destroyed, true);
   assert.equal(result.lifecycle.stdin.closed, true);
@@ -2071,15 +2084,15 @@ test("codex cli runner prepends packaged helper PATH for Windows bin executable 
       exitCode: 0
     });
   };
-  const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
-    taskId: "cli-runner-windows-bin-helper-path"
-  }), {
-    codexCommand: command,
-    ephemeral: true
-  });
 
   Object.defineProperty(process, "platform", { value: "win32" });
   try {
+    const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
+      taskId: "cli-runner-windows-bin-helper-path"
+    }), {
+      codexCommand: command,
+      ephemeral: true
+    });
     const result = await runCodexCliExecPlan(plan, {
       env: {
         Path: "C:/Windows/System32",
@@ -2102,6 +2115,41 @@ test("codex cli runner prepends packaged helper PATH for Windows bin executable 
     assert.equal(calls[0]?.env?.OPENAI_API_KEY, undefined);
     assert.equal(calls[0]?.env?.CODEX_API_KEY, undefined);
     assert.equal(calls[0]?.env?.CODEX_ACCESS_TOKEN, undefined);
+  } finally {
+    if (originalPlatform) {
+      Object.defineProperty(process, "platform", originalPlatform);
+    }
+  }
+});
+
+test("codex cli runner rejects platform drift before spawning", async () => {
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+  const alternatePlatform = process.platform === "win32" ? "linux" : "win32";
+  const calls: Array<{ command: string }> = [];
+  const plan = createCodexCliExecPlan(createCodexCliReadOnlySmokeTask({
+    taskId: "cli-runner-platform-drift"
+  }), {
+    codexCommand: "codex",
+    ephemeral: true
+  });
+
+  try {
+    Object.defineProperty(process, "platform", { value: alternatePlatform });
+    await assert.rejects(
+      () => runCodexCliExecPlan(plan, {
+        skipExecutionModelProbe: true,
+        spawn: (command) => {
+          calls.push({ command });
+          return createFakeCodexCliChild({
+            stdout: "{\"type\":\"agent_message\",\"message\":\"ok\"}\n",
+            exitCode: 0
+          });
+        }
+      }),
+      /codex_cli_runtime_binding_descriptor_mismatch/
+    );
+
+    assert.equal(calls.length, 0);
   } finally {
     if (originalPlatform) {
       Object.defineProperty(process, "platform", originalPlatform);
@@ -2181,7 +2229,7 @@ test("codex cli default process spawner never enables shell fallback", async () 
     "utf8"
   );
   const match = source.match(
-    /function defaultCodexCliProcessSpawner[\s\S]*?\n}\n\nfunction normalizeCodexCliSpawnError/
+    /function defaultCodexCliProcessSpawner[\s\S]*?\r?\n}\r?\n\r?\nfunction normalizeCodexCliSpawnError/
   );
 
   assert.notEqual(match, null);
@@ -2833,6 +2881,68 @@ test("codex cli host runner rejects manually forged dangerous plans", async () =
       })
     }),
     /codex_cli_dangerous_arg_not_allowed:--yolo=true/
+  );
+});
+
+test("codex cli host runner rejects forged runtime bindings", async () => {
+  const plan = createCodexCliExecPlan({
+    taskId: "cli-runner-forged-runtime-binding",
+    source: "cli",
+    intent: {
+      summary: "inspect",
+      requestedAction: "inspect",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: {
+      repoRoot: "A:/codex-router"
+    },
+    target: {
+      branches: [],
+      files: [],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "read_only",
+      riskHints: [],
+      tags: []
+    }
+  });
+  const forgedCommandPlan = {
+    ...plan,
+    command: "custom-codex"
+  };
+  const forgedArgvPlan = {
+    ...plan,
+    args: [
+      ...plan.args.slice(0, -1),
+      "--ephemeral",
+      plan.prompt
+    ]
+  };
+  const forgedWorkdirPlan = {
+    ...plan,
+    workdir: "A:/other"
+  };
+
+  assert.ok(validateCodexCliExecPlanForRun(forgedCommandPlan).includes(
+    "codex_cli_runtime_binding_descriptor_mismatch"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedArgvPlan).includes(
+    "codex_cli_runtime_binding_argv_shape_mismatch"
+  ));
+  assert.ok(validateCodexCliExecPlanForRun(forgedWorkdirPlan).includes(
+    "codex_cli_runtime_binding_workdir_mismatch"
+  ));
+  await assert.rejects(
+    () => runCodexCliExecPlan(forgedCommandPlan, {
+      spawn: () => createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      })
+    }),
+    /codex_cli_runtime_binding_/
   );
 });
 
@@ -4109,6 +4219,7 @@ test("codex cli read-only smoke runs through guarded runner and captures evidenc
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.cwd, "A:/codex-router");
   assert.equal(calls[0]?.args.includes("workspace-write"), false);
+  assert.equal(calls[0]?.args.includes(result.plan.prompt), false);
   assert.equal(result.plan.prompt.includes("Task envelope"), false);
   assert.equal(result.plan.prompt.includes("requestedAction"), false);
   assert.ok(result.plan.prompt.includes(CODEX_CLI_READONLY_SMOKE_OK));
@@ -4449,6 +4560,9 @@ test("codex cli workspace-write smoke preflight blocks without explicit allowanc
   assert.equal(evidence.requiredConfirmation, CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION);
   assert.equal("prompt" in evidence.plan, false);
   assert.equal("args" in evidence.plan, false);
+  assert.match(evidence.plan.command, /^<codex-cli-runtime:/);
+  assert.match(evidence.plan.workdir ?? "", /^<workdir-hash:/);
+  assert.equal(JSON.stringify(evidence).includes("A:/codex-router"), false);
 });
 
 test("codex cli workspace-write smoke preflight becomes ready only with both gates", async () => {
@@ -4490,6 +4604,7 @@ test("codex cli workspace-write smoke preflight becomes ready only with both gat
   assert.equal(write.path, path);
   assert.ok(write.bytes > 0);
   assert.equal(written.status, "ready");
+  assert.equal(JSON.stringify(written).includes("A:/codex-router"), false);
 });
 
 test("codex cli workspace-write approval packet summarizes exact gates without raw prompt", async () => {
@@ -4525,8 +4640,13 @@ test("codex cli workspace-write approval packet summarizes exact gates without r
     "docs/evidence/codex-cli-workspace-write-smoke.txt"
   ]);
   assert.match(packet.proposedAction.commandPreview, /workspace-write/);
-  assert.match(packet.proposedAction.commandPreview, /<task-envelope-prompt omitted>/);
+  assert.match(packet.proposedAction.commandPreview, /<codex-cli-runtime:/);
+  assert.match(packet.proposedAction.commandPreview, /<workdir-hash:/);
+  assert.doesNotMatch(packet.proposedAction.commandPreview, /<task-envelope-prompt omitted>/);
   assert.doesNotMatch(packet.proposedAction.commandPreview, /Task envelope/);
+  assert.match(packet.workspace, /^<workspace-hash:/);
+  assert.equal(JSON.stringify(packet).includes("A:/codex-router"), false);
+  assert.equal(JSON.stringify(packet).includes("C:\\Users\\"), false);
   assert.equal(
     packet.requiredGates.confirmation,
     CODEX_CLI_WORKSPACE_WRITE_SMOKE_CONFIRMATION
@@ -4622,8 +4742,10 @@ test("codex cli workspace-write smoke runner executes only after both gates", as
     "workspace-write"
   ]);
   assert.equal(calls[0]?.args.includes("--skip-git-repo-check"), false);
+  assert.equal(calls[0]?.args.includes(result.run?.plan.prompt ?? ""), false);
   assert.equal(result.run?.inspection.status, "completed");
   assert.equal(result.run?.inspection.events.length, 1);
+  assert.equal(child?.stdin.written, result.run?.plan.prompt);
   assert.equal(child?.stdin.ended, true);
   assert.equal(child?.stdin.destroyed, true);
   assert.equal(result.run?.lifecycle.stdin.closed, true);
@@ -4840,8 +4962,12 @@ class FakeCodexCliStream extends EventEmitter {
 class FakeCodexCliWritableStream {
   ended = false;
   destroyed = false;
+  written = "";
 
-  end(): void {
+  end(chunk?: string): void {
+    if (chunk !== undefined) {
+      this.written += chunk;
+    }
     this.ended = true;
   }
 
