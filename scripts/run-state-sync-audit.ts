@@ -82,15 +82,17 @@ export async function collectStateSyncAuditInput(
     input.allowedStateCommits = allowedStateCommits;
   }
 
+  const validatedSourceCommit = stateFieldValue(currentStateText, "Validated source commit");
   const latestValidatedCommit = stateFieldValue(currentStateText, "Latest validated commit");
-  if (latestValidatedCommit !== undefined) {
-    if (isCommitLike(latestValidatedCommit)) {
+  const validatedSourceAnchor = validatedSourceCommit ?? latestValidatedCommit;
+  if (validatedSourceAnchor !== undefined) {
+    if (isCommitLike(validatedSourceAnchor)) {
       input.validatedSourceAncestorOfHead = await gitCommitIsAncestorOfHead(
-        latestValidatedCommit,
+        validatedSourceAnchor,
         cwd
       );
       const committedPathsSinceValidatedSource =
-        await gitChangedPathsSince(latestValidatedCommit, cwd);
+        await gitChangedPathsSince(validatedSourceAnchor, cwd);
       if (committedPathsSinceValidatedSource !== undefined) {
         input.committedPathsSinceValidatedSource = committedPathsSinceValidatedSource;
       }
