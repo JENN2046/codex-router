@@ -32,8 +32,11 @@ export type JsonlEventLogOptions = {
 export class JsonlEventLogReadError extends Error {
   readonly errors: JsonlEventLogReadIssue[];
 
-  constructor(errors: JsonlEventLogReadIssue[]) {
-    super("jsonl_event_log_read_error");
+  constructor(errors: JsonlEventLogReadIssue[], options: { cause?: unknown } = {}) {
+    super(
+      "jsonl_event_log_read_error",
+      "cause" in options ? { cause: options.cause } : undefined
+    );
     this.name = "JsonlEventLogReadError";
     this.errors = errors;
   }
@@ -117,6 +120,7 @@ export function redactEventSecrets(event: Event): Event {
 function parseJsonlEvents(content: string): Event[] {
   const events: Event[] = [];
   const errors: JsonlEventLogReadIssue[] = [];
+  let firstCause: unknown;
   const lines = content.split(/\r?\n/);
 
   for (const [index, rawLine] of lines.entries()) {
@@ -130,10 +134,11 @@ function parseJsonlEvents(content: string): Event[] {
     try {
       parsedJson = JSON.parse(rawLine);
     } catch (error) {
+      firstCause ??= error;
       errors.push({
         lineNumber,
         code: "invalid_json",
-        message: normalizeErrorMessage(error),
+        message: formatInvalidJsonMessage(lineNumber),
         line: rawLine
       });
       continue;
@@ -154,18 +159,17 @@ function parseJsonlEvents(content: string): Event[] {
   }
 
   if (errors.length > 0) {
-    throw new JsonlEventLogReadError(errors);
+    throw new JsonlEventLogReadError(
+      errors,
+      firstCause === undefined ? {} : { cause: firstCause }
+    );
   }
 
   return events;
 }
 
-function normalizeErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "unknown_jsonl_event_log_error";
+function formatInvalidJsonMessage(lineNumber: number): string {
+  return `Expected JSONL event log line ${lineNumber} to contain valid JSON.`;
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
