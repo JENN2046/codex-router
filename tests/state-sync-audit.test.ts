@@ -26,6 +26,7 @@ test("state sync audit passes when clean HEAD equals validated source commit", a
   assert.equal(review.checks.currentBranchMatches, true);
   assert.equal(review.checks.validatedSourceHeadRecorded, true);
   assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
   assert.equal(review.checks.dirtyWorktreeStateOnly, true);
   assert.equal(review.checks.agentBoardAligned, true);
@@ -61,9 +62,11 @@ test("state sync audit blocks dirty non-state files", async () => {
 
 test("state sync audit accepts committed state-only descendants", async () => {
   const input = await createInputFromWorkspace();
+  const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
   const review = reviewStateSyncAudit({
     ...input,
     head: "2222222",
+    aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: [
       ".agent_board/RUN_STATE.md",
@@ -76,7 +79,10 @@ test("state sync audit accepts committed state-only descendants", async () => {
   assert.deepEqual(review.reasons, []);
   assert.equal(review.checks.validatedSourceHeadRecorded, true);
   assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
+  assert.equal(review.summary.ahead, baseline.ahead + 1);
+  assert.equal(review.summary.validatedSourceAhead, baseline.ahead);
 });
 
 test("state sync audit blocks non-state commits after validated source", async () => {
@@ -87,7 +93,9 @@ test("state sync audit blocks non-state commits after validated source", async (
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: [
       ".agent_board/RUN_STATE.md",
-      "packages/state-sync-audit/src/index.ts"
+      "packages/state-sync-audit/src/index.ts",
+      "scripts/run-state-sync-audit.ts",
+      "tests/state-sync-audit.test.ts"
     ]
   });
 
@@ -291,7 +299,7 @@ test("state sync audit collector excludes merge base from allowed commits", () =
   assert.deepEqual(allowed, ["c1db64a", "abc1234"]);
 });
 
-test("state sync audit blocks mismatched upstream divergence", async () => {
+test("state sync audit blocks mismatched validated source upstream divergence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -302,14 +310,51 @@ test("state sync audit blocks mismatched upstream divergence", async () => {
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_divergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
 });
 
-test("state sync audit fails closed when upstream divergence is unknown", async () => {
+test("state sync audit ignores current ahead drift from state-only descendants", async () => {
+  const input = await createInputFromWorkspace();
+  const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      ".agent_board/TASK_QUEUE.md",
+      ".agent_board/CHECKPOINT.md",
+      ".agent_board/HANDOFF.md",
+      ".agent_board/VALIDATION_LOG.md",
+      "docs/current/CURRENT_STATE.md"
+    ]
+  });
+
+  assert.equal(review.status, "passed");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.summary.ahead, baseline.ahead + 1);
+  assert.equal(review.summary.validatedSourceAhead, baseline.ahead);
+});
+
+test("state sync audit blocks when upstream behind changes from baseline", async () => {
+  const input = await createInputFromWorkspace();
+  const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
+  const review = reviewStateSyncAudit({
+    ...input,
+    validatedSourceAheadBehind: `${baseline.ahead}\t${baseline.behind + 1}`
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.equal(review.summary.validatedSourceBehind, baseline.behind + 1);
+});
+
+test("state sync audit fails closed when validated source divergence is unknown", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
-    aheadBehind: "unknown\tunknown",
+    validatedSourceAheadBehind: "unknown\tunknown",
     currentStateText: input.currentStateText.replace(
       /\| Upstream divergence \| `[^`]+` \|/,
       "| Upstream divergence | `ahead 0 / behind 0` |"
@@ -317,9 +362,9 @@ test("state sync audit fails closed when upstream divergence is unknown", async 
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_divergenceRecorded"));
-  assert.equal(review.summary.ahead, -1);
-  assert.equal(review.summary.behind, -1);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.equal(review.summary.validatedSourceAhead, -1);
+  assert.equal(review.summary.validatedSourceBehind, -1);
 });
 
 test("state sync audit blocks stale agent board facts", async () => {
@@ -402,6 +447,8 @@ test("state sync audit blocked output never emits a PASS badge", async () => {
   assert.equal(review.status, "blocked");
   assert.doesNotMatch(text, /status: passed/);
   assert.doesNotMatch(json, /"status": "passed"/);
+  assert.doesNotMatch(text, /\bPASS\b/);
+  assert.doesNotMatch(json, /\bPASS\b/);
 });
 
 test("state sync audit collector rejects unreachable validated source anchors", async () => {
@@ -555,6 +602,7 @@ async function createInputFromWorkspace(
     parentHead: recordedHead,
     upstream: recordedUpstream,
     aheadBehind: recordedDivergence,
+    validatedSourceAheadBehind: recordedDivergence,
     packageJsonText: await readFile("package.json", "utf8"),
     currentStateText,
     agentBoardText,
@@ -576,6 +624,16 @@ function extractStateDivergence(text: string): string | undefined {
   return `${match[1]}\t${match[2]}`;
 }
 
+function parseTestAheadBehind(
+  value: string | undefined
+): { ahead: number; behind: number } {
+  const [aheadText, behindText] = (value ?? "0\t0").split(/\s+/);
+  return {
+    ahead: Number.parseInt(aheadText ?? "0", 10),
+    behind: Number.parseInt(behindText ?? "0", 10)
+  };
+}
+
 function asCleanSyntheticReviewInput(
   input: StateSyncAuditInput
 ): StateSyncAuditInput {
@@ -586,6 +644,7 @@ function asCleanSyntheticReviewInput(
     parentHead: "f37f174",
     allowedStateCommits: [],
     aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t0",
     currentStateText: input.currentStateText.replace(
       /\| Upstream divergence \| `[^`]+` \|/,
       "| Upstream divergence | `ahead 0 / behind 0` |"

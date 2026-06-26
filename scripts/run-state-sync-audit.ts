@@ -87,6 +87,9 @@ export async function collectStateSyncAuditInput(
   const validatedSourceAnchor = validatedSourceCommit ?? latestValidatedCommit;
   if (validatedSourceAnchor !== undefined) {
     if (isCommitLike(validatedSourceAnchor)) {
+      input.validatedSourceAheadBehind = (
+        await gitAheadBehindFromRef(validatedSourceAnchor, cwd)
+      ).trim();
       input.validatedSourceAncestorOfHead = await gitCommitIsAncestorOfHead(
         validatedSourceAnchor,
         cwd
@@ -97,6 +100,7 @@ export async function collectStateSyncAuditInput(
         input.committedPathsSinceValidatedSource = committedPathsSinceValidatedSource;
       }
     } else {
+      input.validatedSourceAheadBehind = "unknown\tunknown";
       input.validatedSourceAncestorOfHead = false;
     }
   }
@@ -138,6 +142,14 @@ async function gitCommitIsAncestorOfHead(
   } catch {
     return false;
   }
+}
+
+async function gitAheadBehindFromRef(
+  commit: string,
+  cwd: string
+): Promise<string> {
+  return git(["rev-list", "--left-right", "--count", `${commit}...@{upstream}`], cwd)
+    .catch(() => "unknown\tunknown");
 }
 
 async function gitChangedPathsSince(

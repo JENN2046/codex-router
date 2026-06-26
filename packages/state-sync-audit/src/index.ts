@@ -40,6 +40,7 @@ export interface StateSyncAuditInput {
   validatedSourceAncestorOfHead?: boolean;
   upstream: string;
   aheadBehind: string;
+  validatedSourceAheadBehind?: string;
   packageJsonText: string;
   currentStateText: string;
   agentBoardText: string;
@@ -65,7 +66,7 @@ export interface StateSyncAuditResult {
     validatedSourceHeadRecorded: boolean;
     validatedSourceCommitRecorded: boolean;
     upstreamRecorded: boolean;
-    divergenceRecorded: boolean;
+    validatedSourceDivergenceRecorded: boolean;
     latestValidatedCommitRecorded: boolean;
     dirtyWorktreeStateOnly: boolean;
     staleAfterCommitRecorded: boolean;
@@ -82,6 +83,8 @@ export interface StateSyncAuditResult {
     upstream: string;
     ahead: number;
     behind: number;
+    validatedSourceAhead: number;
+    validatedSourceBehind: number;
     gitStatusEntryCount: number;
     packageScriptTargetCount: number;
     packageScriptMismatchCount: number;
@@ -103,6 +106,10 @@ export function reviewStateSyncAudit(
   const packageJson = parseObject(input.packageJsonText);
   const packageScriptReview = reviewPackageScripts(packageJson);
   const { ahead, behind } = parseAheadBehind(input.aheadBehind);
+  const {
+    ahead: validatedSourceAhead,
+    behind: validatedSourceBehind
+  } = parseAheadBehind(input.validatedSourceAheadBehind ?? "unknown\tunknown");
   const currentHead = fieldValue(input.currentStateText, "Current head");
   const validatedSourceCommit = fieldValue(
     input.currentStateText,
@@ -157,8 +164,12 @@ export function reviewStateSyncAudit(
     ),
     upstreamRecorded:
       input.upstream === "" || fieldIncludes(input.currentStateText, "Upstream", input.upstream),
-    divergenceRecorded:
-      upstreamDivergenceMatches(upstreamDivergence, ahead, behind),
+    validatedSourceDivergenceRecorded:
+      upstreamDivergenceMatches(
+        upstreamDivergence,
+        validatedSourceAhead,
+        validatedSourceBehind
+      ),
     latestValidatedCommitRecorded:
       latestValidatedCommit !== undefined
       && latestValidatedCommit === validatedSourceCommit
@@ -204,6 +215,8 @@ export function reviewStateSyncAudit(
       upstream: input.upstream,
       ahead,
       behind,
+      validatedSourceAhead,
+      validatedSourceBehind,
       gitStatusEntryCount: countStatusEntries(input.gitStatusShort),
       packageScriptTargetCount: packageScriptReview.targetCount,
       packageScriptMismatchCount: packageScriptReview.mismatchCount,
@@ -234,6 +247,8 @@ export function formatStateSyncAuditResult(
     `upstream: ${review.summary.upstream}`,
     `ahead: ${review.summary.ahead}`,
     `behind: ${review.summary.behind}`,
+    `validated source ahead: ${review.summary.validatedSourceAhead}`,
+    `validated source behind: ${review.summary.validatedSourceBehind}`,
     `git status entries: ${review.summary.gitStatusEntryCount}`,
     `package script targets: ${review.summary.packageScriptTargetCount}`,
     `package script mismatches: ${review.summary.packageScriptMismatchCount}`,
