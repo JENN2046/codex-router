@@ -1,4 +1,5 @@
 const CURRENT_STATE_DOC = "docs/current/CURRENT_STATE.md";
+const AGENT_BOARD_DIR = ".agent_board/";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
   governance: "tsx scripts/run-governance-check.ts"
@@ -35,6 +36,8 @@ export interface StateSyncAuditInput {
   head: string;
   parentHead?: string;
   allowedStateCommits?: string[];
+  committedPathsSinceValidatedSource?: string[];
+  validatedSourceAncestorOfHead?: boolean;
   upstream: string;
   aheadBehind: string;
   packageJsonText: string;
@@ -59,10 +62,11 @@ export interface StateSyncAuditResult {
     packageScriptPresent: boolean;
     currentStateRecorded: boolean;
     currentBranchMatches: boolean;
-    currentHeadRecorded: boolean;
+    validatedSourceHeadRecorded: boolean;
     upstreamRecorded: boolean;
     divergenceRecorded: boolean;
     latestValidatedCommitRecorded: boolean;
+    dirtyWorktreeStateOnly: boolean;
     staleAfterCommitRecorded: boolean;
     validationBaselineRecorded: boolean;
     executionBoundaryRecorded: boolean;
@@ -145,10 +149,13 @@ export function reviewStateSyncAudit(
     currentBranchMatches:
       detachedSyntheticReviewCheckout
       || fieldIncludes(input.currentStateText, "Current branch", input.branch),
-    currentHeadRecorded: stateCommitMatchesHead(
+    validatedSourceHeadRecorded: stateCommitMatchesValidatedSource(
       currentHead,
+      latestValidatedCommit,
       input.head,
       input.parentHead,
+      input.committedPathsSinceValidatedSource,
+      input.validatedSourceAncestorOfHead,
       input.allowedStateCommits,
       syntheticReviewState,
       staleAfterCommit
@@ -163,10 +170,13 @@ export function reviewStateSyncAudit(
         latestValidatedCommit,
         input.head,
         input.parentHead,
+        input.committedPathsSinceValidatedSource,
+        input.validatedSourceAncestorOfHead,
         input.allowedStateCommits,
         syntheticReviewState,
         staleAfterCommit
       ),
+    dirtyWorktreeStateOnly: dirtyStatusEntriesAreAllowedStatePaths(input.gitStatusShort),
     staleAfterCommitRecorded: staleAfterCommit,
     validationBaselineRecorded:
       REQUIRED_VALIDATION_COMMANDS.every((command) =>
@@ -182,7 +192,10 @@ export function reviewStateSyncAudit(
       && agentBoardCommitsMatchState(
         input.agentBoardText,
         input.head,
+        latestValidatedCommit,
         input.parentHead,
+        input.committedPathsSinceValidatedSource,
+        input.validatedSourceAncestorOfHead,
         input.allowedStateCommits,
         syntheticReviewState,
         staleAfterCommit
@@ -281,6 +294,8 @@ function stateCommitMatchesHead(
   value: string | undefined,
   head: string,
   parentHead: string | undefined,
+  committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceAncestorOfHead: boolean | undefined,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
   staleAfterCommit: boolean
@@ -289,13 +304,52 @@ function stateCommitMatchesHead(
     return false;
   }
 
+  const hasValidatedSourceEvidence =
+    validatedSourceAncestorOfHead !== undefined
+    || committedPathsSinceValidatedSource !== undefined;
+
   return value === head
-    || (staleAfterCommit && stateCommitIsAllowed(
+    || stateCommitIsStateOnlyAncestor(
+      value,
+      head,
+      committedPathsSinceValidatedSource,
+      validatedSourceAncestorOfHead
+    )
+    || (staleAfterCommit && reviewCheckoutCommitIsAllowed(
       value,
       parentHead,
       allowedStateCommits,
-      syntheticReviewState
+      syntheticReviewState,
+      hasValidatedSourceEvidence
     ));
+}
+
+function stateCommitMatchesValidatedSource(
+  value: string | undefined,
+  latestValidatedCommit: string | undefined,
+  head: string,
+  parentHead: string | undefined,
+  committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceAncestorOfHead: boolean | undefined,
+  allowedStateCommits: string[] | undefined,
+  syntheticReviewState: string | undefined,
+  staleAfterCommit: boolean
+): boolean {
+  if (value === undefined || latestValidatedCommit === undefined) {
+    return false;
+  }
+
+  return value === latestValidatedCommit
+    && stateCommitMatchesHead(
+      value,
+      head,
+      parentHead,
+      committedPathsSinceValidatedSource,
+      validatedSourceAncestorOfHead,
+      allowedStateCommits,
+      syntheticReviewState,
+      staleAfterCommit
+    );
 }
 
 function upstreamDivergenceMatches(
@@ -309,12 +363,30 @@ function upstreamDivergenceMatches(
 function agentBoardCommitsMatchState(
   text: string,
   head: string,
+  latestValidatedCommit: string | undefined,
   parentHead: string | undefined,
+  committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceAncestorOfHead: boolean | undefined,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
   staleAfterCommit: boolean
 ): boolean {
   const allowed = new Set([head]);
+  if (
+    latestValidatedCommit !== undefined
+    && stateCommitMatchesHead(
+      latestValidatedCommit,
+      head,
+      parentHead,
+      committedPathsSinceValidatedSource,
+      validatedSourceAncestorOfHead,
+      allowedStateCommits,
+      syntheticReviewState,
+      staleAfterCommit
+    )
+  ) {
+    allowed.add(latestValidatedCommit);
+  }
   if (staleAfterCommit) {
     for (const commit of stateCompatibleCommits(
       parentHead,
@@ -328,6 +400,21 @@ function agentBoardCommitsMatchState(
   return commitLikeTokens(text).every((token) => allowed.has(token));
 }
 
+function stateCommitIsStateOnlyAncestor(
+  value: string,
+  head: string,
+  committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceAncestorOfHead: boolean | undefined
+): boolean {
+  if (value === head) {
+    return true;
+  }
+
+  return validatedSourceAncestorOfHead === true
+    && committedPathsSinceValidatedSource !== undefined
+    && committedPathsSinceValidatedSource.every(isAllowedStatePath);
+}
+
 function stateCommitIsAllowed(
   value: string,
   parentHead: string | undefined,
@@ -339,6 +426,26 @@ function stateCommitIsAllowed(
     allowedStateCommits,
     syntheticReviewState
   ).includes(value);
+}
+
+function reviewCheckoutCommitIsAllowed(
+  value: string,
+  parentHead: string | undefined,
+  allowedStateCommits: string[] | undefined,
+  syntheticReviewState: string | undefined,
+  hasValidatedSourceEvidence: boolean
+): boolean {
+  if (!hasValidatedSourceEvidence) {
+    return stateCommitIsAllowed(
+      value,
+      parentHead,
+      allowedStateCommits,
+      syntheticReviewState
+    );
+  }
+
+  return (allowedStateCommits ?? []).includes(value)
+    || value === syntheticReviewState;
 }
 
 function stateCompatibleCommits(
@@ -401,6 +508,38 @@ function syntheticReviewStateAllowed(
 
 function commitLikeTokens(text: string): string[] {
   return Array.from(new Set(text.match(/\b[0-9a-f]{7,40}\b/g) ?? []));
+}
+
+function dirtyStatusEntriesAreAllowedStatePaths(gitStatusShort: string): boolean {
+  return statusPaths(gitStatusShort).every(isAllowedStatePath);
+}
+
+function statusPaths(gitStatusShort: string): string[] {
+  return gitStatusShort
+    .split(/\r?\n/)
+    .flatMap((line) => {
+      if (line.trim() === "") {
+        return [];
+      }
+
+      const pathText = line.length > 3 ? line.slice(3).trim() : line.trim();
+      return pathText
+        .split(" -> ")
+        .map((path) => unquoteGitStatusPath(path.trim()))
+        .filter(Boolean);
+    });
+}
+
+function unquoteGitStatusPath(path: string): string {
+  if (path.startsWith("\"") && path.endsWith("\"")) {
+    return path.slice(1, -1);
+  }
+
+  return path;
+}
+
+function isAllowedStatePath(path: string): boolean {
+  return path === CURRENT_STATE_DOC || path.startsWith(AGENT_BOARD_DIR);
 }
 
 function escapeRegExp(value: string): string {

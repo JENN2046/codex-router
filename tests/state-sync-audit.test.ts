@@ -8,20 +8,95 @@ import {
 } from "../packages/state-sync-audit/src/index.js";
 import { collectAllowedStateCommits } from "../scripts/run-state-sync-audit.js";
 
-test("state sync audit passes for current state surfaces", async () => {
+test("state sync audit passes when clean HEAD equals validated source commit", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace());
 
   assert.equal(review.status, "passed");
   assert.deepEqual(review.reasons, []);
   assert.equal(review.checks.currentStateRecorded, true);
   assert.equal(review.checks.currentBranchMatches, true);
-  assert.equal(review.checks.currentHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.dirtyWorktreeStateOnly, true);
   assert.equal(review.checks.agentBoardAligned, true);
   assert.equal(review.checks.staleMarkersAbsent, true);
   assert.equal(review.summary.requiredValidationCommandCount, 4);
   assert.equal(review.summary.requiredBoundaryMarkerCount, 7);
   assert.equal(review.summary.stateWritesDuringAudit, 0);
   assert.equal(review.summary.remoteWritesDuringAudit, 0);
+});
+
+test("state sync audit accepts dirty state-only files", async () => {
+  const review = reviewStateSyncAudit(await createInputFromWorkspace({
+    gitStatusShort: [
+      " M .agent_board/RUN_STATE.md",
+      " M docs/current/CURRENT_STATE.md"
+    ].join("\n")
+  }));
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.dirtyWorktreeStateOnly, true);
+  assert.equal(review.summary.gitStatusEntryCount, 2);
+});
+
+test("state sync audit blocks dirty non-state files", async () => {
+  const review = reviewStateSyncAudit(await createInputFromWorkspace({
+    gitStatusShort: " M packages/state-sync-audit/src/index.ts"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_dirtyWorktreeStateOnly"));
+});
+
+test("state sync audit accepts committed state-only descendants", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "2222222",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      ".agent_board/HANDOFF.md",
+      "docs/current/CURRENT_STATE.md"
+    ]
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+});
+
+test("state sync audit blocks non-state commits after validated source", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "2222222",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      "packages/state-sync-audit/src/index.ts"
+    ]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit blocks stale validated source commits", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText.replace(
+      /\| Latest validated commit \| `[^`]+` \|/,
+      "| Latest validated commit | `1111111` |"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
 test("state sync audit blocks stale current branch and missing head fields", async () => {
@@ -36,7 +111,7 @@ test("state sync audit blocks stale current branch and missing head fields", asy
 
   assert.equal(review.status, "blocked");
   assert.ok(review.reasons.includes("state_sync_currentBranchMatches"));
-  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
@@ -50,7 +125,7 @@ test("state sync audit blocks mismatched current head hashes", async () => {
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
@@ -115,7 +190,7 @@ test("state sync audit blocks synthetic review checkouts without explicit state 
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
 });
@@ -130,7 +205,7 @@ test("state sync audit blocks stale state outside merge checkout ancestry", asyn
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
 });
@@ -149,7 +224,7 @@ test("state sync audit blocks merge base as state when merge ancestry is availab
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
 });
