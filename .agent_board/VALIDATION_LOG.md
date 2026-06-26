@@ -2,75 +2,38 @@
 
 Current branch:
 
-- `feat/pr-23a-s1-trusted-runtime`
+- `fix/jsonl-event-log-structured-error`
 
-Current state source:
+Validated source commit:
 
-- `docs/current/CURRENT_STATE.md`
+- `0f5a8c5`
 
-R1-G1FIX5 preflight completed:
+Latest validated commit:
 
-- local head matched the expected pre-remediation feature state before the
-  local code remediation commit
-- local base matched the expected mainline base
-- PR #46 was open and draft, with the expected pre-remediation head and base
-- failed remote CI existed before this local remediation
-- worktree was clean before remediation
-- `git diff --check`: passed
+- `0f5a8c5`
 
-R1-G1FIX5 pre-code-commit validation completed:
+State record mode:
 
-- authorized code file set check: passed
-- `git diff --check`: passed
-- `npm run typecheck`: passed
-- `npx --no-install tsx --test tests/codex-cli-host.test.ts`:
-  passed, `109 / 109`
-- safe contract smoke with process-scoped temporary evidence path: passed
-- safe smoke spawn call count: `4`
-- persisted smoke evidence omitted active workspace path material, raw runtime
-  keys, prompt transport markers, and raw nested runtime evidence
-- `npm test`: passed, `1153 / 1153`
-- `npm run build`: passed
+- `state-only descendant allowed`
 
-R1-G1FIX5 post-code-commit validation completed:
+Recorded local validation for this fix branch:
 
-- `npm run typecheck`: passed
-- `npx --no-install tsx --test tests/codex-cli-host.test.ts`:
-  passed, `109 / 109`
-- safe contract smoke with process-scoped temporary evidence path: passed
-- persisted smoke evidence inspection passed before writing the artifact
+- `git diff --check`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`
+- `npm run typecheck`: PASS
+- `npm test`: PASS, `1158 / 1158`
+- `npm run build`: PASS
 
-Coverage added by the local code remediation:
+Validation requested after state alignment:
 
-- smoke artifact persistence stores safe nested evidence summaries only
-- persisted smoke telemetry stores only level and message facts
-- persisted artifact inspection rejects active workspace path material, exact
-  raw runtime keys, and prompt transport markers
-- platform-drift test creates the plan under the actual platform, then mutates
-  the observed platform only for run validation
-- platform drift before spawn rejects with descriptor mismatch and zero spawner
-  calls
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
+- `npm run validate:pr`: PASS
 
-R1-G1FIX5 state-commit validation still pending:
+Execution boundary for this validation record:
 
-- dirty set check for the six authorized state files
-- `git diff --check`
-- process-scoped offline `npx tsx --test tests\codex-cli-host.test.ts`
-- `npm test`
-- `npm run build`
-- `npm run governance -- audit state-sync`
-- `npm run validate:pr`
-
-R1-G1FIX5 final validation still pending:
-
-- worktree clean check and local ahead/behind check
-- `git diff --check`
-- `npm run typecheck`
-- `npx --no-install tsx --test tests/codex-cli-host.test.ts`
-- process-scoped offline `npx tsx --test tests\codex-cli-host.test.ts`
-- safe contract smoke with process-scoped temporary evidence path
-- `npm test`
-- `npm run build`
-- `npm run governance -- audit state-sync`
-- `npm run validate:pr`
-- final remote read-only ref and PR inspection
+- source fix isolated in commit `0f5a8c5`
+- state record changes only
+- no dependency changes
+- no push
+- no remote writes
+- no real provider execution

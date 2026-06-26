@@ -1,9 +1,8 @@
 # Run State
 
-Status: PR-23A-S1 R1-G1FIX5 has completed the local code remediation and is
-updating the local state surfaces before the documentation-only state commit.
-The repair is local only and does not change production runtime code, package
-files, workflows, or remote state.
+Status: local state record is being aligned for the validated state-sync
+self-binding loop fix. The remaining update is limited to `.agent_board`
+records and `docs/current/CURRENT_STATE.md`.
 
 Current truth source:
 
@@ -11,35 +10,39 @@ Current truth source:
 
 Branch:
 
-- `feat/pr-23a-s1-trusted-runtime`
+- `fix/jsonl-event-log-structured-error`
 
-State anchor:
+Validated source commit:
 
-- `c687b0f`
+- `0f5a8c5`
 
-Worktree expectation:
+Latest validated commit:
 
-- only the six authorized state documentation surfaces may be modified before
-  the state commit
-- no push, PR update, workflow action, merge, release, deploy, npm publish,
-  secret edit, real Codex CLI, real provider execution, or workspace-write smoke
-  is authorized
+- `0f5a8c5`
+
+State record mode:
+
+- `state-only descendant allowed`
+
+Validation recorded for this source commit:
+
+- `git diff --check`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`
+- `npm run typecheck`: PASS
+- `npm test`: PASS, `1158 / 1158`
+- `npm run build`: PASS
 
 Current scope:
 
-- record that smoke artifact projection is locally remediated
-- record that platform-drift test isolation is locally remediated
-- record that PR #46 remains open and draft
-- record that the published feature branch is still pre-remediation
-- record that failed remote CI existed before this local remediation
-- record that remote CI has not run for the new local remediation commit
+- record the validated source commit for the state-sync self-binding fix
+- verify dirty state-only mode before the state-only commit
+- verify committed state-only descendant mode after the state-only commit
 
-Validation so far:
+Boundary:
 
-- pre-code-commit diff check, typecheck, targeted host test, safe contract
-  smoke, full tests, and build passed
-- post-code-commit typecheck, targeted host test, and safe contract smoke passed
-
-Detailed validation history:
-
-- `.agent_board/VALIDATION_LOG.md`
+- source fix is already isolated in commit `0f5a8c5`
+- no dependency changes
+- no push
+- no remote writes
+- no real provider execution
+- no secrets or runtime configuration changes

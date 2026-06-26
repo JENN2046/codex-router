@@ -1,62 +1,46 @@
 # Handoff
 
-Original goal:
+Goal:
 
-- Complete PR-23A-S1 trusted Codex CLI runtime remediation under the web GPT
-  commander task books.
+- Record state for the validated state-sync self-binding loop fix.
 
 Workspace:
 
-- repository root: `codex-router/repo`
-- branch: `feat/pr-23a-s1-trusted-runtime`
+- repository root: `codex-router`
+- branch: `fix/jsonl-event-log-structured-error`
+- validated source commit: `0f5a8c5`
+- latest validated commit: `0f5a8c5`
+- state record mode: `state-only descendant allowed`
 - current state source: `docs/current/CURRENT_STATE.md`
 
 Current status:
 
-- R1-G1FIX5 local code remediation is complete
-- R1-G1FIX5 local state documentation update is in progress
-- the published feature branch and PR #46 have not been updated
-- remote CI has not run for the new local remediation commit
+- source fix is isolated in commit `0f5a8c5`
+- `.agent_board` records reflect the validated source commit, not a required
+  state-record commit hash
+- validation results recorded:
+  - `git diff --check`: PASS
+  - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`
+  - `npm run typecheck`: PASS
+  - `npm test`: PASS, `1158 / 1158`
+  - `npm run build`: PASS
+- no dependency files were modified
 
-Changed files authorized for the active state update:
+Validation still required in this task:
 
-- `docs/current/CURRENT_STATE.md`
-- `.agent_board/CHECKPOINT.md`
-- `.agent_board/HANDOFF.md`
-- `.agent_board/RUN_STATE.md`
-- `.agent_board/TASK_QUEUE.md`
-- `.agent_board/VALIDATION_LOG.md`
+- commit state-only record
+- verify committed state-only descendant mode
 
-Validation run:
+Known constraint:
 
-- pre-code-commit diff check, typecheck, targeted host test, safe contract
-  smoke, full tests, and build passed
-- post-code-commit typecheck, targeted host test, and safe contract smoke
-  passed
-
-Validation not yet run:
-
-- R1-G1FIX5 pre-state-commit dirty-set check, diff check, exact offline
-  targeted host test, full tests, build, state-sync audit, and validate:pr
-- R1-G1FIX5 post-state-commit full validation set
-- final status, ahead/behind, commit-chain, PR, and remote ref inspection
-
-Known risks:
-
-- PR #46 still points at the pre-remediation remote feature head
-- the earlier remote CI failure remains the latest remote validation state
-- current remediation is local only; new remote CI cannot exist until a
-  separately authorized push updates the branch
-
-Next safe action:
-
-- run the required pre-state-commit validation set, create the documentation-only
-  state commit if it passes, then run the required post-commit validation.
+- state-record writes are restricted to `.agent_board/**` and
+  `docs/current/CURRENT_STATE.md`
 
 Not authorized:
 
-- push, PR edit/comment/review/ready, workflow rerun/cancel/dispatch/watch,
-  merge, release, deploy, npm publish, tag, branch deletion
-- fetch, pull, amend, reset, clean, stash, merge, rebase
-- additional CI logs, artifacts, workflow actions, real Codex CLI, real provider
-  execution, workspace-write smoke, env/config/secret edits
+- source code changes
+- dependency changes
+- push or any other remote write
+- real provider execution
+- real Codex CLI execution
+- env, secret, user config, or system config edits

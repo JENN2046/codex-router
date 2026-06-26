@@ -11,13 +11,20 @@ refreshed here first.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `feat/pr-23a-s1-trusted-runtime` |
-| Current head | `c687b0f` |
+| Current branch | `fix/jsonl-event-log-structured-error` |
+| Current head | `0f5a8c5` |
+| Validated source commit | `0f5a8c5` |
 | Upstream | `none` |
 | Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `c687b0f` |
+| Latest validated commit | `0f5a8c5` |
+| State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
+
+The `Current head` row records the validated source head for audit
+compatibility. State-only record commits are allowed to descend from this
+source commit and are not required to write their own commit hash back into
+tracked state files.
 
 ## Current Entrypoints
 
@@ -29,8 +36,9 @@ refreshed here first.
 
 ## Current Scope
 
-This branch is in PR-23A-S1 trusted Codex CLI runtime remediation under the web
-GPT commander R1-G1FIX5 local CI remediation task book.
+This branch now records the validated source fix for the state-sync
+self-binding loop. The earlier JSONL structured error fix remains included in
+branch history.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -43,53 +51,32 @@ current safety baseline:
 - `general_workspace_write` remains closed by default
 - `secret_or_credential_change` remains closed by default
 
-Verified local remediation facts:
+Verified local fix facts:
 
-- The smoke artifact projection issue is locally remediated. Persisted contract
-  smoke evidence now records safe nested evidence summaries instead of raw
-  nested runtime evidence.
-- Persisted smoke telemetry omits raw runtime context and keeps only safe
-  message facts.
-- Persisted smoke artifact inspection rejects active workspace path material,
-  exact raw runtime keys, and prompt transport markers before writing evidence.
-- The platform-drift test isolation issue is locally remediated. The drift test
-  now creates the plan under the real platform and changes the observed platform
-  only for run validation.
-- Platform drift remains fail-closed with
-  `codex_cli_runtime_binding_descriptor_mismatch` and zero spawner calls.
-- No production runtime code changed. The source change is limited to the smoke
-  contract script and the targeted host test.
-- No real Codex CLI execution, real provider execution, or workspace-write
-  smoke was performed.
+- Validated source commit `0f5a8c5` prevents state-sync from requiring tracked
+  state files to record their own containing commit.
+- `npm test`: PASS, `1158 / 1158`.
+- `npm run typecheck`: PASS.
+- `npm run build`: PASS.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`.
+- No package, dependency, remote, provider-execution, env, or secret change is
+  part of this state record.
 
 ## Remote State
 
-- PR: `JENN2046/codex-router#46`
-- PR state: `OPEN`, draft.
-- The published feature branch still points at the pre-remediation remote head.
-- Failed remote CI existed before this local remediation.
-- Remote CI has not run for the new local remediation commit.
-- The local remediation has not been pushed.
-- Correct status phrase: locally remediated, remote validation pending.
+- No push or remote write is authorized for this state alignment.
+- No PR edit, workflow action, release, deploy, or npm publish is authorized.
+- Correct status phrase: locally validated, local state alignment in progress.
 
 ## Validation Baseline
 
-R1-G1FIX5 validation before the local code remediation commit:
+Validated in normal WSL for source commit `0f5a8c5`:
 
-- `git diff --check`: passed.
-- `npm run typecheck`: passed.
-- `npx --no-install tsx --test tests/codex-cli-host.test.ts`: passed,
-  `109 / 109`.
-- Safe contract smoke with process-scoped temporary evidence path: passed.
-- `npm test`: passed, `1153 / 1153`.
-- `npm run build`: passed.
-
-R1-G1FIX5 validation after the local code remediation commit:
-
-- `npm run typecheck`: passed.
-- `npx --no-install tsx --test tests/codex-cli-host.test.ts`: passed,
-  `109 / 109`.
-- Safe contract smoke with process-scoped temporary evidence path: passed.
+- `git diff --check`: PASS.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`.
+- `npm run typecheck`: PASS.
+- `npm test`: PASS, `1158 / 1158`.
+- `npm run build`: PASS.
 
 State-sync required validation command literals retained in this state surface:
 
@@ -98,29 +85,16 @@ State-sync required validation command literals retained in this state surface:
 - `npm test`
 - `npm run build`
 
-Validation still required before the state commit:
+Validation requested for this state alignment:
 
-- exact dirty-set check for the six authorized state files
 - `git diff --check`
-- process-scoped offline `npx tsx --test tests\codex-cli-host.test.ts`
-- `npm test`
-- `npm run build`
-- `npm run governance -- audit state-sync`
+- `node --import tsx scripts/run-state-sync-audit.ts --json`
 - `npm run validate:pr`
 
-Validation still required after the state commit:
+Dirty state-only validation:
 
-- clean worktree and local ahead/behind check
-- `git diff --check`
-- `npm run typecheck`
-- `npx --no-install tsx --test tests/codex-cli-host.test.ts`
-- process-scoped offline `npx tsx --test tests\codex-cli-host.test.ts`
-- safe contract smoke with process-scoped temporary evidence path
-- `npm test`
-- `npm run build`
-- `npm run governance -- audit state-sync`
-- `npm run validate:pr`
-- final remote read-only ref and PR metadata verification
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
+- `npm run validate:pr`: PASS.
 
 ## Execution Boundary
 
@@ -137,20 +111,20 @@ Blocked capabilities:
 - `secret_or_credential_change`
 - `external_service_write`
 
-Boundary facts for R1-G1FIX5:
+Boundary facts for this state alignment:
 
-- No push, PR edit/comment/review/ready, workflow rerun/cancel/dispatch/watch,
-  merge, rebase, branch deletion, release, deploy, or npm publish.
-- No additional CI logs, artifacts, workflow actions, real Codex CLI, real
-  provider execution, or workspace-write smoke.
+- No source code changes.
+- No package or dependency changes.
+- Source fix commit already recorded separately as `0f5a8c5`.
+- This state update is state-only.
+- No push or remote write.
+- No real provider execution.
 - No env, secret, user config, or system config edit.
-- The only environment changes were process-scoped validation variables and
-  process-scoped temporary smoke evidence paths.
 
 ## Current Local Changes
 
-The local remediation code commit exists and is the current state anchor. The
-next local change is documentation-only and limited to:
+The validated source commit exists and is the current validated state anchor.
+State record changes are limited to:
 
 - `docs/current/CURRENT_STATE.md`
 - `.agent_board/CHECKPOINT.md`
@@ -165,12 +139,13 @@ This local branch does not currently track an upstream branch. The state-sync
 audit therefore expects unknown upstream divergence, recorded as
 `ahead -1 / behind -1`.
 
-Because `Stale after commit` is `true`, the documentation-only state commit may
-leave the recorded state head as its parent while still passing state-sync.
+The recorded validated source head and latest validated commit are both
+`0f5a8c5`. A later state-only record commit may be `HEAD` without requiring
+tracked state files to record that state commit hash.
 
 ## Next Safe Action
 
-Run the required pre-commit local validation set, create the documentation-only
-state commit if it passes, then run the required post-commit validation and
-remote read-only verification. Do not push or otherwise modify remote state
-without a separate exact authorization token.
+Commit the state-only record, then verify committed state-only descendant mode
+with `node --import tsx scripts/run-state-sync-audit.ts --json` and
+`npm run validate:pr`. Do not push or otherwise modify remote state without a
+separate exact authorization token.

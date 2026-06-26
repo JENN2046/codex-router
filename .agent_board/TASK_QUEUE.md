@@ -2,56 +2,36 @@
 
 Current task:
 
-- PR-23A-S1 trusted runtime binding R1-G1FIX5 local state update on
-  `feat/pr-23a-s1-trusted-runtime`
+- Align `.agent_board` state for validated source commit
+  `fix/jsonl-event-log-structured-error`.
 
 Done:
 
-- completed local code remediation for smoke evidence projection
-- completed local code remediation for platform-drift test isolation
-- verified pre-code-commit diff check, typecheck, targeted host test, contract
-  smoke, full tests, and build
-- created the authorized local code remediation commit
-- verified post-code-commit typecheck, targeted host test, and contract smoke
-- prepared the six authorized state surfaces for the state commit
+- confirmed current branch is `fix/jsonl-event-log-structured-error`
+- inspected `scripts/run-state-sync-audit.ts`
+- inspected `packages/state-sync-audit/src/index.ts`
+- inspected existing `.agent_board` records
+- committed source fix as `0f5a8c5`
+- recorded latest validated commit `0f5a8c5`
+- recorded state record mode `state-only descendant allowed`
+- recorded validation results:
+  - `git diff --check`: PASS
+  - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`
+  - `npm run typecheck`: PASS
+  - `npm test`: PASS, `1158 / 1158`
+  - `npm run build`: PASS
 
 Todo:
 
-- verify the modified file set is exactly the six authorized state files
-- run pre-commit `git diff --check`
-- run pre-commit process-scoped offline
-  `npx tsx --test tests\codex-cli-host.test.ts`
-- run pre-commit `npm test`
-- run pre-commit `npm run build`
-- run pre-commit `npm run governance -- audit state-sync`
-- run pre-commit `npm run validate:pr`
-- create exactly one local commit:
-  `docs(state): record new-head CI remediation validation`
-- run final post-commit validation:
-  - `git diff --check`
-  - `npm run typecheck`
-  - `npx --no-install tsx --test tests/codex-cli-host.test.ts`
-  - `npx tsx --test tests\codex-cli-host.test.ts`
-  - safe contract smoke with a process-scoped temporary evidence path
-  - `npm test`
-  - `npm run build`
-  - `npm run governance -- audit state-sync`
-  - `npm run validate:pr`
-- inspect final local status, ahead/behind count, commit chain, remote refs,
-  and PR #46 metadata
-- send R1-G1FIX5 closeout receipt to the web GPT commander
-- wait up to 7 minutes for the next exact task book or authorization token
+- commit state-only record if validation passes
+- verify committed state-only descendant mode
+- report changed files and validation result
 
 Blocked until separately authorized:
 
-- push
-- PR edit, comment, review, or ready-for-review action
-- workflow rerun, cancel, dispatch, watch, or any other CI action
-- fetch, pull, merge, rebase, branch deletion
-- amend, reset, clean, stash
-- release, deploy, npm publish, tag
-- additional CI logs or artifacts
-- real Codex CLI execution
+- source code changes
+- dependency changes
+- push or any other remote write
 - real provider execution
-- workspace-write telemetry smoke
+- real Codex CLI execution
 - env, secret, user config, or system config edits
