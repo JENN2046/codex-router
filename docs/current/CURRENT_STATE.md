@@ -12,19 +12,19 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/jsonl-event-log-structured-error` |
-| Current head | `0f5a8c5` |
-| Validated source commit | `0f5a8c5` |
-| Upstream | `none` |
-| Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `0f5a8c5` |
+| Current head | `da47113` |
+| Validated source commit | `da47113` |
+| Upstream | `origin/fix/jsonl-event-log-structured-error` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `da47113` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
 The `Current head` row records the validated source head for audit
-compatibility. State-only record commits are allowed to descend from this
-source commit and are not required to write their own commit hash back into
-tracked state files.
+compatibility. Dirty state-only record changes are allowed before a state
+commit, and state-only record commits may descend from this source commit
+without writing their own commit hash back into tracked state files.
 
 ## Current Entrypoints
 
@@ -36,9 +36,9 @@ tracked state files.
 
 ## Current Scope
 
-This branch now records the validated source fix for the state-sync
-self-binding loop. The earlier JSONL structured error fix remains included in
-branch history.
+This branch now records the latest validated source fix for state-sync source
+anchoring. The earlier JSONL structured error fix remains included in branch
+history.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -53,12 +53,13 @@ current safety baseline:
 
 Verified local fix facts:
 
-- Validated source commit `0f5a8c5` prevents state-sync from requiring tracked
-  state files to record their own containing commit.
+- Validated source commit `da47113` rejects unreachable validated source
+  anchors and blocks non-state descendants after the validated source commit.
 - `npm test`: PASS, `1158 / 1158`.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`.
+- state-sync targeted test
+  `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`.
 - No package, dependency, remote, provider-execution, env, or secret change is
   part of this state record.
 
@@ -70,13 +71,14 @@ Verified local fix facts:
 
 ## Validation Baseline
 
-Validated in normal WSL for source commit `0f5a8c5`:
+Validated in normal WSL for source commit `da47113`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`.
-- `npm run typecheck`: PASS.
 - `npm test`: PASS, `1158 / 1158`.
+- `npm run typecheck`: PASS.
 - `npm run build`: PASS.
+- state-sync targeted test
+  `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`.
 
 State-sync required validation command literals retained in this state surface:
 
@@ -89,12 +91,11 @@ Validation requested for this state alignment:
 
 - `git diff --check`
 - `node --import tsx scripts/run-state-sync-audit.ts --json`
-- `npm run validate:pr`
 
 Dirty state-only validation:
 
+- `git diff --check`: PASS.
 - `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
-- `npm run validate:pr`: PASS.
 
 ## Execution Boundary
 
@@ -115,8 +116,9 @@ Boundary facts for this state alignment:
 
 - No source code changes.
 - No package or dependency changes.
-- Source fix commit already recorded separately as `0f5a8c5`.
+- Source fix commit already recorded separately as `da47113`.
 - This state update is state-only.
+- No commit.
 - No push or remote write.
 - No real provider execution.
 - No env, secret, user config, or system config edit.
@@ -135,17 +137,17 @@ State record changes are limited to:
 
 ## State Sync Expectations
 
-This local branch does not currently track an upstream branch. The state-sync
-audit therefore expects unknown upstream divergence, recorded as
-`ahead -1 / behind -1`.
+This local branch tracks `origin/fix/jsonl-event-log-structured-error`. The
+state-sync audit therefore expects recorded upstream divergence of
+`ahead 1 / behind 0`.
 
 The recorded validated source head and latest validated commit are both
-`0f5a8c5`. A later state-only record commit may be `HEAD` without requiring
-tracked state files to record that state commit hash.
+`da47113`. The current task leaves state-only changes uncommitted; a later
+state-only record commit may be `HEAD` without requiring tracked state files to
+record that state commit hash.
 
 ## Next Safe Action
 
-Commit the state-only record, then verify committed state-only descendant mode
-with `node --import tsx scripts/run-state-sync-audit.ts --json` and
-`npm run validate:pr`. Do not push or otherwise modify remote state without a
-separate exact authorization token.
+Report the changed state files and the state-sync audit result. Do not commit,
+push, or otherwise modify remote state without a separate exact authorization
+token.

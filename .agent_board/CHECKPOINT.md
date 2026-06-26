@@ -10,11 +10,11 @@ Branch:
 
 Validated source commit:
 
-- `0f5a8c5`
+- `da47113`
 
 Latest validated commit:
 
-- `0f5a8c5`
+- `da47113`
 
 State record mode:
 
@@ -22,23 +22,26 @@ State record mode:
 
 Checkpoint facts:
 
-- source fix commit is present at `0f5a8c5`
-- state-sync now validates a source commit plus allowed state-only descendants
+- source fix commit is present at `da47113`
+- state-sync now rejects unreachable validated source anchors and blocks
+  non-state descendants after the validated source commit
 - tracked state files are not required to record their own containing commit
 - validation evidence recorded for the branch:
   - `git diff --check`: PASS
-  - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`
-  - `npm run typecheck`: PASS
   - `npm test`: PASS, `1158 / 1158`
+  - `npm run typecheck`: PASS
   - `npm run build`: PASS
+  - state-sync targeted test
+    `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`
 
-Remaining validation:
+Post-sync validation completed:
 
-- commit state-only record
-- verify committed state-only descendant mode
+- `git diff --check`: PASS
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 
 Boundary:
 
 - state record update only
+- no commit
 - no dependency changes, push, remote write, real provider execution, secret
   change, or runtime configuration change is authorized
