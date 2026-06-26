@@ -8,23 +8,25 @@ Workspace:
 
 - repository root: `codex-router`
 - branch: `fix/jsonl-event-log-structured-error`
-- current head: `95d4847`
-- validated source commit: `95d4847`
-- latest validated commit: `95d4847`
+- current head: `6ea36d5`
+- validated source commit: `6ea36d5`
+- latest validated commit: `6ea36d5`
 - upstream: `origin/fix/jsonl-event-log-structured-error`
-- upstream divergence: `ahead 2 / behind 0`
+- upstream divergence: `ahead 4 / behind 0`
 - state record mode: `state-only descendant allowed`
 - current state source: `docs/current/CURRENT_STATE.md`
 
 Current status:
 
-- current branch head is `95d4847`
-- local branch is ahead of upstream by 2 commits and behind by 0 commits
+- current validated source head is `6ea36d5`
+- validated source baseline is ahead of upstream by 4 commits and behind by 0 commits
 - `.agent_board` records reflect the validated source commit, not a required
   state-record commit hash
 - validation results recorded:
-  - `npm test`: PASS, `1161 / 1161`
+  - `npm test`: PASS, `1163 / 1163`
+  - `npm run typecheck`: PASS
   - `npm run build`: PASS
+  - state-sync targeted test: PASS
 - no dependency files were modified
 
 Validation completed in this task:

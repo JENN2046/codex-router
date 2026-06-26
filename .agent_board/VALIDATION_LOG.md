@@ -6,15 +6,15 @@ Current branch:
 
 Current head:
 
-- `95d4847`
+- `6ea36d5`
 
 Validated source commit:
 
-- `95d4847`
+- `6ea36d5`
 
 Latest validated commit:
 
-- `95d4847`
+- `6ea36d5`
 
 Upstream:
 
@@ -22,7 +22,7 @@ Upstream:
 
 Upstream divergence:
 
-- `ahead 2 / behind 0`
+- `ahead 4 / behind 0`
 
 State record mode:
 
@@ -31,8 +31,10 @@ State record mode:
 Recorded local validation for this branch head:
 
 - `git diff --check`: PASS
-- `npm test`: PASS, `1161 / 1161`
+- `npm test`: PASS, `1163 / 1163`
+- `npm run typecheck`: PASS
 - `npm run build`: PASS
+- state-sync targeted test: PASS
 
 Validation requested after state alignment:
 
@@ -41,7 +43,7 @@ Validation requested after state alignment:
 
 Execution boundary for this validation record:
 
-- current branch head is `95d4847`
+- current validated source head is `6ea36d5`
 - state record changes only
 - no dependency changes
 - no commit

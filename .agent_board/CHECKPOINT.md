@@ -10,15 +10,15 @@ Branch:
 
 Current head:
 
-- `95d4847`
+- `6ea36d5`
 
 Validated source commit:
 
-- `95d4847`
+- `6ea36d5`
 
 Latest validated commit:
 
-- `95d4847`
+- `6ea36d5`
 
 Upstream:
 
@@ -26,7 +26,7 @@ Upstream:
 
 Upstream divergence:
 
-- `ahead 2 / behind 0`
+- `ahead 4 / behind 0`
 
 State record mode:
 
@@ -34,14 +34,16 @@ State record mode:
 
 Checkpoint facts:
 
-- current source head is present at `95d4847`
-- upstream divergence is recorded as `ahead 2 / behind 0`
+- current validated source head is present at `6ea36d5`
+- validated source baseline divergence is recorded as `ahead 4 / behind 0`
 - state-sync now rejects unreachable validated source anchors and blocks
   non-state descendants after the validated source commit
 - tracked state files are not required to record their own containing commit
 - validation evidence recorded for the branch:
-  - `npm test`: PASS, `1161 / 1161`
+  - `npm test`: PASS, `1163 / 1163`
+  - `npm run typecheck`: PASS
   - `npm run build`: PASS
+  - state-sync targeted test: PASS
 
 Post-sync validation completed:
 

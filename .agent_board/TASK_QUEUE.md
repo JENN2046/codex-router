@@ -10,15 +10,17 @@ Done:
 - confirmed current branch is `fix/jsonl-event-log-structured-error`
 - inspected `scripts/run-state-sync-audit.ts`
 - inspected current state records
-- recorded current head `95d4847`
-- recorded validated source commit `95d4847`
-- recorded latest validated commit `95d4847`
+- recorded current source head `6ea36d5`
+- recorded validated source commit `6ea36d5`
+- recorded latest validated commit `6ea36d5`
 - recorded upstream `origin/fix/jsonl-event-log-structured-error`
-- recorded upstream divergence `ahead 2 / behind 0`
+- recorded validated source baseline divergence `ahead 4 / behind 0`
 - recorded state record mode `state-only descendant allowed`
 - recorded validation results:
-  - `npm test`: PASS, `1161 / 1161`
+  - `npm test`: PASS, `1163 / 1163`
+  - `npm run typecheck`: PASS
   - `npm run build`: PASS
+  - state-sync targeted test: PASS
 - ran requested post-sync checks:
   - `git diff --check`: PASS
   - `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS

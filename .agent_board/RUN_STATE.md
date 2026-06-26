@@ -14,15 +14,15 @@ Branch:
 
 Current head:
 
-- `95d4847`
+- `6ea36d5`
 
 Validated source commit:
 
-- `95d4847`
+- `6ea36d5`
 
 Latest validated commit:
 
-- `95d4847`
+- `6ea36d5`
 
 Upstream:
 
@@ -30,7 +30,7 @@ Upstream:
 
 Upstream divergence:
 
-- `ahead 2 / behind 0`
+- `ahead 4 / behind 0`
 
 State record mode:
 
@@ -39,22 +39,24 @@ State record mode:
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `npm test`: PASS, `1161 / 1161`
+- `npm test`: PASS, `1163 / 1163`
+- `npm run typecheck`: PASS
 - `npm run build`: PASS
+- state-sync targeted test: PASS
 - `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 
 Current scope outcome:
 
-- recorded current `HEAD` as the validated source commit and latest validated
+- recorded current source `HEAD` as the validated source commit and latest validated
   commit
 - recorded upstream as `origin/fix/jsonl-event-log-structured-error`
-- recorded upstream divergence as `ahead 2 / behind 0`
+- recorded validated source baseline divergence as `ahead 4 / behind 0`
 - verified dirty state-only mode for the uncommitted state record
 - leave the state record uncommitted under the current task boundary
 
 Boundary:
 
-- current branch head is `95d4847`
+- current validated source head is `6ea36d5`
 - no dependency changes
 - no commit
 - no push
