@@ -8,13 +8,25 @@ Branch:
 
 - `fix/jsonl-event-log-structured-error`
 
+Current head:
+
+- `95d4847`
+
 Validated source commit:
 
-- `da47113`
+- `95d4847`
 
 Latest validated commit:
 
-- `da47113`
+- `95d4847`
+
+Upstream:
+
+- `origin/fix/jsonl-event-log-structured-error`
+
+Upstream divergence:
+
+- `ahead 2 / behind 0`
 
 State record mode:
 
@@ -22,17 +34,14 @@ State record mode:
 
 Checkpoint facts:
 
-- source fix commit is present at `da47113`
+- current source head is present at `95d4847`
+- upstream divergence is recorded as `ahead 2 / behind 0`
 - state-sync now rejects unreachable validated source anchors and blocks
   non-state descendants after the validated source commit
 - tracked state files are not required to record their own containing commit
 - validation evidence recorded for the branch:
-  - `git diff --check`: PASS
-  - `npm test`: PASS, `1158 / 1158`
-  - `npm run typecheck`: PASS
+  - `npm test`: PASS, `1161 / 1161`
   - `npm run build`: PASS
-  - state-sync targeted test
-    `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`
 
 Post-sync validation completed:
 

@@ -2,29 +2,29 @@
 
 Goal:
 
-- Record state for the latest validated P1 state-sync source fix.
+- Record state for the current validated branch head and upstream divergence.
 
 Workspace:
 
 - repository root: `codex-router`
 - branch: `fix/jsonl-event-log-structured-error`
-- validated source commit: `da47113`
-- latest validated commit: `da47113`
+- current head: `95d4847`
+- validated source commit: `95d4847`
+- latest validated commit: `95d4847`
+- upstream: `origin/fix/jsonl-event-log-structured-error`
+- upstream divergence: `ahead 2 / behind 0`
 - state record mode: `state-only descendant allowed`
 - current state source: `docs/current/CURRENT_STATE.md`
 
 Current status:
 
-- source fix is isolated in commit `da47113`
+- current branch head is `95d4847`
+- local branch is ahead of upstream by 2 commits and behind by 0 commits
 - `.agent_board` records reflect the validated source commit, not a required
   state-record commit hash
 - validation results recorded:
-  - `git diff --check`: PASS
-  - `npm test`: PASS, `1158 / 1158`
-  - `npm run typecheck`: PASS
+  - `npm test`: PASS, `1161 / 1161`
   - `npm run build`: PASS
-  - state-sync targeted test
-    `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`
 - no dependency files were modified
 
 Validation completed in this task:

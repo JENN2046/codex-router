@@ -4,26 +4,35 @@ Current branch:
 
 - `fix/jsonl-event-log-structured-error`
 
+Current head:
+
+- `95d4847`
+
 Validated source commit:
 
-- `da47113`
+- `95d4847`
 
 Latest validated commit:
 
-- `da47113`
+- `95d4847`
+
+Upstream:
+
+- `origin/fix/jsonl-event-log-structured-error`
+
+Upstream divergence:
+
+- `ahead 2 / behind 0`
 
 State record mode:
 
 - `state-only descendant allowed`
 
-Recorded local validation for this fix branch:
+Recorded local validation for this branch head:
 
 - `git diff --check`: PASS
-- `npm test`: PASS, `1158 / 1158`
-- `npm run typecheck`: PASS
+- `npm test`: PASS, `1161 / 1161`
 - `npm run build`: PASS
-- state-sync targeted test
-  `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`
 
 Validation requested after state alignment:
 
@@ -32,7 +41,7 @@ Validation requested after state alignment:
 
 Execution boundary for this validation record:
 
-- source fix isolated in commit `da47113`
+- current branch head is `95d4847`
 - state record changes only
 - no dependency changes
 - no commit

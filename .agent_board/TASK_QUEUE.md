@@ -2,26 +2,23 @@
 
 Current task:
 
-- Align state files to the latest validated source commit on
+- Align state files to the current validated source commit on
   `fix/jsonl-event-log-structured-error`.
 
 Done:
 
 - confirmed current branch is `fix/jsonl-event-log-structured-error`
 - inspected `scripts/run-state-sync-audit.ts`
-- inspected `packages/state-sync-audit/src/index.ts`
-- inspected existing `.agent_board` records
-- committed source fix as `da47113`
-- recorded validated source commit `da47113`
-- recorded latest validated commit `da47113`
+- inspected current state records
+- recorded current head `95d4847`
+- recorded validated source commit `95d4847`
+- recorded latest validated commit `95d4847`
+- recorded upstream `origin/fix/jsonl-event-log-structured-error`
+- recorded upstream divergence `ahead 2 / behind 0`
 - recorded state record mode `state-only descendant allowed`
 - recorded validation results:
-  - `git diff --check`: PASS
-  - `npm test`: PASS, `1158 / 1158`
-  - `npm run typecheck`: PASS
+  - `npm test`: PASS, `1161 / 1161`
   - `npm run build`: PASS
-  - state-sync targeted test
-    `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`
 - ran requested post-sync checks:
   - `git diff --check`: PASS
   - `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS

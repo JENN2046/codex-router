@@ -12,11 +12,11 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/jsonl-event-log-structured-error` |
-| Current head | `da47113` |
-| Validated source commit | `da47113` |
+| Current head | `95d4847` |
+| Validated source commit | `95d4847` |
 | Upstream | `origin/fix/jsonl-event-log-structured-error` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `da47113` |
+| Upstream divergence | `ahead 2 / behind 0` |
+| Latest validated commit | `95d4847` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,9 +36,9 @@ without writing their own commit hash back into tracked state files.
 
 ## Current Scope
 
-This branch now records the latest validated source fix for state-sync source
-anchoring. The earlier JSONL structured error fix remains included in branch
-history.
+This branch now records the current validated source head and upstream
+divergence for `fix/jsonl-event-log-structured-error`. The earlier JSONL
+structured error fix remains included in branch history.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -53,13 +53,13 @@ current safety baseline:
 
 Verified local fix facts:
 
-- Validated source commit `da47113` rejects unreachable validated source
-  anchors and blocks non-state descendants after the validated source commit.
-- `npm test`: PASS, `1158 / 1158`.
-- `npm run typecheck`: PASS.
+- Current head is `95d4847`.
+- Validated source commit is `95d4847`.
+- Latest validated commit is `95d4847`.
+- Upstream is `origin/fix/jsonl-event-log-structured-error`.
+- Upstream divergence is `ahead 2 / behind 0`.
+- `npm test`: PASS, `1161 / 1161`.
 - `npm run build`: PASS.
-- state-sync targeted test
-  `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`.
 - No package, dependency, remote, provider-execution, env, or secret change is
   part of this state record.
 
@@ -71,14 +71,11 @@ Verified local fix facts:
 
 ## Validation Baseline
 
-Validated in normal WSL for source commit `da47113`:
+Validated in normal WSL for source commit `95d4847`:
 
 - `git diff --check`: PASS.
-- `npm test`: PASS, `1158 / 1158`.
-- `npm run typecheck`: PASS.
+- `npm test`: PASS, `1161 / 1161`.
 - `npm run build`: PASS.
-- state-sync targeted test
-  `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, `25 / 25`.
 
 State-sync required validation command literals retained in this state surface:
 
@@ -116,7 +113,7 @@ Boundary facts for this state alignment:
 
 - No source code changes.
 - No package or dependency changes.
-- Source fix commit already recorded separately as `da47113`.
+- Current source head is recorded as `95d4847`.
 - This state update is state-only.
 - No commit.
 - No push or remote write.
@@ -139,10 +136,10 @@ State record changes are limited to:
 
 This local branch tracks `origin/fix/jsonl-event-log-structured-error`. The
 state-sync audit therefore expects recorded upstream divergence of
-`ahead 1 / behind 0`.
+`ahead 2 / behind 0`.
 
 The recorded validated source head and latest validated commit are both
-`da47113`. The current task leaves state-only changes uncommitted; a later
+`95d4847`. The current task leaves state-only changes uncommitted; a later
 state-only record commit may be `HEAD` without requiring tracked state files to
 record that state commit hash.
 
