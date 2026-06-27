@@ -42,7 +42,7 @@ Upstream divergence baseline:
 
 Transition:
 
-- `source_exact`
+- `state_only_pending_push`
 
 Validation recorded for this source commit:
 

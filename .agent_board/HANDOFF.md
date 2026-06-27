@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `source_exact`
+- `state_only_pending_push`
 
 Upstream baseline:
 

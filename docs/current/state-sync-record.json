@@ -14,7 +14,7 @@
     }
   },
   "transition": {
-    "kind": "source_exact",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",

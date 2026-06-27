@@ -36,7 +36,7 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `source_exact`
+- transition kind: `state_only_pending_push`
 - validated source commit: `195ba4a`
 - latest validated commit: `195ba4a`
 - upstream baseline: `origin/main`
@@ -161,7 +161,7 @@ The structured claim expects the branch-head audit context to observe:
 - upstream: `origin/main`
 - validated source commit: `195ba4a`
 - validated source divergence: `ahead 8 / behind 0`
-- transition: `source_exact`
+- transition: `state_only_pending_push`
 
 If the local branch has no configured `@{upstream}`, the collector may use the
 structured claim's `origin/main` value only as a candidate Git ref. It must
