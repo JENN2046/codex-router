@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `docs/state-sync-structured-record-plan` |
-| Current head | `195ba4a` |
-| Validated source commit | `195ba4a` |
+| Current head | `120124a` |
+| Validated source commit | `120124a` |
 | Upstream | `origin/main` |
-| Upstream divergence | `ahead 8 / behind 0` |
-| Latest validated commit | `195ba4a` |
+| Upstream divergence | `ahead 11 / behind 0` |
+| Latest validated commit | `120124a` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,10 +37,10 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `195ba4a`
-- latest validated commit: `195ba4a`
+- validated source commit: `120124a`
+- latest validated commit: `120124a`
 - upstream baseline: `origin/main`
-- recorded divergence baseline: `ahead 8 / behind 0`
+- recorded divergence baseline: `ahead 11 / behind 0`
 
 Strict state record paths:
 
@@ -78,14 +78,14 @@ compatibility window.
 
 ## Validation Baseline
 
-Validation recorded for source commit `195ba4a`:
+Validation recorded for source commit `120124a`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 65 tests.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 68 tests.
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
-- `npm test`: PASS, 1198 tests.
+- `npm test`: PASS, 1201 tests.
 
 State-sync required validation command literals retained in this state surface:
 
@@ -99,11 +99,15 @@ Current structured state-sync audit status:
 - expected after this state record commit:
   `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
 - The collector verifies the structured claim upstream ref `origin/main` exists
-  locally when the branch has no configured `@{upstream}`, then computes
-  divergence from Git instead of trusting the JSON divergence field.
+  locally, then computes divergence from Git instead of trusting the JSON
+  divergence field. Structured claims do not let local feature-branch tracking
+  override this baseline.
 - Structured claim upstream ref selection is bounded to `origin/*` or
   `refs/remotes/origin/*` remote-tracking refs; `HEAD`, local branches, tags,
   bare SHAs, `origin/HEAD`, and revision expressions block.
+- Structured claim verification accepts bounded detached branch-head and PR
+  merge-ref checkout contexts when upstream, ancestry, divergence, and
+  state-only path checks still pass.
 - The audit enters `claimSource: structured` and validates the structured claim
   shape.
 
@@ -159,14 +163,14 @@ The structured claim expects the branch-head audit context to observe:
 
 - branch: `docs/state-sync-structured-record-plan`
 - upstream: `origin/main`
-- validated source commit: `195ba4a`
-- validated source divergence: `ahead 8 / behind 0`
+- validated source commit: `120124a`
+- validated source divergence: `ahead 11 / behind 0`
 - transition: `state_only_pending_push`
 
-If the local branch has no configured `@{upstream}`, the collector may use the
-structured claim's `origin/main` value only as a candidate Git ref. It must
-resolve that ref locally and then compute divergence from Git. If the ref does
-not resolve, upstream-dependent checks remain blocked.
+The collector uses the structured claim's `origin/main` value as the bounded
+upstream baseline ref. It must resolve that ref locally and then compute
+divergence from Git. If the ref does not resolve, upstream-dependent checks
+remain blocked.
 
 Current state line:
 

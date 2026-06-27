@@ -12,7 +12,7 @@ Current branch:
 
 Current validated source:
 
-- `195ba4a`
+- `120124a`
 
 Current structured claim:
 
@@ -28,17 +28,19 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 8 / behind 0`
+- `ahead 11 / behind 0`
 
 Completed:
 
 - final plan document committed
 - Phase 1 structured claim parser and resolver implemented
 - collector reads `docs/current/state-sync-record.json`
-- collector verifies the structured claim upstream ref when no local
-  `@{upstream}` is configured, then computes divergence from Git
+- collector uses the structured claim upstream ref as the bounded baseline even
+  when local feature-branch tracking exists, then computes divergence from Git
 - collector rejects structured claim upstream refs outside `origin/*` or
   `refs/remotes/origin/*` remote-tracking refs
+- bounded detached branch-head and PR merge-ref checkout contexts pass only when
+  upstream, ancestry, divergence, and state-only path checks still pass
 - invalid structured claim does not fall back to Markdown
 - evidence drift issues are emitted for Markdown / claim conflicts
 - transition formulas are enforced for structured claims
@@ -47,11 +49,11 @@ Completed:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 65 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 68 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1198 tests
+- `npm test`: PASS, 1201 tests
 
 State-sync expectation:
 

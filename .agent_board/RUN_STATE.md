@@ -22,15 +22,15 @@ Branch:
 
 Current head:
 
-- `195ba4a`
+- `120124a`
 
 Validated source commit:
 
-- `195ba4a`
+- `120124a`
 
 Latest validated commit:
 
-- `195ba4a`
+- `120124a`
 
 Upstream baseline:
 
@@ -38,7 +38,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 8 / behind 0`
+- `ahead 11 / behind 0`
 
 Transition:
 
@@ -47,11 +47,11 @@ Transition:
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 65 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 68 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1198 tests
+- `npm test`: PASS, 1201 tests
 
 State-sync audit expectation:
 

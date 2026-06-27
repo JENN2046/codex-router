@@ -22,15 +22,18 @@ Done:
 - reanchored state/docs surfaces to the latest validated source
 - bounded structured claim upstream ref fallback to `origin/*` or
   `refs/remotes/origin/*` remote-tracking refs
+- made structured claim upstream the audit baseline even when local
+  feature-branch tracking exists
+- added bounded detached branch-head and PR merge-ref checkout compatibility
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 65 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 68 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1198 tests
+- `npm test`: PASS, 1201 tests
 
 Todo:
 

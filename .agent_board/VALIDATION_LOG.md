@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `195ba4a`
+- `120124a`
 
 Latest validated commit:
 
-- `195ba4a`
+- `120124a`
 
 Structured claim:
 
@@ -22,16 +22,16 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 8 / behind 0`
+- `ahead 11 / behind 0`
 
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 65 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 68 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1198 tests
+- `npm test`: PASS, 1201 tests
 
 State-sync audit observation:
 
@@ -41,6 +41,8 @@ State-sync audit observation:
 - expected upstream observation: verified local Git ref `origin/main`
 - expected upstream ref boundary: only `origin/*` or
   `refs/remotes/origin/*` remote-tracking refs may be claim-selected
+- expected checkout compatibility: bounded detached branch-head and PR merge-ref
+  contexts pass only when all non-branch transition checks still pass
 
 Execution boundary:
 
