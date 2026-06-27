@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `docs/state-sync-phase-2-missing-claim-gate`
+- `main`
 
 Current validated source:
 
-- `9e5afe9`
+- `59b9eba`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Upstream baseline:
 
@@ -63,13 +63,13 @@ Validation completed:
 
 State-sync expectation:
 
-- after this state/docs record is pushed to the PR branch, branch-head
+- after this state/docs record is pushed to `main`, branch-head
   state-sync audit should PASS by resolving `refs/remotes/origin/main` as the
   structured claim upstream ref and computing divergence from Git
 
 Not authorized:
 
-- direct pushes to `main`
+- additional direct pushes to `main` beyond this authorized reanchor
 - workflow edits
 - dependency changes
 - release or deploy
@@ -81,10 +81,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `docs/state-sync-phase-2-missing-claim-gate`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9e5afe9`
-- latest validated commit: `9e5afe9`
+- validated source commit: `59b9eba`
+- latest validated commit: `59b9eba`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

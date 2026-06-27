@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "docs/state-sync-phase-2-missing-claim-gate",
+    "branch": "main",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "9e5afe9",
-    "latestValidatedCommit": "9e5afe9",
+    "validatedSourceCommit": "59b9eba",
+    "latestValidatedCommit": "59b9eba",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pending_push",
+    "kind": "state_only_pushed",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",

@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `docs/state-sync-phase-2-missing-claim-gate`
+- `main`
 
 Validated source commit:
 
-- `9e5afe9`
+- `59b9eba`
 
 Latest validated commit:
 
-- `9e5afe9`
+- `59b9eba`
 
 Structured claim:
 
@@ -36,7 +36,7 @@ Recorded validation:
 
 State-sync audit observation:
 
-- expected after this state/docs record is committed and pushed to the PR branch:
+- expected after this state/docs record is pushed to `main`:
   `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
@@ -52,7 +52,7 @@ Execution boundary:
 
 - no package, dependency, workflow, provider, env, secret, user config, or system
   config change is part of this state record
-- no direct `main` push is part of this record
+- direct `main` reanchor push is authorized for this state record only
 - no manual CI rerun
 - no real provider execution
 - no real Codex CLI execution
@@ -60,10 +60,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `docs/state-sync-phase-2-missing-claim-gate`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9e5afe9`
-- latest validated commit: `9e5afe9`
+- validated source commit: `59b9eba`
+- latest validated commit: `59b9eba`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

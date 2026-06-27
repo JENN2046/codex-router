@@ -2,8 +2,7 @@
 
 Current task:
 
-- Finish Phase 2 and Phase 3 of the state-sync structured record plan, then open
-  a focused PR.
+- Finish the authorized `main` reanchor after PR #49 squash merge.
 
 Done:
 
@@ -44,14 +43,14 @@ Validation completed:
 Todo:
 
 - commit the state/docs reanchor
-- verify the branch-head state-sync audit
-- push the PR branch
-- open the PR
+- push the authorized `main` reanchor
+- verify post-push branch-head state-sync audit
+- open the focused Phase 4 PR
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
 
-- direct pushes to `main`
+- additional direct pushes to `main` beyond this authorized reanchor
 - dependency changes
 - workflow edits
 - release or deploy
@@ -63,10 +62,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `docs/state-sync-phase-2-missing-claim-gate`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9e5afe9`
-- latest validated commit: `9e5afe9`
+- validated source commit: `59b9eba`
+- latest validated commit: `59b9eba`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `docs/state-sync-phase-2-missing-claim-gate`
+- `main`
 
 Validated source commit:
 
-- `9e5afe9`
+- `59b9eba`
 
 Latest validated commit:
 
-- `9e5afe9`
+- `59b9eba`
 
 Upstream baseline:
 
@@ -64,17 +64,17 @@ Validation recorded:
 
 State-sync observation:
 
-- expected after this state/docs record is pushed to the PR branch:
-  branch-head state-sync audit PASS using `refs/remotes/origin/main` as a
-  verified Git ref selected by the structured claim
+- expected after this state/docs record is pushed to `main`: branch-head
+  state-sync audit PASS using `refs/remotes/origin/main` as a verified Git ref
+  selected by the structured claim
 
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `docs/state-sync-phase-2-missing-claim-gate`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9e5afe9`
-- latest validated commit: `9e5afe9`
+- validated source commit: `59b9eba`
+- latest validated commit: `59b9eba`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

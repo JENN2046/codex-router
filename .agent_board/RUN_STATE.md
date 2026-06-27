@@ -1,7 +1,6 @@
 # Run State
 
-Status: Phase 2 and Phase 3 state-sync structured record work is in local
-validation before PR publication.
+Status: Main reanchor is in local validation after PR #49 squash merge.
 
 Machine-authoritative claim:
 
@@ -18,19 +17,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `docs/state-sync-phase-2-missing-claim-gate`
+- `main`
 
 Current head:
 
-- `9e5afe9`
+- `59b9eba`
 
 Validated source commit:
 
-- `9e5afe9`
+- `59b9eba`
 
 Latest validated commit:
 
-- `9e5afe9`
+- `59b9eba`
 
 Upstream baseline:
 
@@ -42,7 +41,7 @@ Upstream divergence baseline:
 
 Transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Validation recorded for this source commit:
 
@@ -56,9 +55,9 @@ Validation recorded for this source commit:
 
 State-sync audit expectation:
 
-- after this state/docs record is committed and pushed to the PR branch,
-  branch-head audit should PASS with `claimSource: structured` and Git-computed
-  divergence against verified `refs/remotes/origin/main`
+- after this state/docs record is pushed to `main`, branch-head audit should
+  PASS with `claimSource: structured` and Git-computed divergence against
+  verified `refs/remotes/origin/main`
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
@@ -67,7 +66,7 @@ Boundary:
 
 - no package, dependency, workflow, provider, env, secret, user config, or system
   config change is part of this state record
-- no direct `main` push is part of this record
+- direct `main` reanchor push is authorized for this state record only
 - no manual CI rerun
 - no real provider execution
 - no real Codex CLI execution
@@ -75,10 +74,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `docs/state-sync-phase-2-missing-claim-gate`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9e5afe9`
-- latest validated commit: `9e5afe9`
+- validated source commit: `59b9eba`
+- latest validated commit: `59b9eba`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

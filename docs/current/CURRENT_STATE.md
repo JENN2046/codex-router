@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `docs/state-sync-phase-2-missing-claim-gate` |
-| Current head | `9e5afe9` |
-| Validated source commit | `9e5afe9` |
+| Current branch | `main` |
+| Current head | `59b9eba` |
+| Validated source commit | `59b9eba` |
 | Upstream | `refs/remotes/origin/main` |
 | Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `9e5afe9` |
+| Latest validated commit | `59b9eba` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,9 +36,9 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pending_push`
-- validated source commit: `9e5afe9`
-- latest validated commit: `9e5afe9`
+- transition kind: `state_only_pushed`
+- validated source commit: `59b9eba`
+- latest validated commit: `59b9eba`
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
@@ -64,8 +64,7 @@ Strict state record paths:
 
 ## Current Scope
 
-This branch contains Phase 2 and Phase 3 of the state-sync structured record
-plan:
+Main now contains Phase 2 and Phase 3 of the state-sync structured record plan:
 
 - `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
 - `packages/state-sync-audit/src/index.ts`
@@ -82,7 +81,7 @@ compatibility window, with a generated display-sync path to reduce manual drift.
 
 ## Validation Baseline
 
-Validation recorded for source commit `9e5afe9`:
+Validation recorded for source commit `59b9eba`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 77 tests.
@@ -101,7 +100,7 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- expected after this state record is committed and pushed to the PR branch:
+- expected after this main reanchor state record is pushed to `main`:
   `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
 - The collector verifies the structured claim upstream ref
   `refs/remotes/origin/main` exists locally, then computes divergence from Git
@@ -154,7 +153,8 @@ Boundary facts for this state alignment:
   config file is changed by this state record.
 - No real provider execution has occurred.
 - No real Codex CLI execution has occurred.
-- No direct `main` push, release, deploy, workflow edit, provider execution, or
+- The direct `main` reanchor push is authorized for this state record only.
+- No release, deploy, workflow edit, provider execution, or
   environment/configuration change is part of this record.
 
 ## Current Local Changes
@@ -173,14 +173,14 @@ Current state-only record changes are limited to:
 
 The structured claim records:
 
-- branch: `docs/state-sync-phase-2-missing-claim-gate`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9e5afe9`
+- validated source commit: `59b9eba`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 
 After the state record is pushed, Git observation should compute the validated
-source divergence as `ahead 1 / behind 0` against
+source divergence as `ahead 0 / behind 1` against
 `refs/remotes/origin/main`.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
@@ -199,5 +199,5 @@ Current state line:
   implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.
-- Next: commit the state/docs reanchor, push the PR branch, and open a focused
-  PR for Phase 2 and Phase 3.
+- Next: commit the main reanchor, push `main`, verify post-push branch-head
+  state-sync audit, then open a focused Phase 4 PR.
