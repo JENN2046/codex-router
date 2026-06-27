@@ -175,6 +175,28 @@ test("state sync audit accepts structured state_only_pending_push transitions", 
   assert.equal(review.checks.structuredTransitionAllowed, true);
 });
 
+test("state sync audit blocks pending-push records with mismatched source digests", async () => {
+  const input = await createInputFromWorkspace();
+  const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      sourceTreeDigest:
+        "1111111111111111111111111111111111111111111111111111111111111111",
+      transitionKind: "state_only_pending_push"
+    })
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.summary.claimSource, "structured");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
 test("state sync audit accepts structured state_only_pushed transitions", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({

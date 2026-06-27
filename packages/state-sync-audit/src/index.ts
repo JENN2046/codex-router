@@ -898,7 +898,10 @@ function structuredTransitionIsAllowed(
 
     return subjectMatches
       && input.head !== resolvedClaim.validatedSourceCommit
-      && (stateOnlyDeltaAllowed || sourceTreeDigestOnlyCompatibility)
+      && (
+        (stateOnlyDeltaAllowed && sourceTreeDigestCommitBindingValid)
+        || sourceTreeDigestOnlyCompatibility
+      )
       && currentAhead > 0
       && currentBehind === 0
       && divergenceAllowed
