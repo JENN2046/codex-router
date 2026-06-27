@@ -1,6 +1,6 @@
 # Run State
 
-Status: Phase 4 state-sync CI coverage adjustment is ready for PR publication.
+Status: Authorized post-PR #50 squash `main` state/docs reanchor is in progress.
 
 Machine-authoritative claim:
 
@@ -17,19 +17,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `docs/state-sync-phase-4-main-push-ci`
+- `main`
 
 Current head:
 
-- `04ae358`
+- `959e173`
 
 Validated source commit:
 
-- `04ae358`
+- `959e173`
 
 Latest validated commit:
 
-- `04ae358`
+- `959e173`
 
 Upstream baseline:
 
@@ -37,11 +37,11 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 5 / behind 0`
+- `ahead 1 / behind 0`
 
 Transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Validation recorded for this source commit:
 
@@ -52,11 +52,13 @@ Validation recorded for this source commit:
 
 State-sync audit expectation:
 
-- with this state/docs record committed, branch-head audit should PASS locally
-  with `claimSource: structured` and Git-computed divergence against verified
-  `refs/remotes/origin/main`
-- after the PR branch is pushed, remote CI should validate the same checkout and
-  upstream contexts
+- after this state/docs record is pushed to `main`, branch-head audit should
+  PASS with `claimSource: structured` and Git-computed divergence against
+  verified `refs/remotes/origin/main`
+- before that push, local audit may block because `state_only_pushed` requires
+  `HEAD...refs/remotes/origin/main` to be aligned
+- main-push CI should validate the same checkout and upstream contexts after the
+  reanchor push lands
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
@@ -75,10 +77,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `docs/state-sync-phase-4-main-push-ci`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `04ae358`
-- latest validated commit: `04ae358`
-- recorded divergence baseline: `ahead 5 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `959e173`
+- latest validated commit: `959e173`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

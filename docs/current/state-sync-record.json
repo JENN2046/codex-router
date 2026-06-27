@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "docs/state-sync-phase-4-main-push-ci",
+    "branch": "main",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "04ae358",
-    "latestValidatedCommit": "04ae358",
+    "validatedSourceCommit": "959e173",
+    "latestValidatedCommit": "959e173",
     "recordedDivergence": {
-      "ahead": 5,
+      "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pending_push",
+    "kind": "state_only_pushed",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",

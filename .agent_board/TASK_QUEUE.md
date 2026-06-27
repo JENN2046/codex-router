@@ -2,7 +2,7 @@
 
 Current task:
 
-- Finish the PR #50 P1 main-push audit gate fix.
+- Record the authorized post-PR #50 squash `main` state/docs reanchor.
 
 Done:
 
@@ -34,6 +34,7 @@ Done:
 - updated workflow structure regression coverage
 - recorded the Phase 4 main reanchor expectation after squash merge
 - prepared the state/docs reanchor for the latest validated source
+- squash-merged PR #50 into `main`
 
 Validation completed:
 
@@ -44,13 +45,13 @@ Validation completed:
 
 Todo:
 
-- push the P1 gate fix to PR #50
-- let CI validate the PR checkout and upstream contexts
+- push the authorized `main` state/docs reanchor
+- verify post-push branch-head state-sync audit and main-push CI
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
 
-- direct pushes to `main`
+- direct pushes to `main` beyond this authorized reanchor
 - dependency changes
 - additional workflow edits beyond Phase 4 state-sync CI coverage
 - release or deploy
@@ -62,10 +63,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `docs/state-sync-phase-4-main-push-ci`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `04ae358`
-- latest validated commit: `04ae358`
-- recorded divergence baseline: `ahead 5 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `959e173`
+- latest validated commit: `959e173`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `docs/state-sync-phase-4-main-push-ci` |
-| Current head | `04ae358` |
-| Validated source commit | `04ae358` |
+| Current branch | `main` |
+| Current head | `959e173` |
+| Validated source commit | `959e173` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 5 / behind 0` |
-| Latest validated commit | `04ae358` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `959e173` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,11 +36,11 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pending_push`
-- validated source commit: `04ae358`
-- latest validated commit: `04ae358`
+- transition kind: `state_only_pushed`
+- validated source commit: `959e173`
+- latest validated commit: `959e173`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `e1ffa90caa1c9a116a18762cfaea2bb55b3343bda235996395a1a0571eef6cc4`
 
@@ -64,7 +64,8 @@ Strict state record paths:
 
 ## Current Scope
 
-This branch contains the Phase 4 state-sync CI coverage adjustment:
+`main` contains the Phase 4 state-sync CI coverage adjustment from the PR #50
+squash merge:
 
 - `.github/workflows/ci.yml`
 - `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
@@ -75,11 +76,11 @@ The Phase 4 change removes the State Sync Audit job's PR-only event gate. Pull
 requests run the audit normally. `push` events to `main` are gated until the
 committed structured record is a `main` / `state_only_pushed` claim, so a
 squash-merged PR-branch `state_only_pending_push` record does not make main CI
-red before the follow-up reanchor exists.
+red before this follow-up reanchor exists.
 
 ## Validation Baseline
 
-Validation recorded for source commit `04ae358`:
+Validation recorded for source commit `959e173`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests.
@@ -95,10 +96,12 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- with this state record committed, local branch-head audit should PASS:
+- after this state record is pushed to `main`, branch-head audit should PASS:
   `node --import tsx scripts/run-state-sync-audit.ts --json`.
-- after the PR branch is pushed, remote branch-head audit should observe the
-  same structured claim and upstream baseline.
+- before that push, local branch-head audit may block because
+  `state_only_pushed` requires `HEAD...refs/remotes/origin/main` to be aligned.
+- remote main-push audit should observe the same structured claim and upstream
+  baseline after the reanchor push lands.
 - The collector verifies the structured claim upstream ref
   `refs/remotes/origin/main` exists locally, then computes divergence from Git
   instead of trusting the JSON divergence field. Structured claims do not let
@@ -171,14 +174,14 @@ Current state-only record changes are limited to:
 
 The structured claim records:
 
-- branch: `docs/state-sync-phase-4-main-push-ci`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `04ae358`
-- recorded divergence baseline: `ahead 5 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `959e173`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 
-With this state record committed, Git observation should compute the validated
-source divergence as `ahead 5 / behind 0` against
+After this state record is pushed, Git observation should compute the validated
+source divergence as `ahead 0 / behind 1` against
 `refs/remotes/origin/main`.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
@@ -193,11 +196,11 @@ Current state line:
 - Phase 2 missing-claim gate and Markdown authority removal: implemented and
   tested.
 - Phase 3 display-sync script: implemented and tested.
-- Phase 4 state-sync audit on `push` to `main`: gated on a committed
-  `main` / `state_only_pushed` record and ready for PR validation.
+- Phase 4 state-sync audit on `push` to `main`: implemented and gated on a
+  committed `main` / `state_only_pushed` record.
 - Bounded source tree digest verification for squash-only state records:
   implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.
-- Next: push the P1 gate fix to PR #50 and let CI/reviewer validate the checkout
-  and upstream contexts.
+- Next: push the authorized `main` state/docs reanchor and let the main-push
+  audit validate the final checkout and upstream contexts.
