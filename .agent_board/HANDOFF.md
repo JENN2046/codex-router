@@ -12,7 +12,7 @@ Current branch:
 
 Current validated source:
 
-- `4af16d8`
+- `450efa9`
 
 Current structured claim:
 
@@ -24,11 +24,11 @@ Current transition:
 
 Upstream baseline:
 
-- `origin/main`
+- `refs/remotes/origin/main`
 
 Recorded divergence baseline:
 
-- `ahead 15 / behind 0`
+- `ahead 17 / behind 0`
 
 Completed:
 
@@ -41,9 +41,9 @@ Completed:
   `refs/remotes/origin/*` remote-tracking refs
 - bounded detached branch-head and PR merge-ref checkout contexts pass only when
   upstream, ancestry, divergence, and state-only path checks still pass
-- bounded squash-equivalent checkout contexts pass only when the tree diff from
-  the validated source commit to live `HEAD` contains strict state record paths
-  only
+- bounded squash-only checkout contexts pass without the side-branch source
+  commit object only when live `HEAD` has the recorded filtered source tree
+  digest
 - invalid structured claim does not fall back to Markdown
 - evidence drift issues are emitted for Markdown / claim conflicts
 - transition formulas are enforced for structured claims
@@ -52,17 +52,17 @@ Completed:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 71 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 74 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1204 tests
+- `npm test`: PASS, 1207 tests
 
 State-sync expectation:
 
 - after this state/docs commit, local state-sync audit should PASS by resolving
-  `origin/main` as the structured claim upstream ref and computing divergence
-  from Git
+  `refs/remotes/origin/main` as the structured claim upstream ref and computing
+  divergence from Git
 
 Not authorized:
 

@@ -3,14 +3,27 @@
   "policyVersion": "state-sync-policy.v1",
   "subject": {
     "branch": "docs/state-sync-structured-record-plan",
-    "upstream": "origin/main"
+    "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "4af16d8",
-    "latestValidatedCommit": "4af16d8",
+    "validatedSourceCommit": "450efa9",
+    "latestValidatedCommit": "450efa9",
     "recordedDivergence": {
-      "ahead": 15,
+      "ahead": 17,
       "behind": 0
+    },
+    "sourceTreeDigest": {
+      "algorithm": "git-ls-tree-sha256",
+      "value": "245da6b07467b043dabb2c600597f70fabf6dc0d5cfc28bb80dba4f66b92ed5e",
+      "excludedPaths": [
+        "docs/current/CURRENT_STATE.md",
+        "docs/current/state-sync-record.json",
+        ".agent_board/CHECKPOINT.md",
+        ".agent_board/HANDOFF.md",
+        ".agent_board/RUN_STATE.md",
+        ".agent_board/TASK_QUEUE.md",
+        ".agent_board/VALIDATION_LOG.md"
+      ]
     }
   },
   "transition": {

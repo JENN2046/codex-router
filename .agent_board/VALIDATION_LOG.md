@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `4af16d8`
+- `450efa9`
 
 Latest validated commit:
 
-- `4af16d8`
+- `450efa9`
 
 Structured claim:
 
@@ -18,34 +18,34 @@ Structured claim:
 
 Upstream baseline:
 
-- `origin/main`
+- `refs/remotes/origin/main`
 
 Upstream divergence baseline:
 
-- `ahead 15 / behind 0`
+- `ahead 17 / behind 0`
 
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 71 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 74 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1204 tests
+- `npm test`: PASS, 1207 tests
 
 State-sync audit observation:
 
 - expected after this state/docs commit:
   `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 - expected `claimSource`: `structured`
-- expected upstream observation: verified local Git ref `origin/main`
+- expected upstream observation: verified local Git ref `refs/remotes/origin/main`
 - expected upstream ref boundary: only `origin/*` or
   `refs/remotes/origin/*` remote-tracking refs may be claim-selected
 - expected checkout compatibility: bounded detached branch-head and PR merge-ref
   contexts pass only when all non-branch transition checks still pass
-- expected squash compatibility: bounded squash-equivalent state records pass
-  only when the tree diff from the validated source commit to live `HEAD`
-  contains strict state record paths only
+- expected squash compatibility: bounded squash-only state records pass without
+  the side-branch source commit object only when live `HEAD` has the recorded
+  filtered source tree digest
 
 Execution boundary:
 

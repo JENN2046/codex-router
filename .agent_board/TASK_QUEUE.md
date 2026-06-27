@@ -25,17 +25,17 @@ Done:
 - made structured claim upstream the audit baseline even when local
   feature-branch tracking exists
 - added bounded detached branch-head and PR merge-ref checkout compatibility
-- added bounded squash-equivalent checkout compatibility with strict tree diff
-  path checks
+- added bounded squash-only checkout compatibility with filtered source tree
+  digest checks
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 71 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 74 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1204 tests
+- `npm test`: PASS, 1207 tests
 
 Todo:
 

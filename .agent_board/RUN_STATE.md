@@ -22,23 +22,23 @@ Branch:
 
 Current head:
 
-- `4af16d8`
+- `450efa9`
 
 Validated source commit:
 
-- `4af16d8`
+- `450efa9`
 
 Latest validated commit:
 
-- `4af16d8`
+- `450efa9`
 
 Upstream baseline:
 
-- `origin/main`
+- `refs/remotes/origin/main`
 
 Upstream divergence baseline:
 
-- `ahead 15 / behind 0`
+- `ahead 17 / behind 0`
 
 Transition:
 
@@ -47,19 +47,19 @@ Transition:
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 71 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 74 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1204 tests
+- `npm test`: PASS, 1207 tests
 
 State-sync audit expectation:
 
 - after this state/docs commit, local audit should PASS with `claimSource:
-  structured` and Git-computed divergence against verified `origin/main`
-- bounded squash-equivalent checkout contexts should PASS only when the tree
-  diff from the validated source commit to live `HEAD` contains strict state
-  record paths only
+  structured` and Git-computed divergence against verified `refs/remotes/origin/main`
+- bounded squash-only checkout contexts should PASS without the side-branch
+  source commit object only when live `HEAD` has the recorded filtered source
+  tree digest
 
 Boundary:
 

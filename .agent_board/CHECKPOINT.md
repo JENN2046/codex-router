@@ -15,19 +15,19 @@ Branch:
 
 Validated source commit:
 
-- `4af16d8`
+- `450efa9`
 
 Latest validated commit:
 
-- `4af16d8`
+- `450efa9`
 
 Upstream baseline:
 
-- `origin/main`
+- `refs/remotes/origin/main`
 
 Upstream divergence baseline:
 
-- `ahead 15 / behind 0`
+- `ahead 17 / behind 0`
 
 Checkpoint facts:
 
@@ -40,9 +40,9 @@ Checkpoint facts:
   `refs/remotes/origin/*` remote-tracking refs.
 - Bounded detached branch-head and PR merge-ref checkout contexts are accepted
   only when upstream, ancestry, divergence, and state-only path checks pass.
-- Bounded squash-equivalent checkout contexts are accepted only when the tree
-  diff from the validated source commit to live `HEAD` contains strict state
-  record paths only.
+- Bounded squash-only checkout contexts are accepted without the side-branch
+  source commit object only when live `HEAD` has the recorded filtered source
+  tree digest.
 - A present but invalid structured claim blocks without Markdown fallback.
 - A valid structured claim supplies core source and divergence facts.
 - Markdown and `.agent_board/*` are evidence/display surfaces during the
@@ -52,13 +52,13 @@ Checkpoint facts:
 Validation recorded:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 71 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 74 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1204 tests
+- `npm test`: PASS, 1207 tests
 
 State-sync observation:
 
 - expected after this state/docs commit: local state-sync audit PASS using
-  `origin/main` as a verified Git ref selected by the structured claim
+  `refs/remotes/origin/main` as a verified Git ref selected by the structured claim
