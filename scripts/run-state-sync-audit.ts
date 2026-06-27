@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -64,6 +65,10 @@ export async function collectStateSyncAuditInput(
     cwd
   );
   const aheadBehind = await gitAheadBehindFromRef("HEAD", observedUpstream, cwd);
+  const claimSourceTreeDigestExcludedPaths =
+    parsedClaim.status === "valid"
+      ? parsedClaim.claim.source.sourceTreeDigest.excludedPaths
+      : undefined;
 
   const input: StateSyncAuditInput = {
     gitStatusShort,
@@ -77,6 +82,16 @@ export async function collectStateSyncAuditInput(
   };
   if (stateSyncClaimText !== undefined) {
     input.stateSyncClaimText = stateSyncClaimText;
+  }
+  if (claimSourceTreeDigestExcludedPaths !== undefined) {
+    const headSourceTreeDigest = await gitFilteredTreeDigest(
+      "HEAD",
+      claimSourceTreeDigestExcludedPaths,
+      cwd
+    );
+    if (headSourceTreeDigest !== undefined) {
+      input.headSourceTreeDigest = headSourceTreeDigest;
+    }
   }
 
   const trimmedParentHead = parentHead.trim();
@@ -100,22 +115,40 @@ export async function collectStateSyncAuditInput(
   );
   if (validatedSourceAnchor !== undefined) {
     if (isCommitLike(validatedSourceAnchor)) {
-      input.validatedSourceAheadBehind = (
-        await gitAheadBehindFromRef(validatedSourceAnchor, observedUpstream, cwd)
-      ).trim();
-      input.validatedSourceAncestorOfHead = await gitCommitIsAncestorOfHead(
-        validatedSourceAnchor,
-        cwd
-      );
-      const committedPathsSinceValidatedSource =
-        await gitChangedPathsSince(validatedSourceAnchor, cwd);
-      if (committedPathsSinceValidatedSource !== undefined) {
-        input.committedPathsSinceValidatedSource = committedPathsSinceValidatedSource;
-      }
-      const validatedSourceTreeDiffPaths =
-        await gitTreeChangedPathsSince(validatedSourceAnchor, cwd);
-      if (validatedSourceTreeDiffPaths !== undefined) {
-        input.validatedSourceTreeDiffPaths = validatedSourceTreeDiffPaths;
+      const validatedSourceCommitAvailable =
+        await gitCommitExists(validatedSourceAnchor, cwd);
+      input.validatedSourceCommitAvailable = validatedSourceCommitAvailable;
+      if (validatedSourceCommitAvailable) {
+        input.validatedSourceAheadBehind = (
+          await gitAheadBehindFromRef(validatedSourceAnchor, observedUpstream, cwd)
+        ).trim();
+        input.validatedSourceAncestorOfHead = await gitCommitIsAncestorOfHead(
+          validatedSourceAnchor,
+          cwd
+        );
+        const committedPathsSinceValidatedSource =
+          await gitChangedPathsSince(validatedSourceAnchor, cwd);
+        if (committedPathsSinceValidatedSource !== undefined) {
+          input.committedPathsSinceValidatedSource = committedPathsSinceValidatedSource;
+        }
+        const validatedSourceTreeDiffPaths =
+          await gitTreeChangedPathsSince(validatedSourceAnchor, cwd);
+        if (validatedSourceTreeDiffPaths !== undefined) {
+          input.validatedSourceTreeDiffPaths = validatedSourceTreeDiffPaths;
+        }
+        if (claimSourceTreeDigestExcludedPaths !== undefined) {
+          const validatedSourceTreeDigest = await gitFilteredTreeDigest(
+            validatedSourceAnchor,
+            claimSourceTreeDigestExcludedPaths,
+            cwd
+          );
+          if (validatedSourceTreeDigest !== undefined) {
+            input.validatedSourceTreeDigest = validatedSourceTreeDigest;
+          }
+        }
+      } else {
+        input.validatedSourceAheadBehind = "unknown\tunknown";
+        input.validatedSourceAncestorOfHead = false;
       }
     } else {
       input.validatedSourceAheadBehind = "unknown\tunknown";
@@ -144,7 +177,8 @@ async function resolveObservedUpstream(
     return "";
   }
 
-  return await gitRefExists(claimedUpstream, cwd) ? claimedUpstream : "";
+  const normalizedUpstream = normalizeClaimUpstreamRef(claimedUpstream);
+  return await gitRefExists(normalizedUpstream, cwd) ? normalizedUpstream : "";
 }
 
 async function readAgentBoard(cwd: string): Promise<string> {
@@ -206,6 +240,15 @@ async function gitCommitIsAncestorOfHead(
   }
 }
 
+async function gitCommitExists(commit: string, cwd: string): Promise<boolean> {
+  try {
+    await git(["cat-file", "-e", `${commit}^{commit}`], cwd);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function gitAheadBehindFromRef(
   commit: string,
   upstream: string,
@@ -258,6 +301,59 @@ async function gitTreeChangedPathsSince(
   }
 }
 
+export async function gitFilteredTreeDigest(
+  ref: string,
+  excludedPaths: string[],
+  cwd: string
+): Promise<string | undefined> {
+  try {
+    const output = await git(["ls-tree", "-r", "-z", ref], cwd);
+    const excluded = new Set(excludedPaths);
+    const entries = output
+      .split("\0")
+      .filter(Boolean)
+      .map(parseLsTreeEntry)
+      .filter((entry): entry is LsTreeEntry => entry !== undefined)
+      .filter((entry) => !excluded.has(entry.path))
+      .sort((left, right) => (
+        left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+      ));
+    const hash = createHash("sha256");
+    for (const entry of entries) {
+      hash.update(
+        `${entry.mode} ${entry.type} ${entry.object}\t${entry.path}\n`,
+        "utf8"
+      );
+    }
+    return hash.digest("hex");
+  } catch {
+    return undefined;
+  }
+}
+
+interface LsTreeEntry {
+  mode: string;
+  type: string;
+  object: string;
+  path: string;
+}
+
+function parseLsTreeEntry(value: string): LsTreeEntry | undefined {
+  const tabIndex = value.indexOf("\t");
+  if (tabIndex < 0) {
+    return undefined;
+  }
+
+  const meta = value.slice(0, tabIndex).split(" ");
+  const [mode, type, object] = meta;
+  const path = value.slice(tabIndex + 1);
+  if (mode === undefined || type === undefined || object === undefined || path === "") {
+    return undefined;
+  }
+
+  return { mode, type, object, path };
+}
+
 function stateFieldValue(text: string, field: string): string | undefined {
   return new RegExp(`\\| ${escapeRegExp(field)} \\| \`([^\\\`]+)\` \\|`)
     .exec(text)?.[1];
@@ -295,6 +391,10 @@ function isAllowedClaimUpstreamRef(ref: string): boolean {
     || part.includes(":")
     || part.includes("\\")
   ));
+}
+
+function normalizeClaimUpstreamRef(ref: string): string {
+  return ref.startsWith("origin/") ? `refs/remotes/${ref}` : ref;
 }
 
 function uniqueNonEmpty(values: string[]): string[] {

@@ -43,6 +43,7 @@ const STRICT_STATE_RECORD_PATHS = new Set([
 
 const ACCEPTED_CLAIM_SCHEMA_VERSION = 1;
 const ACCEPTED_CLAIM_POLICY_VERSION = "state-sync-policy.v1";
+const ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM = "git-ls-tree-sha256";
 const ACCEPTED_TRANSITION_KINDS = new Set([
   "source_exact",
   "state_only_pending_push",
@@ -58,6 +59,9 @@ export interface StateSyncAuditInput {
   allowedStateCommits?: string[];
   committedPathsSinceValidatedSource?: string[];
   validatedSourceTreeDiffPaths?: string[];
+  validatedSourceCommitAvailable?: boolean;
+  validatedSourceTreeDigest?: string;
+  headSourceTreeDigest?: string;
   validatedSourceAncestorOfHead?: boolean;
   upstream: string;
   aheadBehind: string;
@@ -92,6 +96,11 @@ export interface StateSyncClaim {
     recordedDivergence: {
       ahead: number;
       behind: number;
+    };
+    sourceTreeDigest: {
+      algorithm: "git-ls-tree-sha256";
+      value: string;
+      excludedPaths: string[];
     };
   };
   transition: {
@@ -176,6 +185,7 @@ interface ResolvedStateSyncClaim {
   validatedSourceCommit: string | undefined;
   latestValidatedCommit: string | undefined;
   upstreamDivergence: string | undefined;
+  sourceTreeDigest: StateSyncClaim["source"]["sourceTreeDigest"] | undefined;
   transitionKind: StateSyncTransitionKind | undefined;
   allowedStatePaths: string[] | undefined;
   issues: StateSyncAuditIssue[];
@@ -240,6 +250,26 @@ export function parseStateSyncClaim(
     return { status: "invalid", reason: "recorded_divergence_malformed" };
   }
 
+  const sourceTreeDigest = source.sourceTreeDigest;
+  if (!isRecord(sourceTreeDigest)) {
+    return { status: "invalid", reason: "source_tree_digest_missing" };
+  }
+
+  const sourceTreeDigestAlgorithm = stringField(sourceTreeDigest, "algorithm");
+  const sourceTreeDigestValue = stringField(sourceTreeDigest, "value");
+  const sourceTreeDigestExcludedPaths =
+    stringArrayField(sourceTreeDigest, "excludedPaths");
+  if (
+    sourceTreeDigestAlgorithm !== ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM
+    || sourceTreeDigestValue === undefined
+    || !isSha256Hex(sourceTreeDigestValue)
+    || sourceTreeDigestExcludedPaths === undefined
+    || sourceTreeDigestExcludedPaths.length === 0
+    || !sourceTreeDigestExcludedPaths.every(isStrictStateRecordPath)
+  ) {
+    return { status: "invalid", reason: "source_tree_digest_malformed" };
+  }
+
   const transition = parsed.transition;
   if (!isRecord(transition)) {
     return { status: "invalid", reason: "transition_missing" };
@@ -257,6 +287,10 @@ export function parseStateSyncClaim(
     || !allowedStatePaths.every(isStrictStateRecordPath)
   ) {
     return { status: "invalid", reason: "allowed_state_paths_malformed" };
+  }
+
+  if (!sameStringSet(sourceTreeDigestExcludedPaths, allowedStatePaths)) {
+    return { status: "invalid", reason: "source_tree_digest_exclusions_mismatched" };
   }
 
   const validation = optionalValidation(parsed.validation);
@@ -277,6 +311,11 @@ export function parseStateSyncClaim(
       recordedDivergence: {
         ahead: recordedAhead,
         behind: recordedBehind
+      },
+      sourceTreeDigest: {
+        algorithm: ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM,
+        value: sourceTreeDigestValue,
+        excludedPaths: sourceTreeDigestExcludedPaths
       }
     },
     transition: {
@@ -310,6 +349,7 @@ export function resolveStateSyncClaim(
       validatedSourceCommit: undefined,
       latestValidatedCommit: undefined,
       upstreamDivergence: undefined,
+      sourceTreeDigest: undefined,
       transitionKind: undefined,
       allowedStatePaths: undefined,
       issues: []
@@ -326,10 +366,11 @@ export function resolveStateSyncClaim(
       structuredClaimValid: true,
       currentHead: parsed.claim.source.validatedSourceCommit,
       branch: parsed.claim.subject.branch,
-      upstream: parsed.claim.subject.upstream,
+      upstream: normalizeClaimUpstreamRef(parsed.claim.subject.upstream),
       validatedSourceCommit: parsed.claim.source.validatedSourceCommit,
       latestValidatedCommit: parsed.claim.source.latestValidatedCommit,
       upstreamDivergence,
+      sourceTreeDigest: parsed.claim.source.sourceTreeDigest,
       transitionKind: parsed.claim.transition.kind,
       allowedStatePaths: parsed.claim.transition.allowedStatePaths,
       issues: collectStateSyncEvidenceDrift(input.currentStateText, parsed.claim)
@@ -341,10 +382,11 @@ export function resolveStateSyncClaim(
     structuredClaimValid: true,
     currentHead: fieldValue(input.currentStateText, "Current head"),
     branch: fieldValue(input.currentStateText, "Current branch"),
-    upstream: fieldValue(input.currentStateText, "Upstream"),
+    upstream: normalizeOptionalUpstreamRef(fieldValue(input.currentStateText, "Upstream")),
     validatedSourceCommit: fieldValue(input.currentStateText, "Validated source commit"),
     latestValidatedCommit: fieldValue(input.currentStateText, "Latest validated commit"),
     upstreamDivergence: fieldValue(input.currentStateText, "Upstream divergence"),
+    sourceTreeDigest: undefined,
     transitionKind: undefined,
     allowedStatePaths: undefined,
     issues: []
@@ -403,6 +445,13 @@ export function reviewStateSyncAudit(
     staleAfterCommit
   );
   const detachedSyntheticReviewCheckout = syntheticReviewState !== undefined;
+  const sourceTreeDigestCompatibleWithHead =
+    sourceTreeDigestMatchesHead(resolvedClaim, input);
+  const sourceTreeDigestCommitBindingValid =
+    sourceTreeDigestMatchesValidatedSourceCommit(resolvedClaim, input);
+  const sourceTreeDigestOnlyCompatibility =
+    input.validatedSourceCommitAvailable === false
+    && sourceTreeDigestCompatibleWithHead;
   const checks = {
     packageScriptPresent: packageScriptReview.mismatchCount === 0,
     currentStateRecorded: input.currentStateText.includes("CURRENT_STATE_RECORDED"),
@@ -418,6 +467,7 @@ export function reviewStateSyncAudit(
       input.committedPathsSinceValidatedSource,
       input.validatedSourceTreeDiffPaths,
       input.validatedSourceAncestorOfHead,
+      sourceTreeDigestOnlyCompatibility,
       input.allowedStateCommits,
       syntheticReviewState,
       staleAfterCommit,
@@ -432,6 +482,7 @@ export function reviewStateSyncAudit(
       input.committedPathsSinceValidatedSource,
       input.validatedSourceTreeDiffPaths,
       input.validatedSourceAncestorOfHead,
+      sourceTreeDigestOnlyCompatibility,
       input.allowedStateCommits,
       syntheticReviewState,
       staleAfterCommit,
@@ -452,7 +503,8 @@ export function reviewStateSyncAudit(
         behind,
         validatedSourceAhead,
         validatedSourceBehind,
-        resolvedClaim.allowedStatePaths
+        resolvedClaim.allowedStatePaths,
+        sourceTreeDigestOnlyCompatibility
       ),
     latestValidatedCommitRecorded:
       latestValidatedCommit !== undefined
@@ -464,6 +516,7 @@ export function reviewStateSyncAudit(
         input.committedPathsSinceValidatedSource,
         input.validatedSourceTreeDiffPaths,
         input.validatedSourceAncestorOfHead,
+        sourceTreeDigestOnlyCompatibility,
         input.allowedStateCommits,
         syntheticReviewState,
         staleAfterCommit,
@@ -494,6 +547,7 @@ export function reviewStateSyncAudit(
         input.committedPathsSinceValidatedSource,
         input.validatedSourceTreeDiffPaths,
         input.validatedSourceAncestorOfHead,
+        sourceTreeDigestOnlyCompatibility,
         input.allowedStateCommits,
         syntheticReviewState,
         staleAfterCommit,
@@ -508,7 +562,9 @@ export function reviewStateSyncAudit(
       behind,
       validatedSourceAhead,
       validatedSourceBehind,
-      detachedSyntheticReviewCheckout
+      detachedSyntheticReviewCheckout,
+      sourceTreeDigestCommitBindingValid,
+      sourceTreeDigestOnlyCompatibility
     ),
     outputSanitized: sanitization.issues.length === 0,
     auditReadOnly: true
@@ -626,6 +682,19 @@ function commitField(
   return value;
 }
 
+function isSha256Hex(value: string): boolean {
+  return /^[0-9a-f]{64}$/.test(value);
+}
+
+function sameStringSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const rightSet = new Set(right);
+  return left.every((value) => rightSet.has(value));
+}
+
 function nonNegativeIntegerField(
   record: Record<string, unknown>,
   key: string
@@ -685,6 +754,14 @@ function formatUpstreamDivergence(input: {
   return `ahead ${input.ahead} / behind ${input.behind}`;
 }
 
+function normalizeClaimUpstreamRef(ref: string): string {
+  return ref.startsWith("origin/") ? `refs/remotes/${ref}` : ref;
+}
+
+function normalizeOptionalUpstreamRef(ref: string | undefined): string | undefined {
+  return ref === undefined ? undefined : normalizeClaimUpstreamRef(ref);
+}
+
 function collectStateSyncEvidenceDrift(
   currentStateText: string,
   claim: StateSyncClaim
@@ -704,7 +781,7 @@ function collectStateSyncEvidenceDrift(
     },
     {
       field: "Upstream",
-      expected: claim.subject.upstream
+      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
     },
     {
       field: "Upstream divergence",
@@ -754,7 +831,9 @@ function structuredTransitionIsAllowed(
   currentBehind: number,
   validatedSourceAhead: number,
   validatedSourceBehind: number,
-  detachedSyntheticReviewCheckout: boolean
+  detachedSyntheticReviewCheckout: boolean,
+  sourceTreeDigestCommitBindingValid: boolean,
+  sourceTreeDigestOnlyCompatibility: boolean
 ): boolean {
   if (resolvedClaim.claimSource === "legacy_markdown") {
     return true;
@@ -787,6 +866,7 @@ function structuredTransitionIsAllowed(
     return subjectMatches
       && input.head === resolvedClaim.validatedSourceCommit
       && latestMatches
+      && sourceTreeDigestCommitBindingValid
       && divergenceMatches(recorded, validatedSourceAhead, validatedSourceBehind)
       && dirtyPathsAllowed;
   }
@@ -798,18 +878,30 @@ function structuredTransitionIsAllowed(
       input.validatedSourceAncestorOfHead,
       resolvedClaim.allowedStatePaths
     );
-    return subjectMatches
-      && input.head !== resolvedClaim.validatedSourceCommit
-      && stateOnlyDeltaPaths !== undefined
+    const stateOnlyDeltaAllowed =
+      stateOnlyDeltaPaths !== undefined
       && stateOnlyDeltaPaths.length > 0
       && pathsAreAllowed(
         stateOnlyDeltaPaths,
         resolvedClaim.allowedStatePaths,
         isAllowedStatePath
-      )
+      );
+    const divergenceAllowed =
+      divergenceMatches(recorded, validatedSourceAhead, validatedSourceBehind)
+      || (
+        sourceTreeDigestOnlyCompatibility
+        && currentAhead > 0
+        && currentBehind === 0
+        && recorded.ahead > 0
+        && recorded.behind === 0
+      );
+
+    return subjectMatches
+      && input.head !== resolvedClaim.validatedSourceCommit
+      && (stateOnlyDeltaAllowed || sourceTreeDigestOnlyCompatibility)
       && currentAhead > 0
       && currentBehind === 0
-      && divergenceMatches(recorded, validatedSourceAhead, validatedSourceBehind)
+      && divergenceAllowed
       && latestMatches
       && dirtyPathsAllowed;
   }
@@ -818,6 +910,7 @@ function structuredTransitionIsAllowed(
     return subjectMatches
       && input.validatedSourceAncestorOfHead === true
       && input.committedPathsSinceValidatedSource !== undefined
+      && sourceTreeDigestCommitBindingValid
       && pathsAreAllowed(
         input.committedPathsSinceValidatedSource,
         resolvedClaim.allowedStatePaths,
@@ -853,6 +946,42 @@ function divergenceMatches(
     && behind >= 0
     && recorded.ahead === ahead
     && recorded.behind === behind;
+}
+
+function sourceTreeDigestMatchesValidatedSourceCommit(
+  resolvedClaim: ResolvedStateSyncClaim,
+  input: StateSyncAuditInput
+): boolean {
+  if (resolvedClaim.claimSource === "legacy_markdown") {
+    return true;
+  }
+
+  const expected = resolvedClaim.sourceTreeDigest?.value;
+  if (expected === undefined) {
+    return false;
+  }
+
+  if (input.validatedSourceTreeDigest !== undefined) {
+    return input.validatedSourceTreeDigest === expected;
+  }
+
+  if (input.validatedSourceCommitAvailable === false) {
+    return input.headSourceTreeDigest === expected;
+  }
+
+  return false;
+}
+
+function sourceTreeDigestMatchesHead(
+  resolvedClaim: ResolvedStateSyncClaim,
+  input: StateSyncAuditInput
+): boolean {
+  if (resolvedClaim.claimSource === "legacy_markdown") {
+    return false;
+  }
+
+  const expected = resolvedClaim.sourceTreeDigest?.value;
+  return expected !== undefined && input.headSourceTreeDigest === expected;
 }
 
 function subjectMatchesInput(
@@ -905,6 +1034,7 @@ function stateCommitMatchesHead(
   committedPathsSinceValidatedSource: string[] | undefined,
   validatedSourceTreeDiffPaths: string[] | undefined,
   validatedSourceAncestorOfHead: boolean | undefined,
+  sourceTreeDigestCompatibleWithHead: boolean,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
   staleAfterCommit: boolean,
@@ -916,7 +1046,8 @@ function stateCommitMatchesHead(
 
   const hasValidatedSourceEvidence =
     validatedSourceAncestorOfHead !== undefined
-    || committedPathsSinceValidatedSource !== undefined;
+    || committedPathsSinceValidatedSource !== undefined
+    || sourceTreeDigestCompatibleWithHead;
 
   return value === head
     || stateCommitHasStateOnlyDeltaToHead(
@@ -927,6 +1058,7 @@ function stateCommitMatchesHead(
       validatedSourceAncestorOfHead,
       allowedStatePaths
     )
+    || sourceTreeDigestCompatibleWithHead
     || (
       staleAfterCommit
       && syntheticReviewState !== undefined
@@ -949,6 +1081,7 @@ function stateCommitMatchesValidatedSource(
   committedPathsSinceValidatedSource: string[] | undefined,
   validatedSourceTreeDiffPaths: string[] | undefined,
   validatedSourceAncestorOfHead: boolean | undefined,
+  sourceTreeDigestCompatibleWithHead: boolean,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
   staleAfterCommit: boolean,
@@ -971,6 +1104,7 @@ function stateCommitMatchesValidatedSource(
       committedPathsSinceValidatedSource,
       validatedSourceTreeDiffPaths,
       validatedSourceAncestorOfHead,
+      sourceTreeDigestCompatibleWithHead,
       allowedStateCommits,
       syntheticReviewState,
       staleAfterCommit,
@@ -988,7 +1122,8 @@ function validatedSourceDivergenceIsRecorded(
   currentBehind: number,
   computedValidatedAhead: number,
   computedValidatedBehind: number,
-  allowedStatePaths: string[] | undefined
+  allowedStatePaths: string[] | undefined,
+  sourceTreeDigestOnlyCompatibility: boolean
 ): boolean {
   if (detachedSyntheticReviewCheckout) {
     return true;
@@ -999,10 +1134,16 @@ function validatedSourceDivergenceIsRecorded(
     recorded === undefined
     || recorded.ahead < 0
     || recorded.behind < 0
-    || computedValidatedAhead < 0
-    || computedValidatedBehind < 0
   ) {
     return false;
+  }
+
+  if (computedValidatedAhead < 0 || computedValidatedBehind < 0) {
+    return sourceTreeDigestOnlyCompatibility
+      && currentAhead > 0
+      && currentBehind === 0
+      && recorded.ahead > 0
+      && recorded.behind === 0;
   }
 
   const exactMatch =
@@ -1079,6 +1220,7 @@ function agentBoardCommitsMatchState(
   committedPathsSinceValidatedSource: string[] | undefined,
   validatedSourceTreeDiffPaths: string[] | undefined,
   validatedSourceAncestorOfHead: boolean | undefined,
+  sourceTreeDigestCompatibleWithHead: boolean,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
   staleAfterCommit: boolean,
@@ -1095,6 +1237,7 @@ function agentBoardCommitsMatchState(
       committedPathsSinceValidatedSource,
       validatedSourceTreeDiffPaths,
       validatedSourceAncestorOfHead,
+      sourceTreeDigestCompatibleWithHead,
       allowedStateCommits,
       syntheticReviewState,
       staleAfterCommit,

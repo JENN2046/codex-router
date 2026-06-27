@@ -84,6 +84,19 @@ Candidate fields and field meaning:
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
+    },
+    "sourceTreeDigest": {
+      "algorithm": "git-ls-tree-sha256",
+      "value": "64 lowercase hex characters",
+      "excludedPaths": [
+        "docs/current/CURRENT_STATE.md",
+        "docs/current/state-sync-record.json",
+        ".agent_board/CHECKPOINT.md",
+        ".agent_board/HANDOFF.md",
+        ".agent_board/RUN_STATE.md",
+        ".agent_board/TASK_QUEUE.md",
+        ".agent_board/VALIDATION_LOG.md"
+      ]
     }
   },
   "transition": {
@@ -128,6 +141,12 @@ Field semantics:
 - `source.recordedDivergence`: the upstream divergence snapshot recorded at the
   source-validation or state-record moment. It is a claim field, not a live Git
   observation.
+- `source.sourceTreeDigest`: a filtered Git tree digest for the validated source
+  content. It is computed from `git ls-tree -r -z`, excluding exactly the strict
+  state record paths. Normal branch and merge-ref audits bind this digest back
+  to `source.validatedSourceCommit`; squash-only audits use it to verify that
+  live `HEAD` has the same non-state tree when the side-branch commit object is
+  not present.
 - `transition.kind`: the explicit allowed state transition model.
 - `transition.allowedStatePaths`: the strict list of paths that may differ when a
   transition permits state-only descendants.
@@ -150,11 +169,15 @@ strict state-only path helper introduced for this plan must include it.
 
 - current branch;
 - current `HEAD`;
-- upstream ref;
+- normalized upstream ref;
 - current branch ahead / behind;
 - validated source ahead / behind;
 - validated source ancestry;
 - changed paths since validated source;
+- filtered tree digest for live `HEAD`;
+- filtered tree digest for the validated source commit when that commit object
+  is available;
+- whether the validated source commit object is locally available;
 - dirty worktree paths;
 - PR merge or detached checkout context where available.
 
@@ -166,13 +189,16 @@ operator branch tracking, such as `origin/<feature>`, and must not silently
 override the structured baseline. Phase 1 accepts only remote-tracking refs under
 `origin`, expressed as `origin/<name>` or `refs/remotes/origin/<name>`, and
 rejects `origin/HEAD`, `HEAD`, local branch names, tags, bare SHAs, and revision
-expressions. The collector must first verify that the bounded ref resolves to a
-commit in the local Git repository, then compute both current branch divergence
-and validated-source divergence from Git against that ref. If the claimed
-upstream ref is outside the allowed remote-tracking namespace or does not
-resolve, upstream and divergence observations remain unknown and the audit
-blocks. This keeps `subject.upstream` as a policy expectation and bounded ref
-selector; it is not proof of divergence and does not replace Git observation.
+expressions. The collector must normalize shorthand refs such as `origin/main`
+to `refs/remotes/origin/main` before calling Git, then verify that the bounded
+ref resolves to a commit in the local Git repository. This prevents Git refname
+disambiguation from selecting same-named tags or local refs. The collector then
+computes both current branch divergence and validated-source divergence from Git
+against that normalized ref. If the claimed upstream ref is outside the allowed
+remote-tracking namespace or does not resolve, upstream and divergence
+observations remain unknown and the audit blocks. This keeps `subject.upstream`
+as a policy expectation and bounded ref selector; it is not proof of divergence
+and does not replace Git observation.
 
 ### Claim Parsing And Compatibility
 
@@ -188,6 +214,11 @@ Claim handling must fail closed:
   the audit blocks;
 - if divergence fields are missing, negative, non-integer, or not finite, the
   audit blocks;
+- if `source.sourceTreeDigest` is missing, malformed, uses an unsupported
+  algorithm, is not a lowercase SHA-256 hex digest, or excludes paths outside
+  the strict state record path set, the audit blocks;
+- if `source.sourceTreeDigest.excludedPaths` is not the same set as
+  `transition.allowedStatePaths`, the audit blocks;
 - if `transition.kind` is not an accepted enum value, the audit blocks;
 - in Phase 1, if `transition.allowedStatePaths` is missing, empty, or contains
   paths outside the strict state record set, the audit blocks. All Phase 1
@@ -247,6 +278,7 @@ claim subject branch matches observation branch or bounded detached branch-name 
 claim.subject.upstream == observation.upstream
 claim.source.validatedSourceCommit == observation.head
 claim.source.latestValidatedCommit == claim.source.validatedSourceCommit
+claim.source.sourceTreeDigest == digest(observation.head excluding claim.transition.allowedStatePaths)
 claim.source.recordedDivergence == observation.validatedSourceDivergence
 dirty worktree paths are all in claim.transition.allowedStatePaths
 ```
@@ -265,6 +297,7 @@ state-only delta to observation.head is defined and non-empty, where:
     and this path is allowed only for structured claims with explicit
     claim.transition.allowedStatePaths
 every delta path is in claim.transition.allowedStatePaths
+claim.source.sourceTreeDigest == digest(claim.source.validatedSourceCommit excluding claim.transition.allowedStatePaths)
 observation.currentAhead > 0
 observation.currentBehind == 0
 claim.source.recordedDivergence == observation.validatedSourceDivergence
@@ -272,11 +305,27 @@ claim.source.latestValidatedCommit == claim.source.validatedSourceCommit
 dirty worktree paths are all in claim.transition.allowedStatePaths
 ```
 
-The squash-equivalent path is not a general reachability bypass. It only covers
-review or local validation contexts that rewrite the PR history into one squash
-commit while preserving the validated source tree modulo strict state-record
-paths. If the diff from the validated source commit to live `HEAD` contains any
-non-state path, the transition blocks.
+If the validated source commit object is not available, the squash-only
+compatibility path may replace the commit-path delta with this stricter formula:
+
+```text
+claim subject branch matches observation branch or bounded detached branch-name case
+claim.subject.upstream == observation.upstream
+observation.validatedSourceCommitAvailable == false
+claim.source.sourceTreeDigest == digest(observation.head excluding claim.transition.allowedStatePaths)
+observation.currentAhead > 0
+observation.currentBehind == 0
+claim.source.recordedDivergence is a non-negative ahead-only baseline
+claim.source.latestValidatedCommit == claim.source.validatedSourceCommit
+dirty worktree paths are all in claim.transition.allowedStatePaths
+```
+
+The squash-only path is not a general reachability bypass. It only covers review
+or local validation contexts that rewrite the PR history into one squash commit
+while preserving the validated source tree modulo strict state-record paths. If
+the live filtered source tree differs from the recorded source digest, the
+transition blocks. Normal branch and merge-ref checkouts still bind the digest
+back to the validated source commit object when that object is available.
 
 `state_only_pushed` passes only when:
 

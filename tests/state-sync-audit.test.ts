@@ -12,10 +12,13 @@ import {
 } from "../packages/state-sync-audit/src/index.js";
 import {
   collectAllowedStateCommits,
-  collectStateSyncAuditInput
+  collectStateSyncAuditInput,
+  gitFilteredTreeDigest
 } from "../scripts/run-state-sync-audit.js";
 
 const execFileAsync = promisify(execFile);
+const TEST_SOURCE_TREE_DIGEST =
+  "0000000000000000000000000000000000000000000000000000000000000000";
 
 test("state sync audit passes when clean HEAD equals validated source commit", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace());
@@ -1157,7 +1160,7 @@ test("state sync audit collector observes structured claim upstream ref without 
   const input = await collectStateSyncAuditInput(cwd);
   const review = reviewStateSyncAudit(input);
 
-  assert.equal(input.upstream, "origin/main");
+  assert.equal(input.upstream, "refs/remotes/origin/main");
   assert.equal(input.aheadBehind, "2\t0");
   assert.equal(input.validatedSourceAheadBehind, "1\t0");
   assert.equal(input.validatedSourceAncestorOfHead, true);
@@ -1209,7 +1212,7 @@ test("state sync audit collector prefers structured claim upstream over local up
   const input = await collectStateSyncAuditInput(cwd);
   const review = reviewStateSyncAudit(input);
 
-  assert.equal(input.upstream, "origin/main");
+  assert.equal(input.upstream, "refs/remotes/origin/main");
   assert.equal(input.aheadBehind, "2\t0");
   assert.equal(input.validatedSourceAheadBehind, "1\t0");
   assert.equal(review.status, "passed");
@@ -1256,7 +1259,7 @@ test("state sync audit accepts structured detached branch-head checkouts", async
   const review = reviewStateSyncAudit(input);
 
   assert.equal(input.branch, "");
-  assert.equal(input.upstream, "origin/main");
+  assert.equal(input.upstream, "refs/remotes/origin/main");
   assert.equal(input.aheadBehind, "2\t0");
   assert.equal(input.validatedSourceAheadBehind, "1\t0");
   assert.equal(review.status, "passed");
@@ -1306,7 +1309,7 @@ test("state sync audit accepts structured detached PR merge-ref checkouts", asyn
   const review = reviewStateSyncAudit(input);
 
   assert.equal(input.branch, "");
-  assert.equal(input.upstream, "origin/main");
+  assert.equal(input.upstream, "refs/remotes/origin/main");
   assert.equal(input.aheadBehind, "3\t0");
   assert.equal(input.validatedSourceAheadBehind, "1\t0");
   assert.equal(input.validatedSourceAncestorOfHead, true);
@@ -1362,7 +1365,7 @@ test("state sync audit accepts structured squash-equivalent state records", asyn
   const review = reviewStateSyncAudit(input);
 
   assert.equal(input.branch, "");
-  assert.equal(input.upstream, "origin/main");
+  assert.equal(input.upstream, "refs/remotes/origin/main");
   assert.equal(input.aheadBehind, "1\t0");
   assert.equal(input.validatedSourceAheadBehind, "1\t0");
   assert.equal(input.validatedSourceAncestorOfHead, false);
@@ -1376,6 +1379,90 @@ test("state sync audit accepts structured squash-equivalent state records", asyn
   assert.equal(review.summary.claimSource, "structured");
   assert.equal(review.checks.validatedSourceHeadRecorded, true);
   assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+  assert.equal(review.checks.agentBoardAligned, true);
+  assert.equal(review.checks.structuredTransitionAllowed, true);
+});
+
+test("state sync audit accepts structured squash-only records without source commit objects", async () => {
+  const sourceRepo = await mkdtemp(join(tmpdir(), "state-sync-structured-squash-source-"));
+  await git(sourceRepo, ["init"]);
+  await git(sourceRepo, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(sourceRepo, ["config", "user.name", "State Sync Test"]);
+  await git(sourceRepo, ["checkout", "-b", "main"]);
+
+  await writeMinimalWorkspace(sourceRepo, "main", "0000000");
+  await git(sourceRepo, ["add", "."]);
+  await git(sourceRepo, ["commit", "-m", "base"]);
+
+  await git(sourceRepo, ["checkout", "-b", "structured-record"]);
+  await mkdir(join(sourceRepo, "packages"), { recursive: true });
+  await writeFile(
+    join(sourceRepo, "packages", "source.ts"),
+    "export const source = true;\n"
+  );
+  await git(sourceRepo, ["add", "."]);
+  await git(sourceRepo, ["commit", "-m", "source"]);
+  const sourceCommit = (await git(sourceRepo, ["rev-parse", "--short", "HEAD"])).trim();
+  const sourceDigest = await gitFilteredTreeDigest(
+    sourceCommit,
+    strictStateRecordPaths(),
+    sourceRepo
+  );
+  assert.ok(sourceDigest !== undefined);
+
+  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit);
+  await writeStateSyncClaim(sourceRepo, {
+    branch: "structured-record",
+    upstream: "origin/main",
+    validatedSourceCommit: sourceCommit,
+    latestValidatedCommit: sourceCommit,
+    recordedAhead: 1,
+    recordedBehind: 0,
+    sourceTreeDigest: sourceDigest,
+    transitionKind: "state_only_pending_push"
+  });
+  await git(sourceRepo, ["add", "."]);
+  await git(sourceRepo, ["commit", "-m", "state record"]);
+
+  const squashPatch = await git(sourceRepo, ["diff", "--binary", "main..structured-record"]);
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-structured-squash-only-"));
+  const patchDir = await mkdtemp(join(tmpdir(), "state-sync-squash-patch-"));
+  const patchPath = join(patchDir, "squash.patch");
+  await writeFile(patchPath, squashPatch);
+  await git(cwd, ["init"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+  await git(cwd, ["checkout", "-b", "main"]);
+  await writeMinimalWorkspace(cwd, "main", "0000000");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "base"]);
+  await git(cwd, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+  await git(cwd, ["apply", patchPath]);
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "squash structured record"]);
+  await git(cwd, ["checkout", "--detach", "HEAD"]);
+
+  await assert.rejects(() => git(cwd, ["cat-file", "-e", `${sourceCommit}^{commit}`]));
+
+  const input = await collectStateSyncAuditInput(cwd);
+  const review = reviewStateSyncAudit(input);
+
+  assert.equal(input.branch, "");
+  assert.equal(input.upstream, "refs/remotes/origin/main");
+  assert.equal(input.aheadBehind, "1\t0");
+  assert.equal(input.validatedSourceCommitAvailable, false);
+  assert.equal(input.validatedSourceAheadBehind, "unknown\tunknown");
+  assert.equal(input.validatedSourceAncestorOfHead, false);
+  assert.equal(input.committedPathsSinceValidatedSource, undefined);
+  assert.equal(input.validatedSourceTreeDiffPaths, undefined);
+  assert.equal(input.headSourceTreeDigest, sourceDigest);
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.summary.claimSource, "structured");
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
   assert.equal(review.checks.agentBoardAligned, true);
   assert.equal(review.checks.structuredTransitionAllowed, true);
@@ -1435,6 +1522,84 @@ test("state sync audit blocks structured squash records with non-state source dr
   assert.equal(review.checks.structuredTransitionAllowed, false);
 });
 
+test("state sync audit blocks squash-only records when source digest drifts", async () => {
+  const sourceRepo = await mkdtemp(join(tmpdir(), "state-sync-structured-squash-drift-source-"));
+  await git(sourceRepo, ["init"]);
+  await git(sourceRepo, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(sourceRepo, ["config", "user.name", "State Sync Test"]);
+  await git(sourceRepo, ["checkout", "-b", "main"]);
+
+  await writeMinimalWorkspace(sourceRepo, "main", "0000000");
+  await git(sourceRepo, ["add", "."]);
+  await git(sourceRepo, ["commit", "-m", "base"]);
+
+  await git(sourceRepo, ["checkout", "-b", "structured-record"]);
+  await mkdir(join(sourceRepo, "packages"), { recursive: true });
+  await writeFile(
+    join(sourceRepo, "packages", "source.ts"),
+    "export const source = true;\n"
+  );
+  await git(sourceRepo, ["add", "."]);
+  await git(sourceRepo, ["commit", "-m", "source"]);
+  const sourceCommit = (await git(sourceRepo, ["rev-parse", "--short", "HEAD"])).trim();
+  const sourceDigest = await gitFilteredTreeDigest(
+    sourceCommit,
+    strictStateRecordPaths(),
+    sourceRepo
+  );
+  assert.ok(sourceDigest !== undefined);
+
+  await writeFile(
+    join(sourceRepo, "packages", "unvalidated.ts"),
+    "export const unvalidated = true;\n"
+  );
+  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit);
+  await writeStateSyncClaim(sourceRepo, {
+    branch: "structured-record",
+    upstream: "origin/main",
+    validatedSourceCommit: sourceCommit,
+    latestValidatedCommit: sourceCommit,
+    recordedAhead: 1,
+    recordedBehind: 0,
+    sourceTreeDigest: sourceDigest,
+    transitionKind: "state_only_pending_push"
+  });
+  await git(sourceRepo, ["add", "."]);
+  await git(sourceRepo, ["commit", "-m", "state record with source drift"]);
+
+  const squashPatch = await git(sourceRepo, ["diff", "--binary", "main..structured-record"]);
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-structured-squash-only-drift-"));
+  const patchDir = await mkdtemp(join(tmpdir(), "state-sync-squash-drift-patch-"));
+  const patchPath = join(patchDir, "squash.patch");
+  await writeFile(patchPath, squashPatch);
+  await git(cwd, ["init"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+  await git(cwd, ["checkout", "-b", "main"]);
+  await writeMinimalWorkspace(cwd, "main", "0000000");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "base"]);
+  await git(cwd, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+  await git(cwd, ["apply", patchPath]);
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "squash structured record"]);
+  await git(cwd, ["checkout", "--detach", "HEAD"]);
+
+  await assert.rejects(() => git(cwd, ["cat-file", "-e", `${sourceCommit}^{commit}`]));
+
+  const input = await collectStateSyncAuditInput(cwd);
+  const review = reviewStateSyncAudit(input);
+
+  assert.equal(input.validatedSourceCommitAvailable, false);
+  assert.notEqual(input.headSourceTreeDigest, sourceDigest);
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceHeadRecorded, false);
+  assert.equal(review.checks.validatedSourceCommitRecorded, false);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.equal(review.checks.latestValidatedCommitRecorded, false);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+});
+
 test("state sync audit collector rejects claim upstream refs outside remote tracking refs", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-claim-unsafe-upstream-"));
   await git(cwd, ["init"]);
@@ -1478,6 +1643,52 @@ test("state sync audit collector rejects claim upstream refs outside remote trac
   assert.equal(review.checks.upstreamRecorded, false);
   assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
   assert.equal(review.checks.structuredTransitionAllowed, false);
+});
+
+test("state sync audit collector normalizes claim upstream before git resolution", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-claim-upstream-normalize-"));
+  await git(cwd, ["init"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+  await git(cwd, ["checkout", "-b", "main"]);
+
+  await writeMinimalWorkspace(cwd, "main", "0000000");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "base"]);
+  await git(cwd, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+  await git(cwd, ["checkout", "-b", "structured-record"]);
+  await mkdir(join(cwd, "packages"), { recursive: true });
+  await writeFile(join(cwd, "packages", "source.ts"), "export const source = true;\n");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "source"]);
+  const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
+
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeStateSyncClaim(cwd, {
+    branch: "structured-record",
+    upstream: "origin/main",
+    validatedSourceCommit: sourceCommit,
+    latestValidatedCommit: sourceCommit,
+    recordedAhead: 1,
+    recordedBehind: 0,
+    transitionKind: "state_only_pending_push"
+  });
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "state record"]);
+  await git(cwd, ["tag", "origin/main", "HEAD"]);
+
+  const input = await collectStateSyncAuditInput(cwd);
+  const review = reviewStateSyncAudit(input);
+
+  assert.equal(input.upstream, "refs/remotes/origin/main");
+  assert.equal(input.aheadBehind, "2\t0");
+  assert.equal(input.validatedSourceAheadBehind, "1\t0");
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.upstreamRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.structuredTransitionAllowed, true);
 });
 
 test("state sync audit collector does not use Markdown anchor when claim is invalid", async () => {
@@ -1607,8 +1818,9 @@ async function createInputFromWorkspace(
     ?? "UNKNOWN_HEAD";
   const recordedBranch = extractStateField(currentStateText, "Current branch")
     ?? "UNKNOWN_BRANCH";
-  const recordedUpstream = extractStateField(currentStateText, "Upstream")
-    ?? "";
+  const recordedUpstream = normalizeTestUpstream(
+    extractStateField(currentStateText, "Upstream") ?? ""
+  );
   const recordedDivergence = extractStateDivergence(currentStateText)
     ?? "0\t0";
 
@@ -1620,11 +1832,18 @@ async function createInputFromWorkspace(
     upstream: recordedUpstream,
     aheadBehind: recordedDivergence,
     validatedSourceAheadBehind: recordedDivergence,
+    validatedSourceCommitAvailable: true,
+    validatedSourceTreeDigest: TEST_SOURCE_TREE_DIGEST,
+    headSourceTreeDigest: TEST_SOURCE_TREE_DIGEST,
     packageJsonText: await readFile("package.json", "utf8"),
     currentStateText,
     agentBoardText,
     ...overrides
   };
+}
+
+function normalizeTestUpstream(value: string): string {
+  return value.startsWith("origin/") ? `refs/remotes/${value}` : value;
 }
 
 function extractStateField(text: string, field: string): string | undefined {
@@ -1662,6 +1881,8 @@ function stateSyncClaimTextFromInput(
     latestValidatedCommit?: string;
     recordedAhead?: number;
     recordedBehind?: number;
+    sourceTreeDigest?: string;
+    sourceTreeDigestExcludedPaths?: string[];
     transitionKind?: string;
     allowedStatePaths?: string[];
   } = {}
@@ -1681,6 +1902,14 @@ function stateSyncClaimTextFromInput(
       recordedDivergence: {
         ahead: overrides.recordedAhead ?? divergence.ahead,
         behind: overrides.recordedBehind ?? divergence.behind
+      },
+      sourceTreeDigest: {
+        algorithm: "git-ls-tree-sha256",
+        value: overrides.sourceTreeDigest ?? TEST_SOURCE_TREE_DIGEST,
+        excludedPaths:
+          overrides.sourceTreeDigestExcludedPaths
+          ?? overrides.allowedStatePaths
+          ?? strictStateRecordPaths()
       }
     },
     transition: {
@@ -1807,9 +2036,19 @@ async function writeStateSyncClaim(
     latestValidatedCommit: string;
     recordedAhead: number;
     recordedBehind: number;
+    sourceTreeDigest?: string;
     transitionKind?: string;
   }
 ): Promise<void> {
+  const sourceTreeDigest =
+    input.sourceTreeDigest
+    ?? await gitFilteredTreeDigest(
+      input.validatedSourceCommit,
+      strictStateRecordPaths(),
+      cwd
+    )
+    ?? TEST_SOURCE_TREE_DIGEST;
+
   await writeStateSyncRecordText(
     cwd,
     JSON.stringify({
@@ -1825,6 +2064,11 @@ async function writeStateSyncClaim(
         recordedDivergence: {
           ahead: input.recordedAhead,
           behind: input.recordedBehind
+        },
+        sourceTreeDigest: {
+          algorithm: "git-ls-tree-sha256",
+          value: sourceTreeDigest,
+          excludedPaths: strictStateRecordPaths()
         }
       },
       transition: {
