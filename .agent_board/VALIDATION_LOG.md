@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `125ec54`
+- `195ba4a`
 
 Latest validated commit:
 
-- `125ec54`
+- `195ba4a`
 
 Structured claim:
 
@@ -22,16 +22,16 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 5 / behind 0`
+- `ahead 8 / behind 0`
 
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 64 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 65 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1197 tests
+- `npm test`: PASS, 1198 tests
 
 State-sync audit observation:
 
@@ -39,6 +39,8 @@ State-sync audit observation:
   `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `origin/main`
+- expected upstream ref boundary: only `origin/*` or
+  `refs/remotes/origin/*` remote-tracking refs may be claim-selected
 
 Execution boundary:
 

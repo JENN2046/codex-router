@@ -6,15 +6,15 @@
     "upstream": "origin/main"
   },
   "source": {
-    "validatedSourceCommit": "125ec54",
-    "latestValidatedCommit": "125ec54",
+    "validatedSourceCommit": "195ba4a",
+    "latestValidatedCommit": "195ba4a",
     "recordedDivergence": {
-      "ahead": 5,
+      "ahead": 8,
       "behind": 0
     }
   },
   "transition": {
-    "kind": "state_only_pending_push",
+    "kind": "source_exact",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
