@@ -35,8 +35,7 @@ export async function collectStateSyncAuditInput(
     mergeParentHead,
     mergeParentParentHead,
     mergeParentDeclaredParents,
-    upstream,
-    aheadBehind,
+    localUpstream,
     packageJsonText,
     currentStateText,
     agentBoardText,
@@ -52,19 +51,25 @@ export async function collectStateSyncAuditInput(
       git(["show", "-s", "--format=%P", "HEAD^2"], cwd).catch(() => ""),
       git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd)
         .catch(() => ""),
-      git(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], cwd)
-        .catch(() => "unknown\tunknown"),
       read(cwd, "package.json"),
       read(cwd, CURRENT_STATE_DOC),
       readAgentBoard(cwd),
       readOptional(cwd, STATE_SYNC_RECORD_DOC)
     ]);
 
+  const parsedClaim = parseStateSyncClaim(stateSyncClaimText);
+  const observedUpstream = await resolveObservedUpstream(
+    localUpstream.trim(),
+    parsedClaim,
+    cwd
+  );
+  const aheadBehind = await gitAheadBehindFromRef("HEAD", observedUpstream, cwd);
+
   const input: StateSyncAuditInput = {
     gitStatusShort,
     branch: branch.trim(),
     head: head.trim(),
-    upstream: upstream.trim(),
+    upstream: observedUpstream,
     aheadBehind: aheadBehind.trim(),
     packageJsonText,
     currentStateText,
@@ -89,7 +94,6 @@ export async function collectStateSyncAuditInput(
     input.allowedStateCommits = allowedStateCommits;
   }
 
-  const parsedClaim = parseStateSyncClaim(stateSyncClaimText);
   const validatedSourceAnchor = validatedSourceAnchorFromClaimOrLegacy(
     parsedClaim,
     currentStateText
@@ -97,7 +101,7 @@ export async function collectStateSyncAuditInput(
   if (validatedSourceAnchor !== undefined) {
     if (isCommitLike(validatedSourceAnchor)) {
       input.validatedSourceAheadBehind = (
-        await gitAheadBehindFromRef(validatedSourceAnchor, cwd)
+        await gitAheadBehindFromRef(validatedSourceAnchor, observedUpstream, cwd)
       ).trim();
       input.validatedSourceAncestorOfHead = await gitCommitIsAncestorOfHead(
         validatedSourceAnchor,
@@ -115,6 +119,26 @@ export async function collectStateSyncAuditInput(
   }
 
   return input;
+}
+
+async function resolveObservedUpstream(
+  localUpstream: string,
+  parsedClaim: ReturnType<typeof parseStateSyncClaim>,
+  cwd: string
+): Promise<string> {
+  if (localUpstream !== "") {
+    return localUpstream;
+  }
+
+  if (
+    parsedClaim.status !== "valid"
+    || parsedClaim.claim.subject.upstream.trim() === ""
+  ) {
+    return "";
+  }
+
+  const claimedUpstream = parsedClaim.claim.subject.upstream.trim();
+  return await gitRefExists(claimedUpstream, cwd) ? claimedUpstream : "";
 }
 
 async function readAgentBoard(cwd: string): Promise<string> {
@@ -178,10 +202,24 @@ async function gitCommitIsAncestorOfHead(
 
 async function gitAheadBehindFromRef(
   commit: string,
+  upstream: string,
   cwd: string
 ): Promise<string> {
-  return git(["rev-list", "--left-right", "--count", `${commit}...@{upstream}`], cwd)
+  if (upstream === "") {
+    return "unknown\tunknown";
+  }
+
+  return git(["rev-list", "--left-right", "--count", `${commit}...${upstream}`], cwd)
     .catch(() => "unknown\tunknown");
+}
+
+async function gitRefExists(ref: string, cwd: string): Promise<boolean> {
+  try {
+    await git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], cwd);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function gitChangedPathsSince(
