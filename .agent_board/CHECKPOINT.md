@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `main`
+- `docs/state-sync-phase-2-missing-claim-gate`
 
 Validated source commit:
 
-- `d913f09`
+- `9e5afe9`
 
 Latest validated commit:
 
-- `d913f09`
+- `9e5afe9`
 
 Upstream baseline:
 
@@ -33,6 +33,9 @@ Checkpoint facts:
 
 - The structured record plan is committed.
 - The Phase 1 verifier reads, parses, and validates `StateSyncClaim`.
+- Phase 2 blocks missing structured claims instead of falling back to Markdown.
+- Phase 3 provides `scripts/sync-state-sync-display.ts` to update display
+  surfaces from the structured claim.
 - The collector uses the structured claim upstream ref as the bounded baseline
   even when local feature-branch tracking exists, then computes divergence from
   Git.
@@ -52,14 +55,26 @@ Checkpoint facts:
 Validation recorded:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 75 tests
-- `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 77 tests
+- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+  tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1208 tests
+- `npm test`: PASS, 1213 tests
 
 State-sync observation:
 
-- expected after this state/docs record is pushed to `main`: branch-head
-  state-sync audit PASS using `refs/remotes/origin/main` as a verified Git ref
-  selected by the structured claim
+- expected after this state/docs record is pushed to the PR branch:
+  branch-head state-sync audit PASS using `refs/remotes/origin/main` as a
+  verified Git ref selected by the structured claim
+
+<!-- state-sync-display:start -->
+Generated from `docs/current/state-sync-record.json`.
+
+- branch: `docs/state-sync-phase-2-missing-claim-gate`
+- upstream: `refs/remotes/origin/main`
+- validated source commit: `9e5afe9`
+- latest validated commit: `9e5afe9`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pending_push`
+<!-- state-sync-display:end -->

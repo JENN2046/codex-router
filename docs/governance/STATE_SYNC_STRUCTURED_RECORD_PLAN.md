@@ -499,7 +499,10 @@ Project-realistic implementation order:
 3. Extend `StateSyncAuditResult.summary` with:
 
    ```ts
-   claimSource: "structured" | "legacy_markdown" | "invalid_structured";
+   claimSource:
+     | "structured"
+     | "missing_structured"
+     | "invalid_structured";
    ```
 
 4. Update `scripts/run-state-sync-audit.ts` to read
@@ -577,11 +580,12 @@ Compatibility exit rule:
 
 - Phase 1 is the only phase where a missing claim may fall back to Markdown.
 - Phase 2 changes missing `docs/current/state-sync-record.json` from legacy
-  fallback to BLOCK.
+  fallback to BLOCK and reports `summary.claimSource = "missing_structured"`.
 - The verifier output should expose `claimSource: "structured"` or
-  `claimSource: "legacy_markdown"` or `claimSource: "invalid_structured"` in
-  `summary.claimSource` during Phase 1 so fallback use and invalid-claim blocks
-  are visible in tests, local output, and CI logs.
+  `claimSource: "missing_structured"` or
+  `claimSource: "invalid_structured"` in `summary.claimSource` after the Phase 2
+  missing-claim gate is enabled so absent-claim and invalid-claim blocks are
+  visible in tests, local output, and CI logs.
 
 New tests should cover:
 
@@ -594,8 +598,7 @@ New tests should cover:
 - invalid transition kind blocks;
 - stale Markdown prose does not override a valid claim;
 - Markdown / claim conflict is reported as evidence drift;
-- missing claim falls back to legacy Markdown only during the compatibility
-  window.
+- missing claim blocks after the Phase 2 missing-claim gate is enabled.
 
 Project-realistic test migration requirements:
 
@@ -620,6 +623,26 @@ Project-realistic test migration requirements:
 
 Downgrade Markdown and `.agent_board` from authority to evidence.
 
+Phase 2-A removes the final missing-claim compatibility fallback:
+
+- if `docs/current/state-sync-record.json` is absent, the audit blocks;
+- Markdown `Current head`, `Validated source commit`, `Latest validated commit`,
+  `Upstream`, and `Upstream divergence` fields are not used to choose the
+  validated source anchor;
+- collector observation fields that depend on the validated source anchor remain
+  unknown until a valid structured claim is present;
+- `summary.claimSource` reports `missing_structured` for this failure mode.
+
+Phase 2-B keeps Markdown and `.agent_board/*` as evidence surfaces:
+
+- structured claims remain the only authority for branch, upstream, validated
+  source commit, recorded divergence, transition kind, and allowed state paths;
+- conflicting `CURRENT_STATE.md` machine fields are emitted as
+  `state_document_evidence_drift` issues, without being used as fallback
+  authority;
+- `.agent_board/*` alignment remains a display/evidence integrity check during
+  the compatibility window, but it does not supply core source facts.
+
 Checks should include:
 
 - required files exist;
@@ -642,6 +665,22 @@ Goal:
 - reduce manual drift;
 - keep prose useful;
 - avoid reintroducing Markdown as the authority.
+
+Implemented display-sync path:
+
+```bash
+node --import tsx scripts/sync-state-sync-display.ts --check
+node --import tsx scripts/sync-state-sync-display.ts --write
+```
+
+The script:
+
+- reads and validates only `docs/current/state-sync-record.json`;
+- fails closed when the structured claim is missing or invalid;
+- updates fixed machine fields in `docs/current/CURRENT_STATE.md`;
+- maintains a generated `state-sync-display` block in each listed
+  `.agent_board/*` display file;
+- defaults to check mode so drift can be detected without hidden writes.
 
 ### Phase 4: CI Coverage Adjustment
 

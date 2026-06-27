@@ -193,25 +193,13 @@ async function readAgentBoard(cwd: string): Promise<string> {
 
 function validatedSourceAnchorFromClaimOrLegacy(
   parsedClaim: ReturnType<typeof parseStateSyncClaim>,
-  currentStateText: string
+  _currentStateText: string
 ): string | undefined {
   if (parsedClaim.status === "valid") {
     return parsedClaim.claim.source.validatedSourceCommit;
   }
 
-  if (parsedClaim.status === "invalid") {
-    return undefined;
-  }
-
-  const validatedSourceCommit = stateFieldValue(
-    currentStateText,
-    "Validated source commit"
-  );
-  const latestValidatedCommit = stateFieldValue(
-    currentStateText,
-    "Latest validated commit"
-  );
-  return validatedSourceCommit ?? latestValidatedCommit;
+  return undefined;
 }
 
 async function git(args: string[], cwd: string): Promise<string> {
@@ -352,15 +340,6 @@ function parseLsTreeEntry(value: string): LsTreeEntry | undefined {
   }
 
   return { mode, type, object, path };
-}
-
-function stateFieldValue(text: string, field: string): string | undefined {
-  return new RegExp(`\\| ${escapeRegExp(field)} \\| \`([^\\\`]+)\` \\|`)
-    .exec(text)?.[1];
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function isCommitLike(value: string): boolean {

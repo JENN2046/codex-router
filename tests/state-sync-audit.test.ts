@@ -19,13 +19,16 @@ import {
 const execFileAsync = promisify(execFile);
 const TEST_SOURCE_TREE_DIGEST =
   "0000000000000000000000000000000000000000000000000000000000000000";
+type StateSyncAuditInputOverrides =
+  Omit<Partial<StateSyncAuditInput>, "stateSyncClaimText">
+  & { stateSyncClaimText?: string | undefined };
 
-test("state sync audit passes when clean HEAD equals validated source commit", async () => {
+test("state sync audit passes when clean HEAD matches a structured source claim", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace());
 
   assert.equal(review.status, "passed");
   assert.deepEqual(review.reasons, []);
-  assert.equal(review.summary.claimSource, "legacy_markdown");
+  assert.equal(review.summary.claimSource, "structured");
   assert.equal(review.checks.currentStateRecorded, true);
   assert.equal(review.checks.currentBranchMatches, true);
   assert.equal(review.checks.validatedSourceHeadRecorded, true);
@@ -40,6 +43,17 @@ test("state sync audit passes when clean HEAD equals validated source commit", a
   assert.equal(review.summary.requiredBoundaryMarkerCount, 7);
   assert.equal(review.summary.stateWritesDuringAudit, 0);
   assert.equal(review.summary.remoteWritesDuringAudit, 0);
+});
+
+test("state sync audit blocks when the structured claim is missing", async () => {
+  const review = reviewStateSyncAudit(await createInputFromWorkspace({
+    stateSyncClaimText: undefined
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.summary.claimSource, "missing_structured");
+  assert.equal(review.checks.structuredClaimValid, false);
+  assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
 test("state sync audit uses a valid structured claim for core facts", async () => {
@@ -366,7 +380,10 @@ test("state sync audit accepts committed state-only descendants", async () => {
       ".agent_board/RUN_STATE.md",
       ".agent_board/HANDOFF.md",
       "docs/current/CURRENT_STATE.md"
-    ]
+    ],
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pending_push"
+    })
   });
 
   assert.equal(review.status, "passed");
@@ -417,23 +434,21 @@ test("state sync audit blocks unreachable validated source commits", async () =>
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
-test("state sync audit blocks stale validated source commits", async () => {
+test("state sync audit blocks stale structured latest validated commits", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
-    currentStateText: input.currentStateText.replace(
-      /\| Latest validated commit \| `[^`]+` \|/,
-      "| Latest validated commit | `1111111` |"
-    )
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      latestValidatedCommit: "1111111"
+    })
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
-  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
 });
 
-test("state sync audit blocks stale current branch and missing head fields", async () => {
+test("state sync audit blocks stale observed branch without using Markdown head fields", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -445,11 +460,11 @@ test("state sync audit blocks stale current branch and missing head fields", asy
 
   assert.equal(review.status, "blocked");
   assert.ok(review.reasons.includes("state_sync_currentBranchMatches"));
-  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
-  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
 });
 
-test("state sync audit blocks mismatched current head hashes", async () => {
+test("state sync audit reports Markdown current head drift without making it authoritative", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -458,9 +473,16 @@ test("state sync audit blocks mismatched current head hashes", async () => {
       .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit | `feed123` |")
   });
 
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
-  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.field === "Current head"
+  )));
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.field === "Latest validated commit"
+  )));
 });
 
 test("state sync audit blocks stale state from merge checkout second-parent ancestry", async () => {
@@ -542,9 +564,14 @@ test("state sync audit blocks synthetic anchors when validated source paths are 
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
-test("state sync audit preserves legacy synthetic fallback without validated source evidence", async () => {
+test("state sync audit accepts structured detached review checkout without validated source evidence", async () => {
   const input = await createInputFromWorkspace();
-  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input));
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      upstream: "",
+      transitionKind: "detached_review_checkout"
+    })
+  }));
 
   assert.equal(review.status, "passed");
   assert.deepEqual(review.reasons, []);
@@ -562,7 +589,10 @@ test("state sync audit still accepts valid state-only descendants after syntheti
     head: "3333333",
     aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
     validatedSourceAncestorOfHead: true,
-    committedPathsSinceValidatedSource: strictStateRecordPaths()
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pending_push"
+    })
   });
 
   assert.equal(review.status, "passed");
@@ -589,7 +619,11 @@ test("state sync audit accepts clean detached PR checkouts when explicitly allow
       "packages/state-sync-audit/src/index.ts",
       "scripts/run-state-sync-audit.ts",
       "tests/state-sync-audit.test.ts"
-    ]
+    ],
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      upstream: "",
+      transitionKind: "detached_review_checkout"
+    })
   });
 
   assert.equal(review.status, "passed");
@@ -695,14 +729,14 @@ test("state sync audit collector excludes merge base from allowed commits", () =
   assert.deepEqual(allowed, ["c1db64a", "abc1234"]);
 });
 
-test("state sync audit blocks mismatched validated source upstream divergence", async () => {
+test("state sync audit blocks mismatched structured validated source divergence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
-    currentStateText: input.currentStateText.replace(
-      /\| Upstream divergence \| `[^`]+` \|/,
-      "| Upstream divergence | `ahead 999 / behind 999` |"
-    )
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      recordedAhead: 999,
+      recordedBehind: 999
+    })
   });
 
   assert.equal(review.status, "blocked");
@@ -717,7 +751,10 @@ test("state sync audit ignores current ahead drift from state-only descendants",
     head: "3333333",
     aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
     validatedSourceAncestorOfHead: true,
-    committedPathsSinceValidatedSource: strictStateRecordPaths()
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pending_push"
+    })
   });
 
   assert.equal(review.status, "passed");
@@ -735,10 +772,11 @@ test("state sync audit accepts pushed state-only divergence snapshots", async ()
     validatedSourceAheadBehind: "0\t1",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    currentStateText: input.currentStateText.replace(
-      /\| Upstream divergence \| `[^`]+` \|/,
-      "| Upstream divergence | `ahead 1 / behind 0` |"
-    )
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    })
   });
 
   assert.equal(review.status, "passed");
@@ -757,10 +795,11 @@ test("state sync audit blocks arbitrary syntactic divergence snapshots", async (
     validatedSourceAheadBehind: "0\t1",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    currentStateText: input.currentStateText.replace(
-      /\| Upstream divergence \| `[^`]+` \|/,
-      "| Upstream divergence | `ahead 999 / behind 999` |"
-    )
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pushed",
+      recordedAhead: 999,
+      recordedBehind: 999
+    })
   });
 
   assert.equal(review.status, "blocked");
@@ -777,10 +816,11 @@ test("state sync audit blocks wrong inverse divergence snapshots", async () => {
     validatedSourceAheadBehind: "0\t2",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    currentStateText: input.currentStateText.replace(
-      /\| Upstream divergence \| `[^`]+` \|/,
-      "| Upstream divergence | `ahead 1 / behind 0` |"
-    )
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    })
   });
 
   assert.equal(review.status, "blocked");
@@ -788,7 +828,7 @@ test("state sync audit blocks wrong inverse divergence snapshots", async () => {
   assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
 });
 
-test("state sync audit blocks pushed snapshots without state record mode", async () => {
+test("state sync audit ignores missing Markdown state record mode for pushed structured snapshots", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -797,18 +837,24 @@ test("state sync audit blocks pushed snapshots without state record mode", async
     validatedSourceAheadBehind: "0\t1",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    }),
     currentStateText: input.currentStateText.replace(
       /\| State record mode \| `[^`]+` \|\n/,
       ""
     )
   });
 
-  assert.equal(review.status, "blocked");
-  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
-  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.structuredTransitionAllowed, true);
 });
 
-test("state sync audit blocks pushed snapshots with wrong state record mode", async () => {
+test("state sync audit ignores stale Markdown state record mode for pushed structured snapshots", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -817,15 +863,21 @@ test("state sync audit blocks pushed snapshots with wrong state record mode", as
     validatedSourceAheadBehind: "0\t1",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    }),
     currentStateText: input.currentStateText.replace(
       /\| State record mode \| `[^`]+` \|/,
       "| State record mode | `source-only` |"
     )
   });
 
-  assert.equal(review.status, "blocked");
-  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
-  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.structuredTransitionAllowed, true);
 });
 
 test("state sync audit blocks snapshot fallbacks with extra board paths", async () => {
@@ -839,14 +891,18 @@ test("state sync audit blocks snapshot fallbacks with extra board paths", async 
     committedPathsSinceValidatedSource: [
       ...strictStateRecordPaths(),
       ".agent_board/EXTRA.md"
-    ]
+    ],
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    })
   });
 
   assert.equal(review.status, "blocked");
-  assert.equal(review.checks.validatedSourceHeadRecorded, true);
-  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
   assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
-  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
   assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
 });
 
@@ -864,7 +920,12 @@ test("state sync audit blocks non-state descendants with stale divergence snapsh
       "tests/state-sync-audit.test.ts",
       "scripts/run-state-sync-audit.ts",
       ".github/workflows/ci.yml"
-    ]
+    ],
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    })
   });
 
   assert.equal(review.status, "blocked");
@@ -886,7 +947,12 @@ test("state sync audit blocks unreachable anchors with stale divergence snapshot
     committedPathsSinceValidatedSource: [
       ".agent_board/RUN_STATE.md",
       "docs/current/CURRENT_STATE.md"
-    ]
+    ],
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    })
   });
 
   assert.equal(review.status, "blocked");
@@ -902,10 +968,10 @@ test("state sync audit accepts exact validated source divergence matches", async
   const review = reviewStateSyncAudit({
     ...input,
     validatedSourceAheadBehind: "0\t1",
-    currentStateText: input.currentStateText.replace(
-      /\| Upstream divergence \| `[^`]+` \|/,
-      "| Upstream divergence | `ahead 0 / behind 1` |"
-    )
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      recordedAhead: 0,
+      recordedBehind: 1
+    })
   });
 
   assert.equal(review.status, "passed");
@@ -965,30 +1031,70 @@ test("state sync audit blocks missing recorded upstream divergence", async () =>
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
-    currentStateText: input.currentStateText.replace(
-      /\| Upstream divergence \| `[^`]+` \|\n/,
-      ""
-    )
+    stateSyncClaimText: JSON.stringify({
+      schemaVersion: 1,
+      policyVersion: "state-sync-policy.v1",
+      subject: {
+        branch: input.branch,
+        upstream: input.upstream
+      },
+      source: {
+        validatedSourceCommit: input.head,
+        latestValidatedCommit: input.head,
+        sourceTreeDigest: {
+          algorithm: "git-ls-tree-sha256",
+          value: TEST_SOURCE_TREE_DIGEST,
+          excludedPaths: strictStateRecordPaths()
+        }
+      },
+      transition: {
+        kind: "source_exact",
+        allowedStatePaths: strictStateRecordPaths()
+      }
+    })
   });
 
   assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredClaimValid, false);
   assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
-  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
 test("state sync audit blocks malformed recorded upstream divergence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
-    currentStateText: input.currentStateText.replace(
-      /\| Upstream divergence \| `[^`]+` \|/,
-      "| Upstream divergence | `ahead many / behind none` |"
-    )
+    stateSyncClaimText: JSON.stringify({
+      schemaVersion: 1,
+      policyVersion: "state-sync-policy.v1",
+      subject: {
+        branch: input.branch,
+        upstream: input.upstream
+      },
+      source: {
+        validatedSourceCommit: input.head,
+        latestValidatedCommit: input.head,
+        recordedDivergence: {
+          ahead: "many",
+          behind: "none"
+        },
+        sourceTreeDigest: {
+          algorithm: "git-ls-tree-sha256",
+          value: TEST_SOURCE_TREE_DIGEST,
+          excludedPaths: strictStateRecordPaths()
+        }
+      },
+      transition: {
+        kind: "source_exact",
+        allowedStatePaths: strictStateRecordPaths()
+      }
+    })
   });
 
   assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredClaimValid, false);
   assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
-  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
 test("state sync audit blocks stale agent board facts", async () => {
@@ -1046,10 +1152,10 @@ test("state sync audit output stays summarized", async () => {
   const parsed = JSON.parse(json) as typeof review;
 
   assert.match(text, /status: passed/);
-  assert.match(text, /claim source: legacy_markdown/);
+  assert.match(text, /claim source: structured/);
   assert.match(text, /remote writes during audit: 0/);
   assert.equal(parsed.status, "passed");
-  assert.equal(parsed.summary.claimSource, "legacy_markdown");
+  assert.equal(parsed.summary.claimSource, "structured");
 
   for (const marker of ["OPENAI_API_KEY", "sk-", "Bearer ", "raw token"]) {
     assert.equal(text.includes(marker), false, `text output must omit ${marker}`);
@@ -1102,6 +1208,14 @@ test("state sync audit collector rejects unreachable validated source anchors", 
   await git(cwd, ["commit", "-m", "pr change"]);
 
   await writeMinimalWorkspace(cwd, "pr-checkout", unreachableValidatedSource.trim());
+  await writeStateSyncClaim(cwd, {
+    branch: "pr-checkout",
+    upstream: "",
+    validatedSourceCommit: unreachableValidatedSource.trim(),
+    latestValidatedCommit: unreachableValidatedSource.trim(),
+    recordedAhead: 0,
+    recordedBehind: 0
+  });
 
   const input = await collectStateSyncAuditInput(cwd);
   const review = reviewStateSyncAudit(input);
@@ -1738,6 +1852,30 @@ test("state sync audit collector does not use Markdown anchor when claim is inva
   assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
+test("state sync audit collector does not use Markdown anchor when claim is missing", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-missing-claim-"));
+  await git(cwd, ["init"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+
+  await writeMinimalWorkspace(cwd, "main", "0000000");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "base"]);
+  const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
+
+  await writeMinimalWorkspace(cwd, "main", sourceCommit);
+
+  const input = await collectStateSyncAuditInput(cwd);
+  const review = reviewStateSyncAudit(input);
+
+  assert.equal(input.stateSyncClaimText, undefined);
+  assert.equal(input.validatedSourceAheadBehind, undefined);
+  assert.equal(input.validatedSourceAncestorOfHead, undefined);
+  assert.equal(review.summary.claimSource, "missing_structured");
+  assert.equal(review.checks.structuredClaimValid, false);
+  assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
+});
+
 test("state sync audit blocks machine absolute paths in state surfaces", async () => {
   const input = await createInputFromWorkspace();
   for (const machinePath of [
@@ -1826,7 +1964,7 @@ test("state sync audit reports machine paths without echoing sentinel paths", as
 });
 
 async function createInputFromWorkspace(
-  overrides: Partial<StateSyncAuditInput> = {}
+  overrides: StateSyncAuditInputOverrides = {}
 ): Promise<StateSyncAuditInput> {
   const currentStateText = await readFile("docs/current/CURRENT_STATE.md", "utf8");
   const agentBoardText = await Promise.all([
@@ -1846,7 +1984,7 @@ async function createInputFromWorkspace(
   const recordedDivergence = extractStateDivergence(currentStateText)
     ?? "0\t0";
 
-  return {
+  const input: StateSyncAuditInput = {
     gitStatusShort: "",
     branch: recordedBranch,
     head: recordedHead,
@@ -1860,7 +1998,22 @@ async function createInputFromWorkspace(
     packageJsonText: await readFile("package.json", "utf8"),
     currentStateText,
     agentBoardText,
+  };
+
+  const merged = {
+    ...input,
+    stateSyncClaimText: stateSyncClaimTextFromInput(input),
     ...overrides
+  };
+
+  if (merged.stateSyncClaimText === undefined) {
+    const { stateSyncClaimText: _stateSyncClaimText, ...withoutClaim } = merged;
+    return withoutClaim;
+  }
+
+  return {
+    ...merged,
+    stateSyncClaimText: merged.stateSyncClaimText
   };
 }
 
