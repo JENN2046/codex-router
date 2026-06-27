@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `docs/state-sync-structured-record-plan`
+- `main`
 
 Validated source commit:
 
-- `0b373ff`
+- `d913f09`
 
 Latest validated commit:
 
-- `0b373ff`
+- `d913f09`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 19 / behind 0`
+- `ahead 1 / behind 0`
 
 Checkpoint facts:
 
@@ -60,5 +60,6 @@ Validation recorded:
 
 State-sync observation:
 
-- expected after this state/docs commit: local state-sync audit PASS using
-  `refs/remotes/origin/main` as a verified Git ref selected by the structured claim
+- expected after this state/docs record is pushed to `main`: branch-head
+  state-sync audit PASS using `refs/remotes/origin/main` as a verified Git ref
+  selected by the structured claim

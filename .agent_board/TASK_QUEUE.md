@@ -2,8 +2,7 @@
 
 Current task:
 
-- Finish Phase 1 state-sync structured record rollout on
-  `docs/state-sync-structured-record-plan`.
+- Finish the authorized `main` reanchor after PR #48 squash merge.
 
 Done:
 
@@ -39,13 +38,15 @@ Validation completed:
 
 Todo:
 
-- rerun final local validation after state/docs commit
-- decide branch publication workflow
+- commit the state/docs reanchor
+- simulate the post-push branch-head state-sync audit
+- push the authorized `main` reanchor
+- verify post-push state-sync audit
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
 
-- direct push to `main`
+- additional direct pushes to `main` beyond this authorized reanchor
 - dependency changes
 - workflow edits
 - release or deploy

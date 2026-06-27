@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `docs/state-sync-structured-record-plan`
+- `main`
 
 Validated source commit:
 
-- `0b373ff`
+- `d913f09`
 
 Latest validated commit:
 
-- `0b373ff`
+- `d913f09`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 19 / behind 0`
+- `ahead 1 / behind 0`
 
 Recorded validation:
 
@@ -35,7 +35,7 @@ Recorded validation:
 
 State-sync audit observation:
 
-- expected after this state/docs commit:
+- expected after this state/docs record is pushed to `main`:
   `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
@@ -51,7 +51,7 @@ Execution boundary:
 
 - no package, dependency, workflow, provider, env, secret, user config, or system
   config change is part of this state record
-- no push yet
+- direct `main` reanchor push is authorized for this state record only
 - no manual CI rerun
 - no real provider execution
 - no real Codex CLI execution

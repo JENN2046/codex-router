@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `docs/state-sync-structured-record-plan`
+- `main`
 
 Current validated source:
 
-- `0b373ff`
+- `d913f09`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Upstream baseline:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 19 / behind 0`
+- `ahead 1 / behind 0`
 
 Completed:
 
@@ -60,13 +60,13 @@ Validation completed:
 
 State-sync expectation:
 
-- after this state/docs commit, local state-sync audit should PASS by resolving
-  `refs/remotes/origin/main` as the structured claim upstream ref and computing
-  divergence from Git
+- after this state/docs record is pushed to `main`, branch-head state-sync audit
+  should PASS by resolving `refs/remotes/origin/main` as the structured claim
+  upstream ref and computing divergence from Git
 
 Not authorized:
 
-- direct push to `main`
+- additional direct pushes to `main` beyond this authorized reanchor
 - workflow edits
 - dependency changes
 - release or deploy

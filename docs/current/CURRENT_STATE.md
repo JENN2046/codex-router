@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `docs/state-sync-structured-record-plan` |
-| Current head | `0b373ff` |
-| Validated source commit | `0b373ff` |
+| Current branch | `main` |
+| Current head | `d913f09` |
+| Validated source commit | `d913f09` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 19 / behind 0` |
-| Latest validated commit | `0b373ff` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `d913f09` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,11 +36,11 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pending_push`
-- validated source commit: `0b373ff`
-- latest validated commit: `0b373ff`
+- transition kind: `state_only_pushed`
+- validated source commit: `d913f09`
+- latest validated commit: `d913f09`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 19 / behind 0`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `5e0b406f729d12a71a32f14387f3839d774c96e71c097cf81b11e7a7cdeb24a5`
 
@@ -64,8 +64,8 @@ Strict state record paths:
 
 ## Current Scope
 
-This branch introduces the state-sync structured record plan and Phase 1
-verifier support:
+Main now contains the state-sync structured record plan and Phase 1 verifier
+support:
 
 - `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
 - `packages/state-sync-audit/src/index.ts`
@@ -80,7 +80,7 @@ compatibility window.
 
 ## Validation Baseline
 
-Validation recorded for source commit `0b373ff`:
+Validation recorded for source commit `d913f09`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 75 tests.
@@ -98,7 +98,7 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- expected after this state record commit:
+- expected after this state record is pushed to `main`:
   `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
 - The collector verifies the structured claim upstream ref
   `refs/remotes/origin/main` exists locally, then computes divergence from Git
@@ -151,7 +151,9 @@ Boundary facts for this state alignment:
   config file is changed by this state record.
 - No real provider execution has occurred.
 - No real Codex CLI execution has occurred.
-- No push or PR publication is performed by this local record.
+- The direct `main` reanchor push is authorized for this state record only.
+- No PR publication, release, deploy, workflow edit, provider execution, or
+  environment/configuration change is part of this record.
 
 ## Current Local Changes
 
@@ -167,13 +169,17 @@ Current state-only record changes are limited to:
 
 ## State Sync Expectations
 
-The structured claim expects the branch-head audit context to observe:
+The structured claim records:
 
-- branch: `docs/state-sync-structured-record-plan`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `0b373ff`
-- validated source divergence: `ahead 19 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `d913f09`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
+
+After the state record is pushed, Git observation should compute the validated
+source divergence as `ahead 0 / behind 1` against
+`refs/remotes/origin/main`.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then
@@ -188,5 +194,5 @@ Current state line:
   implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.
-- Next: decide whether to publish the feature branch or configure an upstream
-  through a separately authorized branch workflow.
+- Next: push the authorized `main` reanchor commit and verify the post-push
+  branch-head audit.

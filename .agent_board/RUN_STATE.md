@@ -1,7 +1,6 @@
 # Run State
 
-Status: Phase 1 state-sync structured record work is in progress on
-`docs/state-sync-structured-record-plan`.
+Status: Main reanchor is in progress after PR #48 squash merge.
 
 Machine-authoritative claim:
 
@@ -18,19 +17,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `docs/state-sync-structured-record-plan`
+- `main`
 
 Current head:
 
-- `0b373ff`
+- `d913f09`
 
 Validated source commit:
 
-- `0b373ff`
+- `d913f09`
 
 Latest validated commit:
 
-- `0b373ff`
+- `d913f09`
 
 Upstream baseline:
 
@@ -38,11 +37,11 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 19 / behind 0`
+- `ahead 1 / behind 0`
 
 Transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Validation recorded for this source commit:
 
@@ -55,8 +54,9 @@ Validation recorded for this source commit:
 
 State-sync audit expectation:
 
-- after this state/docs commit, local audit should PASS with `claimSource:
-  structured` and Git-computed divergence against verified `refs/remotes/origin/main`
+- after this state/docs record is pushed to `main`, branch-head audit should
+  PASS with `claimSource: structured` and Git-computed divergence against
+  verified `refs/remotes/origin/main`
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
@@ -65,7 +65,7 @@ Boundary:
 
 - no package, dependency, workflow, provider, env, secret, user config, or system
   config change is part of this state record
-- no push is performed by this local record
+- direct `main` reanchor push is authorized for this state record only
 - no manual CI rerun
 - no real provider execution
 - no real Codex CLI execution
