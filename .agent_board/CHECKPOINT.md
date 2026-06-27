@@ -1,61 +1,55 @@
 # Checkpoint
 
-Current state source:
+Current machine-authoritative state-sync claim:
+
+- `docs/current/state-sync-record.json`
+
+Operator evidence surfaces:
 
 - `docs/current/CURRENT_STATE.md`
+- `.agent_board/*`
 
 Branch:
 
-- `main`
-
-Current head:
-
-- `42fc8e3`
+- `docs/state-sync-structured-record-plan`
 
 Validated source commit:
 
-- `42fc8e3`
+- `9c0e7d1`
 
 Latest validated commit:
 
-- `42fc8e3`
+- `9c0e7d1`
 
-Upstream:
+Upstream baseline:
 
 - `origin/main`
 
-Upstream divergence:
+Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
-
-State record mode:
-
-- `state-only descendant allowed`
+- `ahead 2 / behind 0`
 
 Checkpoint facts:
 
-- PR #47 is squash-merged into `main`
-- current validated source head is present at `42fc8e3`
-- validated source baseline divergence is recorded as `ahead 1 / behind 0`
-- State Sync Audit accepts a recorded divergence snapshot only for exact
-  recomputed matches or bounded pushed state-only inverse snapshots
-- tracked state files are not required to record their own containing commit
-- validation evidence recorded for the source commit:
-  - `git diff --check`: PASS
-  - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
-  - `npm run typecheck`: PASS
-  - `npm run build`: PASS
+- The structured record plan is committed.
+- The Phase 1 verifier reads, parses, and validates `StateSyncClaim`.
+- A present but invalid structured claim blocks without Markdown fallback.
+- A valid structured claim supplies core source and divergence facts.
+- Markdown and `.agent_board/*` are evidence/display surfaces during the
+  compatibility window.
+- `docs/current/state-sync-record.json` is included in strict state-only paths.
 
-Local post-squash state reanchor status:
+Validation recorded:
 
-- direct `main` push is authorized for this state/docs repair
-- state/docs commit is in progress
-- state-sync audit passed before the state/docs commit with `status: passed`,
-  `dirtyWorktreeStateOnly: true`, `reasons: []`, and `issues: []`
+- `git diff --check`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 63 tests
+- `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+- `npm test`: PASS, 1196 tests
 
-Boundary:
+Known local constraint:
 
-- no source, package, dependency, workflow, provider, env, secret, user config,
-  or system config change is part of this state/docs reanchor
-- no push for the reanchor commits has happened yet
-- no manual CI rerun or real provider execution has occurred
+- this feature branch has no configured `@{upstream}`, so local state-sync audit
+  cannot prove upstream-dependent structured transition checks without a
+  separately authorized branch/upstream workflow

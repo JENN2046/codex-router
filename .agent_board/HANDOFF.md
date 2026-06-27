@@ -2,52 +2,65 @@
 
 Goal:
 
-- Reanchor `main` state/docs after the PR #47 squash merge.
+- Continue implementing the state-sync structured record plan so
+  `docs/current/state-sync-record.json` becomes the machine-authoritative claim
+  while Markdown and `.agent_board/*` become display/evidence surfaces.
 
-Workspace:
+Current branch:
 
-- repository root: `codex-router`
-- branch: `main`
-- current head: `42fc8e3`
-- validated source commit: `42fc8e3`
-- latest validated commit: `42fc8e3`
-- upstream: `origin/main`
-- upstream divergence: `ahead 1 / behind 0`
-- state record mode: `state-only descendant allowed`
-- current state source: `docs/current/CURRENT_STATE.md`
+- `docs/state-sync-structured-record-plan`
 
-Current status:
+Current validated source:
 
-- PR #47 is squash-merged into `main`
-- current validated source head is `42fc8e3`
-- validated source baseline is ahead of upstream by 1 commit and behind by 0 commits
-- `.agent_board` records reflect the validated source commit, not a required
-  state-record commit hash
-- State Sync Audit accepts a recorded divergence snapshot only for exact
-  recomputed matches or bounded pushed state-only inverse snapshots
-- validation results recorded:
-  - `git diff --check`: PASS
-  - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
-  - `npm run typecheck`: PASS
-  - `npm run build`: PASS
-- no dependency files were modified
+- `9c0e7d1`
 
-Validation completed before state/docs commit:
+Current structured claim:
+
+- `docs/current/state-sync-record.json`
+
+Current transition:
+
+- `state_only_pending_push`
+
+Upstream baseline:
+
+- `origin/main`
+
+Recorded divergence baseline:
+
+- `ahead 2 / behind 0`
+
+Completed:
+
+- final plan document committed
+- Phase 1 structured claim parser and resolver implemented
+- collector reads `docs/current/state-sync-record.json`
+- invalid structured claim does not fall back to Markdown
+- evidence drift issues are emitted for Markdown / claim conflicts
+- transition formulas are enforced for structured claims
+- strict state-only path set includes `docs/current/state-sync-record.json`
+
+Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
-  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
-  `issues: []`
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 63 tests
+- `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+- `npm test`: PASS, 1196 tests
 
 Known constraint:
 
-- local writes are restricted to state records for the post-squash `main`
-  reanchor
+- the local branch has no configured `@{upstream}`; the structured audit enters
+  `claimSource: structured` but blocks on upstream-dependent observation until a
+  branch/upstream workflow is chosen
 
 Not authorized:
 
+- direct push to `main`
+- workflow edits
 - dependency changes
-- workflow edits, PR edit, review-thread resolution, additional merge, or release
+- release or deploy
 - manual CI rerun
 - real provider execution
 - real Codex CLI execution

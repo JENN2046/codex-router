@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "state-sync-policy.v1",
+  "subject": {
+    "branch": "docs/state-sync-structured-record-plan",
+    "upstream": "origin/main"
+  },
+  "source": {
+    "validatedSourceCommit": "9c0e7d1",
+    "latestValidatedCommit": "9c0e7d1",
+    "recordedDivergence": {
+      "ahead": 2,
+      "behind": 0
+    }
+  },
+  "transition": {
+    "kind": "state_only_pending_push",
+    "allowedStatePaths": [
+      "docs/current/CURRENT_STATE.md",
+      "docs/current/state-sync-record.json",
+      ".agent_board/CHECKPOINT.md",
+      ".agent_board/HANDOFF.md",
+      ".agent_board/RUN_STATE.md",
+      ".agent_board/TASK_QUEUE.md",
+      ".agent_board/VALIDATION_LOG.md"
+    ]
+  },
+  "validation": {
+    "requiredCommands": [
+      "git diff --check",
+      "node --import tsx --test tests/state-sync-audit.test.ts",
+      "npm run typecheck",
+      "npm run build",
+      "node --import tsx scripts/run-state-sync-audit.ts --json"
+    ]
+  }
+}

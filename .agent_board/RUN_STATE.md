@@ -1,66 +1,63 @@
 # Run State
 
-Status: local state record is being aligned to the current validated `main`
-head after the PR #47 squash merge. The update is limited to `.agent_board`
-records and `docs/current/CURRENT_STATE.md`.
+Status: Phase 1 state-sync structured record work is in progress on
+`docs/state-sync-structured-record-plan`.
 
-Current truth source:
+Machine-authoritative claim:
+
+- `docs/current/state-sync-record.json`
+
+Display and evidence surfaces:
 
 - `docs/current/CURRENT_STATE.md`
+- `.agent_board/CHECKPOINT.md`
+- `.agent_board/HANDOFF.md`
+- `.agent_board/RUN_STATE.md`
+- `.agent_board/TASK_QUEUE.md`
+- `.agent_board/VALIDATION_LOG.md`
 
 Branch:
 
-- `main`
+- `docs/state-sync-structured-record-plan`
 
 Current head:
 
-- `42fc8e3`
+- `9c0e7d1`
 
 Validated source commit:
 
-- `42fc8e3`
+- `9c0e7d1`
 
 Latest validated commit:
 
-- `42fc8e3`
+- `9c0e7d1`
 
-Upstream:
+Upstream baseline:
 
 - `origin/main`
 
-Upstream divergence:
+Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 2 / behind 0`
 
-State record mode:
+Transition:
 
-- `state-only descendant allowed`
+- `state_only_pending_push`
 
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 63 tests
+- `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
-  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
-  `issues: []`
-
-Current scope outcome:
-
-- recorded current source `HEAD` as the validated source commit and latest validated
-  commit
-- recorded upstream as `origin/main`
-- recorded validated source baseline divergence as `ahead 1 / behind 0`
-- recorded that syntax-only divergence snapshots do not satisfy the audit
-- state/docs alignment is in progress
+- `npm test`: PASS, 1196 tests
 
 Boundary:
 
-- current validated source head is `42fc8e3`
-- no source, dependency, workflow, provider, env, secret, user config, or system
-  config change is part of this reanchor
-- direct `main` push is authorized only after final validation passes
-- no push yet
+- no package, dependency, workflow, provider, env, secret, user config, or system
+  config change is part of this state record
+- no push is performed by this local record
 - no manual CI rerun
 - no real provider execution
+- no real Codex CLI execution

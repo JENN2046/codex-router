@@ -2,29 +2,55 @@
 
 CURRENT_STATE_RECORDED
 
-This is the compact operational state surface for the repository. Historical
-closeouts and `.agent_board` files remain evidence; current facts should be
-refreshed here first.
+This is the compact operator-facing state surface for the repository. The
+machine-authoritative state-sync claim is now:
+
+- `docs/current/state-sync-record.json`
+
+Markdown and `.agent_board/*` remain evidence and handoff surfaces. They are not
+the authority for core machine facts such as validated source commit, upstream
+divergence, transition kind, or allowed state-only paths.
 
 ## Snapshot
 
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `main` |
-| Current head | `42fc8e3` |
-| Validated source commit | `42fc8e3` |
+| Current branch | `docs/state-sync-structured-record-plan` |
+| Current head | `9c0e7d1` |
+| Validated source commit | `9c0e7d1` |
 | Upstream | `origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `42fc8e3` |
+| Upstream divergence | `ahead 2 / behind 0` |
+| Latest validated commit | `9c0e7d1` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
-The `Current head` row records the validated source head for audit
-compatibility. Dirty state-only record changes are allowed before a state
-commit, and state-only record commits may descend from this source commit
-without writing their own commit hash back into tracked state files.
+The `Current head` row records the validated source head represented by the
+structured state-sync claim. A later state-only record commit may descend from
+this source commit without making Markdown the source of truth again.
+
+## Structured Record
+
+The structured claim records:
+
+- schema version: `1`
+- policy version: `state-sync-policy.v1`
+- transition kind: `state_only_pending_push`
+- validated source commit: `9c0e7d1`
+- latest validated commit: `9c0e7d1`
+- upstream baseline: `origin/main`
+- recorded divergence baseline: `ahead 2 / behind 0`
+
+Strict state record paths:
+
+- `docs/current/CURRENT_STATE.md`
+- `docs/current/state-sync-record.json`
+- `.agent_board/CHECKPOINT.md`
+- `.agent_board/HANDOFF.md`
+- `.agent_board/RUN_STATE.md`
+- `.agent_board/TASK_QUEUE.md`
+- `.agent_board/VALIDATION_LOG.md`
 
 ## Current Entrypoints
 
@@ -36,20 +62,48 @@ without writing their own commit hash back into tracked state files.
 
 ## Current Scope
 
-PR #47 has been squash-merged into `main`. This direct state/docs repair
-reanchors the current state after the squash merge so tracked state no longer
-depends on PR-branch-internal commits that are not ancestors of `main`.
+This branch introduces the state-sync structured record plan and Phase 1
+verifier support:
 
-The current validated source anchor is `42fc8e3`, an empty post-squash source
-anchor on `main`. The recorded upstream divergence is the validated source
-baseline at the state-record moment, not the future state-only commit's own
-ahead / behind value.
+- `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
+- `packages/state-sync-audit/src/index.ts`
+- `scripts/run-state-sync-audit.ts`
+- `tests/state-sync-audit.test.ts`
+- `docs/current/state-sync-record.json`
 
-The State Sync Audit bounded divergence snapshot behavior remains active:
-recorded upstream divergence may pass only through exact recomputed matches,
-detached synthetic checkout compatibility, or the bounded pushed state-only
-inverse snapshot path. Syntax-only upstream divergence fields do not satisfy
-the check.
+The important governance change is that `StateSyncClaim + Git Observation +
+Policy Verification` becomes the core PASS / BLOCK path. Markdown and
+`.agent_board/*` are downgraded to display and evidence surfaces during the
+compatibility window.
+
+## Validation Baseline
+
+Validation recorded for source commit `9c0e7d1`:
+
+- `git diff --check`: PASS.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 63 tests.
+- `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests.
+- `npm run typecheck`: PASS.
+- `npm run build`: PASS.
+- `npm test`: PASS, 1196 tests.
+
+State-sync required validation command literals retained in this state surface:
+
+- `npx tsx --test tests\codex-cli-host.test.ts`
+- `npm run typecheck`
+- `npm test`
+- `npm run build`
+
+Current structured state-sync audit status:
+
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: BLOCK locally.
+- Expected local block reason: this feature branch has no configured
+  `@{upstream}`, so live upstream and validated-source divergence observation
+  are unavailable to the collector.
+- The audit does enter `claimSource: structured` and validates the structured
+  claim shape.
+
+## Execution Boundary
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -61,58 +115,6 @@ current safety baseline:
 - `general_provider_execution` remains closed by default
 - `general_workspace_write` remains closed by default
 - `secret_or_credential_change` remains closed by default
-
-Recorded source facts for the post-squash state reanchor:
-
-- Current branch is `main`.
-- Current head is `42fc8e3`.
-- Validated source commit is `42fc8e3`.
-- Latest validated commit is `42fc8e3`.
-- Upstream is `origin/main`.
-- Upstream divergence is `ahead 1 / behind 0`.
-- State record mode is `state-only descendant allowed`.
-- Reachability checks, non-state descendant blocking, and validated-evidence
-  synthetic anchor hardening remain closed.
-- No workflow checkout change, package change, dependency change, provider
-  execution, env edit, secret edit, user config edit, or system config edit is
-  part of this state record.
-
-## Remote State
-
-- Direct push to `main` is authorized only for this post-squash state/docs
-  repair, after local validation passes and the worktree is clean.
-- No PR edit, manual CI rerun, review-thread resolution, release, deploy, or
-  npm publish is authorized.
-- Correct status phrase before final push: locally validated, state alignment
-  in progress.
-
-## Validation Baseline
-
-Validation baseline for source commit `42fc8e3`:
-
-- `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
-- `npm run typecheck`: PASS.
-- `npm run build`: PASS.
-
-State-sync required validation command literals retained in this state surface:
-
-- `npx tsx --test tests\codex-cli-host.test.ts`
-- `npm run typecheck`
-- `npm test`
-- `npm run build`
-
-Local post-squash state reanchor validation:
-
-- `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
-- `npm run typecheck`: PASS.
-- `npm run build`: PASS.
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
-  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
-  `issues: []`.
-
-## Execution Boundary
 
 Current allowed-by-default behavior remains local and non-executing unless a
 specific task and approval gate says otherwise.
@@ -129,21 +131,18 @@ Blocked capabilities:
 
 Boundary facts for this state alignment:
 
-- PR #47 is merged by squash into `main`.
-- A post-squash empty source anchor exists at `42fc8e3`.
-- No source, package, dependency, workflow, provider, env, secret, user config,
-  or system config file is changed by this state/docs reanchor.
-- Current source head is recorded as `42fc8e3`.
-- This state/docs update is not committed yet.
-- No push for the reanchor commits has happened yet.
+- No package, dependency, workflow, provider, env, secret, user config, or system
+  config file is changed by this state record.
 - No real provider execution has occurred.
+- No real Codex CLI execution has occurred.
+- No push or PR publication is performed by this local record.
 
 ## Current Local Changes
 
-The validated source commit exists and is the current validated state anchor.
-Current local state changes are limited to:
+Current state-only record changes are limited to:
 
 - `docs/current/CURRENT_STATE.md`
+- `docs/current/state-sync-record.json`
 - `.agent_board/CHECKPOINT.md`
 - `.agent_board/HANDOFF.md`
 - `.agent_board/RUN_STATE.md`
@@ -152,26 +151,24 @@ Current local state changes are limited to:
 
 ## State Sync Expectations
 
-This local branch tracks `origin/main`. The state-sync audit expects recorded
-validated source baseline divergence of `ahead 1 / behind 0` for `42fc8e3`
-before the state/docs commit is pushed.
+The structured claim expects the branch-head audit context to observe:
 
-After the state/docs commit is pushed, `main` should be aligned with upstream.
-The same recorded baseline should then pass through the bounded pushed
-state-only inverse snapshot rule because the only committed paths since the
-validated source are strict state record files.
+- branch: `docs/state-sync-structured-record-plan`
+- upstream: `origin/main`
+- validated source commit: `9c0e7d1`
+- validated source divergence: `ahead 2 / behind 0`
+- transition: `state_only_pending_push`
+
+Because the local branch currently has no configured `@{upstream}`, the local
+collector cannot prove the upstream-dependent parts of the formula without
+changing local Git configuration. That configuration change is intentionally not
+made by this state record.
 
 Current state line:
 
-- PR47 JSONL/state-sync fixes: merged by squash.
-- Synthetic anchor hardening: correct.
-- Bounded divergence snapshot fallback: correct.
-- Remote CI for the merged PR: passed before merge.
-- Post-squash main state anchor: locally validated.
-- Merge: complete.
-- Next: commit and push state/docs reanchor only if local validation passes.
-
-## Next Safe Action
-
-Run the state-sync audit, commit state/docs only, run final validation, then
-push `main` only if the final validation passes and the worktree is clean.
+- Structured state-sync plan: recorded.
+- Phase 1 structured claim verifier: implemented and tested.
+- Machine-authoritative claim file: introduced.
+- Markdown and agent board: evidence/display surfaces.
+- Next: decide whether to publish the feature branch or configure an upstream
+  through a separately authorized branch workflow.

@@ -2,53 +2,49 @@
 
 Current branch:
 
-- `main`
-
-Current head:
-
-- `42fc8e3`
+- `docs/state-sync-structured-record-plan`
 
 Validated source commit:
 
-- `42fc8e3`
+- `9c0e7d1`
 
 Latest validated commit:
 
-- `42fc8e3`
+- `9c0e7d1`
 
-Upstream:
+Structured claim:
+
+- `docs/current/state-sync-record.json`
+
+Upstream baseline:
 
 - `origin/main`
 
-Upstream divergence:
+Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 2 / behind 0`
 
-State record mode:
-
-- `state-only descendant allowed`
-
-Recorded local validation for this source head:
+Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 63 tests
+- `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
+- `npm test`: PASS, 1196 tests
 
-Validation for post-squash state/docs reanchor:
+State-sync audit observation:
 
-- `git diff --check`: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
-  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
-  `issues: []`
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: BLOCK locally
+- `claimSource`: `structured`
+- expected local block reason: no configured `@{upstream}` for the feature
+  branch, so upstream-dependent divergence observation is unavailable
 
-Execution boundary for this validation record:
+Execution boundary:
 
-- current validated source head is `42fc8e3`
-- arbitrary syntactic upstream divergence snapshots remain blocked
-- no source, dependency, workflow, provider, env, secret, user config, or system
-  config change is part of this reanchor
-- no state/docs commit yet
+- no package, dependency, workflow, provider, env, secret, user config, or system
+  config change is part of this state record
 - no push yet
 - no manual CI rerun
 - no real provider execution
+- no real Codex CLI execution
