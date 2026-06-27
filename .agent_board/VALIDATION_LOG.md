@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `docs/state-sync-phase-4-main-push-ci`
 
 Validated source commit:
 
-- `59b9eba`
+- `cacd546`
 
 Latest validated commit:
 
-- `59b9eba`
+- `cacd546`
 
 Structured claim:
 
@@ -27,16 +27,13 @@ Upstream divergence baseline:
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 77 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
-  tests
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1213 tests
 
 State-sync audit observation:
 
-- expected after this state/docs record is pushed to `main`:
+- expected after this state/docs record is pushed to the PR branch:
   `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
@@ -50,9 +47,10 @@ State-sync audit observation:
 
 Execution boundary:
 
-- no package, dependency, workflow, provider, env, secret, user config, or system
-  config change is part of this state record
-- direct `main` reanchor push is authorized for this state record only
+- source changes intentionally update `.github/workflows/ci.yml` for Phase 4
+  state-sync CI coverage
+- no package, dependency, provider, env, secret, user config, or system config
+  change is part of this state record
 - no manual CI rerun
 - no real provider execution
 - no real Codex CLI execution
@@ -60,10 +58,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `59b9eba`
-- latest validated commit: `59b9eba`
+- validated source commit: `cacd546`
+- latest validated commit: `cacd546`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

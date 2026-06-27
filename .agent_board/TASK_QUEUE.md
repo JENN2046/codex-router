@@ -2,7 +2,7 @@
 
 Current task:
 
-- Finish the authorized `main` reanchor after PR #49 squash merge.
+- Finish Phase 4 state-sync CI coverage adjustment and open a focused PR.
 
 Done:
 
@@ -29,30 +29,29 @@ Done:
 - blocked missing structured claims instead of falling back to Markdown
 - added `scripts/sync-state-sync-display.ts` for generated display surfaces
 - added display-sync regression tests
+- removed the State Sync Audit job's PR-only event gate locally
+- updated workflow structure regression coverage
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 77 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
-  tests
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1213 tests
 
 Todo:
 
 - commit the state/docs reanchor
-- push the authorized `main` reanchor
-- verify post-push branch-head state-sync audit
+- verify the branch-head state-sync audit
+- push the Phase 4 branch
 - open the focused Phase 4 PR
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
 
-- additional direct pushes to `main` beyond this authorized reanchor
+- direct pushes to `main`
 - dependency changes
-- workflow edits
+- additional workflow edits beyond Phase 4 state-sync CI coverage
 - release or deploy
 - manual CI rerun
 - real provider execution
@@ -62,10 +61,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `59b9eba`
-- latest validated commit: `59b9eba`
+- validated source commit: `cacd546`
+- latest validated commit: `cacd546`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

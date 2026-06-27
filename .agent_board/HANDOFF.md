@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `docs/state-sync-phase-4-main-push-ci`
 
 Current validated source:
 
-- `59b9eba`
+- `cacd546`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -36,6 +36,7 @@ Completed:
 - Phase 1 structured claim parser and resolver implemented
 - Phase 2 missing structured claim gate implemented
 - Phase 3 display-sync script implemented
+- Phase 4 state-sync CI push-to-main coverage implemented locally
 - collector reads `docs/current/state-sync-record.json`
 - collector uses the structured claim upstream ref as the bounded baseline even
   when local feature-branch tracking exists, then computes divergence from Git
@@ -54,23 +55,20 @@ Completed:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 77 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
-  tests
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1213 tests
 
 State-sync expectation:
 
-- after this state/docs record is pushed to `main`, branch-head
+- after this state/docs record is pushed to the PR branch, branch-head
   state-sync audit should PASS by resolving `refs/remotes/origin/main` as the
   structured claim upstream ref and computing divergence from Git
 
 Not authorized:
 
-- additional direct pushes to `main` beyond this authorized reanchor
-- workflow edits
+- direct pushes to `main`
+- additional workflow edits beyond Phase 4 state-sync CI coverage
 - dependency changes
 - release or deploy
 - manual CI rerun
@@ -81,10 +79,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `59b9eba`
-- latest validated commit: `59b9eba`
+- validated source commit: `cacd546`
+- latest validated commit: `cacd546`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
