@@ -12,7 +12,7 @@ Current branch:
 
 Current validated source:
 
-- `9c0e7d1`
+- `125ec54`
 
 Current structured claim:
 
@@ -28,13 +28,15 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 2 / behind 0`
+- `ahead 5 / behind 0`
 
 Completed:
 
 - final plan document committed
 - Phase 1 structured claim parser and resolver implemented
 - collector reads `docs/current/state-sync-record.json`
+- collector verifies the structured claim upstream ref when no local
+  `@{upstream}` is configured, then computes divergence from Git
 - invalid structured claim does not fall back to Markdown
 - evidence drift issues are emitted for Markdown / claim conflicts
 - transition formulas are enforced for structured claims
@@ -43,17 +45,17 @@ Completed:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 63 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 64 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1196 tests
+- `npm test`: PASS, 1197 tests
 
-Known constraint:
+State-sync expectation:
 
-- the local branch has no configured `@{upstream}`; the structured audit enters
-  `claimSource: structured` but blocks on upstream-dependent observation until a
-  branch/upstream workflow is chosen
+- after this state/docs commit, local state-sync audit should PASS by resolving
+  `origin/main` as the structured claim upstream ref and computing divergence
+  from Git
 
 Not authorized:
 
