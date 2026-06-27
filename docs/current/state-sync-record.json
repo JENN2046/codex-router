@@ -6,10 +6,10 @@
     "upstream": "origin/main"
   },
   "source": {
-    "validatedSourceCommit": "120124a",
-    "latestValidatedCommit": "120124a",
+    "validatedSourceCommit": "a5ecd0b",
+    "latestValidatedCommit": "a5ecd0b",
     "recordedDivergence": {
-      "ahead": 11,
+      "ahead": 13,
       "behind": 0
     }
   },
