@@ -689,6 +689,14 @@ Evaluate running State Sync Audit on push to `main` as well as pull requests.
 This should be a separate change because workflow behavior has a different risk
 profile from verifier semantics.
 
+Implemented Phase 4 adjustment:
+
+- keep the workflow top-level triggers on `pull_request` to `main` and `push` to
+  `main`;
+- remove the State Sync Audit job's PR-only event gate so the same audit runs in
+  both contexts;
+- keep the state-sync job behind `test` and before evidence collection.
+
 ## Non-Goals For The First Implementation
 
 - no Sigstore or Rekor integration;

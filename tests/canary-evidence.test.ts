@@ -123,13 +123,17 @@ test("CI uploads node-scoped canary evidence before collecting the manifest", as
   assert.equal(evidenceDownload?.with?.["merge-multiple"], true);
 });
 
-test("CI runs real state-sync audit before evidence collection", async () => {
+test("CI runs real state-sync audit for PR and main push before evidence collection", async () => {
   const workflow = parse(
     await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf-8")
   ) as {
+    on: {
+      push: { branches: string[] };
+      pull_request: { branches: string[] };
+    };
     jobs: {
       "state-sync": {
-        if: string;
+        if?: string;
         needs: string;
         steps: WorkflowStep[];
       };
@@ -144,8 +148,10 @@ test("CI runs real state-sync audit before evidence collection", async () => {
     step.run === "npm run governance -- audit state-sync"
   );
 
+  assert.deepEqual(workflow.on.push.branches, ["main"]);
+  assert.deepEqual(workflow.on.pull_request.branches, ["main"]);
   assert.equal(stateSyncJob.needs, "test");
-  assert.equal(stateSyncJob.if, "github.event_name == 'pull_request'");
+  assert.equal(stateSyncJob.if, undefined);
   assert.ok(auditStep);
   assert.ok(workflow.jobs.evidence.needs.includes("state-sync"));
 });

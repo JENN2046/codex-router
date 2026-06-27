@@ -56,7 +56,6 @@ jobs:
 
   state-sync:
     name: State Sync Audit
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     needs: test
     steps:
