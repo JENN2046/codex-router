@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `docs/state-sync-structured-record-plan` |
-| Current head | `450efa9` |
-| Validated source commit | `450efa9` |
+| Current head | `0b373ff` |
+| Validated source commit | `0b373ff` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 17 / behind 0` |
-| Latest validated commit | `450efa9` |
+| Upstream divergence | `ahead 19 / behind 0` |
+| Latest validated commit | `0b373ff` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `450efa9`
-- latest validated commit: `450efa9`
+- validated source commit: `0b373ff`
+- latest validated commit: `0b373ff`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 17 / behind 0`
+- recorded divergence baseline: `ahead 19 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `245da6b07467b043dabb2c600597f70fabf6dc0d5cfc28bb80dba4f66b92ed5e`
+  `5e0b406f729d12a71a32f14387f3839d774c96e71c097cf81b11e7a7cdeb24a5`
 
 Strict state record paths:
 
@@ -80,14 +80,14 @@ compatibility window.
 
 ## Validation Baseline
 
-Validation recorded for source commit `450efa9`:
+Validation recorded for source commit `0b373ff`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 74 tests.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 75 tests.
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
-- `npm test`: PASS, 1207 tests.
+- `npm test`: PASS, 1208 tests.
 
 State-sync required validation command literals retained in this state surface:
 
@@ -171,8 +171,8 @@ The structured claim expects the branch-head audit context to observe:
 
 - branch: `docs/state-sync-structured-record-plan`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `450efa9`
-- validated source divergence: `ahead 17 / behind 0`
+- validated source commit: `0b373ff`
+- validated source divergence: `ahead 19 / behind 0`
 - transition: `state_only_pending_push`
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as

@@ -12,7 +12,7 @@ Current branch:
 
 Current validated source:
 
-- `450efa9`
+- `0b373ff`
 
 Current structured claim:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 17 / behind 0`
+- `ahead 19 / behind 0`
 
 Completed:
 
@@ -52,11 +52,11 @@ Completed:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 74 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 75 tests
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1207 tests
+- `npm test`: PASS, 1208 tests
 
 State-sync expectation:
 
