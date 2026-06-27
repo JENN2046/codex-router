@@ -12,11 +12,11 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/jsonl-event-log-structured-error` |
-| Current head | `dceb4c7` |
-| Validated source commit | `dceb4c7` |
+| Current head | `22831ed` |
+| Validated source commit | `22831ed` |
 | Upstream | `origin/fix/jsonl-event-log-structured-error` |
 | Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `dceb4c7` |
+| Latest validated commit | `22831ed` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -38,10 +38,10 @@ without writing their own commit hash back into tracked state files.
 
 This branch now records the current validated source head and upstream
 divergence for `fix/jsonl-event-log-structured-error`. The divergence is the
-validated source baseline for `dceb4c7`, not a future state-only commit's
+validated source baseline for `22831ed`, not a future state-only commit's
 own ahead / behind value. The earlier JSONL structured error fix remains
 included in branch history. The current source change is limited to the State
-Sync Audit CI checkout shape.
+Sync Audit validated-source divergence snapshot semantics.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -54,19 +54,19 @@ current safety baseline:
 - `general_workspace_write` remains closed by default
 - `secret_or_credential_change` remains closed by default
 
-Recorded source facts for PR47-P1-CI-CHECKOUT-STATE-SYNC-ANCHOR-REACHABILITY:
+Recorded source facts for PR47-P1-VALIDATED-SOURCE-DIVERGENCE-SNAPSHOT:
 
-- Current head is `dceb4c7`.
-- Validated source commit is `dceb4c7`.
-- Latest validated commit is `dceb4c7`.
+- Current head is `22831ed`.
+- Validated source commit is `22831ed`.
+- Latest validated commit is `22831ed`.
 - Upstream is `origin/fix/jsonl-event-log-structured-error`.
 - Upstream divergence is `ahead 1 / behind 0`.
-- State Sync Audit CI now checks out the PR branch ref with full history using
-  `fetch-depth: 0` and `ref: ${{ github.head_ref || github.ref_name }}`.
-- Previous validated source commit `09e2e9a` is expected to remain reachable
-  from the PR branch head that failed remote CI.
-- The known failure cause is CI checkout / ancestry verification shape, not a
-  weakening of state-sync audit logic.
+- State Sync Audit now accepts the recorded upstream divergence as a validated
+  source baseline snapshot when the current HEAD is a pushed state-only
+  descendant.
+- Reachability checks, non-state descendant blocking, and validated-evidence
+  synthetic anchor hardening remain closed.
+- No workflow checkout change is part of this source record.
 - No package, dependency, remote, provider-execution, env, or secret change is
   part of this state record.
 
@@ -81,7 +81,7 @@ Recorded source facts for PR47-P1-CI-CHECKOUT-STATE-SYNC-ANCHOR-REACHABILITY:
 
 ## Validation Baseline
 
-Validation baseline for source commit `dceb4c7`:
+Validation baseline for source commit `22831ed`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
@@ -95,7 +95,7 @@ State-sync required validation command literals retained in this state surface:
 - `npm test`
 - `npm run build`
 
-Local PR #47 P1 CI checkout remediation validation:
+Local PR #47 P1 divergence snapshot validation:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
@@ -122,9 +122,9 @@ Blocked capabilities:
 
 Boundary facts for this state alignment:
 
-- CI workflow checkout changes are committed in `dceb4c7`.
+- State-sync divergence snapshot changes are committed in `22831ed`.
 - No package or dependency changes.
-- Current source head is recorded as `dceb4c7`.
+- Current source head is recorded as `22831ed`.
 - This state/docs update is not committed yet.
 - No push or remote write has happened yet.
 - No real provider execution.
@@ -149,7 +149,7 @@ state-sync audit therefore expects recorded validated source baseline
 divergence of `ahead 1 / behind 0` for the current PR head.
 
 The recorded validated source head and latest validated commit are both
-`dceb4c7`. The state-only record commit may descend from this source commit
+`22831ed`. The state-only record commit may descend from this source commit
 without writing its own commit hash back into tracked state files.
 
 Current state line:
@@ -157,10 +157,10 @@ Current state line:
 - PR47 JSONL/state-sync fixes: mostly correct.
 - Synthetic anchor hardening: correct.
 - Remote CI: failed.
-- Failure cause: State Sync Audit checkout/ancestry verification.
+- Failure cause: pushed state-only divergence snapshot recomputation.
 - Active P1: yes.
 - Merge: blocked.
-- Next: fix CI checkout, not weaken audit logic.
+- Next: validate and push divergence snapshot fix, not weaken audit logic.
 
 ## Next Safe Action
 

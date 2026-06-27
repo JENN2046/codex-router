@@ -2,8 +2,8 @@
 
 Current task:
 
-- Record PR47 P1 CI checkout / state-sync anchor reachability validation and
-  align state files to the current validated source commit on
+- Record PR47 P1 validated-source divergence snapshot validation and align
+  state files to the current validated source commit on
   `fix/jsonl-event-log-structured-error`.
 
 Done:
@@ -11,10 +11,10 @@ Done:
 - confirmed current branch is `fix/jsonl-event-log-structured-error`
 - inspected `scripts/run-state-sync-audit.ts`
 - inspected current state records
-- committed State Sync Audit CI checkout remediation
-- recorded current source head `dceb4c7`
-- recorded validated source commit `dceb4c7`
-- recorded latest validated commit `dceb4c7`
+- committed State Sync Audit divergence snapshot remediation
+- recorded current source head `22831ed`
+- recorded validated source commit `22831ed`
+- recorded latest validated commit `22831ed`
 - recorded upstream `origin/fix/jsonl-event-log-structured-error`
 - recorded validated source baseline divergence `ahead 1 / behind 0`
 - recorded state record mode `state-only descendant allowed`
@@ -40,7 +40,7 @@ Todo:
 Blocked until separately authorized:
 
 - dependency changes
-- further workflow edits, PR edit, review-thread resolution, merge, or release
+- workflow edits, PR edit, review-thread resolution, merge, or release
 - manual CI rerun
 - real provider execution
 - real Codex CLI execution

@@ -6,15 +6,15 @@ Current branch:
 
 Current head:
 
-- `dceb4c7`
+- `22831ed`
 
 Validated source commit:
 
-- `dceb4c7`
+- `22831ed`
 
 Latest validated commit:
 
-- `dceb4c7`
+- `22831ed`
 
 Upstream:
 
@@ -35,7 +35,7 @@ Recorded local validation for this branch head:
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
-Validation for PR47 P1 CI checkout remediation:
+Validation for PR47 P1 divergence snapshot remediation:
 
 - `git diff --check`: PASS
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
@@ -47,8 +47,8 @@ Validation for PR47 P1 CI checkout remediation:
 
 Execution boundary for this validation record:
 
-- current validated source head is `dceb4c7`
-- local PR47 P1 CI checkout remediation is committed
+- current validated source head is `22831ed`
+- local PR47 P1 divergence snapshot remediation is committed
 - no dependency changes
 - no state/docs commit yet
 - no push yet

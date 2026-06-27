@@ -10,15 +10,15 @@ Branch:
 
 Current head:
 
-- `dceb4c7`
+- `22831ed`
 
 Validated source commit:
 
-- `dceb4c7`
+- `22831ed`
 
 Latest validated commit:
 
-- `dceb4c7`
+- `22831ed`
 
 Upstream:
 
@@ -34,10 +34,10 @@ State record mode:
 
 Checkpoint facts:
 
-- current validated source head is present at `dceb4c7`
+- current validated source head is present at `22831ed`
 - validated source baseline divergence is recorded as `ahead 1 / behind 0`
-- State Sync Audit CI now checks out the PR branch ref with full history so
-  ancestry and state-only descendant checks are verifiable
+- State Sync Audit accepts a recorded divergence snapshot only for pushed
+  state-only descendants of the validated source commit
 - tracked state files are not required to record their own containing commit
 - validation evidence recorded for the source commit:
   - `git diff --check`: PASS
@@ -45,7 +45,7 @@ Checkpoint facts:
   - `npm run typecheck`: PASS
   - `npm run build`: PASS
 
-Local PR #47 P1 CI checkout validation completed:
+Local PR #47 P1 divergence snapshot validation completed:
 
 - `git diff --check`: PASS
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
@@ -57,7 +57,7 @@ Local PR #47 P1 CI checkout validation completed:
 
 Boundary:
 
-- CI checkout remediation is committed
+- divergence snapshot remediation is committed
 - state/docs commit in progress
 - no dependency changes, push, remote write, manual CI rerun, real provider
   execution, secret change, or runtime configuration change has occurred
