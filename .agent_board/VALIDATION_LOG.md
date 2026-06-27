@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `fix/state-sync-strict-path-convergence`
 
 Validated source commit:
 
-- `959e173`
+- `c0ac1f2`
 
 Latest validated commit:
 
-- `959e173`
+- `c0ac1f2`
 
 Structured claim:
 
@@ -22,24 +22,21 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 2 / behind 0`
+- `ahead 1 / behind 0`
 
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 State-sync audit observation:
 
-- PR #50 post-squash main reanchor: local branch-head audit PASS and remote
-  main-push CI PASS
-- a new local unpushed `state_only_pushed` record may block until it is pushed,
-  because `state_only_pushed` requires `HEAD...refs/remotes/origin/main` to be
-  aligned
-- once pushed, `node --import tsx scripts/run-state-sync-audit.ts --json`
-  should PASS
+- with the state/docs record committed,
+  `node --import tsx scripts/run-state-sync-audit.ts --json` should PASS
+- `state_only_pending_push` is expected while this focused branch is ahead of
+  `origin/main`
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
 - expected upstream ref boundary: only `origin/*` or
@@ -52,9 +49,8 @@ State-sync audit observation:
 
 Execution boundary:
 
-- source changes intentionally update `.github/workflows/ci.yml` for Phase 4
-  state-sync CI coverage and gate main-push audit on a committed
-  `main` / `state_only_pushed` record
+- source changes intentionally update state-sync strict path policy, regression
+  tests, and the structured record plan
 - no package, dependency, provider, env, secret, user config, or system config
   change is part of this state record
 - no manual CI rerun
@@ -64,10 +60,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-strict-path-convergence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `959e173`
-- latest validated commit: `959e173`
-- recorded divergence baseline: `ahead 2 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `c0ac1f2`
+- latest validated commit: `c0ac1f2`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

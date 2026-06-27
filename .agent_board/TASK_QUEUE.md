@@ -2,8 +2,7 @@
 
 Current task:
 
-- Prepare strict state record path convergence after completing the PR #50
-  post-squash `main` reanchor.
+- Publish strict state record path convergence for PR validation.
 
 Done:
 
@@ -39,17 +38,19 @@ Done:
 - pushed the post-PR #50 `main` state/docs reanchor
 - verified branch-head state-sync audit and main-push CI for the previous main
   reanchor
+- implemented strict state record path convergence
+- added regression tests for unlisted `.agent_board` paths
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 Todo:
 
-- implement strict state record path convergence on a focused branch
+- push the focused branch and open a PR
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
@@ -66,10 +67,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-strict-path-convergence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `959e173`
-- latest validated commit: `959e173`
-- recorded divergence baseline: `ahead 2 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `c0ac1f2`
+- latest validated commit: `c0ac1f2`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
