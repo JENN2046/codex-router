@@ -2,16 +2,16 @@
 
 Goal:
 
-- Record state for the PR47 P1 validated-source divergence snapshot fix and
+- Record state for the PR47 P1 validated-source bounded divergence snapshot fix and
   upstream divergence.
 
 Workspace:
 
 - repository root: `codex-router`
 - branch: `fix/jsonl-event-log-structured-error`
-- current head: `22831ed`
-- validated source commit: `22831ed`
-- latest validated commit: `22831ed`
+- current head: `6c0778a`
+- validated source commit: `6c0778a`
+- latest validated commit: `6c0778a`
 - upstream: `origin/fix/jsonl-event-log-structured-error`
 - upstream divergence: `ahead 1 / behind 0`
 - state record mode: `state-only descendant allowed`
@@ -19,12 +19,12 @@ Workspace:
 
 Current status:
 
-- current validated source head is `22831ed`
+- current validated source head is `6c0778a`
 - validated source baseline is ahead of upstream by 1 commit and behind by 0 commits
 - `.agent_board` records reflect the validated source commit, not a required
   state-record commit hash
-- State Sync Audit now accepts a recorded divergence snapshot only for pushed
-  state-only descendants
+- State Sync Audit now accepts a recorded divergence snapshot only for exact
+  recomputed matches or bounded pushed state-only inverse snapshots
 - validation results recorded:
   - `git diff --check`: PASS
   - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
@@ -44,7 +44,7 @@ Validation completed in this task:
 
 Known constraint:
 
-- local writes are restricted to the State Sync Audit divergence snapshot fix
+- local writes are restricted to the State Sync Audit bounded divergence snapshot fix
   and state records
 
 Not authorized:

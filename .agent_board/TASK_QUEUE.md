@@ -2,7 +2,7 @@
 
 Current task:
 
-- Record PR47 P1 validated-source divergence snapshot validation and align
+- Record PR47 P1 validated-source bounded divergence snapshot validation and align
   state files to the current validated source commit on
   `fix/jsonl-event-log-structured-error`.
 
@@ -11,13 +11,14 @@ Done:
 - confirmed current branch is `fix/jsonl-event-log-structured-error`
 - inspected `scripts/run-state-sync-audit.ts`
 - inspected current state records
-- committed State Sync Audit divergence snapshot remediation
-- recorded current source head `22831ed`
-- recorded validated source commit `22831ed`
-- recorded latest validated commit `22831ed`
+- committed State Sync Audit bounded divergence snapshot fallback
+- recorded current source head `6c0778a`
+- recorded validated source commit `6c0778a`
+- recorded latest validated commit `6c0778a`
 - recorded upstream `origin/fix/jsonl-event-log-structured-error`
 - recorded validated source baseline divergence `ahead 1 / behind 0`
 - recorded state record mode `state-only descendant allowed`
+- recorded that arbitrary syntactic divergence snapshots remain blocked
 - recorded validation results:
   - `git diff --check`: PASS
   - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS

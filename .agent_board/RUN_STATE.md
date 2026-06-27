@@ -14,15 +14,15 @@ Branch:
 
 Current head:
 
-- `22831ed`
+- `6c0778a`
 
 Validated source commit:
 
-- `22831ed`
+- `6c0778a`
 
 Latest validated commit:
 
-- `22831ed`
+- `6c0778a`
 
 Upstream:
 
@@ -52,12 +52,13 @@ Current scope outcome:
   commit
 - recorded upstream as `origin/fix/jsonl-event-log-structured-error`
 - recorded validated source baseline divergence as `ahead 1 / behind 0`
-- committed PR47 P1 divergence snapshot remediation for State Sync Audit
+- committed PR47 P1 bounded divergence snapshot fallback for State Sync Audit
+- recorded that syntax-only divergence snapshots do not satisfy the audit
 - state/docs alignment is in progress
 
 Boundary:
 
-- current validated source head is `22831ed`
+- current validated source head is `6c0778a`
 - no dependency changes
 - state-sync source/test commit exists
 - no push yet

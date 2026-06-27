@@ -12,11 +12,11 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/jsonl-event-log-structured-error` |
-| Current head | `22831ed` |
-| Validated source commit | `22831ed` |
+| Current head | `6c0778a` |
+| Validated source commit | `6c0778a` |
 | Upstream | `origin/fix/jsonl-event-log-structured-error` |
 | Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `22831ed` |
+| Latest validated commit | `6c0778a` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -38,10 +38,11 @@ without writing their own commit hash back into tracked state files.
 
 This branch now records the current validated source head and upstream
 divergence for `fix/jsonl-event-log-structured-error`. The divergence is the
-validated source baseline for `22831ed`, not a future state-only commit's
+validated source baseline for `6c0778a`, not a future state-only commit's
 own ahead / behind value. The earlier JSONL structured error fix remains
-included in branch history. The current source change is limited to the State
-Sync Audit validated-source divergence snapshot semantics.
+included in branch history. The current source change is limited to bounding
+the State Sync Audit pushed state-only divergence snapshot fallback.
+Syntax-only upstream divergence fields do not satisfy the check.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -56,14 +57,14 @@ current safety baseline:
 
 Recorded source facts for PR47-P1-VALIDATED-SOURCE-DIVERGENCE-SNAPSHOT:
 
-- Current head is `22831ed`.
-- Validated source commit is `22831ed`.
-- Latest validated commit is `22831ed`.
+- Current head is `6c0778a`.
+- Validated source commit is `6c0778a`.
+- Latest validated commit is `6c0778a`.
 - Upstream is `origin/fix/jsonl-event-log-structured-error`.
 - Upstream divergence is `ahead 1 / behind 0`.
 - State Sync Audit now accepts the recorded upstream divergence as a validated
-  source baseline snapshot when the current HEAD is a pushed state-only
-  descendant.
+  source baseline snapshot only for exact recomputed matches or bounded
+  pushed state-only inverse snapshots.
 - Reachability checks, non-state descendant blocking, and validated-evidence
   synthetic anchor hardening remain closed.
 - No workflow checkout change is part of this source record.
@@ -81,7 +82,7 @@ Recorded source facts for PR47-P1-VALIDATED-SOURCE-DIVERGENCE-SNAPSHOT:
 
 ## Validation Baseline
 
-Validation baseline for source commit `22831ed`:
+Validation baseline for source commit `6c0778a`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
@@ -95,7 +96,7 @@ State-sync required validation command literals retained in this state surface:
 - `npm test`
 - `npm run build`
 
-Local PR #47 P1 divergence snapshot validation:
+Local PR #47 P1 bounded divergence snapshot validation:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
@@ -122,9 +123,9 @@ Blocked capabilities:
 
 Boundary facts for this state alignment:
 
-- State-sync divergence snapshot changes are committed in `22831ed`.
+- State-sync bounded divergence snapshot changes are committed in `6c0778a`.
 - No package or dependency changes.
-- Current source head is recorded as `22831ed`.
+- Current source head is recorded as `6c0778a`.
 - This state/docs update is not committed yet.
 - No push or remote write has happened yet.
 - No real provider execution.
@@ -149,18 +150,19 @@ state-sync audit therefore expects recorded validated source baseline
 divergence of `ahead 1 / behind 0` for the current PR head.
 
 The recorded validated source head and latest validated commit are both
-`22831ed`. The state-only record commit may descend from this source commit
+`6c0778a`. The state-only record commit may descend from this source commit
 without writing its own commit hash back into tracked state files.
 
 Current state line:
 
 - PR47 JSONL/state-sync fixes: mostly correct.
 - Synthetic anchor hardening: correct.
-- Remote CI: failed.
-- Failure cause: pushed state-only divergence snapshot recomputation.
+- Bounded divergence snapshot fallback: local source fix committed.
+- Remote CI: not triggered for `6c0778a` yet.
+- Previous failure cause: pushed state-only divergence snapshot recomputation.
 - Active P1: yes.
 - Merge: blocked.
-- Next: validate and push divergence snapshot fix, not weaken audit logic.
+- Next: validate and push bounded divergence snapshot fix, not weaken audit logic.
 
 ## Next Safe Action
 

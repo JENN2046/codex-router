@@ -10,15 +10,15 @@ Branch:
 
 Current head:
 
-- `22831ed`
+- `6c0778a`
 
 Validated source commit:
 
-- `22831ed`
+- `6c0778a`
 
 Latest validated commit:
 
-- `22831ed`
+- `6c0778a`
 
 Upstream:
 
@@ -34,10 +34,10 @@ State record mode:
 
 Checkpoint facts:
 
-- current validated source head is present at `22831ed`
+- current validated source head is present at `6c0778a`
 - validated source baseline divergence is recorded as `ahead 1 / behind 0`
-- State Sync Audit accepts a recorded divergence snapshot only for pushed
-  state-only descendants of the validated source commit
+- State Sync Audit accepts a recorded divergence snapshot only for exact
+  recomputed matches or bounded pushed state-only inverse snapshots
 - tracked state files are not required to record their own containing commit
 - validation evidence recorded for the source commit:
   - `git diff --check`: PASS
@@ -45,7 +45,7 @@ Checkpoint facts:
   - `npm run typecheck`: PASS
   - `npm run build`: PASS
 
-Local PR #47 P1 divergence snapshot validation completed:
+Local PR #47 P1 bounded divergence snapshot validation completed:
 
 - `git diff --check`: PASS
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
@@ -57,7 +57,7 @@ Local PR #47 P1 divergence snapshot validation completed:
 
 Boundary:
 
-- divergence snapshot remediation is committed
+- bounded divergence snapshot fallback is committed
 - state/docs commit in progress
 - no dependency changes, push, remote write, manual CI rerun, real provider
   execution, secret change, or runtime configuration change has occurred
