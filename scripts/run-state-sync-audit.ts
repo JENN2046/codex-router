@@ -138,6 +138,10 @@ async function resolveObservedUpstream(
   }
 
   const claimedUpstream = parsedClaim.claim.subject.upstream.trim();
+  if (!isAllowedClaimUpstreamRef(claimedUpstream)) {
+    return "";
+  }
+
   return await gitRefExists(claimedUpstream, cwd) ? claimedUpstream : "";
 }
 
@@ -248,6 +252,32 @@ function escapeRegExp(value: string): string {
 
 function isCommitLike(value: string): boolean {
   return /^[0-9a-f]{7,40}$/i.test(value);
+}
+
+function isAllowedClaimUpstreamRef(ref: string): boolean {
+  if (ref === "origin/HEAD" || ref === "refs/remotes/origin/HEAD") {
+    return false;
+  }
+
+  const originShorthand = /^origin\/[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(ref);
+  const originFullRef =
+    /^refs\/remotes\/origin\/[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(ref);
+  if (!originShorthand && !originFullRef) {
+    return false;
+  }
+
+  return !ref.split("/").some((part) => (
+    part === ""
+    || part === "."
+    || part === ".."
+    || part.endsWith(".lock")
+    || part.includes("@{")
+    || part.includes("..")
+    || part.includes("^")
+    || part.includes("~")
+    || part.includes(":")
+    || part.includes("\\")
+  ));
 }
 
 function uniqueNonEmpty(values: string[]): string[] {
