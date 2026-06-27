@@ -160,19 +160,19 @@ strict state-only path helper introduced for this plan must include it.
 
 Observation is not committed. It is generated at audit time.
 
-For structured claims, the collector should prefer the locally configured
-`@{upstream}` when it exists. If the current branch has no local upstream, the
-collector may use `claim.subject.upstream` only as a bounded candidate Git ref
-to observe. Phase 1 accepts only remote-tracking refs under `origin`, expressed
-as `origin/<name>` or `refs/remotes/origin/<name>`, and rejects `origin/HEAD`,
-`HEAD`, local branch names, tags, bare SHAs, and revision expressions. The
-collector must first verify that the bounded ref resolves to a commit in the
-local Git repository, then compute both current branch divergence and
-validated-source divergence from Git against that ref. If the claimed upstream
-ref is outside the allowed remote-tracking namespace or does not resolve,
-upstream and divergence observations remain unknown and the audit blocks. This
-keeps `subject.upstream` as a policy expectation and ref selector; it is not
-proof of divergence and does not replace Git observation.
+For structured claims, `claim.subject.upstream` is the authoritative upstream
+baseline selector for the audit. A local `@{upstream}` may reflect ordinary
+operator branch tracking, such as `origin/<feature>`, and must not silently
+override the structured baseline. Phase 1 accepts only remote-tracking refs under
+`origin`, expressed as `origin/<name>` or `refs/remotes/origin/<name>`, and
+rejects `origin/HEAD`, `HEAD`, local branch names, tags, bare SHAs, and revision
+expressions. The collector must first verify that the bounded ref resolves to a
+commit in the local Git repository, then compute both current branch divergence
+and validated-source divergence from Git against that ref. If the claimed
+upstream ref is outside the allowed remote-tracking namespace or does not
+resolve, upstream and divergence observations remain unknown and the audit
+blocks. This keeps `subject.upstream` as a policy expectation and bounded ref
+selector; it is not proof of divergence and does not replace Git observation.
 
 ### Claim Parsing And Compatibility
 
@@ -218,12 +218,31 @@ Initial transition kinds:
 
 There should be no catch-all syntax-only pass path.
 
+For branch-head transitions, subject branch matching means either:
+
+```text
+claim.subject.branch == observation.branch
+```
+
+or this bounded detached checkout case:
+
+```text
+observation.branch == ""
+claim.subject.branch is non-empty
+claim.subject.upstream == observation.upstream
+```
+
+The detached branch-name case only compensates for checkout environments that do
+not preserve a local branch name. It does not bypass upstream matching,
+validated-source ancestry, divergence checks, allowed state paths, dirty
+worktree checks, or synthetic anchor hardening.
+
 Transition formulas:
 
 `source_exact` passes only when:
 
 ```text
-claim.subject.branch == observation.branch
+claim subject branch matches observation branch or bounded detached branch-name case
 claim.subject.upstream == observation.upstream
 claim.source.validatedSourceCommit == observation.head
 claim.source.latestValidatedCommit == claim.source.validatedSourceCommit
@@ -234,7 +253,7 @@ dirty worktree paths are all in claim.transition.allowedStatePaths
 `state_only_pending_push` passes only when:
 
 ```text
-claim.subject.branch == observation.branch
+claim subject branch matches observation branch or bounded detached branch-name case
 claim.subject.upstream == observation.upstream
 observation.head != claim.source.validatedSourceCommit
 observation.validatedSourceAncestorOfHead == true
@@ -251,7 +270,7 @@ dirty worktree paths are all in claim.transition.allowedStatePaths
 `state_only_pushed` passes only when:
 
 ```text
-claim.subject.branch == observation.branch
+claim subject branch matches observation branch or bounded detached branch-name case
 claim.subject.upstream == observation.upstream
 observation.validatedSourceAncestorOfHead == true
 observation.committedPathsSinceValidatedSource is defined
@@ -291,6 +310,10 @@ audit. It must not bypass source reachability, agent board evidence, output
 sanitization, dirty worktree checks, or synthetic anchor hardening.
 
 `merge_ref_checkout` is not accepted as a structured claim transition in Phase 1.
+Detached pull request merge refs may still pass an existing branch-head
+transition only when the branch name is the only missing subject fact and all
+other transition checks pass against Git observation. This does not introduce a
+merge-ref-specific claim mode.
 
 Phase 1 keeps the existing legacy merge-parent compatibility path while the repo
 is migrating from Markdown authority to structured claims. A future phase may add

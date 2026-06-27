@@ -126,18 +126,15 @@ async function resolveObservedUpstream(
   parsedClaim: ReturnType<typeof parseStateSyncClaim>,
   cwd: string
 ): Promise<string> {
-  if (localUpstream !== "") {
+  if (parsedClaim.status !== "valid") {
     return localUpstream;
   }
 
-  if (
-    parsedClaim.status !== "valid"
-    || parsedClaim.claim.subject.upstream.trim() === ""
-  ) {
+  const claimedUpstream = parsedClaim.claim.subject.upstream.trim();
+  if (claimedUpstream === "") {
     return "";
   }
 
-  const claimedUpstream = parsedClaim.claim.subject.upstream.trim();
   if (!isAllowedClaimUpstreamRef(claimedUpstream)) {
     return "";
   }

@@ -407,7 +407,7 @@ export function reviewStateSyncAudit(
     currentStateRecorded: input.currentStateText.includes("CURRENT_STATE_RECORDED"),
     currentBranchMatches:
       detachedSyntheticReviewCheckout
-      || resolvedClaim.branch === input.branch,
+      || resolvedBranchMatchesInput(resolvedClaim, input),
     validatedSourceHeadRecorded: stateCommitMatchesValidatedSource(
       currentHead,
       validatedSourceCommit,
@@ -770,9 +770,7 @@ function structuredTransitionIsAllowed(
     return false;
   }
 
-  const subjectMatches =
-    resolvedClaim.branch === input.branch
-    && resolvedClaim.upstream === input.upstream;
+  const subjectMatches = subjectMatchesInput(resolvedClaim, input);
   const latestMatches =
     resolvedClaim.latestValidatedCommit === resolvedClaim.validatedSourceCommit;
   const dirtyPathsAllowed = dirtyStatusEntriesAreAllowedStatePaths(
@@ -845,6 +843,29 @@ function divergenceMatches(
     && behind >= 0
     && recorded.ahead === ahead
     && recorded.behind === behind;
+}
+
+function subjectMatchesInput(
+  resolvedClaim: ResolvedStateSyncClaim,
+  input: StateSyncAuditInput
+): boolean {
+  return resolvedClaim.upstream === input.upstream
+    && resolvedBranchMatchesInput(resolvedClaim, input);
+}
+
+function resolvedBranchMatchesInput(
+  resolvedClaim: ResolvedStateSyncClaim,
+  input: StateSyncAuditInput
+): boolean {
+  if (resolvedClaim.branch === input.branch) {
+    return true;
+  }
+
+  return resolvedClaim.claimSource === "structured"
+    && input.branch === ""
+    && resolvedClaim.branch !== undefined
+    && resolvedClaim.branch !== ""
+    && resolvedClaim.upstream === input.upstream;
 }
 
 function fieldIncludes(text: string, field: string, value: string): boolean {
