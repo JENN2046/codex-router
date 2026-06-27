@@ -30,6 +30,15 @@ const FORBIDDEN_STALE_MARKERS = [
   "Review and optionally commit the `.agent_board` refresh locally"
 ] as const;
 
+const STRICT_STATE_RECORD_PATHS = new Set([
+  CURRENT_STATE_DOC,
+  ".agent_board/CHECKPOINT.md",
+  ".agent_board/HANDOFF.md",
+  ".agent_board/RUN_STATE.md",
+  ".agent_board/TASK_QUEUE.md",
+  ".agent_board/VALIDATION_LOG.md"
+]);
+
 export interface StateSyncAuditInput {
   gitStatusShort: string;
   branch: string;
@@ -186,14 +195,14 @@ export function reviewStateSyncAudit(
     upstreamRecorded:
       input.upstream === "" || fieldIncludes(input.currentStateText, "Upstream", input.upstream),
     validatedSourceDivergenceRecorded:
-      detachedSyntheticReviewCheckout
-      || validatedSourceDivergenceIsRecorded(
+      validatedSourceDivergenceIsRecorded(
+        detachedSyntheticReviewCheckout,
         upstreamDivergence,
         input.currentStateText,
-        validatedSourceCommit,
-        input.head,
         input.committedPathsSinceValidatedSource,
         input.validatedSourceAncestorOfHead,
+        ahead,
+        behind,
         validatedSourceAhead,
         validatedSourceBehind
       ),
@@ -401,60 +410,93 @@ function stateCommitMatchesValidatedSource(
     );
 }
 
-function upstreamDivergenceMatches(
-  value: string | undefined,
-  ahead: number,
-  behind: number
-): boolean {
-  return value === `ahead ${ahead} / behind ${behind}`;
-}
-
 function validatedSourceDivergenceIsRecorded(
+  detachedSyntheticReviewCheckout: boolean,
   value: string | undefined,
   currentStateText: string,
-  validatedSourceCommit: string | undefined,
-  head: string,
   committedPathsSinceValidatedSource: string[] | undefined,
   validatedSourceAncestorOfHead: boolean | undefined,
-  ahead: number,
-  behind: number
+  currentAhead: number,
+  currentBehind: number,
+  computedValidatedAhead: number,
+  computedValidatedBehind: number
 ): boolean {
-  return upstreamDivergenceMatches(value, ahead, behind)
-    || validatedSourceDivergenceSnapshotIsAllowed(
-      value,
-      currentStateText,
-      validatedSourceCommit,
-      head,
-      committedPathsSinceValidatedSource,
-      validatedSourceAncestorOfHead
-    );
+  if (detachedSyntheticReviewCheckout) {
+    return true;
+  }
+
+  const recorded = parseUpstreamDivergenceField(value);
+  if (
+    recorded === undefined
+    || recorded.ahead < 0
+    || recorded.behind < 0
+    || computedValidatedAhead < 0
+    || computedValidatedBehind < 0
+  ) {
+    return false;
+  }
+
+  const exactMatch =
+    recorded.ahead === computedValidatedAhead
+    && recorded.behind === computedValidatedBehind;
+  if (exactMatch) {
+    return true;
+  }
+
+  return validatedSourceDivergenceSnapshotIsAllowed(
+    recorded,
+    currentStateText,
+    committedPathsSinceValidatedSource,
+    validatedSourceAncestorOfHead,
+    currentAhead,
+    currentBehind,
+    computedValidatedAhead,
+    computedValidatedBehind
+  );
 }
 
 function validatedSourceDivergenceSnapshotIsAllowed(
-  value: string | undefined,
+  recorded: { ahead: number; behind: number },
   currentStateText: string,
-  validatedSourceCommit: string | undefined,
-  head: string,
   committedPathsSinceValidatedSource: string[] | undefined,
-  validatedSourceAncestorOfHead: boolean | undefined
+  validatedSourceAncestorOfHead: boolean | undefined,
+  currentAhead: number,
+  currentBehind: number,
+  computedValidatedAhead: number,
+  computedValidatedBehind: number
 ): boolean {
-  return validatedSourceCommit !== undefined
-    && validatedSourceCommit !== head
-    && fieldIncludes(
-      currentStateText,
-      "State record mode",
-      "state-only descendant allowed"
-    )
-    && upstreamDivergenceIsSyntacticallyValid(value)
+  return fieldIncludes(
+    currentStateText,
+    "State record mode",
+    "state-only descendant allowed"
+  )
     && validatedSourceAncestorOfHead === true
     && committedPathsSinceValidatedSource !== undefined
-    && committedPathsSinceValidatedSource.every(isAllowedStatePath);
+    && committedPathsSinceValidatedSource.every(isStrictStateRecordPath)
+    && currentAhead === 0
+    && currentBehind === 0
+    && computedValidatedAhead === 0
+    && computedValidatedBehind > 0
+    && recorded.ahead === computedValidatedBehind
+    && recorded.behind === 0;
 }
 
-function upstreamDivergenceIsSyntacticallyValid(
+function parseUpstreamDivergenceField(
   value: string | undefined
-): boolean {
-  return /^ahead -?\d+ \/ behind -?\d+$/.test(value ?? "");
+): { ahead: number; behind: number } | undefined {
+  const match = /^ahead (-?\d+) \/ behind (-?\d+)$/.exec(value ?? "");
+  if (match === null) {
+    return undefined;
+  }
+
+  return {
+    ahead: Number.parseInt(match[1] ?? "", 10),
+    behind: Number.parseInt(match[2] ?? "", 10)
+  };
+}
+
+function isStrictStateRecordPath(path: string): boolean {
+  return STRICT_STATE_RECORD_PATHS.has(path);
 }
 
 function agentBoardCommitsMatchState(
