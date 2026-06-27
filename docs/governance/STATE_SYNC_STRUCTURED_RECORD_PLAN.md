@@ -162,13 +162,17 @@ Observation is not committed. It is generated at audit time.
 
 For structured claims, the collector should prefer the locally configured
 `@{upstream}` when it exists. If the current branch has no local upstream, the
-collector may use `claim.subject.upstream` only as the candidate Git ref to
-observe. It must first verify that the ref resolves to a commit in the local Git
-repository, then compute both current branch divergence and validated-source
-divergence from Git against that ref. If the claimed upstream ref does not
-resolve, upstream and divergence observations remain unknown and the audit
-blocks. This keeps `subject.upstream` as a policy expectation and ref selector;
-it is not proof of divergence and does not replace Git observation.
+collector may use `claim.subject.upstream` only as a bounded candidate Git ref
+to observe. Phase 1 accepts only remote-tracking refs under `origin`, expressed
+as `origin/<name>` or `refs/remotes/origin/<name>`, and rejects `origin/HEAD`,
+`HEAD`, local branch names, tags, bare SHAs, and revision expressions. The
+collector must first verify that the bounded ref resolves to a commit in the
+local Git repository, then compute both current branch divergence and
+validated-source divergence from Git against that ref. If the claimed upstream
+ref is outside the allowed remote-tracking namespace or does not resolve,
+upstream and divergence observations remain unknown and the audit blocks. This
+keeps `subject.upstream` as a policy expectation and ref selector; it is not
+proof of divergence and does not replace Git observation.
 
 ### Claim Parsing And Compatibility
 
