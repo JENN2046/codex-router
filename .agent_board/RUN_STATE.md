@@ -1,6 +1,6 @@
 # Run State
 
-Status: Main reanchor is in local validation after PR #49 squash merge.
+Status: Phase 4 state-sync CI coverage adjustment is ready for PR publication.
 
 Machine-authoritative claim:
 
@@ -17,19 +17,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `main`
+- `docs/state-sync-phase-4-main-push-ci`
 
 Current head:
 
-- `59b9eba`
+- `04ae358`
 
 Validated source commit:
 
-- `59b9eba`
+- `04ae358`
 
 Latest validated commit:
 
-- `59b9eba`
+- `04ae358`
 
 Upstream baseline:
 
@@ -37,36 +37,37 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 5 / behind 0`
 
 Transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 77 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
-  tests
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1213 tests
 
 State-sync audit expectation:
 
-- after this state/docs record is pushed to `main`, branch-head audit should
-  PASS with `claimSource: structured` and Git-computed divergence against
-  verified `refs/remotes/origin/main`
+- with this state/docs record committed, branch-head audit should PASS locally
+  with `claimSource: structured` and Git-computed divergence against verified
+  `refs/remotes/origin/main`
+- after the PR branch is pushed, remote CI should validate the same checkout and
+  upstream contexts
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
 
 Boundary:
 
-- no package, dependency, workflow, provider, env, secret, user config, or system
-  config change is part of this state record
-- direct `main` reanchor push is authorized for this state record only
+- source changes intentionally update `.github/workflows/ci.yml` for Phase 4
+  state-sync CI coverage and gate main-push audit on a committed
+  `main` / `state_only_pushed` record
+- no package, dependency, provider, env, secret, user config, or system config
+  change is part of this state record
 - no manual CI rerun
 - no real provider execution
 - no real Codex CLI execution
@@ -74,10 +75,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `59b9eba`
-- latest validated commit: `59b9eba`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `04ae358`
+- latest validated commit: `04ae358`
+- recorded divergence baseline: `ahead 5 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

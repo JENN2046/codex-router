@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `docs/state-sync-phase-4-main-push-ci`
 
 Validated source commit:
 
-- `59b9eba`
+- `04ae358`
 
 Latest validated commit:
 
-- `59b9eba`
+- `04ae358`
 
 Structured claim:
 
@@ -22,22 +22,21 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 5 / behind 0`
 
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 77 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
-  tests
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1213 tests
 
 State-sync audit observation:
 
-- expected after this state/docs record is pushed to `main`:
-  `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
+- with this state/docs record committed:
+  `node --import tsx scripts/run-state-sync-audit.ts --json` should PASS
+- after the PR branch is pushed, CI should validate the same checkout and
+  upstream contexts
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
 - expected upstream ref boundary: only `origin/*` or
@@ -50,9 +49,11 @@ State-sync audit observation:
 
 Execution boundary:
 
-- no package, dependency, workflow, provider, env, secret, user config, or system
-  config change is part of this state record
-- direct `main` reanchor push is authorized for this state record only
+- source changes intentionally update `.github/workflows/ci.yml` for Phase 4
+  state-sync CI coverage and gate main-push audit on a committed
+  `main` / `state_only_pushed` record
+- no package, dependency, provider, env, secret, user config, or system config
+  change is part of this state record
 - no manual CI rerun
 - no real provider execution
 - no real Codex CLI execution
@@ -60,10 +61,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `59b9eba`
-- latest validated commit: `59b9eba`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `04ae358`
+- latest validated commit: `04ae358`
+- recorded divergence baseline: `ahead 5 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

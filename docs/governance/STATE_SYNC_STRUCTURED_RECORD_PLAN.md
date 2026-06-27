@@ -689,6 +689,21 @@ Evaluate running State Sync Audit on push to `main` as well as pull requests.
 This should be a separate change because workflow behavior has a different risk
 profile from verifier semantics.
 
+Implemented Phase 4 adjustment:
+
+- keep the workflow top-level triggers on `pull_request` to `main` and `push` to
+  `main`;
+- remove the State Sync Audit job's PR-only event gate so pull requests still run
+  the audit and `push` events can run it after a committed
+  `main`/`state_only_pushed` structured record exists;
+- keep the state-sync job behind `test` and before evidence collection.
+- on `push` events, gate the audit on the committed structured record having
+  `subject.branch == "main"` and `transition.kind == "state_only_pushed"`.
+  A squash merge that still carries a PR-branch `state_only_pending_push` claim
+  does not run the push audit until a follow-up state/docs reanchor records the
+  `main` claim; this is the expected fail-closed flow, not an instruction to
+  weaken checkout or divergence verification.
+
 ## Non-Goals For The First Implementation
 
 - no Sigstore or Rekor integration;

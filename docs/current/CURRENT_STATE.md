@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `main` |
-| Current head | `59b9eba` |
-| Validated source commit | `59b9eba` |
+| Current branch | `docs/state-sync-phase-4-main-push-ci` |
+| Current head | `04ae358` |
+| Validated source commit | `04ae358` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `59b9eba` |
+| Upstream divergence | `ahead 5 / behind 0` |
+| Latest validated commit | `04ae358` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,13 +36,13 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pushed`
-- validated source commit: `59b9eba`
-- latest validated commit: `59b9eba`
+- transition kind: `state_only_pending_push`
+- validated source commit: `04ae358`
+- latest validated commit: `04ae358`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `e1236016d20de9aafc61285f1be2e609b3098770825fac526488fd103f4456ae`
+  `e1ffa90caa1c9a116a18762cfaea2bb55b3343bda235996395a1a0571eef6cc4`
 
 Strict state record paths:
 
@@ -64,32 +64,27 @@ Strict state record paths:
 
 ## Current Scope
 
-Main now contains Phase 2 and Phase 3 of the state-sync structured record plan:
+This branch contains the Phase 4 state-sync CI coverage adjustment:
 
+- `.github/workflows/ci.yml`
 - `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
-- `packages/state-sync-audit/src/index.ts`
-- `scripts/run-state-sync-audit.ts`
-- `scripts/sync-state-sync-display.ts`
-- `tests/state-sync-audit.test.ts`
-- `tests/state-sync-display-sync.test.ts`
+- `tests/canary-evidence.test.ts`
 - `docs/current/state-sync-record.json`
 
-The important governance change is that `StateSyncClaim + Git Observation +
-Policy Verification` becomes the core PASS / BLOCK path. Markdown and
-`.agent_board/*` are downgraded to display and evidence surfaces during the
-compatibility window, with a generated display-sync path to reduce manual drift.
+The Phase 4 change removes the State Sync Audit job's PR-only event gate. Pull
+requests run the audit normally. `push` events to `main` are gated until the
+committed structured record is a `main` / `state_only_pushed` claim, so a
+squash-merged PR-branch `state_only_pending_push` record does not make main CI
+red before the follow-up reanchor exists.
 
 ## Validation Baseline
 
-Validation recorded for source commit `59b9eba`:
+Validation recorded for source commit `04ae358`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 77 tests.
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
-  tests.
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
-- `npm test`: PASS, 1213 tests.
 
 State-sync required validation command literals retained in this state surface:
 
@@ -100,8 +95,10 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- expected after this main reanchor state record is pushed to `main`:
-  `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
+- with this state record committed, local branch-head audit should PASS:
+  `node --import tsx scripts/run-state-sync-audit.ts --json`.
+- after the PR branch is pushed, remote branch-head audit should observe the
+  same structured claim and upstream baseline.
 - The collector verifies the structured claim upstream ref
   `refs/remotes/origin/main` exists locally, then computes divergence from Git
   instead of trusting the JSON divergence field. Structured claims do not let
@@ -153,9 +150,10 @@ Boundary facts for this state alignment:
   config file is changed by this state record.
 - No real provider execution has occurred.
 - No real Codex CLI execution has occurred.
-- The direct `main` reanchor push is authorized for this state record only.
-- No release, deploy, workflow edit, provider execution, or
-  environment/configuration change is part of this record.
+- The source commit intentionally changes `.github/workflows/ci.yml` for
+  Phase 4 state-sync CI coverage.
+- No release, deploy, provider execution, or environment/configuration change is
+  part of this record.
 
 ## Current Local Changes
 
@@ -173,14 +171,14 @@ Current state-only record changes are limited to:
 
 The structured claim records:
 
-- branch: `main`
+- branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `59b9eba`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `04ae358`
+- recorded divergence baseline: `ahead 5 / behind 0`
+- transition: `state_only_pending_push`
 
-After the state record is pushed, Git observation should compute the validated
-source divergence as `ahead 0 / behind 1` against
+With this state record committed, Git observation should compute the validated
+source divergence as `ahead 5 / behind 0` against
 `refs/remotes/origin/main`.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
@@ -195,9 +193,11 @@ Current state line:
 - Phase 2 missing-claim gate and Markdown authority removal: implemented and
   tested.
 - Phase 3 display-sync script: implemented and tested.
+- Phase 4 state-sync audit on `push` to `main`: gated on a committed
+  `main` / `state_only_pushed` record and ready for PR validation.
 - Bounded source tree digest verification for squash-only state records:
   implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.
-- Next: commit the main reanchor, push `main`, verify post-push branch-head
-  state-sync audit, then open a focused Phase 4 PR.
+- Next: push the P1 gate fix to PR #50 and let CI/reviewer validate the checkout
+  and upstream contexts.

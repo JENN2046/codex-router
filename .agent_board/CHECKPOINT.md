@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `main`
+- `docs/state-sync-phase-4-main-push-ci`
 
 Validated source commit:
 
-- `59b9eba`
+- `04ae358`
 
 Latest validated commit:
 
-- `59b9eba`
+- `04ae358`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 5 / behind 0`
 
 Checkpoint facts:
 
@@ -36,6 +36,8 @@ Checkpoint facts:
 - Phase 2 blocks missing structured claims instead of falling back to Markdown.
 - Phase 3 provides `scripts/sync-state-sync-display.ts` to update display
   surfaces from the structured claim.
+- Phase 4 removes the State Sync Audit job's PR-only event gate and gates
+  `push` audits on a committed `main` / `state_only_pushed` record.
 - The collector uses the structured claim upstream ref as the bounded baseline
   even when local feature-branch tracking exists, then computes divergence from
   Git.
@@ -55,26 +57,25 @@ Checkpoint facts:
 Validation recorded:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 77 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
-  tests
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1213 tests
 
 State-sync observation:
 
-- expected after this state/docs record is pushed to `main`: branch-head
-  state-sync audit PASS using `refs/remotes/origin/main` as a verified Git ref
-  selected by the structured claim
+- with this state/docs record committed, branch-head state-sync audit should
+  PASS using `refs/remotes/origin/main` as a verified Git ref selected by the
+  structured claim
+- after the PR branch is pushed, CI should validate the same checkout and
+  upstream contexts
 
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `59b9eba`
-- latest validated commit: `59b9eba`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `04ae358`
+- latest validated commit: `04ae358`
+- recorded divergence baseline: `ahead 5 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
