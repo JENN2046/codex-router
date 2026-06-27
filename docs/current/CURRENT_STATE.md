@@ -2,29 +2,57 @@
 
 CURRENT_STATE_RECORDED
 
-This is the compact operational state surface for the repository. Historical
-closeouts and `.agent_board` files remain evidence; current facts should be
-refreshed here first.
+This is the compact operator-facing state surface for the repository. The
+machine-authoritative state-sync claim is now:
+
+- `docs/current/state-sync-record.json`
+
+Markdown and `.agent_board/*` remain evidence and handoff surfaces. They are not
+the authority for core machine facts such as validated source commit, upstream
+divergence, transition kind, or allowed state-only paths.
 
 ## Snapshot
 
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `main` |
-| Current head | `42fc8e3` |
-| Validated source commit | `42fc8e3` |
-| Upstream | `origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `42fc8e3` |
+| Current branch | `docs/state-sync-structured-record-plan` |
+| Current head | `0b373ff` |
+| Validated source commit | `0b373ff` |
+| Upstream | `refs/remotes/origin/main` |
+| Upstream divergence | `ahead 19 / behind 0` |
+| Latest validated commit | `0b373ff` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
-The `Current head` row records the validated source head for audit
-compatibility. Dirty state-only record changes are allowed before a state
-commit, and state-only record commits may descend from this source commit
-without writing their own commit hash back into tracked state files.
+The `Current head` row records the validated source head represented by the
+structured state-sync claim. A later state-only record commit may descend from
+this source commit without making Markdown the source of truth again.
+
+## Structured Record
+
+The structured claim records:
+
+- schema version: `1`
+- policy version: `state-sync-policy.v1`
+- transition kind: `state_only_pending_push`
+- validated source commit: `0b373ff`
+- latest validated commit: `0b373ff`
+- upstream baseline: `refs/remotes/origin/main`
+- recorded divergence baseline: `ahead 19 / behind 0`
+- source tree digest: `git-ls-tree-sha256`
+  `5e0b406f729d12a71a32f14387f3839d774c96e71c097cf81b11e7a7cdeb24a5`
+
+Strict state record paths:
+
+- `docs/current/CURRENT_STATE.md`
+- `docs/current/state-sync-record.json`
+- `.agent_board/CHECKPOINT.md`
+- `.agent_board/HANDOFF.md`
+- `.agent_board/RUN_STATE.md`
+- `.agent_board/TASK_QUEUE.md`
+- `.agent_board/VALIDATION_LOG.md`
 
 ## Current Entrypoints
 
@@ -36,20 +64,62 @@ without writing their own commit hash back into tracked state files.
 
 ## Current Scope
 
-PR #47 has been squash-merged into `main`. This direct state/docs repair
-reanchors the current state after the squash merge so tracked state no longer
-depends on PR-branch-internal commits that are not ancestors of `main`.
+This branch introduces the state-sync structured record plan and Phase 1
+verifier support:
 
-The current validated source anchor is `42fc8e3`, an empty post-squash source
-anchor on `main`. The recorded upstream divergence is the validated source
-baseline at the state-record moment, not the future state-only commit's own
-ahead / behind value.
+- `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
+- `packages/state-sync-audit/src/index.ts`
+- `scripts/run-state-sync-audit.ts`
+- `tests/state-sync-audit.test.ts`
+- `docs/current/state-sync-record.json`
 
-The State Sync Audit bounded divergence snapshot behavior remains active:
-recorded upstream divergence may pass only through exact recomputed matches,
-detached synthetic checkout compatibility, or the bounded pushed state-only
-inverse snapshot path. Syntax-only upstream divergence fields do not satisfy
-the check.
+The important governance change is that `StateSyncClaim + Git Observation +
+Policy Verification` becomes the core PASS / BLOCK path. Markdown and
+`.agent_board/*` are downgraded to display and evidence surfaces during the
+compatibility window.
+
+## Validation Baseline
+
+Validation recorded for source commit `0b373ff`:
+
+- `git diff --check`: PASS.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 75 tests.
+- `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests.
+- `npm run typecheck`: PASS.
+- `npm run build`: PASS.
+- `npm test`: PASS, 1208 tests.
+
+State-sync required validation command literals retained in this state surface:
+
+- `npx tsx --test tests\codex-cli-host.test.ts`
+- `npm run typecheck`
+- `npm test`
+- `npm run build`
+
+Current structured state-sync audit status:
+
+- expected after this state record commit:
+  `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
+- The collector verifies the structured claim upstream ref
+  `refs/remotes/origin/main` exists locally, then computes divergence from Git
+  instead of trusting the JSON divergence field. Structured claims do not let
+  local feature-branch tracking override this baseline.
+- The collector normalizes `origin/*` shorthand to `refs/remotes/origin/*`
+  before calling Git, so same-named tags or local refs cannot change the
+  divergence baseline.
+- Structured claim upstream ref selection is bounded to `origin/*` or
+  `refs/remotes/origin/*` remote-tracking refs; `HEAD`, local branches, tags,
+  bare SHAs, `origin/HEAD`, and revision expressions block.
+- Structured claim verification accepts bounded detached branch-head and PR
+  merge-ref checkout contexts when upstream, ancestry, divergence, and
+  state-only path checks still pass.
+- Structured claim verification accepts bounded squash-only checkout contexts
+  without the side-branch source commit object only when live `HEAD` has the
+  recorded filtered source tree digest.
+- The audit enters `claimSource: structured` and validates the structured claim
+  shape.
+
+## Execution Boundary
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -61,58 +131,6 @@ current safety baseline:
 - `general_provider_execution` remains closed by default
 - `general_workspace_write` remains closed by default
 - `secret_or_credential_change` remains closed by default
-
-Recorded source facts for the post-squash state reanchor:
-
-- Current branch is `main`.
-- Current head is `42fc8e3`.
-- Validated source commit is `42fc8e3`.
-- Latest validated commit is `42fc8e3`.
-- Upstream is `origin/main`.
-- Upstream divergence is `ahead 1 / behind 0`.
-- State record mode is `state-only descendant allowed`.
-- Reachability checks, non-state descendant blocking, and validated-evidence
-  synthetic anchor hardening remain closed.
-- No workflow checkout change, package change, dependency change, provider
-  execution, env edit, secret edit, user config edit, or system config edit is
-  part of this state record.
-
-## Remote State
-
-- Direct push to `main` is authorized only for this post-squash state/docs
-  repair, after local validation passes and the worktree is clean.
-- No PR edit, manual CI rerun, review-thread resolution, release, deploy, or
-  npm publish is authorized.
-- Correct status phrase before final push: locally validated, state alignment
-  in progress.
-
-## Validation Baseline
-
-Validation baseline for source commit `42fc8e3`:
-
-- `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
-- `npm run typecheck`: PASS.
-- `npm run build`: PASS.
-
-State-sync required validation command literals retained in this state surface:
-
-- `npx tsx --test tests\codex-cli-host.test.ts`
-- `npm run typecheck`
-- `npm test`
-- `npm run build`
-
-Local post-squash state reanchor validation:
-
-- `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
-- `npm run typecheck`: PASS.
-- `npm run build`: PASS.
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
-  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
-  `issues: []`.
-
-## Execution Boundary
 
 Current allowed-by-default behavior remains local and non-executing unless a
 specific task and approval gate says otherwise.
@@ -129,21 +147,18 @@ Blocked capabilities:
 
 Boundary facts for this state alignment:
 
-- PR #47 is merged by squash into `main`.
-- A post-squash empty source anchor exists at `42fc8e3`.
-- No source, package, dependency, workflow, provider, env, secret, user config,
-  or system config file is changed by this state/docs reanchor.
-- Current source head is recorded as `42fc8e3`.
-- This state/docs update is not committed yet.
-- No push for the reanchor commits has happened yet.
+- No package, dependency, workflow, provider, env, secret, user config, or system
+  config file is changed by this state record.
 - No real provider execution has occurred.
+- No real Codex CLI execution has occurred.
+- No push or PR publication is performed by this local record.
 
 ## Current Local Changes
 
-The validated source commit exists and is the current validated state anchor.
-Current local state changes are limited to:
+Current state-only record changes are limited to:
 
 - `docs/current/CURRENT_STATE.md`
+- `docs/current/state-sync-record.json`
 - `.agent_board/CHECKPOINT.md`
 - `.agent_board/HANDOFF.md`
 - `.agent_board/RUN_STATE.md`
@@ -152,26 +167,26 @@ Current local state changes are limited to:
 
 ## State Sync Expectations
 
-This local branch tracks `origin/main`. The state-sync audit expects recorded
-validated source baseline divergence of `ahead 1 / behind 0` for `42fc8e3`
-before the state/docs commit is pushed.
+The structured claim expects the branch-head audit context to observe:
 
-After the state/docs commit is pushed, `main` should be aligned with upstream.
-The same recorded baseline should then pass through the bounded pushed
-state-only inverse snapshot rule because the only committed paths since the
-validated source are strict state record files.
+- branch: `docs/state-sync-structured-record-plan`
+- upstream: `refs/remotes/origin/main`
+- validated source commit: `0b373ff`
+- validated source divergence: `ahead 19 / behind 0`
+- transition: `state_only_pending_push`
+
+The collector uses the structured claim's `refs/remotes/origin/main` value as
+the bounded upstream baseline ref. It must resolve that ref locally and then
+compute divergence from Git. If the ref does not resolve, upstream-dependent
+checks remain blocked.
 
 Current state line:
 
-- PR47 JSONL/state-sync fixes: merged by squash.
-- Synthetic anchor hardening: correct.
-- Bounded divergence snapshot fallback: correct.
-- Remote CI for the merged PR: passed before merge.
-- Post-squash main state anchor: locally validated.
-- Merge: complete.
-- Next: commit and push state/docs reanchor only if local validation passes.
-
-## Next Safe Action
-
-Run the state-sync audit, commit state/docs only, run final validation, then
-push `main` only if the final validation passes and the worktree is clean.
+- Structured state-sync plan: recorded.
+- Phase 1 structured claim verifier: implemented and tested.
+- Bounded source tree digest verification for squash-only state records:
+  implemented and tested.
+- Machine-authoritative claim file: introduced.
+- Markdown and agent board: evidence/display surfaces.
+- Next: decide whether to publish the feature branch or configure an upstream
+  through a separately authorized branch workflow.

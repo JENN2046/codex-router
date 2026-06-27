@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "state-sync-policy.v1",
+  "subject": {
+    "branch": "docs/state-sync-structured-record-plan",
+    "upstream": "refs/remotes/origin/main"
+  },
+  "source": {
+    "validatedSourceCommit": "0b373ff",
+    "latestValidatedCommit": "0b373ff",
+    "recordedDivergence": {
+      "ahead": 19,
+      "behind": 0
+    },
+    "sourceTreeDigest": {
+      "algorithm": "git-ls-tree-sha256",
+      "value": "5e0b406f729d12a71a32f14387f3839d774c96e71c097cf81b11e7a7cdeb24a5",
+      "excludedPaths": [
+        "docs/current/CURRENT_STATE.md",
+        "docs/current/state-sync-record.json",
+        ".agent_board/CHECKPOINT.md",
+        ".agent_board/HANDOFF.md",
+        ".agent_board/RUN_STATE.md",
+        ".agent_board/TASK_QUEUE.md",
+        ".agent_board/VALIDATION_LOG.md"
+      ]
+    }
+  },
+  "transition": {
+    "kind": "state_only_pending_push",
+    "allowedStatePaths": [
+      "docs/current/CURRENT_STATE.md",
+      "docs/current/state-sync-record.json",
+      ".agent_board/CHECKPOINT.md",
+      ".agent_board/HANDOFF.md",
+      ".agent_board/RUN_STATE.md",
+      ".agent_board/TASK_QUEUE.md",
+      ".agent_board/VALIDATION_LOG.md"
+    ]
+  },
+  "validation": {
+    "requiredCommands": [
+      "git diff --check",
+      "node --import tsx --test tests/state-sync-audit.test.ts",
+      "npm run typecheck",
+      "npm run build",
+      "node --import tsx scripts/run-state-sync-audit.ts --json"
+    ]
+  }
+}

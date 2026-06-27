@@ -2,53 +2,56 @@
 
 Current branch:
 
-- `main`
-
-Current head:
-
-- `42fc8e3`
+- `docs/state-sync-structured-record-plan`
 
 Validated source commit:
 
-- `42fc8e3`
+- `0b373ff`
 
 Latest validated commit:
 
-- `42fc8e3`
+- `0b373ff`
 
-Upstream:
+Structured claim:
 
-- `origin/main`
+- `docs/current/state-sync-record.json`
 
-Upstream divergence:
+Upstream baseline:
 
-- `ahead 1 / behind 0`
+- `refs/remotes/origin/main`
 
-State record mode:
+Upstream divergence baseline:
 
-- `state-only descendant allowed`
+- `ahead 19 / behind 0`
 
-Recorded local validation for this source head:
+Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 75 tests
+- `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
+- `npm test`: PASS, 1208 tests
 
-Validation for post-squash state/docs reanchor:
+State-sync audit observation:
 
-- `git diff --check`: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
-  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
-  `issues: []`
+- expected after this state/docs commit:
+  `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
+- expected `claimSource`: `structured`
+- expected upstream observation: verified local Git ref `refs/remotes/origin/main`
+- expected upstream ref boundary: only `origin/*` or
+  `refs/remotes/origin/*` remote-tracking refs may be claim-selected
+- expected checkout compatibility: bounded detached branch-head and PR merge-ref
+  contexts pass only when all non-branch transition checks still pass
+- expected squash compatibility: bounded squash-only state records pass without
+  the side-branch source commit object only when live `HEAD` has the recorded
+  filtered source tree digest
 
-Execution boundary for this validation record:
+Execution boundary:
 
-- current validated source head is `42fc8e3`
-- arbitrary syntactic upstream divergence snapshots remain blocked
-- no source, dependency, workflow, provider, env, secret, user config, or system
-  config change is part of this reanchor
-- no state/docs commit yet
+- no package, dependency, workflow, provider, env, secret, user config, or system
+  config change is part of this state record
 - no push yet
 - no manual CI rerun
 - no real provider execution
+- no real Codex CLI execution
