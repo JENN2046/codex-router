@@ -8,9 +8,9 @@ Workspace:
 
 - repository root: `codex-router`
 - branch: `fix/jsonl-event-log-structured-error`
-- current head: `d2a3e47`
-- validated source commit: `d2a3e47`
-- latest validated commit: `d2a3e47`
+- current head: `09e2e9a`
+- validated source commit: `09e2e9a`
+- latest validated commit: `09e2e9a`
 - upstream: `origin/fix/jsonl-event-log-structured-error`
 - upstream divergence: `ahead 1 / behind 0`
 - state record mode: `state-only descendant allowed`
@@ -18,15 +18,15 @@ Workspace:
 
 Current status:
 
-- current validated source head is `d2a3e47`
-- validated source baseline is ahead of upstream by 0 commits and behind by 0 commits
+- current validated source head is `09e2e9a`
+- validated source baseline is ahead of upstream by 1 commit and behind by 0 commits
 - `.agent_board` records reflect the validated source commit, not a required
   state-record commit hash
 - validation results recorded:
-  - `npm test`: PASS, `1163 / 1163`
+  - `git diff --check`: PASS
+  - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
   - `npm run typecheck`: PASS
   - `npm run build`: PASS
-  - state-sync targeted test: PASS
 - no dependency files were modified
 
 Validation completed in this task:
@@ -35,8 +35,9 @@ Validation completed in this task:
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: BLOCKED only by
-  `state_sync_dirtyWorktreeStateOnly` while local remediation is uncommitted
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
+  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
+  `issues: []`
 
 Known constraint:
 
@@ -45,8 +46,7 @@ Known constraint:
 Not authorized:
 
 - dependency changes
-- commit
-- push or any other remote write
+- PR edit, review-thread resolution, merge, release, or workflow edits
 - real provider execution
 - real Codex CLI execution
 - env, secret, user config, or system config edits

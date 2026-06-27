@@ -2,42 +2,44 @@
 
 Current task:
 
-- Align state files to the current validated source commit on
-  `fix/jsonl-event-log-structured-error`.
+- Record PR #47 P1 synthetic anchor hardening validation and align state files
+  to the current validated source commit on `fix/jsonl-event-log-structured-error`.
 
 Done:
 
 - confirmed current branch is `fix/jsonl-event-log-structured-error`
 - inspected `scripts/run-state-sync-audit.ts`
 - inspected current state records
-- recorded current source head `d2a3e47`
-- recorded validated source commit `d2a3e47`
-- recorded latest validated commit `d2a3e47`
+- committed source/test remediation for unverified synthetic anchors
+- recorded current source head `09e2e9a`
+- recorded validated source commit `09e2e9a`
+- recorded latest validated commit `09e2e9a`
 - recorded upstream `origin/fix/jsonl-event-log-structured-error`
 - recorded validated source baseline divergence `ahead 1 / behind 0`
 - recorded state record mode `state-only descendant allowed`
 - recorded validation results:
-  - `npm test`: PASS, `1163 / 1163`
-  - `npm run typecheck`: PASS
-  - `npm run build`: PASS
-  - state-sync targeted test: PASS
-- ran PR #47 P1 validation:
   - `git diff --check`: PASS
   - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
   - `npm run typecheck`: PASS
   - `npm run build`: PASS
-  - `node --import tsx scripts/run-state-sync-audit.ts --json`: BLOCKED only by
-    `state_sync_dirtyWorktreeStateOnly` while local remediation is uncommitted
+
+State validation completed:
+
+- `git diff --check`: PASS
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
+  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
+  `issues: []`
 
 Todo:
 
-- report changed files and validation result
+- commit state/docs only after state validation passes
+- run final validation
+- push branch only if final validation passes and the worktree is clean
 
 Blocked until separately authorized:
 
 - dependency changes
-- commit
-- push or any other remote write
+- PR edit, review-thread resolution, merge, release, or workflow edits
 - real provider execution
 - real Codex CLI execution
 - env, secret, user config, or system config edits

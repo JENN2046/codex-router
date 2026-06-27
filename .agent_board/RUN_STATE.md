@@ -14,15 +14,15 @@ Branch:
 
 Current head:
 
-- `d2a3e47`
+- `09e2e9a`
 
 Validated source commit:
 
-- `d2a3e47`
+- `09e2e9a`
 
 Latest validated commit:
 
-- `d2a3e47`
+- `09e2e9a`
 
 Upstream:
 
@@ -39,12 +39,12 @@ State record mode:
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `npm test`: PASS, `1163 / 1163`
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- state-sync targeted test: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: BLOCKED only by
-  `state_sync_dirtyWorktreeStateOnly` while local remediation is uncommitted
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
+  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
+  `issues: []`
 
 Current scope outcome:
 
@@ -52,15 +52,15 @@ Current scope outcome:
   commit
 - recorded upstream as `origin/fix/jsonl-event-log-structured-error`
 - recorded validated source baseline divergence as `ahead 1 / behind 0`
-- started local PR #47 P1 remediation for detached state-sync compatibility
-- leave the local remediation uncommitted under the current task boundary
+- committed local PR #47 P1 synthetic anchor hardening source/test changes
+- state/docs alignment is in progress
 
 Boundary:
 
-- current validated source head is `d2a3e47`
+- current validated source head is `09e2e9a`
 - no dependency changes
-- no commit
-- no push
+- source/test commit exists
+- no push yet
 - no remote writes
 - no real provider execution
 - no secrets or runtime configuration changes
