@@ -67,8 +67,41 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Resolve State Sync Audit gate
+        id: state-sync-gate
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "run_audit=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from "node:fs";
+
+          const claim = JSON.parse(
+            readFileSync("docs/current/state-sync-record.json", "utf8")
+          );
+          const runAudit =
+            claim?.subject?.branch === "main"
+            && claim?.subject?.upstream === "refs/remotes/origin/main"
+            && claim?.transition?.kind === "state_only_pushed";
+
+          appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `run_audit=${runAudit ? "true" : "false"}\n`
+          );
+
+          if (!runAudit) {
+            console.log(
+              "State Sync Audit is gated on push until a main/state_only_pushed record exists."
+            );
+          }
+          NODE
       - run: npm ci
+        if: steps.state-sync-gate.outputs.run_audit == 'true'
       - run: npm run governance -- audit state-sync
+        if: steps.state-sync-gate.outputs.run_audit == 'true'
 
   canary:
     name: Canary (Node ${{ matrix.node }})

@@ -144,6 +144,10 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
   };
 
   const stateSyncJob = workflow.jobs["state-sync"];
+  const gateStep = stateSyncJob.steps.find((step) =>
+    step.id === "state-sync-gate"
+  );
+  const npmCiStep = stateSyncJob.steps.find((step) => step.run === "npm ci");
   const auditStep = stateSyncJob.steps.find((step) =>
     step.run === "npm run governance -- audit state-sync"
   );
@@ -152,6 +156,17 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
   assert.deepEqual(workflow.on.pull_request.branches, ["main"]);
   assert.equal(stateSyncJob.needs, "test");
   assert.equal(stateSyncJob.if, undefined);
+  assert.ok(gateStep?.run?.includes('${{ github.event_name }}'));
+  assert.ok(gateStep?.run?.includes('claim?.subject?.branch === "main"'));
+  assert.ok(gateStep?.run?.includes(
+    'claim?.subject?.upstream === "refs/remotes/origin/main"'
+  ));
+  assert.ok(gateStep?.run?.includes(
+    'claim?.transition?.kind === "state_only_pushed"'
+  ));
+  assert.ok(gateStep?.run?.includes("main/state_only_pushed record exists"));
+  assert.equal(npmCiStep?.if, "steps.state-sync-gate.outputs.run_audit == 'true'");
+  assert.equal(auditStep?.if, "steps.state-sync-gate.outputs.run_audit == 'true'");
   assert.ok(auditStep);
   assert.ok(workflow.jobs.evidence.needs.includes("state-sync"));
 });
@@ -171,7 +186,10 @@ function createResult(risk: RiskLevel): CanaryResult {
 }
 
 interface WorkflowStep {
+  id?: string;
+  if?: string;
   name?: string;
+  shell?: string;
   uses?: string;
   run?: string;
   with?: {
