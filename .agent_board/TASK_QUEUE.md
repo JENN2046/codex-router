@@ -2,7 +2,8 @@
 
 Current task:
 
-- Record the authorized post-PR #50 squash `main` state/docs reanchor.
+- Prepare strict state record path convergence after completing the PR #50
+  post-squash `main` reanchor.
 
 Done:
 
@@ -35,6 +36,9 @@ Done:
 - recorded the Phase 4 main reanchor expectation after squash merge
 - prepared the state/docs reanchor for the latest validated source
 - squash-merged PR #50 into `main`
+- pushed the post-PR #50 `main` state/docs reanchor
+- verified branch-head state-sync audit and main-push CI for the previous main
+  reanchor
 
 Validation completed:
 
@@ -45,13 +49,12 @@ Validation completed:
 
 Todo:
 
-- push the authorized `main` state/docs reanchor
-- verify post-push branch-head state-sync audit and main-push CI
+- implement strict state record path convergence on a focused branch
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
 
-- direct pushes to `main` beyond this authorized reanchor
+- direct pushes to `main` beyond explicitly authorized state/docs cleanup
 - dependency changes
 - additional workflow edits beyond Phase 4 state-sync CI coverage
 - release or deploy
@@ -67,6 +70,6 @@ Generated from `docs/current/state-sync-record.json`.
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `959e173`
 - latest validated commit: `959e173`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->

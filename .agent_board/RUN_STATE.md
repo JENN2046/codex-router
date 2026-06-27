@@ -1,6 +1,6 @@
 # Run State
 
-Status: Authorized post-PR #50 squash `main` state/docs reanchor is in progress.
+Status: Phase 1-4 complete; strict state record path convergence is next.
 
 Machine-authoritative claim:
 
@@ -37,7 +37,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 2 / behind 0`
 
 Transition:
 
@@ -52,13 +52,13 @@ Validation recorded for this source commit:
 
 State-sync audit expectation:
 
-- after this state/docs record is pushed to `main`, branch-head audit should
-  PASS with `claimSource: structured` and Git-computed divergence against
-  verified `refs/remotes/origin/main`
-- before that push, local audit may block because `state_only_pushed` requires
-  `HEAD...refs/remotes/origin/main` to be aligned
-- main-push CI should validate the same checkout and upstream contexts after the
-  reanchor push lands
+- the PR #50 post-squash main reanchor passed local branch-head audit and remote
+  main-push CI
+- a new local unpushed `state_only_pushed` record may block until it is pushed,
+  because `state_only_pushed` requires `HEAD...refs/remotes/origin/main` to be
+  aligned
+- once pushed, branch-head audit should PASS with `claimSource: structured` and
+  Git-computed divergence against verified `refs/remotes/origin/main`
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
@@ -81,6 +81,6 @@ Generated from `docs/current/state-sync-record.json`.
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `959e173`
 - latest validated commit: `959e173`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->

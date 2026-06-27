@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 2 / behind 0`
 
 Recorded validation:
 
@@ -33,12 +33,13 @@ Recorded validation:
 
 State-sync audit observation:
 
-- after this state/docs record is pushed to `main`:
-  `node --import tsx scripts/run-state-sync-audit.ts --json` should PASS
-- before that push, local audit may block because `state_only_pushed` requires
-  `HEAD...refs/remotes/origin/main` to be aligned
-- main-push CI should validate the same checkout and upstream contexts after the
-  reanchor push lands
+- PR #50 post-squash main reanchor: local branch-head audit PASS and remote
+  main-push CI PASS
+- a new local unpushed `state_only_pushed` record may block until it is pushed,
+  because `state_only_pushed` requires `HEAD...refs/remotes/origin/main` to be
+  aligned
+- once pushed, `node --import tsx scripts/run-state-sync-audit.ts --json`
+  should PASS
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
 - expected upstream ref boundary: only `origin/*` or
@@ -67,6 +68,6 @@ Generated from `docs/current/state-sync-record.json`.
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `959e173`
 - latest validated commit: `959e173`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->

@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 2 / behind 0`
 
 Completed:
 
@@ -63,17 +63,18 @@ Validation completed:
 
 State-sync expectation:
 
-- after this state/docs record is pushed to `main`, branch-head state-sync audit
-  should PASS by resolving `refs/remotes/origin/main` as the structured claim
-  upstream ref and computing divergence from Git
-- before that push, local audit may block because `state_only_pushed` requires
-  `HEAD...refs/remotes/origin/main` to be aligned
-- main-push CI should validate the same checkout and upstream contexts after the
-  reanchor push lands
+- the PR #50 post-squash main reanchor passed local branch-head audit and remote
+  main-push CI
+- a new local unpushed `state_only_pushed` record may block until it is pushed,
+  because `state_only_pushed` requires `HEAD...refs/remotes/origin/main` to be
+  aligned
+- once pushed, branch-head audit should PASS by resolving
+  `refs/remotes/origin/main` as the structured claim upstream ref and computing
+  divergence from Git
 
 Not authorized:
 
-- direct pushes to `main` beyond this authorized reanchor
+- direct pushes to `main` beyond explicitly authorized state/docs cleanup
 - additional workflow edits beyond Phase 4 state-sync CI coverage
 - dependency changes
 - release or deploy
@@ -89,6 +90,6 @@ Generated from `docs/current/state-sync-record.json`.
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `959e173`
 - latest validated commit: `959e173`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->

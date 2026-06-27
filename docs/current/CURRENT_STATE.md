@@ -20,7 +20,7 @@ divergence, transition kind, or allowed state-only paths.
 | Current head | `959e173` |
 | Validated source commit | `959e173` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
+| Upstream divergence | `ahead 2 / behind 0` |
 | Latest validated commit | `959e173` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
@@ -40,7 +40,7 @@ The structured claim records:
 - validated source commit: `959e173`
 - latest validated commit: `959e173`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `e1ffa90caa1c9a116a18762cfaea2bb55b3343bda235996395a1a0571eef6cc4`
 
@@ -96,12 +96,13 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- after this state record is pushed to `main`, branch-head audit should PASS:
+- The PR #50 post-squash main reanchor passed local branch-head audit and remote
+  main-push CI.
+- A new local unpushed `state_only_pushed` record may block until it is pushed,
+  because `state_only_pushed` requires `HEAD...refs/remotes/origin/main` to be
+  aligned.
+- Once pushed, branch-head audit should PASS with:
   `node --import tsx scripts/run-state-sync-audit.ts --json`.
-- before that push, local branch-head audit may block because
-  `state_only_pushed` requires `HEAD...refs/remotes/origin/main` to be aligned.
-- remote main-push audit should observe the same structured claim and upstream
-  baseline after the reanchor push lands.
 - The collector verifies the structured claim upstream ref
   `refs/remotes/origin/main` exists locally, then computes divergence from Git
   instead of trusting the JSON divergence field. Structured claims do not let
@@ -177,11 +178,11 @@ The structured claim records:
 - branch: `main`
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `959e173`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 
 After this state record is pushed, Git observation should compute the validated
-source divergence as `ahead 0 / behind 1` against
+source divergence as `ahead 0 / behind 2` against
 `refs/remotes/origin/main`.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
@@ -202,5 +203,5 @@ Current state line:
   implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.
-- Next: push the authorized `main` state/docs reanchor and let the main-push
-  audit validate the final checkout and upstream contexts.
+- PR #50 post-squash main reanchor: completed and verified.
+- Next: implement strict state record path convergence on a focused branch.
