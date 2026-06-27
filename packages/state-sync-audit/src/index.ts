@@ -57,6 +57,7 @@ export interface StateSyncAuditInput {
   parentHead?: string;
   allowedStateCommits?: string[];
   committedPathsSinceValidatedSource?: string[];
+  validatedSourceTreeDiffPaths?: string[];
   validatedSourceAncestorOfHead?: boolean;
   upstream: string;
   aheadBehind: string;
@@ -415,6 +416,7 @@ export function reviewStateSyncAudit(
       input.head,
       input.parentHead,
       input.committedPathsSinceValidatedSource,
+      input.validatedSourceTreeDiffPaths,
       input.validatedSourceAncestorOfHead,
       input.allowedStateCommits,
       syntheticReviewState,
@@ -428,12 +430,13 @@ export function reviewStateSyncAudit(
       input.head,
       input.parentHead,
       input.committedPathsSinceValidatedSource,
+      input.validatedSourceTreeDiffPaths,
       input.validatedSourceAncestorOfHead,
       input.allowedStateCommits,
       syntheticReviewState,
       staleAfterCommit,
       resolvedClaim.allowedStatePaths
-      ),
+    ),
     upstreamRecorded:
       resolvedClaim.claimSource === "structured"
         ? resolvedClaim.upstream === input.upstream
@@ -455,16 +458,17 @@ export function reviewStateSyncAudit(
       latestValidatedCommit !== undefined
       && latestValidatedCommit === validatedSourceCommit
       && stateCommitMatchesHead(
-          latestValidatedCommit,
-          input.head,
-          input.parentHead,
-          input.committedPathsSinceValidatedSource,
-          input.validatedSourceAncestorOfHead,
-          input.allowedStateCommits,
-          syntheticReviewState,
-          staleAfterCommit,
-          resolvedClaim.allowedStatePaths
-        ),
+        latestValidatedCommit,
+        input.head,
+        input.parentHead,
+        input.committedPathsSinceValidatedSource,
+        input.validatedSourceTreeDiffPaths,
+        input.validatedSourceAncestorOfHead,
+        input.allowedStateCommits,
+        syntheticReviewState,
+        staleAfterCommit,
+        resolvedClaim.allowedStatePaths
+      ),
     dirtyWorktreeStateOnly: dirtyStatusEntriesAreAllowedStatePaths(
       input.gitStatusShort,
       resolvedClaim.allowedStatePaths
@@ -488,6 +492,7 @@ export function reviewStateSyncAudit(
         latestValidatedCommit,
         input.parentHead,
         input.committedPathsSinceValidatedSource,
+        input.validatedSourceTreeDiffPaths,
         input.validatedSourceAncestorOfHead,
         input.allowedStateCommits,
         syntheticReviewState,
@@ -787,13 +792,18 @@ function structuredTransitionIsAllowed(
   }
 
   if (resolvedClaim.transitionKind === "state_only_pending_push") {
+    const stateOnlyDeltaPaths = stateOnlyDeltaPathsToHead(
+      input.committedPathsSinceValidatedSource,
+      input.validatedSourceTreeDiffPaths,
+      input.validatedSourceAncestorOfHead,
+      resolvedClaim.allowedStatePaths
+    );
     return subjectMatches
       && input.head !== resolvedClaim.validatedSourceCommit
-      && input.validatedSourceAncestorOfHead === true
-      && input.committedPathsSinceValidatedSource !== undefined
-      && input.committedPathsSinceValidatedSource.length > 0
+      && stateOnlyDeltaPaths !== undefined
+      && stateOnlyDeltaPaths.length > 0
       && pathsAreAllowed(
-        input.committedPathsSinceValidatedSource,
+        stateOnlyDeltaPaths,
         resolvedClaim.allowedStatePaths,
         isAllowedStatePath
       )
@@ -893,6 +903,7 @@ function stateCommitMatchesHead(
   head: string,
   parentHead: string | undefined,
   committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceTreeDiffPaths: string[] | undefined,
   validatedSourceAncestorOfHead: boolean | undefined,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
@@ -908,10 +919,11 @@ function stateCommitMatchesHead(
     || committedPathsSinceValidatedSource !== undefined;
 
   return value === head
-    || stateCommitIsStateOnlyAncestor(
+    || stateCommitHasStateOnlyDeltaToHead(
       value,
       head,
       committedPathsSinceValidatedSource,
+      validatedSourceTreeDiffPaths,
       validatedSourceAncestorOfHead,
       allowedStatePaths
     )
@@ -935,6 +947,7 @@ function stateCommitMatchesValidatedSource(
   head: string,
   parentHead: string | undefined,
   committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceTreeDiffPaths: string[] | undefined,
   validatedSourceAncestorOfHead: boolean | undefined,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
@@ -956,6 +969,7 @@ function stateCommitMatchesValidatedSource(
       head,
       parentHead,
       committedPathsSinceValidatedSource,
+      validatedSourceTreeDiffPaths,
       validatedSourceAncestorOfHead,
       allowedStateCommits,
       syntheticReviewState,
@@ -1063,6 +1077,7 @@ function agentBoardCommitsMatchState(
   latestValidatedCommit: string | undefined,
   parentHead: string | undefined,
   committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceTreeDiffPaths: string[] | undefined,
   validatedSourceAncestorOfHead: boolean | undefined,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
@@ -1078,6 +1093,7 @@ function agentBoardCommitsMatchState(
       head,
       parentHead,
       committedPathsSinceValidatedSource,
+      validatedSourceTreeDiffPaths,
       validatedSourceAncestorOfHead,
       allowedStateCommits,
       syntheticReviewState,
@@ -1091,10 +1107,11 @@ function agentBoardCommitsMatchState(
   return commitLikeTokens(text).every((token) => allowed.has(token));
 }
 
-function stateCommitIsStateOnlyAncestor(
+function stateCommitHasStateOnlyDeltaToHead(
   value: string,
   head: string,
   committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceTreeDiffPaths: string[] | undefined,
   validatedSourceAncestorOfHead: boolean | undefined,
   allowedStatePaths: string[] | undefined
 ): boolean {
@@ -1102,13 +1119,50 @@ function stateCommitIsStateOnlyAncestor(
     return true;
   }
 
-  return validatedSourceAncestorOfHead === true
-    && committedPathsSinceValidatedSource !== undefined
-    && pathsAreAllowed(
-      committedPathsSinceValidatedSource,
-      allowedStatePaths,
-      isAllowedStatePath
-    );
+  return stateOnlyDeltaToHeadIsAllowed(
+    committedPathsSinceValidatedSource,
+    validatedSourceTreeDiffPaths,
+    validatedSourceAncestorOfHead,
+    allowedStatePaths,
+    isAllowedStatePath
+  );
+}
+
+function stateOnlyDeltaToHeadIsAllowed(
+  committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceTreeDiffPaths: string[] | undefined,
+  validatedSourceAncestorOfHead: boolean | undefined,
+  allowedStatePaths: string[] | undefined,
+  legacyPathAllowed: (path: string) => boolean
+): boolean {
+  const paths = stateOnlyDeltaPathsToHead(
+    committedPathsSinceValidatedSource,
+    validatedSourceTreeDiffPaths,
+    validatedSourceAncestorOfHead,
+    allowedStatePaths
+  );
+  if (paths === undefined) {
+    return false;
+  }
+
+  return pathsAreAllowed(paths, allowedStatePaths, legacyPathAllowed);
+}
+
+function stateOnlyDeltaPathsToHead(
+  committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceTreeDiffPaths: string[] | undefined,
+  validatedSourceAncestorOfHead: boolean | undefined,
+  allowedStatePaths: string[] | undefined
+): string[] | undefined {
+  if (validatedSourceAncestorOfHead === true) {
+    return committedPathsSinceValidatedSource;
+  }
+
+  if (validatedSourceAncestorOfHead === false && allowedStatePaths !== undefined) {
+    return validatedSourceTreeDiffPaths;
+  }
+
+  return undefined;
 }
 
 function stateCommitIsAllowed(

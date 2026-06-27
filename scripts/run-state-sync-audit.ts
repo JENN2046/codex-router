@@ -112,6 +112,11 @@ export async function collectStateSyncAuditInput(
       if (committedPathsSinceValidatedSource !== undefined) {
         input.committedPathsSinceValidatedSource = committedPathsSinceValidatedSource;
       }
+      const validatedSourceTreeDiffPaths =
+        await gitTreeChangedPathsSince(validatedSourceAnchor, cwd);
+      if (validatedSourceTreeDiffPaths !== undefined) {
+        input.validatedSourceTreeDiffPaths = validatedSourceTreeDiffPaths;
+      }
     } else {
       input.validatedSourceAheadBehind = "unknown\tunknown";
       input.validatedSourceAncestorOfHead = false;
@@ -230,6 +235,21 @@ async function gitChangedPathsSince(
   try {
     const output = await git(
       ["log", "--format=", "--name-only", "--no-renames", `${commit}..HEAD`],
+      cwd
+    );
+    return uniqueNonEmpty(output.split(/\r?\n/));
+  } catch {
+    return undefined;
+  }
+}
+
+async function gitTreeChangedPathsSince(
+  commit: string,
+  cwd: string
+): Promise<string[] | undefined> {
+  try {
+    const output = await git(
+      ["diff", "--name-only", "--no-renames", commit, "HEAD"],
       cwd
     );
     return uniqueNonEmpty(output.split(/\r?\n/));

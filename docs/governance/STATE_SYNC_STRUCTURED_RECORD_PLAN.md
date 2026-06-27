@@ -257,16 +257,26 @@ dirty worktree paths are all in claim.transition.allowedStatePaths
 claim subject branch matches observation branch or bounded detached branch-name case
 claim.subject.upstream == observation.upstream
 observation.head != claim.source.validatedSourceCommit
-observation.validatedSourceAncestorOfHead == true
-observation.committedPathsSinceValidatedSource is defined
-observation.committedPathsSinceValidatedSource.length > 0
-every committed path since validated source is in claim.transition.allowedStatePaths
+state-only delta to observation.head is defined and non-empty, where:
+  if observation.validatedSourceAncestorOfHead == true:
+    delta = committed paths from claim.source.validatedSourceCommit to observation.head
+  if observation.validatedSourceAncestorOfHead == false:
+    delta = tree diff paths from claim.source.validatedSourceCommit to observation.head
+    and this path is allowed only for structured claims with explicit
+    claim.transition.allowedStatePaths
+every delta path is in claim.transition.allowedStatePaths
 observation.currentAhead > 0
 observation.currentBehind == 0
 claim.source.recordedDivergence == observation.validatedSourceDivergence
 claim.source.latestValidatedCommit == claim.source.validatedSourceCommit
 dirty worktree paths are all in claim.transition.allowedStatePaths
 ```
+
+The squash-equivalent path is not a general reachability bypass. It only covers
+review or local validation contexts that rewrite the PR history into one squash
+commit while preserving the validated source tree modulo strict state-record
+paths. If the diff from the validated source commit to live `HEAD` contains any
+non-state path, the transition blocks.
 
 `state_only_pushed` passes only when:
 
