@@ -213,6 +213,76 @@ test("state sync audit blocks clean synthetic review checkouts with stale anchor
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
+test("state sync audit blocks unreachable synthetic anchors with validated source evidence", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      "docs/current/CURRENT_STATE.md"
+    ]
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceHeadRecorded, false);
+  assert.equal(review.checks.validatedSourceCommitRecorded, false);
+  assert.equal(review.checks.latestValidatedCommitRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit blocks synthetic anchors when validated source paths are unknown", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
+    validatedSourceAncestorOfHead: true
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceHeadRecorded, false);
+  assert.equal(review.checks.validatedSourceCommitRecorded, false);
+  assert.equal(review.checks.latestValidatedCommitRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit preserves legacy synthetic fallback without validated source evidence", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input));
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+});
+
+test("state sync audit still accepts valid state-only descendants after synthetic hardening", async () => {
+  const input = await createInputFromWorkspace();
+  const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      ".agent_board/TASK_QUEUE.md",
+      ".agent_board/CHECKPOINT.md",
+      ".agent_board/HANDOFF.md",
+      ".agent_board/VALIDATION_LOG.md",
+      "docs/current/CURRENT_STATE.md"
+    ]
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+});
+
 test("state sync audit accepts clean detached PR checkouts when explicitly allowed", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
@@ -220,7 +290,7 @@ test("state sync audit accepts clean detached PR checkouts when explicitly allow
     gitStatusShort: "",
     branch: "",
     head: "8a5c580",
-    allowedStateCommits: [],
+    allowedStateCommits: [input.head],
     upstream: "",
     aheadBehind: "unknown\tunknown",
     validatedSourceAheadBehind: "unknown\tunknown",
@@ -686,6 +756,24 @@ function asCleanSyntheticReviewInput(
       /\| Upstream divergence \| `[^`]+` \|/,
       "| Upstream divergence | `ahead 0 / behind 0` |"
     )
+  };
+}
+
+function asDetachedSyntheticReviewInput(
+  input: StateSyncAuditInput,
+  overrides: Partial<StateSyncAuditInput> = {}
+): StateSyncAuditInput {
+  return {
+    ...input,
+    gitStatusShort: "",
+    branch: "",
+    head: "8a5c580",
+    parentHead: "f37f174",
+    allowedStateCommits: [],
+    upstream: "",
+    aheadBehind: "unknown\tunknown",
+    validatedSourceAheadBehind: "unknown\tunknown",
+    ...overrides
   };
 }
 

@@ -472,17 +472,16 @@ function reviewCheckoutCommitIsAllowed(
   syntheticReviewState: string | undefined,
   hasValidatedSourceEvidence: boolean
 ): boolean {
-  if (!hasValidatedSourceEvidence) {
-    return stateCommitIsAllowed(
-      value,
-      parentHead,
-      allowedStateCommits,
-      syntheticReviewState
-    );
+  if (hasValidatedSourceEvidence) {
+    return (allowedStateCommits ?? []).includes(value);
   }
 
-  return (allowedStateCommits ?? []).includes(value)
-    || value === syntheticReviewState;
+  return stateCommitIsAllowed(
+    value,
+    parentHead,
+    allowedStateCommits,
+    syntheticReviewState
+  );
 }
 
 function stateCompatibleCommits(
