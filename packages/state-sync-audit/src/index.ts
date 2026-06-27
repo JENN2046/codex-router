@@ -74,7 +74,7 @@ export interface StateSyncAuditInput {
 
 export type StateSyncClaimSource =
   | "structured"
-  | "legacy_markdown"
+  | "missing_structured"
   | "invalid_structured";
 
 export type StateSyncTransitionKind =
@@ -378,14 +378,14 @@ export function resolveStateSyncClaim(
   }
 
   return {
-    claimSource: "legacy_markdown",
-    structuredClaimValid: true,
-    currentHead: fieldValue(input.currentStateText, "Current head"),
-    branch: fieldValue(input.currentStateText, "Current branch"),
-    upstream: normalizeOptionalUpstreamRef(fieldValue(input.currentStateText, "Upstream")),
-    validatedSourceCommit: fieldValue(input.currentStateText, "Validated source commit"),
-    latestValidatedCommit: fieldValue(input.currentStateText, "Latest validated commit"),
-    upstreamDivergence: fieldValue(input.currentStateText, "Upstream divergence"),
+    claimSource: "missing_structured",
+    structuredClaimValid: false,
+    currentHead: undefined,
+    branch: undefined,
+    upstream: undefined,
+    validatedSourceCommit: undefined,
+    latestValidatedCommit: undefined,
+    upstreamDivergence: undefined,
     sourceTreeDigest: undefined,
     transitionKind: undefined,
     allowedStatePaths: undefined,
@@ -835,12 +835,9 @@ function structuredTransitionIsAllowed(
   sourceTreeDigestCommitBindingValid: boolean,
   sourceTreeDigestOnlyCompatibility: boolean
 ): boolean {
-  if (resolvedClaim.claimSource === "legacy_markdown") {
-    return true;
-  }
-
   if (
     resolvedClaim.claimSource === "invalid_structured"
+    || resolvedClaim.claimSource === "missing_structured"
     || resolvedClaim.transitionKind === undefined
     || resolvedClaim.allowedStatePaths === undefined
     || resolvedClaim.validatedSourceCommit === undefined
@@ -955,10 +952,6 @@ function sourceTreeDigestMatchesValidatedSourceCommit(
   resolvedClaim: ResolvedStateSyncClaim,
   input: StateSyncAuditInput
 ): boolean {
-  if (resolvedClaim.claimSource === "legacy_markdown") {
-    return true;
-  }
-
   const expected = resolvedClaim.sourceTreeDigest?.value;
   if (expected === undefined) {
     return false;
@@ -979,10 +972,6 @@ function sourceTreeDigestMatchesHead(
   resolvedClaim: ResolvedStateSyncClaim,
   input: StateSyncAuditInput
 ): boolean {
-  if (resolvedClaim.claimSource === "legacy_markdown") {
-    return false;
-  }
-
   const expected = resolvedClaim.sourceTreeDigest?.value;
   return expected !== undefined && input.headSourceTreeDigest === expected;
 }
