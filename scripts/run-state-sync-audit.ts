@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import {
   formatStateSyncAuditResult,
+  parseStateSyncClaim,
   reviewStateSyncAudit,
   type StateSyncAuditInput
 } from "../packages/state-sync-audit/src/index.js";
@@ -14,6 +15,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 const CURRENT_STATE_DOC = "docs/current/CURRENT_STATE.md";
+const STATE_SYNC_RECORD_DOC = "docs/current/state-sync-record.json";
 const AGENT_BOARD_FILES = [
   ".agent_board/RUN_STATE.md",
   ".agent_board/TASK_QUEUE.md",
@@ -37,7 +39,8 @@ export async function collectStateSyncAuditInput(
     aheadBehind,
     packageJsonText,
     currentStateText,
-    agentBoardText
+    agentBoardText,
+    stateSyncClaimText
   ] =
     await Promise.all([
       git(["status", "--short"], cwd),
@@ -53,7 +56,8 @@ export async function collectStateSyncAuditInput(
         .catch(() => "unknown\tunknown"),
       read(cwd, "package.json"),
       read(cwd, CURRENT_STATE_DOC),
-      readAgentBoard(cwd)
+      readAgentBoard(cwd),
+      readOptional(cwd, STATE_SYNC_RECORD_DOC)
     ]);
 
   const input: StateSyncAuditInput = {
@@ -66,6 +70,9 @@ export async function collectStateSyncAuditInput(
     currentStateText,
     agentBoardText
   };
+  if (stateSyncClaimText !== undefined) {
+    input.stateSyncClaimText = stateSyncClaimText;
+  }
 
   const trimmedParentHead = parentHead.trim();
   if (trimmedParentHead !== "") {
@@ -82,9 +89,11 @@ export async function collectStateSyncAuditInput(
     input.allowedStateCommits = allowedStateCommits;
   }
 
-  const validatedSourceCommit = stateFieldValue(currentStateText, "Validated source commit");
-  const latestValidatedCommit = stateFieldValue(currentStateText, "Latest validated commit");
-  const validatedSourceAnchor = validatedSourceCommit ?? latestValidatedCommit;
+  const parsedClaim = parseStateSyncClaim(stateSyncClaimText);
+  const validatedSourceAnchor = validatedSourceAnchorFromClaimOrLegacy(
+    parsedClaim,
+    currentStateText
+  );
   if (validatedSourceAnchor !== undefined) {
     if (isCommitLike(validatedSourceAnchor)) {
       input.validatedSourceAheadBehind = (
@@ -116,6 +125,29 @@ async function readAgentBoard(cwd: string): Promise<string> {
   );
 
   return texts.join("\n");
+}
+
+function validatedSourceAnchorFromClaimOrLegacy(
+  parsedClaim: ReturnType<typeof parseStateSyncClaim>,
+  currentStateText: string
+): string | undefined {
+  if (parsedClaim.status === "valid") {
+    return parsedClaim.claim.source.validatedSourceCommit;
+  }
+
+  if (parsedClaim.status === "invalid") {
+    return undefined;
+  }
+
+  const validatedSourceCommit = stateFieldValue(
+    currentStateText,
+    "Validated source commit"
+  );
+  const latestValidatedCommit = stateFieldValue(
+    currentStateText,
+    "Latest validated commit"
+  );
+  return validatedSourceCommit ?? latestValidatedCommit;
 }
 
 async function git(args: string[], cwd: string): Promise<string> {
@@ -208,6 +240,17 @@ function shortCommitParents(value: string): string[] {
 
 async function read(cwd: string, filePath: string): Promise<string> {
   return readFile(join(cwd, filePath), "utf8");
+}
+
+async function readOptional(
+  cwd: string,
+  filePath: string
+): Promise<string | undefined> {
+  try {
+    return await read(cwd, filePath);
+  } catch {
+    return undefined;
+  }
 }
 
 async function main(): Promise<void> {
