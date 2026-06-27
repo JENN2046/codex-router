@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `docs/state-sync-structured-record-plan` |
-| Current head | `a5ecd0b` |
-| Validated source commit | `a5ecd0b` |
+| Current head | `4af16d8` |
+| Validated source commit | `4af16d8` |
 | Upstream | `origin/main` |
-| Upstream divergence | `ahead 13 / behind 0` |
-| Latest validated commit | `a5ecd0b` |
+| Upstream divergence | `ahead 15 / behind 0` |
+| Latest validated commit | `4af16d8` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,10 +37,10 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `a5ecd0b`
-- latest validated commit: `a5ecd0b`
+- validated source commit: `4af16d8`
+- latest validated commit: `4af16d8`
 - upstream baseline: `origin/main`
-- recorded divergence baseline: `ahead 13 / behind 0`
+- recorded divergence baseline: `ahead 15 / behind 0`
 
 Strict state record paths:
 
@@ -78,14 +78,14 @@ compatibility window.
 
 ## Validation Baseline
 
-Validation recorded for source commit `a5ecd0b`:
+Validation recorded for source commit `4af16d8`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 69 tests.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 71 tests.
 - `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
-- `npm test`: PASS, 1202 tests.
+- `npm test`: PASS, 1204 tests.
 
 State-sync required validation command literals retained in this state surface:
 
@@ -108,6 +108,9 @@ Current structured state-sync audit status:
 - Structured claim verification accepts bounded detached branch-head and PR
   merge-ref checkout contexts when upstream, ancestry, divergence, and
   state-only path checks still pass.
+- Structured claim verification accepts bounded squash-equivalent checkout
+  contexts only when the tree diff from the validated source commit to live
+  `HEAD` contains strict state record paths only.
 - The audit enters `claimSource: structured` and validates the structured claim
   shape.
 
@@ -163,8 +166,8 @@ The structured claim expects the branch-head audit context to observe:
 
 - branch: `docs/state-sync-structured-record-plan`
 - upstream: `origin/main`
-- validated source commit: `a5ecd0b`
-- validated source divergence: `ahead 13 / behind 0`
+- validated source commit: `4af16d8`
+- validated source divergence: `ahead 15 / behind 0`
 - transition: `state_only_pending_push`
 
 The collector uses the structured claim's `origin/main` value as the bounded
@@ -176,6 +179,7 @@ Current state line:
 
 - Structured state-sync plan: recorded.
 - Phase 1 structured claim verifier: implemented and tested.
+- Bounded squash-equivalent state record verification: implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.
 - Next: decide whether to publish the feature branch or configure an upstream
