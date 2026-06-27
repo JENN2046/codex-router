@@ -1,9 +1,8 @@
 # Run State
 
-Status: PR-23A-S1 R1-G1FIX5 has completed the local code remediation and is
-updating the local state surfaces before the documentation-only state commit.
-The repair is local only and does not change production runtime code, package
-files, workflows, or remote state.
+Status: local state record is aligned to the current validated branch head and
+upstream divergence. The update is limited to `.agent_board` records and
+`docs/current/CURRENT_STATE.md`.
 
 Current truth source:
 
@@ -11,35 +10,59 @@ Current truth source:
 
 Branch:
 
-- `feat/pr-23a-s1-trusted-runtime`
+- `fix/jsonl-event-log-structured-error`
 
-State anchor:
+Current head:
 
-- `c687b0f`
+- `6c0778a`
 
-Worktree expectation:
+Validated source commit:
 
-- only the six authorized state documentation surfaces may be modified before
-  the state commit
-- no push, PR update, workflow action, merge, release, deploy, npm publish,
-  secret edit, real Codex CLI, real provider execution, or workspace-write smoke
-  is authorized
+- `6c0778a`
 
-Current scope:
+Latest validated commit:
 
-- record that smoke artifact projection is locally remediated
-- record that platform-drift test isolation is locally remediated
-- record that PR #46 remains open and draft
-- record that the published feature branch is still pre-remediation
-- record that failed remote CI existed before this local remediation
-- record that remote CI has not run for the new local remediation commit
+- `6c0778a`
 
-Validation so far:
+Upstream:
 
-- pre-code-commit diff check, typecheck, targeted host test, safe contract
-  smoke, full tests, and build passed
-- post-code-commit typecheck, targeted host test, and safe contract smoke passed
+- `origin/fix/jsonl-event-log-structured-error`
 
-Detailed validation history:
+Upstream divergence:
 
-- `.agent_board/VALIDATION_LOG.md`
+- `ahead 1 / behind 0`
+
+State record mode:
+
+- `state-only descendant allowed`
+
+Validation recorded for this source commit:
+
+- `git diff --check`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
+  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
+  `issues: []`
+
+Current scope outcome:
+
+- recorded current source `HEAD` as the validated source commit and latest validated
+  commit
+- recorded upstream as `origin/fix/jsonl-event-log-structured-error`
+- recorded validated source baseline divergence as `ahead 1 / behind 0`
+- committed PR47 P1 bounded divergence snapshot fallback for State Sync Audit
+- recorded that syntax-only divergence snapshots do not satisfy the audit
+- state/docs alignment is in progress
+
+Boundary:
+
+- current validated source head is `6c0778a`
+- no dependency changes
+- state-sync source/test commit exists
+- no push yet
+- no remote writes
+- no manual CI rerun
+- no real provider execution
+- no secrets or runtime configuration changes

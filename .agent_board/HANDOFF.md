@@ -1,62 +1,57 @@
 # Handoff
 
-Original goal:
+Goal:
 
-- Complete PR-23A-S1 trusted Codex CLI runtime remediation under the web GPT
-  commander task books.
+- Record state for the PR47 P1 validated-source bounded divergence snapshot fix and
+  upstream divergence.
 
 Workspace:
 
-- repository root: `codex-router/repo`
-- branch: `feat/pr-23a-s1-trusted-runtime`
+- repository root: `codex-router`
+- branch: `fix/jsonl-event-log-structured-error`
+- current head: `6c0778a`
+- validated source commit: `6c0778a`
+- latest validated commit: `6c0778a`
+- upstream: `origin/fix/jsonl-event-log-structured-error`
+- upstream divergence: `ahead 1 / behind 0`
+- state record mode: `state-only descendant allowed`
 - current state source: `docs/current/CURRENT_STATE.md`
 
 Current status:
 
-- R1-G1FIX5 local code remediation is complete
-- R1-G1FIX5 local state documentation update is in progress
-- the published feature branch and PR #46 have not been updated
-- remote CI has not run for the new local remediation commit
+- current validated source head is `6c0778a`
+- validated source baseline is ahead of upstream by 1 commit and behind by 0 commits
+- `.agent_board` records reflect the validated source commit, not a required
+  state-record commit hash
+- State Sync Audit now accepts a recorded divergence snapshot only for exact
+  recomputed matches or bounded pushed state-only inverse snapshots
+- validation results recorded:
+  - `git diff --check`: PASS
+  - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+  - `npm run typecheck`: PASS
+  - `npm run build`: PASS
+- no dependency files were modified
 
-Changed files authorized for the active state update:
+Validation completed in this task:
 
-- `docs/current/CURRENT_STATE.md`
-- `.agent_board/CHECKPOINT.md`
-- `.agent_board/HANDOFF.md`
-- `.agent_board/RUN_STATE.md`
-- `.agent_board/TASK_QUEUE.md`
-- `.agent_board/VALIDATION_LOG.md`
+- `git diff --check`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
+  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
+  `issues: []`
 
-Validation run:
+Known constraint:
 
-- pre-code-commit diff check, typecheck, targeted host test, safe contract
-  smoke, full tests, and build passed
-- post-code-commit typecheck, targeted host test, and safe contract smoke
-  passed
-
-Validation not yet run:
-
-- R1-G1FIX5 pre-state-commit dirty-set check, diff check, exact offline
-  targeted host test, full tests, build, state-sync audit, and validate:pr
-- R1-G1FIX5 post-state-commit full validation set
-- final status, ahead/behind, commit-chain, PR, and remote ref inspection
-
-Known risks:
-
-- PR #46 still points at the pre-remediation remote feature head
-- the earlier remote CI failure remains the latest remote validation state
-- current remediation is local only; new remote CI cannot exist until a
-  separately authorized push updates the branch
-
-Next safe action:
-
-- run the required pre-state-commit validation set, create the documentation-only
-  state commit if it passes, then run the required post-commit validation.
+- local writes are restricted to the State Sync Audit bounded divergence snapshot fix
+  and state records
 
 Not authorized:
 
-- push, PR edit/comment/review/ready, workflow rerun/cancel/dispatch/watch,
-  merge, release, deploy, npm publish, tag, branch deletion
-- fetch, pull, amend, reset, clean, stash, merge, rebase
-- additional CI logs, artifacts, workflow actions, real Codex CLI, real provider
-  execution, workspace-write smoke, env/config/secret edits
+- dependency changes
+- workflow edits, PR edit, review-thread resolution, merge, or release
+- manual CI rerun
+- real provider execution
+- real Codex CLI execution
+- env, secret, user config, or system config edits

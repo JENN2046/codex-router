@@ -34,7 +34,10 @@ export async function collectStateSyncAuditInput(
     mergeParentParentHead,
     mergeParentDeclaredParents,
     upstream,
-    aheadBehind
+    aheadBehind,
+    packageJsonText,
+    currentStateText,
+    agentBoardText
   ] =
     await Promise.all([
       git(["status", "--short"], cwd),
@@ -47,7 +50,10 @@ export async function collectStateSyncAuditInput(
       git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd)
         .catch(() => ""),
       git(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], cwd)
-        .catch(() => "unknown\tunknown")
+        .catch(() => "unknown\tunknown"),
+      read(cwd, "package.json"),
+      read(cwd, CURRENT_STATE_DOC),
+      readAgentBoard(cwd)
     ]);
 
   const input: StateSyncAuditInput = {
@@ -56,9 +62,9 @@ export async function collectStateSyncAuditInput(
     head: head.trim(),
     upstream: upstream.trim(),
     aheadBehind: aheadBehind.trim(),
-    packageJsonText: await read(cwd, "package.json"),
-    currentStateText: await read(cwd, CURRENT_STATE_DOC),
-    agentBoardText: await readAgentBoard(cwd)
+    packageJsonText,
+    currentStateText,
+    agentBoardText
   };
 
   const trimmedParentHead = parentHead.trim();
@@ -74,6 +80,29 @@ export async function collectStateSyncAuditInput(
   });
   if (allowedStateCommits.length > 0) {
     input.allowedStateCommits = allowedStateCommits;
+  }
+
+  const validatedSourceCommit = stateFieldValue(currentStateText, "Validated source commit");
+  const latestValidatedCommit = stateFieldValue(currentStateText, "Latest validated commit");
+  const validatedSourceAnchor = validatedSourceCommit ?? latestValidatedCommit;
+  if (validatedSourceAnchor !== undefined) {
+    if (isCommitLike(validatedSourceAnchor)) {
+      input.validatedSourceAheadBehind = (
+        await gitAheadBehindFromRef(validatedSourceAnchor, cwd)
+      ).trim();
+      input.validatedSourceAncestorOfHead = await gitCommitIsAncestorOfHead(
+        validatedSourceAnchor,
+        cwd
+      );
+      const committedPathsSinceValidatedSource =
+        await gitChangedPathsSince(validatedSourceAnchor, cwd);
+      if (committedPathsSinceValidatedSource !== undefined) {
+        input.committedPathsSinceValidatedSource = committedPathsSinceValidatedSource;
+      }
+    } else {
+      input.validatedSourceAheadBehind = "unknown\tunknown";
+      input.validatedSourceAncestorOfHead = false;
+    }
   }
 
   return input;
@@ -97,6 +126,58 @@ async function git(args: string[], cwd: string): Promise<string> {
   });
 
   return stdout;
+}
+
+async function gitCommitIsAncestorOfHead(
+  commit: string,
+  cwd: string
+): Promise<boolean> {
+  try {
+    await execFileAsync("git", ["merge-base", "--is-ancestor", commit, "HEAD"], {
+      cwd,
+      encoding: "utf8",
+      windowsHide: true
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function gitAheadBehindFromRef(
+  commit: string,
+  cwd: string
+): Promise<string> {
+  return git(["rev-list", "--left-right", "--count", `${commit}...@{upstream}`], cwd)
+    .catch(() => "unknown\tunknown");
+}
+
+async function gitChangedPathsSince(
+  commit: string,
+  cwd: string
+): Promise<string[] | undefined> {
+  try {
+    const output = await git(
+      ["log", "--format=", "--name-only", "--no-renames", `${commit}..HEAD`],
+      cwd
+    );
+    return uniqueNonEmpty(output.split(/\r?\n/));
+  } catch {
+    return undefined;
+  }
+}
+
+function stateFieldValue(text: string, field: string): string | undefined {
+  return new RegExp(`\\| ${escapeRegExp(field)} \\| \`([^\\\`]+)\` \\|`)
+    .exec(text)?.[1];
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isCommitLike(value: string): boolean {
+  return /^[0-9a-f]{7,40}$/i.test(value);
 }
 
 function uniqueNonEmpty(values: string[]): string[] {

@@ -1,27 +1,142 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import {
   formatStateSyncAuditResult,
   reviewStateSyncAudit,
   type StateSyncAuditInput
 } from "../packages/state-sync-audit/src/index.js";
-import { collectAllowedStateCommits } from "../scripts/run-state-sync-audit.js";
+import {
+  collectAllowedStateCommits,
+  collectStateSyncAuditInput
+} from "../scripts/run-state-sync-audit.js";
 
-test("state sync audit passes for current state surfaces", async () => {
+const execFileAsync = promisify(execFile);
+
+test("state sync audit passes when clean HEAD equals validated source commit", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace());
 
   assert.equal(review.status, "passed");
   assert.deepEqual(review.reasons, []);
   assert.equal(review.checks.currentStateRecorded, true);
   assert.equal(review.checks.currentBranchMatches, true);
-  assert.equal(review.checks.currentHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+  assert.equal(review.checks.dirtyWorktreeStateOnly, true);
   assert.equal(review.checks.agentBoardAligned, true);
   assert.equal(review.checks.staleMarkersAbsent, true);
   assert.equal(review.summary.requiredValidationCommandCount, 4);
   assert.equal(review.summary.requiredBoundaryMarkerCount, 7);
   assert.equal(review.summary.stateWritesDuringAudit, 0);
   assert.equal(review.summary.remoteWritesDuringAudit, 0);
+});
+
+test("state sync audit accepts dirty state-only files", async () => {
+  const review = reviewStateSyncAudit(await createInputFromWorkspace({
+    gitStatusShort: [
+      " M .agent_board/RUN_STATE.md",
+      " M docs/current/CURRENT_STATE.md"
+    ].join("\n")
+  }));
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.dirtyWorktreeStateOnly, true);
+  assert.equal(review.summary.gitStatusEntryCount, 2);
+});
+
+test("state sync audit blocks dirty non-state files", async () => {
+  const review = reviewStateSyncAudit(await createInputFromWorkspace({
+    gitStatusShort: " M packages/state-sync-audit/src/index.ts"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_dirtyWorktreeStateOnly"));
+});
+
+test("state sync audit accepts committed state-only descendants", async () => {
+  const input = await createInputFromWorkspace();
+  const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "2222222",
+    aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      ".agent_board/HANDOFF.md",
+      "docs/current/CURRENT_STATE.md"
+    ]
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+  assert.equal(review.summary.ahead, baseline.ahead + 1);
+  assert.equal(review.summary.validatedSourceAhead, baseline.ahead);
+});
+
+test("state sync audit blocks non-state commits after validated source", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "2222222",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      "packages/state-sync-audit/src/index.ts",
+      "scripts/run-state-sync-audit.ts",
+      "tests/state-sync-audit.test.ts"
+    ]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit blocks unreachable validated source commits", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "2222222",
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      "docs/current/CURRENT_STATE.md"
+    ]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit blocks stale validated source commits", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText.replace(
+      /\| Latest validated commit \| `[^`]+` \|/,
+      "| Latest validated commit | `1111111` |"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
 test("state sync audit blocks stale current branch and missing head fields", async () => {
@@ -36,7 +151,7 @@ test("state sync audit blocks stale current branch and missing head fields", asy
 
   assert.equal(review.status, "blocked");
   assert.ok(review.reasons.includes("state_sync_currentBranchMatches"));
-  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
@@ -50,11 +165,11 @@ test("state sync audit blocks mismatched current head hashes", async () => {
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
-test("state sync audit accepts stale state from merge checkout second-parent ancestry", async () => {
+test("state sync audit blocks stale state from merge checkout second-parent ancestry", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -63,10 +178,13 @@ test("state sync audit accepts stale state from merge checkout second-parent anc
     allowedStateCommits: [input.head, input.parentHead ?? input.head]
   });
 
-  assert.equal(review.status, "passed");
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
-test("state sync audit accepts stale state from shallow merge second-parent parent", async () => {
+test("state sync audit blocks stale state from shallow merge second-parent parent", async () => {
   const input = await createInputFromWorkspace();
   const recordedHead = input.currentStateText.match(/\| Current head \| `([^`]+)` \|/)?.[1];
 
@@ -79,17 +197,116 @@ test("state sync audit accepts stale state from shallow merge second-parent pare
     allowedStateCommits: ["c1db64a", recordedHead]
   });
 
-  assert.equal(review.status, "passed");
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
-test("state sync audit accepts clean synthetic review checkouts when explicitly allowed", async () => {
+test("state sync audit blocks clean synthetic review checkouts with stale anchor", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit(asCleanSyntheticReviewInput(input));
 
-  assert.equal(review.status, "passed");
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
-test("state sync audit accepts shallow detached PR merge checkouts when explicitly allowed", async () => {
+test("state sync audit blocks unreachable synthetic anchors with validated source evidence", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      "docs/current/CURRENT_STATE.md"
+    ]
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.validatedSourceHeadRecorded, false);
+  assert.equal(review.checks.validatedSourceCommitRecorded, false);
+  assert.equal(review.checks.latestValidatedCommitRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit blocks synthetic anchors when validated source paths are unknown", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
+    validatedSourceAncestorOfHead: true
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceHeadRecorded, false);
+  assert.equal(review.checks.validatedSourceCommitRecorded, false);
+  assert.equal(review.checks.latestValidatedCommitRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit preserves legacy synthetic fallback without validated source evidence", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input));
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+});
+
+test("state sync audit still accepts valid state-only descendants after synthetic hardening", async () => {
+  const input = await createInputFromWorkspace();
+  const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths()
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+});
+
+test("state sync audit accepts clean detached PR checkouts when explicitly allowed", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    gitStatusShort: "",
+    branch: "",
+    head: "8a5c580",
+    allowedStateCommits: [input.head],
+    upstream: "",
+    aheadBehind: "unknown\tunknown",
+    validatedSourceAheadBehind: "unknown\tunknown",
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      "packages/kernel-store/src/jsonl-event-log.ts",
+      "packages/state-sync-audit/src/index.ts",
+      "scripts/run-state-sync-audit.ts",
+      "tests/state-sync-audit.test.ts"
+    ]
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.currentBranchMatches, true);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+});
+
+test("state sync audit blocks detached PR checkouts without explicit state marker", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -98,16 +315,12 @@ test("state sync audit accepts shallow detached PR merge checkouts when explicit
     head: "8a5c580",
     allowedStateCommits: [],
     upstream: "",
-    aheadBehind: "unknown\tunknown"
-  });
-
-  assert.equal(review.status, "passed");
-});
-
-test("state sync audit blocks synthetic review checkouts without explicit state marker", async () => {
-  const input = asCleanSyntheticReviewInput(await createInputFromWorkspace());
-  const review = reviewStateSyncAudit({
-    ...input,
+    aheadBehind: "unknown\tunknown",
+    validatedSourceAheadBehind: "unknown\tunknown",
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      "packages/state-sync-audit/src/index.ts"
+    ],
     currentStateText: input.currentStateText.replace(
       /\| Synthetic review checkout \| `allowed` \|\n/,
       ""
@@ -115,9 +328,27 @@ test("state sync audit blocks synthetic review checkouts without explicit state 
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
+});
+
+test("state sync audit blocks non-detached synthetic markers with stale anchors", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "8a5c580",
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      "packages/state-sync-audit/src/index.ts"
+    ]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
 test("state sync audit blocks stale state outside merge checkout ancestry", async () => {
@@ -130,7 +361,8 @@ test("state sync audit blocks stale state outside merge checkout ancestry", asyn
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
 });
@@ -149,7 +381,8 @@ test("state sync audit blocks merge base as state when merge ancestry is availab
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_currentHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
 });
@@ -168,7 +401,7 @@ test("state sync audit collector excludes merge base from allowed commits", () =
   assert.deepEqual(allowed, ["c1db64a", "abc1234"]);
 });
 
-test("state sync audit blocks mismatched upstream divergence", async () => {
+test("state sync audit blocks mismatched validated source upstream divergence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -179,14 +412,241 @@ test("state sync audit blocks mismatched upstream divergence", async () => {
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_divergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
 });
 
-test("state sync audit fails closed when upstream divergence is unknown", async () => {
+test("state sync audit ignores current ahead drift from state-only descendants", async () => {
+  const input = await createInputFromWorkspace();
+  const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths()
+  });
+
+  assert.equal(review.status, "passed");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.summary.ahead, baseline.ahead + 1);
+  assert.equal(review.summary.validatedSourceAhead, baseline.ahead);
+});
+
+test("state sync audit accepts pushed state-only divergence snapshots", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
-    aheadBehind: "unknown\tunknown",
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t1",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths()
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.summary.validatedSourceAhead, 0);
+  assert.equal(review.summary.validatedSourceBehind, 1);
+});
+
+test("state sync audit blocks arbitrary syntactic divergence snapshots", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t1",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream divergence \| `[^`]+` \|/,
+      "| Upstream divergence | `ahead 999 / behind 999` |"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+});
+
+test("state sync audit blocks wrong inverse divergence snapshots", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t2",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths()
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+});
+
+test("state sync audit blocks pushed snapshots without state record mode", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t1",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    currentStateText: input.currentStateText.replace(
+      /\| State record mode \| `[^`]+` \|\n/,
+      ""
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+});
+
+test("state sync audit blocks pushed snapshots with wrong state record mode", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t1",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    currentStateText: input.currentStateText.replace(
+      /\| State record mode \| `[^`]+` \|/,
+      "| State record mode | `source-only` |"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+});
+
+test("state sync audit blocks snapshot fallbacks with extra board paths", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t1",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: [
+      ...strictStateRecordPaths(),
+      ".agent_board/EXTRA.md"
+    ]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+});
+
+test("state sync audit blocks non-state descendants with stale divergence snapshots", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t1",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      "packages/state-sync-audit/src/index.ts",
+      "tests/state-sync-audit.test.ts",
+      "scripts/run-state-sync-audit.ts",
+      ".github/workflows/ci.yml"
+    ]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit blocks unreachable anchors with stale divergence snapshots", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t1",
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      "docs/current/CURRENT_STATE.md"
+    ]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit accepts exact validated source divergence matches", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    validatedSourceAheadBehind: "0\t1",
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream divergence \| `[^`]+` \|/,
+      "| Upstream divergence | `ahead 0 / behind 1` |"
+    )
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+});
+
+test("state sync audit blocks unknown divergence exact matches", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    validatedSourceAheadBehind: "unknown\tunknown",
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream divergence \| `[^`]+` \|/,
+      "| Upstream divergence | `ahead -1 / behind -1` |"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.equal(review.summary.validatedSourceAhead, -1);
+  assert.equal(review.summary.validatedSourceBehind, -1);
+});
+
+test("state sync audit blocks when upstream behind changes from baseline", async () => {
+  const input = await createInputFromWorkspace();
+  const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
+  const review = reviewStateSyncAudit({
+    ...input,
+    validatedSourceAheadBehind: `${baseline.ahead}\t${baseline.behind + 1}`
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.equal(review.summary.validatedSourceBehind, baseline.behind + 1);
+});
+
+test("state sync audit fails closed when validated source divergence is unknown", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    validatedSourceAheadBehind: "unknown\tunknown",
     currentStateText: input.currentStateText.replace(
       /\| Upstream divergence \| `[^`]+` \|/,
       "| Upstream divergence | `ahead 0 / behind 0` |"
@@ -194,9 +654,39 @@ test("state sync audit fails closed when upstream divergence is unknown", async 
   });
 
   assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_divergenceRecorded"));
-  assert.equal(review.summary.ahead, -1);
-  assert.equal(review.summary.behind, -1);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.equal(review.summary.validatedSourceAhead, -1);
+  assert.equal(review.summary.validatedSourceBehind, -1);
+});
+
+test("state sync audit blocks missing recorded upstream divergence", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream divergence \| `[^`]+` \|\n/,
+      ""
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+});
+
+test("state sync audit blocks malformed recorded upstream divergence", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream divergence \| `[^`]+` \|/,
+      "| Upstream divergence | `ahead many / behind none` |"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
 });
 
 test("state sync audit blocks stale agent board facts", async () => {
@@ -261,6 +751,63 @@ test("state sync audit output stays summarized", async () => {
     assert.equal(text.includes(marker), false, `text output must omit ${marker}`);
     assert.equal(json.includes(marker), false, `json output must omit ${marker}`);
   }
+});
+
+test("state sync audit blocked output never emits a PASS badge", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "2222222",
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      "packages/state-sync-audit/src/index.ts"
+    ]
+  });
+  const text = formatStateSyncAuditResult(review);
+  const json = formatStateSyncAuditResult(review, "json");
+
+  assert.equal(review.status, "blocked");
+  assert.doesNotMatch(text, /status: passed/);
+  assert.doesNotMatch(json, /"status": "passed"/);
+  assert.doesNotMatch(text, /\bPASS\b/);
+  assert.doesNotMatch(json, /\bPASS\b/);
+});
+
+test("state sync audit collector rejects unreachable validated source anchors", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-unreachable-"));
+  await git(cwd, ["init"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+
+  await writeMinimalWorkspace(cwd, "main", "0000000");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "base"]);
+  const baseCommit = await git(cwd, ["rev-parse", "--short", "HEAD"]);
+
+  await git(cwd, ["checkout", "-b", "old-source"]);
+  await mkdir(join(cwd, "packages"), { recursive: true });
+  await writeFile(join(cwd, "packages", "old-source.ts"), "export const oldSource = true;\n");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "old source"]);
+  const unreachableValidatedSource = await git(cwd, ["rev-parse", "--short", "HEAD"]);
+
+  await git(cwd, ["checkout", "-b", "pr-checkout", baseCommit.trim()]);
+  await mkdir(join(cwd, "scripts"), { recursive: true });
+  await writeFile(join(cwd, "scripts", "pr-change.ts"), "export const prChange = true;\n");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "pr change"]);
+
+  await writeMinimalWorkspace(cwd, "pr-checkout", unreachableValidatedSource.trim());
+
+  const input = await collectStateSyncAuditInput(cwd);
+  const review = reviewStateSyncAudit(input);
+
+  assert.equal(input.validatedSourceAncestorOfHead, false);
+  assert.ok(input.committedPathsSinceValidatedSource?.includes("scripts/pr-change.ts"));
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
 test("state sync audit blocks machine absolute paths in state surfaces", async () => {
@@ -377,6 +924,7 @@ async function createInputFromWorkspace(
     parentHead: recordedHead,
     upstream: recordedUpstream,
     aheadBehind: recordedDivergence,
+    validatedSourceAheadBehind: recordedDivergence,
     packageJsonText: await readFile("package.json", "utf8"),
     currentStateText,
     agentBoardText,
@@ -398,6 +946,27 @@ function extractStateDivergence(text: string): string | undefined {
   return `${match[1]}\t${match[2]}`;
 }
 
+function parseTestAheadBehind(
+  value: string | undefined
+): { ahead: number; behind: number } {
+  const [aheadText, behindText] = (value ?? "0\t0").split(/\s+/);
+  return {
+    ahead: Number.parseInt(aheadText ?? "0", 10),
+    behind: Number.parseInt(behindText ?? "0", 10)
+  };
+}
+
+function strictStateRecordPaths(): string[] {
+  return [
+    "docs/current/CURRENT_STATE.md",
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/TASK_QUEUE.md",
+    ".agent_board/VALIDATION_LOG.md"
+  ];
+}
+
 function asCleanSyntheticReviewInput(
   input: StateSyncAuditInput
 ): StateSyncAuditInput {
@@ -408,9 +977,117 @@ function asCleanSyntheticReviewInput(
     parentHead: "f37f174",
     allowedStateCommits: [],
     aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t0",
     currentStateText: input.currentStateText.replace(
       /\| Upstream divergence \| `[^`]+` \|/,
       "| Upstream divergence | `ahead 0 / behind 0` |"
     )
   };
+}
+
+function asDetachedSyntheticReviewInput(
+  input: StateSyncAuditInput,
+  overrides: Partial<StateSyncAuditInput> = {}
+): StateSyncAuditInput {
+  return {
+    ...input,
+    gitStatusShort: "",
+    branch: "",
+    head: "8a5c580",
+    parentHead: "f37f174",
+    allowedStateCommits: [],
+    upstream: "",
+    aheadBehind: "unknown\tunknown",
+    validatedSourceAheadBehind: "unknown\tunknown",
+    ...overrides
+  };
+}
+
+async function git(cwd: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync("git", args, {
+    cwd,
+    encoding: "utf8",
+    windowsHide: true
+  });
+
+  return stdout;
+}
+
+async function writeMinimalWorkspace(
+  cwd: string,
+  branch: string,
+  validatedSourceCommit: string
+): Promise<void> {
+  await mkdir(join(cwd, "docs", "current"), { recursive: true });
+  await mkdir(join(cwd, ".agent_board"), { recursive: true });
+  await writeFile(
+    join(cwd, "package.json"),
+    JSON.stringify({
+      scripts: {
+        governance: "tsx scripts/run-governance-check.ts"
+      }
+    }, null, 2)
+  );
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    minimalCurrentState(branch, validatedSourceCommit)
+  );
+
+  const boardText = [
+    "# State Board",
+    "",
+    `Branch: \`${branch}\``,
+    "Current truth source: `docs/current/CURRENT_STATE.md`",
+    `Validated source commit: \`${validatedSourceCommit}\``,
+    `Latest validated commit: \`${validatedSourceCommit}\``,
+    ""
+  ].join("\n");
+
+  for (const fileName of [
+    "RUN_STATE.md",
+    "TASK_QUEUE.md",
+    "CHECKPOINT.md",
+    "HANDOFF.md",
+    "VALIDATION_LOG.md"
+  ]) {
+    await writeFile(join(cwd, ".agent_board", fileName), boardText);
+  }
+}
+
+function minimalCurrentState(branch: string, validatedSourceCommit: string): string {
+  return [
+    "# Current State",
+    "",
+    "CURRENT_STATE_RECORDED",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    "| Workspace | `codex-router/repo` |",
+    `| Current branch | \`${branch}\` |`,
+    `| Current head | \`${validatedSourceCommit}\` |`,
+    `| Validated source commit | \`${validatedSourceCommit}\` |`,
+    "| Upstream | `none` |",
+    "| Upstream divergence | `ahead -1 / behind -1` |",
+    `| Latest validated commit | \`${validatedSourceCommit}\` |`,
+    "| State record mode | `state-only descendant allowed` |",
+    "| Stale after commit | `true` |",
+    "",
+    "Validation baseline:",
+    "",
+    "- `npx tsx --test tests\\codex-cli-host.test.ts`",
+    "- `npm run typecheck`",
+    "- `npm test`",
+    "- `npm run build`",
+    "",
+    "Execution boundary:",
+    "",
+    "- `general_workspace_write`",
+    "- `general_provider_execution`",
+    "- `protected_remote_write`",
+    "- `push_to_main`",
+    "- `release_tag_deploy`",
+    "- `secret_or_credential_change`",
+    "- `external_service_write`",
+    ""
+  ].join("\n");
 }

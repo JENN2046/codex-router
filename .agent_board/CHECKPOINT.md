@@ -6,42 +6,58 @@ Current state source:
 
 Branch:
 
-- `feat/pr-23a-s1-trusted-runtime`
+- `fix/jsonl-event-log-structured-error`
 
-Current R1-G1FIX5 status:
+Current head:
 
-- the local code remediation commit exists
-- the local state documentation commit has not been created yet
-- the published feature branch has not received the remediation
-- PR #46 remains open and draft
-- failed remote CI existed before this local remediation
-- remote validation of the local remediation is still pending
-- the agent-board state anchor is recorded only in `RUN_STATE.md`
+- `6c0778a`
 
-Completed in this checkpoint:
+Validated source commit:
 
-- remediated smoke artifact projection so persisted contract smoke evidence
-  contains safe summaries instead of raw nested runtime evidence
-- added persisted smoke artifact inspection before writing evidence
-- kept raw nested smoke evidence in memory only for assertions
-- remediated platform-drift test isolation while preserving fail-closed
-  descriptor mismatch behavior and zero spawner calls
-- verified typecheck, targeted host tests, contract smoke, full tests, and
-  build before the local code remediation commit
-- verified typecheck, targeted host tests, and contract smoke after the local
-  code remediation commit
+- `6c0778a`
 
-Remaining validation:
+Latest validated commit:
 
-- verify the dirty set is exactly the six authorized state files
-- run the required pre-state-commit validation set
-- create exactly one local documentation-only state commit
-- run the required post-state-commit validation set
-- perform final local status and remote read-only integrity checks
-- send the commander receipt
+- `6c0778a`
+
+Upstream:
+
+- `origin/fix/jsonl-event-log-structured-error`
+
+Upstream divergence:
+
+- `ahead 1 / behind 0`
+
+State record mode:
+
+- `state-only descendant allowed`
+
+Checkpoint facts:
+
+- current validated source head is present at `6c0778a`
+- validated source baseline divergence is recorded as `ahead 1 / behind 0`
+- State Sync Audit accepts a recorded divergence snapshot only for exact
+  recomputed matches or bounded pushed state-only inverse snapshots
+- tracked state files are not required to record their own containing commit
+- validation evidence recorded for the source commit:
+  - `git diff --check`: PASS
+  - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+  - `npm run typecheck`: PASS
+  - `npm run build`: PASS
+
+Local PR #47 P1 bounded divergence snapshot validation completed:
+
+- `git diff --check`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
+  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
+  `issues: []`
 
 Boundary:
 
-- no push, PR edit/comment/review/ready, workflow action, merge, rebase,
-  branch deletion, release, deploy, npm publish, secret edit, real Codex CLI,
-  real provider execution, or workspace-write smoke has been performed
+- bounded divergence snapshot fallback is committed
+- state/docs commit in progress
+- no dependency changes, push, remote write, manual CI rerun, real provider
+  execution, secret change, or runtime configuration change has occurred

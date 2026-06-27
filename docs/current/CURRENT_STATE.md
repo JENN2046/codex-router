@@ -11,13 +11,20 @@ refreshed here first.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `feat/pr-23a-s1-trusted-runtime` |
-| Current head | `c687b0f` |
-| Upstream | `none` |
-| Upstream divergence | `ahead -1 / behind -1` |
-| Latest validated commit | `c687b0f` |
+| Current branch | `fix/jsonl-event-log-structured-error` |
+| Current head | `6c0778a` |
+| Validated source commit | `6c0778a` |
+| Upstream | `origin/fix/jsonl-event-log-structured-error` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `6c0778a` |
+| State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
+
+The `Current head` row records the validated source head for audit
+compatibility. Dirty state-only record changes are allowed before a state
+commit, and state-only record commits may descend from this source commit
+without writing their own commit hash back into tracked state files.
 
 ## Current Entrypoints
 
@@ -29,8 +36,13 @@ refreshed here first.
 
 ## Current Scope
 
-This branch is in PR-23A-S1 trusted Codex CLI runtime remediation under the web
-GPT commander R1-G1FIX5 local CI remediation task book.
+This branch now records the current validated source head and upstream
+divergence for `fix/jsonl-event-log-structured-error`. The divergence is the
+validated source baseline for `6c0778a`, not a future state-only commit's
+own ahead / behind value. The earlier JSONL structured error fix remains
+included in branch history. The current source change is limited to bounding
+the State Sync Audit pushed state-only divergence snapshot fallback.
+Syntax-only upstream divergence fields do not satisfy the check.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -43,53 +55,39 @@ current safety baseline:
 - `general_workspace_write` remains closed by default
 - `secret_or_credential_change` remains closed by default
 
-Verified local remediation facts:
+Recorded source facts for PR47-P1-VALIDATED-SOURCE-DIVERGENCE-SNAPSHOT:
 
-- The smoke artifact projection issue is locally remediated. Persisted contract
-  smoke evidence now records safe nested evidence summaries instead of raw
-  nested runtime evidence.
-- Persisted smoke telemetry omits raw runtime context and keeps only safe
-  message facts.
-- Persisted smoke artifact inspection rejects active workspace path material,
-  exact raw runtime keys, and prompt transport markers before writing evidence.
-- The platform-drift test isolation issue is locally remediated. The drift test
-  now creates the plan under the real platform and changes the observed platform
-  only for run validation.
-- Platform drift remains fail-closed with
-  `codex_cli_runtime_binding_descriptor_mismatch` and zero spawner calls.
-- No production runtime code changed. The source change is limited to the smoke
-  contract script and the targeted host test.
-- No real Codex CLI execution, real provider execution, or workspace-write
-  smoke was performed.
+- Current head is `6c0778a`.
+- Validated source commit is `6c0778a`.
+- Latest validated commit is `6c0778a`.
+- Upstream is `origin/fix/jsonl-event-log-structured-error`.
+- Upstream divergence is `ahead 1 / behind 0`.
+- State Sync Audit now accepts the recorded upstream divergence as a validated
+  source baseline snapshot only for exact recomputed matches or bounded
+  pushed state-only inverse snapshots.
+- Reachability checks, non-state descendant blocking, and validated-evidence
+  synthetic anchor hardening remain closed.
+- No workflow checkout change is part of this source record.
+- No package, dependency, remote, provider-execution, env, or secret change is
+  part of this state record.
 
 ## Remote State
 
-- PR: `JENN2046/codex-router#46`
-- PR state: `OPEN`, draft.
-- The published feature branch still points at the pre-remediation remote head.
-- Failed remote CI existed before this local remediation.
-- Remote CI has not run for the new local remediation commit.
-- The local remediation has not been pushed.
-- Correct status phrase: locally remediated, remote validation pending.
+- Push is authorized only after final local validation passes and the worktree
+  is clean.
+- No PR edit, manual CI rerun, review-thread resolution, release, deploy, or
+  npm publish is authorized.
+- Correct status phrase before final push: locally validated, state alignment
+  in progress.
 
 ## Validation Baseline
 
-R1-G1FIX5 validation before the local code remediation commit:
+Validation baseline for source commit `6c0778a`:
 
-- `git diff --check`: passed.
-- `npm run typecheck`: passed.
-- `npx --no-install tsx --test tests/codex-cli-host.test.ts`: passed,
-  `109 / 109`.
-- Safe contract smoke with process-scoped temporary evidence path: passed.
-- `npm test`: passed, `1153 / 1153`.
-- `npm run build`: passed.
-
-R1-G1FIX5 validation after the local code remediation commit:
-
-- `npm run typecheck`: passed.
-- `npx --no-install tsx --test tests/codex-cli-host.test.ts`: passed,
-  `109 / 109`.
-- Safe contract smoke with process-scoped temporary evidence path: passed.
+- `git diff --check`: PASS.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
+- `npm run typecheck`: PASS.
+- `npm run build`: PASS.
 
 State-sync required validation command literals retained in this state surface:
 
@@ -98,29 +96,15 @@ State-sync required validation command literals retained in this state surface:
 - `npm test`
 - `npm run build`
 
-Validation still required before the state commit:
+Local PR #47 P1 bounded divergence snapshot validation:
 
-- exact dirty-set check for the six authorized state files
-- `git diff --check`
-- process-scoped offline `npx tsx --test tests\codex-cli-host.test.ts`
-- `npm test`
-- `npm run build`
-- `npm run governance -- audit state-sync`
-- `npm run validate:pr`
-
-Validation still required after the state commit:
-
-- clean worktree and local ahead/behind check
-- `git diff --check`
-- `npm run typecheck`
-- `npx --no-install tsx --test tests/codex-cli-host.test.ts`
-- process-scoped offline `npx tsx --test tests\codex-cli-host.test.ts`
-- safe contract smoke with process-scoped temporary evidence path
-- `npm test`
-- `npm run build`
-- `npm run governance -- audit state-sync`
-- `npm run validate:pr`
-- final remote read-only ref and PR metadata verification
+- `git diff --check`: PASS.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
+- `npm run typecheck`: PASS.
+- `npm run build`: PASS.
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
+  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
+  `issues: []`.
 
 ## Execution Boundary
 
@@ -137,20 +121,20 @@ Blocked capabilities:
 - `secret_or_credential_change`
 - `external_service_write`
 
-Boundary facts for R1-G1FIX5:
+Boundary facts for this state alignment:
 
-- No push, PR edit/comment/review/ready, workflow rerun/cancel/dispatch/watch,
-  merge, rebase, branch deletion, release, deploy, or npm publish.
-- No additional CI logs, artifacts, workflow actions, real Codex CLI, real
-  provider execution, or workspace-write smoke.
+- State-sync bounded divergence snapshot changes are committed in `6c0778a`.
+- No package or dependency changes.
+- Current source head is recorded as `6c0778a`.
+- This state/docs update is not committed yet.
+- No push or remote write has happened yet.
+- No real provider execution.
 - No env, secret, user config, or system config edit.
-- The only environment changes were process-scoped validation variables and
-  process-scoped temporary smoke evidence paths.
 
 ## Current Local Changes
 
-The local remediation code commit exists and is the current state anchor. The
-next local change is documentation-only and limited to:
+The validated source commit exists and is the current validated state anchor.
+Current local state changes are limited to:
 
 - `docs/current/CURRENT_STATE.md`
 - `.agent_board/CHECKPOINT.md`
@@ -161,16 +145,26 @@ next local change is documentation-only and limited to:
 
 ## State Sync Expectations
 
-This local branch does not currently track an upstream branch. The state-sync
-audit therefore expects unknown upstream divergence, recorded as
-`ahead -1 / behind -1`.
+This local branch tracks `origin/fix/jsonl-event-log-structured-error`. The
+state-sync audit therefore expects recorded validated source baseline
+divergence of `ahead 1 / behind 0` for the current PR head.
 
-Because `Stale after commit` is `true`, the documentation-only state commit may
-leave the recorded state head as its parent while still passing state-sync.
+The recorded validated source head and latest validated commit are both
+`6c0778a`. The state-only record commit may descend from this source commit
+without writing its own commit hash back into tracked state files.
+
+Current state line:
+
+- PR47 JSONL/state-sync fixes: mostly correct.
+- Synthetic anchor hardening: correct.
+- Bounded divergence snapshot fallback: local source fix committed.
+- Remote CI: not triggered for `6c0778a` yet.
+- Previous failure cause: pushed state-only divergence snapshot recomputation.
+- Active P1: yes.
+- Merge: blocked.
+- Next: validate and push bounded divergence snapshot fix, not weaken audit logic.
 
 ## Next Safe Action
 
-Run the required pre-commit local validation set, create the documentation-only
-state commit if it passes, then run the required post-commit validation and
-remote read-only verification. Do not push or otherwise modify remote state
-without a separate exact authorization token.
+Run the state-sync audit, commit state/docs only, run final validation, then
+push this branch only if the final validation passes and the worktree is clean.
