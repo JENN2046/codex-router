@@ -696,6 +696,10 @@ Implemented Phase 4 adjustment:
 - remove the State Sync Audit job's PR-only event gate so the same audit runs in
   both contexts;
 - keep the state-sync job behind `test` and before evidence collection.
+- after a squash merge to `main`, the first `main` push audit may block until a
+  follow-up state/docs reanchor records a `state_only_pushed` claim for the
+  squash commit; this is the expected fail-closed flow, not an instruction to
+  weaken checkout or divergence verification.
 
 ## Non-Goals For The First Implementation
 
