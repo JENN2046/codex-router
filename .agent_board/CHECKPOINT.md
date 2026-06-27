@@ -6,23 +6,23 @@ Current state source:
 
 Branch:
 
-- `fix/jsonl-event-log-structured-error`
+- `main`
 
 Current head:
 
-- `6c0778a`
+- `42fc8e3`
 
 Validated source commit:
 
-- `6c0778a`
+- `42fc8e3`
 
 Latest validated commit:
 
-- `6c0778a`
+- `42fc8e3`
 
 Upstream:
 
-- `origin/fix/jsonl-event-log-structured-error`
+- `origin/main`
 
 Upstream divergence:
 
@@ -34,7 +34,8 @@ State record mode:
 
 Checkpoint facts:
 
-- current validated source head is present at `6c0778a`
+- PR #47 is squash-merged into `main`
+- current validated source head is present at `42fc8e3`
 - validated source baseline divergence is recorded as `ahead 1 / behind 0`
 - State Sync Audit accepts a recorded divergence snapshot only for exact
   recomputed matches or bounded pushed state-only inverse snapshots
@@ -45,19 +46,16 @@ Checkpoint facts:
   - `npm run typecheck`: PASS
   - `npm run build`: PASS
 
-Local PR #47 P1 bounded divergence snapshot validation completed:
+Local post-squash state reanchor status:
 
-- `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
-- `npm run typecheck`: PASS
-- `npm run build`: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS,
-  `status: passed`, `dirtyWorktreeStateOnly: true`, `reasons: []`,
-  `issues: []`
+- direct `main` push is authorized for this state/docs repair
+- state/docs commit is in progress
+- state-sync audit passed before the state/docs commit with `status: passed`,
+  `dirtyWorktreeStateOnly: true`, `reasons: []`, and `issues: []`
 
 Boundary:
 
-- bounded divergence snapshot fallback is committed
-- state/docs commit in progress
-- no dependency changes, push, remote write, manual CI rerun, real provider
-  execution, secret change, or runtime configuration change has occurred
+- no source, package, dependency, workflow, provider, env, secret, user config,
+  or system config change is part of this state/docs reanchor
+- no push for the reanchor commits has happened yet
+- no manual CI rerun or real provider execution has occurred

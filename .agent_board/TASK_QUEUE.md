@@ -2,20 +2,17 @@
 
 Current task:
 
-- Record PR47 P1 validated-source bounded divergence snapshot validation and align
-  state files to the current validated source commit on
-  `fix/jsonl-event-log-structured-error`.
+- Record post-squash PR #47 state/docs reanchor on `main`.
 
 Done:
 
-- confirmed current branch is `fix/jsonl-event-log-structured-error`
-- inspected `scripts/run-state-sync-audit.ts`
-- inspected current state records
-- committed State Sync Audit bounded divergence snapshot fallback
-- recorded current source head `6c0778a`
-- recorded validated source commit `6c0778a`
-- recorded latest validated commit `6c0778a`
-- recorded upstream `origin/fix/jsonl-event-log-structured-error`
+- confirmed current branch is `main`
+- confirmed local `main` was aligned with `origin/main` before repair
+- created an empty post-squash validated source anchor
+- recorded current source head `42fc8e3`
+- recorded validated source commit `42fc8e3`
+- recorded latest validated commit `42fc8e3`
+- recorded upstream `origin/main`
 - recorded validated source baseline divergence `ahead 1 / behind 0`
 - recorded state record mode `state-only descendant allowed`
 - recorded that arbitrary syntactic divergence snapshots remain blocked
@@ -34,14 +31,15 @@ State validation completed:
 
 Todo:
 
-- commit state/docs only after state validation passes
+- commit state/docs only
 - run final validation
-- push branch only if final validation passes and the worktree is clean
+- push `main` only if final validation passes and the worktree is clean
+- run post-push read-only state-sync audit
 
 Blocked until separately authorized:
 
 - dependency changes
-- workflow edits, PR edit, review-thread resolution, merge, or release
+- workflow edits, PR edit, review-thread resolution, additional merge, or release
 - manual CI rerun
 - real provider execution
 - real Codex CLI execution

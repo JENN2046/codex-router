@@ -11,12 +11,12 @@ refreshed here first.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `fix/jsonl-event-log-structured-error` |
-| Current head | `6c0778a` |
-| Validated source commit | `6c0778a` |
-| Upstream | `origin/fix/jsonl-event-log-structured-error` |
+| Current branch | `main` |
+| Current head | `42fc8e3` |
+| Validated source commit | `42fc8e3` |
+| Upstream | `origin/main` |
 | Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `6c0778a` |
+| Latest validated commit | `42fc8e3` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,13 +36,20 @@ without writing their own commit hash back into tracked state files.
 
 ## Current Scope
 
-This branch now records the current validated source head and upstream
-divergence for `fix/jsonl-event-log-structured-error`. The divergence is the
-validated source baseline for `6c0778a`, not a future state-only commit's
-own ahead / behind value. The earlier JSONL structured error fix remains
-included in branch history. The current source change is limited to bounding
-the State Sync Audit pushed state-only divergence snapshot fallback.
-Syntax-only upstream divergence fields do not satisfy the check.
+PR #47 has been squash-merged into `main`. This direct state/docs repair
+reanchors the current state after the squash merge so tracked state no longer
+depends on PR-branch-internal commits that are not ancestors of `main`.
+
+The current validated source anchor is `42fc8e3`, an empty post-squash source
+anchor on `main`. The recorded upstream divergence is the validated source
+baseline at the state-record moment, not the future state-only commit's own
+ahead / behind value.
+
+The State Sync Audit bounded divergence snapshot behavior remains active:
+recorded upstream divergence may pass only through exact recomputed matches,
+detached synthetic checkout compatibility, or the bounded pushed state-only
+inverse snapshot path. Syntax-only upstream divergence fields do not satisfy
+the check.
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
 
@@ -55,26 +62,25 @@ current safety baseline:
 - `general_workspace_write` remains closed by default
 - `secret_or_credential_change` remains closed by default
 
-Recorded source facts for PR47-P1-VALIDATED-SOURCE-DIVERGENCE-SNAPSHOT:
+Recorded source facts for the post-squash state reanchor:
 
-- Current head is `6c0778a`.
-- Validated source commit is `6c0778a`.
-- Latest validated commit is `6c0778a`.
-- Upstream is `origin/fix/jsonl-event-log-structured-error`.
+- Current branch is `main`.
+- Current head is `42fc8e3`.
+- Validated source commit is `42fc8e3`.
+- Latest validated commit is `42fc8e3`.
+- Upstream is `origin/main`.
 - Upstream divergence is `ahead 1 / behind 0`.
-- State Sync Audit now accepts the recorded upstream divergence as a validated
-  source baseline snapshot only for exact recomputed matches or bounded
-  pushed state-only inverse snapshots.
+- State record mode is `state-only descendant allowed`.
 - Reachability checks, non-state descendant blocking, and validated-evidence
   synthetic anchor hardening remain closed.
-- No workflow checkout change is part of this source record.
-- No package, dependency, remote, provider-execution, env, or secret change is
+- No workflow checkout change, package change, dependency change, provider
+  execution, env edit, secret edit, user config edit, or system config edit is
   part of this state record.
 
 ## Remote State
 
-- Push is authorized only after final local validation passes and the worktree
-  is clean.
+- Direct push to `main` is authorized only for this post-squash state/docs
+  repair, after local validation passes and the worktree is clean.
 - No PR edit, manual CI rerun, review-thread resolution, release, deploy, or
   npm publish is authorized.
 - Correct status phrase before final push: locally validated, state alignment
@@ -82,7 +88,7 @@ Recorded source facts for PR47-P1-VALIDATED-SOURCE-DIVERGENCE-SNAPSHOT:
 
 ## Validation Baseline
 
-Validation baseline for source commit `6c0778a`:
+Validation baseline for source commit `42fc8e3`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
@@ -96,7 +102,7 @@ State-sync required validation command literals retained in this state surface:
 - `npm test`
 - `npm run build`
 
-Local PR #47 P1 bounded divergence snapshot validation:
+Local post-squash state reanchor validation:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
@@ -123,13 +129,14 @@ Blocked capabilities:
 
 Boundary facts for this state alignment:
 
-- State-sync bounded divergence snapshot changes are committed in `6c0778a`.
-- No package or dependency changes.
-- Current source head is recorded as `6c0778a`.
+- PR #47 is merged by squash into `main`.
+- A post-squash empty source anchor exists at `42fc8e3`.
+- No source, package, dependency, workflow, provider, env, secret, user config,
+  or system config file is changed by this state/docs reanchor.
+- Current source head is recorded as `42fc8e3`.
 - This state/docs update is not committed yet.
-- No push or remote write has happened yet.
-- No real provider execution.
-- No env, secret, user config, or system config edit.
+- No push for the reanchor commits has happened yet.
+- No real provider execution has occurred.
 
 ## Current Local Changes
 
@@ -145,26 +152,26 @@ Current local state changes are limited to:
 
 ## State Sync Expectations
 
-This local branch tracks `origin/fix/jsonl-event-log-structured-error`. The
-state-sync audit therefore expects recorded validated source baseline
-divergence of `ahead 1 / behind 0` for the current PR head.
+This local branch tracks `origin/main`. The state-sync audit expects recorded
+validated source baseline divergence of `ahead 1 / behind 0` for `42fc8e3`
+before the state/docs commit is pushed.
 
-The recorded validated source head and latest validated commit are both
-`6c0778a`. The state-only record commit may descend from this source commit
-without writing its own commit hash back into tracked state files.
+After the state/docs commit is pushed, `main` should be aligned with upstream.
+The same recorded baseline should then pass through the bounded pushed
+state-only inverse snapshot rule because the only committed paths since the
+validated source are strict state record files.
 
 Current state line:
 
-- PR47 JSONL/state-sync fixes: mostly correct.
+- PR47 JSONL/state-sync fixes: merged by squash.
 - Synthetic anchor hardening: correct.
-- Bounded divergence snapshot fallback: local source fix committed.
-- Remote CI: not triggered for `6c0778a` yet.
-- Previous failure cause: pushed state-only divergence snapshot recomputation.
-- Active P1: yes.
-- Merge: blocked.
-- Next: validate and push bounded divergence snapshot fix, not weaken audit logic.
+- Bounded divergence snapshot fallback: correct.
+- Remote CI for the merged PR: passed before merge.
+- Post-squash main state anchor: locally validated.
+- Merge: complete.
+- Next: commit and push state/docs reanchor only if local validation passes.
 
 ## Next Safe Action
 
 Run the state-sync audit, commit state/docs only, run final validation, then
-push this branch only if the final validation passes and the worktree is clean.
+push `main` only if the final validation passes and the worktree is clean.

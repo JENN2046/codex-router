@@ -1,8 +1,8 @@
 # Run State
 
-Status: local state record is aligned to the current validated branch head and
-upstream divergence. The update is limited to `.agent_board` records and
-`docs/current/CURRENT_STATE.md`.
+Status: local state record is being aligned to the current validated `main`
+head after the PR #47 squash merge. The update is limited to `.agent_board`
+records and `docs/current/CURRENT_STATE.md`.
 
 Current truth source:
 
@@ -10,23 +10,23 @@ Current truth source:
 
 Branch:
 
-- `fix/jsonl-event-log-structured-error`
+- `main`
 
 Current head:
 
-- `6c0778a`
+- `42fc8e3`
 
 Validated source commit:
 
-- `6c0778a`
+- `42fc8e3`
 
 Latest validated commit:
 
-- `6c0778a`
+- `42fc8e3`
 
 Upstream:
 
-- `origin/fix/jsonl-event-log-structured-error`
+- `origin/main`
 
 Upstream divergence:
 
@@ -50,19 +50,17 @@ Current scope outcome:
 
 - recorded current source `HEAD` as the validated source commit and latest validated
   commit
-- recorded upstream as `origin/fix/jsonl-event-log-structured-error`
+- recorded upstream as `origin/main`
 - recorded validated source baseline divergence as `ahead 1 / behind 0`
-- committed PR47 P1 bounded divergence snapshot fallback for State Sync Audit
 - recorded that syntax-only divergence snapshots do not satisfy the audit
 - state/docs alignment is in progress
 
 Boundary:
 
-- current validated source head is `6c0778a`
-- no dependency changes
-- state-sync source/test commit exists
+- current validated source head is `42fc8e3`
+- no source, dependency, workflow, provider, env, secret, user config, or system
+  config change is part of this reanchor
+- direct `main` push is authorized only after final validation passes
 - no push yet
-- no remote writes
 - no manual CI rerun
 - no real provider execution
-- no secrets or runtime configuration changes
