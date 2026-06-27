@@ -213,7 +213,7 @@ export function parseStateSyncClaim(
 
   const branch = stringField(subject, "branch");
   const upstream = stringField(subject, "upstream");
-  if (branch === undefined || upstream === undefined) {
+  if (branch === undefined || branch.trim() === "" || upstream === undefined) {
     return { status: "invalid", reason: "subject_malformed" };
   }
 

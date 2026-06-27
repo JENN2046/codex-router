@@ -183,6 +183,7 @@ Claim handling must fail closed:
 - if the parsed claim is not an object, the audit blocks;
 - if `schemaVersion` or `policyVersion` is unknown, the audit blocks;
 - if any required core field is missing or malformed, the audit blocks;
+- if `subject.branch` is empty or only whitespace, the audit blocks;
 - if commit fields are not 7-40 character lowercase or uppercase hex strings,
   the audit blocks;
 - if divergence fields are missing, negative, non-integer, or not finite, the

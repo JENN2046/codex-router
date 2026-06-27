@@ -83,6 +83,24 @@ test("state sync audit blocks structured claims with stale subject branch", asyn
   assert.ok(review.reasons.includes("state_sync_currentBranchMatches"));
 });
 
+test("state sync audit blocks structured claims with empty subject branch in detached checkouts", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    branch: "",
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+      branch: ""
+    })
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.summary.claimSource, "invalid_structured");
+  assert.equal(review.checks.structuredClaimValid, false);
+  assert.equal(review.checks.currentBranchMatches, false);
+  assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
+  assert.ok(review.reasons.includes("state_sync_currentBranchMatches"));
+});
+
 test("state sync audit blocks structured claims with stale subject upstream", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
