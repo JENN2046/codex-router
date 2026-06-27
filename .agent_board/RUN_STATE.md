@@ -21,15 +21,15 @@ Branch:
 
 Current head:
 
-- `786aa8b`
+- `04ae358`
 
 Validated source commit:
 
-- `786aa8b`
+- `04ae358`
 
 Latest validated commit:
 
-- `786aa8b`
+- `04ae358`
 
 Upstream baseline:
 
@@ -37,7 +37,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 5 / behind 0`
 
 Transition:
 
@@ -64,7 +64,8 @@ State-sync audit expectation:
 Boundary:
 
 - source changes intentionally update `.github/workflows/ci.yml` for Phase 4
-  state-sync CI coverage
+  state-sync CI coverage and gate main-push audit on a committed
+  `main` / `state_only_pushed` record
 - no package, dependency, provider, env, secret, user config, or system config
   change is part of this state record
 - no manual CI rerun
@@ -76,8 +77,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `786aa8b`
-- latest validated commit: `786aa8b`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `04ae358`
+- latest validated commit: `04ae358`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

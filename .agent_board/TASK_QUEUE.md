@@ -2,7 +2,7 @@
 
 Current task:
 
-- Finish Phase 4 state-sync CI coverage adjustment and open a focused PR.
+- Finish the PR #50 P1 main-push audit gate fix.
 
 Done:
 
@@ -30,6 +30,7 @@ Done:
 - added `scripts/sync-state-sync-display.ts` for generated display surfaces
 - added display-sync regression tests
 - removed the State Sync Audit job's PR-only event gate locally
+- gated main-push audit on a committed `main` / `state_only_pushed` record
 - updated workflow structure regression coverage
 - recorded the Phase 4 main reanchor expectation after squash merge
 - prepared the state/docs reanchor for the latest validated source
@@ -43,8 +44,7 @@ Validation completed:
 
 Todo:
 
-- push the Phase 4 branch
-- open the focused Phase 4 PR
+- push the P1 gate fix to PR #50
 - let CI validate the PR checkout and upstream contexts
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
@@ -64,8 +64,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `786aa8b`
-- latest validated commit: `786aa8b`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `04ae358`
+- latest validated commit: `04ae358`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

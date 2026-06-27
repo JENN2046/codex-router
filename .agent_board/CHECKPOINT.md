@@ -15,11 +15,11 @@ Branch:
 
 Validated source commit:
 
-- `786aa8b`
+- `04ae358`
 
 Latest validated commit:
 
-- `786aa8b`
+- `04ae358`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 5 / behind 0`
 
 Checkpoint facts:
 
@@ -36,8 +36,8 @@ Checkpoint facts:
 - Phase 2 blocks missing structured claims instead of falling back to Markdown.
 - Phase 3 provides `scripts/sync-state-sync-display.ts` to update display
   surfaces from the structured claim.
-- Phase 4 removes the State Sync Audit job's PR-only event gate so it also runs
-  on `push` to `main`.
+- Phase 4 removes the State Sync Audit job's PR-only event gate and gates
+  `push` audits on a committed `main` / `state_only_pushed` record.
 - The collector uses the structured claim upstream ref as the bounded baseline
   even when local feature-branch tracking exists, then computes divergence from
   Git.
@@ -74,8 +74,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `786aa8b`
-- latest validated commit: `786aa8b`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `04ae358`
+- latest validated commit: `04ae358`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

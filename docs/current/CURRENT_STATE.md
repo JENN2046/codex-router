@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `docs/state-sync-phase-4-main-push-ci` |
-| Current head | `786aa8b` |
-| Validated source commit | `786aa8b` |
+| Current head | `04ae358` |
+| Validated source commit | `04ae358` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 3 / behind 0` |
-| Latest validated commit | `786aa8b` |
+| Upstream divergence | `ahead 5 / behind 0` |
+| Latest validated commit | `04ae358` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `786aa8b`
-- latest validated commit: `786aa8b`
+- validated source commit: `04ae358`
+- latest validated commit: `04ae358`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `9d99e51fb16c43ea98cd645f56098589f781d78bc52e3bcffa316871c81f85a0`
+  `e1ffa90caa1c9a116a18762cfaea2bb55b3343bda235996395a1a0571eef6cc4`
 
 Strict state record paths:
 
@@ -71,13 +71,15 @@ This branch contains the Phase 4 state-sync CI coverage adjustment:
 - `tests/canary-evidence.test.ts`
 - `docs/current/state-sync-record.json`
 
-The Phase 4 change removes the State Sync Audit job's PR-only event gate so the
-audit runs under both workflow top-level triggers: `pull_request` to `main` and
-`push` to `main`.
+The Phase 4 change removes the State Sync Audit job's PR-only event gate. Pull
+requests run the audit normally. `push` events to `main` are gated until the
+committed structured record is a `main` / `state_only_pushed` claim, so a
+squash-merged PR-branch `state_only_pending_push` record does not make main CI
+red before the follow-up reanchor exists.
 
 ## Validation Baseline
 
-Validation recorded for source commit `786aa8b`:
+Validation recorded for source commit `04ae358`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests.
@@ -171,12 +173,12 @@ The structured claim records:
 
 - branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `786aa8b`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `04ae358`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 
 With this state record committed, Git observation should compute the validated
-source divergence as `ahead 3 / behind 0` against
+source divergence as `ahead 5 / behind 0` against
 `refs/remotes/origin/main`.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
@@ -191,11 +193,11 @@ Current state line:
 - Phase 2 missing-claim gate and Markdown authority removal: implemented and
   tested.
 - Phase 3 display-sync script: implemented and tested.
-- Phase 4 state-sync audit on `push` to `main`: implemented on this branch and
-  ready for PR validation.
+- Phase 4 state-sync audit on `push` to `main`: gated on a committed
+  `main` / `state_only_pushed` record and ready for PR validation.
 - Bounded source tree digest verification for squash-only state records:
   implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.
-- Next: push the Phase 4 branch, open a focused PR, and let CI validate the
-  checkout and upstream contexts.
+- Next: push the P1 gate fix to PR #50 and let CI/reviewer validate the checkout
+  and upstream contexts.

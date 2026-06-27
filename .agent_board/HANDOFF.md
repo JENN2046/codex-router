@@ -12,7 +12,7 @@ Current branch:
 
 Current validated source:
 
-- `786aa8b`
+- `04ae358`
 
 Current structured claim:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 5 / behind 0`
 
 Completed:
 
@@ -36,7 +36,8 @@ Completed:
 - Phase 1 structured claim parser and resolver implemented
 - Phase 2 missing structured claim gate implemented
 - Phase 3 display-sync script implemented
-- Phase 4 state-sync CI push-to-main coverage implemented on this branch
+- Phase 4 state-sync CI push-to-main coverage implemented on this branch with
+  main-push audit gated on a committed `main` / `state_only_pushed` record
 - collector reads `docs/current/state-sync-record.json`
 - collector uses the structured claim upstream ref as the bounded baseline even
   when local feature-branch tracking exists, then computes divergence from Git
@@ -83,8 +84,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `786aa8b`
-- latest validated commit: `786aa8b`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `04ae358`
+- latest validated commit: `04ae358`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
