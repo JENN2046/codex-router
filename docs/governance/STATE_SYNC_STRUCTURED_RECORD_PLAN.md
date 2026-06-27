@@ -753,12 +753,11 @@ docs/current/state-sync-record.json
 .agent_board/VALIDATION_LOG.md
 ```
 
-Current code still has both broad state path handling (`.agent_board/*`) and
-strict state record path handling. Phase 1 should add
-`docs/current/state-sync-record.json` to the strict path set and test helpers,
-but it should not silently replace every broad `.agent_board/*` allowance in the
-same change. Full strict-path convergence belongs to Phase 2 or a separate
-hardening patch.
+Strict path convergence removes the earlier broad `.agent_board/*` allowance.
+Dirty worktree paths, committed state-only descendant paths, source-tree digest
+exclusions, and claim `transition.allowedStatePaths` must all resolve through
+the same fixed strict state record path set. Any other `.agent_board` file, such
+as `.agent_board/EXTRA.md`, is treated as a non-state path and must block.
 
 Additional fields may be tolerated in Phase 1 only if they do not change
 verification semantics. Unknown fields should be ignored for PASS/BLOCK but may

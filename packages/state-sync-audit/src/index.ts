@@ -1,6 +1,5 @@
 const CURRENT_STATE_DOC = "docs/current/CURRENT_STATE.md";
 const STATE_SYNC_RECORD_DOC = "docs/current/state-sync-record.json";
-const AGENT_BOARD_DIR = ".agent_board/";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
   governance: "tsx scripts/run-governance-check.ts"
@@ -1432,9 +1431,7 @@ function unquoteGitStatusPath(path: string): string {
 }
 
 function isAllowedStatePath(path: string): boolean {
-  return path === CURRENT_STATE_DOC
-    || path === STATE_SYNC_RECORD_DOC
-    || path.startsWith(AGENT_BOARD_DIR);
+  return isStrictStateRecordPath(path);
 }
 
 function pathsAreAllowed(
