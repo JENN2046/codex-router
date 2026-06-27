@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `docs/state-sync-phase-2-missing-claim-gate`
 
 Current validated source:
 
-- `d913f09`
+- `9e5afe9`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -34,6 +34,8 @@ Completed:
 
 - final plan document committed
 - Phase 1 structured claim parser and resolver implemented
+- Phase 2 missing structured claim gate implemented
+- Phase 3 display-sync script implemented
 - collector reads `docs/current/state-sync-record.json`
 - collector uses the structured claim upstream ref as the bounded baseline even
   when local feature-branch tracking exists, then computes divergence from Git
@@ -52,21 +54,22 @@ Completed:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 75 tests
-- `node --import tsx --test tests/governance-check.test.ts`: PASS, 6 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 77 tests
+- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+  tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `npm test`: PASS, 1208 tests
+- `npm test`: PASS, 1213 tests
 
 State-sync expectation:
 
-- after this state/docs record is pushed to `main`, branch-head state-sync audit
-  should PASS by resolving `refs/remotes/origin/main` as the structured claim
-  upstream ref and computing divergence from Git
+- after this state/docs record is pushed to the PR branch, branch-head
+  state-sync audit should PASS by resolving `refs/remotes/origin/main` as the
+  structured claim upstream ref and computing divergence from Git
 
 Not authorized:
 
-- additional direct pushes to `main` beyond this authorized reanchor
+- direct pushes to `main`
 - workflow edits
 - dependency changes
 - release or deploy
@@ -74,3 +77,14 @@ Not authorized:
 - real provider execution
 - real Codex CLI execution
 - env, secret, user config, or system config edits
+
+<!-- state-sync-display:start -->
+Generated from `docs/current/state-sync-record.json`.
+
+- branch: `docs/state-sync-phase-2-missing-claim-gate`
+- upstream: `refs/remotes/origin/main`
+- validated source commit: `9e5afe9`
+- latest validated commit: `9e5afe9`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pending_push`
+<!-- state-sync-display:end -->

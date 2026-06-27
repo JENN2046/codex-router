@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "docs/state-sync-phase-2-missing-claim-gate",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "d913f09",
-    "latestValidatedCommit": "d913f09",
+    "validatedSourceCommit": "9e5afe9",
+    "latestValidatedCommit": "9e5afe9",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "5e0b406f729d12a71a32f14387f3839d774c96e71c097cf81b11e7a7cdeb24a5",
+      "value": "e1236016d20de9aafc61285f1be2e609b3098770825fac526488fd103f4456ae",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
@@ -42,8 +42,10 @@
     "requiredCommands": [
       "git diff --check",
       "node --import tsx --test tests/state-sync-audit.test.ts",
+      "node --import tsx --test tests/state-sync-display-sync.test.ts",
       "npm run typecheck",
       "npm run build",
+      "node --import tsx scripts/sync-state-sync-display.ts --check",
       "node --import tsx scripts/run-state-sync-audit.ts --json"
     ]
   }
