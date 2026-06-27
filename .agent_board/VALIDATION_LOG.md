@@ -6,15 +6,15 @@ Current branch:
 
 Current head:
 
-- `09e2e9a`
+- `dceb4c7`
 
 Validated source commit:
 
-- `09e2e9a`
+- `dceb4c7`
 
 Latest validated commit:
 
-- `09e2e9a`
+- `dceb4c7`
 
 Upstream:
 
@@ -35,7 +35,7 @@ Recorded local validation for this branch head:
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
-Validation for local PR #47 P1 remediation:
+Validation for PR47 P1 CI checkout remediation:
 
 - `git diff --check`: PASS
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
@@ -47,10 +47,11 @@ Validation for local PR #47 P1 remediation:
 
 Execution boundary for this validation record:
 
-- current validated source head is `09e2e9a`
-- local PR #47 P1 source/test remediation is committed
+- current validated source head is `dceb4c7`
+- local PR47 P1 CI checkout remediation is committed
 - no dependency changes
 - no state/docs commit yet
 - no push yet
 - no remote writes
+- no manual CI rerun
 - no real provider execution

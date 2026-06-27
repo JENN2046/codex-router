@@ -10,15 +10,15 @@ Branch:
 
 Current head:
 
-- `09e2e9a`
+- `dceb4c7`
 
 Validated source commit:
 
-- `09e2e9a`
+- `dceb4c7`
 
 Latest validated commit:
 
-- `09e2e9a`
+- `dceb4c7`
 
 Upstream:
 
@@ -34,10 +34,10 @@ State record mode:
 
 Checkpoint facts:
 
-- current validated source head is present at `09e2e9a`
+- current validated source head is present at `dceb4c7`
 - validated source baseline divergence is recorded as `ahead 1 / behind 0`
-- state-sync now rejects synthetic review anchors when validated source
-  evidence exists and the anchor is not explicitly allowed
+- State Sync Audit CI now checks out the PR branch ref with full history so
+  ancestry and state-only descendant checks are verifiable
 - tracked state files are not required to record their own containing commit
 - validation evidence recorded for the source commit:
   - `git diff --check`: PASS
@@ -45,7 +45,7 @@ Checkpoint facts:
   - `npm run typecheck`: PASS
   - `npm run build`: PASS
 
-Local PR #47 P1 validation completed:
+Local PR #47 P1 CI checkout validation completed:
 
 - `git diff --check`: PASS
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
@@ -57,7 +57,7 @@ Local PR #47 P1 validation completed:
 
 Boundary:
 
-- source/test remediation is committed
+- CI checkout remediation is committed
 - state/docs commit in progress
-- no dependency changes, push, remote write, real provider execution, secret
-  change, or runtime configuration change has occurred
+- no dependency changes, push, remote write, manual CI rerun, real provider
+  execution, secret change, or runtime configuration change has occurred

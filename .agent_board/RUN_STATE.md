@@ -14,15 +14,15 @@ Branch:
 
 Current head:
 
-- `09e2e9a`
+- `dceb4c7`
 
 Validated source commit:
 
-- `09e2e9a`
+- `dceb4c7`
 
 Latest validated commit:
 
-- `09e2e9a`
+- `dceb4c7`
 
 Upstream:
 
@@ -52,15 +52,16 @@ Current scope outcome:
   commit
 - recorded upstream as `origin/fix/jsonl-event-log-structured-error`
 - recorded validated source baseline divergence as `ahead 1 / behind 0`
-- committed local PR #47 P1 synthetic anchor hardening source/test changes
+- committed PR47 P1 CI checkout remediation for State Sync Audit
 - state/docs alignment is in progress
 
 Boundary:
 
-- current validated source head is `09e2e9a`
+- current validated source head is `dceb4c7`
 - no dependency changes
-- source/test commit exists
+- CI workflow checkout commit exists
 - no push yet
 - no remote writes
+- no manual CI rerun
 - no real provider execution
 - no secrets or runtime configuration changes

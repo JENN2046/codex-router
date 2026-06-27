@@ -2,18 +2,19 @@
 
 Current task:
 
-- Record PR #47 P1 synthetic anchor hardening validation and align state files
-  to the current validated source commit on `fix/jsonl-event-log-structured-error`.
+- Record PR47 P1 CI checkout / state-sync anchor reachability validation and
+  align state files to the current validated source commit on
+  `fix/jsonl-event-log-structured-error`.
 
 Done:
 
 - confirmed current branch is `fix/jsonl-event-log-structured-error`
 - inspected `scripts/run-state-sync-audit.ts`
 - inspected current state records
-- committed source/test remediation for unverified synthetic anchors
-- recorded current source head `09e2e9a`
-- recorded validated source commit `09e2e9a`
-- recorded latest validated commit `09e2e9a`
+- committed State Sync Audit CI checkout remediation
+- recorded current source head `dceb4c7`
+- recorded validated source commit `dceb4c7`
+- recorded latest validated commit `dceb4c7`
 - recorded upstream `origin/fix/jsonl-event-log-structured-error`
 - recorded validated source baseline divergence `ahead 1 / behind 0`
 - recorded state record mode `state-only descendant allowed`
@@ -39,7 +40,8 @@ Todo:
 Blocked until separately authorized:
 
 - dependency changes
-- PR edit, review-thread resolution, merge, release, or workflow edits
+- further workflow edits, PR edit, review-thread resolution, merge, or release
+- manual CI rerun
 - real provider execution
 - real Codex CLI execution
 - env, secret, user config, or system config edits
