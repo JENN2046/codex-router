@@ -31,6 +31,8 @@ Done:
 - added display-sync regression tests
 - removed the State Sync Audit job's PR-only event gate locally
 - updated workflow structure regression coverage
+- recorded the Phase 4 main reanchor expectation after squash merge
+- prepared the state/docs reanchor for the latest validated source
 
 Validation completed:
 
@@ -41,10 +43,9 @@ Validation completed:
 
 Todo:
 
-- commit the state/docs reanchor
-- verify the branch-head state-sync audit
 - push the Phase 4 branch
 - open the focused Phase 4 PR
+- let CI validate the PR checkout and upstream contexts
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
@@ -63,8 +64,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `cacd546`
-- latest validated commit: `cacd546`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `786aa8b`
+- latest validated commit: `786aa8b`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

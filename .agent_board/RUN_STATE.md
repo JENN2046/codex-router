@@ -1,7 +1,6 @@
 # Run State
 
-Status: Phase 4 state-sync CI coverage adjustment is in local validation before
-PR publication.
+Status: Phase 4 state-sync CI coverage adjustment is ready for PR publication.
 
 Machine-authoritative claim:
 
@@ -22,15 +21,15 @@ Branch:
 
 Current head:
 
-- `cacd546`
+- `786aa8b`
 
 Validated source commit:
 
-- `cacd546`
+- `786aa8b`
 
 Latest validated commit:
 
-- `cacd546`
+- `786aa8b`
 
 Upstream baseline:
 
@@ -38,7 +37,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Transition:
 
@@ -53,9 +52,11 @@ Validation recorded for this source commit:
 
 State-sync audit expectation:
 
-- after this state/docs record is pushed to the PR branch, branch-head audit
-  should PASS with `claimSource: structured` and Git-computed divergence against
-  verified `refs/remotes/origin/main`
+- with this state/docs record committed, branch-head audit should PASS locally
+  with `claimSource: structured` and Git-computed divergence against verified
+  `refs/remotes/origin/main`
+- after the PR branch is pushed, remote CI should validate the same checkout and
+  upstream contexts
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
@@ -75,8 +76,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `cacd546`
-- latest validated commit: `cacd546`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `786aa8b`
+- latest validated commit: `786aa8b`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

@@ -15,11 +15,11 @@ Branch:
 
 Validated source commit:
 
-- `cacd546`
+- `786aa8b`
 
 Latest validated commit:
 
-- `cacd546`
+- `786aa8b`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Checkpoint facts:
 
@@ -63,17 +63,19 @@ Validation recorded:
 
 State-sync observation:
 
-- expected after this state/docs record is pushed to the PR branch:
-  branch-head state-sync audit PASS using `refs/remotes/origin/main` as a
-  verified Git ref selected by the structured claim
+- with this state/docs record committed, branch-head state-sync audit should
+  PASS using `refs/remotes/origin/main` as a verified Git ref selected by the
+  structured claim
+- after the PR branch is pushed, CI should validate the same checkout and
+  upstream contexts
 
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
 - branch: `docs/state-sync-phase-4-main-push-ci`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `cacd546`
-- latest validated commit: `cacd546`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `786aa8b`
+- latest validated commit: `786aa8b`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
