@@ -6,15 +6,15 @@ Current branch:
 
 Current head:
 
-- `6ea36d5`
+- `d2a3e47`
 
 Validated source commit:
 
-- `6ea36d5`
+- `d2a3e47`
 
 Latest validated commit:
 
-- `6ea36d5`
+- `d2a3e47`
 
 Upstream:
 
@@ -22,7 +22,7 @@ Upstream:
 
 Upstream divergence:
 
-- `ahead 4 / behind 0`
+- `ahead 1 / behind 0`
 
 State record mode:
 
@@ -36,15 +36,25 @@ Recorded local validation for this branch head:
 - `npm run build`: PASS
 - state-sync targeted test: PASS
 
-Validation requested after state alignment:
+Validation for local PR #47 P1 remediation:
 
 - `git diff --check`: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+- `npm test`: not completed because the `tsx` CLI could not open its IPC pipe
+  in this sandbox
+- `node --import tsx --test tests/*.test.ts`: 122 files passed, 2 files failed
+  for environment-gated behavior outside this remediation:
+  `tests/arbitrate.test.ts` invokes `npx tsx`, and
+  `tests/codex-memory-mcp-client.test.ts` needs local loopback listen
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: BLOCKED only by
+  `state_sync_dirtyWorktreeStateOnly` while local remediation is uncommitted
 
 Execution boundary for this validation record:
 
-- current validated source head is `6ea36d5`
-- state record changes only
+- current validated source head is `d2a3e47`
+- local PR #47 P1 remediation changes are uncommitted
 - no dependency changes
 - no commit
 - no push

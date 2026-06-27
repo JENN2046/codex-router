@@ -10,15 +10,15 @@ Branch:
 
 Current head:
 
-- `6ea36d5`
+- `d2a3e47`
 
 Validated source commit:
 
-- `6ea36d5`
+- `d2a3e47`
 
 Latest validated commit:
 
-- `6ea36d5`
+- `d2a3e47`
 
 Upstream:
 
@@ -26,7 +26,7 @@ Upstream:
 
 Upstream divergence:
 
-- `ahead 4 / behind 0`
+- `ahead 1 / behind 0`
 
 State record mode:
 
@@ -34,8 +34,8 @@ State record mode:
 
 Checkpoint facts:
 
-- current validated source head is present at `6ea36d5`
-- validated source baseline divergence is recorded as `ahead 4 / behind 0`
+- current validated source head is present at `d2a3e47`
+- validated source baseline divergence is recorded as `ahead 1 / behind 0`
 - state-sync now rejects unreachable validated source anchors and blocks
   non-state descendants after the validated source commit
 - tracked state files are not required to record their own containing commit
@@ -45,14 +45,18 @@ Checkpoint facts:
   - `npm run build`: PASS
   - state-sync targeted test: PASS
 
-Post-sync validation completed:
+Local PR #47 P1 validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: BLOCKED only by
+  `state_sync_dirtyWorktreeStateOnly` while local remediation is uncommitted
 
 Boundary:
 
-- state record update only
+- local PR #47 P1 remediation in progress
 - no commit
 - no dependency changes, push, remote write, real provider execution, secret
   change, or runtime configuration change is authorized

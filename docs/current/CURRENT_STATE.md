@@ -12,11 +12,11 @@ refreshed here first.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/jsonl-event-log-structured-error` |
-| Current head | `6ea36d5` |
-| Validated source commit | `6ea36d5` |
+| Current head | `d2a3e47` |
+| Validated source commit | `d2a3e47` |
 | Upstream | `origin/fix/jsonl-event-log-structured-error` |
-| Upstream divergence | `ahead 4 / behind 0` |
-| Latest validated commit | `6ea36d5` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `d2a3e47` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -38,7 +38,7 @@ without writing their own commit hash back into tracked state files.
 
 This branch now records the current validated source head and upstream
 divergence for `fix/jsonl-event-log-structured-error`. The divergence is the
-validated source baseline for `6ea36d5`, not a future state-only commit's
+validated source baseline for `d2a3e47`, not a future state-only commit's
 own ahead / behind value. The earlier JSONL structured error fix remains
 included in branch history.
 
@@ -53,13 +53,13 @@ current safety baseline:
 - `general_workspace_write` remains closed by default
 - `secret_or_credential_change` remains closed by default
 
-Verified local fix facts:
+Recorded baseline facts before the local PR #47 P1 remediation:
 
-- Current head is `6ea36d5`.
-- Validated source commit is `6ea36d5`.
-- Latest validated commit is `6ea36d5`.
+- Current head is `d2a3e47`.
+- Validated source commit is `d2a3e47`.
+- Latest validated commit is `d2a3e47`.
 - Upstream is `origin/fix/jsonl-event-log-structured-error`.
-- Upstream divergence is `ahead 4 / behind 0`.
+- Upstream divergence is `ahead 1 / behind 0`.
 - `npm test`: PASS, `1163 / 1163`.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
@@ -75,7 +75,7 @@ Verified local fix facts:
 
 ## Validation Baseline
 
-Validated in normal WSL for source commit `6ea36d5`:
+Validation baseline previously recorded for source commit `d2a3e47`:
 
 - `git diff --check`: PASS.
 - `npm test`: PASS, `1163 / 1163`.
@@ -90,15 +90,21 @@ State-sync required validation command literals retained in this state surface:
 - `npm test`
 - `npm run build`
 
-Validation requested for this state alignment:
-
-- `git diff --check`
-- `node --import tsx scripts/run-state-sync-audit.ts --json`
-
-Dirty state-only validation:
+Local PR #47 P1 remediation validation:
 
 - `git diff --check`: PASS.
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS.
+- `npm run typecheck`: PASS.
+- `npm run build`: PASS.
+- `npm test`: not completed because the `tsx` CLI could not open its IPC pipe
+  in this sandbox.
+- `node --import tsx --test tests/*.test.ts`: 122 files passed, 2 files failed
+  for environment-gated behavior outside this remediation:
+  `tests/arbitrate.test.ts` invokes `npx tsx`, and
+  `tests/codex-memory-mcp-client.test.ts` needs local loopback listen.
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: BLOCKED only by
+  `state_sync_dirtyWorktreeStateOnly` while this local remediation remains
+  uncommitted.
 
 ## Execution Boundary
 
@@ -117,10 +123,10 @@ Blocked capabilities:
 
 Boundary facts for this state alignment:
 
-- No source code changes.
+- Source code changes are limited to PR #47 P1 state-sync audit remediation.
 - No package or dependency changes.
-- Current source head is recorded as `6ea36d5`.
-- This state update is state-only.
+- Current source head is recorded as `d2a3e47`.
+- This local update is not committed.
 - No commit.
 - No push or remote write.
 - No real provider execution.
@@ -129,8 +135,10 @@ Boundary facts for this state alignment:
 ## Current Local Changes
 
 The validated source commit exists and is the current validated state anchor.
-State record changes are limited to:
+Local changes are limited to:
 
+- `packages/state-sync-audit/src/index.ts`
+- `tests/state-sync-audit.test.ts`
 - `docs/current/CURRENT_STATE.md`
 - `.agent_board/CHECKPOINT.md`
 - `.agent_board/HANDOFF.md`
@@ -142,12 +150,11 @@ State record changes are limited to:
 
 This local branch tracks `origin/fix/jsonl-event-log-structured-error`. The
 state-sync audit therefore expects recorded validated source baseline
-divergence of `ahead 4 / behind 0`.
+divergence of `ahead 1 / behind 0` for the current PR head.
 
 The recorded validated source head and latest validated commit are both
-`6ea36d5`. The current task leaves state-only changes uncommitted; a later
-state-only record commit may be `HEAD` without requiring tracked state files to
-record that state commit hash or its own future ahead / behind value.
+`d2a3e47`. The current task leaves local P1 remediation uncommitted; a later
+source commit plus state-only record commit should refresh this anchor again.
 
 ## Next Safe Action
 

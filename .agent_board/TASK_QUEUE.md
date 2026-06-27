@@ -10,20 +10,24 @@ Done:
 - confirmed current branch is `fix/jsonl-event-log-structured-error`
 - inspected `scripts/run-state-sync-audit.ts`
 - inspected current state records
-- recorded current source head `6ea36d5`
-- recorded validated source commit `6ea36d5`
-- recorded latest validated commit `6ea36d5`
+- recorded current source head `d2a3e47`
+- recorded validated source commit `d2a3e47`
+- recorded latest validated commit `d2a3e47`
 - recorded upstream `origin/fix/jsonl-event-log-structured-error`
-- recorded validated source baseline divergence `ahead 4 / behind 0`
+- recorded validated source baseline divergence `ahead 1 / behind 0`
 - recorded state record mode `state-only descendant allowed`
 - recorded validation results:
   - `npm test`: PASS, `1163 / 1163`
   - `npm run typecheck`: PASS
   - `npm run build`: PASS
   - state-sync targeted test: PASS
-- ran requested post-sync checks:
+- ran PR #47 P1 validation:
   - `git diff --check`: PASS
-  - `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
+  - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS
+  - `npm run typecheck`: PASS
+  - `npm run build`: PASS
+  - `node --import tsx scripts/run-state-sync-audit.ts --json`: BLOCKED only by
+    `state_sync_dirtyWorktreeStateOnly` while local remediation is uncommitted
 
 Todo:
 
@@ -31,7 +35,6 @@ Todo:
 
 Blocked until separately authorized:
 
-- source code changes
 - dependency changes
 - commit
 - push or any other remote write

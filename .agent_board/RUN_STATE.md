@@ -14,15 +14,15 @@ Branch:
 
 Current head:
 
-- `6ea36d5`
+- `d2a3e47`
 
 Validated source commit:
 
-- `6ea36d5`
+- `d2a3e47`
 
 Latest validated commit:
 
-- `6ea36d5`
+- `d2a3e47`
 
 Upstream:
 
@@ -30,7 +30,7 @@ Upstream:
 
 Upstream divergence:
 
-- `ahead 4 / behind 0`
+- `ahead 1 / behind 0`
 
 State record mode:
 
@@ -43,20 +43,21 @@ Validation recorded for this source commit:
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 - state-sync targeted test: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: BLOCKED only by
+  `state_sync_dirtyWorktreeStateOnly` while local remediation is uncommitted
 
 Current scope outcome:
 
 - recorded current source `HEAD` as the validated source commit and latest validated
   commit
 - recorded upstream as `origin/fix/jsonl-event-log-structured-error`
-- recorded validated source baseline divergence as `ahead 4 / behind 0`
-- verified dirty state-only mode for the uncommitted state record
-- leave the state record uncommitted under the current task boundary
+- recorded validated source baseline divergence as `ahead 1 / behind 0`
+- started local PR #47 P1 remediation for detached state-sync compatibility
+- leave the local remediation uncommitted under the current task boundary
 
 Boundary:
 
-- current validated source head is `6ea36d5`
+- current validated source head is `d2a3e47`
 - no dependency changes
 - no commit
 - no push
