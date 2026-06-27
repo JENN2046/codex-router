@@ -187,8 +187,13 @@ export function reviewStateSyncAudit(
       input.upstream === "" || fieldIncludes(input.currentStateText, "Upstream", input.upstream),
     validatedSourceDivergenceRecorded:
       detachedSyntheticReviewCheckout
-      || upstreamDivergenceMatches(
+      || validatedSourceDivergenceIsRecorded(
         upstreamDivergence,
+        input.currentStateText,
+        validatedSourceCommit,
+        input.head,
+        input.committedPathsSinceValidatedSource,
+        input.validatedSourceAncestorOfHead,
         validatedSourceAhead,
         validatedSourceBehind
       ),
@@ -402,6 +407,54 @@ function upstreamDivergenceMatches(
   behind: number
 ): boolean {
   return value === `ahead ${ahead} / behind ${behind}`;
+}
+
+function validatedSourceDivergenceIsRecorded(
+  value: string | undefined,
+  currentStateText: string,
+  validatedSourceCommit: string | undefined,
+  head: string,
+  committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceAncestorOfHead: boolean | undefined,
+  ahead: number,
+  behind: number
+): boolean {
+  return upstreamDivergenceMatches(value, ahead, behind)
+    || validatedSourceDivergenceSnapshotIsAllowed(
+      value,
+      currentStateText,
+      validatedSourceCommit,
+      head,
+      committedPathsSinceValidatedSource,
+      validatedSourceAncestorOfHead
+    );
+}
+
+function validatedSourceDivergenceSnapshotIsAllowed(
+  value: string | undefined,
+  currentStateText: string,
+  validatedSourceCommit: string | undefined,
+  head: string,
+  committedPathsSinceValidatedSource: string[] | undefined,
+  validatedSourceAncestorOfHead: boolean | undefined
+): boolean {
+  return validatedSourceCommit !== undefined
+    && validatedSourceCommit !== head
+    && fieldIncludes(
+      currentStateText,
+      "State record mode",
+      "state-only descendant allowed"
+    )
+    && upstreamDivergenceIsSyntacticallyValid(value)
+    && validatedSourceAncestorOfHead === true
+    && committedPathsSinceValidatedSource !== undefined
+    && committedPathsSinceValidatedSource.every(isAllowedStatePath);
+}
+
+function upstreamDivergenceIsSyntacticallyValid(
+  value: string | undefined
+): boolean {
+  return /^ahead -?\d+ \/ behind -?\d+$/.test(value ?? "");
 }
 
 function agentBoardCommitsMatchState(

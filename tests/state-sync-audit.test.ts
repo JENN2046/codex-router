@@ -444,6 +444,92 @@ test("state sync audit ignores current ahead drift from state-only descendants",
   assert.equal(review.summary.validatedSourceAhead, baseline.ahead);
 });
 
+test("state sync audit accepts pushed state-only divergence snapshots", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t1",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      ".agent_board/TASK_QUEUE.md",
+      ".agent_board/CHECKPOINT.md",
+      ".agent_board/HANDOFF.md",
+      ".agent_board/VALIDATION_LOG.md",
+      "docs/current/CURRENT_STATE.md"
+    ]
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.summary.validatedSourceAhead, 0);
+  assert.equal(review.summary.validatedSourceBehind, 1);
+});
+
+test("state sync audit blocks non-state descendants with stale divergence snapshots", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t1",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      "packages/state-sync-audit/src/index.ts",
+      "tests/state-sync-audit.test.ts"
+    ]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit blocks unreachable anchors with stale divergence snapshots", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "3333333",
+    aheadBehind: "0\t0",
+    validatedSourceAheadBehind: "0\t1",
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      ".agent_board/RUN_STATE.md",
+      "docs/current/CURRENT_STATE.md"
+    ]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+});
+
+test("state sync audit accepts exact validated source divergence matches", async () => {
+  const input = await createInputFromWorkspace();
+  const divergence = extractStateDivergence(input.currentStateText);
+
+  assert.ok(divergence);
+
+  const review = reviewStateSyncAudit({
+    ...input,
+    validatedSourceAheadBehind: divergence
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+});
+
 test("state sync audit blocks when upstream behind changes from baseline", async () => {
   const input = await createInputFromWorkspace();
   const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
