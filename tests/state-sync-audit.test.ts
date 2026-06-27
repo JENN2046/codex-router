@@ -213,7 +213,7 @@ test("state sync audit blocks clean synthetic review checkouts with stale anchor
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
-test("state sync audit blocks shallow detached PR merge checkouts reusing old anchors", async () => {
+test("state sync audit accepts clean detached PR checkouts when explicitly allowed", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -222,20 +222,40 @@ test("state sync audit blocks shallow detached PR merge checkouts reusing old an
     head: "8a5c580",
     allowedStateCommits: [],
     upstream: "",
-    aheadBehind: "unknown\tunknown"
+    aheadBehind: "unknown\tunknown",
+    validatedSourceAheadBehind: "unknown\tunknown",
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      "packages/kernel-store/src/jsonl-event-log.ts",
+      "packages/state-sync-audit/src/index.ts",
+      "scripts/run-state-sync-audit.ts",
+      "tests/state-sync-audit.test.ts"
+    ]
   });
 
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_currentBranchMatches"));
-  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
-  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
-  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.currentBranchMatches, true);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
 });
 
-test("state sync audit blocks synthetic review checkouts without explicit state marker", async () => {
-  const input = asCleanSyntheticReviewInput(await createInputFromWorkspace());
+test("state sync audit blocks detached PR checkouts without explicit state marker", async () => {
+  const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
+    gitStatusShort: "",
+    branch: "",
+    head: "8a5c580",
+    allowedStateCommits: [],
+    upstream: "",
+    aheadBehind: "unknown\tunknown",
+    validatedSourceAheadBehind: "unknown\tunknown",
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      "packages/state-sync-audit/src/index.ts"
+    ],
     currentStateText: input.currentStateText.replace(
       /\| Synthetic review checkout \| `allowed` \|\n/,
       ""
@@ -247,6 +267,23 @@ test("state sync audit blocks synthetic review checkouts without explicit state 
   assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
+});
+
+test("state sync audit blocks non-detached synthetic markers with stale anchors", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    head: "8a5c580",
+    validatedSourceAncestorOfHead: false,
+    committedPathsSinceValidatedSource: [
+      "packages/state-sync-audit/src/index.ts"
+    ]
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
+  assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
+  assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
 });
 
 test("state sync audit blocks stale state outside merge checkout ancestry", async () => {
