@@ -21,15 +21,15 @@ Branch:
 
 Current head:
 
-- `f5789c8`
+- `70534db`
 
 Validated source commit:
 
-- `f5789c8`
+- `70534db`
 
 Latest validated commit:
 
-- `f5789c8`
+- `70534db`
 
 Upstream baseline:
 
@@ -37,7 +37,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Transition:
 
@@ -49,7 +49,7 @@ Validation recorded for this source commit:
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
   tests
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 3
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 6
   tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -82,8 +82,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `f5789c8`
-- latest validated commit: `f5789c8`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `70534db`
+- latest validated commit: `70534db`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

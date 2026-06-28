@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `chore/state-sync-reanchor-helper` |
-| Current head | `f5789c8` |
-| Validated source commit | `f5789c8` |
+| Current head | `70534db` |
+| Validated source commit | `70534db` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `f5789c8` |
+| Upstream divergence | `ahead 3 / behind 0` |
+| Latest validated commit | `70534db` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `f5789c8`
-- latest validated commit: `f5789c8`
+- validated source commit: `70534db`
+- latest validated commit: `70534db`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `aa62c0c501a2d06e94edbdf59d99dd22d843a2b1ac4b93773adfa7afe6396b55`
+  `d9cd2628315eb605ad4c17eba72271b78efbfd6205f749882c4b221414a5b8f2`
 
 Strict state record paths:
 
@@ -81,13 +81,13 @@ config, or system config.
 
 ## Validation Baseline
 
-Validation recorded for source commit `f5789c8`:
+Validation recorded for source commit `70534db`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests.
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
   tests.
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 3
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 6
   tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
@@ -193,12 +193,12 @@ The structured claim records:
 
 - branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `f5789c8`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `70534db`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 
 For this PR branch pending-push record, Git observation should compute the
-validated source divergence as `ahead 1 / behind 0` against
+validated source divergence as `ahead 3 / behind 0` against
 `refs/remotes/origin/main`. After squash merge, `main` should receive the normal
 `main` / `state_only_pushed` reanchor.
 
