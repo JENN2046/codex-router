@@ -182,9 +182,10 @@ The structured claim records:
 - recorded divergence baseline: `ahead 1 / behind 0`
 - transition: `state_only_pending_push`
 
-When this state record is present on `origin/main`, Git observation should
+When this PR branch state record is committed and pushed, Git observation should
 compute the validated source divergence as `ahead 1 / behind 0` against
-`refs/remotes/origin/main`.
+`refs/remotes/origin/main`. This is not a `main` landing record; after squash
+merge, `main` should receive the normal `main` / `state_only_pushed` reanchor.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then
@@ -210,5 +211,5 @@ Current state line:
 - Strict state record path convergence: implemented, merged through PR #51, and
   reanchored on `main`.
 - State/docs cleanup: merged through PR #52 and reanchored on `main`.
-- Next: push this branch, open a focused PR, review CI, and after squash merge
-  perform the normal `main` state/docs reanchor.
+- Next: review PR #53 CI and feedback; after squash merge, perform the normal
+  `main` state/docs reanchor.
