@@ -46,6 +46,9 @@ const STRICT_STATE_RECORD_PATHS = new Set([
 
 const AGENT_BOARD_DISPLAY_START = "<!-- state-sync-display:start -->";
 const AGENT_BOARD_DISPLAY_END = "<!-- state-sync-display:end -->";
+const STATE_SYNC_REANCHOR_PR_BRANCH = "state-sync/reanchor-main";
+const MAIN_BRANCH = "main";
+const MAIN_UPSTREAM_REF = "refs/remotes/origin/main";
 
 const ACCEPTED_CLAIM_SCHEMA_VERSION = 1;
 const ACCEPTED_CLAIM_POLICY_VERSION = "state-sync-policy.v1";
@@ -500,11 +503,14 @@ export function reviewStateSyncAudit(
   const sourceTreeDigestOnlyCompatibility =
     input.validatedSourceCommitAvailable === false
     && sourceTreeDigestCompatibleWithHead;
+  const stateSyncReanchorPrCandidate =
+    stateSyncReanchorPrCandidateCheckout(resolvedClaim, input);
   const checks = {
     packageScriptPresent: packageScriptReview.mismatchCount === 0,
     currentStateRecorded: input.currentStateText.includes("CURRENT_STATE_RECORDED"),
     currentBranchMatches:
       detachedSyntheticReviewCheckout
+      || stateSyncReanchorPrCandidate
       || resolvedBranchMatchesInput(resolvedClaim, input),
     validatedSourceHeadRecorded: stateCommitMatchesValidatedSource(
       currentHead,
@@ -552,7 +558,8 @@ export function reviewStateSyncAudit(
         validatedSourceAhead,
         validatedSourceBehind,
         resolvedClaim.allowedStatePaths,
-        sourceTreeDigestOnlyCompatibility
+        sourceTreeDigestOnlyCompatibility,
+        stateSyncReanchorPrCandidate
       ),
     latestValidatedCommitRecorded:
       latestValidatedCommit !== undefined
@@ -584,7 +591,12 @@ export function reviewStateSyncAudit(
         input.currentStateText.includes(marker)
       ),
     agentBoardAligned:
-      input.agentBoardText.includes(input.branch)
+      agentBoardBranchIsAligned(
+        input.agentBoardText,
+        input.branch,
+        resolvedClaim,
+        stateSyncReanchorPrCandidate
+      )
       && input.agentBoardText.includes(CURRENT_STATE_DOC)
       && agentBoardCommitsMatchState(
         input.agentBoardText,
@@ -615,7 +627,8 @@ export function reviewStateSyncAudit(
       validatedSourceBehind,
       detachedSyntheticReviewCheckout,
       sourceTreeDigestCommitBindingValid,
-      sourceTreeDigestOnlyCompatibility
+      sourceTreeDigestOnlyCompatibility,
+      stateSyncReanchorPrCandidate
     ),
     outputSanitized: sanitization.issues.length === 0,
     auditReadOnly: true
@@ -1386,7 +1399,8 @@ function structuredTransitionIsAllowed(
   validatedSourceBehind: number,
   detachedSyntheticReviewCheckout: boolean,
   sourceTreeDigestCommitBindingValid: boolean,
-  sourceTreeDigestOnlyCompatibility: boolean
+  sourceTreeDigestOnlyCompatibility: boolean,
+  stateSyncReanchorPrCandidate: boolean
 ): boolean {
   if (
     resolvedClaim.claimSource === "invalid_structured"
@@ -1460,7 +1474,7 @@ function structuredTransitionIsAllowed(
   }
 
   if (resolvedClaim.transitionKind === "state_only_pushed") {
-    return subjectMatches
+    const pushedMainSnapshotAllowed = subjectMatches
       && input.validatedSourceAncestorOfHead === true
       && input.committedPathsSinceValidatedSource !== undefined
       && sourceTreeDigestCommitBindingValid
@@ -1477,6 +1491,27 @@ function structuredTransitionIsAllowed(
       && recorded.behind === 0
       && latestMatches
       && dirtyPathsAllowed;
+
+    const reanchorPrCandidateAllowed =
+      stateSyncReanchorPrCandidate
+      && input.validatedSourceAncestorOfHead === true
+      && input.committedPathsSinceValidatedSource !== undefined
+      && sourceTreeDigestCommitBindingValid
+      && pathsAreAllowed(
+        input.committedPathsSinceValidatedSource,
+        resolvedClaim.allowedStatePaths,
+        isStrictStateRecordPath
+      )
+      && currentAhead === 1
+      && currentBehind === 0
+      && validatedSourceAhead === 0
+      && validatedSourceBehind === 0
+      && recorded.ahead === 1
+      && recorded.behind === 0
+      && latestMatches
+      && dirtyPathsAllowed;
+
+    return pushedMainSnapshotAllowed || reanchorPrCandidateAllowed;
   }
 
   return detachedSyntheticReviewCheckout
@@ -1534,7 +1569,10 @@ function subjectMatchesInput(
   input: StateSyncAuditInput
 ): boolean {
   return resolvedClaim.upstream === input.upstream
-    && resolvedBranchMatchesInput(resolvedClaim, input);
+    && (
+      resolvedBranchMatchesInput(resolvedClaim, input)
+      || stateSyncReanchorPrCandidateCheckout(resolvedClaim, input)
+    );
 }
 
 function resolvedBranchMatchesInput(
@@ -1550,6 +1588,18 @@ function resolvedBranchMatchesInput(
     && resolvedClaim.branch !== undefined
     && resolvedClaim.branch !== ""
     && resolvedClaim.upstream === input.upstream;
+}
+
+function stateSyncReanchorPrCandidateCheckout(
+  resolvedClaim: ResolvedStateSyncClaim,
+  input: StateSyncAuditInput
+): boolean {
+  return resolvedClaim.claimSource === "structured"
+    && resolvedClaim.branch === MAIN_BRANCH
+    && resolvedClaim.upstream === MAIN_UPSTREAM_REF
+    && resolvedClaim.transitionKind === "state_only_pushed"
+    && input.branch === STATE_SYNC_REANCHOR_PR_BRANCH
+    && input.upstream === MAIN_UPSTREAM_REF;
 }
 
 function fieldIncludes(text: string, field: string, value: string): boolean {
@@ -1691,7 +1741,8 @@ function validatedSourceDivergenceIsRecorded(
   computedValidatedAhead: number,
   computedValidatedBehind: number,
   allowedStatePaths: string[] | undefined,
-  sourceTreeDigestOnlyCompatibility: boolean
+  sourceTreeDigestOnlyCompatibility: boolean,
+  stateSyncReanchorPrCandidate: boolean
 ): boolean {
   if (detachedSyntheticReviewCheckout) {
     return true;
@@ -1724,6 +1775,7 @@ function validatedSourceDivergenceIsRecorded(
   return validatedSourceDivergenceSnapshotIsAllowed(
     recorded,
     stateOnlySnapshotAllowed,
+    stateSyncReanchorPrCandidate,
     committedPathsSinceValidatedSource,
     validatedSourceAncestorOfHead,
     currentAhead,
@@ -1737,6 +1789,7 @@ function validatedSourceDivergenceIsRecorded(
 function validatedSourceDivergenceSnapshotIsAllowed(
   recorded: { ahead: number; behind: number },
   stateOnlySnapshotAllowed: boolean,
+  stateSyncReanchorPrCandidate: boolean,
   committedPathsSinceValidatedSource: string[] | undefined,
   validatedSourceAncestorOfHead: boolean | undefined,
   currentAhead: number,
@@ -1745,7 +1798,7 @@ function validatedSourceDivergenceSnapshotIsAllowed(
   computedValidatedBehind: number,
   allowedStatePaths: string[] | undefined
 ): boolean {
-  return stateOnlySnapshotAllowed
+  const pushedMainSnapshotAllowed = stateOnlySnapshotAllowed
     && validatedSourceAncestorOfHead === true
     && committedPathsSinceValidatedSource !== undefined
     && pathsAreAllowed(
@@ -1759,6 +1812,23 @@ function validatedSourceDivergenceSnapshotIsAllowed(
     && computedValidatedBehind > 0
     && recorded.ahead === computedValidatedBehind
     && recorded.behind === 0;
+
+  const reanchorPrCandidateSnapshotAllowed = stateSyncReanchorPrCandidate
+    && validatedSourceAncestorOfHead === true
+    && committedPathsSinceValidatedSource !== undefined
+    && pathsAreAllowed(
+      committedPathsSinceValidatedSource,
+      allowedStatePaths,
+      isStrictStateRecordPath
+    )
+    && currentAhead === 1
+    && currentBehind === 0
+    && computedValidatedAhead === 0
+    && computedValidatedBehind === 0
+    && recorded.ahead === 1
+    && recorded.behind === 0;
+
+  return pushedMainSnapshotAllowed || reanchorPrCandidateSnapshotAllowed;
 }
 
 function parseUpstreamDivergenceField(
@@ -1777,6 +1847,19 @@ function parseUpstreamDivergenceField(
 
 function isStrictStateRecordPath(path: string): boolean {
   return STRICT_STATE_RECORD_PATHS.has(path);
+}
+
+function agentBoardBranchIsAligned(
+  text: string,
+  inputBranch: string,
+  resolvedClaim: ResolvedStateSyncClaim,
+  stateSyncReanchorPrCandidate: boolean
+): boolean {
+  if (stateSyncReanchorPrCandidate) {
+    return resolvedClaim.branch !== undefined && text.includes(resolvedClaim.branch);
+  }
+
+  return text.includes(inputBranch);
 }
 
 function agentBoardCommitsMatchState(

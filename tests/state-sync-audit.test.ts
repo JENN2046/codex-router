@@ -540,6 +540,80 @@ test("state sync audit accepts structured state_only_pushed transitions", async 
   assert.equal(review.checks.structuredTransitionAllowed, true);
 });
 
+test("state sync audit accepts bounded reanchor PR candidates", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    branch: "state-sync/reanchor-main",
+    head: "3333333",
+    aheadBehind: "1\t0",
+    validatedSourceAheadBehind: "0\t0",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    ...withStateSyncClaim(input, {
+      branch: "main",
+      upstream: "refs/remotes/origin/main",
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    })
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.currentBranchMatches, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.structuredTransitionAllowed, true);
+});
+
+test("state sync audit blocks reanchor PR candidates outside the fixed branch", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    branch: "state-sync/other-reanchor",
+    head: "3333333",
+    aheadBehind: "1\t0",
+    validatedSourceAheadBehind: "0\t0",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    ...withStateSyncClaim(input, {
+      branch: "main",
+      upstream: "refs/remotes/origin/main",
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    })
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.currentBranchMatches, false);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+});
+
+test("state sync audit blocks multi-commit reanchor PR candidates", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    branch: "state-sync/reanchor-main",
+    head: "3333333",
+    aheadBehind: "2\t0",
+    validatedSourceAheadBehind: "0\t0",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    ...withStateSyncClaim(input, {
+      branch: "main",
+      upstream: "refs/remotes/origin/main",
+      transitionKind: "state_only_pushed",
+      recordedAhead: 2,
+      recordedBehind: 0
+    })
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+});
+
 test("state sync audit blocks structured claims with stale divergence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({

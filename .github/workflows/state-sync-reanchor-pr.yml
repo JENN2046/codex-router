@@ -1,0 +1,67 @@
+name: State Sync Reanchor PR
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  reanchor-pr:
+    name: Prepare State Sync Reanchor PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Resolve reanchor gate
+        id: reanchor-gate
+        run: node --import tsx scripts/resolve-state-sync-reanchor-pr-gate.ts
+      - name: Configure git author
+        if: steps.reanchor-gate.outputs.run_reanchor == 'true'
+        run: |
+          git config user.email "state-sync@example.invalid"
+          git config user.name "State Sync Automation"
+      - name: Prepare state-sync reanchor
+        if: steps.reanchor-gate.outputs.run_reanchor == 'true'
+        run: |
+          node --import tsx scripts/prepare-state-sync-reanchor.ts --write
+          node --import tsx scripts/sync-state-sync-display.ts --check
+          node --import tsx scripts/verify-state-sync-reanchor-diff.ts
+          git diff --check
+      - name: Commit state-sync reanchor branch
+        if: steps.reanchor-gate.outputs.run_reanchor == 'true'
+        run: |
+          git switch -c state-sync/reanchor-main
+          git add \
+            docs/current/CURRENT_STATE.md \
+            docs/current/state-sync-record.json \
+            .agent_board/CHECKPOINT.md \
+            .agent_board/HANDOFF.md \
+            .agent_board/RUN_STATE.md \
+            .agent_board/TASK_QUEUE.md \
+            .agent_board/VALIDATION_LOG.md
+          node --import tsx scripts/verify-state-sync-reanchor-diff.ts --cached
+          git diff --cached --check
+          git commit -m "docs(state): reanchor main after squash merge"
+          node --import tsx scripts/run-state-sync-audit.ts --json
+      - name: Push state-sync reanchor branch
+        if: steps.reanchor-gate.outputs.run_reanchor == 'true'
+        run: |
+          git push --force-with-lease origin HEAD:refs/heads/state-sync/reanchor-main
+      - name: Create or update state-sync reanchor PR
+        if: steps.reanchor-gate.outputs.run_reanchor == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git diff-tree --no-commit-id --name-only -r HEAD > .state-sync-reanchor-changed-paths
+          node --import tsx scripts/create-state-sync-reanchor-pr.ts \
+            --changed-paths-file .state-sync-reanchor-changed-paths

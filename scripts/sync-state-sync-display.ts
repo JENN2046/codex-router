@@ -111,7 +111,11 @@ function updateDisplayFile(
   }
 
   return upsertGeneratedDisplayBlock(
-    updateAgentBoardFields(text, display),
+    updateVolatileAgentBoardProse(
+      filePath,
+      updateAgentBoardFields(text, display),
+      display
+    ),
     display
   );
 }
@@ -253,6 +257,55 @@ function updateAgentBoardFields(text: string, display: DisplayFields): string {
   return updated;
 }
 
+function updateVolatileAgentBoardProse(
+  filePath: string,
+  text: string,
+  display: DisplayFields
+): string {
+  if (
+    display.branch !== "main"
+    || display.transitionKind !== "state_only_pushed"
+  ) {
+    return text;
+  }
+
+  if (filePath === ".agent_board/RUN_STATE.md") {
+    return replaceLineIfPresent(
+      text,
+      /^Status: .*$/m,
+      "Status: Main state-sync record is current and pushed."
+    );
+  }
+
+  if (filePath === ".agent_board/TASK_QUEUE.md") {
+    return replaceSectionIfPresent(
+      replaceSectionIfPresent(
+        text,
+        "Current task:",
+        "Done:",
+        [
+          "Current task:",
+          "",
+          "- Keep state-sync structured record automation current; no post-merge",
+          "  reanchor is pending.",
+          ""
+        ].join("\n")
+      ),
+      "Todo:",
+      "Blocked until separately authorized:",
+      [
+        "Todo:",
+        "",
+        "- use focused PRs for the next governance semantic changes unless separately",
+        "  authorized",
+        ""
+      ].join("\n")
+    );
+  }
+
+  return text;
+}
+
 function upsertGeneratedDisplayBlock(
   text: string,
   display: DisplayFields
@@ -372,6 +425,33 @@ function replaceHeadingValueIfPresent(
   }
 
   return text.replace(pattern, (_match, start, end) => `${start}${value}${end}`);
+}
+
+function replaceLineIfPresent(
+  text: string,
+  pattern: RegExp,
+  replacement: string
+): string {
+  return pattern.test(text) ? text.replace(pattern, replacement) : text;
+}
+
+function replaceSectionIfPresent(
+  text: string,
+  startMarker: string,
+  endMarker: string,
+  replacement: string
+): string {
+  const startIndex = text.indexOf(startMarker);
+  if (startIndex < 0) {
+    return text;
+  }
+
+  const endIndex = text.indexOf(endMarker, startIndex);
+  if (endIndex < 0) {
+    return text;
+  }
+
+  return `${text.slice(0, startIndex)}${replacement}${text.slice(endIndex)}`;
 }
 
 function replaceRequired(
