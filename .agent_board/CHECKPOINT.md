@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `fix/state-sync-evidence-drift-schema`
+- `main`
 
 Validated source commit:
 
-- `90dd43d`
+- `8404242`
 
 Latest validated commit:
 
-- `90dd43d`
+- `8404242`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 12 / behind 0`
+- `ahead 1 / behind 0`
 
 Checkpoint facts:
 
@@ -72,24 +72,25 @@ Validation recorded:
 
 - `git diff --check`: PASS
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
+- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+  tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 State-sync observation:
 
-- with this state/docs record committed and pushed, branch-head state-sync audit
-  should PASS using `refs/remotes/origin/main` as a verified Git ref selected by
-  the structured claim
-- `state_only_pending_push` is expected on this PR branch; after squash merge,
-  `main` should receive the normal `main` / `state_only_pushed` reanchor
+- with this `main` state/docs record committed and pushed to `origin/main`,
+  branch-head state-sync audit should PASS using `refs/remotes/origin/main` as a
+  verified Git ref selected by the structured claim
+- `state_only_pushed` is expected for this post-PR #53 `main` reanchor
 
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `fix/state-sync-evidence-drift-schema`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `90dd43d`
-- latest validated commit: `90dd43d`
-- recorded divergence baseline: `ahead 12 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `8404242`
+- latest validated commit: `8404242`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

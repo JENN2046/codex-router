@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `fix/state-sync-evidence-drift-schema` |
-| Current head | `90dd43d` |
-| Validated source commit | `90dd43d` |
+| Current branch | `main` |
+| Current head | `8404242` |
+| Validated source commit | `8404242` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 12 / behind 0` |
-| Latest validated commit | `90dd43d` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `8404242` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,11 +36,11 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pending_push`
-- validated source commit: `90dd43d`
-- latest validated commit: `90dd43d`
+- transition kind: `state_only_pushed`
+- validated source commit: `8404242`
+- latest validated commit: `8404242`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 12 / behind 0`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `b9bd6cfec486d14aabe934ea95567574d35514f476d51b63e652b7a9f7da2fea`
 
@@ -64,7 +64,8 @@ Strict state record paths:
 
 ## Current Scope
 
-This state record commit records the governance semantic PR for:
+This state record commit records the post-PR #53 `main` reanchor for the
+governance semantic change that:
 
 - blocking machine-mirrored Markdown evidence drift with
   `state_sync_evidenceDriftAbsent`
@@ -81,18 +82,20 @@ This state record commit records the governance semantic PR for:
 - updating `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md` to record
   those resolved semantics
 
-The PR source chain changes only state-sync audit logic, its regression tests,
-and the structured-record plan. The state/docs commit then reanchors the
-structured claim and operator-facing evidence surfaces for this branch. It does
-not change workflows, dependencies, provider behavior, runtime configuration,
-env, secrets, user config, or system config.
+The PR #53 source chain changed only state-sync audit logic, its regression
+tests, and the structured-record plan. This state/docs commit reanchors the
+structured claim and operator-facing evidence surfaces on `main` after the
+squash merge. It does not change workflows, dependencies, provider behavior,
+runtime configuration, env, secrets, user config, or system config.
 
 ## Validation Baseline
 
-Validation recorded for source commit `90dd43d`:
+Validation recorded for source commit `8404242`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests.
+- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+  tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
 
@@ -105,10 +108,10 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- This branch state record uses `state_only_pending_push` against
+- This `main` state record uses `state_only_pushed` against
   `refs/remotes/origin/main`.
-- After the state/docs record is committed and pushed to the PR branch,
-  branch-head audit should PASS locally and in PR CI with:
+- After the state/docs record is committed and pushed to `origin/main`,
+  branch-head audit should PASS with:
   `node --import tsx scripts/run-state-sync-audit.ts --json`.
 - The collector verifies the structured claim upstream ref
   `refs/remotes/origin/main` exists locally, then computes divergence from Git
@@ -195,16 +198,16 @@ Current state-only record changes are limited to:
 
 The structured claim records:
 
-- branch: `fix/state-sync-evidence-drift-schema`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `90dd43d`
-- recorded divergence baseline: `ahead 12 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `8404242`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 
-When this PR branch state record is committed and pushed, Git observation should
-compute the validated source divergence as `ahead 12 / behind 0` against
-`refs/remotes/origin/main`. This is not a `main` landing record; after squash
-merge, `main` should receive the normal `main` / `state_only_pushed` reanchor.
+When this `main` state record is committed and pushed to `origin/main`, Git
+observation should compute the validated source divergence as `ahead 0 / behind 1`
+against `refs/remotes/origin/main`. This is the normal post-PR #53 `main` /
+`state_only_pushed` reanchor.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then
@@ -236,5 +239,5 @@ Current state line:
 - Strict state record path convergence: implemented, merged through PR #51, and
   reanchored on `main`.
 - State/docs cleanup: merged through PR #52 and reanchored on `main`.
-- Next: review PR #53 CI and feedback; after squash merge, perform the normal
-  `main` state/docs reanchor.
+- Next: commit and push this post-PR #53 `main` state/docs reanchor, then verify
+  branch-head state-sync audit on `main`.

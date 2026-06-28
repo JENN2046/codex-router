@@ -2,8 +2,8 @@
 
 Current task:
 
-- Prepare the governance semantic PR for evidence drift blocking and unknown
-  structured claim field fail-closed behavior.
+- Complete the post-PR #53 `main` state/docs reanchor for evidence drift
+  blocking and unknown structured claim field fail-closed behavior.
 
 Done:
 
@@ -64,19 +64,21 @@ Validation completed:
 
 - `git diff --check`: PASS
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
+- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+  tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 Todo:
 
-- commit this branch state/docs reanchor
-- push the branch and update PR #53
-- after squash merge, perform the normal `main` / `state_only_pushed` reanchor
+- commit this `main` state/docs reanchor
+- push the reanchor commit to `origin/main` under the current authorization
+- run post-push branch-head state-sync audit on `main`
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
 
-- direct pushes to `main`
+- direct pushes to `main` beyond this authorized state/docs reanchor
 - dependency changes
 - additional workflow edits beyond Phase 4 state-sync CI coverage
 - release or deploy
@@ -88,10 +90,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `fix/state-sync-evidence-drift-schema`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `90dd43d`
-- latest validated commit: `90dd43d`
-- recorded divergence baseline: `ahead 12 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `8404242`
+- latest validated commit: `8404242`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

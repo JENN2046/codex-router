@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `fix/state-sync-evidence-drift-schema`
+- `main`
 
 Current validated source:
 
-- `90dd43d`
+- `8404242`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Upstream baseline:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 12 / behind 0`
+- `ahead 1 / behind 0`
 
 Completed:
 
@@ -43,6 +43,8 @@ Completed:
 - post-PR #51 `main` state/docs reanchor was pushed and passed state-sync audit
   and main-push CI
 - PR #52 state/docs cleanup was squash-merged into `main`
+- PR #53 evidence drift and unknown structured claim field hardening was
+  squash-merged into `main`
 - collector reads `docs/current/state-sync-record.json`
 - collector uses the structured claim upstream ref as the bounded baseline even
   when local feature-branch tracking exists, then computes divergence from Git
@@ -74,21 +76,21 @@ Validation completed:
 
 - `git diff --check`: PASS
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
+- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+  tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 State-sync expectation:
 
-- with this branch state/docs record committed and pushed, branch-head audit
-  should PASS by resolving `refs/remotes/origin/main` as the structured claim
-  upstream ref and computing divergence from Git
-- `state_only_pending_push` is expected on this PR branch
-- after squash merge, `main` should receive the normal `main` /
-  `state_only_pushed` reanchor
+- with this `main` state/docs record committed and pushed to `origin/main`,
+  branch-head audit should PASS by resolving `refs/remotes/origin/main` as the
+  structured claim upstream ref and computing divergence from Git
+- `state_only_pushed` is expected for this post-PR #53 `main` reanchor
 
 Not authorized:
 
-- direct pushes to `main`
+- direct pushes to `main` beyond this authorized state/docs reanchor
 - additional workflow edits beyond Phase 4 state-sync CI coverage
 - dependency changes
 - release or deploy
@@ -100,10 +102,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `fix/state-sync-evidence-drift-schema`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `90dd43d`
-- latest validated commit: `90dd43d`
-- recorded divergence baseline: `ahead 12 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `8404242`
+- latest validated commit: `8404242`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
