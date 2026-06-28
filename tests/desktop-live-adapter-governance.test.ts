@@ -848,6 +848,56 @@ test("governance: codex-cli host dispatch failure appends anomaly and calls onGo
   );
 });
 
+for (const [caseName, thrownValue] of [
+  ["object", {}],
+  ["undefined", undefined]
+] as const) {
+  test(`governance: codex-cli host dispatch normalizes opaque ${caseName} errors`, async () => {
+    const policy = await loadPolicyFromFile(policyPath);
+    const task = createReadOnlyCodexCliTask(
+      `gov-codex-cli-host-dispatch-opaque-${caseName}`
+    );
+    const govUpdates: GovernanceUpdateRecord[] = [];
+    const observationStore = createRecordingExecutionObservationStore();
+
+    const result = await runDesktopTask({
+      task,
+      policy,
+      preflight: {
+        authAvailable: true,
+        availableTools: []
+      },
+      codexCliOptions: {
+        skipExecutionModelProbe: true,
+        spawn: () => {
+          throw thrownValue;
+        }
+      },
+      observationBus: observationStore,
+      governanceState: createLowRiskGovernanceState(task.taskId),
+      onGovernanceUpdate: async (state, strategy) => {
+        govUpdates.push({ state, strategy });
+      },
+      now: () => "2026-04-28T13:02:00.000Z"
+    });
+
+    assert.equal(result.executionResult.status, "failed");
+    assert.ok(result.executionResult.blockingReasons.includes("unknown_execution_error"));
+    assert.ok(!result.executionResult.blockingReasons.includes("[object Object]"));
+    assert.ok(!result.executionResult.blockingReasons.includes("undefined"));
+
+    const anomaly = govUpdates[0]?.state.anomalies.at(-1);
+    assert.equal(anomaly?.kind, "execution_failure");
+    assert.equal(anomaly?.message, "host_dispatch_failed:unknown_execution_error");
+
+    const observations = await observationStore.findByTaskId(task.taskId);
+    assert.equal(
+      observations[0]?.signals.errorClass,
+      "host_dispatch_failed:unknown_execution_error"
+    );
+  });
+}
+
 test("governance: codex-cli host dispatch third failure triggers recovery result", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const task = createReadOnlyCodexCliTask("gov-codex-cli-host-dispatch-step-back");

@@ -440,7 +440,9 @@ function createHostDispatchErrorClass(
   hostDispatch: HostDispatcherResult,
   blockingReasons: string[]
 ): string {
-  const firstReason = blockingReasons.find((reason) => reason.length > 0);
+  const firstReason = blockingReasons
+    .map(normalizeHostDispatchBlockingReason)
+    .find((reason): reason is string => reason !== undefined);
   return firstReason
     ? `host_dispatch_failed:${firstReason}`
     : `host_dispatch_failed:${hostDispatch.hostRoute}`;
@@ -453,7 +455,9 @@ function collectHostDispatchBlockingReasons(
     hostDispatch.cliError,
     hostDispatch.cliRun?.error,
     ...(hostDispatch.cliRun?.inspection.blockingReasons ?? [])
-  ].filter((reason): reason is string => Boolean(reason));
+  ]
+    .map(normalizeHostDispatchBlockingReason)
+    .filter((reason): reason is string => reason !== undefined);
 
   if (hostDispatch.hostRoute === "codex-cli" && !hostDispatch.cliRun && !hostDispatch.cliError) {
     reasons.push("host_dispatcher_missing_cli_run");
@@ -464,6 +468,25 @@ function collectHostDispatchBlockingReasons(
   }
 
   return [...new Set(reasons)];
+}
+
+function normalizeHostDispatchBlockingReason(
+  reason: string | undefined
+): string | undefined {
+  const normalized = reason?.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  return isOpaqueHostDispatchReason(normalized)
+    ? "unknown_execution_error"
+    : normalized;
+}
+
+function isOpaqueHostDispatchReason(reason: string): boolean {
+  return reason === "[object Object]"
+    || reason === "undefined"
+    || reason === "null";
 }
 
 function resolvePrimitiveHandlers(
