@@ -90,6 +90,42 @@ test("host dispatcher allows codex-cli routing with ready runner result", async 
   assert.equal(result.cliRun?.error, "spawn sentinel");
 });
 
+for (const [caseName, thrownValue] of [
+  ["object", {}],
+  ["undefined", undefined]
+] as const) {
+  test(`host dispatcher normalizes opaque ${caseName} codex-cli spawn errors`, async () => {
+    const policy = await loadPolicyFromFile(policyPath);
+    const task = createReadOnlyTask(`host-dispatcher-opaque-${caseName}`);
+    const runnerResult = await runDesktopDecision({
+      task,
+      policy,
+      preflight: {
+        authAvailable: true,
+        availableTools: ["read_thread_terminal", "spawn_agent", "wait_agent"]
+      },
+      now: () => "2026-06-11T00:00:00.000Z"
+    });
+
+    assert.equal(runnerResult.status, "ready");
+
+    const result = await dispatchToHost({
+      runnerResult,
+      codexCliOptions: {
+        skipExecutionModelProbe: true,
+        spawn: () => {
+          throw thrownValue;
+        }
+      }
+    });
+
+    assert.equal(result.hostRoute, "codex-cli");
+    assert.equal(result.cliRun?.error, "unknown_execution_error");
+    assert.notEqual(result.cliRun?.error, "[object Object]");
+    assert.notEqual(result.cliRun?.error, "undefined");
+  });
+}
+
 test("host dispatcher builds codex-cli plan from verified runner result only", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const task = createReadOnlyTask("host-dispatcher-runner-source");

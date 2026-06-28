@@ -49,6 +49,15 @@ test("state-sync display sync checks drift, writes generated fields, then become
   assert.match(currentState, /\| Upstream divergence \| `ahead 2 \/ behind 0` \|/);
   assert.match(currentState, /- transition kind: `state_only_pushed`/);
   assert.match(currentState, /- branch: `docs\/state-sync-display`/);
+  assert.match(currentState, /- validated source commit: `abc1234`/);
+  assert.match(
+    currentState,
+    /Current scope mentions `## State Sync Expectations` as prose before the\s+real heading\.[\s\S]*- validated source commit: `1111111`[\s\S]*## State Sync Expectations/
+  );
+  assert.match(
+    currentState,
+    /## State Sync Expectations\s+- branch: `docs\/state-sync-display`\s+- upstream: `refs\/remotes\/origin\/main`\s+- validated source commit: `abc1234`\s+- recorded divergence baseline: `ahead 2 \/ behind 0`\s+- transition: `state_only_pushed`/
+  );
   assert.match(
     currentState,
     /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
@@ -333,6 +342,12 @@ function staleCurrentState(): string {
     "Validation recorded for source commit `1111111`:",
     "",
     "- `npm run typecheck`: PASS.",
+    "",
+    "Current scope mentions `## State Sync Expectations` as prose before the",
+    "real heading. Display sync must not treat this prose mention as the",
+    "replacement section.",
+    "",
+    "- validated source commit: `1111111`",
     "",
     "## State Sync Expectations",
     "",

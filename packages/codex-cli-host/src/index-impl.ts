@@ -4376,11 +4376,15 @@ function defaultCodexCliProcessSpawner(
 }
 
 function normalizeCodexCliSpawnError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.trim();
   }
 
-  return String(error);
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error.trim();
+  }
+
+  return "unknown_execution_error";
 }
 
 function sanitizeCodexCliVersionProbe(stdout: string): string | undefined {

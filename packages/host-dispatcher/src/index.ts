@@ -573,7 +573,13 @@ function uniqueHostDispatcherStrings(values: string[]): string[] {
 }
 
 function normalizeHostDispatcherError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.trim();
+  }
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error.trim();
+  }
+  return "unknown_execution_error";
 }
 
 function verifyCodexCliRunnerResult(

@@ -1,7 +1,7 @@
 # Run State
 
-Status: Main state-sync record is current and pushed.
-for branch validation.
+Status: Feature branch state-sync record is current and pending push for branch
+validation.
 
 Machine-authoritative claim:
 
@@ -18,19 +18,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `main`
+- `fix/runtime-governance-host-dispatch-failure`
 
 Current head:
 
-- `31941dd`
+- `c7f39cb`
 
 Validated source commit:
 
-- `31941dd`
+- `c7f39cb`
 
 Latest validated commit:
 
-- `31941dd`
+- `c7f39cb`
 
 Upstream baseline:
 
@@ -38,34 +38,33 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 4 / behind 0`
 
 Transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 4
-  tests
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
-  tests
-- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts`: PASS,
-  8 tests
-- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 5 tests
-- `npm test`: PASS, 1251 tests
+- `node --import tsx --test tests/codex-cli-host.test.ts
+  tests/desktop-live-adapter-governance.test.ts tests/desktop-live-adapter.test.ts
+  tests/host-dispatcher.test.ts tests/governance-failure-reducer.test.ts`: PASS
+- `node --import tsx --test tests/state-sync-display-sync.test.ts
+  tests/state-sync-audit.test.ts`: PASS
+- `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
+- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 
 State-sync audit expectation:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `fix/runtime-governance-host-dispatch-failure` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `31941dd`
-- latest validated commit: `31941dd`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `c7f39cb`
+- latest validated commit: `c7f39cb`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -84,10 +83,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/runtime-governance-host-dispatch-failure`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `31941dd`
-- latest validated commit: `31941dd`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `c7f39cb`
+- latest validated commit: `c7f39cb`
+- recorded divergence baseline: `ahead 4 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

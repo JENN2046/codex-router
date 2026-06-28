@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `main` |
-| Current head | `31941dd` |
-| Validated source commit | `31941dd` |
+| Current branch | `fix/runtime-governance-host-dispatch-failure` |
+| Current head | `c7f39cb` |
+| Validated source commit | `c7f39cb` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `31941dd` |
+| Upstream divergence | `ahead 4 / behind 0` |
+| Latest validated commit | `c7f39cb` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,13 +36,13 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pushed`
-- validated source commit: `31941dd`
-- latest validated commit: `31941dd`
+- transition kind: `state_only_pending_push`
+- validated source commit: `c7f39cb`
+- latest validated commit: `c7f39cb`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `e305a2b5b2a06659f61e8073b12ad0797d2c14c0f9444eb91d4aacd26577358e`
+  `dc26bd6071efb7b5f34e02b87f9325f38387817ef5684367f9f092e0de85d14f`
 
 Strict state record paths:
 
@@ -64,49 +64,40 @@ Strict state record paths:
 
 ## Current Scope
 
-This state record commit records the source commit that implements conservative
-post-merge state-sync reanchor PR automation:
+This state record commit records the source commits that:
 
-- adding a `push` to `main` workflow that opens or updates a bounded
-  `state-sync/reanchor-main` PR instead of pushing directly to `main`;
-- keeping reanchor generation behind the existing source-tree digest and strict
-  state path checks;
-- adding a fixed-branch reanchor PR checkout compatibility path to state-sync
-  audit;
-- adding no-dependency helper scripts for gate resolution, diff verification,
-  and GitHub PR create/update;
-- fetching the fixed `state-sync/reanchor-main` remote branch before push and
-  using an explicit `--force-with-lease` expected SHA or empty create-only
-  expectation;
-- documenting in the generated PR body that `GITHUB_TOKEN`-created or updated
-  PR workflow runs may require write-permission approval before CI proceeds;
-- cleaning or blocking volatile post-push operator prose that can drift after a
-  reanchor;
-- generating the `## State Sync Expectations` divergence paragraph from the
-  structured transition, so pending-push records cannot retain pushed-main
-  operator prose.
+- route `codex-cli` host-dispatch failures through the shared runtime
+  governance failure reducer when a governance state is supplied;
+- emit a `host_dispatch` execution observation for failed host dispatches;
+- call `onGovernanceUpdate` with the reduced governance state and strategy
+  decision;
+- return recovery governance only when the shared reducer routes the failure to
+  recovery;
+- preserve successful host-dispatch behavior without governance updates;
+- normalize opaque Codex CLI spawn and host-dispatch errors to
+  `unknown_execution_error` before they become governance error classes; and
+- harden display sync so `## State Sync Expectations` replacements match the
+  standalone Markdown heading, not prose that merely mentions the heading text.
 
-The automation does not merge PRs, does not resolve review threads, does not run
-real provider execution, and does not run the real Codex CLI.
-An approval-required workflow state on the generated reanchor PR is an expected
-GitHub authorization gate, not evidence that CI failed to trigger.
+This work does not run real provider execution and does not run the real Codex
+CLI. Runtime validation uses injected handlers, fake dispatchers, and local test
+harnesses only.
 
 ## Validation Baseline
 
-Validation recorded for source commit `31941dd`:
+Validation recorded for source commit `c7f39cb`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests.
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 4
-  tests.
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
-  tests.
-- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts`: PASS,
-  8 tests.
-- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 5 tests.
-- `npm test`: PASS, 1251 tests.
+- `node --import tsx --test tests/codex-cli-host.test.ts
+  tests/desktop-live-adapter-governance.test.ts tests/desktop-live-adapter.test.ts
+  tests/host-dispatcher.test.ts tests/governance-failure-reducer.test.ts`: PASS.
+- `node --import tsx --test tests/state-sync-display-sync.test.ts
+  tests/state-sync-audit.test.ts`: PASS.
+- `npm test`: PASS.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
+- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS.
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
 
 State-sync required validation command literals retained in this state surface:
 
@@ -117,11 +108,11 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `fix/runtime-governance-host-dispatch-failure` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `31941dd`
-- latest validated commit: `31941dd`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `c7f39cb`
+- latest validated commit: `c7f39cb`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -183,15 +174,16 @@ This state-only record line is limited to:
 
 The structured claim records:
 
-- branch: `main`
+- branch: `fix/runtime-governance-host-dispatch-failure`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b176436`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `c7f39cb`
+- recorded divergence baseline: `ahead 4 / behind 0`
+- transition: `state_only_pending_push`
 
-For this `state_only_pushed` state-only record, Git observation should
-compute the validated source divergence as `ahead 0 / behind 1` against
-`refs/remotes/origin/main` after the state-only record is on upstream.
+For this `state_only_pending_push` record on branch `fix/runtime-governance-host-dispatch-failure`,
+Git observation should compute the validated source divergence as
+`ahead 4 / behind 0` against `refs/remotes/origin/main` before the state-only
+record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then

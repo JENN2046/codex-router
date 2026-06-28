@@ -603,7 +603,7 @@ function replaceInSection(
   label: string,
   replacement: (...args: string[]) => string
 ): string {
-  const headingIndex = text.indexOf(heading);
+  const headingIndex = standaloneLineIndex(text, heading);
   if (headingIndex < 0) {
     throw new Error(`State-sync display section not found: ${heading}`);
   }
@@ -611,6 +611,12 @@ function replaceInSection(
   const before = text.slice(0, headingIndex);
   const section = text.slice(headingIndex);
   return before + replaceRequired(section, pattern, label, replacement);
+}
+
+function standaloneLineIndex(text: string, line: string): number {
+  const pattern = new RegExp(`^${escapeRegExp(line)}\\s*$`, "m");
+  const match = pattern.exec(text);
+  return match?.index ?? -1;
 }
 
 function formatDivergence(input: { ahead: number; behind: number }): string {
