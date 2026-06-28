@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `70534db`
+- `9418bd3`
 
 Latest validated commit:
 
-- `70534db`
+- `9418bd3`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 5 / behind 0`
 
 Recorded validation:
 
@@ -30,7 +30,7 @@ Recorded validation:
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
   tests
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 6
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -49,6 +49,8 @@ State-sync audit observation:
 - expected squash compatibility: bounded squash-only state records pass without
   the side-branch source commit object only when live `HEAD` has the recorded
   filtered source tree digest
+- expected reanchor helper behavior: squash fallback may infer `HEAD` only when
+  its filtered source tree digest matches the recorded validated source digest
 - expected evidence drift behavior: machine-mirrored Markdown and
   `.agent_board/*` conflicts block through `state_sync_evidenceDriftAbsent`
 - expected mirror-field behavior: empty or missing machine-mirrored Markdown
@@ -79,8 +81,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `70534db`
-- latest validated commit: `70534db`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `9418bd3`
+- latest validated commit: `9418bd3`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

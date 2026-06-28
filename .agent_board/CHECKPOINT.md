@@ -15,11 +15,11 @@ Branch:
 
 Validated source commit:
 
-- `70534db`
+- `9418bd3`
 
 Latest validated commit:
 
-- `70534db`
+- `9418bd3`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 5 / behind 0`
 
 Checkpoint facts:
 
@@ -63,8 +63,9 @@ Checkpoint facts:
   file, so aggregate block count cannot hide a missing or duplicate file block.
 - Supported `.agent_board/*` heading mirrors block as evidence drift.
 - Unknown structured claim fields fail closed in schema v1.
-- The reanchor preparation helper is implemented on this branch and remains
-  non-committing and non-pushing.
+- The reanchor preparation helper is implemented on this branch, remains
+  non-committing and non-pushing, and verifies squash fallback `HEAD` against
+  the recorded filtered source tree digest before reanchoring to it.
 - Markdown and `.agent_board/*` are evidence/display surfaces, not governance
   authority.
 - `docs/current/state-sync-record.json` is included in strict state-only paths.
@@ -76,7 +77,7 @@ Validation recorded:
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
   tests
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 6
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -93,8 +94,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `70534db`
-- latest validated commit: `70534db`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `9418bd3`
+- latest validated commit: `9418bd3`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

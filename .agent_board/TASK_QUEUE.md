@@ -2,7 +2,8 @@
 
 Current task:
 
-- Prepare a focused PR for the state-sync reanchor preparation helper.
+- Address the P1 squash fallback digest review on the state-sync reanchor
+  helper PR.
 
 Done:
 
@@ -60,6 +61,8 @@ Done:
 - updated the structured record plan to record those resolved semantics
 - implemented `scripts/prepare-state-sync-reanchor.ts`
 - added reanchor helper regression tests
+- hardened squash fallback reanchors to verify `HEAD` against the recorded
+  filtered source tree digest before inferring it as source
 
 Validation completed:
 
@@ -67,15 +70,15 @@ Validation completed:
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
   tests
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 6
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 Todo:
 
-- push the focused PR branch
-- open the PR and let CI validate the helper
+- push the focused PR branch with the P1 review fix
+- let CI validate the helper review fix
 - after squash merge, perform the normal `main` / `state_only_pushed` reanchor
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 - use focused PRs for the next governance semantic changes unless separately
@@ -98,8 +101,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `70534db`
-- latest validated commit: `70534db`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `9418bd3`
+- latest validated commit: `9418bd3`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `chore/state-sync-reanchor-helper` |
-| Current head | `70534db` |
-| Validated source commit | `70534db` |
+| Current head | `9418bd3` |
+| Validated source commit | `9418bd3` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 3 / behind 0` |
-| Latest validated commit | `70534db` |
+| Upstream divergence | `ahead 5 / behind 0` |
+| Latest validated commit | `9418bd3` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `70534db`
-- latest validated commit: `70534db`
+- validated source commit: `9418bd3`
+- latest validated commit: `9418bd3`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `d9cd2628315eb605ad4c17eba72271b78efbfd6205f749882c4b221414a5b8f2`
+  `5a4c4dbc871415d46c19c211dec1c3ebe27cfe16227175fc8fd3a19b64daecfd`
 
 Strict state record paths:
 
@@ -65,29 +65,32 @@ Strict state record paths:
 ## Current Scope
 
 This state record commit records the PR branch anchor for the state-sync
-reanchor preparation helper:
+reanchor helper P1 digest hardening:
 
-- adding `scripts/prepare-state-sync-reanchor.ts`;
+- verifying squash fallback `HEAD` against the recorded filtered source tree
+  digest before reanchoring to it;
+- blocking squash source drift unless the operator supplies an explicit source
+  after revalidation;
 - adding regression coverage in `tests/state-sync-reanchor-helper.test.ts`;
-- documenting the helper in
+- documenting the hardened helper semantics in
   `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`.
 
 The helper prepares structured `state_only_pushed` records and generated display
 surfaces, but it does not commit or push. It defaults to dry-run mode and fails
-closed when `HEAD` appears to be only a state-only descendant unless an explicit
-`--source` is supplied. This source chain does not change workflows,
-dependencies, provider behavior, runtime configuration, env, secrets, user
-config, or system config.
+closed when a squash fallback digest drifts or when `HEAD` appears to be only a
+state-only descendant unless an explicit `--source` is supplied. This source
+chain does not change workflows, dependencies, provider behavior, runtime
+configuration, env, secrets, user config, or system config.
 
 ## Validation Baseline
 
-Validation recorded for source commit `70534db`:
+Validation recorded for source commit `9418bd3`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests.
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
   tests.
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 6
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
@@ -193,12 +196,12 @@ The structured claim records:
 
 - branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `70534db`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `9418bd3`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 
 For this PR branch pending-push record, Git observation should compute the
-validated source divergence as `ahead 3 / behind 0` against
+validated source divergence as `ahead 5 / behind 0` against
 `refs/remotes/origin/main`. After squash merge, `main` should receive the normal
 `main` / `state_only_pushed` reanchor.
 
@@ -234,4 +237,5 @@ Current state line:
 - State/docs cleanup: merged through PR #52 and reanchored on `main`.
 - Post-PR #53 `main` reanchor and state/docs cleanup: recorded.
 - State-sync reanchor preparation helper: implemented and tested on this branch.
-- Next: push the focused PR branch and let CI validate the helper.
+- P1 squash fallback digest hardening: implemented and tested on this branch.
+- Next: push the focused PR branch and let CI validate the review fix.

@@ -12,7 +12,7 @@ Current branch:
 
 Current validated source:
 
-- `70534db`
+- `9418bd3`
 
 Current structured claim:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 5 / behind 0`
 
 Completed:
 
@@ -73,6 +73,8 @@ Completed:
 - strict state-only path set includes `docs/current/state-sync-record.json`
 - `scripts/prepare-state-sync-reanchor.ts` prepares post-merge state-sync
   reanchors without committing or pushing
+- squash fallback reanchors now verify `HEAD` against the recorded filtered
+  source tree digest before inferring it as source
 
 Validation completed:
 
@@ -80,7 +82,7 @@ Validation completed:
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
   tests
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 6
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -109,8 +111,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `70534db`
-- latest validated commit: `70534db`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `9418bd3`
+- latest validated commit: `9418bd3`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

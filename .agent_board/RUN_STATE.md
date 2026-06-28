@@ -1,6 +1,6 @@
 # Run State
 
-Status: State-sync reanchor helper PR branch state/docs anchor is recorded.
+Status: State-sync reanchor helper P1 digest hardening state/docs anchor is recorded.
 
 Machine-authoritative claim:
 
@@ -21,15 +21,15 @@ Branch:
 
 Current head:
 
-- `70534db`
+- `9418bd3`
 
 Validated source commit:
 
-- `70534db`
+- `9418bd3`
 
 Latest validated commit:
 
-- `70534db`
+- `9418bd3`
 
 Upstream baseline:
 
@@ -37,7 +37,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 5 / behind 0`
 
 Transition:
 
@@ -49,7 +49,7 @@ Validation recorded for this source commit:
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
   tests
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 6
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -62,6 +62,8 @@ State-sync audit expectation:
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
+- reanchor helper squash fallback must verify `HEAD` against the recorded
+  filtered source tree digest before inferring it as source
 - evidence drift blocking, empty/missing mirror-field blocking, structured
   display mirror blocking, State Sync Expectations mirror blocking, per-file
   agent-board generated block checks, and unknown structured claim field
@@ -82,8 +84,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `70534db`
-- latest validated commit: `70534db`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `9418bd3`
+- latest validated commit: `9418bd3`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
