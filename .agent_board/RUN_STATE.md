@@ -22,15 +22,15 @@ Branch:
 
 Current head:
 
-- `ed0e975`
+- `b3feec5`
 
 Validated source commit:
 
-- `ed0e975`
+- `b3feec5`
 
 Latest validated commit:
 
-- `ed0e975`
+- `b3feec5`
 
 Upstream baseline:
 
@@ -38,7 +38,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 7 / behind 0`
 
 Transition:
 
@@ -77,6 +77,8 @@ State-sync audit expectation:
   expectation
 - generated reanchor PR bodies state that `GITHUB_TOKEN`-created or updated PR
   workflow runs may require write-permission approval before CI proceeds
+- `## State Sync Expectations` divergence prose is generated from the
+  structured transition instead of retaining stale pushed-main wording
 - evidence drift blocking, empty/missing mirror-field blocking, structured
   display mirror blocking, State Sync Expectations mirror blocking, per-file
   agent-board generated block checks, and unknown structured claim field
@@ -97,8 +99,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `ed0e975`
-- latest validated commit: `ed0e975`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `b3feec5`
+- latest validated commit: `b3feec5`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `ed0e975`
+- `b3feec5`
 
 Latest validated commit:
 
-- `ed0e975`
+- `b3feec5`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 7 / behind 0`
 
 Recorded validation:
 
@@ -65,6 +65,9 @@ State-sync audit observation:
 - expected generated PR body behavior: `GITHUB_TOKEN`-created or updated PR
   workflow runs may require write-permission approval before CI proceeds, and
   that approval-required state is not a missed CI trigger
+- expected State Sync Expectations prose behavior: divergence expectation
+  wording is generated from the structured transition, not only from the
+  divergence value
 - expected evidence drift behavior: machine-mirrored Markdown and
   `.agent_board/*` conflicts block through `state_sync_evidenceDriftAbsent`
 - expected mirror-field behavior: empty or missing machine-mirrored Markdown
@@ -95,8 +98,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `ed0e975`
-- latest validated commit: `ed0e975`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `b3feec5`
+- latest validated commit: `b3feec5`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

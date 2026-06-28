@@ -15,11 +15,11 @@ Branch:
 
 Validated source commit:
 
-- `ed0e975`
+- `b3feec5`
 
 Latest validated commit:
 
-- `ed0e975`
+- `b3feec5`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 7 / behind 0`
 
 Checkpoint facts:
 
@@ -73,6 +73,9 @@ Checkpoint facts:
   explicit `--force-with-lease` expected SHA or empty create-only expectation.
 - The generated reanchor PR body records that `GITHUB_TOKEN`-created or updated
   PR workflow runs may require write-permission approval before CI proceeds.
+- `## State Sync Expectations` divergence prose is generated from the
+  structured transition, so pending-push records cannot retain pushed-main
+  operator wording.
 - Markdown and `.agent_board/*` are evidence/display surfaces, not governance
   authority.
 - `docs/current/state-sync-record.json` is included in strict state-only paths.
@@ -106,8 +109,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `ed0e975`
-- latest validated commit: `ed0e975`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `b3feec5`
+- latest validated commit: `b3feec5`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

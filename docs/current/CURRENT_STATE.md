@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `automate/state-sync-reanchor-pr` |
-| Current head | `ed0e975` |
-| Validated source commit | `ed0e975` |
+| Current head | `b3feec5` |
+| Validated source commit | `b3feec5` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 3 / behind 0` |
-| Latest validated commit | `ed0e975` |
+| Upstream divergence | `ahead 7 / behind 0` |
+| Latest validated commit | `b3feec5` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `ed0e975`
-- latest validated commit: `ed0e975`
+- validated source commit: `b3feec5`
+- latest validated commit: `b3feec5`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `295ef7e90975fe12a79aa433b06db23893b4e68d98f9be5ab8f78158cd7ab717`
+  `ea106c2621ddfb6e21538072a0e72db70c44905c814ae69c5fea04f353aa01d5`
 
 Strict state record paths:
 
@@ -81,7 +81,10 @@ post-merge state-sync reanchor PR automation:
 - documenting in the generated PR body that `GITHUB_TOKEN`-created or updated
   PR workflow runs may require write-permission approval before CI proceeds;
 - cleaning or blocking volatile post-push operator prose that can drift after a
-  reanchor.
+  reanchor;
+- generating the `## State Sync Expectations` divergence paragraph from the
+  structured transition, so pending-push records cannot retain pushed-main
+  operator prose.
 
 The automation does not merge PRs, does not resolve review threads, does not run
 real provider execution, and does not run the real Codex CLI.
@@ -90,7 +93,7 @@ GitHub authorization gate, not evidence that CI failed to trigger.
 
 ## Validation Baseline
 
-Validation recorded for source commit `ed0e975`:
+Validation recorded for source commit `b3feec5`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests.
@@ -205,13 +208,14 @@ The structured claim records:
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `ed0e975`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `b3feec5`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - transition: `state_only_pending_push`
 
-For this pushed `main` state-only record, Git observation should compute the
-validated source divergence as `ahead 3 / behind 0` against
-`refs/remotes/origin/main` after the reanchor commit is on upstream.
+For this `state_only_pending_push` record on branch `automate/state-sync-reanchor-pr`,
+Git observation should compute the validated source divergence as
+`ahead 7 / behind 0` against `refs/remotes/origin/main` before the state-only
+record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then

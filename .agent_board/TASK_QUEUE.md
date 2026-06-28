@@ -74,6 +74,8 @@ Done:
 - added generated PR body language that treats `GITHUB_TOKEN` approval-required
   workflow state as an expected authorization gate, not a missed CI trigger
 - added volatile operator prose cleanup for `main/state_only_pushed` display sync
+- generated `## State Sync Expectations` divergence prose from the structured
+  transition instead of only replacing the divergence value
 
 Validation completed:
 
@@ -115,8 +117,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `ed0e975`
-- latest validated commit: `ed0e975`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `b3feec5`
+- latest validated commit: `b3feec5`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

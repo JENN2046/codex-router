@@ -12,7 +12,7 @@ Current branch:
 
 Current validated source:
 
-- `ed0e975`
+- `b3feec5`
 
 Current structured claim:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 7 / behind 0`
 
 Completed:
 
@@ -85,6 +85,9 @@ Completed:
   expectation
 - the generated PR body records that `GITHUB_TOKEN`-created or updated PR
   workflow runs may require write-permission approval before CI proceeds
+- `## State Sync Expectations` divergence prose is generated from the
+  structured transition, preventing pending-push records from retaining
+  pushed-main wording
 
 Validation completed:
 
@@ -126,8 +129,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `ed0e975`
-- latest validated commit: `ed0e975`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `b3feec5`
+- latest validated commit: `b3feec5`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
