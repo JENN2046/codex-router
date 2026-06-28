@@ -213,9 +213,13 @@ test("state sync audit blocks stale current state expectation mirrors", async ()
     "transition",
     "state_only_pushed"
   );
-  currentStateText = replaceCurrentStatePostPushDivergence(
+  currentStateText = replaceCurrentStateValidatedSourceDivergenceExpectation(
     currentStateText,
-    "ahead 999 / behind 999"
+    [
+      "For this `state_only_pushed` state-only record, Git observation should",
+      "compute the validated source divergence as `ahead 999 / behind 999` against",
+      "`refs/remotes/origin/main` after the state-only record is on upstream."
+    ].join("\n")
   );
   const review = reviewStateSyncAudit({
     ...input,
@@ -232,7 +236,7 @@ test("state sync audit blocks stale current state expectation mirrors", async ()
     "State Sync Expectations validated source commit",
     "State Sync Expectations recorded divergence baseline",
     "State Sync Expectations transition",
-    "State Sync Expectations post-push divergence"
+    "State Sync Expectations validated source divergence expectation"
   ]) {
     assert.ok(review.issues.some((issue) => (
       issue.code === "state_document_evidence_drift"
@@ -538,6 +542,80 @@ test("state sync audit accepts structured state_only_pushed transitions", async 
   assert.equal(review.summary.claimSource, "structured");
   assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
   assert.equal(review.checks.structuredTransitionAllowed, true);
+});
+
+test("state sync audit accepts bounded reanchor PR candidates", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    branch: "state-sync/reanchor-main",
+    head: "3333333",
+    aheadBehind: "1\t0",
+    validatedSourceAheadBehind: "0\t0",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    ...withStateSyncClaim(input, {
+      branch: "main",
+      upstream: "refs/remotes/origin/main",
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    })
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.currentBranchMatches, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.structuredTransitionAllowed, true);
+});
+
+test("state sync audit blocks reanchor PR candidates outside the fixed branch", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    branch: "state-sync/other-reanchor",
+    head: "3333333",
+    aheadBehind: "1\t0",
+    validatedSourceAheadBehind: "0\t0",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    ...withStateSyncClaim(input, {
+      branch: "main",
+      upstream: "refs/remotes/origin/main",
+      transitionKind: "state_only_pushed",
+      recordedAhead: 1,
+      recordedBehind: 0
+    })
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.currentBranchMatches, false);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+});
+
+test("state sync audit blocks multi-commit reanchor PR candidates", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    branch: "state-sync/reanchor-main",
+    head: "3333333",
+    aheadBehind: "2\t0",
+    validatedSourceAheadBehind: "0\t0",
+    validatedSourceAncestorOfHead: true,
+    committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    ...withStateSyncClaim(input, {
+      branch: "main",
+      upstream: "refs/remotes/origin/main",
+      transitionKind: "state_only_pushed",
+      recordedAhead: 2,
+      recordedBehind: 0
+    })
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
 });
 
 test("state sync audit blocks structured claims with stale divergence", async () => {
@@ -2563,9 +2641,15 @@ function withCurrentStateMirrors(
     recordedDivergence
   );
   updated = replaceCurrentStateExpectation(updated, "transition", transition);
-  updated = replaceCurrentStatePostPushDivergence(
+  updated = replaceCurrentStateValidatedSourceDivergenceExpectation(
     updated,
-    postPushTestDivergence(transition, recordedAhead, recordedBehind)
+    testValidatedSourceDivergenceExpectation(
+      transition,
+      branch,
+      upstream,
+      recordedAhead,
+      recordedBehind
+    )
   );
 
   return updated;
@@ -2635,14 +2719,14 @@ function replaceCurrentStateExpectation(
   );
 }
 
-function replaceCurrentStatePostPushDivergence(
+function replaceCurrentStateValidatedSourceDivergenceExpectation(
   text: string,
   value: string
 ): string {
   return replaceCurrentStateExpectationSection(
     text,
-    /(source divergence as `)[^`\r\n]*(\`)/,
-    `$1${value}$2`
+    /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute|Git observation should compute)[\s\S]*?source divergence as\s*`[^`\r\n]+`\s*against\s*`[^`\r\n]*`[\s\S]*?\./,
+    value
   );
 }
 
@@ -2660,16 +2744,36 @@ function replaceCurrentStateExpectationSection(
     + text.slice(sectionStart).replace(pattern, replacement);
 }
 
-function postPushTestDivergence(
+function testValidatedSourceDivergenceExpectation(
   transition: string,
+  branch: string,
+  upstream: string,
   ahead: number,
   behind: number
 ): string {
-  if (transition !== "state_only_pushed") {
-    return formatTestDivergence(ahead, behind);
+  if (transition === "state_only_pushed") {
+    return [
+      "For this `state_only_pushed` state-only record, Git observation should",
+      `compute the validated source divergence as \`${formatTestDivergence(behind, ahead)}\` against`,
+      `\`${upstream}\` after the state-only record is on upstream.`
+    ].join("\n");
   }
 
-  return formatTestDivergence(behind, ahead);
+  const recordedDivergence = formatTestDivergence(ahead, behind);
+  if (transition === "state_only_pending_push") {
+    return [
+      `For this \`state_only_pending_push\` record on branch \`${branch}\`,`,
+      "Git observation should compute the validated source divergence as",
+      `\`${recordedDivergence}\` against \`${upstream}\` before the state-only`,
+      "record is pushed."
+    ].join("\n");
+  }
+
+  return [
+    `For this \`${transition}\` record, Git observation should compute`,
+    `the validated source divergence as \`${recordedDivergence}\` against`,
+    `\`${upstream}\` at the validated source commit.`
+  ].join("\n");
 }
 
 function stateRecordModeForTestTransition(transition: string): string {
@@ -3185,11 +3289,13 @@ function minimalCurrentState(
     `- recorded divergence baseline: \`${upstreamDivergence}\``,
     `- transition: \`${transitionKind}\``,
     "",
-    "When this PR branch state record is committed and pushed, Git observation should",
-    `compute the validated source divergence as \`${
-      postPushTestDivergence(transitionKind, divergence.ahead, divergence.behind)
-    }\` against`,
-    `\`${upstream}\`.`,
+    testValidatedSourceDivergenceExpectation(
+      transitionKind,
+      branch,
+      upstream,
+      divergence.ahead,
+      divergence.behind
+    ),
     "",
     "Execution boundary:",
     "",

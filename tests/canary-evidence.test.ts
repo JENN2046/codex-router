@@ -171,6 +171,83 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
   assert.ok(workflow.jobs.evidence.needs.includes("state-sync"));
 });
 
+test("state-sync reanchor workflow opens a bounded PR instead of pushing main", async () => {
+  const workflow = parse(
+    await readFile(
+      new URL("../.github/workflows/state-sync-reanchor-pr.yml", import.meta.url),
+      "utf-8"
+    )
+  ) as {
+    on: { push: { branches: string[] } };
+    permissions: {
+      contents: string;
+      "pull-requests": string;
+    };
+    concurrency: {
+      group: string;
+      "cancel-in-progress": boolean;
+    };
+    jobs: {
+      "reanchor-pr": {
+        steps: WorkflowStep[];
+      };
+    };
+  };
+
+  const steps = workflow.jobs["reanchor-pr"].steps;
+  const checkout = steps.find((step) => step.uses === "actions/checkout@v4");
+  const gate = steps.find((step) => step.id === "reanchor-gate");
+  const prepare = steps.find((step) => step.name === "Prepare state-sync reanchor");
+  const commit = steps.find((step) => step.name === "Commit state-sync reanchor branch");
+  const push = steps.find((step) => step.name === "Push state-sync reanchor branch");
+  const pr = steps.find((step) =>
+    step.name === "Create or update state-sync reanchor PR"
+  );
+
+  assert.deepEqual(workflow.on.push.branches, ["main"]);
+  assert.equal(workflow.permissions.contents, "write");
+  assert.equal(workflow.permissions["pull-requests"], "write");
+  assert.equal(workflow.concurrency.group, "state-sync-reanchor-main");
+  assert.equal(workflow.concurrency["cancel-in-progress"], true);
+  assert.equal(checkout?.with?.ref, "main");
+  assert.equal(checkout?.with?.["fetch-depth"], 0);
+  assert.equal(gate?.run, "node --import tsx scripts/resolve-state-sync-reanchor-pr-gate.ts");
+  assert.ok(prepare?.run?.includes("scripts/prepare-state-sync-reanchor.ts --write"));
+  assert.ok(prepare?.run?.includes("scripts/verify-state-sync-reanchor-diff.ts"));
+  assert.ok(commit?.run?.includes("git switch -c state-sync/reanchor-main"));
+  assert.ok(commit?.run?.includes("scripts/verify-state-sync-reanchor-diff.ts --cached"));
+  assert.ok(commit?.run?.includes("scripts/run-state-sync-audit.ts --json"));
+  assert.equal(push?.id, "push-reanchor");
+  assert.ok(push?.run?.includes('echo "pushed_reanchor=false" >> "$GITHUB_OUTPUT"'));
+  assert.ok(push?.run?.includes(
+    "git fetch origin +refs/heads/main:refs/remotes/origin/main"
+  ));
+  assert.ok(push?.run?.includes(
+    "observed_main_sha=\"$(git rev-parse --verify refs/remotes/origin/main)\""
+  ));
+  assert.ok(push?.run?.includes('if [ "$observed_main_sha" != "${GITHUB_SHA}" ]; then'));
+  assert.ok(push?.run?.includes("skipping stale reanchor push"));
+  assert.ok(push?.run?.includes(
+    "git fetch origin +refs/heads/state-sync/reanchor-main:refs/remotes/origin/state-sync/reanchor-main || true"
+  ));
+  assert.ok(push?.run?.includes(
+    "expected_reanchor_sha=\"$(git rev-parse --verify refs/remotes/origin/state-sync/reanchor-main 2>/dev/null || true)\""
+  ));
+  assert.ok(push?.run?.includes(
+    "git push --force-with-lease=refs/heads/state-sync/reanchor-main:$expected_reanchor_sha origin HEAD:refs/heads/state-sync/reanchor-main"
+  ));
+  assert.ok(push?.run?.includes(
+    "git push --force-with-lease=refs/heads/state-sync/reanchor-main: origin HEAD:refs/heads/state-sync/reanchor-main"
+  ));
+  assert.ok(push?.run?.includes('echo "pushed_reanchor=true" >> "$GITHUB_OUTPUT"'));
+  assert.ok(!push?.run?.includes("HEAD:refs/heads/main"));
+  assert.equal(
+    pr?.if,
+    "steps.reanchor-gate.outputs.run_reanchor == 'true' && steps.push-reanchor.outputs.pushed_reanchor == 'true'"
+  );
+  assert.ok(pr?.run?.includes("scripts/create-state-sync-reanchor-pr.ts"));
+});
+
 function createResult(risk: RiskLevel): CanaryResult {
   return {
     status: "passed",
@@ -193,9 +270,11 @@ interface WorkflowStep {
   uses?: string;
   run?: string;
   with?: {
+    "fetch-depth"?: number;
     name?: string;
     path?: string;
     pattern?: string;
+    ref?: string;
     "merge-multiple"?: boolean;
   };
 }

@@ -43,7 +43,7 @@ interface DisplayFields {
   sourceTreeDigestAlgorithm: string;
   sourceTreeDigestValue: string;
   strictStatePaths: string[];
-  postPushValidatedSourceDivergence: string;
+  validatedSourceDivergenceExpectation: string;
 }
 
 export async function syncStateSyncDisplay(
@@ -93,11 +93,8 @@ function displayFieldsFromClaim(claim: StateSyncClaim): DisplayFields {
     sourceTreeDigestAlgorithm: claim.source.sourceTreeDigest.algorithm,
     sourceTreeDigestValue: claim.source.sourceTreeDigest.value,
     strictStatePaths: claim.transition.allowedStatePaths,
-    postPushValidatedSourceDivergence:
-      postPushValidatedSourceDivergence(
-        claim.transition.kind,
-        claim.source.recordedDivergence
-      )
+    validatedSourceDivergenceExpectation:
+      validatedSourceDivergenceExpectation(claim, recordedDivergence)
   };
 }
 
@@ -111,7 +108,11 @@ function updateDisplayFile(
   }
 
   return upsertGeneratedDisplayBlock(
-    updateAgentBoardFields(text, display),
+    updateVolatileAgentBoardProse(
+      filePath,
+      updateAgentBoardFields(text, display),
+      display
+    ),
     display
   );
 }
@@ -188,9 +189,9 @@ function updateCurrentState(text: string, display: DisplayFields): string {
     "transition",
     display.transitionKind
   );
-  updated = replacePostPushDivergenceExpectation(
+  updated = replaceValidatedSourceDivergenceExpectation(
     updated,
-    display.postPushValidatedSourceDivergence
+    display.validatedSourceDivergenceExpectation
   );
 
   return updated;
@@ -251,6 +252,55 @@ function updateAgentBoardFields(text: string, display: DisplayFields): string {
   );
 
   return updated;
+}
+
+function updateVolatileAgentBoardProse(
+  filePath: string,
+  text: string,
+  display: DisplayFields
+): string {
+  if (
+    display.branch !== "main"
+    || display.transitionKind !== "state_only_pushed"
+  ) {
+    return text;
+  }
+
+  if (filePath === ".agent_board/RUN_STATE.md") {
+    return replaceLineIfPresent(
+      text,
+      /^Status: .*$/m,
+      "Status: Main state-sync record is current and pushed."
+    );
+  }
+
+  if (filePath === ".agent_board/TASK_QUEUE.md") {
+    return replaceSectionIfPresent(
+      replaceSectionIfPresent(
+        text,
+        "Current task:",
+        "Done:",
+        [
+          "Current task:",
+          "",
+          "- Keep state-sync structured record automation current; no post-merge",
+          "  reanchor is pending.",
+          ""
+        ].join("\n")
+      ),
+      "Todo:",
+      "Blocked until separately authorized:",
+      [
+        "Todo:",
+        "",
+        "- use focused PRs for the next governance semantic changes unless separately",
+        "  authorized",
+        ""
+      ].join("\n")
+    );
+  }
+
+  return text;
 }
 
 function upsertGeneratedDisplayBlock(
@@ -345,17 +395,17 @@ function replaceStateSyncExpectation(
   );
 }
 
-function replacePostPushDivergenceExpectation(
+function replaceValidatedSourceDivergenceExpectation(
   text: string,
   value: string
 ): string {
-  const pattern = /(source divergence as `)[^`\r\n]+(`)/;
+  const pattern = /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute|Git observation should compute)[\s\S]*?source divergence as\s*`[^`\r\n]+`\s*against\s*`[^`\r\n]*`[\s\S]*?\./;
   return replaceInSection(
     text,
     "## State Sync Expectations",
     pattern,
-    "$post-push-divergence",
-    (_match, start, end) => `${start}${value}${end}`
+    "$validated-source-divergence-expectation",
+    () => value
   );
 }
 
@@ -372,6 +422,33 @@ function replaceHeadingValueIfPresent(
   }
 
   return text.replace(pattern, (_match, start, end) => `${start}${value}${end}`);
+}
+
+function replaceLineIfPresent(
+  text: string,
+  pattern: RegExp,
+  replacement: string
+): string {
+  return pattern.test(text) ? text.replace(pattern, replacement) : text;
+}
+
+function replaceSectionIfPresent(
+  text: string,
+  startMarker: string,
+  endMarker: string,
+  replacement: string
+): string {
+  const startIndex = text.indexOf(startMarker);
+  if (startIndex < 0) {
+    return text;
+  }
+
+  const endIndex = text.indexOf(endMarker, startIndex);
+  if (endIndex < 0) {
+    return text;
+  }
+
+  return `${text.slice(0, startIndex)}${replacement}${text.slice(endIndex)}`;
 }
 
 function replaceRequired(
@@ -413,15 +490,37 @@ function formatDivergence(input: { ahead: number; behind: number }): string {
   return `ahead ${input.ahead} / behind ${input.behind}`;
 }
 
-function postPushValidatedSourceDivergence(
-  transitionKind: StateSyncClaim["transition"]["kind"],
-  recorded: { ahead: number; behind: number }
+function validatedSourceDivergenceExpectation(
+  claim: StateSyncClaim,
+  recordedDivergence: string
 ): string {
-  if (transitionKind !== "state_only_pushed") {
-    return formatDivergence(recorded);
+  const upstream = normalizeClaimUpstreamRef(claim.subject.upstream);
+  if (claim.transition.kind === "state_only_pushed") {
+    const pushedDivergence = formatDivergence({
+      ahead: claim.source.recordedDivergence.behind,
+      behind: claim.source.recordedDivergence.ahead
+    });
+    return [
+      "For this `state_only_pushed` state-only record, Git observation should",
+      `compute the validated source divergence as \`${pushedDivergence}\` against`,
+      `\`${upstream}\` after the state-only record is on upstream.`
+    ].join("\n");
   }
 
-  return `ahead ${recorded.behind} / behind ${recorded.ahead}`;
+  if (claim.transition.kind === "state_only_pending_push") {
+    return [
+      `For this \`state_only_pending_push\` record on branch \`${claim.subject.branch}\`,`,
+      "Git observation should compute the validated source divergence as",
+      `\`${recordedDivergence}\` against \`${upstream}\` before the state-only`,
+      "record is pushed."
+    ].join("\n");
+  }
+
+  return [
+    `For this \`${claim.transition.kind}\` record, Git observation should compute`,
+    `the validated source divergence as \`${recordedDivergence}\` against`,
+    `\`${upstream}\` at the validated source commit.`
+  ].join("\n");
 }
 
 function stateRecordModeForTransition(kind: StateSyncClaim["transition"]["kind"]): string {

@@ -49,7 +49,10 @@ test("state-sync display sync checks drift, writes generated fields, then become
   assert.match(currentState, /\| Upstream divergence \| `ahead 2 \/ behind 0` \|/);
   assert.match(currentState, /- transition kind: `state_only_pushed`/);
   assert.match(currentState, /- branch: `docs\/state-sync-display`/);
-  assert.match(currentState, /source divergence as `ahead 0 \/ behind 2`/);
+  assert.match(
+    currentState,
+    /For this `state_only_pushed` state-only record, Git observation should\s+compute the validated source divergence as `ahead 0 \/ behind 2` against\s+`refs\/remotes\/origin\/main` after the state-only record is on upstream\./
+  );
 
   const taskQueue = await readFile(
     join(cwd, ".agent_board", "TASK_QUEUE.md"),
@@ -75,7 +78,69 @@ test("state-sync display sync preserves pending-push divergence baseline", async
     "utf8"
   );
   assert.match(currentState, /- transition: `state_only_pending_push`/);
-  assert.match(currentState, /source divergence as `ahead 2 \/ behind 0`/);
+  assert.match(
+    currentState,
+    /For this `state_only_pending_push` record on branch `docs\/state-sync-display`,\s+Git observation should compute the validated source divergence as\s+`ahead 2 \/ behind 0` against `refs\/remotes\/origin\/main` before the state-only\s+record is pushed\./
+  );
+  assert.doesNotMatch(currentState, /pushed `main` state-only record/);
+
+  const clean = await syncStateSyncDisplay(cwd);
+  assert.deepEqual(clean.changedPaths, []);
+});
+
+test("state-sync display sync cleans volatile main pushed prose", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-volatile-"));
+  await writeDisplayFixture(cwd, "state_only_pushed", "main");
+  await writeFile(
+    join(cwd, ".agent_board", "RUN_STATE.md"),
+    [
+      "# Run State",
+      "",
+      "Status: Post-PR main state/docs reanchor is prepared for direct push.",
+      "",
+      "Branch:",
+      "",
+      "- `stale-branch`",
+      ""
+    ].join("\n")
+  );
+  await writeFile(
+    join(cwd, ".agent_board", "TASK_QUEUE.md"),
+    [
+      "# Task Queue",
+      "",
+      "Current task:",
+      "",
+      "- Record the post-PR main state/docs reanchor.",
+      "",
+      "Done:",
+      "",
+      "- prior work",
+      "",
+      "Todo:",
+      "",
+      "- push the post-PR main state/docs reanchor",
+      "- verify post-push state-sync audit and main-push CI",
+      "",
+      "Blocked until separately authorized:",
+      "",
+      "- release",
+      ""
+    ].join("\n")
+  );
+
+  await syncStateSyncDisplay(cwd, { write: true });
+
+  const runState = await readFile(join(cwd, ".agent_board", "RUN_STATE.md"), "utf8");
+  const taskQueue = await readFile(
+    join(cwd, ".agent_board", "TASK_QUEUE.md"),
+    "utf8"
+  );
+  assert.doesNotMatch(runState, /prepared for direct push/);
+  assert.doesNotMatch(taskQueue, /push the post-PR/);
+  assert.doesNotMatch(taskQueue, /verify post-push/);
+  assert.match(runState, /Status: Main state-sync record is current and pushed\./);
+  assert.match(taskQueue, /no post-merge\s+reanchor is pending/);
 });
 
 test("state-sync display sync fails closed when the structured claim is invalid", async () => {
@@ -94,7 +159,8 @@ test("state-sync display sync fails closed when the structured claim is invalid"
 
 async function writeDisplayFixture(
   cwd: string,
-  transitionKind: "state_only_pending_push" | "state_only_pushed"
+  transitionKind: "state_only_pending_push" | "state_only_pushed",
+  branch = CLAIM_BRANCH
 ): Promise<void> {
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
   await mkdir(join(cwd, ".agent_board"), { recursive: true });
@@ -104,7 +170,7 @@ async function writeDisplayFixture(
       schemaVersion: 1,
       policyVersion: "state-sync-policy.v1",
       subject: {
-        branch: CLAIM_BRANCH,
+        branch,
         upstream: CLAIM_UPSTREAM
       },
       source: {
@@ -231,9 +297,9 @@ function staleCurrentState(): string {
     "- recorded divergence baseline: `ahead 999 / behind 999`",
     "- transition: `source_exact`",
     "",
-    "After the state record is pushed, Git observation should compute the validated",
-    "source divergence as `ahead 999 / behind 999` against",
-    "`origin/stale`.",
+    "For this pushed `main` state-only record, Git observation should compute the",
+    "validated source divergence as `ahead 999 / behind 999` against",
+    "`origin/stale` after the reanchor commit is on upstream.",
     ""
   ].join("\n");
 }
