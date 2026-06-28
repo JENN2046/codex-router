@@ -39,6 +39,7 @@ test("state sync audit passes when clean HEAD matches a structured source claim"
   assert.equal(review.checks.agentBoardAligned, true);
   assert.equal(review.checks.staleMarkersAbsent, true);
   assert.equal(review.checks.structuredClaimValid, true);
+  assert.equal(review.checks.evidenceDriftAbsent, true);
   assert.equal(review.summary.requiredValidationCommandCount, 4);
   assert.equal(review.summary.requiredBoundaryMarkerCount, 7);
   assert.equal(review.summary.stateWritesDuringAudit, 0);
@@ -56,7 +57,7 @@ test("state sync audit blocks when the structured claim is missing", async () =>
   assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
-test("state sync audit uses a valid structured claim for core facts", async () => {
+test("state sync audit blocks structured claim evidence drift", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -70,8 +71,8 @@ test("state sync audit uses a valid structured claim for core facts", async () =
       .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit | `3333333` |")
   });
 
-  assert.equal(review.status, "passed");
-  assert.deepEqual(review.reasons, []);
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
   assert.equal(review.summary.claimSource, "structured");
   assert.equal(review.checks.currentBranchMatches, true);
   assert.equal(review.checks.validatedSourceHeadRecorded, true);
@@ -79,6 +80,7 @@ test("state sync audit uses a valid structured claim for core facts", async () =
   assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
   assert.equal(review.checks.structuredTransitionAllowed, true);
+  assert.equal(review.checks.evidenceDriftAbsent, false);
   assert.ok(review.issues.some((issue) => (
     issue.code === "state_document_evidence_drift"
     && issue.field === "Validated source commit"
@@ -345,6 +347,56 @@ test("state sync audit fails closed on invalid structured claim transition", asy
   assert.equal(review.checks.structuredClaimValid, false);
 });
 
+test("state sync audit fails closed on unknown structured claim fields", async (t) => {
+  const input = await createInputFromWorkspace();
+  const cases: Array<[
+    string,
+    (claim: Record<string, unknown>) => void
+  ]> = [
+    ["top-level", (claim) => {
+      claim.extra = true;
+    }],
+    ["subject", (claim) => {
+      (claim.subject as Record<string, unknown>).extra = true;
+    }],
+    ["source", (claim) => {
+      (claim.source as Record<string, unknown>).extra = true;
+    }],
+    ["recorded divergence", (claim) => {
+      const source = claim.source as Record<string, unknown>;
+      (source.recordedDivergence as Record<string, unknown>).extra = true;
+    }],
+    ["source tree digest", (claim) => {
+      const source = claim.source as Record<string, unknown>;
+      (source.sourceTreeDigest as Record<string, unknown>).extra = true;
+    }],
+    ["transition", (claim) => {
+      (claim.transition as Record<string, unknown>).extra = true;
+    }],
+    ["validation", (claim) => {
+      (claim.validation as Record<string, unknown>).extra = true;
+    }]
+  ];
+
+  for (const [name, mutate] of cases) {
+    await t.test(name, () => {
+      const claim = JSON.parse(
+        stateSyncClaimTextFromInput(input)
+      ) as Record<string, unknown>;
+      mutate(claim);
+      const review = reviewStateSyncAudit({
+        ...input,
+        stateSyncClaimText: JSON.stringify(claim)
+      });
+
+      assert.equal(review.status, "blocked");
+      assert.equal(review.summary.claimSource, "invalid_structured");
+      assert.equal(review.checks.structuredClaimValid, false);
+      assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
+    });
+  }
+});
+
 test("state sync audit accepts dirty state-only files", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace({
     gitStatusShort: [
@@ -488,7 +540,7 @@ test("state sync audit blocks stale observed branch without using Markdown head 
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
 });
 
-test("state sync audit reports Markdown current head drift without making it authoritative", async () => {
+test("state sync audit blocks Markdown current head evidence drift", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -497,8 +549,9 @@ test("state sync audit reports Markdown current head drift without making it aut
       .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit | `feed123` |")
   });
 
-  assert.equal(review.status, "passed");
-  assert.deepEqual(review.reasons, []);
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.evidenceDriftAbsent, false);
   assert.ok(review.issues.some((issue) => (
     issue.code === "state_document_evidence_drift"
     && issue.field === "Current head"
@@ -591,6 +644,10 @@ test("state sync audit blocks synthetic anchors when validated source paths are 
 test("state sync audit accepts structured detached review checkout without validated source evidence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream \| `[^`]+` \|/,
+      "| Upstream | `` |"
+    ),
     stateSyncClaimText: stateSyncClaimTextFromInput(input, {
       upstream: "",
       transitionKind: "detached_review_checkout"
@@ -644,6 +701,10 @@ test("state sync audit accepts clean detached PR checkouts when explicitly allow
       "scripts/run-state-sync-audit.ts",
       "tests/state-sync-audit.test.ts"
     ],
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream \| `[^`]+` \|/,
+      "| Upstream | `` |"
+    ),
     stateSyncClaimText: stateSyncClaimTextFromInput(input, {
       upstream: "",
       transitionKind: "detached_review_checkout"
@@ -992,6 +1053,10 @@ test("state sync audit accepts exact validated source divergence matches", async
   const review = reviewStateSyncAudit({
     ...input,
     validatedSourceAheadBehind: "0\t1",
+    currentStateText: input.currentStateText.replace(
+      /\| Upstream divergence \| `[^`]+` \|/,
+      "| Upstream divergence | `ahead 0 / behind 1` |"
+    ),
     stateSyncClaimText: stateSyncClaimTextFromInput(input, {
       recordedAhead: 0,
       recordedBehind: 1
@@ -1304,7 +1369,10 @@ test("state sync audit collector observes structured claim upstream ref without 
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1354,7 +1422,10 @@ test("state sync audit collector prefers structured claim upstream over local up
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1401,7 +1472,10 @@ test("state sync audit accepts structured detached branch-head checkouts", async
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1448,7 +1522,10 @@ test("state sync audit accepts structured detached PR merge-ref checkouts", asyn
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1503,7 +1580,10 @@ test("state sync audit accepts structured squash-equivalent state records", asyn
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1571,7 +1651,10 @@ test("state sync audit accepts structured squash-only records without source com
   );
   assert.ok(sourceDigest !== undefined);
 
-  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(sourceRepo, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1651,7 +1734,10 @@ test("state sync audit blocks structured squash records with non-state source dr
     join(cwd, "packages", "unvalidated.ts"),
     "export const unvalidated = true;\n"
   );
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1713,7 +1799,10 @@ test("state sync audit blocks squash-only records when source digest drifts", as
     join(sourceRepo, "packages", "unvalidated.ts"),
     "export const unvalidated = true;\n"
   );
-  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(sourceRepo, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1779,7 +1868,10 @@ test("state sync audit collector rejects claim upstream refs outside remote trac
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "HEAD",
@@ -1824,7 +1916,10 @@ test("state sync audit collector normalizes claim upstream before git resolution
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -2188,7 +2283,11 @@ async function git(cwd: string, args: string[]): Promise<string> {
 async function writeMinimalWorkspace(
   cwd: string,
   branch: string,
-  validatedSourceCommit: string
+  validatedSourceCommit: string,
+  options: {
+    upstream?: string;
+    upstreamDivergence?: string;
+  } = {}
 ): Promise<void> {
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
   await mkdir(join(cwd, ".agent_board"), { recursive: true });
@@ -2202,7 +2301,7 @@ async function writeMinimalWorkspace(
   );
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
-    minimalCurrentState(branch, validatedSourceCommit)
+    minimalCurrentState(branch, validatedSourceCommit, options)
   );
 
   const boardText = [
@@ -2286,7 +2385,18 @@ async function writeStateSyncRecordText(
   await writeFile(join(cwd, "docs", "current", "state-sync-record.json"), text);
 }
 
-function minimalCurrentState(branch: string, validatedSourceCommit: string): string {
+function minimalCurrentState(
+  branch: string,
+  validatedSourceCommit: string,
+  options: {
+    upstream?: string;
+    upstreamDivergence?: string;
+  } = {}
+): string {
+  const upstream = options.upstream ?? "";
+  const upstreamDivergence =
+    options.upstreamDivergence ?? "ahead 0 / behind 0";
+
   return [
     "# Current State",
     "",
@@ -2298,8 +2408,8 @@ function minimalCurrentState(branch: string, validatedSourceCommit: string): str
     `| Current branch | \`${branch}\` |`,
     `| Current head | \`${validatedSourceCommit}\` |`,
     `| Validated source commit | \`${validatedSourceCommit}\` |`,
-    "| Upstream | `none` |",
-    "| Upstream divergence | `ahead -1 / behind -1` |",
+    `| Upstream | \`${upstream}\` |`,
+    `| Upstream divergence | \`${upstreamDivergence}\` |`,
     `| Latest validated commit | \`${validatedSourceCommit}\` |`,
     "| State record mode | `state-only descendant allowed` |",
     "| Stale after commit | `true` |",

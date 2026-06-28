@@ -147,6 +147,7 @@ export interface StateSyncAuditResult {
     agentBoardAligned: boolean;
     staleMarkersAbsent: boolean;
     structuredClaimValid: boolean;
+    evidenceDriftAbsent: boolean;
     structuredTransitionAllowed: boolean;
     outputSanitized: boolean;
     auditReadOnly: boolean;
@@ -208,6 +209,13 @@ export function parseStateSyncClaim(
     return { status: "invalid", reason: "claim_not_object" };
   }
 
+  if (!hasOnlyKeys(
+    parsed,
+    ["schemaVersion", "policyVersion", "subject", "source", "transition", "validation"]
+  )) {
+    return { status: "invalid", reason: "unknown_claim_field" };
+  }
+
   if (parsed.schemaVersion !== ACCEPTED_CLAIM_SCHEMA_VERSION) {
     return { status: "invalid", reason: "unsupported_schema_version" };
   }
@@ -220,6 +228,9 @@ export function parseStateSyncClaim(
   if (!isRecord(subject)) {
     return { status: "invalid", reason: "subject_missing" };
   }
+  if (!hasOnlyKeys(subject, ["branch", "upstream"])) {
+    return { status: "invalid", reason: "subject_unknown_field" };
+  }
 
   const branch = stringField(subject, "branch");
   const upstream = stringField(subject, "upstream");
@@ -230,6 +241,17 @@ export function parseStateSyncClaim(
   const source = parsed.source;
   if (!isRecord(source)) {
     return { status: "invalid", reason: "source_missing" };
+  }
+  if (!hasOnlyKeys(
+    source,
+    [
+      "validatedSourceCommit",
+      "latestValidatedCommit",
+      "recordedDivergence",
+      "sourceTreeDigest"
+    ]
+  )) {
+    return { status: "invalid", reason: "source_unknown_field" };
   }
 
   const validatedSourceCommit = commitField(source, "validatedSourceCommit");
@@ -242,6 +264,9 @@ export function parseStateSyncClaim(
   if (!isRecord(recordedDivergence)) {
     return { status: "invalid", reason: "recorded_divergence_missing" };
   }
+  if (!hasOnlyKeys(recordedDivergence, ["ahead", "behind"])) {
+    return { status: "invalid", reason: "recorded_divergence_unknown_field" };
+  }
 
   const recordedAhead = nonNegativeIntegerField(recordedDivergence, "ahead");
   const recordedBehind = nonNegativeIntegerField(recordedDivergence, "behind");
@@ -252,6 +277,9 @@ export function parseStateSyncClaim(
   const sourceTreeDigest = source.sourceTreeDigest;
   if (!isRecord(sourceTreeDigest)) {
     return { status: "invalid", reason: "source_tree_digest_missing" };
+  }
+  if (!hasOnlyKeys(sourceTreeDigest, ["algorithm", "value", "excludedPaths"])) {
+    return { status: "invalid", reason: "source_tree_digest_unknown_field" };
   }
 
   const sourceTreeDigestAlgorithm = stringField(sourceTreeDigest, "algorithm");
@@ -272,6 +300,9 @@ export function parseStateSyncClaim(
   const transition = parsed.transition;
   if (!isRecord(transition)) {
     return { status: "invalid", reason: "transition_missing" };
+  }
+  if (!hasOnlyKeys(transition, ["kind", "allowedStatePaths"])) {
+    return { status: "invalid", reason: "transition_unknown_field" };
   }
 
   const transitionKind = transitionKindField(transition, "kind");
@@ -554,6 +585,9 @@ export function reviewStateSyncAudit(
       ),
     staleMarkersAbsent: staleMarkerHits.length === 0,
     structuredClaimValid: resolvedClaim.structuredClaimValid,
+    evidenceDriftAbsent: resolvedClaim.issues.every(
+      (issue) => issue.risk !== "evidence_drift"
+    ),
     structuredTransitionAllowed: structuredTransitionIsAllowed(
       resolvedClaim,
       input,
@@ -738,12 +772,24 @@ function optionalValidation(
     return false;
   }
 
+  if (!hasOnlyKeys(value, ["requiredCommands"])) {
+    return false;
+  }
+
   const requiredCommands = stringArrayField(value, "requiredCommands");
   if (value.requiredCommands !== undefined && requiredCommands === undefined) {
     return false;
   }
 
   return requiredCommands === undefined ? {} : { requiredCommands };
+}
+
+function hasOnlyKeys(
+  record: Record<string, unknown>,
+  allowedKeys: readonly string[]
+): boolean {
+  const allowed = new Set(allowedKeys);
+  return Object.keys(record).every((key) => allowed.has(key));
 }
 
 function formatUpstreamDivergence(input: {
