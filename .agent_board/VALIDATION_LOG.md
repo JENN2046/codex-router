@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `docs/state-sync-state-docs-cleanup`
+- `main`
 
 Validated source commit:
 
-- `b553b3f`
+- `2592e8a`
 
 Latest validated commit:
 
-- `b553b3f`
+- `2592e8a`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 0 / behind 0`
+- `ahead 1 / behind 0`
 
 Recorded validation:
 
@@ -35,7 +35,7 @@ State-sync audit observation:
 
 - with the state/docs record committed,
   `node --import tsx scripts/run-state-sync-audit.ts --json` should PASS
-- `state_only_pending_push` is expected while this focused branch is ahead of
+- `state_only_pushed` is expected once this state record is present on
   `origin/main`
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
@@ -49,7 +49,7 @@ State-sync audit observation:
 
 Execution boundary:
 
-- this branch intentionally changes only state/docs display and handoff surfaces
+- this commit intentionally changes only state/docs display and handoff surfaces
 - no package, dependency, provider, env, secret, user config, or system config
   change is part of this state record
 - no manual CI rerun
@@ -59,10 +59,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `docs/state-sync-state-docs-cleanup`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b553b3f`
-- latest validated commit: `b553b3f`
-- recorded divergence baseline: `ahead 0 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `2592e8a`
+- latest validated commit: `2592e8a`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

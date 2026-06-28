@@ -2,8 +2,7 @@
 
 Current task:
 
-- Publish a narrow state/docs cleanup PR that removes stale Todo, Next, and
-  handoff wording after PR #51 and the post-squash `main` reanchor.
+- Record the post-PR #52 `main` state/docs reanchor.
 
 Done:
 
@@ -43,7 +42,9 @@ Done:
 - added regression tests for unlisted `.agent_board` paths
 - squash-merged PR #51 into `main`
 - pushed the post-PR #51 `main` state/docs reanchor
-- verified post-push `main` state-sync audit and main-push CI for `b553b3f`
+- verified the post-PR #51 `main` state-sync audit and main-push CI
+- squash-merged PR #52 into `main`
+- prepared the post-PR #52 `main` state/docs reanchor
 
 Validation completed:
 
@@ -54,7 +55,7 @@ Validation completed:
 
 Todo:
 
-- review and merge this state/docs cleanup PR
+- push this post-PR #52 `main` state/docs reanchor
 - then open a separate governance semantic PR for evidence drift blocking and
   unknown structured claim field handling
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
@@ -73,10 +74,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `docs/state-sync-state-docs-cleanup`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b553b3f`
-- latest validated commit: `b553b3f`
-- recorded divergence baseline: `ahead 0 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `2592e8a`
+- latest validated commit: `2592e8a`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

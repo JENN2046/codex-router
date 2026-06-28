@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `docs/state-sync-state-docs-cleanup`
+- `main`
 
 Current validated source:
 
-- `b553b3f`
+- `2592e8a`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Upstream baseline:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 0 / behind 0`
+- `ahead 1 / behind 0`
 
 Completed:
 
@@ -42,6 +42,7 @@ Completed:
 - PR #51 strict state record path convergence was squash-merged into `main`
 - post-PR #51 `main` state/docs reanchor was pushed and passed state-sync audit
   and main-push CI
+- PR #52 state/docs cleanup was squash-merged into `main`
 - collector reads `docs/current/state-sync-record.json`
 - collector uses the structured claim upstream ref as the bounded baseline even
   when local feature-branch tracking exists, then computes divergence from Git
@@ -66,13 +67,11 @@ Validation completed:
 
 State-sync expectation:
 
-- with this state/docs cleanup record committed, branch-head audit should PASS by
-  resolving `refs/remotes/origin/main` as the structured claim upstream ref and
-  computing divergence from Git
-- `state_only_pending_push` is expected while this focused branch is ahead of
+- with this post-PR #52 `main` reanchor committed and pushed, branch-head audit
+  should PASS by resolving `refs/remotes/origin/main` as the structured claim
+  upstream ref and computing divergence from Git
+- `state_only_pushed` is expected once this state record is present on
   `origin/main`
-- after this cleanup PR merges, `main` should receive the normal state/docs
-  reanchor before relying on the next `main` state-sync audit as final evidence
 - the next implementation PR should address governance semantics for evidence
   drift blocking and unknown structured claim field handling
 
@@ -90,10 +89,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `docs/state-sync-state-docs-cleanup`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b553b3f`
-- latest validated commit: `b553b3f`
-- recorded divergence baseline: `ahead 0 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `2592e8a`
+- latest validated commit: `2592e8a`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
