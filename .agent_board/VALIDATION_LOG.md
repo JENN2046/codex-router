@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `304b180`
+- `1216420`
 
 Latest validated commit:
 
-- `304b180`
+- `1216420`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 4 / behind 0`
+- `ahead 6 / behind 0`
 
 Recorded validation:
 
@@ -67,8 +67,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `304b180`
-- latest validated commit: `304b180`
-- recorded divergence baseline: `ahead 4 / behind 0`
+- validated source commit: `1216420`
+- latest validated commit: `1216420`
+- recorded divergence baseline: `ahead 6 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
