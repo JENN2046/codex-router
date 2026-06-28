@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { fileURLToPath } from "node:url";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
@@ -7,6 +8,7 @@ import { runDesktopDecision } from "../packages/desktop-decision-runner/src/inde
 import {
   createPrimitiveFailureEnvelope,
   executeDesktopPlan,
+  runDesktopTask,
   type DesktopLiveExecutionResult
 } from "../packages/desktop-live-adapter/src/index.js";
 import {
@@ -77,6 +79,84 @@ async function createReadyRunnerResult() {
     availableAgents: 3,
     now: () => "2026-04-28T12:00:00.000Z"
   });
+}
+
+function createReadOnlyCodexCliTask(taskId: string) {
+  return parseTaskEnvelope({
+    taskId,
+    source: "desktop-thread",
+    intent: {
+      summary: "review current config",
+      requestedAction: "inspect and summarize routing policy",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
+    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    constraints: {},
+    hints: { riskHints: [], tags: [] }
+  });
+}
+
+class FakeCodexCliStream extends EventEmitter {
+  setEncoding(_encoding: BufferEncoding): void {}
+  destroy(): void {}
+}
+
+class FakeCodexCliWritableStream {
+  written = "";
+  ended = false;
+  destroyed = false;
+
+  end(chunk?: string): void {
+    if (chunk !== undefined) {
+      this.written += chunk;
+    }
+    this.ended = true;
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+  }
+}
+
+class FakeCodexCliChild extends EventEmitter {
+  readonly stdin = new FakeCodexCliWritableStream();
+  readonly stdout = new FakeCodexCliStream();
+  readonly stderr = new FakeCodexCliStream();
+
+  constructor(private readonly closeCode: number) {
+    super();
+  }
+
+  kill(_signal?: NodeJS.Signals | number): boolean {
+    queueMicrotask(() => {
+      this.emit("close", this.closeCode, null);
+    });
+    return true;
+  }
+
+  unref(): void {}
+}
+
+function createFakeCodexCliChild(options: {
+  stdout: string;
+  stderr?: string;
+  exitCode: number;
+}): FakeCodexCliChild {
+  const child = new FakeCodexCliChild(options.exitCode);
+
+  queueMicrotask(() => {
+    if (options.stdout) {
+      child.stdout.emit("data", options.stdout);
+    }
+    if (options.stderr) {
+      child.stderr.emit("data", options.stderr);
+    }
+    child.emit("close", options.exitCode, null);
+  });
+
+  return child;
 }
 
 function createHighRiskStateWithTwoExecutionFailures(taskId: string): GovernanceState {
@@ -714,4 +794,130 @@ test("governance: thrown handler with stopOnFailure false still updates governan
   assert.equal(firstUpdate.strategy.actionFamily, "step_back");
   assert.equal(execution.governance?.recoveryRequired, true);
   assert.equal(execution.governance?.state.anomalies.at(-1)?.message, "continued_throw_failure");
+});
+
+test("governance: codex-cli host dispatch failure appends anomaly and calls onGovernanceUpdate", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = createReadOnlyCodexCliTask("gov-codex-cli-host-dispatch-failure");
+  const govUpdates: GovernanceUpdateRecord[] = [];
+  const observationStore = createRecordingExecutionObservationStore();
+
+  const result = await runDesktopTask({
+    task,
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    codexCliOptions: {
+      skipExecutionModelProbe: true,
+      spawn: () => {
+        throw new Error("spawn sentinel");
+      }
+    },
+    observationBus: observationStore,
+    governanceState: createLowRiskGovernanceState(task.taskId),
+    onGovernanceUpdate: async (state, strategy) => {
+      govUpdates.push({ state, strategy });
+    },
+    now: () => "2026-04-28T13:00:00.000Z"
+  });
+
+  assert.equal(result.decisionResult.status, "ready");
+  assert.equal(result.decisionResult.decision.hostRoute, "codex-cli");
+  assert.equal(result.executionResult.status, "failed");
+  assert.ok(result.executionResult.blockingReasons.includes("spawn sentinel"));
+  assert.ok(govUpdates.length >= 1, "onGovernanceUpdate should be called for host dispatch failure");
+
+  const firstUpdate = govUpdates[0]!;
+  const anomaly = firstUpdate.state.anomalies.at(-1)!;
+  assert.equal(anomaly.kind, "execution_failure");
+  assert.equal(anomaly.strikeNumber, 1);
+  assert.equal(anomaly.message, "host_dispatch_failed:spawn sentinel");
+  assert.equal(firstUpdate.strategy.taskId, task.taskId);
+  assert.equal(result.executionResult.governance, undefined);
+
+  const observations = await observationStore.findByTaskId(task.taskId);
+  assert.equal(observations.length, 1);
+  assert.equal(observations[0]?.primitiveId, "host_dispatch:codex-cli");
+  assert.equal(observations[0]?.stage, "host_dispatch");
+  assert.equal(observations[0]?.status, "failed");
+  assert.equal(
+    observations[0]?.signals.errorClass,
+    "host_dispatch_failed:spawn sentinel"
+  );
+});
+
+test("governance: codex-cli host dispatch third failure triggers recovery result", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = createReadOnlyCodexCliTask("gov-codex-cli-host-dispatch-step-back");
+  const govUpdates: GovernanceUpdateRecord[] = [];
+
+  const result = await runDesktopTask({
+    task,
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    codexCliOptions: {
+      skipExecutionModelProbe: true,
+      spawn: () => {
+        throw new Error("spawn sentinel");
+      }
+    },
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    onGovernanceUpdate: async (state, strategy) => {
+      govUpdates.push({ state, strategy });
+    },
+    now: () => "2026-04-28T13:05:00.000Z"
+  });
+
+  assert.equal(result.decisionResult.decision.hostRoute, "codex-cli");
+  assert.equal(result.executionResult.status, "failed");
+  assert.ok(result.executionResult.blockingReasons.includes("governance_step_back_triggered"));
+  assert.ok(result.executionResult.blockingReasons.includes("arbitration_required"));
+  assert.ok(result.executionResult.governance, "host dispatch should expose recovery governance");
+  assert.equal(result.executionResult.governance?.recoveryRequired, true);
+  assert.equal(result.executionResult.governance?.lockdown, true);
+  assert.equal(result.executionResult.governance?.strategyDecision.actionFamily, "step_back");
+  assert.equal(result.executionResult.governance?.arbitrationPacket.trigger, "third_anomaly");
+  assert.equal(
+    result.executionResult.governance?.state.anomalies.at(-1)?.message,
+    "host_dispatch_failed:spawn sentinel"
+  );
+  assert.equal(govUpdates[0]?.strategy.actionFamily, "step_back");
+});
+
+test("governance: successful codex-cli host dispatch does not trigger governance updates", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = createReadOnlyCodexCliTask("gov-codex-cli-host-dispatch-success");
+  let govCalled = false;
+
+  const result = await runDesktopTask({
+    task,
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    codexCliOptions: {
+      skipExecutionModelProbe: true,
+      spawn: () => createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"ok\"}\n",
+        exitCode: 0
+      })
+    },
+    governanceState: createLowRiskGovernanceState(task.taskId),
+    onGovernanceUpdate: async () => {
+      govCalled = true;
+    },
+    now: () => "2026-04-28T13:10:00.000Z"
+  });
+
+  assert.equal(result.decisionResult.decision.hostRoute, "codex-cli");
+  assert.equal(result.executionResult.status, "completed");
+  assert.deepEqual(result.executionResult.blockingReasons, []);
+  assert.equal(result.executionResult.governance, undefined);
+  assert.equal(govCalled, false);
 });

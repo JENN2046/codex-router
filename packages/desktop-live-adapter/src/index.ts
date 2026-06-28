@@ -153,6 +153,9 @@ export interface RunDesktopTaskInput extends DesktopDecisionRunnerInput {
   bridge?: DesktopHostBridge;
   codexCliOptions?: CodexCliProcessRunOptions;
   stopOnFailure?: boolean;
+  observationBus?: ExecutionObservationBus;
+  governanceState?: GovernanceState;
+  onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
 }
 
 export interface ResumeDesktopTaskInput extends DesktopDecisionResumeInput {
@@ -160,6 +163,9 @@ export interface ResumeDesktopTaskInput extends DesktopDecisionResumeInput {
   bridge?: DesktopHostBridge;
   codexCliOptions?: CodexCliProcessRunOptions;
   stopOnFailure?: boolean;
+  observationBus?: ExecutionObservationBus;
+  governanceState?: GovernanceState;
+  onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
 }
 
 export interface RunDesktopTaskResult {
@@ -209,6 +215,9 @@ async function executeDesktopTaskFromDecision(
     codexCliOptions?: CodexCliProcessRunOptions;
     now?: () => string;
     persistence?: DesktopDecisionRunnerInput["persistence"];
+    observationBus?: ExecutionObservationBus;
+    governanceState?: GovernanceState;
+    onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
   },
   decisionResult: DesktopDecisionRunnerResult
 ): Promise<RunDesktopTaskResult> {
@@ -256,7 +265,10 @@ async function executeDesktopTaskFromDecision(
       ...(input.now !== undefined ? { now: input.now } : {}),
       ...(input.persistence?.auditStore !== undefined ? { auditStore: input.persistence.auditStore } : {}),
       ...(input.persistence?.checkpointStore !== undefined ? { checkpointStore: input.persistence.checkpointStore } : {}),
-      ...(input.persistence?.memoryAdapter !== undefined ? { memoryAdapter: input.persistence.memoryAdapter } : {})
+      ...(input.persistence?.memoryAdapter !== undefined ? { memoryAdapter: input.persistence.memoryAdapter } : {}),
+      ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+      ...(input.governanceState !== undefined ? { governanceState: input.governanceState } : {}),
+      ...(input.onGovernanceUpdate !== undefined ? { onGovernanceUpdate: input.onGovernanceUpdate } : {})
     });
 
     return {
@@ -275,7 +287,10 @@ async function executeDesktopTaskFromDecision(
     ...(input.persistence?.auditStore !== undefined ? { auditStore: input.persistence.auditStore } : {}),
     ...(input.persistence?.checkpointStore !== undefined ? { checkpointStore: input.persistence.checkpointStore } : {}),
     ...(input.persistence?.memoryAdapter !== undefined ? { memoryAdapter: input.persistence.memoryAdapter } : {}),
-    ...(input.persistence?.telemetryStore !== undefined ? { telemetryStore: input.persistence.telemetryStore } : {})
+    ...(input.persistence?.telemetryStore !== undefined ? { telemetryStore: input.persistence.telemetryStore } : {}),
+    ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+    ...(input.governanceState !== undefined ? { governanceState: input.governanceState } : {}),
+    ...(input.onGovernanceUpdate !== undefined ? { onGovernanceUpdate: input.onGovernanceUpdate } : {})
   };
 
   const executionResult = await executeDesktopPlan(adapterInput);
@@ -297,6 +312,9 @@ async function createHostDispatchExecutionResult(input: {
     record(checkpoint: CheckpointRef): Promise<void>;
   };
   memoryAdapter?: MemoryAdapter;
+  observationBus?: ExecutionObservationBus;
+  governanceState?: GovernanceState;
+  onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
 }): Promise<DesktopLiveExecutionResult> {
   const now = input.now ?? (() => new Date().toISOString());
   const checkpointFrequency = input.runnerResult.preflight.memory.guidance?.checkpointFrequency ?? "minimal";
@@ -327,6 +345,18 @@ async function createHostDispatchExecutionResult(input: {
     }
   });
 
+  const governance = status === "failed"
+    ? await applyHostDispatchFailureToGovernance({
+        runnerResult: input.runnerResult,
+        hostDispatch: input.hostDispatch,
+        blockingReasons,
+        now,
+        ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+        ...(input.governanceState !== undefined ? { governanceState: input.governanceState } : {}),
+        ...(input.onGovernanceUpdate !== undefined ? { onGovernanceUpdate: input.onGovernanceUpdate } : {})
+      })
+    : undefined;
+
   await maybePersistExecutionCheckpoint({
     taskId: input.runnerResult.task.taskId,
     stage: status === "completed" ? "host-dispatch-completed" : "host-dispatch-failed",
@@ -346,9 +376,74 @@ async function createHostDispatchExecutionResult(input: {
     taskId: input.runnerResult.task.taskId,
     plan: input.runnerResult.executionPlan,
     steps: [],
-    blockingReasons,
-    auditEvents
+    blockingReasons: governance
+      ? createGovernanceBlockingReasons(governance)
+      : blockingReasons,
+    auditEvents,
+    ...(governance !== undefined ? { governance } : {})
   };
+}
+
+async function applyHostDispatchFailureToGovernance(input: {
+  runnerResult: DesktopDecisionRunnerResult;
+  hostDispatch: HostDispatcherResult;
+  blockingReasons: string[];
+  now: () => string;
+  observationBus?: ExecutionObservationBus;
+  governanceState?: GovernanceState;
+  onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
+}): Promise<DesktopLiveExecutionGovernance | undefined> {
+  const primitiveId = `host_dispatch:${input.hostDispatch.hostRoute}`;
+  const errorClass = createHostDispatchErrorClass(
+    input.hostDispatch,
+    input.blockingReasons
+  );
+
+  await emitPrimitiveObservation({
+    ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+    taskId: input.runnerResult.task.taskId,
+    primitiveId,
+    stage: "host_dispatch",
+    status: "failed" as const,
+    error: errorClass,
+    createdAt: input.now()
+  });
+
+  if (input.governanceState === undefined) {
+    return undefined;
+  }
+
+  const failureResult = applyExecutionFailureToGovernanceState({
+    state: input.governanceState,
+    task: input.runnerResult.task,
+    primitiveId,
+    errorClass,
+    stepIndex: 0,
+    now: input.now
+  });
+
+  if (input.onGovernanceUpdate !== undefined) {
+    await input.onGovernanceUpdate(
+      failureResult.state,
+      failureResult.strategyDecision
+    );
+  }
+
+  return createRecoveryGovernanceIfRequired({
+    state: failureResult.state,
+    strategyDecision: failureResult.strategyDecision,
+    arbitrationPacket: failureResult.arbitrationPacket
+  });
+}
+
+function createHostDispatchErrorClass(
+  hostDispatch: HostDispatcherResult,
+  blockingReasons: string[]
+): string {
+  const firstReason = blockingReasons.find((reason) => reason.length > 0);
+  return firstReason
+    ? `host_dispatch_failed:${firstReason}`
+    : `host_dispatch_failed:${hostDispatch.hostRoute}`;
 }
 
 function collectHostDispatchBlockingReasons(
