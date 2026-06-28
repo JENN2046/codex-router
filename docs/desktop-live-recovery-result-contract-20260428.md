@@ -36,6 +36,12 @@ When `executionResult.governance` is present, hosts can display:
 - `governance.strategyDecision.reasons`
 - `governance.state.anomalies`
 
+Runtime live adapter recovery packets use
+`execution-observation:<observationId>` refs when an observation bus
+successfully records the failure observation. Absence of `rawEvidenceRefs`
+means no observation bus was provided or no failure observation was
+successfully emitted.
+
 `governance.lockdown === true` means the adapter has stopped execution and
 requires arbitration before continuing. The result also preserves the existing
 blocking reasons:

@@ -112,6 +112,55 @@ test("reducer appends execution_failure anomaly with strike 1 on clean state", (
   assert.equal(result.anomaly.message, "agent_capacity_exceeded");
 });
 
+test("reducer preserves supplied evidence refs on anomaly and arbitration packet", () => {
+  const state = createLowRiskState("reducer-task");
+  const task = createTask();
+  const evidenceRefs = [
+    "execution-observation:reducer-task:spawn_agent:1:failed:2026-04-28T12:00:00.000Z"
+  ];
+
+  const result = applyExecutionFailureToGovernanceState({
+    state,
+    task,
+    primitiveId: "spawn_agent:1",
+    errorClass: "agent_capacity_exceeded",
+    evidenceRefs,
+    stepIndex: 1,
+    now: frozenNow
+  });
+
+  assert.deepEqual(result.anomaly.evidenceRefs, evidenceRefs);
+  assert.deepEqual(result.state.anomalies.at(-1)?.evidenceRefs, evidenceRefs);
+  assert.deepEqual(result.arbitrationPacket.rawEvidenceRefs, evidenceRefs);
+});
+
+test("reducer normalizes evidence refs by trimming, de-duping, and dropping empty values", () => {
+  const state = createLowRiskState("reducer-task");
+  const task = createTask();
+  const refOne = "execution-observation:one";
+  const refTwo = "execution-observation:two";
+
+  const result = applyExecutionFailureToGovernanceState({
+    state,
+    task,
+    primitiveId: "spawn_agent:1",
+    errorClass: "agent_capacity_exceeded",
+    evidenceRefs: [
+      "",
+      "   ",
+      ` ${refOne} `,
+      refOne,
+      refTwo,
+      ` ${refTwo} `
+    ],
+    stepIndex: 1,
+    now: frozenNow
+  });
+
+  assert.deepEqual(result.anomaly.evidenceRefs, [refOne, refTwo]);
+  assert.deepEqual(result.arbitrationPacket.rawEvidenceRefs, [refOne, refTwo]);
+});
+
 // ── Strike escalation ───────────────────────────────────────────────────────
 
 test("reducer increments strikeNumber when same-kind anomalies exist", () => {
