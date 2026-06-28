@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `fix/state-sync-reduce-volatile-handoff-prose` |
-| Current head | `3e11329` |
-| Validated source commit | `3e11329` |
+| Current branch | `main` |
+| Current head | `31941dd` |
+| Validated source commit | `31941dd` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 3 / behind 0` |
-| Latest validated commit | `3e11329` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `31941dd` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,11 +36,11 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pending_push`
-- validated source commit: `3e11329`
-- latest validated commit: `3e11329`
+- transition kind: `state_only_pushed`
+- validated source commit: `31941dd`
+- latest validated commit: `31941dd`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `e305a2b5b2a06659f61e8073b12ad0797d2c14c0f9444eb91d4aacd26577358e`
 
@@ -93,7 +93,7 @@ GitHub authorization gate, not evidence that CI failed to trigger.
 
 ## Validation Baseline
 
-Validation recorded for source commit `3e11329`:
+Validation recorded for source commit `31941dd`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests.
@@ -117,11 +117,11 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- structured claim: `fix/state-sync-reduce-volatile-handoff-prose` / `state_only_pending_push` against
+- structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `3e11329`
-- latest validated commit: `3e11329`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `31941dd`
+- latest validated commit: `31941dd`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -183,16 +183,15 @@ This state-only record line is limited to:
 
 The structured claim records:
 
-- branch: `fix/state-sync-reduce-volatile-handoff-prose`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `b176436`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 
-For this `state_only_pending_push` record on branch `fix/state-sync-reduce-volatile-handoff-prose`,
-Git observation should compute the validated source divergence as
-`ahead 3 / behind 0` against `refs/remotes/origin/main` before the state-only
-record is pushed.
+For this `state_only_pushed` state-only record, Git observation should
+compute the validated source divergence as `ahead 0 / behind 1` against
+`refs/remotes/origin/main` after the state-only record is on upstream.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then

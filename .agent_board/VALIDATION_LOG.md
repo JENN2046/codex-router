@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `fix/state-sync-reduce-volatile-handoff-prose`
+- `main`
 
 Validated source commit:
 
-- `3e11329`
+- `31941dd`
 
 Latest validated commit:
 
-- `3e11329`
+- `31941dd`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 1 / behind 0`
 
 Recorded validation:
 
@@ -41,11 +41,11 @@ Recorded validation:
 
 State-sync audit observation:
 
-- structured claim: `fix/state-sync-reduce-volatile-handoff-prose` / `state_only_pending_push` against
+- structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `3e11329`
-- latest validated commit: `3e11329`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `31941dd`
+- latest validated commit: `31941dd`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -63,10 +63,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `fix/state-sync-reduce-volatile-handoff-prose`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `3e11329`
-- latest validated commit: `3e11329`
-- recorded divergence baseline: `ahead 3 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `31941dd`
+- latest validated commit: `31941dd`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
