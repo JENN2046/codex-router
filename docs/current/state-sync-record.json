@@ -6,15 +6,15 @@
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "363e587",
-    "latestValidatedCommit": "363e587",
+    "validatedSourceCommit": "c7f39cb",
+    "latestValidatedCommit": "c7f39cb",
     "recordedDivergence": {
-      "ahead": 2,
+      "ahead": 4,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "e8aa449dd7c913f4a0c4bf5d4c9442516e02d1992d9b5ceed11f021a986c6456",
+      "value": "dc26bd6071efb7b5f34e02b87f9325f38387817ef5684367f9f092e0de85d14f",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -41,7 +41,7 @@
   "validation": {
     "requiredCommands": [
       "git diff --check",
-      "node --import tsx --test tests/desktop-live-adapter-governance.test.ts tests/desktop-live-adapter.test.ts tests/host-dispatcher.test.ts tests/governance-failure-reducer.test.ts",
+      "node --import tsx --test tests/codex-cli-host.test.ts tests/desktop-live-adapter-governance.test.ts tests/desktop-live-adapter.test.ts tests/host-dispatcher.test.ts tests/governance-failure-reducer.test.ts",
       "node --import tsx --test tests/state-sync-display-sync.test.ts tests/state-sync-audit.test.ts",
       "npm test",
       "npm run typecheck",

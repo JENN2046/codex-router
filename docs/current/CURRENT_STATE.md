@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/runtime-governance-host-dispatch-failure` |
-| Current head | `363e587` |
-| Validated source commit | `363e587` |
+| Current head | `c7f39cb` |
+| Validated source commit | `c7f39cb` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 2 / behind 0` |
-| Latest validated commit | `363e587` |
+| Upstream divergence | `ahead 4 / behind 0` |
+| Latest validated commit | `c7f39cb` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `363e587`
-- latest validated commit: `363e587`
+- validated source commit: `c7f39cb`
+- latest validated commit: `c7f39cb`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 2 / behind 0`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `e8aa449dd7c913f4a0c4bf5d4c9442516e02d1992d9b5ceed11f021a986c6456`
+  `dc26bd6071efb7b5f34e02b87f9325f38387817ef5684367f9f092e0de85d14f`
 
 Strict state record paths:
 
@@ -73,7 +73,9 @@ This state record commit records the source commits that:
   decision;
 - return recovery governance only when the shared reducer routes the failure to
   recovery;
-- preserve successful host-dispatch behavior without governance updates; and
+- preserve successful host-dispatch behavior without governance updates;
+- normalize opaque Codex CLI spawn and host-dispatch errors to
+  `unknown_execution_error` before they become governance error classes; and
 - harden display sync so `## State Sync Expectations` replacements match the
   standalone Markdown heading, not prose that merely mentions the heading text.
 
@@ -83,12 +85,12 @@ harnesses only.
 
 ## Validation Baseline
 
-Validation recorded for source commit `363e587`:
+Validation recorded for source commit `c7f39cb`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/desktop-live-adapter-governance.test.ts
-  tests/desktop-live-adapter.test.ts tests/host-dispatcher.test.ts
-  tests/governance-failure-reducer.test.ts`: PASS.
+- `node --import tsx --test tests/codex-cli-host.test.ts
+  tests/desktop-live-adapter-governance.test.ts tests/desktop-live-adapter.test.ts
+  tests/host-dispatcher.test.ts tests/governance-failure-reducer.test.ts`: PASS.
 - `node --import tsx --test tests/state-sync-display-sync.test.ts
   tests/state-sync-audit.test.ts`: PASS.
 - `npm test`: PASS.
@@ -108,9 +110,9 @@ Current structured state-sync audit status:
 
 - structured claim: `fix/runtime-governance-host-dispatch-failure` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `363e587`
-- latest validated commit: `363e587`
-- recorded divergence baseline: `ahead 2 / behind 0`
+- validated source commit: `c7f39cb`
+- latest validated commit: `c7f39cb`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -174,13 +176,13 @@ The structured claim records:
 
 - branch: `fix/runtime-governance-host-dispatch-failure`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `363e587`
-- recorded divergence baseline: `ahead 2 / behind 0`
+- validated source commit: `c7f39cb`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - transition: `state_only_pending_push`
 
 For this `state_only_pending_push` record on branch `fix/runtime-governance-host-dispatch-failure`,
 Git observation should compute the validated source divergence as
-`ahead 2 / behind 0` against `refs/remotes/origin/main` before the state-only
+`ahead 4 / behind 0` against `refs/remotes/origin/main` before the state-only
 record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
