@@ -55,6 +55,14 @@ export async function prepareStateSyncReanchor(
   if (branch === "") {
     throw new Error("Cannot prepare state-sync reanchor from detached checkout");
   }
+  if (branch !== "main") {
+    throw new Error(
+      `State-sync reanchor preparation only runs on main; current branch is ${branch}`
+    );
+  }
+  if (options.write === true) {
+    await requireCleanWorktree(cwd);
+  }
 
   const sourceRef =
     options.source ?? await inferSourceRef(parsedClaim.claim, cwd);
@@ -127,8 +135,18 @@ async function inferSourceRef(
   cwd: string
 ): Promise<string> {
   const existingSource = claim.source.validatedSourceCommit;
-  await requireCommit(existingSource, cwd);
-  await requireAncestorOfHead(existingSource, cwd);
+  const existingSourceAvailable = await commitExists(existingSource, cwd);
+  if (!existingSourceAvailable) {
+    return "HEAD";
+  }
+
+  const existingSourceIsAncestor = await commitIsAncestorOfHead(
+    existingSource,
+    cwd
+  );
+  if (!existingSourceIsAncestor) {
+    return "HEAD";
+  }
 
   const pathsSinceExistingSource = await changedPathsSince(existingSource, cwd);
   const onlyStatePathsSinceExistingSource =
@@ -196,18 +214,42 @@ function normalizeOriginRef(ref: string): string {
 }
 
 async function requireCommit(ref: string, cwd: string): Promise<void> {
-  try {
-    await git(["cat-file", "-e", `${ref}^{commit}`], cwd);
-  } catch {
+  if (!await commitExists(ref, cwd)) {
     throw new Error(`Commit does not exist: ${ref}`);
   }
 }
 
 async function requireAncestorOfHead(ref: string, cwd: string): Promise<void> {
+  if (!await commitIsAncestorOfHead(ref, cwd)) {
+    throw new Error(`Source is not an ancestor of HEAD: ${ref}`);
+  }
+}
+
+async function requireCleanWorktree(cwd: string): Promise<void> {
+  const status = (await git(["status", "--short"], cwd)).trim();
+  if (status !== "") {
+    throw new Error("Cannot write state-sync reanchor with a dirty worktree");
+  }
+}
+
+async function commitExists(ref: string, cwd: string): Promise<boolean> {
+  try {
+    await git(["cat-file", "-e", `${ref}^{commit}`], cwd);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function commitIsAncestorOfHead(
+  ref: string,
+  cwd: string
+): Promise<boolean> {
   try {
     await git(["merge-base", "--is-ancestor", ref, "HEAD"], cwd);
+    return true;
   } catch {
-    throw new Error(`Source is not an ancestor of HEAD: ${ref}`);
+    return false;
   }
 }
 

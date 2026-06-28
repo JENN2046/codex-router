@@ -85,6 +85,39 @@ test("state-sync reanchor helper refuses to infer source from a state-only desce
   assert.equal(result.stateCommitsAfterSourceBeforeWrite, 1);
 });
 
+test("state-sync reanchor helper infers HEAD after a squash merge", async () => {
+  const repo = await createSquashMergeFixture();
+
+  const result = await prepareStateSyncReanchor(repo.cwd);
+
+  assert.equal(result.validatedSourceCommit, repo.squashCommit);
+  assert.deepEqual(result.recordedDivergence, { ahead: 1, behind: 0 });
+  assert.equal(result.stateCommitsAfterSourceBeforeWrite, 0);
+});
+
+test("state-sync reanchor helper refuses non-main branches", async () => {
+  const repo = await createReanchorFixture();
+  await git(repo.cwd, ["switch", "-c", "feature/reanchor"]);
+
+  await assert.rejects(
+    () => prepareStateSyncReanchor(repo.cwd),
+    /only runs on main/
+  );
+});
+
+test("state-sync reanchor helper refuses write mode with a dirty worktree", async () => {
+  const repo = await createReanchorFixture();
+  await writeSource(repo.cwd, "dirty source edit\n");
+
+  await assert.rejects(
+    () => prepareStateSyncReanchor(repo.cwd, {
+      write: true,
+      source: repo.sourceCommit
+    }),
+    /dirty worktree/
+  );
+});
+
 async function createReanchorFixture(): Promise<{
   cwd: string;
   sourceCommit: string;
@@ -116,6 +149,51 @@ async function createReanchorFixture(): Promise<{
   return { cwd, sourceCommit };
 }
 
+async function createSquashMergeFixture(): Promise<{
+  cwd: string;
+  squashCommit: string;
+}> {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-reanchor-squash-"));
+  await git(cwd, ["init", "-b", "main"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+
+  await writeSource(cwd, "initial source\n");
+  await git(cwd, ["add", "packages/example.txt"]);
+  await git(cwd, ["commit", "-m", "feat: initial source"]);
+
+  await git(cwd, ["switch", "-c", "feature/reanchor"]);
+  await writeSource(cwd, "feature source\n");
+  await git(cwd, ["add", "packages/example.txt"]);
+  await git(cwd, ["commit", "-m", "feat: feature source"]);
+  const featureSource = await shortHead(cwd);
+  const featureDigest = await gitFilteredTreeDigest(
+    "HEAD",
+    strictStateRecordPaths(),
+    cwd
+  );
+  assert.ok(featureDigest);
+
+  await writeStateSurfaces(cwd, {
+    branch: "feature/reanchor",
+    sourceCommit: featureSource,
+    sourceDigest: featureDigest,
+    recordedAhead: 1,
+    transitionKind: "state_only_pending_push"
+  });
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "docs(state): record feature state"]);
+
+  await git(cwd, ["switch", "main"]);
+  await git(cwd, ["merge", "--squash", "feature/reanchor"]);
+  await git(cwd, ["commit", "-m", "squash feature"]);
+
+  return {
+    cwd,
+    squashCommit: await shortHead(cwd)
+  };
+}
+
 async function writeSource(cwd: string, value: string): Promise<void> {
   await mkdir(join(cwd, "packages"), { recursive: true });
   await writeFile(join(cwd, "packages", "example.txt"), value, "utf8");
@@ -124,11 +202,15 @@ async function writeSource(cwd: string, value: string): Promise<void> {
 async function writeStateSurfaces(
   cwd: string,
   input: {
+    branch?: string;
     sourceCommit: string;
     sourceDigest: string;
     recordedAhead: number;
+    transitionKind?: "state_only_pending_push" | "state_only_pushed";
   }
 ): Promise<void> {
+  const branch = input.branch ?? "main";
+  const transitionKind = input.transitionKind ?? "state_only_pushed";
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
   await mkdir(join(cwd, ".agent_board"), { recursive: true });
   await writeFile(
@@ -137,7 +219,7 @@ async function writeStateSurfaces(
       schemaVersion: 1,
       policyVersion: "state-sync-policy.v1",
       subject: {
-        branch: "main",
+        branch,
         upstream: "refs/remotes/origin/main"
       },
       source: {
@@ -154,7 +236,7 @@ async function writeStateSurfaces(
         }
       },
       transition: {
-        kind: "state_only_pushed",
+        kind: transitionKind,
         allowedStatePaths: strictStateRecordPaths()
       },
       validation: {
@@ -173,7 +255,7 @@ async function writeStateSurfaces(
   );
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
-    currentState(input),
+    currentState({ ...input, branch, transitionKind }),
     "utf8"
   );
   for (const filePath of [
@@ -183,14 +265,20 @@ async function writeStateSurfaces(
     ".agent_board/TASK_QUEUE.md",
     ".agent_board/VALIDATION_LOG.md"
   ]) {
-    await writeFile(join(cwd, filePath), agentBoard(input), "utf8");
+    await writeFile(
+      join(cwd, filePath),
+      agentBoard({ ...input, branch, transitionKind }),
+      "utf8"
+    );
   }
 }
 
 function currentState(input: {
+  branch: string;
   sourceCommit: string;
   sourceDigest: string;
   recordedAhead: number;
+  transitionKind: "state_only_pending_push" | "state_only_pushed";
 }): string {
   return [
     "# Current State",
@@ -202,7 +290,7 @@ function currentState(input: {
     "| Field | Value |",
     "| --- | --- |",
     "| Workspace | `codex-router/repo` |",
-    "| Current branch | `main` |",
+    `| Current branch | \`${input.branch}\` |`,
     `| Current head | \`${input.sourceCommit}\` |`,
     `| Validated source commit | \`${input.sourceCommit}\` |`,
     "| Upstream | `refs/remotes/origin/main` |",
@@ -218,7 +306,7 @@ function currentState(input: {
     "",
     "- schema version: `1`",
     "- policy version: `state-sync-policy.v1`",
-    "- transition kind: `state_only_pushed`",
+    `- transition kind: \`${input.transitionKind}\``,
     `- validated source commit: \`${input.sourceCommit}\``,
     `- latest validated commit: \`${input.sourceCommit}\``,
     "- upstream baseline: `refs/remotes/origin/main`",
@@ -238,11 +326,11 @@ function currentState(input: {
     "",
     "## State Sync Expectations",
     "",
-    "- branch: `main`",
+    `- branch: \`${input.branch}\``,
     "- upstream: `refs/remotes/origin/main`",
     `- validated source commit: \`${input.sourceCommit}\``,
     `- recorded divergence baseline: \`ahead ${input.recordedAhead} / behind 0\``,
-    "- transition: `state_only_pushed`",
+    `- transition: \`${input.transitionKind}\``,
     "",
     "Git observation should compute the validated source divergence as "
       + `\`ahead 0 / behind ${input.recordedAhead}\` against `
@@ -252,15 +340,17 @@ function currentState(input: {
 }
 
 function agentBoard(input: {
+  branch: string;
   sourceCommit: string;
   recordedAhead: number;
+  transitionKind: "state_only_pending_push" | "state_only_pushed";
 }): string {
   return [
     "# Agent Board",
     "",
     "Branch:",
     "",
-    "- `main`",
+    `- \`${input.branch}\``,
     "",
     "Validated source commit:",
     "",
@@ -273,12 +363,12 @@ function agentBoard(input: {
     "<!-- state-sync-display:start -->",
     "Generated from `docs/current/state-sync-record.json`.",
     "",
-    "- branch: `main`",
+    `- branch: \`${input.branch}\``,
     "- upstream: `refs/remotes/origin/main`",
     `- validated source commit: \`${input.sourceCommit}\``,
     `- latest validated commit: \`${input.sourceCommit}\``,
     `- recorded divergence baseline: \`ahead ${input.recordedAhead} / behind 0\``,
-    "- transition: `state_only_pushed`",
+    `- transition: \`${input.transitionKind}\``,
     "<!-- state-sync-display:end -->",
     ""
   ].join("\n");

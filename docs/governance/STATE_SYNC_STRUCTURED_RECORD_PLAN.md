@@ -694,10 +694,13 @@ node --import tsx scripts/prepare-state-sync-reanchor.ts --write --source <sha>
 ```
 
 The helper prepares the structured record and generated display surfaces for a
-post-merge `state_only_pushed` state record. It does not commit or push. By
-default it infers a new source only when `HEAD` contains non-state changes since
-the previous recorded source; if `HEAD` already appears to be a state-only
-descendant, the helper fails closed unless an explicit `--source` is supplied.
+post-merge `main` / `state_only_pushed` state record. It does not commit or
+push, and write mode requires a clean worktree before it updates local files. By
+default it infers a new source when `HEAD` contains non-state changes since the
+previous recorded source, or when the previous branch source is unavailable or
+not an ancestor after a squash merge. If `HEAD` already appears to be a
+state-only descendant, the helper fails closed unless an explicit `--source` is
+supplied.
 
 ### Phase 4: CI Coverage Adjustment
 
