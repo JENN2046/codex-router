@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `b3feec5`
+- `bbd22ca`
 
 Latest validated commit:
 
-- `b3feec5`
+- `bbd22ca`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 7 / behind 0`
+- `ahead 9 / behind 0`
 
 Recorded validation:
 
@@ -98,8 +98,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b3feec5`
-- latest validated commit: `b3feec5`
-- recorded divergence baseline: `ahead 7 / behind 0`
+- validated source commit: `bbd22ca`
+- latest validated commit: `bbd22ca`
+- recorded divergence baseline: `ahead 9 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
