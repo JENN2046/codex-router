@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `main` |
-| Current head | `ef2a675` |
-| Validated source commit | `ef2a675` |
+| Current branch | `docs/state-sync-state-docs-cleanup` |
+| Current head | `b553b3f` |
+| Validated source commit | `b553b3f` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `ef2a675` |
+| Upstream divergence | `ahead 0 / behind 0` |
+| Latest validated commit | `b553b3f` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,11 +36,11 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pushed`
-- validated source commit: `ef2a675`
-- latest validated commit: `ef2a675`
+- transition kind: `state_only_pending_push`
+- validated source commit: `b553b3f`
+- latest validated commit: `b553b3f`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 0 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `cd6b06450bc61f90001e27572b3472242d7b148027c3b296972e401e1cbc8480`
 
@@ -64,21 +64,25 @@ Strict state record paths:
 
 ## Current Scope
 
-This branch contains the strict state record path convergence follow-up on top
-of the Phase 4 state-sync CI coverage adjustment:
+This branch contains a narrow state/docs cleanup after PR #51 and the
+post-squash `main` reanchor:
 
-- `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
-- `packages/state-sync-audit/src/index.ts`
-- `tests/state-sync-audit.test.ts`
+- `docs/current/CURRENT_STATE.md`
 - `docs/current/state-sync-record.json`
+- `.agent_board/CHECKPOINT.md`
+- `.agent_board/HANDOFF.md`
+- `.agent_board/RUN_STATE.md`
+- `.agent_board/TASK_QUEUE.md`
+- `.agent_board/VALIDATION_LOG.md`
 
-The strict path convergence removes the earlier broad `.agent_board/*`
-allowance. State-only transitions now use only the fixed strict state record
-path set; any other `.agent_board` file is treated as a non-state path.
+The branch does not change state-sync policy, source code, tests, workflow,
+dependencies, provider behavior, or runtime configuration. It updates stale
+operator-facing text so Markdown and `.agent_board/*` accurately reflect the
+current structured-record governance state.
 
 ## Validation Baseline
 
-Validation recorded for source commit `ef2a675`:
+Validation recorded for source commit `b553b3f`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests.
@@ -150,8 +154,8 @@ Boundary facts for this state alignment:
   config file is changed by this state record.
 - No real provider execution has occurred.
 - No real Codex CLI execution has occurred.
-- The source commit intentionally changes state-sync audit strict path policy,
-  regression tests, and the structured record plan.
+- This branch intentionally changes only state/docs display and handoff
+  surfaces.
 - No release, deploy, provider execution, or environment/configuration change is
   part of this record.
 
@@ -171,14 +175,14 @@ Current state-only record changes are limited to:
 
 The structured claim records:
 
-- branch: `main`
+- branch: `docs/state-sync-state-docs-cleanup`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `ef2a675`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `b553b3f`
+- recorded divergence baseline: `ahead 0 / behind 0`
+- transition: `state_only_pending_push`
 
 After this state record is pushed, Git observation should compute the validated
-source divergence as `ahead 0 / behind 1` against
+source divergence as `ahead 0 / behind 0` against
 `refs/remotes/origin/main`.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
@@ -199,6 +203,7 @@ Current state line:
   implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.
-- Strict state record path convergence: implemented and locally validated.
-- Next: push the focused branch, open a PR, and let CI/review validate the
-  checkout and upstream contexts.
+- Strict state record path convergence: implemented, merged through PR #51, and
+  reanchored on `main`.
+- Next: review and merge this state/docs cleanup PR, then start the separate
+  governance semantic PR for evidence drift and unknown claim field handling.

@@ -2,7 +2,8 @@
 
 Current task:
 
-- Publish strict state record path convergence for PR validation.
+- Publish a narrow state/docs cleanup PR that removes stale Todo, Next, and
+  handoff wording after PR #51 and the post-squash `main` reanchor.
 
 Done:
 
@@ -18,7 +19,7 @@ Done:
   selection, collector upstream ref observation, transition formulas, and claim
   allowed paths
 - added current structured state-sync claim at `docs/current/state-sync-record.json`
-- reanchored state/docs surfaces to the latest validated source
+- reanchored state/docs surfaces after prior squash merges
 - bounded structured claim upstream ref fallback to `origin/*` or
   `refs/remotes/origin/*` remote-tracking refs
 - made structured claim upstream the audit baseline even when local
@@ -33,13 +34,16 @@ Done:
 - gated main-push audit on a committed `main` / `state_only_pushed` record
 - updated workflow structure regression coverage
 - recorded the Phase 4 main reanchor expectation after squash merge
-- prepared the state/docs reanchor for the latest validated source
+- completed the post-PR #50 state/docs reanchor on `main`
 - squash-merged PR #50 into `main`
 - pushed the post-PR #50 `main` state/docs reanchor
 - verified branch-head state-sync audit and main-push CI for the previous main
   reanchor
 - implemented strict state record path convergence
 - added regression tests for unlisted `.agent_board` paths
+- squash-merged PR #51 into `main`
+- pushed the post-PR #51 `main` state/docs reanchor
+- verified post-push `main` state-sync audit and main-push CI for `b553b3f`
 
 Validation completed:
 
@@ -50,12 +54,14 @@ Validation completed:
 
 Todo:
 
-- push the focused branch and open a PR
+- review and merge this state/docs cleanup PR
+- then open a separate governance semantic PR for evidence drift blocking and
+  unknown structured claim field handling
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
 
-- direct pushes to `main` beyond explicitly authorized state/docs cleanup
+- direct pushes to `main`
 - dependency changes
 - additional workflow edits beyond Phase 4 state-sync CI coverage
 - release or deploy
@@ -67,10 +73,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `docs/state-sync-state-docs-cleanup`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `ef2a675`
-- latest validated commit: `ef2a675`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `b553b3f`
+- latest validated commit: `b553b3f`
+- recorded divergence baseline: `ahead 0 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

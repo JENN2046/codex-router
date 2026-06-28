@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "docs/state-sync-state-docs-cleanup",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "ef2a675",
-    "latestValidatedCommit": "ef2a675",
+    "validatedSourceCommit": "b553b3f",
+    "latestValidatedCommit": "b553b3f",
     "recordedDivergence": {
-      "ahead": 1,
+      "ahead": 0,
       "behind": 0
     },
     "sourceTreeDigest": {
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",

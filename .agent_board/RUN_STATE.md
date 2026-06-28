@@ -1,7 +1,7 @@
 # Run State
 
-Status: Strict state record path convergence is implemented locally and ready
-for PR publication.
+Status: State/docs cleanup is prepared after PR #51 and the post-squash `main`
+reanchor.
 
 Machine-authoritative claim:
 
@@ -18,19 +18,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `main`
+- `docs/state-sync-state-docs-cleanup`
 
 Current head:
 
-- `ef2a675`
+- `b553b3f`
 
 Validated source commit:
 
-- `ef2a675`
+- `b553b3f`
 
 Latest validated commit:
 
-- `ef2a675`
+- `b553b3f`
 
 Upstream baseline:
 
@@ -38,11 +38,11 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 0 / behind 0`
 
 Transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Validation recorded for this source commit:
 
@@ -64,8 +64,7 @@ State-sync audit expectation:
 
 Boundary:
 
-- source changes intentionally update state-sync strict path policy, regression
-  tests, and the structured record plan
+- this branch intentionally changes only state/docs display and handoff surfaces
 - no package, dependency, provider, env, secret, user config, or system config
   change is part of this state record
 - no manual CI rerun
@@ -75,10 +74,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `docs/state-sync-state-docs-cleanup`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `ef2a675`
-- latest validated commit: `ef2a675`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `b553b3f`
+- latest validated commit: `b553b3f`
+- recorded divergence baseline: `ahead 0 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
