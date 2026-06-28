@@ -183,6 +183,10 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
       contents: string;
       "pull-requests": string;
     };
+    concurrency: {
+      group: string;
+      "cancel-in-progress": boolean;
+    };
     jobs: {
       "reanchor-pr": {
         steps: WorkflowStep[];
@@ -203,6 +207,8 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
   assert.deepEqual(workflow.on.push.branches, ["main"]);
   assert.equal(workflow.permissions.contents, "write");
   assert.equal(workflow.permissions["pull-requests"], "write");
+  assert.equal(workflow.concurrency.group, "state-sync-reanchor-main");
+  assert.equal(workflow.concurrency["cancel-in-progress"], true);
   assert.equal(checkout?.with?.ref, "main");
   assert.equal(checkout?.with?.["fetch-depth"], 0);
   assert.equal(gate?.run, "node --import tsx scripts/resolve-state-sync-reanchor-pr-gate.ts");
@@ -211,6 +217,14 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
   assert.ok(commit?.run?.includes("git switch -c state-sync/reanchor-main"));
   assert.ok(commit?.run?.includes("scripts/verify-state-sync-reanchor-diff.ts --cached"));
   assert.ok(commit?.run?.includes("scripts/run-state-sync-audit.ts --json"));
+  assert.ok(push?.run?.includes(
+    "git fetch origin +refs/heads/main:refs/remotes/origin/main"
+  ));
+  assert.ok(push?.run?.includes(
+    "observed_main_sha=\"$(git rev-parse --verify refs/remotes/origin/main)\""
+  ));
+  assert.ok(push?.run?.includes('if [ "$observed_main_sha" != "${GITHUB_SHA}" ]; then'));
+  assert.ok(push?.run?.includes("skipping stale reanchor push"));
   assert.ok(push?.run?.includes(
     "git fetch origin +refs/heads/state-sync/reanchor-main:refs/remotes/origin/state-sync/reanchor-main || true"
   ));
