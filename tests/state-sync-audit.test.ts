@@ -260,6 +260,7 @@ test("state sync audit accepts structured state_only_pushed transitions", async 
     validatedSourceAheadBehind: "0\t1",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    currentStateText: withCurrentStateDivergence(input.currentStateText, 1, 0),
     stateSyncClaimText: stateSyncClaimTextFromInput(input, {
       transitionKind: "state_only_pushed",
       recordedAhead: 1,
@@ -895,6 +896,7 @@ test("state sync audit accepts pushed state-only divergence snapshots", async ()
     validatedSourceAheadBehind: "0\t1",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
+    currentStateText: withCurrentStateDivergence(input.currentStateText, 1, 0),
     stateSyncClaimText: stateSyncClaimTextFromInput(input, {
       transitionKind: "state_only_pushed",
       recordedAhead: 1,
@@ -965,10 +967,8 @@ test("state sync audit ignores missing Markdown state record mode for pushed str
       recordedAhead: 1,
       recordedBehind: 0
     }),
-    currentStateText: input.currentStateText.replace(
-      /\| State record mode \| `[^`]+` \|\n/,
-      ""
-    )
+    currentStateText: withCurrentStateDivergence(input.currentStateText, 1, 0)
+      .replace(/\| State record mode \| `[^`]+` \|\n/, "")
   });
 
   assert.equal(review.status, "passed");
@@ -991,10 +991,11 @@ test("state sync audit ignores stale Markdown state record mode for pushed struc
       recordedAhead: 1,
       recordedBehind: 0
     }),
-    currentStateText: input.currentStateText.replace(
-      /\| State record mode \| `[^`]+` \|/,
-      "| State record mode | `source-only` |"
-    )
+    currentStateText: withCurrentStateDivergence(input.currentStateText, 1, 0)
+      .replace(
+        /\| State record mode \| `[^`]+` \|/,
+        "| State record mode | `source-only` |"
+      )
   });
 
   assert.equal(review.status, "passed");
@@ -2190,6 +2191,17 @@ function extractStateDivergence(text: string): string | undefined {
   }
 
   return `${match[1]}\t${match[2]}`;
+}
+
+function withCurrentStateDivergence(
+  text: string,
+  ahead: number,
+  behind: number
+): string {
+  return text.replace(
+    /\| Upstream divergence \| `[^`]*` \|/,
+    `| Upstream divergence | \`ahead ${ahead} / behind ${behind}\` |`
+  );
 }
 
 function parseTestAheadBehind(
