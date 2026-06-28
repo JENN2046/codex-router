@@ -1,6 +1,6 @@
 # Run State
 
-Status: Conservative post-merge state-sync reanchor PR automation is recorded
+Status: Main state-sync record is current and pushed.
 for branch validation.
 
 Machine-authoritative claim:
@@ -18,19 +18,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `automate/state-sync-reanchor-pr`
+- `main`
 
 Current head:
 
-- `86de435`
+- `2ac2980`
 
 Validated source commit:
 
-- `86de435`
+- `2ac2980`
 
 Latest validated commit:
 
-- `86de435`
+- `2ac2980`
 
 Upstream baseline:
 
@@ -38,11 +38,11 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 13 / behind 0`
+- `ahead 1 / behind 0`
 
 Transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Validation recorded for this source commit:
 
@@ -63,7 +63,7 @@ State-sync audit expectation:
 
 - branch-head audit is expected to PASS with `claimSource: structured` and
   Git-computed divergence against verified `refs/remotes/origin/main`
-- `state_only_pending_push` is expected for this implementation branch state
+- a `main` / `state_only_pushed` claim is expected for this reanchor state
   record
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
@@ -97,10 +97,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `automate/state-sync-reanchor-pr`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `86de435`
-- latest validated commit: `86de435`
-- recorded divergence baseline: `ahead 13 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `2ac2980`
+- latest validated commit: `2ac2980`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

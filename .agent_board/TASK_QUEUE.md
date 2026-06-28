@@ -2,9 +2,8 @@
 
 Current task:
 
-- Record conservative post-merge state-sync reanchor PR automation on
-  `automate/state-sync-reanchor-pr`.
-
+- Keep state-sync structured record automation current; no post-merge
+  reanchor is pending.
 Done:
 
 - committed `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
@@ -94,12 +93,8 @@ Validation completed:
 
 Todo:
 
-- open a focused PR for this automation branch after local validation
-- verify PR CI and reviewer feedback
-- keep Markdown and `.agent_board/*` as evidence/display, not authority
 - use focused PRs for the next governance semantic changes unless separately
   authorized
-
 Blocked until separately authorized:
 
 - direct pushes to `main` for source, workflow, dependency, runtime, provider,
@@ -115,10 +110,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `automate/state-sync-reanchor-pr`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `86de435`
-- latest validated commit: `86de435`
-- recorded divergence baseline: `ahead 13 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `2ac2980`
+- latest validated commit: `2ac2980`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
