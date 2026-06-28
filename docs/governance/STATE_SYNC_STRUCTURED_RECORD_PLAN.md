@@ -817,13 +817,17 @@ claim behavior causes unexpected blockage, revert the feature branch before
 merge. If already merged, revert the source/test commit first, then re-anchor
 state/docs through the existing state-only process.
 
+## Resolved Decisions
+
+- Push-to-main State Sync Audit is implemented. Pull requests and pushes to
+  `main` both run the audit, with main-push audit gated on a committed
+  `main` / `state_only_pushed` structured record.
+- Strict state record path convergence is implemented. Broad `.agent_board/*`
+  state-path allowance has been removed from state-sync path checks.
+
 ## Open Questions
 
 - Should Markdown evidence drift block immediately, or report first during the
   compatibility window?
-- Should push-to-main state-sync CI be introduced before or after Markdown
-  downgrade?
 - Should unknown extra claim fields be reported as evidence drift, warning
   issues, or ignored until schema hardening?
-- Should strict state record paths eventually replace broad `.agent_board/*`
-  allowances everywhere?
