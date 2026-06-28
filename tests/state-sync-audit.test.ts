@@ -2725,7 +2725,7 @@ function replaceCurrentStateValidatedSourceDivergenceExpectation(
 ): string {
   return replaceCurrentStateExpectationSection(
     text,
-    /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute)[\s\S]*?source divergence as\s*`[^`\r\n]+`\s*against\s*`[^`\r\n]*`[\s\S]*?\./,
+    /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute|Git observation should compute)[\s\S]*?source divergence as\s*`[^`\r\n]+`\s*against\s*`[^`\r\n]*`[\s\S]*?\./,
     value
   );
 }
