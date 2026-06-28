@@ -181,6 +181,67 @@ test("state sync audit blocks stale current state structured record mirrors", as
   )));
 });
 
+test("state sync audit blocks stale current state expectation mirrors", async () => {
+  const input = await createInputFromWorkspace();
+  let currentStateText = input.currentStateText;
+  currentStateText = replaceCurrentStateValidationSourceCommit(
+    currentStateText,
+    "1111111"
+  );
+  currentStateText = replaceCurrentStateExpectation(
+    currentStateText,
+    "branch",
+    "stale-branch"
+  );
+  currentStateText = replaceCurrentStateExpectation(
+    currentStateText,
+    "upstream",
+    "refs/remotes/origin/stale"
+  );
+  currentStateText = replaceCurrentStateExpectation(
+    currentStateText,
+    "validated source commit",
+    "2222222"
+  );
+  currentStateText = replaceCurrentStateExpectation(
+    currentStateText,
+    "recorded divergence baseline",
+    "ahead 999 / behind 999"
+  );
+  currentStateText = replaceCurrentStateExpectation(
+    currentStateText,
+    "transition",
+    "state_only_pushed"
+  );
+  currentStateText = replaceCurrentStatePostPushDivergence(
+    currentStateText,
+    "ahead 999 / behind 999"
+  );
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  for (const field of [
+    "Validation recorded for source commit",
+    "State Sync Expectations branch",
+    "State Sync Expectations upstream",
+    "State Sync Expectations validated source commit",
+    "State Sync Expectations recorded divergence baseline",
+    "State Sync Expectations transition",
+    "State Sync Expectations post-push divergence"
+  ]) {
+    assert.ok(review.issues.some((issue) => (
+      issue.code === "state_document_evidence_drift"
+      && issue.path === "docs/current/CURRENT_STATE.md"
+      && issue.field === field
+    )), `missing evidence drift issue for ${field}`);
+  }
+});
+
 test("state sync audit blocks stale agent board generated mirror fields", async () => {
   const input = await createInputFromWorkspace();
   const aggregateInput = withoutAgentBoardFiles(input);
@@ -2416,10 +2477,9 @@ function withCurrentStateMirrors(
   overrides: StateSyncClaimTextOverrides = {}
 ): string {
   const divergence = parseTestAheadBehind(input.validatedSourceAheadBehind);
-  const recordedDivergence = formatTestDivergence(
-    overrides.recordedAhead ?? divergence.ahead,
-    overrides.recordedBehind ?? divergence.behind
-  );
+  const recordedAhead = overrides.recordedAhead ?? divergence.ahead;
+  const recordedBehind = overrides.recordedBehind ?? divergence.behind;
+  const recordedDivergence = formatTestDivergence(recordedAhead, recordedBehind);
   const branch = overrides.branch ?? input.branch;
   const upstream = normalizeTestUpstream(overrides.upstream ?? input.upstream);
   const validatedSourceCommit = overrides.validatedSourceCommit ?? input.head;
@@ -2486,6 +2546,27 @@ function withCurrentStateMirrors(
   );
   updated = replaceCurrentStateSourceTreeDigest(updated, sourceTreeDigest);
   updated = replaceCurrentStateStrictStatePaths(updated, allowedStatePaths);
+  updated = replaceCurrentStateValidationSourceCommit(
+    updated,
+    validatedSourceCommit
+  );
+  updated = replaceCurrentStateExpectation(updated, "branch", branch);
+  updated = replaceCurrentStateExpectation(updated, "upstream", upstream);
+  updated = replaceCurrentStateExpectation(
+    updated,
+    "validated source commit",
+    validatedSourceCommit
+  );
+  updated = replaceCurrentStateExpectation(
+    updated,
+    "recorded divergence baseline",
+    recordedDivergence
+  );
+  updated = replaceCurrentStateExpectation(updated, "transition", transition);
+  updated = replaceCurrentStatePostPushDivergence(
+    updated,
+    postPushTestDivergence(transition, recordedAhead, recordedBehind)
+  );
 
   return updated;
 }
@@ -2530,6 +2611,65 @@ function replaceCurrentStateStrictStatePaths(
     /(Strict state record paths:\r?\n\r?\n)(?:- `[^`\r\n]*`\r?\n)+/,
     `$1${paths.map((path) => `- \`${path}\``).join("\n")}\n`
   );
+}
+
+function replaceCurrentStateValidationSourceCommit(
+  text: string,
+  value: string
+): string {
+  return text.replace(
+    /(Validation recorded for source commit `)[^`\r\n]*(\`:)/,
+    `$1${value}$2`
+  );
+}
+
+function replaceCurrentStateExpectation(
+  text: string,
+  field: string,
+  value: string
+): string {
+  return replaceCurrentStateExpectationSection(
+    text,
+    new RegExp(`(- ${escapeTestRegExp(field)}: \`)[^\\\`\\r\\n]*(\`)`),
+    `$1${value}$2`
+  );
+}
+
+function replaceCurrentStatePostPushDivergence(
+  text: string,
+  value: string
+): string {
+  return replaceCurrentStateExpectationSection(
+    text,
+    /(source divergence as `)[^`\r\n]*(\`)/,
+    `$1${value}$2`
+  );
+}
+
+function replaceCurrentStateExpectationSection(
+  text: string,
+  pattern: RegExp,
+  replacement: string
+): string {
+  const sectionStart = text.indexOf("## State Sync Expectations");
+  if (sectionStart < 0) {
+    return text;
+  }
+
+  return text.slice(0, sectionStart)
+    + text.slice(sectionStart).replace(pattern, replacement);
+}
+
+function postPushTestDivergence(
+  transition: string,
+  ahead: number,
+  behind: number
+): string {
+  if (transition !== "state_only_pushed") {
+    return formatTestDivergence(ahead, behind);
+  }
+
+  return formatTestDivergence(behind, ahead);
 }
 
 function stateRecordModeForTestTransition(transition: string): string {
@@ -2985,6 +3125,7 @@ function minimalCurrentState(
   const sourceTreeDigest = options.sourceTreeDigest ?? TEST_SOURCE_TREE_DIGEST;
   const strictStatePaths = options.strictStatePaths ?? strictStateRecordPaths();
   const transitionKind = options.transitionKind ?? "source_exact";
+  const divergence = parseTestDivergenceText(upstreamDivergence);
 
   return [
     "# Current State",
@@ -3027,10 +3168,28 @@ function minimalCurrentState(
     "",
     "Validation baseline:",
     "",
+    `Validation recorded for source commit \`${validatedSourceCommit}\`:`,
+    "",
     "- `npx tsx --test tests\\codex-cli-host.test.ts`",
     "- `npm run typecheck`",
     "- `npm test`",
     "- `npm run build`",
+    "",
+    "## State Sync Expectations",
+    "",
+    "The structured claim records:",
+    "",
+    `- branch: \`${branch}\``,
+    `- upstream: \`${upstream}\``,
+    `- validated source commit: \`${validatedSourceCommit}\``,
+    `- recorded divergence baseline: \`${upstreamDivergence}\``,
+    `- transition: \`${transitionKind}\``,
+    "",
+    "When this PR branch state record is committed and pushed, Git observation should",
+    `compute the validated source divergence as \`${
+      postPushTestDivergence(transitionKind, divergence.ahead, divergence.behind)
+    }\` against`,
+    `\`${upstream}\`.`,
     "",
     "Execution boundary:",
     "",
@@ -3043,4 +3202,16 @@ function minimalCurrentState(
     "- `external_service_write`",
     ""
   ].join("\n");
+}
+
+function parseTestDivergenceText(value: string): { ahead: number; behind: number } {
+  const match = /^ahead (-?\d+) \/ behind (-?\d+)$/.exec(value);
+  if (match === null) {
+    return { ahead: 0, behind: 0 };
+  }
+
+  return {
+    ahead: Number.parseInt(match[1] ?? "0", 10),
+    behind: Number.parseInt(match[2] ?? "0", 10)
+  };
 }

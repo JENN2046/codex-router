@@ -944,6 +944,61 @@ function collectCurrentStateEvidenceDrift(
     });
   }
 
+  const validationSourceCommit =
+    currentStateValidationSourceCommit(currentStateText);
+  if (validationSourceCommit !== claim.source.validatedSourceCommit) {
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarker(
+        currentStateText,
+        "Validation recorded for source commit"
+      ),
+      field: "Validation recorded for source commit",
+      risk: "evidence_drift"
+    });
+  }
+
+  const expectationsSection = sectionBetween(
+    currentStateText,
+    "## State Sync Expectations",
+    "Current state line:"
+  );
+  for (const { field, expected } of currentStateExpectationFields(claim)) {
+    const actual = bulletValue(expectationsSection, field);
+    if (actual === expected) {
+      continue;
+    }
+
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarkerAfter(
+        currentStateText,
+        "## State Sync Expectations",
+        `- ${field}:`
+      ),
+      field: `State Sync Expectations ${field}`,
+      risk: "evidence_drift"
+    });
+  }
+
+  const postPushDivergence =
+    currentStatePostPushDivergenceExpectation(expectationsSection);
+  if (postPushDivergence !== postPushValidatedSourceDivergence(claim)) {
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarkerAfter(
+        currentStateText,
+        "## State Sync Expectations",
+        "source divergence as `"
+      ),
+      field: "State Sync Expectations post-push divergence",
+      risk: "evidence_drift"
+    });
+  }
+
   return issues;
 }
 
@@ -1040,6 +1095,37 @@ function currentStateStructuredRecordFields(
     {
       field: "recorded divergence baseline",
       expected: formatUpstreamDivergence(claim.source.recordedDivergence)
+    }
+  ];
+}
+
+function currentStateExpectationFields(
+  claim: StateSyncClaim
+): EvidenceFieldExpectation[] {
+  const recordedDivergence = formatUpstreamDivergence(
+    claim.source.recordedDivergence
+  );
+
+  return [
+    {
+      field: "branch",
+      expected: claim.subject.branch
+    },
+    {
+      field: "upstream",
+      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
+    },
+    {
+      field: "validated source commit",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "recorded divergence baseline",
+      expected: recordedDivergence
+    },
+    {
+      field: "transition",
+      expected: claim.transition.kind
     }
   ];
 }
@@ -1241,6 +1327,30 @@ function currentStateStrictStatePaths(text: string): string[] | undefined {
   }
 
   return paths;
+}
+
+function currentStateValidationSourceCommit(text: string): string | undefined {
+  const match = /Validation recorded for source commit `([^`\r\n]*)`:/
+    .exec(text);
+  return match?.[1];
+}
+
+function currentStatePostPushDivergenceExpectation(
+  text: string
+): string | undefined {
+  const match = /source divergence as `([^`\r\n]*)`/.exec(text);
+  return match?.[1];
+}
+
+function postPushValidatedSourceDivergence(claim: StateSyncClaim): string {
+  if (claim.transition.kind !== "state_only_pushed") {
+    return formatUpstreamDivergence(claim.source.recordedDivergence);
+  }
+
+  return formatUpstreamDivergence({
+    ahead: claim.source.recordedDivergence.behind,
+    behind: claim.source.recordedDivergence.ahead
+  });
 }
 
 function stringArraysAreEqual(
@@ -1465,6 +1575,20 @@ function fieldLine(text: string, field: string): number {
 function lineForMarker(text: string, marker: string): number {
   const index = text.indexOf(marker);
   return index >= 0 ? lineAtIndex(text, index) : 1;
+}
+
+function lineForMarkerAfter(
+  text: string,
+  startMarker: string,
+  marker: string
+): number {
+  const startIndex = text.indexOf(startMarker);
+  if (startIndex < 0) {
+    return lineForMarker(text, marker);
+  }
+
+  const index = text.indexOf(marker, startIndex);
+  return index >= 0 ? lineAtIndex(text, index) : lineAtIndex(text, startIndex);
 }
 
 function lineAtIndex(text: string, index: number): number {
