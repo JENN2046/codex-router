@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `fix/state-sync-strict-path-convergence` |
-| Current head | `b51f96a` |
-| Validated source commit | `b51f96a` |
+| Current branch | `main` |
+| Current head | `ef2a675` |
+| Validated source commit | `ef2a675` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 3 / behind 0` |
-| Latest validated commit | `b51f96a` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `ef2a675` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,11 +36,11 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pending_push`
-- validated source commit: `b51f96a`
-- latest validated commit: `b51f96a`
+- transition kind: `state_only_pushed`
+- validated source commit: `ef2a675`
+- latest validated commit: `ef2a675`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `cd6b06450bc61f90001e27572b3472242d7b148027c3b296972e401e1cbc8480`
 
@@ -78,7 +78,7 @@ path set; any other `.agent_board` file is treated as a non-state path.
 
 ## Validation Baseline
 
-Validation recorded for source commit `b51f96a`:
+Validation recorded for source commit `ef2a675`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests.
@@ -171,14 +171,14 @@ Current state-only record changes are limited to:
 
 The structured claim records:
 
-- branch: `fix/state-sync-strict-path-convergence`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b51f96a`
-- recorded divergence baseline: `ahead 3 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `ef2a675`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 
 After this state record is pushed, Git observation should compute the validated
-source divergence as `ahead 3 / behind 0` against
+source divergence as `ahead 0 / behind 1` against
 `refs/remotes/origin/main`.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as

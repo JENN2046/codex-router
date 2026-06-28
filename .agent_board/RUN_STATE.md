@@ -18,19 +18,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `fix/state-sync-strict-path-convergence`
+- `main`
 
 Current head:
 
-- `b51f96a`
+- `ef2a675`
 
 Validated source commit:
 
-- `b51f96a`
+- `ef2a675`
 
 Latest validated commit:
 
-- `b51f96a`
+- `ef2a675`
 
 Upstream baseline:
 
@@ -38,11 +38,11 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 1 / behind 0`
 
 Transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Validation recorded for this source commit:
 
@@ -75,10 +75,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `fix/state-sync-strict-path-convergence`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b51f96a`
-- latest validated commit: `b51f96a`
-- recorded divergence baseline: `ahead 3 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `ef2a675`
+- latest validated commit: `ef2a675`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
