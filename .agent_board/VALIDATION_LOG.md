@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `docs/state-sync-state-docs-cleanup`
 
 Validated source commit:
 
-- `ef2a675`
+- `b553b3f`
 
 Latest validated commit:
 
-- `ef2a675`
+- `b553b3f`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 0 / behind 0`
 
 Recorded validation:
 
@@ -49,8 +49,7 @@ State-sync audit observation:
 
 Execution boundary:
 
-- source changes intentionally update state-sync strict path policy, regression
-  tests, and the structured record plan
+- this branch intentionally changes only state/docs display and handoff surfaces
 - no package, dependency, provider, env, secret, user config, or system config
   change is part of this state record
 - no manual CI rerun
@@ -60,10 +59,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `docs/state-sync-state-docs-cleanup`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `ef2a675`
-- latest validated commit: `ef2a675`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `b553b3f`
+- latest validated commit: `b553b3f`
+- recorded divergence baseline: `ahead 0 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
