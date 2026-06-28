@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `chore/state-sync-reanchor-helper`
+- `main`
 
 Current validated source:
 
-- `9418bd3`
+- `c9c3e3f`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Upstream baseline:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 5 / behind 0`
+- `ahead 1 / behind 0`
 
 Completed:
 
@@ -92,7 +92,7 @@ State-sync status:
 - branch-head audit is expected to PASS by resolving
   `refs/remotes/origin/main` as the structured claim upstream ref and computing
   divergence from Git
-- `state_only_pending_push` is expected for this PR branch state record
+- `state_only_pushed` is expected for this post-PR #54 `main` reanchor
 
 Not authorized:
 
@@ -109,10 +109,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `chore/state-sync-reanchor-helper`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9418bd3`
-- latest validated commit: `9418bd3`
-- recorded divergence baseline: `ahead 5 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `c9c3e3f`
+- latest validated commit: `c9c3e3f`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

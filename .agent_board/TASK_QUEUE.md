@@ -2,8 +2,8 @@
 
 Current task:
 
-- Address the P1 squash fallback digest review on the state-sync reanchor
-  helper PR.
+- Record the post-PR #54 `main` state/docs reanchor after the state-sync
+  reanchor helper squash merge.
 
 Done:
 
@@ -77,9 +77,8 @@ Validation completed:
 
 Todo:
 
-- push the focused PR branch with the P1 review fix
-- let CI validate the helper review fix
-- after squash merge, perform the normal `main` / `state_only_pushed` reanchor
+- push the post-PR #54 `main` state/docs reanchor
+- verify post-push state-sync audit and main-push CI
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 - use focused PRs for the next governance semantic changes unless separately
   authorized
@@ -99,10 +98,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `chore/state-sync-reanchor-helper`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9418bd3`
-- latest validated commit: `9418bd3`
-- recorded divergence baseline: `ahead 5 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `c9c3e3f`
+- latest validated commit: `c9c3e3f`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `chore/state-sync-reanchor-helper`
+- `main`
 
 Validated source commit:
 
-- `9418bd3`
+- `c9c3e3f`
 
 Latest validated commit:
 
-- `9418bd3`
+- `c9c3e3f`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 5 / behind 0`
+- `ahead 1 / behind 0`
 
 Recorded validation:
 
@@ -38,8 +38,8 @@ Recorded validation:
 State-sync audit observation:
 
 - branch-head `node --import tsx scripts/run-state-sync-audit.ts --json` is
-  expected to PASS for this PR branch pending-push state record
-- `state_only_pending_push` is expected for this PR branch state record
+  expected to PASS after this post-PR #54 `main` state record is pushed
+- `state_only_pushed` is expected for this post-PR #54 `main` reanchor
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
 - expected upstream ref boundary: only `origin/*` or
@@ -79,10 +79,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `chore/state-sync-reanchor-helper`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9418bd3`
-- latest validated commit: `9418bd3`
-- recorded divergence baseline: `ahead 5 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `c9c3e3f`
+- latest validated commit: `c9c3e3f`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

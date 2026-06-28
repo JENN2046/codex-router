@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `chore/state-sync-reanchor-helper` |
-| Current head | `9418bd3` |
-| Validated source commit | `9418bd3` |
+| Current branch | `main` |
+| Current head | `c9c3e3f` |
+| Validated source commit | `c9c3e3f` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 5 / behind 0` |
-| Latest validated commit | `9418bd3` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `c9c3e3f` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,11 +36,11 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pending_push`
-- validated source commit: `9418bd3`
-- latest validated commit: `9418bd3`
+- transition kind: `state_only_pushed`
+- validated source commit: `c9c3e3f`
+- latest validated commit: `c9c3e3f`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `5a4c4dbc871415d46c19c211dec1c3ebe27cfe16227175fc8fd3a19b64daecfd`
 
@@ -64,8 +64,8 @@ Strict state record paths:
 
 ## Current Scope
 
-This state record commit records the PR branch anchor for the state-sync
-reanchor helper P1 digest hardening:
+This state record commit records the post-PR #54 `main` state/docs reanchor for
+the state-sync reanchor helper:
 
 - verifying squash fallback `HEAD` against the recorded filtered source tree
   digest before reanchoring to it;
@@ -78,13 +78,14 @@ reanchor helper P1 digest hardening:
 The helper prepares structured `state_only_pushed` records and generated display
 surfaces, but it does not commit or push. It defaults to dry-run mode and fails
 closed when a squash fallback digest drifts or when `HEAD` appears to be only a
-state-only descendant unless an explicit `--source` is supplied. This source
-chain does not change workflows, dependencies, provider behavior, runtime
-configuration, env, secrets, user config, or system config.
+state-only descendant unless an explicit `--source` is supplied. This reanchor
+commit changes only state/docs surfaces and does not change workflows,
+dependencies, provider behavior, runtime configuration, env, secrets, user
+config, or system config.
 
 ## Validation Baseline
 
-Validation recorded for source commit `9418bd3`:
+Validation recorded for source commit `c9c3e3f`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests.
@@ -104,9 +105,9 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- This PR branch state record uses `state_only_pending_push` against
+- This `main` state record uses `state_only_pushed` against
   `refs/remotes/origin/main`.
-- Branch-head audit is expected to PASS for this pending-push state-only record
+- Branch-head audit is expected to PASS after this state-only record is pushed
   with:
   `node --import tsx scripts/run-state-sync-audit.ts --json`.
 - The collector verifies the structured claim upstream ref
@@ -194,16 +195,15 @@ This state-only record line is limited to:
 
 The structured claim records:
 
-- branch: `chore/state-sync-reanchor-helper`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9418bd3`
-- recorded divergence baseline: `ahead 5 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `c9c3e3f`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 
-For this PR branch pending-push record, Git observation should compute the
-validated source divergence as `ahead 5 / behind 0` against
-`refs/remotes/origin/main`. After squash merge, `main` should receive the normal
-`main` / `state_only_pushed` reanchor.
+For this pushed `main` state-only record, Git observation should compute the
+validated source divergence as `ahead 0 / behind 1` against
+`refs/remotes/origin/main` after the reanchor commit is on upstream.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then
@@ -236,6 +236,6 @@ Current state line:
   reanchored on `main`.
 - State/docs cleanup: merged through PR #52 and reanchored on `main`.
 - Post-PR #53 `main` reanchor and state/docs cleanup: recorded.
-- State-sync reanchor preparation helper: implemented and tested on this branch.
-- P1 squash fallback digest hardening: implemented and tested on this branch.
-- Next: push the focused PR branch and let CI validate the review fix.
+- State-sync reanchor preparation helper: merged through PR #54.
+- P1 squash fallback digest hardening: merged through PR #54.
+- Post-PR #54 `main` reanchor: recorded for direct push validation.

@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `chore/state-sync-reanchor-helper`
+- `main`
 
 Validated source commit:
 
-- `9418bd3`
+- `c9c3e3f`
 
 Latest validated commit:
 
-- `9418bd3`
+- `c9c3e3f`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 5 / behind 0`
+- `ahead 1 / behind 0`
 
 Checkpoint facts:
 
@@ -63,7 +63,7 @@ Checkpoint facts:
   file, so aggregate block count cannot hide a missing or duplicate file block.
 - Supported `.agent_board/*` heading mirrors block as evidence drift.
 - Unknown structured claim fields fail closed in schema v1.
-- The reanchor preparation helper is implemented on this branch, remains
+- The reanchor preparation helper is merged through PR #54, remains
   non-committing and non-pushing, and verifies squash fallback `HEAD` against
   the recorded filtered source tree digest before reanchoring to it.
 - Markdown and `.agent_board/*` are evidence/display surfaces, not governance
@@ -87,15 +87,15 @@ State-sync observation:
 - branch-head state-sync audit is expected to PASS using
   `refs/remotes/origin/main` as a verified Git ref selected by the structured
   claim
-- `state_only_pending_push` is expected for this PR branch state record
+- `state_only_pushed` is expected for this post-PR #54 `main` reanchor
 
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `chore/state-sync-reanchor-helper`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9418bd3`
-- latest validated commit: `9418bd3`
-- recorded divergence baseline: `ahead 5 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `c9c3e3f`
+- latest validated commit: `c9c3e3f`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

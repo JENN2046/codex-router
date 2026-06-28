@@ -1,6 +1,6 @@
 # Run State
 
-Status: State-sync reanchor helper P1 digest hardening state/docs anchor is recorded.
+Status: Post-PR #54 main state/docs reanchor is prepared for direct push.
 
 Machine-authoritative claim:
 
@@ -17,19 +17,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `chore/state-sync-reanchor-helper`
+- `main`
 
 Current head:
 
-- `9418bd3`
+- `c9c3e3f`
 
 Validated source commit:
 
-- `9418bd3`
+- `c9c3e3f`
 
 Latest validated commit:
 
-- `9418bd3`
+- `c9c3e3f`
 
 Upstream baseline:
 
@@ -37,11 +37,11 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 5 / behind 0`
+- `ahead 1 / behind 0`
 
 Transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Validation recorded for this source commit:
 
@@ -58,7 +58,7 @@ State-sync audit expectation:
 
 - branch-head audit is expected to PASS with `claimSource: structured` and
   Git-computed divergence against verified `refs/remotes/origin/main`
-- `state_only_pending_push` is expected for this PR branch state record
+- `state_only_pushed` is expected for this post-PR #54 `main` reanchor
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
@@ -82,10 +82,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `chore/state-sync-reanchor-helper`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9418bd3`
-- latest validated commit: `9418bd3`
-- recorded divergence baseline: `ahead 5 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `c9c3e3f`
+- latest validated commit: `c9c3e3f`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
