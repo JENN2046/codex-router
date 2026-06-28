@@ -87,6 +87,44 @@ test("state sync audit blocks structured claim evidence drift", async () => {
   )));
 });
 
+test("state sync audit blocks empty structured claim mirror fields", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText.replace(
+      /\| Current head \| `[^`]+` \|/,
+      "| Current head | `` |"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.field === "Current head"
+  )));
+});
+
+test("state sync audit blocks missing structured claim mirror fields", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText.replace(
+      /\| Current head \| `[^`]+` \|\n/,
+      ""
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.field === "Current head"
+  )));
+});
+
 test("state sync audit blocks structured claims with stale subject branch", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({

@@ -840,7 +840,7 @@ function collectStateSyncEvidenceDrift(
 
   return expectedFields.flatMap(({ field, expected }) => {
     const actual = fieldValue(currentStateText, field);
-    if (actual === undefined || actual === expected) {
+    if (actual === expected) {
       return [];
     }
 
@@ -1053,7 +1053,7 @@ function fieldValueIsPresent(text: string, field: string): boolean {
 }
 
 function fieldValue(text: string, field: string): string | undefined {
-  const match = new RegExp(`\\| ${escapeRegExp(field)} \\| \`([^\\\`]+)\` \\|`)
+  const match = new RegExp(`\\| ${escapeRegExp(field)} \\| \`([^\\\`]*)\` \\|`)
     .exec(text);
   return match?.[1];
 }
