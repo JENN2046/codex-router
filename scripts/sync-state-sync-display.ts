@@ -107,12 +107,9 @@ function updateDisplayFile(
     return updateCurrentState(text, display);
   }
 
-  return upsertGeneratedDisplayBlock(
-    updateVolatileAgentBoardProse(
-      filePath,
-      updateAgentBoardFields(text, display),
-      display
-    ),
+  return updateVolatileAgentBoardProse(
+    filePath,
+    upsertGeneratedDisplayBlock(updateAgentBoardFields(text, display), display),
     display
   );
 }
@@ -193,6 +190,12 @@ function updateCurrentState(text: string, display: DisplayFields): string {
     updated,
     display.validatedSourceDivergenceExpectation
   );
+  updated = replaceSectionIfPresent(
+    updated,
+    "Current structured state-sync audit status:",
+    "## Execution Boundary",
+    renderCurrentStateAuditStatus(display)
+  );
 
   return updated;
 }
@@ -259,16 +262,18 @@ function updateVolatileAgentBoardProse(
   text: string,
   display: DisplayFields
 ): string {
+  let updated = updateAgentBoardStateSyncStatus(filePath, text, display);
+
   if (
     display.branch !== "main"
     || display.transitionKind !== "state_only_pushed"
   ) {
-    return text;
+    return updated;
   }
 
   if (filePath === ".agent_board/RUN_STATE.md") {
     return replaceLineIfPresent(
-      text,
+      updated,
       /^Status: .*$/m,
       "Status: Main state-sync record is current and pushed."
     );
@@ -277,7 +282,7 @@ function updateVolatileAgentBoardProse(
   if (filePath === ".agent_board/TASK_QUEUE.md") {
     return replaceSectionIfPresent(
       replaceSectionIfPresent(
-        text,
+        updated,
         "Current task:",
         "Done:",
         [
@@ -300,7 +305,90 @@ function updateVolatileAgentBoardProse(
     );
   }
 
+  return updated;
+}
+
+function updateAgentBoardStateSyncStatus(
+  filePath: string,
+  text: string,
+  display: DisplayFields
+): string {
+  if (filePath === ".agent_board/CHECKPOINT.md") {
+    return replaceSectionIfPresent(
+      text,
+      "State-sync observation:",
+      DISPLAY_START,
+      renderAgentBoardAuditStatus("State-sync observation:", display)
+    );
+  }
+
+  if (filePath === ".agent_board/HANDOFF.md") {
+    return replaceSectionIfPresent(
+      text,
+      "State-sync status:",
+      "Not authorized:",
+      renderAgentBoardAuditStatus("State-sync status:", display)
+    );
+  }
+
+  if (filePath === ".agent_board/RUN_STATE.md") {
+    return replaceSectionIfPresent(
+      text,
+      "State-sync audit expectation:",
+      "Boundary:",
+      renderAgentBoardAuditStatus("State-sync audit expectation:", display)
+    );
+  }
+
+  if (filePath === ".agent_board/VALIDATION_LOG.md") {
+    return replaceSectionIfPresent(
+      text,
+      "State-sync audit observation:",
+      "Execution boundary:",
+      renderAgentBoardAuditStatus("State-sync audit observation:", display)
+    );
+  }
+
   return text;
+}
+
+function renderCurrentStateAuditStatus(display: DisplayFields): string {
+  return [
+    "Current structured state-sync audit status:",
+    "",
+    ...renderStateSyncStatusBullets(display),
+    "- Generated display, Markdown mirrors, and `.agent_board/*` mirrors are",
+    "  evidence surfaces derived from `docs/current/state-sync-record.json`.",
+    "- Evidence drift remains blocking through `state_sync_evidenceDriftAbsent`.",
+    ""
+  ].join("\n");
+}
+
+function renderAgentBoardAuditStatus(
+  heading: string,
+  display: DisplayFields
+): string {
+  return [
+    heading,
+    "",
+    ...renderStateSyncStatusBullets(display),
+    ""
+  ].join("\n");
+}
+
+function renderStateSyncStatusBullets(display: DisplayFields): string[] {
+  return [
+    `- structured claim: \`${display.branch}\` / \`${display.transitionKind}\` against`,
+    `  \`${display.upstream}\``,
+    `- validated source commit: \`${display.validatedSourceCommit}\``,
+    `- latest validated commit: \`${display.latestValidatedCommit}\``,
+    `- recorded divergence baseline: \`${display.recordedDivergence}\``,
+    "- branch-head audit command:",
+    "  `node --import tsx scripts/run-state-sync-audit.ts --json`",
+    "- expected audit source: `claimSource: structured`",
+    "- Git ancestry, divergence, source-tree digest, and strict state path",
+    "  checks remain enforced by the state-sync audit."
+  ];
 }
 
 function upsertGeneratedDisplayBlock(

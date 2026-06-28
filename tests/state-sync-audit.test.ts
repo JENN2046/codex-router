@@ -251,13 +251,19 @@ test("state sync audit blocks stale agent board generated mirror fields", async 
   const aggregateInput = withoutAgentBoardFiles(input);
   const review = reviewStateSyncAudit({
     ...aggregateInput,
-    agentBoardText: input.agentBoardText
-      .replace(/- upstream: `[^`]*`/, "- upstream: `refs/remotes/origin/stale`")
-      .replace(
-        /- recorded divergence baseline: `[^`]*`/,
+    agentBoardText: replaceLast(
+      replaceLast(
+        replaceLast(
+          input.agentBoardText,
+          /- upstream: `[^`]*`/g,
+          "- upstream: `refs/remotes/origin/stale`"
+        ),
+        /- recorded divergence baseline: `[^`]*`/g,
         "- recorded divergence baseline: `ahead 999 / behind 999`"
-      )
-      .replace(/- transition: `[^`]*`/, "- transition: `state_only_pushed`")
+      ),
+      /- transition: `[^`]*`/g,
+      "- transition: `state_only_pushed`"
+    )
   });
 
   assert.equal(review.status, "blocked");
@@ -3320,4 +3326,16 @@ function parseTestDivergenceText(value: string): { ahead: number; behind: number
     ahead: Number.parseInt(match[1] ?? "0", 10),
     behind: Number.parseInt(match[2] ?? "0", 10)
   };
+}
+
+function replaceLast(text: string, pattern: RegExp, replacement: string): string {
+  const matches = [...text.matchAll(pattern)];
+  const last = matches.at(-1);
+  if (last?.index === undefined) {
+    return text;
+  }
+
+  return `${text.slice(0, last.index)}${replacement}${text.slice(
+    last.index + last[0].length
+  )}`;
 }
