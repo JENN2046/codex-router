@@ -7,11 +7,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `fix/runtime-governance-evidence-refs`
 
 Current validated source:
 
-- `b3aab35`
+- `745c1ac`
 
 Current structured claim:
 
@@ -19,7 +19,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -114,10 +114,10 @@ Validation completed:
 
 State-sync status:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `fix/runtime-governance-evidence-refs` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `b3aab35`
-- latest validated commit: `b3aab35`
+- validated source commit: `745c1ac`
+- latest validated commit: `745c1ac`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -139,10 +139,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/runtime-governance-evidence-refs`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b3aab35`
-- latest validated commit: `b3aab35`
+- validated source commit: `745c1ac`
+- latest validated commit: `745c1ac`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
