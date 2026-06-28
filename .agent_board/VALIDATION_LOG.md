@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `fix/state-sync-evidence-drift-schema`
 
 Validated source commit:
 
-- `2592e8a`
+- `07a01e7`
 
 Latest validated commit:
 
-- `2592e8a`
+- `07a01e7`
 
 Structured claim:
 
@@ -27,7 +27,7 @@ Upstream divergence baseline:
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 87 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -35,8 +35,9 @@ State-sync audit observation:
 
 - with the state/docs record committed,
   `node --import tsx scripts/run-state-sync-audit.ts --json` should PASS
-- `state_only_pushed` is expected once this state record is present on
-  `origin/main`
+- `state_only_pending_push` is expected on this PR branch
+- after squash merge, `main` should receive the normal `main` /
+  `state_only_pushed` reanchor
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
 - expected upstream ref boundary: only `origin/*` or
@@ -46,6 +47,9 @@ State-sync audit observation:
 - expected squash compatibility: bounded squash-only state records pass without
   the side-branch source commit object only when live `HEAD` has the recorded
   filtered source tree digest
+- expected evidence drift behavior: machine-mirrored Markdown conflicts block
+  through `state_sync_evidenceDriftAbsent`
+- expected schema behavior: unknown structured claim fields fail closed
 
 Execution boundary:
 
@@ -59,10 +63,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `2592e8a`
-- latest validated commit: `2592e8a`
+- validated source commit: `07a01e7`
+- latest validated commit: `07a01e7`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "fix/state-sync-evidence-drift-schema",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "2592e8a",
-    "latestValidatedCommit": "2592e8a",
+    "validatedSourceCommit": "07a01e7",
+    "latestValidatedCommit": "07a01e7",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "cd6b06450bc61f90001e27572b3472242d7b148027c3b296972e401e1cbc8480",
+      "value": "dd5a4b67cb8d089728ba83e1e1968233e6f7b6f0449092429a587a9ade89d4fd",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",

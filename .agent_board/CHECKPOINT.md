@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `main`
+- `fix/state-sync-evidence-drift-schema`
 
 Validated source commit:
 
-- `2592e8a`
+- `07a01e7`
 
 Latest validated commit:
 
-- `2592e8a`
+- `07a01e7`
 
 Upstream baseline:
 
@@ -50,15 +50,18 @@ Checkpoint facts:
   tree digest.
 - A present but invalid structured claim blocks without Markdown fallback.
 - A valid structured claim supplies core source and divergence facts.
-- Markdown and `.agent_board/*` are evidence/display surfaces during the
-  compatibility window.
+- Machine-mirrored Markdown evidence drift now blocks through
+  `state_sync_evidenceDriftAbsent`.
+- Unknown structured claim fields fail closed in schema v1.
+- Markdown and `.agent_board/*` are evidence/display surfaces, not governance
+  authority.
 - `docs/current/state-sync-record.json` is included in strict state-only paths.
 - Broad `.agent_board/*` allowance has been removed from state path checks.
 
 Validation recorded:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 87 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -67,16 +70,16 @@ State-sync observation:
 - with this state/docs record committed and pushed, branch-head state-sync audit
   should PASS using `refs/remotes/origin/main` as a verified Git ref selected by
   the structured claim
-- `state_only_pushed` is expected once this state record is present on
-  `origin/main`
+- `state_only_pending_push` is expected on this PR branch; after squash merge,
+  `main` should receive the normal `main` / `state_only_pushed` reanchor
 
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `2592e8a`
-- latest validated commit: `2592e8a`
+- validated source commit: `07a01e7`
+- latest validated commit: `07a01e7`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

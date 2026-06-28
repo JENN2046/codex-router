@@ -2,7 +2,8 @@
 
 Current task:
 
-- Record the post-PR #52 `main` state/docs reanchor.
+- Prepare the governance semantic PR for evidence drift blocking and unknown
+  structured claim field fail-closed behavior.
 
 Done:
 
@@ -44,20 +45,24 @@ Done:
 - pushed the post-PR #51 `main` state/docs reanchor
 - verified the post-PR #51 `main` state-sync audit and main-push CI
 - squash-merged PR #52 into `main`
-- prepared the post-PR #52 `main` state/docs reanchor
+- pushed the post-PR #52 `main` state/docs reanchor
+- implemented `state_sync_evidenceDriftAbsent` blocking for machine-mirrored
+  Markdown / structured claim conflicts
+- made unknown structured claim fields fail closed in schema v1
+- updated the structured record plan to record those resolved semantics
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 87 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 Todo:
 
-- push this post-PR #52 `main` state/docs reanchor
-- then open a separate governance semantic PR for evidence drift blocking and
-  unknown structured claim field handling
+- commit this branch state/docs reanchor
+- push the branch and open a focused PR
+- after squash merge, perform the normal `main` / `state_only_pushed` reanchor
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
@@ -74,10 +79,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `2592e8a`
-- latest validated commit: `2592e8a`
+- validated source commit: `07a01e7`
+- latest validated commit: `07a01e7`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
