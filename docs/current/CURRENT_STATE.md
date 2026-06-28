@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/state-sync-reduce-volatile-handoff-prose` |
-| Current head | `a63bca6` |
-| Validated source commit | `a63bca6` |
+| Current head | `3e11329` |
+| Validated source commit | `3e11329` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `a63bca6` |
+| Upstream divergence | `ahead 3 / behind 0` |
+| Latest validated commit | `3e11329` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `a63bca6`
-- latest validated commit: `a63bca6`
+- validated source commit: `3e11329`
+- latest validated commit: `3e11329`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `8f99be1c8952a1020a842da60c6d8c1a76b53c1d6170d90cce53f9065af2369b`
+  `e305a2b5b2a06659f61e8073b12ad0797d2c14c0f9444eb91d4aacd26577358e`
 
 Strict state record paths:
 
@@ -93,7 +93,7 @@ GitHub authorization gate, not evidence that CI failed to trigger.
 
 ## Validation Baseline
 
-Validation recorded for source commit `a63bca6`:
+Validation recorded for source commit `3e11329`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests.
@@ -119,9 +119,9 @@ Current structured state-sync audit status:
 
 - structured claim: `fix/state-sync-reduce-volatile-handoff-prose` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `a63bca6`
-- latest validated commit: `a63bca6`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `3e11329`
+- latest validated commit: `3e11329`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -191,7 +191,7 @@ The structured claim records:
 
 For this `state_only_pending_push` record on branch `fix/state-sync-reduce-volatile-handoff-prose`,
 Git observation should compute the validated source divergence as
-`ahead 1 / behind 0` against `refs/remotes/origin/main` before the state-only
+`ahead 3 / behind 0` against `refs/remotes/origin/main` before the state-only
 record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
