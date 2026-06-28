@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "fix/state-sync-reduce-volatile-handoff-prose",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "2ac2980",
-    "latestValidatedCommit": "2ac2980",
+    "validatedSourceCommit": "a63bca6",
+    "latestValidatedCommit": "a63bca6",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "905f56fdf5ac4681f97eed91b8ebb4441a06fc72665dd8e9839ae12dee4ae99b",
+      "value": "8f99be1c8952a1020a842da60c6d8c1a76b53c1d6170d90cce53f9065af2369b",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
