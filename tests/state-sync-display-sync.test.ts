@@ -83,6 +83,9 @@ test("state-sync display sync preserves pending-push divergence baseline", async
     /For this `state_only_pending_push` record on branch `docs\/state-sync-display`,\s+Git observation should compute the validated source divergence as\s+`ahead 2 \/ behind 0` against `refs\/remotes\/origin\/main` before the state-only\s+record is pushed\./
   );
   assert.doesNotMatch(currentState, /pushed `main` state-only record/);
+
+  const clean = await syncStateSyncDisplay(cwd);
+  assert.deepEqual(clean.changedPaths, []);
 });
 
 test("state-sync display sync cleans volatile main pushed prose", async () => {
