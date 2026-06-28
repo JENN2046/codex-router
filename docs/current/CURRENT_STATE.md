@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/state-sync-evidence-drift-schema` |
-| Current head | `1216420` |
-| Validated source commit | `1216420` |
+| Current head | `c612787` |
+| Validated source commit | `c612787` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 6 / behind 0` |
-| Latest validated commit | `1216420` |
+| Upstream divergence | `ahead 8 / behind 0` |
+| Latest validated commit | `c612787` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `1216420`
-- latest validated commit: `1216420`
+- validated source commit: `c612787`
+- latest validated commit: `c612787`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 6 / behind 0`
+- recorded divergence baseline: `ahead 8 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `ed49dbcec7aa938a902de77298975791f52023c81671251e035e4234dc00d58f`
+  `4812b4757ad92a361e299aa8f238c617596338b2d5964c61b855047f8ff764df`
 
 Strict state record paths:
 
@@ -70,6 +70,8 @@ This state record commit records the governance semantic PR for:
   `state_sync_evidenceDriftAbsent`
 - blocking empty or missing machine-mirrored Markdown fields instead of treating
   them as absent evidence
+- blocking stale or missing `.agent_board/*` generated mirror evidence, including
+  upstream, divergence, and transition fields
 - failing closed on unknown structured claim fields in schema v1
 - updating `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md` to record
   those resolved semantics
@@ -82,10 +84,10 @@ env, secrets, user config, or system config.
 
 ## Validation Baseline
 
-Validation recorded for source commit `1216420`:
+Validation recorded for source commit `c612787`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 89 tests.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 92 tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
 
@@ -121,10 +123,12 @@ Current structured state-sync audit status:
   recorded filtered source tree digest.
 - The audit enters `claimSource: structured` and validates the structured claim
   shape.
-- Machine-mirrored Markdown evidence drift is now blocking through
-  `state_sync_evidenceDriftAbsent`.
+- Machine-mirrored Markdown and `.agent_board/*` evidence drift is now blocking
+  through `state_sync_evidenceDriftAbsent`.
 - Empty or missing machine-mirrored Markdown fields now also block as evidence
   drift unless the structured claim itself expects an empty value.
+- Stale or missing `.agent_board/*` generated display blocks and supported
+  heading mirrors now block as evidence drift.
 - Unknown structured claim fields in schema v1 make the claim invalid.
 
 ## Execution Boundary
@@ -182,12 +186,12 @@ The structured claim records:
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `1216420`
-- recorded divergence baseline: `ahead 6 / behind 0`
+- validated source commit: `c612787`
+- recorded divergence baseline: `ahead 8 / behind 0`
 - transition: `state_only_pending_push`
 
 When this PR branch state record is committed and pushed, Git observation should
-compute the validated source divergence as `ahead 6 / behind 0` against
+compute the validated source divergence as `ahead 8 / behind 0` against
 `refs/remotes/origin/main`. This is not a `main` landing record; after squash
 merge, `main` should receive the normal `main` / `state_only_pushed` reanchor.
 
