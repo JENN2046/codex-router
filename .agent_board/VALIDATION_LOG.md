@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `07a01e7`
+- `304b180`
 
 Latest validated commit:
 
-- `07a01e7`
+- `304b180`
 
 Structured claim:
 
@@ -22,12 +22,12 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 4 / behind 0`
 
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 87 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 89 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -49,6 +49,8 @@ State-sync audit observation:
   filtered source tree digest
 - expected evidence drift behavior: machine-mirrored Markdown conflicts block
   through `state_sync_evidenceDriftAbsent`
+- expected mirror-field behavior: empty or missing machine-mirrored Markdown
+  fields block unless the structured claim itself expects an empty value
 - expected schema behavior: unknown structured claim fields fail closed
 
 Execution boundary:
@@ -65,8 +67,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `07a01e7`
-- latest validated commit: `07a01e7`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `304b180`
+- latest validated commit: `304b180`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

@@ -15,11 +15,11 @@ Branch:
 
 Validated source commit:
 
-- `07a01e7`
+- `304b180`
 
 Latest validated commit:
 
-- `07a01e7`
+- `304b180`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 4 / behind 0`
 
 Checkpoint facts:
 
@@ -52,6 +52,8 @@ Checkpoint facts:
 - A valid structured claim supplies core source and divergence facts.
 - Machine-mirrored Markdown evidence drift now blocks through
   `state_sync_evidenceDriftAbsent`.
+- Empty or missing machine-mirrored Markdown fields block as evidence drift
+  unless the structured claim itself expects an empty value.
 - Unknown structured claim fields fail closed in schema v1.
 - Markdown and `.agent_board/*` are evidence/display surfaces, not governance
   authority.
@@ -61,7 +63,7 @@ Checkpoint facts:
 Validation recorded:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 87 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 89 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -78,8 +80,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `07a01e7`
-- latest validated commit: `07a01e7`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `304b180`
+- latest validated commit: `304b180`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

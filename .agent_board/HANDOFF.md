@@ -12,7 +12,7 @@ Current branch:
 
 Current validated source:
 
-- `07a01e7`
+- `304b180`
 
 Current structured claim:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 4 / behind 0`
 
 Completed:
 
@@ -56,6 +56,8 @@ Completed:
 - invalid structured claim does not fall back to Markdown
 - machine-mirrored Markdown evidence drift blocks through
   `state_sync_evidenceDriftAbsent`
+- empty or missing machine-mirrored Markdown fields block as evidence drift
+  unless the structured claim itself expects an empty value
 - unknown structured claim fields fail closed in schema v1
 - transition formulas are enforced for structured claims
 - strict state-only path set includes `docs/current/state-sync-record.json`
@@ -63,7 +65,7 @@ Completed:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 87 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 89 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -92,8 +94,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `07a01e7`
-- latest validated commit: `07a01e7`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `304b180`
+- latest validated commit: `304b180`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/state-sync-evidence-drift-schema` |
-| Current head | `07a01e7` |
-| Validated source commit | `07a01e7` |
+| Current head | `304b180` |
+| Validated source commit | `304b180` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `07a01e7` |
+| Upstream divergence | `ahead 4 / behind 0` |
+| Latest validated commit | `304b180` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `07a01e7`
-- latest validated commit: `07a01e7`
+- validated source commit: `304b180`
+- latest validated commit: `304b180`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `dd5a4b67cb8d089728ba83e1e1968233e6f7b6f0449092429a587a9ade89d4fd`
+  `9ca10629251735cba6b5fde5693e5f30f7da6d11680dbdc880500e0f1ef8a113`
 
 Strict state record paths:
 
@@ -68,22 +68,24 @@ This state record commit records the governance semantic PR for:
 
 - blocking machine-mirrored Markdown evidence drift with
   `state_sync_evidenceDriftAbsent`
+- blocking empty or missing machine-mirrored Markdown fields instead of treating
+  them as absent evidence
 - failing closed on unknown structured claim fields in schema v1
 - updating `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md` to record
   those resolved semantics
 
-The source commit changes only state-sync audit logic, its regression tests, and
-the structured-record plan. The state/docs commit then reanchors the structured
-claim and operator-facing evidence surfaces for this branch. It does not change
-workflows, dependencies, provider behavior, runtime configuration, env, secrets,
-user config, or system config.
+The PR source chain changes only state-sync audit logic, its regression tests,
+and the structured-record plan. The state/docs commit then reanchors the
+structured claim and operator-facing evidence surfaces for this branch. It does
+not change workflows, dependencies, provider behavior, runtime configuration,
+env, secrets, user config, or system config.
 
 ## Validation Baseline
 
-Validation recorded for source commit `07a01e7`:
+Validation recorded for source commit `304b180`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 87 tests.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 89 tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
 
@@ -121,6 +123,8 @@ Current structured state-sync audit status:
   shape.
 - Machine-mirrored Markdown evidence drift is now blocking through
   `state_sync_evidenceDriftAbsent`.
+- Empty or missing machine-mirrored Markdown fields now also block as evidence
+  drift unless the structured claim itself expects an empty value.
 - Unknown structured claim fields in schema v1 make the claim invalid.
 
 ## Execution Boundary
@@ -178,12 +182,12 @@ The structured claim records:
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `07a01e7`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `304b180`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - transition: `state_only_pending_push`
 
 When this PR branch state record is committed and pushed, Git observation should
-compute the validated source divergence as `ahead 1 / behind 0` against
+compute the validated source divergence as `ahead 4 / behind 0` against
 `refs/remotes/origin/main`. This is not a `main` landing record; after squash
 merge, `main` should receive the normal `main` / `state_only_pushed` reanchor.
 
@@ -205,6 +209,7 @@ Current state line:
   implemented and tested.
 - Evidence drift blocking for machine-mirrored Markdown fields: implemented and
   tested.
+- Empty and missing machine-mirrored field blocking: implemented and tested.
 - Unknown structured claim field fail-closed behavior: implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.

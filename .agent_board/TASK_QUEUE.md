@@ -48,20 +48,22 @@ Done:
 - pushed the post-PR #52 `main` state/docs reanchor
 - implemented `state_sync_evidenceDriftAbsent` blocking for machine-mirrored
   Markdown / structured claim conflicts
+- blocked empty or missing machine-mirrored Markdown fields as evidence drift
+  unless the structured claim itself expects an empty value
 - made unknown structured claim fields fail closed in schema v1
 - updated the structured record plan to record those resolved semantics
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 87 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 89 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 Todo:
 
 - commit this branch state/docs reanchor
-- push the branch and open a focused PR
+- push the branch and update PR #53
 - after squash merge, perform the normal `main` / `state_only_pushed` reanchor
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
@@ -81,8 +83,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `07a01e7`
-- latest validated commit: `07a01e7`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `304b180`
+- latest validated commit: `304b180`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

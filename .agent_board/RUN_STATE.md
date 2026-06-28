@@ -21,15 +21,15 @@ Branch:
 
 Current head:
 
-- `07a01e7`
+- `304b180`
 
 Validated source commit:
 
-- `07a01e7`
+- `304b180`
 
 Latest validated commit:
 
-- `07a01e7`
+- `304b180`
 
 Upstream baseline:
 
@@ -37,7 +37,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 4 / behind 0`
 
 Transition:
 
@@ -46,7 +46,7 @@ Transition:
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 87 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 89 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -61,8 +61,9 @@ State-sync audit expectation:
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
-- evidence drift blocking and unknown structured claim field fail-closed
-  behavior are implemented and covered by regression tests
+- evidence drift blocking, empty/missing mirror-field blocking, and unknown
+  structured claim field fail-closed behavior are implemented and covered by
+  regression tests
 
 Boundary:
 
@@ -78,8 +79,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `07a01e7`
-- latest validated commit: `07a01e7`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `304b180`
+- latest validated commit: `304b180`
+- recorded divergence baseline: `ahead 4 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
