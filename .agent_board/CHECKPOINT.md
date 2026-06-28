@@ -15,11 +15,11 @@ Branch:
 
 Validated source commit:
 
-- `bbd22ca`
+- `da7c118`
 
 Latest validated commit:
 
-- `bbd22ca`
+- `da7c118`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 9 / behind 0`
+- `ahead 11 / behind 0`
 
 Checkpoint facts:
 
@@ -109,8 +109,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `bbd22ca`
-- latest validated commit: `bbd22ca`
-- recorded divergence baseline: `ahead 9 / behind 0`
+- validated source commit: `da7c118`
+- latest validated commit: `da7c118`
+- recorded divergence baseline: `ahead 11 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
