@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `fix/state-sync-evidence-drift-schema`
 
 Current validated source:
 
-- `2592e8a`
+- `90dd43d`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 12 / behind 0`
 
 Completed:
 
@@ -54,26 +54,37 @@ Completed:
   commit object only when live `HEAD` has the recorded filtered source tree
   digest
 - invalid structured claim does not fall back to Markdown
-- evidence drift issues are emitted for Markdown / claim conflicts
+- machine-mirrored Markdown and `.agent_board/*` evidence drift blocks through
+  `state_sync_evidenceDriftAbsent`
+- empty or missing machine-mirrored Markdown fields block as evidence drift
+  unless the structured claim itself expects an empty value
+- stale `## Structured Record` mirror fields in `CURRENT_STATE.md`, including
+  source tree digest and strict state paths, block as evidence drift
+- stale `Validation recorded for source commit` and
+  `## State Sync Expectations` fields in `CURRENT_STATE.md` block as evidence
+  drift
+- stale or missing `.agent_board/*` generated mirror blocks are checked per
+  file, so aggregate block count cannot hide a missing or duplicate file block
+- supported `.agent_board/*` heading mirrors block as evidence drift
+- unknown structured claim fields fail closed in schema v1
 - transition formulas are enforced for structured claims
 - strict state-only path set includes `docs/current/state-sync-record.json`
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 State-sync expectation:
 
-- with this post-PR #52 `main` reanchor committed and pushed, branch-head audit
+- with this branch state/docs record committed and pushed, branch-head audit
   should PASS by resolving `refs/remotes/origin/main` as the structured claim
   upstream ref and computing divergence from Git
-- `state_only_pushed` is expected once this state record is present on
-  `origin/main`
-- the next implementation PR should address governance semantics for evidence
-  drift blocking and unknown structured claim field handling
+- `state_only_pending_push` is expected on this PR branch
+- after squash merge, `main` should receive the normal `main` /
+  `state_only_pushed` reanchor
 
 Not authorized:
 
@@ -89,10 +100,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `2592e8a`
-- latest validated commit: `2592e8a`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `90dd43d`
+- latest validated commit: `90dd43d`
+- recorded divergence baseline: `ahead 12 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

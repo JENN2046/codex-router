@@ -22,6 +22,20 @@ const TEST_SOURCE_TREE_DIGEST =
 type StateSyncAuditInputOverrides =
   Omit<Partial<StateSyncAuditInput>, "stateSyncClaimText">
   & { stateSyncClaimText?: string | undefined };
+type StateSyncClaimTextOverrides = {
+  schemaVersion?: number;
+  policyVersion?: string;
+  branch?: string;
+  upstream?: string;
+  validatedSourceCommit?: string;
+  latestValidatedCommit?: string;
+  recordedAhead?: number;
+  recordedBehind?: number;
+  sourceTreeDigest?: string;
+  sourceTreeDigestExcludedPaths?: string[];
+  transitionKind?: string;
+  allowedStatePaths?: string[];
+};
 
 test("state sync audit passes when clean HEAD matches a structured source claim", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace());
@@ -39,6 +53,7 @@ test("state sync audit passes when clean HEAD matches a structured source claim"
   assert.equal(review.checks.agentBoardAligned, true);
   assert.equal(review.checks.staleMarkersAbsent, true);
   assert.equal(review.checks.structuredClaimValid, true);
+  assert.equal(review.checks.evidenceDriftAbsent, true);
   assert.equal(review.summary.requiredValidationCommandCount, 4);
   assert.equal(review.summary.requiredBoundaryMarkerCount, 7);
   assert.equal(review.summary.stateWritesDuringAudit, 0);
@@ -56,7 +71,7 @@ test("state sync audit blocks when the structured claim is missing", async () =>
   assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
-test("state sync audit uses a valid structured claim for core facts", async () => {
+test("state sync audit blocks structured claim evidence drift", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -70,8 +85,8 @@ test("state sync audit uses a valid structured claim for core facts", async () =
       .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit | `3333333` |")
   });
 
-  assert.equal(review.status, "passed");
-  assert.deepEqual(review.reasons, []);
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
   assert.equal(review.summary.claimSource, "structured");
   assert.equal(review.checks.currentBranchMatches, true);
   assert.equal(review.checks.validatedSourceHeadRecorded, true);
@@ -79,9 +94,300 @@ test("state sync audit uses a valid structured claim for core facts", async () =
   assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
   assert.equal(review.checks.structuredTransitionAllowed, true);
+  assert.equal(review.checks.evidenceDriftAbsent, false);
   assert.ok(review.issues.some((issue) => (
     issue.code === "state_document_evidence_drift"
     && issue.field === "Validated source commit"
+  )));
+});
+
+test("state sync audit blocks empty structured claim mirror fields", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText.replace(
+      /\| Current head \| `[^`]+` \|/,
+      "| Current head | `` |"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.field === "Current head"
+  )));
+});
+
+test("state sync audit blocks missing structured claim mirror fields", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText.replace(
+      /\| Current head \| `[^`]+` \|\n/,
+      ""
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.field === "Current head"
+  )));
+});
+
+test("state sync audit blocks stale current state structured record mirrors", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText
+      .replace(
+        /- transition kind: `[^`]+`/,
+        "- transition kind: `state_only_pushed`"
+      )
+      .replace(
+        /- source tree digest: `git-ls-tree-sha256`\r?\n  `[^`]+`/,
+        [
+          "- source tree digest: `git-ls-tree-sha256`",
+          "  `1111111111111111111111111111111111111111111111111111111111111111`"
+        ].join("\n")
+      )
+      .replace(
+        "- `.agent_board/VALIDATION_LOG.md`",
+        "- `.agent_board/STALE.md`"
+      )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === "docs/current/CURRENT_STATE.md"
+    && issue.field === "transition kind"
+  )));
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === "docs/current/CURRENT_STATE.md"
+    && issue.field === "source tree digest"
+  )));
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === "docs/current/CURRENT_STATE.md"
+    && issue.field === "Strict state record paths"
+  )));
+});
+
+test("state sync audit blocks stale current state expectation mirrors", async () => {
+  const input = await createInputFromWorkspace();
+  let currentStateText = input.currentStateText;
+  currentStateText = replaceCurrentStateValidationSourceCommit(
+    currentStateText,
+    "1111111"
+  );
+  currentStateText = replaceCurrentStateExpectation(
+    currentStateText,
+    "branch",
+    "stale-branch"
+  );
+  currentStateText = replaceCurrentStateExpectation(
+    currentStateText,
+    "upstream",
+    "refs/remotes/origin/stale"
+  );
+  currentStateText = replaceCurrentStateExpectation(
+    currentStateText,
+    "validated source commit",
+    "2222222"
+  );
+  currentStateText = replaceCurrentStateExpectation(
+    currentStateText,
+    "recorded divergence baseline",
+    "ahead 999 / behind 999"
+  );
+  currentStateText = replaceCurrentStateExpectation(
+    currentStateText,
+    "transition",
+    "state_only_pushed"
+  );
+  currentStateText = replaceCurrentStatePostPushDivergence(
+    currentStateText,
+    "ahead 999 / behind 999"
+  );
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  for (const field of [
+    "Validation recorded for source commit",
+    "State Sync Expectations branch",
+    "State Sync Expectations upstream",
+    "State Sync Expectations validated source commit",
+    "State Sync Expectations recorded divergence baseline",
+    "State Sync Expectations transition",
+    "State Sync Expectations post-push divergence"
+  ]) {
+    assert.ok(review.issues.some((issue) => (
+      issue.code === "state_document_evidence_drift"
+      && issue.path === "docs/current/CURRENT_STATE.md"
+      && issue.field === field
+    )), `missing evidence drift issue for ${field}`);
+  }
+});
+
+test("state sync audit blocks stale agent board generated mirror fields", async () => {
+  const input = await createInputFromWorkspace();
+  const aggregateInput = withoutAgentBoardFiles(input);
+  const review = reviewStateSyncAudit({
+    ...aggregateInput,
+    agentBoardText: input.agentBoardText
+      .replace(/- upstream: `[^`]*`/, "- upstream: `refs/remotes/origin/stale`")
+      .replace(
+        /- recorded divergence baseline: `[^`]*`/,
+        "- recorded divergence baseline: `ahead 999 / behind 999`"
+      )
+      .replace(/- transition: `[^`]*`/, "- transition: `state_only_pushed`")
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.agentBoardAligned, true);
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === ".agent_board/*"
+    && issue.field === "upstream"
+  )));
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === ".agent_board/*"
+    && issue.field === "recorded divergence baseline"
+  )));
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === ".agent_board/*"
+    && issue.field === "transition"
+  )));
+});
+
+test("state sync audit blocks stale agent board heading mirror fields", async () => {
+  const input = await createInputFromWorkspace();
+  const aggregateInput = withoutAgentBoardFiles(input);
+  const review = reviewStateSyncAudit({
+    ...aggregateInput,
+    agentBoardText: input.agentBoardText
+      .replace(
+        /Upstream baseline:\r?\n\r?\n- `[^`]*`/,
+        "Upstream baseline:\n\n- `refs/remotes/origin/stale`"
+      )
+      .replace(
+        /Recorded divergence baseline:\r?\n\r?\n- `[^`]*`/,
+        "Recorded divergence baseline:\n\n- `ahead 999 / behind 999`"
+      )
+      .replace(
+        /Current transition:\r?\n\r?\n- `[^`]*`/,
+        "Current transition:\n\n- `state_only_pushed`"
+      )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.agentBoardAligned, true);
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === ".agent_board/*"
+    && issue.field === "Upstream baseline:"
+  )));
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === ".agent_board/*"
+    && issue.field === "Recorded divergence baseline:"
+  )));
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === ".agent_board/*"
+    && issue.field === "Current transition:"
+  )));
+});
+
+test("state sync audit blocks missing agent board generated mirror blocks", async () => {
+  const input = await createInputFromWorkspace();
+  const aggregateInput = withoutAgentBoardFiles(input);
+  const review = reviewStateSyncAudit({
+    ...aggregateInput,
+    agentBoardText: input.agentBoardText.replace(
+      /<!-- state-sync-display:start -->[\s\S]*?<!-- state-sync-display:end -->\n?/g,
+      ""
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.agentBoardAligned, true);
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === ".agent_board/*"
+    && issue.field === "state-sync-display block count"
+  )));
+});
+
+test("state sync audit checks agent board generated blocks per file", async () => {
+  const input = await createInputFromWorkspace();
+  assert.ok(input.agentBoardFiles !== undefined);
+  const displayBlock = input.agentBoardFiles
+    .find((file) => file.path === ".agent_board/RUN_STATE.md")
+    ?.text.match(/<!-- state-sync-display:start -->[\s\S]*?<!-- state-sync-display:end -->/)
+    ?.[0];
+  assert.ok(displayBlock !== undefined);
+
+  const agentBoardFiles = input.agentBoardFiles.map((file) => {
+    if (file.path === ".agent_board/HANDOFF.md") {
+      return {
+        path: file.path,
+        text: file.text.replace(
+          /<!-- state-sync-display:start -->[\s\S]*?<!-- state-sync-display:end -->\n?/,
+          ""
+        )
+      };
+    }
+
+    if (file.path === ".agent_board/RUN_STATE.md") {
+      return {
+        path: file.path,
+        text: `${file.text.trimEnd()}\n\n${displayBlock}\n`
+      };
+    }
+
+    return file;
+  });
+  const review = reviewStateSyncAudit({
+    ...input,
+    agentBoardFiles,
+    agentBoardText: agentBoardFiles.map((file) => file.text).join("\n")
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.agentBoardAligned, true);
+  assert.equal(review.checks.evidenceDriftAbsent, false);
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === ".agent_board/HANDOFF.md"
+    && issue.field === "state-sync-display block count"
+  )));
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_evidence_drift"
+    && issue.path === ".agent_board/RUN_STATE.md"
+    && issue.field === "state-sync-display block count"
   )));
 });
 
@@ -178,7 +484,7 @@ test("state sync audit accepts structured state_only_pending_push transitions", 
     aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+    ...withStateSyncClaim(input, {
       transitionKind: "state_only_pending_push"
     })
   });
@@ -220,7 +526,7 @@ test("state sync audit accepts structured state_only_pushed transitions", async 
     validatedSourceAheadBehind: "0\t1",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+    ...withStateSyncClaim(input, {
       transitionKind: "state_only_pushed",
       recordedAhead: 1,
       recordedBehind: 0
@@ -345,6 +651,56 @@ test("state sync audit fails closed on invalid structured claim transition", asy
   assert.equal(review.checks.structuredClaimValid, false);
 });
 
+test("state sync audit fails closed on unknown structured claim fields", async (t) => {
+  const input = await createInputFromWorkspace();
+  const cases: Array<[
+    string,
+    (claim: Record<string, unknown>) => void
+  ]> = [
+    ["top-level", (claim) => {
+      claim.extra = true;
+    }],
+    ["subject", (claim) => {
+      (claim.subject as Record<string, unknown>).extra = true;
+    }],
+    ["source", (claim) => {
+      (claim.source as Record<string, unknown>).extra = true;
+    }],
+    ["recorded divergence", (claim) => {
+      const source = claim.source as Record<string, unknown>;
+      (source.recordedDivergence as Record<string, unknown>).extra = true;
+    }],
+    ["source tree digest", (claim) => {
+      const source = claim.source as Record<string, unknown>;
+      (source.sourceTreeDigest as Record<string, unknown>).extra = true;
+    }],
+    ["transition", (claim) => {
+      (claim.transition as Record<string, unknown>).extra = true;
+    }],
+    ["validation", (claim) => {
+      (claim.validation as Record<string, unknown>).extra = true;
+    }]
+  ];
+
+  for (const [name, mutate] of cases) {
+    await t.test(name, () => {
+      const claim = JSON.parse(
+        stateSyncClaimTextFromInput(input)
+      ) as Record<string, unknown>;
+      mutate(claim);
+      const review = reviewStateSyncAudit({
+        ...input,
+        stateSyncClaimText: JSON.stringify(claim)
+      });
+
+      assert.equal(review.status, "blocked");
+      assert.equal(review.summary.claimSource, "invalid_structured");
+      assert.equal(review.checks.structuredClaimValid, false);
+      assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
+    });
+  }
+});
+
 test("state sync audit accepts dirty state-only files", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace({
     gitStatusShort: [
@@ -405,7 +761,7 @@ test("state sync audit accepts committed state-only descendants", async () => {
       ".agent_board/HANDOFF.md",
       "docs/current/CURRENT_STATE.md"
     ],
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+    ...withStateSyncClaim(input, {
       transitionKind: "state_only_pending_push"
     })
   });
@@ -488,7 +844,7 @@ test("state sync audit blocks stale observed branch without using Markdown head 
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
 });
 
-test("state sync audit reports Markdown current head drift without making it authoritative", async () => {
+test("state sync audit blocks Markdown current head evidence drift", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -497,8 +853,9 @@ test("state sync audit reports Markdown current head drift without making it aut
       .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit | `feed123` |")
   });
 
-  assert.equal(review.status, "passed");
-  assert.deepEqual(review.reasons, []);
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.checks.evidenceDriftAbsent, false);
   assert.ok(review.issues.some((issue) => (
     issue.code === "state_document_evidence_drift"
     && issue.field === "Current head"
@@ -591,7 +948,7 @@ test("state sync audit blocks synthetic anchors when validated source paths are 
 test("state sync audit accepts structured detached review checkout without validated source evidence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+    ...withStateSyncClaim(input, {
       upstream: "",
       transitionKind: "detached_review_checkout"
     })
@@ -614,7 +971,7 @@ test("state sync audit still accepts valid state-only descendants after syntheti
     aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+    ...withStateSyncClaim(input, {
       transitionKind: "state_only_pending_push"
     })
   });
@@ -644,7 +1001,7 @@ test("state sync audit accepts clean detached PR checkouts when explicitly allow
       "scripts/run-state-sync-audit.ts",
       "tests/state-sync-audit.test.ts"
     ],
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+    ...withStateSyncClaim(input, {
       upstream: "",
       transitionKind: "detached_review_checkout"
     })
@@ -776,7 +1133,7 @@ test("state sync audit ignores current ahead drift from state-only descendants",
     aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+    ...withStateSyncClaim(input, {
       transitionKind: "state_only_pending_push"
     })
   });
@@ -796,7 +1153,7 @@ test("state sync audit accepts pushed state-only divergence snapshots", async ()
     validatedSourceAheadBehind: "0\t1",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+    ...withStateSyncClaim(input, {
       transitionKind: "state_only_pushed",
       recordedAhead: 1,
       recordedBehind: 0
@@ -840,7 +1197,7 @@ test("state sync audit blocks wrong inverse divergence snapshots", async () => {
     validatedSourceAheadBehind: "0\t2",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+    ...withStateSyncClaim(input, {
       transitionKind: "state_only_pushed",
       recordedAhead: 1,
       recordedBehind: 0
@@ -854,6 +1211,11 @@ test("state sync audit blocks wrong inverse divergence snapshots", async () => {
 
 test("state sync audit ignores missing Markdown state record mode for pushed structured snapshots", async () => {
   const input = await createInputFromWorkspace();
+  const claimOverrides = {
+    transitionKind: "state_only_pushed",
+    recordedAhead: 1,
+    recordedBehind: 0
+  };
   const review = reviewStateSyncAudit({
     ...input,
     head: "3333333",
@@ -861,15 +1223,9 @@ test("state sync audit ignores missing Markdown state record mode for pushed str
     validatedSourceAheadBehind: "0\t1",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
-      transitionKind: "state_only_pushed",
-      recordedAhead: 1,
-      recordedBehind: 0
-    }),
-    currentStateText: input.currentStateText.replace(
-      /\| State record mode \| `[^`]+` \|\n/,
-      ""
-    )
+    ...withStateSyncClaim(input, claimOverrides),
+    currentStateText: withCurrentStateMirrors(input.currentStateText, input, claimOverrides)
+      .replace(/\| State record mode \| `[^`]+` \|\n/, "")
   });
 
   assert.equal(review.status, "passed");
@@ -880,6 +1236,11 @@ test("state sync audit ignores missing Markdown state record mode for pushed str
 
 test("state sync audit ignores stale Markdown state record mode for pushed structured snapshots", async () => {
   const input = await createInputFromWorkspace();
+  const claimOverrides = {
+    transitionKind: "state_only_pushed",
+    recordedAhead: 1,
+    recordedBehind: 0
+  };
   const review = reviewStateSyncAudit({
     ...input,
     head: "3333333",
@@ -887,15 +1248,12 @@ test("state sync audit ignores stale Markdown state record mode for pushed struc
     validatedSourceAheadBehind: "0\t1",
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: strictStateRecordPaths(),
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
-      transitionKind: "state_only_pushed",
-      recordedAhead: 1,
-      recordedBehind: 0
-    }),
-    currentStateText: input.currentStateText.replace(
-      /\| State record mode \| `[^`]+` \|/,
-      "| State record mode | `source-only` |"
-    )
+    ...withStateSyncClaim(input, claimOverrides),
+    currentStateText: withCurrentStateMirrors(input.currentStateText, input, claimOverrides)
+      .replace(
+        /\| State record mode \| `[^`]+` \|/,
+        "| State record mode | `source-only` |"
+      )
   });
 
   assert.equal(review.status, "passed");
@@ -992,7 +1350,7 @@ test("state sync audit accepts exact validated source divergence matches", async
   const review = reviewStateSyncAudit({
     ...input,
     validatedSourceAheadBehind: "0\t1",
-    stateSyncClaimText: stateSyncClaimTextFromInput(input, {
+    ...withStateSyncClaim(input, {
       recordedAhead: 0,
       recordedBehind: 1
     })
@@ -1304,7 +1662,10 @@ test("state sync audit collector observes structured claim upstream ref without 
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1354,7 +1715,10 @@ test("state sync audit collector prefers structured claim upstream over local up
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1401,7 +1765,10 @@ test("state sync audit accepts structured detached branch-head checkouts", async
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1448,7 +1815,10 @@ test("state sync audit accepts structured detached PR merge-ref checkouts", asyn
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1503,7 +1873,10 @@ test("state sync audit accepts structured squash-equivalent state records", asyn
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1571,7 +1944,10 @@ test("state sync audit accepts structured squash-only records without source com
   );
   assert.ok(sourceDigest !== undefined);
 
-  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(sourceRepo, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1651,7 +2027,10 @@ test("state sync audit blocks structured squash records with non-state source dr
     join(cwd, "packages", "unvalidated.ts"),
     "export const unvalidated = true;\n"
   );
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1713,7 +2092,10 @@ test("state sync audit blocks squash-only records when source digest drifts", as
     join(sourceRepo, "packages", "unvalidated.ts"),
     "export const unvalidated = true;\n"
   );
-  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(sourceRepo, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1779,7 +2161,10 @@ test("state sync audit collector rejects claim upstream refs outside remote trac
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "HEAD",
@@ -1824,7 +2209,10 @@ test("state sync audit collector normalizes claim upstream before git resolution
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit);
+  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
+    upstream: "refs/remotes/origin/main",
+    upstreamDivergence: "ahead 1 / behind 0"
+  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1991,13 +2379,17 @@ async function createInputFromWorkspace(
   overrides: StateSyncAuditInputOverrides = {}
 ): Promise<StateSyncAuditInput> {
   const currentStateText = await readFile("docs/current/CURRENT_STATE.md", "utf8");
-  const agentBoardText = await Promise.all([
-    readFile(".agent_board/RUN_STATE.md", "utf8"),
-    readFile(".agent_board/TASK_QUEUE.md", "utf8"),
-    readFile(".agent_board/CHECKPOINT.md", "utf8"),
-    readFile(".agent_board/HANDOFF.md", "utf8"),
-    readFile(".agent_board/VALIDATION_LOG.md", "utf8")
-  ]).then((texts) => texts.join("\n"));
+  const agentBoardFiles = await Promise.all([
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/TASK_QUEUE.md",
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/VALIDATION_LOG.md"
+  ].map(async (path) => ({
+    path,
+    text: await readFile(path, "utf8")
+  })));
+  const agentBoardText = agentBoardFiles.map((file) => file.text).join("\n");
   const recordedHead = extractStateField(currentStateText, "Current head")
     ?? "UNKNOWN_HEAD";
   const recordedBranch = extractStateField(currentStateText, "Current branch")
@@ -2022,11 +2414,13 @@ async function createInputFromWorkspace(
     packageJsonText: await readFile("package.json", "utf8"),
     currentStateText,
     agentBoardText,
+    agentBoardFiles
   };
+  const defaultStructuredClaim = withStateSyncClaim(input);
 
   const merged = {
     ...input,
-    stateSyncClaimText: stateSyncClaimTextFromInput(input),
+    ...defaultStructuredClaim,
     ...overrides
   };
 
@@ -2039,6 +2433,13 @@ async function createInputFromWorkspace(
     ...merged,
     stateSyncClaimText: merged.stateSyncClaimText
   };
+}
+
+function withoutAgentBoardFiles(
+  input: StateSyncAuditInput
+): Omit<StateSyncAuditInput, "agentBoardFiles"> {
+  const { agentBoardFiles: _agentBoardFiles, ...withoutFiles } = input;
+  return withoutFiles;
 }
 
 function normalizeTestUpstream(value: string): string {
@@ -2059,6 +2460,226 @@ function extractStateDivergence(text: string): string | undefined {
   return `${match[1]}\t${match[2]}`;
 }
 
+function withCurrentStateDivergence(
+  text: string,
+  ahead: number,
+  behind: number
+): string {
+  return text.replace(
+    /\| Upstream divergence \| `[^`]*` \|/,
+    `| Upstream divergence | \`ahead ${ahead} / behind ${behind}\` |`
+  );
+}
+
+function withCurrentStateMirrors(
+  text: string,
+  input: StateSyncAuditInput,
+  overrides: StateSyncClaimTextOverrides = {}
+): string {
+  const divergence = parseTestAheadBehind(input.validatedSourceAheadBehind);
+  const recordedAhead = overrides.recordedAhead ?? divergence.ahead;
+  const recordedBehind = overrides.recordedBehind ?? divergence.behind;
+  const recordedDivergence = formatTestDivergence(recordedAhead, recordedBehind);
+  const branch = overrides.branch ?? input.branch;
+  const upstream = normalizeTestUpstream(overrides.upstream ?? input.upstream);
+  const validatedSourceCommit = overrides.validatedSourceCommit ?? input.head;
+  const latestValidatedCommit =
+    overrides.latestValidatedCommit ?? validatedSourceCommit;
+  const transition = overrides.transitionKind ?? "source_exact";
+  const allowedStatePaths = overrides.allowedStatePaths ?? strictStateRecordPaths();
+  const sourceTreeDigest = overrides.sourceTreeDigest ?? TEST_SOURCE_TREE_DIGEST;
+  let updated = text;
+
+  updated = replaceCurrentStateTableField(updated, "Current branch", branch);
+  updated = replaceCurrentStateTableField(
+    updated,
+    "Current head",
+    validatedSourceCommit
+  );
+  updated = replaceCurrentStateTableField(
+    updated,
+    "Validated source commit",
+    validatedSourceCommit
+  );
+  updated = replaceCurrentStateTableField(updated, "Upstream", upstream);
+  updated = replaceCurrentStateTableField(
+    updated,
+    "Upstream divergence",
+    recordedDivergence
+  );
+  updated = replaceCurrentStateTableField(
+    updated,
+    "Latest validated commit",
+    latestValidatedCommit
+  );
+  updated = replaceCurrentStateTableField(
+    updated,
+    "State record mode",
+    stateRecordModeForTestTransition(transition)
+  );
+  updated = replaceCurrentStateBullet(
+    updated,
+    "schema version",
+    String(overrides.schemaVersion ?? 1)
+  );
+  updated = replaceCurrentStateBullet(
+    updated,
+    "policy version",
+    overrides.policyVersion ?? "state-sync-policy.v1"
+  );
+  updated = replaceCurrentStateBullet(updated, "transition kind", transition);
+  updated = replaceCurrentStateBullet(
+    updated,
+    "validated source commit",
+    validatedSourceCommit
+  );
+  updated = replaceCurrentStateBullet(
+    updated,
+    "latest validated commit",
+    latestValidatedCommit
+  );
+  updated = replaceCurrentStateBullet(updated, "upstream baseline", upstream);
+  updated = replaceCurrentStateBullet(
+    updated,
+    "recorded divergence baseline",
+    recordedDivergence
+  );
+  updated = replaceCurrentStateSourceTreeDigest(updated, sourceTreeDigest);
+  updated = replaceCurrentStateStrictStatePaths(updated, allowedStatePaths);
+  updated = replaceCurrentStateValidationSourceCommit(
+    updated,
+    validatedSourceCommit
+  );
+  updated = replaceCurrentStateExpectation(updated, "branch", branch);
+  updated = replaceCurrentStateExpectation(updated, "upstream", upstream);
+  updated = replaceCurrentStateExpectation(
+    updated,
+    "validated source commit",
+    validatedSourceCommit
+  );
+  updated = replaceCurrentStateExpectation(
+    updated,
+    "recorded divergence baseline",
+    recordedDivergence
+  );
+  updated = replaceCurrentStateExpectation(updated, "transition", transition);
+  updated = replaceCurrentStatePostPushDivergence(
+    updated,
+    postPushTestDivergence(transition, recordedAhead, recordedBehind)
+  );
+
+  return updated;
+}
+
+function replaceCurrentStateTableField(
+  text: string,
+  field: string,
+  value: string
+): string {
+  return text.replace(
+    new RegExp(`(\\| ${escapeTestRegExp(field)} \\| \`)[^\\\`\\r\\n]*(\` \\|)`),
+    `$1${value}$2`
+  );
+}
+
+function replaceCurrentStateBullet(
+  text: string,
+  field: string,
+  value: string
+): string {
+  return text.replace(
+    new RegExp(`(- ${escapeTestRegExp(field)}: \`)[^\\\`\\r\\n]*(\`)`),
+    `$1${value}$2`
+  );
+}
+
+function replaceCurrentStateSourceTreeDigest(
+  text: string,
+  value: string
+): string {
+  return text.replace(
+    /(- source tree digest: `git-ls-tree-sha256`\r?\n  `)[^`\r\n]*(\`)/,
+    `$1${value}$2`
+  );
+}
+
+function replaceCurrentStateStrictStatePaths(
+  text: string,
+  paths: string[]
+): string {
+  return text.replace(
+    /(Strict state record paths:\r?\n\r?\n)(?:- `[^`\r\n]*`\r?\n)+/,
+    `$1${paths.map((path) => `- \`${path}\``).join("\n")}\n`
+  );
+}
+
+function replaceCurrentStateValidationSourceCommit(
+  text: string,
+  value: string
+): string {
+  return text.replace(
+    /(Validation recorded for source commit `)[^`\r\n]*(\`:)/,
+    `$1${value}$2`
+  );
+}
+
+function replaceCurrentStateExpectation(
+  text: string,
+  field: string,
+  value: string
+): string {
+  return replaceCurrentStateExpectationSection(
+    text,
+    new RegExp(`(- ${escapeTestRegExp(field)}: \`)[^\\\`\\r\\n]*(\`)`),
+    `$1${value}$2`
+  );
+}
+
+function replaceCurrentStatePostPushDivergence(
+  text: string,
+  value: string
+): string {
+  return replaceCurrentStateExpectationSection(
+    text,
+    /(source divergence as `)[^`\r\n]*(\`)/,
+    `$1${value}$2`
+  );
+}
+
+function replaceCurrentStateExpectationSection(
+  text: string,
+  pattern: RegExp,
+  replacement: string
+): string {
+  const sectionStart = text.indexOf("## State Sync Expectations");
+  if (sectionStart < 0) {
+    return text;
+  }
+
+  return text.slice(0, sectionStart)
+    + text.slice(sectionStart).replace(pattern, replacement);
+}
+
+function postPushTestDivergence(
+  transition: string,
+  ahead: number,
+  behind: number
+): string {
+  if (transition !== "state_only_pushed") {
+    return formatTestDivergence(ahead, behind);
+  }
+
+  return formatTestDivergence(behind, ahead);
+}
+
+function stateRecordModeForTestTransition(transition: string): string {
+  if (transition === "state_only_pending_push" || transition === "state_only_pushed") {
+    return "state-only descendant allowed";
+  }
+
+  return transition;
+}
+
 function parseTestAheadBehind(
   value: string | undefined
 ): { ahead: number; behind: number } {
@@ -2071,20 +2692,7 @@ function parseTestAheadBehind(
 
 function stateSyncClaimTextFromInput(
   input: StateSyncAuditInput,
-  overrides: {
-    schemaVersion?: number;
-    policyVersion?: string;
-    branch?: string;
-    upstream?: string;
-    validatedSourceCommit?: string;
-    latestValidatedCommit?: string;
-    recordedAhead?: number;
-    recordedBehind?: number;
-    sourceTreeDigest?: string;
-    sourceTreeDigestExcludedPaths?: string[];
-    transitionKind?: string;
-    allowedStatePaths?: string[];
-  } = {}
+  overrides: StateSyncClaimTextOverrides = {}
 ): string {
   const divergence = parseTestAheadBehind(input.validatedSourceAheadBehind);
 
@@ -2125,6 +2733,117 @@ function stateSyncClaimTextFromInput(
       ]
     }
   }, null, 2);
+}
+
+function withStateSyncClaim(
+  input: StateSyncAuditInput,
+  overrides: StateSyncClaimTextOverrides = {}
+): Pick<
+  StateSyncAuditInput,
+  "agentBoardFiles" | "agentBoardText" | "currentStateText" | "stateSyncClaimText"
+> {
+  const agentBoardFiles = input.agentBoardFiles?.map((file) => ({
+    path: file.path,
+    text: withAgentBoardMirrors(file.text, input, overrides)
+  }));
+  const result = {
+    agentBoardText: agentBoardFiles === undefined
+      ? withAgentBoardMirrors(input.agentBoardText, input, overrides)
+      : agentBoardFiles.map((file) => file.text).join("\n"),
+    currentStateText: withCurrentStateMirrors(input.currentStateText, input, overrides),
+    stateSyncClaimText: stateSyncClaimTextFromInput(input, overrides)
+  };
+
+  return agentBoardFiles === undefined ? result : { ...result, agentBoardFiles };
+}
+
+function withAgentBoardMirrors(
+  text: string,
+  input: StateSyncAuditInput,
+  overrides: StateSyncClaimTextOverrides = {}
+): string {
+  const fields = testDisplayFieldsFromInput(input, overrides);
+  let updated = text;
+  for (const [field, value] of Object.entries(fields.generated)) {
+    updated = replaceAgentBoardGeneratedField(updated, field, value);
+  }
+  for (const [heading, value] of Object.entries(fields.headings)) {
+    updated = replaceAgentBoardHeadingIfPresent(updated, heading, value);
+  }
+
+  return updated;
+}
+
+function testDisplayFieldsFromInput(
+  input: StateSyncAuditInput,
+  overrides: StateSyncClaimTextOverrides = {}
+): {
+  generated: Record<string, string>;
+  headings: Record<string, string>;
+} {
+  const divergence = parseTestAheadBehind(input.validatedSourceAheadBehind);
+  const recordedDivergence =
+    `ahead ${overrides.recordedAhead ?? divergence.ahead}`
+    + ` / behind ${overrides.recordedBehind ?? divergence.behind}`;
+  const branch = overrides.branch ?? input.branch;
+  const upstream = normalizeTestUpstream(overrides.upstream ?? input.upstream);
+  const validatedSourceCommit = overrides.validatedSourceCommit ?? input.head;
+  const latestValidatedCommit =
+    overrides.latestValidatedCommit ?? validatedSourceCommit;
+  const transition = overrides.transitionKind ?? "source_exact";
+
+  return {
+    generated: {
+      branch,
+      upstream,
+      "validated source commit": validatedSourceCommit,
+      "latest validated commit": latestValidatedCommit,
+      "recorded divergence baseline": recordedDivergence,
+      transition
+    },
+    headings: {
+      "Branch:": branch,
+      "Current branch:": branch,
+      "Current head:": validatedSourceCommit,
+      "Validated source commit:": validatedSourceCommit,
+      "Current validated source:": validatedSourceCommit,
+      "Latest validated commit:": latestValidatedCommit,
+      "Upstream baseline:": upstream,
+      "Upstream divergence baseline:": recordedDivergence,
+      "Recorded divergence baseline:": recordedDivergence,
+      "Transition:": transition,
+      "Current transition:": transition
+    }
+  };
+}
+
+function replaceAgentBoardGeneratedField(
+  text: string,
+  field: string,
+  value: string
+): string {
+  return text.replace(
+    new RegExp(`(- ${escapeTestRegExp(field)}: \`)[^\\\`\\r\\n]*(\`)`, "g"),
+    `$1${value}$2`
+  );
+}
+
+function replaceAgentBoardHeadingIfPresent(
+  text: string,
+  heading: string,
+  value: string
+): string {
+  return text.replace(
+    new RegExp(
+      `(${escapeTestRegExp(heading)}\\r?\\n\\r?\\n- \`)[^\\\`\\r\\n]*(\`)`,
+      "g"
+    ),
+    `$1${value}$2`
+  );
+}
+
+function escapeTestRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function strictStateRecordPaths(): string[] {
@@ -2188,7 +2907,11 @@ async function git(cwd: string, args: string[]): Promise<string> {
 async function writeMinimalWorkspace(
   cwd: string,
   branch: string,
-  validatedSourceCommit: string
+  validatedSourceCommit: string,
+  options: {
+    upstream?: string;
+    upstreamDivergence?: string;
+  } = {}
 ): Promise<void> {
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
   await mkdir(join(cwd, ".agent_board"), { recursive: true });
@@ -2202,7 +2925,7 @@ async function writeMinimalWorkspace(
   );
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
-    minimalCurrentState(branch, validatedSourceCommit)
+    minimalCurrentState(branch, validatedSourceCommit, options)
   );
 
   const boardText = [
@@ -2276,6 +2999,102 @@ async function writeStateSyncClaim(
       }
     }, null, 2)
   );
+  await writeMinimalStateSurfacesForClaim(cwd, {
+    ...input,
+    sourceTreeDigest
+  });
+}
+
+async function writeMinimalStateSurfacesForClaim(
+  cwd: string,
+  input: {
+    branch: string;
+    upstream: string;
+    validatedSourceCommit: string;
+    latestValidatedCommit: string;
+    recordedAhead: number;
+    recordedBehind: number;
+    sourceTreeDigest: string;
+    transitionKind?: string;
+  }
+): Promise<void> {
+  const upstreamDivergence = formatTestDivergence(
+    input.recordedAhead,
+    input.recordedBehind
+  );
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    minimalCurrentState(input.branch, input.validatedSourceCommit, {
+      upstream: normalizeTestUpstream(input.upstream),
+      upstreamDivergence,
+      latestValidatedCommit: input.latestValidatedCommit,
+      sourceTreeDigest: input.sourceTreeDigest,
+      transitionKind: input.transitionKind ?? "source_exact",
+      strictStatePaths: strictStateRecordPaths()
+    })
+  );
+
+  const boardText = minimalAgentBoardText(input);
+  for (const fileName of [
+    "RUN_STATE.md",
+    "TASK_QUEUE.md",
+    "CHECKPOINT.md",
+    "HANDOFF.md",
+    "VALIDATION_LOG.md"
+  ]) {
+    await writeFile(join(cwd, ".agent_board", fileName), boardText);
+  }
+}
+
+function minimalAgentBoardText(input: {
+  branch: string;
+  upstream: string;
+  validatedSourceCommit: string;
+  latestValidatedCommit: string;
+  recordedAhead: number;
+  recordedBehind: number;
+  transitionKind?: string;
+}): string {
+  return [
+    "# State Board",
+    "",
+    `Branch: \`${input.branch}\``,
+    "Current truth source: `docs/current/CURRENT_STATE.md`",
+    `Validated source commit: \`${input.validatedSourceCommit}\``,
+    `Latest validated commit: \`${input.latestValidatedCommit}\``,
+    "",
+    renderTestGeneratedDisplayBlock(input),
+    ""
+  ].join("\n");
+}
+
+function renderTestGeneratedDisplayBlock(input: {
+  branch: string;
+  upstream: string;
+  validatedSourceCommit: string;
+  latestValidatedCommit: string;
+  recordedAhead: number;
+  recordedBehind: number;
+  transitionKind?: string;
+}): string {
+  return [
+    "<!-- state-sync-display:start -->",
+    "Generated from `docs/current/state-sync-record.json`.",
+    "",
+    `- branch: \`${input.branch}\``,
+    `- upstream: \`${normalizeTestUpstream(input.upstream)}\``,
+    `- validated source commit: \`${input.validatedSourceCommit}\``,
+    `- latest validated commit: \`${input.latestValidatedCommit}\``,
+    `- recorded divergence baseline: \`${
+      formatTestDivergence(input.recordedAhead, input.recordedBehind)
+    }\``,
+    `- transition: \`${input.transitionKind ?? "source_exact"}\``,
+    "<!-- state-sync-display:end -->"
+  ].join("\n");
+}
+
+function formatTestDivergence(ahead: number, behind: number): string {
+  return `ahead ${ahead} / behind ${behind}`;
 }
 
 async function writeStateSyncRecordText(
@@ -2286,7 +3105,28 @@ async function writeStateSyncRecordText(
   await writeFile(join(cwd, "docs", "current", "state-sync-record.json"), text);
 }
 
-function minimalCurrentState(branch: string, validatedSourceCommit: string): string {
+function minimalCurrentState(
+  branch: string,
+  validatedSourceCommit: string,
+  options: {
+    upstream?: string;
+    upstreamDivergence?: string;
+    latestValidatedCommit?: string;
+    sourceTreeDigest?: string;
+    strictStatePaths?: string[];
+    transitionKind?: string;
+  } = {}
+): string {
+  const upstream = options.upstream ?? "";
+  const upstreamDivergence =
+    options.upstreamDivergence ?? "ahead 0 / behind 0";
+  const latestValidatedCommit =
+    options.latestValidatedCommit ?? validatedSourceCommit;
+  const sourceTreeDigest = options.sourceTreeDigest ?? TEST_SOURCE_TREE_DIGEST;
+  const strictStatePaths = options.strictStatePaths ?? strictStateRecordPaths();
+  const transitionKind = options.transitionKind ?? "source_exact";
+  const divergence = parseTestDivergenceText(upstreamDivergence);
+
   return [
     "# Current State",
     "",
@@ -2298,18 +3138,58 @@ function minimalCurrentState(branch: string, validatedSourceCommit: string): str
     `| Current branch | \`${branch}\` |`,
     `| Current head | \`${validatedSourceCommit}\` |`,
     `| Validated source commit | \`${validatedSourceCommit}\` |`,
-    "| Upstream | `none` |",
-    "| Upstream divergence | `ahead -1 / behind -1` |",
-    `| Latest validated commit | \`${validatedSourceCommit}\` |`,
-    "| State record mode | `state-only descendant allowed` |",
+    `| Upstream | \`${upstream}\` |`,
+    `| Upstream divergence | \`${upstreamDivergence}\` |`,
+    `| Latest validated commit | \`${latestValidatedCommit}\` |`,
+    `| State record mode | \`${stateRecordModeForTestTransition(transitionKind)}\` |`,
     "| Stale after commit | `true` |",
     "",
+    "## Structured Record",
+    "",
+    "The structured claim records:",
+    "",
+    "- schema version: `1`",
+    "- policy version: `state-sync-policy.v1`",
+    `- transition kind: \`${transitionKind}\``,
+    `- validated source commit: \`${validatedSourceCommit}\``,
+    `- latest validated commit: \`${latestValidatedCommit}\``,
+    `- upstream baseline: \`${upstream}\``,
+    `- recorded divergence baseline: \`${upstreamDivergence}\``,
+    "- source tree digest: `git-ls-tree-sha256`",
+    `  \`${sourceTreeDigest}\``,
+    "",
+    "Strict state record paths:",
+    "",
+    ...strictStatePaths.map((path) => `- \`${path}\``),
+    "",
+    "## Current Entrypoints",
+    "",
+    "- Current docs map: `docs/README.md`",
+    "",
     "Validation baseline:",
+    "",
+    `Validation recorded for source commit \`${validatedSourceCommit}\`:`,
     "",
     "- `npx tsx --test tests\\codex-cli-host.test.ts`",
     "- `npm run typecheck`",
     "- `npm test`",
     "- `npm run build`",
+    "",
+    "## State Sync Expectations",
+    "",
+    "The structured claim records:",
+    "",
+    `- branch: \`${branch}\``,
+    `- upstream: \`${upstream}\``,
+    `- validated source commit: \`${validatedSourceCommit}\``,
+    `- recorded divergence baseline: \`${upstreamDivergence}\``,
+    `- transition: \`${transitionKind}\``,
+    "",
+    "When this PR branch state record is committed and pushed, Git observation should",
+    `compute the validated source divergence as \`${
+      postPushTestDivergence(transitionKind, divergence.ahead, divergence.behind)
+    }\` against`,
+    `\`${upstream}\`.`,
     "",
     "Execution boundary:",
     "",
@@ -2322,4 +3202,16 @@ function minimalCurrentState(branch: string, validatedSourceCommit: string): str
     "- `external_service_write`",
     ""
   ].join("\n");
+}
+
+function parseTestDivergenceText(value: string): { ahead: number; behind: number } {
+  const match = /^ahead (-?\d+) \/ behind (-?\d+)$/.exec(value);
+  if (match === null) {
+    return { ahead: 0, behind: 0 };
+  }
+
+  return {
+    ahead: Number.parseInt(match[1] ?? "0", 10),
+    behind: Number.parseInt(match[2] ?? "0", 10)
+  };
 }

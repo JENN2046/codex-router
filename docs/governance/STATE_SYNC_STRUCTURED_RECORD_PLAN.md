@@ -419,12 +419,15 @@ commit, upstream divergence, or transition kind.
 
 Evidence drift output contract:
 
-- Phase 1 reports Markdown / claim conflict as a structured issue with
-  `risk: "evidence_drift"`.
-- Phase 1 does not block solely on evidence drift unless the conflicting
-  Markdown field is still being used through legacy fallback.
-- Phase 2 may promote selected evidence drift findings to blocking checks after
-  Markdown authority is fully removed.
+- Markdown / claim conflict in machine-mirrored fields is reported as a
+  structured issue with `risk: "evidence_drift"`.
+- After Markdown authority removal, machine-mirrored evidence drift is blocking.
+  The audit reports `state_sync_evidenceDriftAbsent` when a mirrored field in
+  `docs/current/CURRENT_STATE.md` conflicts with
+  `docs/current/state-sync-record.json`.
+- Free-form Markdown prose and handoff notes remain evidence/display surfaces;
+  they do not become governance authority unless represented by a structured
+  check.
 - Evidence drift output must identify the surface and field name, but must not
   echo secrets or machine-local absolute paths.
 
@@ -759,9 +762,11 @@ exclusions, and claim `transition.allowedStatePaths` must all resolve through
 the same fixed strict state record path set. Any other `.agent_board` file, such
 as `.agent_board/EXTRA.md`, is treated as a non-state path and must block.
 
-Additional fields may be tolerated in Phase 1 only if they do not change
-verification semantics. Unknown fields should be ignored for PASS/BLOCK but may
-be summarized for later schema cleanup.
+Structured claim schema v1 is fail-closed for unknown fields. Unknown fields in
+the top-level claim object, `subject`, `source`, `source.recordedDivergence`,
+`source.sourceTreeDigest`, `transition`, or `validation` make the claim invalid.
+Future extensions should use an explicit schema or policy version change rather
+than relying on ignored fields.
 
 ## Validation Field Semantics
 
@@ -824,10 +829,8 @@ state/docs through the existing state-only process.
   `main` / `state_only_pushed` structured record.
 - Strict state record path convergence is implemented. Broad `.agent_board/*`
   state-path allowance has been removed from state-sync path checks.
-
-## Open Questions
-
-- Should Markdown evidence drift block immediately, or report first during the
-  compatibility window?
-- Should unknown extra claim fields be reported as evidence drift, warning
-  issues, or ignored until schema hardening?
+- Machine-mirrored Markdown evidence drift is blocking after Markdown authority
+  removal. The claim remains authoritative; conflicting display fields block as
+  stale evidence rather than overriding the claim.
+- Unknown structured claim fields fail closed in schema v1. They are not warning
+  fields and are not ignored.

@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `fix/state-sync-evidence-drift-schema`
 
 Validated source commit:
 
-- `2592e8a`
+- `90dd43d`
 
 Latest validated commit:
 
-- `2592e8a`
+- `90dd43d`
 
 Structured claim:
 
@@ -22,12 +22,12 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 12 / behind 0`
 
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -35,8 +35,9 @@ State-sync audit observation:
 
 - with the state/docs record committed,
   `node --import tsx scripts/run-state-sync-audit.ts --json` should PASS
-- `state_only_pushed` is expected once this state record is present on
-  `origin/main`
+- `state_only_pending_push` is expected on this PR branch
+- after squash merge, `main` should receive the normal `main` /
+  `state_only_pushed` reanchor
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
 - expected upstream ref boundary: only `origin/*` or
@@ -46,6 +47,21 @@ State-sync audit observation:
 - expected squash compatibility: bounded squash-only state records pass without
   the side-branch source commit object only when live `HEAD` has the recorded
   filtered source tree digest
+- expected evidence drift behavior: machine-mirrored Markdown and
+  `.agent_board/*` conflicts block through `state_sync_evidenceDriftAbsent`
+- expected mirror-field behavior: empty or missing machine-mirrored Markdown
+  fields block unless the structured claim itself expects an empty value
+- expected structured display behavior: stale `## Structured Record` fields in
+  `CURRENT_STATE.md`, including source tree digest and strict state paths, block
+  as evidence drift
+- expected expectation mirror behavior: stale `Validation recorded for source
+  commit` and `## State Sync Expectations` fields in `CURRENT_STATE.md` block as
+  evidence drift
+- expected agent-board mirror behavior: generated mirror blocks are checked per
+  file, so aggregate block count cannot hide a missing or duplicate file block
+- expected heading mirror behavior: supported `.agent_board/*` heading mirrors
+  block as evidence drift
+- expected schema behavior: unknown structured claim fields fail closed
 
 Execution boundary:
 
@@ -59,10 +75,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `2592e8a`
-- latest validated commit: `2592e8a`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `90dd43d`
+- latest validated commit: `90dd43d`
+- recorded divergence baseline: `ahead 12 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

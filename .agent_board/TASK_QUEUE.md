@@ -2,7 +2,8 @@
 
 Current task:
 
-- Record the post-PR #52 `main` state/docs reanchor.
+- Prepare the governance semantic PR for evidence drift blocking and unknown
+  structured claim field fail-closed behavior.
 
 Done:
 
@@ -44,20 +45,33 @@ Done:
 - pushed the post-PR #51 `main` state/docs reanchor
 - verified the post-PR #51 `main` state-sync audit and main-push CI
 - squash-merged PR #52 into `main`
-- prepared the post-PR #52 `main` state/docs reanchor
+- pushed the post-PR #52 `main` state/docs reanchor
+- implemented `state_sync_evidenceDriftAbsent` blocking for machine-mirrored
+  Markdown and `.agent_board/*` / structured claim conflicts
+- blocked empty or missing machine-mirrored Markdown fields as evidence drift
+  unless the structured claim itself expects an empty value
+- blocked stale `## Structured Record` mirror fields in `CURRENT_STATE.md`,
+  including source tree digest and strict state paths
+- blocked stale `Validation recorded for source commit` and
+  `## State Sync Expectations` fields in `CURRENT_STATE.md`
+- blocked stale or missing `.agent_board/*` generated mirror blocks per file,
+  so aggregate block count cannot hide a missing or duplicate file block
+- blocked supported `.agent_board/*` heading mirrors as evidence drift
+- made unknown structured claim fields fail closed in schema v1
+- updated the structured record plan to record those resolved semantics
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 Todo:
 
-- push this post-PR #52 `main` state/docs reanchor
-- then open a separate governance semantic PR for evidence drift blocking and
-  unknown structured claim field handling
+- commit this branch state/docs reanchor
+- push the branch and update PR #53
+- after squash merge, perform the normal `main` / `state_only_pushed` reanchor
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 
 Blocked until separately authorized:
@@ -74,10 +88,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `2592e8a`
-- latest validated commit: `2592e8a`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `90dd43d`
+- latest validated commit: `90dd43d`
+- recorded divergence baseline: `ahead 12 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

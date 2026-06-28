@@ -30,15 +30,22 @@ const FORBIDDEN_STALE_MARKERS = [
   "Review and optionally commit the `.agent_board` refresh locally"
 ] as const;
 
-const STRICT_STATE_RECORD_PATHS = new Set([
-  CURRENT_STATE_DOC,
-  STATE_SYNC_RECORD_DOC,
+const AGENT_BOARD_STATE_RECORD_PATHS = [
   ".agent_board/CHECKPOINT.md",
   ".agent_board/HANDOFF.md",
   ".agent_board/RUN_STATE.md",
   ".agent_board/TASK_QUEUE.md",
   ".agent_board/VALIDATION_LOG.md"
+] as const;
+
+const STRICT_STATE_RECORD_PATHS = new Set([
+  CURRENT_STATE_DOC,
+  STATE_SYNC_RECORD_DOC,
+  ...AGENT_BOARD_STATE_RECORD_PATHS
 ]);
+
+const AGENT_BOARD_DISPLAY_START = "<!-- state-sync-display:start -->";
+const AGENT_BOARD_DISPLAY_END = "<!-- state-sync-display:end -->";
 
 const ACCEPTED_CLAIM_SCHEMA_VERSION = 1;
 const ACCEPTED_CLAIM_POLICY_VERSION = "state-sync-policy.v1";
@@ -68,7 +75,13 @@ export interface StateSyncAuditInput {
   packageJsonText: string;
   currentStateText: string;
   agentBoardText: string;
+  agentBoardFiles?: StateSyncAgentBoardFile[];
   stateSyncClaimText?: string;
+}
+
+export interface StateSyncAgentBoardFile {
+  path: string;
+  text: string;
 }
 
 export type StateSyncClaimSource =
@@ -147,6 +160,7 @@ export interface StateSyncAuditResult {
     agentBoardAligned: boolean;
     staleMarkersAbsent: boolean;
     structuredClaimValid: boolean;
+    evidenceDriftAbsent: boolean;
     structuredTransitionAllowed: boolean;
     outputSanitized: boolean;
     auditReadOnly: boolean;
@@ -208,6 +222,13 @@ export function parseStateSyncClaim(
     return { status: "invalid", reason: "claim_not_object" };
   }
 
+  if (!hasOnlyKeys(
+    parsed,
+    ["schemaVersion", "policyVersion", "subject", "source", "transition", "validation"]
+  )) {
+    return { status: "invalid", reason: "unknown_claim_field" };
+  }
+
   if (parsed.schemaVersion !== ACCEPTED_CLAIM_SCHEMA_VERSION) {
     return { status: "invalid", reason: "unsupported_schema_version" };
   }
@@ -220,6 +241,9 @@ export function parseStateSyncClaim(
   if (!isRecord(subject)) {
     return { status: "invalid", reason: "subject_missing" };
   }
+  if (!hasOnlyKeys(subject, ["branch", "upstream"])) {
+    return { status: "invalid", reason: "subject_unknown_field" };
+  }
 
   const branch = stringField(subject, "branch");
   const upstream = stringField(subject, "upstream");
@@ -230,6 +254,17 @@ export function parseStateSyncClaim(
   const source = parsed.source;
   if (!isRecord(source)) {
     return { status: "invalid", reason: "source_missing" };
+  }
+  if (!hasOnlyKeys(
+    source,
+    [
+      "validatedSourceCommit",
+      "latestValidatedCommit",
+      "recordedDivergence",
+      "sourceTreeDigest"
+    ]
+  )) {
+    return { status: "invalid", reason: "source_unknown_field" };
   }
 
   const validatedSourceCommit = commitField(source, "validatedSourceCommit");
@@ -242,6 +277,9 @@ export function parseStateSyncClaim(
   if (!isRecord(recordedDivergence)) {
     return { status: "invalid", reason: "recorded_divergence_missing" };
   }
+  if (!hasOnlyKeys(recordedDivergence, ["ahead", "behind"])) {
+    return { status: "invalid", reason: "recorded_divergence_unknown_field" };
+  }
 
   const recordedAhead = nonNegativeIntegerField(recordedDivergence, "ahead");
   const recordedBehind = nonNegativeIntegerField(recordedDivergence, "behind");
@@ -252,6 +290,9 @@ export function parseStateSyncClaim(
   const sourceTreeDigest = source.sourceTreeDigest;
   if (!isRecord(sourceTreeDigest)) {
     return { status: "invalid", reason: "source_tree_digest_missing" };
+  }
+  if (!hasOnlyKeys(sourceTreeDigest, ["algorithm", "value", "excludedPaths"])) {
+    return { status: "invalid", reason: "source_tree_digest_unknown_field" };
   }
 
   const sourceTreeDigestAlgorithm = stringField(sourceTreeDigest, "algorithm");
@@ -272,6 +313,9 @@ export function parseStateSyncClaim(
   const transition = parsed.transition;
   if (!isRecord(transition)) {
     return { status: "invalid", reason: "transition_missing" };
+  }
+  if (!hasOnlyKeys(transition, ["kind", "allowedStatePaths"])) {
+    return { status: "invalid", reason: "transition_unknown_field" };
   }
 
   const transitionKind = transitionKindField(transition, "kind");
@@ -372,7 +416,12 @@ export function resolveStateSyncClaim(
       sourceTreeDigest: parsed.claim.source.sourceTreeDigest,
       transitionKind: parsed.claim.transition.kind,
       allowedStatePaths: parsed.claim.transition.allowedStatePaths,
-      issues: collectStateSyncEvidenceDrift(input.currentStateText, parsed.claim)
+      issues: collectStateSyncEvidenceDrift(
+        input.currentStateText,
+        input.agentBoardText,
+        input.agentBoardFiles,
+        parsed.claim
+      )
     };
   }
 
@@ -554,6 +603,9 @@ export function reviewStateSyncAudit(
       ),
     staleMarkersAbsent: staleMarkerHits.length === 0,
     structuredClaimValid: resolvedClaim.structuredClaimValid,
+    evidenceDriftAbsent: resolvedClaim.issues.every(
+      (issue) => issue.risk !== "evidence_drift"
+    ),
     structuredTransitionAllowed: structuredTransitionIsAllowed(
       resolvedClaim,
       input,
@@ -738,12 +790,24 @@ function optionalValidation(
     return false;
   }
 
+  if (!hasOnlyKeys(value, ["requiredCommands"])) {
+    return false;
+  }
+
   const requiredCommands = stringArrayField(value, "requiredCommands");
   if (value.requiredCommands !== undefined && requiredCommands === undefined) {
     return false;
   }
 
   return requiredCommands === undefined ? {} : { requiredCommands };
+}
+
+function hasOnlyKeys(
+  record: Record<string, unknown>,
+  allowedKeys: readonly string[]
+): boolean {
+  const allowed = new Set(allowedKeys);
+  return Object.keys(record).every((key) => allowed.has(key));
 }
 
 function formatUpstreamDivergence(input: {
@@ -761,11 +825,32 @@ function normalizeOptionalUpstreamRef(ref: string | undefined): string | undefin
   return ref === undefined ? undefined : normalizeClaimUpstreamRef(ref);
 }
 
+interface EvidenceFieldExpectation {
+  field: string;
+  expected: string;
+}
+
+interface GeneratedDisplayBlock {
+  text: string;
+  line: number;
+}
+
 function collectStateSyncEvidenceDrift(
   currentStateText: string,
+  agentBoardText: string,
+  agentBoardFiles: StateSyncAgentBoardFile[] | undefined,
   claim: StateSyncClaim
 ): StateSyncAuditIssue[] {
-  const expectedFields = [
+  return [
+    ...collectCurrentStateEvidenceDrift(currentStateText, claim),
+    ...collectAgentBoardEvidenceDrift(agentBoardText, agentBoardFiles, claim)
+  ];
+}
+
+function currentStateEvidenceFields(
+  claim: StateSyncClaim
+): EvidenceFieldExpectation[] {
+  return [
     {
       field: "Current branch",
       expected: claim.subject.branch
@@ -791,21 +876,490 @@ function collectStateSyncEvidenceDrift(
       expected: claim.source.latestValidatedCommit
     }
   ];
+}
 
-  return expectedFields.flatMap(({ field, expected }) => {
-    const actual = fieldValue(currentStateText, field);
-    if (actual === undefined || actual === expected) {
-      return [];
+function collectCurrentStateEvidenceDrift(
+  currentStateText: string,
+  claim: StateSyncClaim
+): StateSyncAuditIssue[] {
+  const issues: StateSyncAuditIssue[] = currentStateEvidenceFields(claim).flatMap(
+    ({ field, expected }) => {
+      const actual = fieldValue(currentStateText, field);
+      if (actual === expected) {
+        return [];
+      }
+
+      return [{
+        code: "state_document_evidence_drift",
+        path: CURRENT_STATE_DOC,
+        line: fieldLine(currentStateText, field),
+        field,
+        risk: "evidence_drift"
+      }];
+    }
+  );
+
+  const structuredSection = sectionBetween(
+    currentStateText,
+    "## Structured Record",
+    "## Current Entrypoints"
+  );
+  for (const { field, expected } of currentStateStructuredRecordFields(claim)) {
+    const actual = bulletValue(structuredSection, field);
+    if (actual === expected) {
+      continue;
     }
 
-    return [{
+    issues.push({
       code: "state_document_evidence_drift",
       path: CURRENT_STATE_DOC,
-      line: fieldLine(currentStateText, field),
+      line: lineForMarker(currentStateText, `- ${field}:`),
       field,
       risk: "evidence_drift"
-    }];
+    });
+  }
+
+  const sourceTreeDigest = currentStateSourceTreeDigest(structuredSection);
+  if (
+    sourceTreeDigest?.algorithm !== claim.source.sourceTreeDigest.algorithm
+    || sourceTreeDigest.value !== claim.source.sourceTreeDigest.value
+  ) {
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarker(currentStateText, "- source tree digest:"),
+      field: "source tree digest",
+      risk: "evidence_drift"
+    });
+  }
+
+  const strictStatePaths = currentStateStrictStatePaths(structuredSection);
+  if (!stringArraysAreEqual(strictStatePaths, claim.transition.allowedStatePaths)) {
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarker(currentStateText, "Strict state record paths:"),
+      field: "Strict state record paths",
+      risk: "evidence_drift"
+    });
+  }
+
+  const validationSourceCommit =
+    currentStateValidationSourceCommit(currentStateText);
+  if (validationSourceCommit !== claim.source.validatedSourceCommit) {
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarker(
+        currentStateText,
+        "Validation recorded for source commit"
+      ),
+      field: "Validation recorded for source commit",
+      risk: "evidence_drift"
+    });
+  }
+
+  const expectationsSection = sectionBetween(
+    currentStateText,
+    "## State Sync Expectations",
+    "Current state line:"
+  );
+  for (const { field, expected } of currentStateExpectationFields(claim)) {
+    const actual = bulletValue(expectationsSection, field);
+    if (actual === expected) {
+      continue;
+    }
+
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarkerAfter(
+        currentStateText,
+        "## State Sync Expectations",
+        `- ${field}:`
+      ),
+      field: `State Sync Expectations ${field}`,
+      risk: "evidence_drift"
+    });
+  }
+
+  const postPushDivergence =
+    currentStatePostPushDivergenceExpectation(expectationsSection);
+  if (postPushDivergence !== postPushValidatedSourceDivergence(claim)) {
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarkerAfter(
+        currentStateText,
+        "## State Sync Expectations",
+        "source divergence as `"
+      ),
+      field: "State Sync Expectations post-push divergence",
+      risk: "evidence_drift"
+    });
+  }
+
+  return issues;
+}
+
+function collectAgentBoardEvidenceDrift(
+  agentBoardText: string,
+  agentBoardFiles: StateSyncAgentBoardFile[] | undefined,
+  claim: StateSyncClaim
+): StateSyncAuditIssue[] {
+  const issues: StateSyncAuditIssue[] = [];
+  const files = agentBoardFiles ?? [{
+    path: ".agent_board/*",
+    text: agentBoardText
+  }];
+  const generatedFields = agentBoardGeneratedDisplayFields(claim);
+  for (const file of files) {
+    const generatedBlocks = generatedDisplayBlocks(file.text);
+    const expectedBlockCount =
+      agentBoardFiles === undefined ? AGENT_BOARD_STATE_RECORD_PATHS.length : 1;
+    if (generatedBlocks.length !== expectedBlockCount) {
+      issues.push({
+        code: "state_document_evidence_drift",
+        path: file.path,
+        line: lineForMarker(file.text, AGENT_BOARD_DISPLAY_START),
+        field: "state-sync-display block count",
+        risk: "evidence_drift"
+      });
+    }
+
+    for (const block of generatedBlocks) {
+      for (const { field, expected } of generatedFields) {
+        const actual = generatedBlockValue(block.text, field);
+        if (actual === expected) {
+          continue;
+        }
+
+        issues.push({
+          code: "state_document_evidence_drift",
+          path: file.path,
+          line: block.line + lineForMarker(block.text, `- ${field}:`) - 1,
+          field,
+          risk: "evidence_drift"
+        });
+      }
+    }
+
+    for (const { field, expected } of agentBoardHeadingFields(claim)) {
+      for (const actual of headingValues(file.text, field)) {
+        if (actual.value === expected) {
+          continue;
+        }
+
+        issues.push({
+          code: "state_document_evidence_drift",
+          path: file.path,
+          line: actual.line,
+          field,
+          risk: "evidence_drift"
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+function currentStateStructuredRecordFields(
+  claim: StateSyncClaim
+): EvidenceFieldExpectation[] {
+  return [
+    {
+      field: "schema version",
+      expected: String(claim.schemaVersion)
+    },
+    {
+      field: "policy version",
+      expected: claim.policyVersion
+    },
+    {
+      field: "transition kind",
+      expected: claim.transition.kind
+    },
+    {
+      field: "validated source commit",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "latest validated commit",
+      expected: claim.source.latestValidatedCommit
+    },
+    {
+      field: "upstream baseline",
+      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
+    },
+    {
+      field: "recorded divergence baseline",
+      expected: formatUpstreamDivergence(claim.source.recordedDivergence)
+    }
+  ];
+}
+
+function currentStateExpectationFields(
+  claim: StateSyncClaim
+): EvidenceFieldExpectation[] {
+  const recordedDivergence = formatUpstreamDivergence(
+    claim.source.recordedDivergence
+  );
+
+  return [
+    {
+      field: "branch",
+      expected: claim.subject.branch
+    },
+    {
+      field: "upstream",
+      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
+    },
+    {
+      field: "validated source commit",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "recorded divergence baseline",
+      expected: recordedDivergence
+    },
+    {
+      field: "transition",
+      expected: claim.transition.kind
+    }
+  ];
+}
+
+function agentBoardGeneratedDisplayFields(
+  claim: StateSyncClaim
+): EvidenceFieldExpectation[] {
+  const recordedDivergence = formatUpstreamDivergence(
+    claim.source.recordedDivergence
+  );
+
+  return [
+    {
+      field: "branch",
+      expected: claim.subject.branch
+    },
+    {
+      field: "upstream",
+      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
+    },
+    {
+      field: "validated source commit",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "latest validated commit",
+      expected: claim.source.latestValidatedCommit
+    },
+    {
+      field: "recorded divergence baseline",
+      expected: recordedDivergence
+    },
+    {
+      field: "transition",
+      expected: claim.transition.kind
+    }
+  ];
+}
+
+function agentBoardHeadingFields(
+  claim: StateSyncClaim
+): EvidenceFieldExpectation[] {
+  const recordedDivergence = formatUpstreamDivergence(
+    claim.source.recordedDivergence
+  );
+
+  return [
+    {
+      field: "Branch:",
+      expected: claim.subject.branch
+    },
+    {
+      field: "Current branch:",
+      expected: claim.subject.branch
+    },
+    {
+      field: "Current head:",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "Validated source commit:",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "Current validated source:",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "Latest validated commit:",
+      expected: claim.source.latestValidatedCommit
+    },
+    {
+      field: "Upstream baseline:",
+      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
+    },
+    {
+      field: "Upstream divergence baseline:",
+      expected: recordedDivergence
+    },
+    {
+      field: "Recorded divergence baseline:",
+      expected: recordedDivergence
+    },
+    {
+      field: "Transition:",
+      expected: claim.transition.kind
+    },
+    {
+      field: "Current transition:",
+      expected: claim.transition.kind
+    }
+  ];
+}
+
+function generatedDisplayBlocks(text: string): GeneratedDisplayBlock[] {
+  const pattern = new RegExp(
+    `${escapeRegExp(AGENT_BOARD_DISPLAY_START)}[\\s\\S]*?${escapeRegExp(AGENT_BOARD_DISPLAY_END)}`,
+    "g"
+  );
+  const blocks: GeneratedDisplayBlock[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    blocks.push({
+      text: match[0],
+      line: lineAtIndex(text, match.index)
+    });
+  }
+
+  return blocks;
+}
+
+function generatedBlockValue(
+  text: string,
+  field: string
+): string | undefined {
+  const match = new RegExp(
+    `(?:^|\\r?\\n)- ${escapeRegExp(field)}: \`([^\\\`\\r\\n]*)\``
+  ).exec(text);
+
+  return match?.[1];
+}
+
+function headingValues(
+  text: string,
+  heading: string
+): Array<{ value: string; line: number }> {
+  const pattern = new RegExp(
+    `(?:^|\\r?\\n)${escapeRegExp(heading)}\\r?\\n\\r?\\n- \`([^\\\`\\r\\n]*)\``,
+    "g"
+  );
+  const values: Array<{ value: string; line: number }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    values.push({
+      value: match[1] ?? "",
+      line: lineAtIndex(text, match.index)
+    });
+  }
+
+  return values;
+}
+
+function sectionBetween(text: string, startHeading: string, endHeading: string): string {
+  const startIndex = text.indexOf(startHeading);
+  if (startIndex < 0) {
+    return "";
+  }
+
+  const endIndex = text.indexOf(endHeading, startIndex + startHeading.length);
+  return endIndex < 0 ? text.slice(startIndex) : text.slice(startIndex, endIndex);
+}
+
+function bulletValue(text: string, label: string): string | undefined {
+  const match = new RegExp(
+    `(?:^|\\r?\\n)- ${escapeRegExp(label)}: \`([^\\\`\\r\\n]*)\``
+  ).exec(text);
+
+  return match?.[1];
+}
+
+function currentStateSourceTreeDigest(
+  text: string
+): { algorithm: string; value: string } | undefined {
+  const match =
+    /(?:^|\r?\n)- source tree digest: `([^`\r\n]*)`\r?\n  `([^`\r\n]*)`/
+      .exec(text);
+  if (match === null) {
+    return undefined;
+  }
+
+  return {
+    algorithm: match[1] ?? "",
+    value: match[2] ?? ""
+  };
+}
+
+function currentStateStrictStatePaths(text: string): string[] | undefined {
+  const markerIndex = text.indexOf("Strict state record paths:");
+  if (markerIndex < 0) {
+    return undefined;
+  }
+
+  const section = text.slice(markerIndex);
+  const lines = section.split(/\r?\n/).slice(1);
+  const paths: string[] = [];
+  for (const line of lines) {
+    if (line.trim() === "") {
+      if (paths.length === 0) {
+        continue;
+      }
+      break;
+    }
+
+    const match = /^- `([^`\r\n]*)`$/.exec(line);
+    if (match === null) {
+      break;
+    }
+    paths.push(match[1] ?? "");
+  }
+
+  return paths;
+}
+
+function currentStateValidationSourceCommit(text: string): string | undefined {
+  const match = /Validation recorded for source commit `([^`\r\n]*)`:/
+    .exec(text);
+  return match?.[1];
+}
+
+function currentStatePostPushDivergenceExpectation(
+  text: string
+): string | undefined {
+  const match = /source divergence as `([^`\r\n]*)`/.exec(text);
+  return match?.[1];
+}
+
+function postPushValidatedSourceDivergence(claim: StateSyncClaim): string {
+  if (claim.transition.kind !== "state_only_pushed") {
+    return formatUpstreamDivergence(claim.source.recordedDivergence);
+  }
+
+  return formatUpstreamDivergence({
+    ahead: claim.source.recordedDivergence.behind,
+    behind: claim.source.recordedDivergence.ahead
   });
+}
+
+function stringArraysAreEqual(
+  left: string[] | undefined,
+  right: string[]
+): boolean {
+  return left !== undefined
+    && left.length === right.length
+    && left.every((value, index) => value === right[index]);
 }
 
 function stateOnlyDivergenceSnapshotAllowed(
@@ -1007,7 +1561,7 @@ function fieldValueIsPresent(text: string, field: string): boolean {
 }
 
 function fieldValue(text: string, field: string): string | undefined {
-  const match = new RegExp(`\\| ${escapeRegExp(field)} \\| \`([^\\\`]+)\` \\|`)
+  const match = new RegExp(`\\| ${escapeRegExp(field)} \\| \`([^\\\`]*)\` \\|`)
     .exec(text);
   return match?.[1];
 }
@@ -1016,6 +1570,29 @@ function fieldLine(text: string, field: string): number {
   const marker = `| ${field} |`;
   const index = text.split(/\r?\n/).findIndex((line) => line.includes(marker));
   return index >= 0 ? index + 1 : 1;
+}
+
+function lineForMarker(text: string, marker: string): number {
+  const index = text.indexOf(marker);
+  return index >= 0 ? lineAtIndex(text, index) : 1;
+}
+
+function lineForMarkerAfter(
+  text: string,
+  startMarker: string,
+  marker: string
+): number {
+  const startIndex = text.indexOf(startMarker);
+  if (startIndex < 0) {
+    return lineForMarker(text, marker);
+  }
+
+  const index = text.indexOf(marker, startIndex);
+  return index >= 0 ? lineAtIndex(text, index) : lineAtIndex(text, startIndex);
+}
+
+function lineAtIndex(text: string, index: number): number {
+  return text.slice(0, index).split(/\r?\n/).length;
 }
 
 function stateCommitMatchesHead(

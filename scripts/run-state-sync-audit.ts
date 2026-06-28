@@ -39,7 +39,7 @@ export async function collectStateSyncAuditInput(
     localUpstream,
     packageJsonText,
     currentStateText,
-    agentBoardText,
+    agentBoardFiles,
     stateSyncClaimText
   ] =
     await Promise.all([
@@ -54,9 +54,10 @@ export async function collectStateSyncAuditInput(
         .catch(() => ""),
       read(cwd, "package.json"),
       read(cwd, CURRENT_STATE_DOC),
-      readAgentBoard(cwd),
+      readAgentBoardFiles(cwd),
       readOptional(cwd, STATE_SYNC_RECORD_DOC)
     ]);
+  const agentBoardText = agentBoardFiles.map((file) => file.text).join("\n");
 
   const parsedClaim = parseStateSyncClaim(stateSyncClaimText);
   const observedUpstream = await resolveObservedUpstream(
@@ -78,7 +79,8 @@ export async function collectStateSyncAuditInput(
     aheadBehind: aheadBehind.trim(),
     packageJsonText,
     currentStateText,
-    agentBoardText
+    agentBoardText,
+    agentBoardFiles
   };
   if (stateSyncClaimText !== undefined) {
     input.stateSyncClaimText = stateSyncClaimText;
@@ -181,14 +183,15 @@ async function resolveObservedUpstream(
   return await gitRefExists(normalizedUpstream, cwd) ? normalizedUpstream : "";
 }
 
-async function readAgentBoard(cwd: string): Promise<string> {
-  const texts = await Promise.all(
-    AGENT_BOARD_FILES.map((filePath) =>
-      read(cwd, filePath).catch(() => "")
-    )
+async function readAgentBoardFiles(
+  cwd: string
+): Promise<Array<{ path: string; text: string }>> {
+  return Promise.all(
+    AGENT_BOARD_FILES.map(async (filePath) => ({
+      path: filePath,
+      text: await read(cwd, filePath).catch(() => "")
+    }))
   );
-
-  return texts.join("\n");
 }
 
 function validatedSourceAnchorFromClaimOrLegacy(
