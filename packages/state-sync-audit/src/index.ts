@@ -30,15 +30,22 @@ const FORBIDDEN_STALE_MARKERS = [
   "Review and optionally commit the `.agent_board` refresh locally"
 ] as const;
 
-const STRICT_STATE_RECORD_PATHS = new Set([
-  CURRENT_STATE_DOC,
-  STATE_SYNC_RECORD_DOC,
+const AGENT_BOARD_STATE_RECORD_PATHS = [
   ".agent_board/CHECKPOINT.md",
   ".agent_board/HANDOFF.md",
   ".agent_board/RUN_STATE.md",
   ".agent_board/TASK_QUEUE.md",
   ".agent_board/VALIDATION_LOG.md"
+] as const;
+
+const STRICT_STATE_RECORD_PATHS = new Set([
+  CURRENT_STATE_DOC,
+  STATE_SYNC_RECORD_DOC,
+  ...AGENT_BOARD_STATE_RECORD_PATHS
 ]);
+
+const AGENT_BOARD_DISPLAY_START = "<!-- state-sync-display:start -->";
+const AGENT_BOARD_DISPLAY_END = "<!-- state-sync-display:end -->";
 
 const ACCEPTED_CLAIM_SCHEMA_VERSION = 1;
 const ACCEPTED_CLAIM_POLICY_VERSION = "state-sync-policy.v1";
@@ -403,7 +410,11 @@ export function resolveStateSyncClaim(
       sourceTreeDigest: parsed.claim.source.sourceTreeDigest,
       transitionKind: parsed.claim.transition.kind,
       allowedStatePaths: parsed.claim.transition.allowedStatePaths,
-      issues: collectStateSyncEvidenceDrift(input.currentStateText, parsed.claim)
+      issues: collectStateSyncEvidenceDrift(
+        input.currentStateText,
+        input.agentBoardText,
+        parsed.claim
+      )
     };
   }
 
@@ -807,11 +818,31 @@ function normalizeOptionalUpstreamRef(ref: string | undefined): string | undefin
   return ref === undefined ? undefined : normalizeClaimUpstreamRef(ref);
 }
 
+interface EvidenceFieldExpectation {
+  field: string;
+  expected: string;
+}
+
+interface GeneratedDisplayBlock {
+  text: string;
+  line: number;
+}
+
 function collectStateSyncEvidenceDrift(
   currentStateText: string,
+  agentBoardText: string,
   claim: StateSyncClaim
 ): StateSyncAuditIssue[] {
-  const expectedFields = [
+  return [
+    ...collectCurrentStateEvidenceDrift(currentStateText, claim),
+    ...collectAgentBoardEvidenceDrift(agentBoardText, claim)
+  ];
+}
+
+function currentStateEvidenceFields(
+  claim: StateSyncClaim
+): EvidenceFieldExpectation[] {
+  return [
     {
       field: "Current branch",
       expected: claim.subject.branch
@@ -837,8 +868,13 @@ function collectStateSyncEvidenceDrift(
       expected: claim.source.latestValidatedCommit
     }
   ];
+}
 
-  return expectedFields.flatMap(({ field, expected }) => {
+function collectCurrentStateEvidenceDrift(
+  currentStateText: string,
+  claim: StateSyncClaim
+): StateSyncAuditIssue[] {
+  return currentStateEvidenceFields(claim).flatMap(({ field, expected }) => {
     const actual = fieldValue(currentStateText, field);
     if (actual === expected) {
       return [];
@@ -852,6 +888,197 @@ function collectStateSyncEvidenceDrift(
       risk: "evidence_drift"
     }];
   });
+}
+
+function collectAgentBoardEvidenceDrift(
+  agentBoardText: string,
+  claim: StateSyncClaim
+): StateSyncAuditIssue[] {
+  const issues: StateSyncAuditIssue[] = [];
+  const generatedBlocks = generatedDisplayBlocks(agentBoardText);
+  if (generatedBlocks.length !== AGENT_BOARD_STATE_RECORD_PATHS.length) {
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: ".agent_board/*",
+      line: lineForMarker(agentBoardText, AGENT_BOARD_DISPLAY_START),
+      field: "state-sync-display block count",
+      risk: "evidence_drift"
+    });
+  }
+
+  const generatedFields = agentBoardGeneratedDisplayFields(claim);
+  for (const block of generatedBlocks) {
+    for (const { field, expected } of generatedFields) {
+      const actual = generatedBlockValue(block.text, field);
+      if (actual === expected) {
+        continue;
+      }
+
+      issues.push({
+        code: "state_document_evidence_drift",
+        path: ".agent_board/*",
+        line: block.line + lineForMarker(block.text, `- ${field}:`) - 1,
+        field,
+        risk: "evidence_drift"
+      });
+    }
+  }
+
+  for (const { field, expected } of agentBoardHeadingFields(claim)) {
+    for (const actual of headingValues(agentBoardText, field)) {
+      if (actual.value === expected) {
+        continue;
+      }
+
+      issues.push({
+        code: "state_document_evidence_drift",
+        path: ".agent_board/*",
+        line: actual.line,
+        field,
+        risk: "evidence_drift"
+      });
+    }
+  }
+
+  return issues;
+}
+
+function agentBoardGeneratedDisplayFields(
+  claim: StateSyncClaim
+): EvidenceFieldExpectation[] {
+  const recordedDivergence = formatUpstreamDivergence(
+    claim.source.recordedDivergence
+  );
+
+  return [
+    {
+      field: "branch",
+      expected: claim.subject.branch
+    },
+    {
+      field: "upstream",
+      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
+    },
+    {
+      field: "validated source commit",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "latest validated commit",
+      expected: claim.source.latestValidatedCommit
+    },
+    {
+      field: "recorded divergence baseline",
+      expected: recordedDivergence
+    },
+    {
+      field: "transition",
+      expected: claim.transition.kind
+    }
+  ];
+}
+
+function agentBoardHeadingFields(
+  claim: StateSyncClaim
+): EvidenceFieldExpectation[] {
+  const recordedDivergence = formatUpstreamDivergence(
+    claim.source.recordedDivergence
+  );
+
+  return [
+    {
+      field: "Branch:",
+      expected: claim.subject.branch
+    },
+    {
+      field: "Current branch:",
+      expected: claim.subject.branch
+    },
+    {
+      field: "Current head:",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "Validated source commit:",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "Current validated source:",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "Latest validated commit:",
+      expected: claim.source.latestValidatedCommit
+    },
+    {
+      field: "Upstream baseline:",
+      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
+    },
+    {
+      field: "Upstream divergence baseline:",
+      expected: recordedDivergence
+    },
+    {
+      field: "Recorded divergence baseline:",
+      expected: recordedDivergence
+    },
+    {
+      field: "Transition:",
+      expected: claim.transition.kind
+    },
+    {
+      field: "Current transition:",
+      expected: claim.transition.kind
+    }
+  ];
+}
+
+function generatedDisplayBlocks(text: string): GeneratedDisplayBlock[] {
+  const pattern = new RegExp(
+    `${escapeRegExp(AGENT_BOARD_DISPLAY_START)}[\\s\\S]*?${escapeRegExp(AGENT_BOARD_DISPLAY_END)}`,
+    "g"
+  );
+  const blocks: GeneratedDisplayBlock[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    blocks.push({
+      text: match[0],
+      line: lineAtIndex(text, match.index)
+    });
+  }
+
+  return blocks;
+}
+
+function generatedBlockValue(
+  text: string,
+  field: string
+): string | undefined {
+  const match = new RegExp(
+    `(?:^|\\r?\\n)- ${escapeRegExp(field)}: \`([^\\\`\\r\\n]*)\``
+  ).exec(text);
+
+  return match?.[1];
+}
+
+function headingValues(
+  text: string,
+  heading: string
+): Array<{ value: string; line: number }> {
+  const pattern = new RegExp(
+    `(?:^|\\r?\\n)${escapeRegExp(heading)}\\r?\\n\\r?\\n- \`([^\\\`\\r\\n]*)\``,
+    "g"
+  );
+  const values: Array<{ value: string; line: number }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    values.push({
+      value: match[1] ?? "",
+      line: lineAtIndex(text, match.index)
+    });
+  }
+
+  return values;
 }
 
 function stateOnlyDivergenceSnapshotAllowed(
@@ -1062,6 +1289,15 @@ function fieldLine(text: string, field: string): number {
   const marker = `| ${field} |`;
   const index = text.split(/\r?\n/).findIndex((line) => line.includes(marker));
   return index >= 0 ? index + 1 : 1;
+}
+
+function lineForMarker(text: string, marker: string): number {
+  const index = text.indexOf(marker);
+  return index >= 0 ? lineAtIndex(text, index) : 1;
+}
+
+function lineAtIndex(text: string, index: number): number {
+  return text.slice(0, index).split(/\r?\n/).length;
 }
 
 function stateCommitMatchesHead(
