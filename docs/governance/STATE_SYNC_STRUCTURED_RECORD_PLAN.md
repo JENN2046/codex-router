@@ -685,6 +685,20 @@ The script:
   `.agent_board/*` display file;
 - defaults to check mode so drift can be detected without hidden writes.
 
+Implemented reanchor preparation path:
+
+```bash
+node --import tsx scripts/prepare-state-sync-reanchor.ts --check
+node --import tsx scripts/prepare-state-sync-reanchor.ts --write
+node --import tsx scripts/prepare-state-sync-reanchor.ts --write --source <sha>
+```
+
+The helper prepares the structured record and generated display surfaces for a
+post-merge `state_only_pushed` state record. It does not commit or push. By
+default it infers a new source only when `HEAD` contains non-state changes since
+the previous recorded source; if `HEAD` already appears to be a state-only
+descendant, the helper fails closed unless an explicit `--source` is supplied.
+
 ### Phase 4: CI Coverage Adjustment
 
 Evaluate running State Sync Audit on push to `main` as well as pull requests.
