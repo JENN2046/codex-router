@@ -22,15 +22,15 @@ Branch:
 
 Current head:
 
-- `da7c118`
+- `86de435`
 
 Validated source commit:
 
-- `da7c118`
+- `86de435`
 
 Latest validated commit:
 
-- `da7c118`
+- `86de435`
 
 Upstream baseline:
 
@@ -38,7 +38,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 11 / behind 0`
+- `ahead 13 / behind 0`
 
 Transition:
 
@@ -99,8 +99,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `da7c118`
-- latest validated commit: `da7c118`
-- recorded divergence baseline: `ahead 11 / behind 0`
+- validated source commit: `86de435`
+- latest validated commit: `86de435`
+- recorded divergence baseline: `ahead 13 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

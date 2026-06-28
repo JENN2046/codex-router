@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `automate/state-sync-reanchor-pr` |
-| Current head | `da7c118` |
-| Validated source commit | `da7c118` |
+| Current head | `86de435` |
+| Validated source commit | `86de435` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 11 / behind 0` |
-| Latest validated commit | `da7c118` |
+| Upstream divergence | `ahead 13 / behind 0` |
+| Latest validated commit | `86de435` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `da7c118`
-- latest validated commit: `da7c118`
+- validated source commit: `86de435`
+- latest validated commit: `86de435`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 11 / behind 0`
+- recorded divergence baseline: `ahead 13 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `00e59ba189a98629c43da5d0cf06d0546d45f0ebe40b86da692ade69f02bab45`
+  `905f56fdf5ac4681f97eed91b8ebb4441a06fc72665dd8e9839ae12dee4ae99b`
 
 Strict state record paths:
 
@@ -93,7 +93,7 @@ GitHub authorization gate, not evidence that CI failed to trigger.
 
 ## Validation Baseline
 
-Validation recorded for source commit `da7c118`:
+Validation recorded for source commit `86de435`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests.
@@ -208,13 +208,13 @@ The structured claim records:
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `da7c118`
-- recorded divergence baseline: `ahead 11 / behind 0`
+- validated source commit: `86de435`
+- recorded divergence baseline: `ahead 13 / behind 0`
 - transition: `state_only_pending_push`
 
 For this `state_only_pending_push` record on branch `automate/state-sync-reanchor-pr`,
 Git observation should compute the validated source divergence as
-`ahead 11 / behind 0` against `refs/remotes/origin/main` before the state-only
+`ahead 13 / behind 0` against `refs/remotes/origin/main` before the state-only
 record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
