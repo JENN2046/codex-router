@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `automate/state-sync-reanchor-pr`
+- `main`
 
 Validated source commit:
 
-- `86de435`
+- `2ac2980`
 
 Latest validated commit:
 
-- `86de435`
+- `2ac2980`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 13 / behind 0`
+- `ahead 1 / behind 0`
 
 Recorded validation:
 
@@ -43,7 +43,7 @@ State-sync audit observation:
 
 - branch-head `node --import tsx scripts/run-state-sync-audit.ts --json` is
   expected to PASS after this state-only record commit
-- `state_only_pending_push` is expected for this implementation branch state
+- a `main` / `state_only_pushed` claim is expected for this reanchor state
   record
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
@@ -96,10 +96,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `automate/state-sync-reanchor-pr`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `86de435`
-- latest validated commit: `86de435`
-- recorded divergence baseline: `ahead 13 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `2ac2980`
+- latest validated commit: `2ac2980`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

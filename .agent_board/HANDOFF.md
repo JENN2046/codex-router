@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `automate/state-sync-reanchor-pr`
+- `main`
 
 Current validated source:
 
-- `86de435`
+- `2ac2980`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Upstream baseline:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 13 / behind 0`
+- `ahead 1 / behind 0`
 
 Completed:
 
@@ -109,7 +109,7 @@ State-sync status:
 - branch-head audit is expected to PASS by resolving
   `refs/remotes/origin/main` as the structured claim upstream ref and computing
   divergence from Git
-- `state_only_pending_push` is expected for this implementation branch state
+- a `main` / `state_only_pushed` claim is expected for this reanchor state
   record
 
 Not authorized:
@@ -127,10 +127,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `automate/state-sync-reanchor-pr`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `86de435`
-- latest validated commit: `86de435`
-- recorded divergence baseline: `ahead 13 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `2ac2980`
+- latest validated commit: `2ac2980`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
