@@ -56,7 +56,13 @@ jobs:
       - name: Push state-sync reanchor branch
         if: steps.reanchor-gate.outputs.run_reanchor == 'true'
         run: |
-          git push --force-with-lease origin HEAD:refs/heads/state-sync/reanchor-main
+          git fetch origin +refs/heads/state-sync/reanchor-main:refs/remotes/origin/state-sync/reanchor-main || true
+          expected_reanchor_sha="$(git rev-parse --verify refs/remotes/origin/state-sync/reanchor-main 2>/dev/null || true)"
+          if [ -n "$expected_reanchor_sha" ]; then
+            git push --force-with-lease=refs/heads/state-sync/reanchor-main:$expected_reanchor_sha origin HEAD:refs/heads/state-sync/reanchor-main
+          else
+            git push --force-with-lease=refs/heads/state-sync/reanchor-main: origin HEAD:refs/heads/state-sync/reanchor-main
+          fi
       - name: Create or update state-sync reanchor PR
         if: steps.reanchor-gate.outputs.run_reanchor == 'true'
         env:

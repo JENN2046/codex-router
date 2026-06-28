@@ -212,7 +212,16 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
   assert.ok(commit?.run?.includes("scripts/verify-state-sync-reanchor-diff.ts --cached"));
   assert.ok(commit?.run?.includes("scripts/run-state-sync-audit.ts --json"));
   assert.ok(push?.run?.includes(
-    "git push --force-with-lease origin HEAD:refs/heads/state-sync/reanchor-main"
+    "git fetch origin +refs/heads/state-sync/reanchor-main:refs/remotes/origin/state-sync/reanchor-main || true"
+  ));
+  assert.ok(push?.run?.includes(
+    "expected_reanchor_sha=\"$(git rev-parse --verify refs/remotes/origin/state-sync/reanchor-main 2>/dev/null || true)\""
+  ));
+  assert.ok(push?.run?.includes(
+    "git push --force-with-lease=refs/heads/state-sync/reanchor-main:$expected_reanchor_sha origin HEAD:refs/heads/state-sync/reanchor-main"
+  ));
+  assert.ok(push?.run?.includes(
+    "git push --force-with-lease=refs/heads/state-sync/reanchor-main: origin HEAD:refs/heads/state-sync/reanchor-main"
   ));
   assert.ok(!push?.run?.includes("HEAD:refs/heads/main"));
   assert.ok(pr?.run?.includes("scripts/create-state-sync-reanchor-pr.ts"));

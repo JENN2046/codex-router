@@ -110,6 +110,9 @@ test("state-sync reanchor PR body records validation and boundaries", () => {
   assert.match(body, /Automated post-merge state-sync reanchor PR/);
   assert.match(body, /main SHA: `abc1234`/);
   assert.match(body, /docs\/current\/state-sync-record\.json/);
+  assert.match(body, /created or updated by a workflow using `GITHUB_TOKEN`/);
+  assert.match(body, /approval-required state/);
+  assert.match(body, /not as evidence that the reanchor PR failed to trigger CI/);
   assert.match(body, /No automatic merge/);
 });
 
