@@ -18,19 +18,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `main`
+- `fix/state-sync-reduce-volatile-handoff-prose`
 
 Current head:
 
-- `2ac2980`
+- `3e11329`
 
 Validated source commit:
 
-- `2ac2980`
+- `3e11329`
 
 Latest validated commit:
 
-- `2ac2980`
+- `3e11329`
 
 Upstream baseline:
 
@@ -38,11 +38,11 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Validation recorded for this source commit:
 
@@ -61,29 +61,16 @@ Validation recorded for this source commit:
 
 State-sync audit expectation:
 
-- branch-head audit is expected to PASS with `claimSource: structured` and
-  Git-computed divergence against verified `refs/remotes/origin/main`
-- a `main` / `state_only_pushed` claim is expected for this reanchor state
-  record
-- bounded squash-only checkout contexts should PASS without the side-branch
-  source commit object only when live `HEAD` has the recorded filtered source
-  tree digest
-- reanchor helper squash fallback must verify `HEAD` against the recorded
-  filtered source tree digest before inferring it as source
-- fixed-branch `state-sync/reanchor-main` candidate PR checkouts are accepted
-  only for a single state-only commit carrying a `main/state_only_pushed` claim
-- the reanchor workflow fetches the fixed remote PR branch before push and binds
-  `--force-with-lease` to an explicit expected SHA or empty create-only
-  expectation
-- generated reanchor PR bodies state that `GITHUB_TOKEN`-created or updated PR
-  workflow runs may require write-permission approval before CI proceeds
-- `## State Sync Expectations` divergence prose is generated from the
-  structured transition instead of retaining stale pushed-main wording
-- evidence drift blocking, empty/missing mirror-field blocking, structured
-  display mirror blocking, State Sync Expectations mirror blocking, per-file
-  agent-board generated block checks, and unknown structured claim field
-  fail-closed behavior are implemented and covered by regression tests
-
+- structured claim: `fix/state-sync-reduce-volatile-handoff-prose` / `state_only_pending_push` against
+  `refs/remotes/origin/main`
+- validated source commit: `3e11329`
+- latest validated commit: `3e11329`
+- recorded divergence baseline: `ahead 3 / behind 0`
+- branch-head audit command:
+  `node --import tsx scripts/run-state-sync-audit.ts --json`
+- expected audit source: `claimSource: structured`
+- Git ancestry, divergence, source-tree digest, and strict state path
+  checks remain enforced by the state-sync audit.
 Boundary:
 
 - this state record commit intentionally changes only state/docs display and
@@ -97,10 +84,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-reduce-volatile-handoff-prose`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `2ac2980`
-- latest validated commit: `2ac2980`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `3e11329`
+- latest validated commit: `3e11329`
+- recorded divergence baseline: `ahead 3 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

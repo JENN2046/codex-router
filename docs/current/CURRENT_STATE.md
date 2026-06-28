@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `main` |
-| Current head | `2ac2980` |
-| Validated source commit | `2ac2980` |
+| Current branch | `fix/state-sync-reduce-volatile-handoff-prose` |
+| Current head | `3e11329` |
+| Validated source commit | `3e11329` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `2ac2980` |
+| Upstream divergence | `ahead 3 / behind 0` |
+| Latest validated commit | `3e11329` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,13 +36,13 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pushed`
-- validated source commit: `2ac2980`
-- latest validated commit: `2ac2980`
+- transition kind: `state_only_pending_push`
+- validated source commit: `3e11329`
+- latest validated commit: `3e11329`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `905f56fdf5ac4681f97eed91b8ebb4441a06fc72665dd8e9839ae12dee4ae99b`
+  `e305a2b5b2a06659f61e8073b12ad0797d2c14c0f9444eb91d4aacd26577358e`
 
 Strict state record paths:
 
@@ -93,7 +93,7 @@ GitHub authorization gate, not evidence that CI failed to trigger.
 
 ## Validation Baseline
 
-Validation recorded for source commit `2ac2980`:
+Validation recorded for source commit `3e11329`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests.
@@ -117,42 +117,19 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- This state record carries a `main` / `state_only_pushed` claim against
-  `refs/remotes/origin/main`.
-- Branch-head audit is expected to PASS after this state-only record commit with:
-  `node --import tsx scripts/run-state-sync-audit.ts --json`.
-- The collector verifies the structured claim upstream ref
-  `refs/remotes/origin/main` exists locally, then computes divergence from Git
-  instead of trusting the JSON divergence field. Structured claims do not let
-  local feature-branch tracking override this baseline.
-- The collector normalizes `origin/*` shorthand to `refs/remotes/origin/*`
-  before calling Git, so same-named tags or local refs cannot change the
-  divergence baseline.
-- Structured claim upstream ref selection is bounded to `origin/*` or
-  `refs/remotes/origin/*` remote-tracking refs; `HEAD`, local branches, tags,
-  bare SHAs, `origin/HEAD`, and revision expressions block.
-- Structured claim verification accepts bounded detached branch-head and PR
-  merge-ref checkout contexts when upstream, ancestry, divergence, and
-  state-only path checks still pass.
-- Structured claim verification accepts bounded squash-only checkout contexts
-  without the side-branch source commit object only when live `HEAD` has the
-  recorded filtered source tree digest.
-- The audit enters `claimSource: structured` and validates the structured claim
-  shape.
-- Machine-mirrored Markdown and `.agent_board/*` evidence drift is now blocking
-  through `state_sync_evidenceDriftAbsent`.
-- Empty or missing machine-mirrored Markdown fields now also block as evidence
-  drift unless the structured claim itself expects an empty value.
-- Stale `## Structured Record` mirror fields in `CURRENT_STATE.md`, including
-  source tree digest and strict state paths, now block as evidence drift.
-- Stale `Validation recorded for source commit` and
-  `## State Sync Expectations` fields in `CURRENT_STATE.md` now block as
-  evidence drift.
-- Stale or missing `.agent_board/*` generated display blocks are checked per
-  file, so a duplicate block in one file cannot mask a missing block in another.
-- Supported `.agent_board/*` heading mirrors also block as evidence drift.
-- Unknown structured claim fields in schema v1 make the claim invalid.
-
+- structured claim: `fix/state-sync-reduce-volatile-handoff-prose` / `state_only_pending_push` against
+  `refs/remotes/origin/main`
+- validated source commit: `3e11329`
+- latest validated commit: `3e11329`
+- recorded divergence baseline: `ahead 3 / behind 0`
+- branch-head audit command:
+  `node --import tsx scripts/run-state-sync-audit.ts --json`
+- expected audit source: `claimSource: structured`
+- Git ancestry, divergence, source-tree digest, and strict state path
+  checks remain enforced by the state-sync audit.
+- Generated display, Markdown mirrors, and `.agent_board/*` mirrors are
+  evidence surfaces derived from `docs/current/state-sync-record.json`.
+- Evidence drift remains blocking through `state_sync_evidenceDriftAbsent`.
 ## Execution Boundary
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
@@ -206,15 +183,16 @@ This state-only record line is limited to:
 
 The structured claim records:
 
-- branch: `main`
+- branch: `fix/state-sync-reduce-volatile-handoff-prose`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `2ac2980`
+- validated source commit: `b176436`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 
-For this `state_only_pushed` state-only record, Git observation should
-compute the validated source divergence as `ahead 0 / behind 1` against
-`refs/remotes/origin/main` after the state-only record is on upstream.
+For this `state_only_pending_push` record on branch `fix/state-sync-reduce-volatile-handoff-prose`,
+Git observation should compute the validated source divergence as
+`ahead 3 / behind 0` against `refs/remotes/origin/main` before the state-only
+record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then

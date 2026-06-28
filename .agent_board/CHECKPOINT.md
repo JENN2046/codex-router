@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `main`
+- `fix/state-sync-reduce-volatile-handoff-prose`
 
 Validated source commit:
 
-- `2ac2980`
+- `3e11329`
 
 Latest validated commit:
 
-- `2ac2980`
+- `3e11329`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Checkpoint facts:
 
@@ -98,19 +98,23 @@ Validation recorded:
 
 State-sync observation:
 
-- branch-head state-sync audit is expected to PASS using
-  `refs/remotes/origin/main` as a verified Git ref selected by the structured
-  claim
-- a `main` / `state_only_pushed` claim is expected for this reanchor state
-  record
-
+- structured claim: `fix/state-sync-reduce-volatile-handoff-prose` / `state_only_pending_push` against
+  `refs/remotes/origin/main`
+- validated source commit: `3e11329`
+- latest validated commit: `3e11329`
+- recorded divergence baseline: `ahead 3 / behind 0`
+- branch-head audit command:
+  `node --import tsx scripts/run-state-sync-audit.ts --json`
+- expected audit source: `claimSource: structured`
+- Git ancestry, divergence, source-tree digest, and strict state path
+  checks remain enforced by the state-sync audit.
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-reduce-volatile-handoff-prose`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `2ac2980`
-- latest validated commit: `2ac2980`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `3e11329`
+- latest validated commit: `3e11329`
+- recorded divergence baseline: `ahead 3 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

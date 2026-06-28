@@ -51,6 +51,11 @@ test("state-sync display sync checks drift, writes generated fields, then become
   assert.match(currentState, /- branch: `docs\/state-sync-display`/);
   assert.match(
     currentState,
+    /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
+  );
+  assert.doesNotMatch(currentState, /stale-branch` \/ `state_only_pending_push/);
+  assert.match(
+    currentState,
     /For this `state_only_pushed` state-only record, Git observation should\s+compute the validated source divergence as `ahead 0 \/ behind 2` against\s+`refs\/remotes\/origin\/main` after the state-only record is on upstream\./
   );
 
@@ -58,10 +63,28 @@ test("state-sync display sync checks drift, writes generated fields, then become
     join(cwd, ".agent_board", "TASK_QUEUE.md"),
     "utf8"
   );
+  const checkpoint = await readFile(
+    join(cwd, ".agent_board", "CHECKPOINT.md"),
+    "utf8"
+  );
+  const runState = await readFile(join(cwd, ".agent_board", "RUN_STATE.md"), "utf8");
+  assert.match(checkpoint, /State-sync observation:/);
+  assert.match(
+    checkpoint,
+    /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
+  );
+  assert.match(checkpoint, /Boundary:\s+- stale boundary text/);
+  assert.match(checkpoint, /<!-- state-sync-display:start -->/);
+  assert.doesNotMatch(checkpoint, /stale-branch` \/ `state_only_pending_push/);
   assert.match(taskQueue, /<!-- state-sync-display:start -->/);
   assert.match(taskQueue, /- branch: `docs\/state-sync-display`/);
   assert.match(taskQueue, /- validated source commit: `abc1234`/);
   assert.match(taskQueue, /- transition: `state_only_pushed`/);
+  assert.match(
+    runState,
+    /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
+  );
+  assert.doesNotMatch(runState, /stale-branch` \/ `state_only_pending_push/);
 
   const clean = await syncStateSyncDisplay(cwd);
   assert.deepEqual(clean.changedPaths, []);
@@ -101,6 +124,15 @@ test("state-sync display sync cleans volatile main pushed prose", async () => {
       "Branch:",
       "",
       "- `stale-branch`",
+      "",
+      "State-sync audit expectation:",
+      "",
+      "- stale pending-push branch-head audit prose still expects a",
+      "  `stale-branch` / `state_only_pending_push` claim against `origin/stale`.",
+      "",
+      "Boundary:",
+      "",
+      "- stale boundary text",
       ""
     ].join("\n")
   );
@@ -141,6 +173,19 @@ test("state-sync display sync cleans volatile main pushed prose", async () => {
   assert.doesNotMatch(taskQueue, /verify post-push/);
   assert.match(runState, /Status: Main state-sync record is current and pushed\./);
   assert.match(taskQueue, /no post-merge\s+reanchor is pending/);
+
+  for (const filePath of [
+    "docs/current/CURRENT_STATE.md",
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/VALIDATION_LOG.md"
+  ]) {
+    const text = await readFile(join(cwd, filePath), "utf8");
+    assert.match(text, /`main` \/ `state_only_pushed`/);
+    assert.doesNotMatch(text, /stale-branch` \/ `state_only_pending_push/);
+    assert.doesNotMatch(text, /stale pending-push/);
+  }
 });
 
 test("state-sync display sync fails closed when the structured claim is invalid", async () => {
@@ -217,7 +262,7 @@ async function writeDisplayFixture(
       ["Latest validated commit:", "1111111"],
       ["Upstream baseline:", "origin/stale"],
       ["Upstream divergence baseline:", "ahead 999 / behind 999"]
-    ])
+    ], "State-sync observation:", "Boundary:")
   );
   await writeFile(
     join(cwd, ".agent_board", "HANDOFF.md"),
@@ -227,7 +272,7 @@ async function writeDisplayFixture(
       ["Current transition:", "source_exact"],
       ["Upstream baseline:", "origin/stale"],
       ["Recorded divergence baseline:", "ahead 999 / behind 999"]
-    ])
+    ], "State-sync status:", "Not authorized:")
   );
   await writeFile(
     join(cwd, ".agent_board", "TASK_QUEUE.md"),
@@ -241,7 +286,7 @@ async function writeDisplayFixture(
       ["Latest validated commit:", "1111111"],
       ["Upstream baseline:", "origin/stale"],
       ["Upstream divergence baseline:", "ahead 999 / behind 999"]
-    ])
+    ], "State-sync audit observation:", "Execution boundary:")
   );
 }
 
@@ -300,11 +345,24 @@ function staleCurrentState(): string {
     "For this pushed `main` state-only record, Git observation should compute the",
     "validated source divergence as `ahead 999 / behind 999` against",
     "`origin/stale` after the reanchor commit is on upstream.",
+    "",
+    "Current structured state-sync audit status:",
+    "",
+    "- stale pending-push branch-head audit prose still expects a",
+    "  `stale-branch` / `state_only_pending_push` claim against `origin/stale`.",
+    "",
+    "## Execution Boundary",
+    "",
+    "- stale boundary text",
     ""
   ].join("\n");
 }
 
-function staleAgentBoard(entries: Array<[string, string]>): string {
+function staleAgentBoard(
+  entries: Array<[string, string]>,
+  statusHeading = "State-sync audit expectation:",
+  statusEndHeading = "Boundary:"
+): string {
   return [
     "# Agent Board",
     "",
@@ -315,7 +373,16 @@ function staleAgentBoard(entries: Array<[string, string]>): string {
       "",
       `- \`${value}\``,
       ""
-    ])
+    ]),
+    statusHeading,
+    "",
+    "- stale pending-push branch-head audit prose still expects a",
+    "  `stale-branch` / `state_only_pending_push` claim against `origin/stale`.",
+    "",
+    statusEndHeading,
+    "",
+    "- stale boundary text",
+    ""
   ].join("\n");
 }
 

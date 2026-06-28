@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `fix/state-sync-reduce-volatile-handoff-prose`
 
 Current validated source:
 
-- `2ac2980`
+- `3e11329`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Completed:
 
@@ -106,12 +106,16 @@ Validation completed:
 
 State-sync status:
 
-- branch-head audit is expected to PASS by resolving
-  `refs/remotes/origin/main` as the structured claim upstream ref and computing
-  divergence from Git
-- a `main` / `state_only_pushed` claim is expected for this reanchor state
-  record
-
+- structured claim: `fix/state-sync-reduce-volatile-handoff-prose` / `state_only_pending_push` against
+  `refs/remotes/origin/main`
+- validated source commit: `3e11329`
+- latest validated commit: `3e11329`
+- recorded divergence baseline: `ahead 3 / behind 0`
+- branch-head audit command:
+  `node --import tsx scripts/run-state-sync-audit.ts --json`
+- expected audit source: `claimSource: structured`
+- Git ancestry, divergence, source-tree digest, and strict state path
+  checks remain enforced by the state-sync audit.
 Not authorized:
 
 - direct pushes to `main` for source, workflow, dependency, runtime, provider,
@@ -127,10 +131,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-reduce-volatile-handoff-prose`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `2ac2980`
-- latest validated commit: `2ac2980`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `3e11329`
+- latest validated commit: `3e11329`
+- recorded divergence baseline: `ahead 3 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
