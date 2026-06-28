@@ -996,18 +996,21 @@ function collectCurrentStateEvidenceDrift(
     });
   }
 
-  const postPushDivergence =
-    currentStatePostPushDivergenceExpectation(expectationsSection);
-  if (postPushDivergence !== postPushValidatedSourceDivergence(claim)) {
+  const divergenceExpectation =
+    currentStateValidatedSourceDivergenceExpectation(expectationsSection);
+  if (
+    normalizeWhitespace(divergenceExpectation)
+      !== normalizeWhitespace(validatedSourceDivergenceExpectation(claim))
+  ) {
     issues.push({
       code: "state_document_evidence_drift",
       path: CURRENT_STATE_DOC,
       line: lineForMarkerAfter(
         currentStateText,
         "## State Sync Expectations",
-        "source divergence as `"
+        "source divergence as"
       ),
-      field: "State Sync Expectations post-push divergence",
+      field: "State Sync Expectations validated source divergence expectation",
       risk: "evidence_drift"
     });
   }
@@ -1348,22 +1351,49 @@ function currentStateValidationSourceCommit(text: string): string | undefined {
   return match?.[1];
 }
 
-function currentStatePostPushDivergenceExpectation(
+function currentStateValidatedSourceDivergenceExpectation(
   text: string
 ): string | undefined {
-  const match = /source divergence as `([^`\r\n]*)`/.exec(text);
-  return match?.[1];
+  const match = /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute)[\s\S]*?source divergence as\s*`[^`\r\n]+`\s*against\s*`[^`\r\n]*`[\s\S]*?\./
+    .exec(text);
+  return match?.[0];
 }
 
-function postPushValidatedSourceDivergence(claim: StateSyncClaim): string {
-  if (claim.transition.kind !== "state_only_pushed") {
-    return formatUpstreamDivergence(claim.source.recordedDivergence);
+function validatedSourceDivergenceExpectation(claim: StateSyncClaim): string {
+  const upstream = normalizeClaimUpstreamRef(claim.subject.upstream);
+  if (claim.transition.kind === "state_only_pushed") {
+    const pushedDivergence = formatUpstreamDivergence({
+      ahead: claim.source.recordedDivergence.behind,
+      behind: claim.source.recordedDivergence.ahead
+    });
+    return [
+      "For this `state_only_pushed` state-only record, Git observation should",
+      `compute the validated source divergence as \`${pushedDivergence}\` against`,
+      `\`${upstream}\` after the state-only record is on upstream.`
+    ].join("\n");
   }
 
-  return formatUpstreamDivergence({
-    ahead: claim.source.recordedDivergence.behind,
-    behind: claim.source.recordedDivergence.ahead
-  });
+  const recordedDivergence = formatUpstreamDivergence(
+    claim.source.recordedDivergence
+  );
+  if (claim.transition.kind === "state_only_pending_push") {
+    return [
+      `For this \`state_only_pending_push\` record on branch \`${claim.subject.branch}\`,`,
+      "Git observation should compute the validated source divergence as",
+      `\`${recordedDivergence}\` against \`${upstream}\` before the state-only`,
+      "record is pushed."
+    ].join("\n");
+  }
+
+  return [
+    `For this \`${claim.transition.kind}\` record, Git observation should compute`,
+    `the validated source divergence as \`${recordedDivergence}\` against`,
+    `\`${upstream}\` at the validated source commit.`
+  ].join("\n");
+}
+
+function normalizeWhitespace(value: string | undefined): string | undefined {
+  return value?.replace(/\s+/g, " ").trim();
 }
 
 function stringArraysAreEqual(
