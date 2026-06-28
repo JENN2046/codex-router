@@ -50,15 +50,18 @@ Done:
   Markdown and `.agent_board/*` / structured claim conflicts
 - blocked empty or missing machine-mirrored Markdown fields as evidence drift
   unless the structured claim itself expects an empty value
-- blocked stale or missing `.agent_board/*` generated mirror blocks and
-  supported heading mirrors as evidence drift
+- blocked stale `## Structured Record` mirror fields in `CURRENT_STATE.md`,
+  including source tree digest and strict state paths
+- blocked stale or missing `.agent_board/*` generated mirror blocks per file,
+  so aggregate block count cannot hide a missing or duplicate file block
+- blocked supported `.agent_board/*` heading mirrors as evidence drift
 - made unknown structured claim fields fail closed in schema v1
 - updated the structured record plan to record those resolved semantics
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 92 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 94 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -85,8 +88,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c612787`
-- latest validated commit: `c612787`
-- recorded divergence baseline: `ahead 8 / behind 0`
+- validated source commit: `b2d18d3`
+- latest validated commit: `b2d18d3`
+- recorded divergence baseline: `ahead 10 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

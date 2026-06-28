@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `c612787`
+- `b2d18d3`
 
 Latest validated commit:
 
-- `c612787`
+- `b2d18d3`
 
 Structured claim:
 
@@ -22,12 +22,12 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 8 / behind 0`
+- `ahead 10 / behind 0`
 
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 92 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 94 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -51,8 +51,13 @@ State-sync audit observation:
   `.agent_board/*` conflicts block through `state_sync_evidenceDriftAbsent`
 - expected mirror-field behavior: empty or missing machine-mirrored Markdown
   fields block unless the structured claim itself expects an empty value
-- expected agent-board mirror behavior: stale or missing generated mirror blocks
-  and supported heading mirrors block as evidence drift
+- expected structured display behavior: stale `## Structured Record` fields in
+  `CURRENT_STATE.md`, including source tree digest and strict state paths, block
+  as evidence drift
+- expected agent-board mirror behavior: generated mirror blocks are checked per
+  file, so aggregate block count cannot hide a missing or duplicate file block
+- expected heading mirror behavior: supported `.agent_board/*` heading mirrors
+  block as evidence drift
 - expected schema behavior: unknown structured claim fields fail closed
 
 Execution boundary:
@@ -69,8 +74,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c612787`
-- latest validated commit: `c612787`
-- recorded divergence baseline: `ahead 8 / behind 0`
+- validated source commit: `b2d18d3`
+- latest validated commit: `b2d18d3`
+- recorded divergence baseline: `ahead 10 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
