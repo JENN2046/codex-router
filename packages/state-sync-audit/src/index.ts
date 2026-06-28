@@ -75,7 +75,13 @@ export interface StateSyncAuditInput {
   packageJsonText: string;
   currentStateText: string;
   agentBoardText: string;
+  agentBoardFiles?: StateSyncAgentBoardFile[];
   stateSyncClaimText?: string;
+}
+
+export interface StateSyncAgentBoardFile {
+  path: string;
+  text: string;
 }
 
 export type StateSyncClaimSource =
@@ -413,6 +419,7 @@ export function resolveStateSyncClaim(
       issues: collectStateSyncEvidenceDrift(
         input.currentStateText,
         input.agentBoardText,
+        input.agentBoardFiles,
         parsed.claim
       )
     };
@@ -831,11 +838,12 @@ interface GeneratedDisplayBlock {
 function collectStateSyncEvidenceDrift(
   currentStateText: string,
   agentBoardText: string,
+  agentBoardFiles: StateSyncAgentBoardFile[] | undefined,
   claim: StateSyncClaim
 ): StateSyncAuditIssue[] {
   return [
     ...collectCurrentStateEvidenceDrift(currentStateText, claim),
-    ...collectAgentBoardEvidenceDrift(agentBoardText, claim)
+    ...collectAgentBoardEvidenceDrift(agentBoardText, agentBoardFiles, claim)
   ];
 }
 
@@ -874,73 +882,166 @@ function collectCurrentStateEvidenceDrift(
   currentStateText: string,
   claim: StateSyncClaim
 ): StateSyncAuditIssue[] {
-  return currentStateEvidenceFields(claim).flatMap(({ field, expected }) => {
-    const actual = fieldValue(currentStateText, field);
+  const issues: StateSyncAuditIssue[] = currentStateEvidenceFields(claim).flatMap(
+    ({ field, expected }) => {
+      const actual = fieldValue(currentStateText, field);
+      if (actual === expected) {
+        return [];
+      }
+
+      return [{
+        code: "state_document_evidence_drift",
+        path: CURRENT_STATE_DOC,
+        line: fieldLine(currentStateText, field),
+        field,
+        risk: "evidence_drift"
+      }];
+    }
+  );
+
+  const structuredSection = sectionBetween(
+    currentStateText,
+    "## Structured Record",
+    "## Current Entrypoints"
+  );
+  for (const { field, expected } of currentStateStructuredRecordFields(claim)) {
+    const actual = bulletValue(structuredSection, field);
     if (actual === expected) {
-      return [];
+      continue;
     }
 
-    return [{
-      code: "state_document_evidence_drift",
-      path: CURRENT_STATE_DOC,
-      line: fieldLine(currentStateText, field),
-      field,
-      risk: "evidence_drift"
-    }];
-  });
-}
-
-function collectAgentBoardEvidenceDrift(
-  agentBoardText: string,
-  claim: StateSyncClaim
-): StateSyncAuditIssue[] {
-  const issues: StateSyncAuditIssue[] = [];
-  const generatedBlocks = generatedDisplayBlocks(agentBoardText);
-  if (generatedBlocks.length !== AGENT_BOARD_STATE_RECORD_PATHS.length) {
     issues.push({
       code: "state_document_evidence_drift",
-      path: ".agent_board/*",
-      line: lineForMarker(agentBoardText, AGENT_BOARD_DISPLAY_START),
-      field: "state-sync-display block count",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarker(currentStateText, `- ${field}:`),
+      field,
       risk: "evidence_drift"
     });
   }
 
-  const generatedFields = agentBoardGeneratedDisplayFields(claim);
-  for (const block of generatedBlocks) {
-    for (const { field, expected } of generatedFields) {
-      const actual = generatedBlockValue(block.text, field);
-      if (actual === expected) {
-        continue;
-      }
+  const sourceTreeDigest = currentStateSourceTreeDigest(structuredSection);
+  if (
+    sourceTreeDigest?.algorithm !== claim.source.sourceTreeDigest.algorithm
+    || sourceTreeDigest.value !== claim.source.sourceTreeDigest.value
+  ) {
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarker(currentStateText, "- source tree digest:"),
+      field: "source tree digest",
+      risk: "evidence_drift"
+    });
+  }
 
+  const strictStatePaths = currentStateStrictStatePaths(structuredSection);
+  if (!stringArraysAreEqual(strictStatePaths, claim.transition.allowedStatePaths)) {
+    issues.push({
+      code: "state_document_evidence_drift",
+      path: CURRENT_STATE_DOC,
+      line: lineForMarker(currentStateText, "Strict state record paths:"),
+      field: "Strict state record paths",
+      risk: "evidence_drift"
+    });
+  }
+
+  return issues;
+}
+
+function collectAgentBoardEvidenceDrift(
+  agentBoardText: string,
+  agentBoardFiles: StateSyncAgentBoardFile[] | undefined,
+  claim: StateSyncClaim
+): StateSyncAuditIssue[] {
+  const issues: StateSyncAuditIssue[] = [];
+  const files = agentBoardFiles ?? [{
+    path: ".agent_board/*",
+    text: agentBoardText
+  }];
+  const generatedFields = agentBoardGeneratedDisplayFields(claim);
+  for (const file of files) {
+    const generatedBlocks = generatedDisplayBlocks(file.text);
+    const expectedBlockCount =
+      agentBoardFiles === undefined ? AGENT_BOARD_STATE_RECORD_PATHS.length : 1;
+    if (generatedBlocks.length !== expectedBlockCount) {
       issues.push({
         code: "state_document_evidence_drift",
-        path: ".agent_board/*",
-        line: block.line + lineForMarker(block.text, `- ${field}:`) - 1,
-        field,
+        path: file.path,
+        line: lineForMarker(file.text, AGENT_BOARD_DISPLAY_START),
+        field: "state-sync-display block count",
         risk: "evidence_drift"
       });
     }
-  }
 
-  for (const { field, expected } of agentBoardHeadingFields(claim)) {
-    for (const actual of headingValues(agentBoardText, field)) {
-      if (actual.value === expected) {
-        continue;
+    for (const block of generatedBlocks) {
+      for (const { field, expected } of generatedFields) {
+        const actual = generatedBlockValue(block.text, field);
+        if (actual === expected) {
+          continue;
+        }
+
+        issues.push({
+          code: "state_document_evidence_drift",
+          path: file.path,
+          line: block.line + lineForMarker(block.text, `- ${field}:`) - 1,
+          field,
+          risk: "evidence_drift"
+        });
       }
+    }
 
-      issues.push({
-        code: "state_document_evidence_drift",
-        path: ".agent_board/*",
-        line: actual.line,
-        field,
-        risk: "evidence_drift"
-      });
+    for (const { field, expected } of agentBoardHeadingFields(claim)) {
+      for (const actual of headingValues(file.text, field)) {
+        if (actual.value === expected) {
+          continue;
+        }
+
+        issues.push({
+          code: "state_document_evidence_drift",
+          path: file.path,
+          line: actual.line,
+          field,
+          risk: "evidence_drift"
+        });
+      }
     }
   }
 
   return issues;
+}
+
+function currentStateStructuredRecordFields(
+  claim: StateSyncClaim
+): EvidenceFieldExpectation[] {
+  return [
+    {
+      field: "schema version",
+      expected: String(claim.schemaVersion)
+    },
+    {
+      field: "policy version",
+      expected: claim.policyVersion
+    },
+    {
+      field: "transition kind",
+      expected: claim.transition.kind
+    },
+    {
+      field: "validated source commit",
+      expected: claim.source.validatedSourceCommit
+    },
+    {
+      field: "latest validated commit",
+      expected: claim.source.latestValidatedCommit
+    },
+    {
+      field: "upstream baseline",
+      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
+    },
+    {
+      field: "recorded divergence baseline",
+      expected: formatUpstreamDivergence(claim.source.recordedDivergence)
+    }
+  ];
 }
 
 function agentBoardGeneratedDisplayFields(
@@ -1079,6 +1180,76 @@ function headingValues(
   }
 
   return values;
+}
+
+function sectionBetween(text: string, startHeading: string, endHeading: string): string {
+  const startIndex = text.indexOf(startHeading);
+  if (startIndex < 0) {
+    return "";
+  }
+
+  const endIndex = text.indexOf(endHeading, startIndex + startHeading.length);
+  return endIndex < 0 ? text.slice(startIndex) : text.slice(startIndex, endIndex);
+}
+
+function bulletValue(text: string, label: string): string | undefined {
+  const match = new RegExp(
+    `(?:^|\\r?\\n)- ${escapeRegExp(label)}: \`([^\\\`\\r\\n]*)\``
+  ).exec(text);
+
+  return match?.[1];
+}
+
+function currentStateSourceTreeDigest(
+  text: string
+): { algorithm: string; value: string } | undefined {
+  const match =
+    /(?:^|\r?\n)- source tree digest: `([^`\r\n]*)`\r?\n  `([^`\r\n]*)`/
+      .exec(text);
+  if (match === null) {
+    return undefined;
+  }
+
+  return {
+    algorithm: match[1] ?? "",
+    value: match[2] ?? ""
+  };
+}
+
+function currentStateStrictStatePaths(text: string): string[] | undefined {
+  const markerIndex = text.indexOf("Strict state record paths:");
+  if (markerIndex < 0) {
+    return undefined;
+  }
+
+  const section = text.slice(markerIndex);
+  const lines = section.split(/\r?\n/).slice(1);
+  const paths: string[] = [];
+  for (const line of lines) {
+    if (line.trim() === "") {
+      if (paths.length === 0) {
+        continue;
+      }
+      break;
+    }
+
+    const match = /^- `([^`\r\n]*)`$/.exec(line);
+    if (match === null) {
+      break;
+    }
+    paths.push(match[1] ?? "");
+  }
+
+  return paths;
+}
+
+function stringArraysAreEqual(
+  left: string[] | undefined,
+  right: string[]
+): boolean {
+  return left !== undefined
+    && left.length === right.length
+    && left.every((value, index) => value === right[index]);
 }
 
 function stateOnlyDivergenceSnapshotAllowed(
