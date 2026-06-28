@@ -52,6 +52,8 @@ Done:
   unless the structured claim itself expects an empty value
 - blocked stale `## Structured Record` mirror fields in `CURRENT_STATE.md`,
   including source tree digest and strict state paths
+- blocked stale `Validation recorded for source commit` and
+  `## State Sync Expectations` fields in `CURRENT_STATE.md`
 - blocked stale or missing `.agent_board/*` generated mirror blocks per file,
   so aggregate block count cannot hide a missing or duplicate file block
 - blocked supported `.agent_board/*` heading mirrors as evidence drift
@@ -61,7 +63,7 @@ Done:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 94 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -88,8 +90,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b2d18d3`
-- latest validated commit: `b2d18d3`
-- recorded divergence baseline: `ahead 10 / behind 0`
+- validated source commit: `90dd43d`
+- latest validated commit: `90dd43d`
+- recorded divergence baseline: `ahead 12 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

@@ -12,7 +12,7 @@ Current branch:
 
 Current validated source:
 
-- `b2d18d3`
+- `90dd43d`
 
 Current structured claim:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 10 / behind 0`
+- `ahead 12 / behind 0`
 
 Completed:
 
@@ -60,6 +60,9 @@ Completed:
   unless the structured claim itself expects an empty value
 - stale `## Structured Record` mirror fields in `CURRENT_STATE.md`, including
   source tree digest and strict state paths, block as evidence drift
+- stale `Validation recorded for source commit` and
+  `## State Sync Expectations` fields in `CURRENT_STATE.md` block as evidence
+  drift
 - stale or missing `.agent_board/*` generated mirror blocks are checked per
   file, so aggregate block count cannot hide a missing or duplicate file block
 - supported `.agent_board/*` heading mirrors block as evidence drift
@@ -70,7 +73,7 @@ Completed:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 94 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -99,8 +102,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b2d18d3`
-- latest validated commit: `b2d18d3`
-- recorded divergence baseline: `ahead 10 / behind 0`
+- validated source commit: `90dd43d`
+- latest validated commit: `90dd43d`
+- recorded divergence baseline: `ahead 12 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/state-sync-evidence-drift-schema` |
-| Current head | `b2d18d3` |
-| Validated source commit | `b2d18d3` |
+| Current head | `90dd43d` |
+| Validated source commit | `90dd43d` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 10 / behind 0` |
-| Latest validated commit | `b2d18d3` |
+| Upstream divergence | `ahead 12 / behind 0` |
+| Latest validated commit | `90dd43d` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `b2d18d3`
-- latest validated commit: `b2d18d3`
+- validated source commit: `90dd43d`
+- latest validated commit: `90dd43d`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 10 / behind 0`
+- recorded divergence baseline: `ahead 12 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `435b44f4e315e4e9fb5ff670f138f2c3c37fbb499e2514cf6739ce84817b5b6d`
+  `b9bd6cfec486d14aabe934ea95567574d35514f476d51b63e652b7a9f7da2fea`
 
 Strict state record paths:
 
@@ -73,6 +73,8 @@ This state record commit records the governance semantic PR for:
 - blocking stale `## Structured Record` mirror evidence in
   `docs/current/CURRENT_STATE.md`, including transition, source digest, and
   strict state path fields
+- blocking stale `Validation recorded for source commit` and
+  `## State Sync Expectations` mirror evidence in `CURRENT_STATE.md`
 - blocking stale or missing `.agent_board/*` generated mirror evidence per file,
   including upstream, divergence, transition, and generated block count fields
 - failing closed on unknown structured claim fields in schema v1
@@ -87,10 +89,10 @@ env, secrets, user config, or system config.
 
 ## Validation Baseline
 
-Validation recorded for source commit `b2d18d3`:
+Validation recorded for source commit `90dd43d`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 94 tests.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
 
@@ -132,6 +134,9 @@ Current structured state-sync audit status:
   drift unless the structured claim itself expects an empty value.
 - Stale `## Structured Record` mirror fields in `CURRENT_STATE.md`, including
   source tree digest and strict state paths, now block as evidence drift.
+- Stale `Validation recorded for source commit` and
+  `## State Sync Expectations` fields in `CURRENT_STATE.md` now block as
+  evidence drift.
 - Stale or missing `.agent_board/*` generated display blocks are checked per
   file, so a duplicate block in one file cannot mask a missing block in another.
 - Supported `.agent_board/*` heading mirrors also block as evidence drift.
@@ -192,12 +197,12 @@ The structured claim records:
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b2d18d3`
-- recorded divergence baseline: `ahead 10 / behind 0`
+- validated source commit: `90dd43d`
+- recorded divergence baseline: `ahead 12 / behind 0`
 - transition: `state_only_pending_push`
 
 When this PR branch state record is committed and pushed, Git observation should
-compute the validated source divergence as `ahead 10 / behind 0` against
+compute the validated source divergence as `ahead 12 / behind 0` against
 `refs/remotes/origin/main`. This is not a `main` landing record; after squash
 merge, `main` should receive the normal `main` / `state_only_pushed` reanchor.
 
@@ -222,6 +227,8 @@ Current state line:
 - Empty and missing machine-mirrored field blocking: implemented and tested.
 - Structured `CURRENT_STATE.md` display mirror drift blocking: implemented and
   tested.
+- `CURRENT_STATE.md` State Sync Expectations mirror drift blocking:
+  implemented and tested.
 - Per-file agent-board generated block count checks: implemented and tested.
 - Unknown structured claim field fail-closed behavior: implemented and tested.
 - Machine-authoritative claim file: introduced.

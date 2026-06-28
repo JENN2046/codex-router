@@ -21,15 +21,15 @@ Branch:
 
 Current head:
 
-- `b2d18d3`
+- `90dd43d`
 
 Validated source commit:
 
-- `b2d18d3`
+- `90dd43d`
 
 Latest validated commit:
 
-- `b2d18d3`
+- `90dd43d`
 
 Upstream baseline:
 
@@ -37,7 +37,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 10 / behind 0`
+- `ahead 12 / behind 0`
 
 Transition:
 
@@ -46,7 +46,7 @@ Transition:
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 94 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -62,9 +62,9 @@ State-sync audit expectation:
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
 - evidence drift blocking, empty/missing mirror-field blocking, structured
-  display mirror blocking, per-file agent-board generated block checks, and
-  unknown structured claim field fail-closed behavior are implemented and
-  covered by regression tests
+  display mirror blocking, State Sync Expectations mirror blocking, per-file
+  agent-board generated block checks, and unknown structured claim field
+  fail-closed behavior are implemented and covered by regression tests
 
 Boundary:
 
@@ -80,8 +80,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/state-sync-evidence-drift-schema`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b2d18d3`
-- latest validated commit: `b2d18d3`
-- recorded divergence baseline: `ahead 10 / behind 0`
+- validated source commit: `90dd43d`
+- latest validated commit: `90dd43d`
+- recorded divergence baseline: `ahead 12 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
