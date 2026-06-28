@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `fix/state-sync-strict-path-convergence`
 
 Current validated source:
 
-- `959e173`
+- `b51f96a`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 2 / behind 0`
+- `ahead 3 / behind 0`
 
 Completed:
 
@@ -57,20 +57,17 @@ Completed:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 State-sync expectation:
 
-- the PR #50 post-squash main reanchor passed local branch-head audit and remote
-  main-push CI
-- a new local unpushed `state_only_pushed` record may block until it is pushed,
-  because `state_only_pushed` requires `HEAD...refs/remotes/origin/main` to be
-  aligned
-- once pushed, branch-head audit should PASS by resolving
-  `refs/remotes/origin/main` as the structured claim upstream ref and computing
-  divergence from Git
+- with the state/docs record committed, branch-head audit should PASS by
+  resolving `refs/remotes/origin/main` as the structured claim upstream ref and
+  computing divergence from Git
+- `state_only_pending_push` is expected while this focused branch is ahead of
+  `origin/main`
 
 Not authorized:
 
@@ -86,10 +83,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-strict-path-convergence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `959e173`
-- latest validated commit: `959e173`
-- recorded divergence baseline: `ahead 2 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `b51f96a`
+- latest validated commit: `b51f96a`
+- recorded divergence baseline: `ahead 3 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

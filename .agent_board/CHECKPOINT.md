@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `main`
+- `fix/state-sync-strict-path-convergence`
 
 Validated source commit:
 
-- `959e173`
+- `b51f96a`
 
 Latest validated commit:
 
-- `959e173`
+- `b51f96a`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 2 / behind 0`
+- `ahead 3 / behind 0`
 
 Checkpoint facts:
 
@@ -53,32 +53,30 @@ Checkpoint facts:
 - Markdown and `.agent_board/*` are evidence/display surfaces during the
   compatibility window.
 - `docs/current/state-sync-record.json` is included in strict state-only paths.
+- Broad `.agent_board/*` allowance has been removed from state path checks.
 
 Validation recorded:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 State-sync observation:
 
-- PR #50 post-squash main reanchor: local branch-head audit PASS and remote
-  main-push CI PASS
-- a new local unpushed `state_only_pushed` record may block until it is pushed,
-  because `state_only_pushed` requires `HEAD...refs/remotes/origin/main` to be
-  aligned
-- once pushed, branch-head state-sync audit should PASS using
-  `refs/remotes/origin/main` as a verified Git ref selected by the structured
-  claim
+- with the state/docs record committed, branch-head state-sync audit should PASS
+  using `refs/remotes/origin/main` as a verified Git ref selected by the
+  structured claim
+- `state_only_pending_push` is expected while this focused branch is ahead of
+  `origin/main`
 
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/state-sync-strict-path-convergence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `959e173`
-- latest validated commit: `959e173`
-- recorded divergence baseline: `ahead 2 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `b51f96a`
+- latest validated commit: `b51f96a`
+- recorded divergence baseline: `ahead 3 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

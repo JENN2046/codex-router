@@ -753,12 +753,11 @@ docs/current/state-sync-record.json
 .agent_board/VALIDATION_LOG.md
 ```
 
-Current code still has both broad state path handling (`.agent_board/*`) and
-strict state record path handling. Phase 1 should add
-`docs/current/state-sync-record.json` to the strict path set and test helpers,
-but it should not silently replace every broad `.agent_board/*` allowance in the
-same change. Full strict-path convergence belongs to Phase 2 or a separate
-hardening patch.
+Strict path convergence removes the earlier broad `.agent_board/*` allowance.
+Dirty worktree paths, committed state-only descendant paths, source-tree digest
+exclusions, and claim `transition.allowedStatePaths` must all resolve through
+the same fixed strict state record path set. Any other `.agent_board` file, such
+as `.agent_board/EXTRA.md`, is treated as a non-state path and must block.
 
 Additional fields may be tolerated in Phase 1 only if they do not change
 verification semantics. Unknown fields should be ignored for PASS/BLOCK but may
@@ -818,13 +817,17 @@ claim behavior causes unexpected blockage, revert the feature branch before
 merge. If already merged, revert the source/test commit first, then re-anchor
 state/docs through the existing state-only process.
 
+## Resolved Decisions
+
+- Push-to-main State Sync Audit is implemented. Pull requests and pushes to
+  `main` both run the audit, with main-push audit gated on a committed
+  `main` / `state_only_pushed` structured record.
+- Strict state record path convergence is implemented. Broad `.agent_board/*`
+  state-path allowance has been removed from state-sync path checks.
+
 ## Open Questions
 
 - Should Markdown evidence drift block immediately, or report first during the
   compatibility window?
-- Should push-to-main state-sync CI be introduced before or after Markdown
-  downgrade?
 - Should unknown extra claim fields be reported as evidence drift, warning
   issues, or ignored until schema hardening?
-- Should strict state record paths eventually replace broad `.agent_board/*`
-  allowances everywhere?

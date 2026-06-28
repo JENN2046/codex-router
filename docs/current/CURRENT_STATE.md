@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `main` |
-| Current head | `959e173` |
-| Validated source commit | `959e173` |
+| Current branch | `fix/state-sync-strict-path-convergence` |
+| Current head | `b51f96a` |
+| Validated source commit | `b51f96a` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 2 / behind 0` |
-| Latest validated commit | `959e173` |
+| Upstream divergence | `ahead 3 / behind 0` |
+| Latest validated commit | `b51f96a` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,13 +36,13 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pushed`
-- validated source commit: `959e173`
-- latest validated commit: `959e173`
+- transition kind: `state_only_pending_push`
+- validated source commit: `b51f96a`
+- latest validated commit: `b51f96a`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 2 / behind 0`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `e1ffa90caa1c9a116a18762cfaea2bb55b3343bda235996395a1a0571eef6cc4`
+  `cd6b06450bc61f90001e27572b3472242d7b148027c3b296972e401e1cbc8480`
 
 Strict state record paths:
 
@@ -64,26 +64,24 @@ Strict state record paths:
 
 ## Current Scope
 
-`main` contains the Phase 4 state-sync CI coverage adjustment from the PR #50
-squash merge:
+This branch contains the strict state record path convergence follow-up on top
+of the Phase 4 state-sync CI coverage adjustment:
 
-- `.github/workflows/ci.yml`
 - `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
-- `tests/canary-evidence.test.ts`
+- `packages/state-sync-audit/src/index.ts`
+- `tests/state-sync-audit.test.ts`
 - `docs/current/state-sync-record.json`
 
-The Phase 4 change removes the State Sync Audit job's PR-only event gate. Pull
-requests run the audit normally. `push` events to `main` are gated until the
-committed structured record is a `main` / `state_only_pushed` claim, so a
-squash-merged PR-branch `state_only_pending_push` record does not make main CI
-red before this follow-up reanchor exists.
+The strict path convergence removes the earlier broad `.agent_board/*`
+allowance. State-only transitions now use only the fixed strict state record
+path set; any other `.agent_board` file is treated as a non-state path.
 
 ## Validation Baseline
 
-Validation recorded for source commit `959e173`:
+Validation recorded for source commit `b51f96a`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 4 tests.
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
 
@@ -96,12 +94,10 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- The PR #50 post-squash main reanchor passed local branch-head audit and remote
-  main-push CI.
-- A new local unpushed `state_only_pushed` record may block until it is pushed,
-  because `state_only_pushed` requires `HEAD...refs/remotes/origin/main` to be
-  aligned.
-- Once pushed, branch-head audit should PASS with:
+- This branch uses `state_only_pending_push` against
+  `refs/remotes/origin/main`.
+- With the state/docs record committed, branch-head audit should PASS locally
+  and in PR CI with:
   `node --import tsx scripts/run-state-sync-audit.ts --json`.
 - The collector verifies the structured claim upstream ref
   `refs/remotes/origin/main` exists locally, then computes divergence from Git
@@ -154,8 +150,8 @@ Boundary facts for this state alignment:
   config file is changed by this state record.
 - No real provider execution has occurred.
 - No real Codex CLI execution has occurred.
-- The source commit intentionally changes `.github/workflows/ci.yml` for
-  Phase 4 state-sync CI coverage.
+- The source commit intentionally changes state-sync audit strict path policy,
+  regression tests, and the structured record plan.
 - No release, deploy, provider execution, or environment/configuration change is
   part of this record.
 
@@ -175,14 +171,14 @@ Current state-only record changes are limited to:
 
 The structured claim records:
 
-- branch: `main`
+- branch: `fix/state-sync-strict-path-convergence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `959e173`
-- recorded divergence baseline: `ahead 2 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `b51f96a`
+- recorded divergence baseline: `ahead 3 / behind 0`
+- transition: `state_only_pending_push`
 
 After this state record is pushed, Git observation should compute the validated
-source divergence as `ahead 0 / behind 2` against
+source divergence as `ahead 3 / behind 0` against
 `refs/remotes/origin/main`.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
@@ -203,5 +199,6 @@ Current state line:
   implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.
-- PR #50 post-squash main reanchor: completed and verified.
-- Next: implement strict state record path convergence on a focused branch.
+- Strict state record path convergence: implemented and locally validated.
+- Next: push the focused branch, open a PR, and let CI/review validate the
+  checkout and upstream contexts.

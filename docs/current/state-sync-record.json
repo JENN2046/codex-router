@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "fix/state-sync-strict-path-convergence",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "959e173",
-    "latestValidatedCommit": "959e173",
+    "validatedSourceCommit": "b51f96a",
+    "latestValidatedCommit": "b51f96a",
     "recordedDivergence": {
-      "ahead": 2,
+      "ahead": 3,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "e1ffa90caa1c9a116a18762cfaea2bb55b3343bda235996395a1a0571eef6cc4",
+      "value": "cd6b06450bc61f90001e27572b3472242d7b148027c3b296972e401e1cbc8480",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",

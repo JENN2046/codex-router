@@ -368,6 +368,30 @@ test("state sync audit blocks dirty non-state files", async () => {
   assert.ok(review.reasons.includes("state_sync_dirtyWorktreeStateOnly"));
 });
 
+test("state sync audit blocks unlisted agent board paths", async () => {
+  const review = reviewStateSyncAudit(await createInputFromWorkspace({
+    gitStatusShort: " M .agent_board/EXTRA.md"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.dirtyWorktreeStateOnly, false);
+  assert.ok(review.reasons.includes("state_sync_dirtyWorktreeStateOnly"));
+});
+
+test("state sync audit keeps strict path checks when structured claim is missing", async () => {
+  const review = reviewStateSyncAudit(await createInputFromWorkspace({
+    gitStatusShort: " M .agent_board/EXTRA.md",
+    stateSyncClaimText: undefined
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.summary.claimSource, "missing_structured");
+  assert.equal(review.checks.structuredClaimValid, false);
+  assert.equal(review.checks.dirtyWorktreeStateOnly, false);
+  assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
+  assert.ok(review.reasons.includes("state_sync_dirtyWorktreeStateOnly"));
+});
+
 test("state sync audit accepts committed state-only descendants", async () => {
   const input = await createInputFromWorkspace();
   const baseline = parseTestAheadBehind(input.validatedSourceAheadBehind);
