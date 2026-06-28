@@ -7,11 +7,11 @@ Goal:
 
 Current branch:
 
-- `fix/runtime-governance-host-dispatch-failure`
+- `main`
 
 Current validated source:
 
-- `c7f39cb`
+- `b3aab35`
 
 Current structured claim:
 
@@ -19,7 +19,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 4 / behind 0`
+- `ahead 1 / behind 0`
 
 Completed:
 
@@ -114,11 +114,11 @@ Validation completed:
 
 State-sync status:
 
-- structured claim: `fix/runtime-governance-host-dispatch-failure` / `state_only_pending_push` against
+- structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `c7f39cb`
-- latest validated commit: `c7f39cb`
-- recorded divergence baseline: `ahead 4 / behind 0`
+- validated source commit: `b3aab35`
+- latest validated commit: `b3aab35`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -139,10 +139,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `fix/runtime-governance-host-dispatch-failure`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c7f39cb`
-- latest validated commit: `c7f39cb`
-- recorded divergence baseline: `ahead 4 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `b3aab35`
+- latest validated commit: `b3aab35`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
