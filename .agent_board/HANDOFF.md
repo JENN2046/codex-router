@@ -2,17 +2,16 @@
 
 Goal:
 
-- Continue implementing the state-sync structured record plan so
-  `docs/current/state-sync-record.json` becomes the machine-authoritative claim
-  while Markdown and `.agent_board/*` become display/evidence surfaces.
+- Prepare a focused PR that routes `codex-cli` host-dispatch failures through
+  runtime governance and records the matching state-sync pending-push claim.
 
 Current branch:
 
-- `main`
+- `fix/runtime-governance-host-dispatch-failure`
 
 Current validated source:
 
-- `31941dd`
+- `363e587`
 
 Current structured claim:
 
@@ -20,7 +19,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -28,7 +27,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 2 / behind 0`
 
 Completed:
 
@@ -88,29 +87,36 @@ Completed:
 - `## State Sync Expectations` divergence prose is generated from the
   structured transition, preventing pending-push records from retaining
   pushed-main wording
+- `codex-cli` host-dispatch failures enter the shared runtime governance
+  failure reducer when a governance state is supplied
+- failed host dispatches emit `host_dispatch` execution observations and call
+  `onGovernanceUpdate`
+- host-dispatch recovery governance is returned only when the reducer routes
+  the failure to recovery
+- display sync matches standalone headings for `## State Sync Expectations`
+  updates
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 4
-  tests
-- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
-  tests
-- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts`: PASS,
-  8 tests
-- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 5 tests
-- `npm test`: PASS, 1251 tests
+- `node --import tsx --test tests/desktop-live-adapter-governance.test.ts
+  tests/desktop-live-adapter.test.ts tests/host-dispatcher.test.ts
+  tests/governance-failure-reducer.test.ts`: PASS
+- `node --import tsx --test tests/state-sync-display-sync.test.ts
+  tests/state-sync-audit.test.ts`: PASS
+- `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
+- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS
+- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 
 State-sync status:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `fix/runtime-governance-host-dispatch-failure` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `31941dd`
-- latest validated commit: `31941dd`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `363e587`
+- latest validated commit: `363e587`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -131,10 +137,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/runtime-governance-host-dispatch-failure`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `31941dd`
-- latest validated commit: `31941dd`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `363e587`
+- latest validated commit: `363e587`
+- recorded divergence baseline: `ahead 2 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
