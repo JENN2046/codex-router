@@ -49,7 +49,10 @@ test("state-sync display sync checks drift, writes generated fields, then become
   assert.match(currentState, /\| Upstream divergence \| `ahead 2 \/ behind 0` \|/);
   assert.match(currentState, /- transition kind: `state_only_pushed`/);
   assert.match(currentState, /- branch: `docs\/state-sync-display`/);
-  assert.match(currentState, /source divergence as `ahead 0 \/ behind 2`/);
+  assert.match(
+    currentState,
+    /For this `state_only_pushed` state-only record, Git observation should\s+compute the validated source divergence as `ahead 0 \/ behind 2` against\s+`refs\/remotes\/origin\/main` after the state-only record is on upstream\./
+  );
 
   const taskQueue = await readFile(
     join(cwd, ".agent_board", "TASK_QUEUE.md"),
@@ -75,7 +78,11 @@ test("state-sync display sync preserves pending-push divergence baseline", async
     "utf8"
   );
   assert.match(currentState, /- transition: `state_only_pending_push`/);
-  assert.match(currentState, /source divergence as `ahead 2 \/ behind 0`/);
+  assert.match(
+    currentState,
+    /For this `state_only_pending_push` record on branch `docs\/state-sync-display`,\s+Git observation should compute the validated source divergence as\s+`ahead 2 \/ behind 0` against `refs\/remotes\/origin\/main` before the state-only\s+record is pushed\./
+  );
+  assert.doesNotMatch(currentState, /pushed `main` state-only record/);
 });
 
 test("state-sync display sync cleans volatile main pushed prose", async () => {
@@ -287,9 +294,9 @@ function staleCurrentState(): string {
     "- recorded divergence baseline: `ahead 999 / behind 999`",
     "- transition: `source_exact`",
     "",
-    "After the state record is pushed, Git observation should compute the validated",
-    "source divergence as `ahead 999 / behind 999` against",
-    "`origin/stale`.",
+    "For this pushed `main` state-only record, Git observation should compute the",
+    "validated source divergence as `ahead 999 / behind 999` against",
+    "`origin/stale` after the reanchor commit is on upstream.",
     ""
   ].join("\n");
 }
