@@ -58,8 +58,10 @@ jobs:
           git commit -m "docs(state): reanchor main after squash merge"
           node --import tsx scripts/run-state-sync-audit.ts --json
       - name: Push state-sync reanchor branch
+        id: push-reanchor
         if: steps.reanchor-gate.outputs.run_reanchor == 'true'
         run: |
+          echo "pushed_reanchor=false" >> "$GITHUB_OUTPUT"
           git fetch origin +refs/heads/main:refs/remotes/origin/main
           observed_main_sha="$(git rev-parse --verify refs/remotes/origin/main)"
           if [ "$observed_main_sha" != "${GITHUB_SHA}" ]; then
@@ -73,8 +75,9 @@ jobs:
           else
             git push --force-with-lease=refs/heads/state-sync/reanchor-main: origin HEAD:refs/heads/state-sync/reanchor-main
           fi
+          echo "pushed_reanchor=true" >> "$GITHUB_OUTPUT"
       - name: Create or update state-sync reanchor PR
-        if: steps.reanchor-gate.outputs.run_reanchor == 'true'
+        if: steps.reanchor-gate.outputs.run_reanchor == 'true' && steps.push-reanchor.outputs.pushed_reanchor == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |

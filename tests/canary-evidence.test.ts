@@ -217,6 +217,8 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
   assert.ok(commit?.run?.includes("git switch -c state-sync/reanchor-main"));
   assert.ok(commit?.run?.includes("scripts/verify-state-sync-reanchor-diff.ts --cached"));
   assert.ok(commit?.run?.includes("scripts/run-state-sync-audit.ts --json"));
+  assert.equal(push?.id, "push-reanchor");
+  assert.ok(push?.run?.includes('echo "pushed_reanchor=false" >> "$GITHUB_OUTPUT"'));
   assert.ok(push?.run?.includes(
     "git fetch origin +refs/heads/main:refs/remotes/origin/main"
   ));
@@ -237,7 +239,12 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
   assert.ok(push?.run?.includes(
     "git push --force-with-lease=refs/heads/state-sync/reanchor-main: origin HEAD:refs/heads/state-sync/reanchor-main"
   ));
+  assert.ok(push?.run?.includes('echo "pushed_reanchor=true" >> "$GITHUB_OUTPUT"'));
   assert.ok(!push?.run?.includes("HEAD:refs/heads/main"));
+  assert.equal(
+    pr?.if,
+    "steps.reanchor-gate.outputs.run_reanchor == 'true' && steps.push-reanchor.outputs.pushed_reanchor == 'true'"
+  );
   assert.ok(pr?.run?.includes("scripts/create-state-sync-reanchor-pr.ts"));
 });
 
