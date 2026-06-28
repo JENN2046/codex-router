@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "automate/state-sync-reanchor-pr",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "c9c3e3f",
-    "latestValidatedCommit": "c9c3e3f",
+    "validatedSourceCommit": "a3880e9",
+    "latestValidatedCommit": "a3880e9",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "5a4c4dbc871415d46c19c211dec1c3ebe27cfe16227175fc8fd3a19b64daecfd",
+      "value": "5facf5d4e45f767d7655b15497e8946a0948080fb670c24ee7a48e18f5fca125",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
@@ -43,6 +43,9 @@
       "git diff --check",
       "node --import tsx --test tests/state-sync-audit.test.ts",
       "node --import tsx --test tests/state-sync-display-sync.test.ts",
+      "node --import tsx --test tests/state-sync-reanchor-automation.test.ts",
+      "node --import tsx --test tests/canary-evidence.test.ts",
+      "npm test",
       "npm run typecheck",
       "npm run build",
       "node --import tsx scripts/sync-state-sync-display.ts --check",

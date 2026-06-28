@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `automate/state-sync-reanchor-pr`
 
 Current validated source:
 
-- `c9c3e3f`
+- `a3880e9`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -75,15 +75,24 @@ Completed:
   reanchors without committing or pushing
 - squash fallback reanchors now verify `HEAD` against the recorded filtered
   source tree digest before inferring it as source
+- conservative post-merge reanchor PR automation is implemented on
+  `automate/state-sync-reanchor-pr`
+- the automation uses the fixed `state-sync/reanchor-main` branch, verifies
+  strict state/docs diffs, and creates or updates a PR instead of pushing
+  directly to `main`
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests
+- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 4
   tests
 - `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
+- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts`: PASS,
+  8 tests
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 5 tests
+- `npm test`: PASS, 1251 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -92,7 +101,8 @@ State-sync status:
 - branch-head audit is expected to PASS by resolving
   `refs/remotes/origin/main` as the structured claim upstream ref and computing
   divergence from Git
-- `state_only_pushed` is expected for this post-PR #54 `main` reanchor
+- `state_only_pending_push` is expected for this implementation branch state
+  record
 
 Not authorized:
 
@@ -109,10 +119,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c9c3e3f`
-- latest validated commit: `c9c3e3f`
+- validated source commit: `a3880e9`
+- latest validated commit: `a3880e9`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

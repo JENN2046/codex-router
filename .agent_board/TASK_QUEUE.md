@@ -2,8 +2,8 @@
 
 Current task:
 
-- Record the post-PR #54 `main` state/docs reanchor after the state-sync
-  reanchor helper squash merge.
+- Record conservative post-merge state-sync reanchor PR automation on
+  `automate/state-sync-reanchor-pr`.
 
 Done:
 
@@ -63,22 +63,32 @@ Done:
 - added reanchor helper regression tests
 - hardened squash fallback reanchors to verify `HEAD` against the recorded
   filtered source tree digest before inferring it as source
+- implemented `State Sync Reanchor PR` workflow for post-merge reanchor PR
+  creation
+- added reanchor PR gate, diff verifier, and PR create/update helper scripts
+- added bounded state-sync audit compatibility for the fixed
+  `state-sync/reanchor-main` PR branch
+- added volatile operator prose cleanup for `main/state_only_pushed` display sync
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests
+- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 4
   tests
 - `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
+- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts`: PASS,
+  8 tests
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 5 tests
+- `npm test`: PASS, 1251 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 Todo:
 
-- push the post-PR #54 `main` state/docs reanchor
-- verify post-push state-sync audit and main-push CI
+- open a focused PR for this automation branch after local validation
+- verify PR CI and reviewer feedback
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 - use focused PRs for the next governance semantic changes unless separately
   authorized
@@ -98,10 +108,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c9c3e3f`
-- latest validated commit: `c9c3e3f`
+- validated source commit: `a3880e9`
+- latest validated commit: `a3880e9`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

@@ -1,6 +1,7 @@
 # Run State
 
-Status: Post-PR #54 main state/docs reanchor is prepared for direct push.
+Status: Conservative post-merge state-sync reanchor PR automation is recorded
+for branch validation.
 
 Machine-authoritative claim:
 
@@ -17,19 +18,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `main`
+- `automate/state-sync-reanchor-pr`
 
 Current head:
 
-- `c9c3e3f`
+- `a3880e9`
 
 Validated source commit:
 
-- `c9c3e3f`
+- `a3880e9`
 
 Latest validated commit:
 
-- `c9c3e3f`
+- `a3880e9`
 
 Upstream baseline:
 
@@ -41,16 +42,20 @@ Upstream divergence baseline:
 
 Transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests
+- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 4
   tests
 - `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
+- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts`: PASS,
+  8 tests
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 5 tests
+- `npm test`: PASS, 1251 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
@@ -58,12 +63,15 @@ State-sync audit expectation:
 
 - branch-head audit is expected to PASS with `claimSource: structured` and
   Git-computed divergence against verified `refs/remotes/origin/main`
-- `state_only_pushed` is expected for this post-PR #54 `main` reanchor
+- `state_only_pending_push` is expected for this implementation branch state
+  record
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
 - reanchor helper squash fallback must verify `HEAD` against the recorded
   filtered source tree digest before inferring it as source
+- fixed-branch `state-sync/reanchor-main` candidate PR checkouts are accepted
+  only for a single state-only commit carrying a `main/state_only_pushed` claim
 - evidence drift blocking, empty/missing mirror-field blocking, structured
   display mirror blocking, State Sync Expectations mirror blocking, per-file
   agent-board generated block checks, and unknown structured claim field
@@ -82,10 +90,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c9c3e3f`
-- latest validated commit: `c9c3e3f`
+- validated source commit: `a3880e9`
+- latest validated commit: `a3880e9`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

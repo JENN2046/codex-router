@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `automate/state-sync-reanchor-pr`
 
 Validated source commit:
 
-- `c9c3e3f`
+- `a3880e9`
 
 Latest validated commit:
 
-- `c9c3e3f`
+- `a3880e9`
 
 Structured claim:
 
@@ -27,19 +27,24 @@ Upstream divergence baseline:
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
-- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+- `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 98 tests
+- `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 4
   tests
 - `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
+- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts`: PASS,
+  8 tests
+- `node --import tsx --test tests/canary-evidence.test.ts`: PASS, 5 tests
+- `npm test`: PASS, 1251 tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 State-sync audit observation:
 
 - branch-head `node --import tsx scripts/run-state-sync-audit.ts --json` is
-  expected to PASS after this post-PR #54 `main` state record is pushed
-- `state_only_pushed` is expected for this post-PR #54 `main` reanchor
+  expected to PASS after this state-only record commit
+- `state_only_pending_push` is expected for this implementation branch state
+  record
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
 - expected upstream ref boundary: only `origin/*` or
@@ -51,6 +56,9 @@ State-sync audit observation:
   filtered source tree digest
 - expected reanchor helper behavior: squash fallback may infer `HEAD` only when
   its filtered source tree digest matches the recorded validated source digest
+- expected reanchor PR automation behavior: only the fixed
+  `state-sync/reanchor-main` branch may carry a single-commit
+  `main/state_only_pushed` candidate claim before merge
 - expected evidence drift behavior: machine-mirrored Markdown and
   `.agent_board/*` conflicts block through `state_sync_evidenceDriftAbsent`
 - expected mirror-field behavior: empty or missing machine-mirrored Markdown
@@ -79,10 +87,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c9c3e3f`
-- latest validated commit: `c9c3e3f`
+- validated source commit: `a3880e9`
+- latest validated commit: `a3880e9`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
