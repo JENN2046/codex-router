@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `chore/state-sync-reanchor-helper`
 
 Validated source commit:
 
-- `8404242`
+- `f5789c8`
 
 Latest validated commit:
 
-- `8404242`
+- `f5789c8`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 2 / behind 0`
+- `ahead 1 / behind 0`
 
 Recorded validation:
 
@@ -30,14 +30,16 @@ Recorded validation:
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
   tests
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 3
+  tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 State-sync audit observation:
 
 - branch-head `node --import tsx scripts/run-state-sync-audit.ts --json` is
-  expected to PASS for this pushed `main` state-only record
-- `state_only_pushed` is expected for this post-PR #53 `main` reanchor
+  expected to PASS for this PR branch pending-push state record
+- `state_only_pending_push` is expected for this PR branch state record
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
 - expected upstream ref boundary: only `origin/*` or
@@ -75,10 +77,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `8404242`
-- latest validated commit: `8404242`
-- recorded divergence baseline: `ahead 2 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `f5789c8`
+- latest validated commit: `f5789c8`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
