@@ -68,6 +68,11 @@ Done:
 - added reanchor PR gate, diff verifier, and PR create/update helper scripts
 - added bounded state-sync audit compatibility for the fixed
   `state-sync/reanchor-main` PR branch
+- hardened the reanchor PR branch push by fetching the fixed remote branch and
+  binding `--force-with-lease` to an explicit expected SHA or empty create-only
+  expectation
+- added generated PR body language that treats `GITHUB_TOKEN` approval-required
+  workflow state as an expected authorization gate, not a missed CI trigger
 - added volatile operator prose cleanup for `main/state_only_pushed` display sync
 
 Validation completed:
@@ -110,8 +115,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `a3880e9`
-- latest validated commit: `a3880e9`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `ed0e975`
+- latest validated commit: `ed0e975`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

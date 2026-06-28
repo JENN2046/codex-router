@@ -12,7 +12,7 @@ Current branch:
 
 Current validated source:
 
-- `a3880e9`
+- `ed0e975`
 
 Current structured claim:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Completed:
 
@@ -80,6 +80,11 @@ Completed:
 - the automation uses the fixed `state-sync/reanchor-main` branch, verifies
   strict state/docs diffs, and creates or updates a PR instead of pushing
   directly to `main`
+- the workflow fetches the fixed reanchor branch before push and binds
+  `--force-with-lease` to an explicit expected SHA or empty create-only
+  expectation
+- the generated PR body records that `GITHUB_TOKEN`-created or updated PR
+  workflow runs may require write-permission approval before CI proceeds
 
 Validation completed:
 
@@ -121,8 +126,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `a3880e9`
-- latest validated commit: `a3880e9`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `ed0e975`
+- latest validated commit: `ed0e975`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

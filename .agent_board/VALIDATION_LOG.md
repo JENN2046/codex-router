@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `a3880e9`
+- `ed0e975`
 
 Latest validated commit:
 
-- `a3880e9`
+- `ed0e975`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Recorded validation:
 
@@ -59,6 +59,12 @@ State-sync audit observation:
 - expected reanchor PR automation behavior: only the fixed
   `state-sync/reanchor-main` branch may carry a single-commit
   `main/state_only_pushed` candidate claim before merge
+- expected reanchor PR push behavior: the workflow fetches the fixed remote PR
+  branch before push and binds `--force-with-lease` to an explicit expected SHA
+  or empty create-only expectation
+- expected generated PR body behavior: `GITHUB_TOKEN`-created or updated PR
+  workflow runs may require write-permission approval before CI proceeds, and
+  that approval-required state is not a missed CI trigger
 - expected evidence drift behavior: machine-mirrored Markdown and
   `.agent_board/*` conflicts block through `state_sync_evidenceDriftAbsent`
 - expected mirror-field behavior: empty or missing machine-mirrored Markdown
@@ -89,8 +95,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `automate/state-sync-reanchor-pr`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `a3880e9`
-- latest validated commit: `a3880e9`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `ed0e975`
+- latest validated commit: `ed0e975`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
