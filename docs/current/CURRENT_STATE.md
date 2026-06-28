@@ -20,7 +20,7 @@ divergence, transition kind, or allowed state-only paths.
 | Current head | `8404242` |
 | Validated source commit | `8404242` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
+| Upstream divergence | `ahead 2 / behind 0` |
 | Latest validated commit | `8404242` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
@@ -40,7 +40,7 @@ The structured claim records:
 - validated source commit: `8404242`
 - latest validated commit: `8404242`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `b9bd6cfec486d14aabe934ea95567574d35514f476d51b63e652b7a9f7da2fea`
 
@@ -64,8 +64,8 @@ Strict state record paths:
 
 ## Current Scope
 
-This state record commit records the post-PR #53 `main` reanchor for the
-governance semantic change that:
+This state record commit records the post-PR #53 `main` state/docs cleanup for
+the governance semantic change that:
 
 - blocking machine-mirrored Markdown evidence drift with
   `state_sync_evidenceDriftAbsent`
@@ -83,10 +83,11 @@ governance semantic change that:
   those resolved semantics
 
 The PR #53 source chain changed only state-sync audit logic, its regression
-tests, and the structured-record plan. This state/docs commit reanchors the
-structured claim and operator-facing evidence surfaces on `main` after the
-squash merge. It does not change workflows, dependencies, provider behavior,
-runtime configuration, env, secrets, user config, or system config.
+tests, and the structured-record plan. The `main` reanchor has been recorded;
+this follow-up state/docs cleanup removes stale operator Todo/Next language
+without changing governance semantics. It does not change workflows,
+dependencies, provider behavior, runtime configuration, env, secrets, user
+config, or system config.
 
 ## Validation Baseline
 
@@ -110,8 +111,8 @@ Current structured state-sync audit status:
 
 - This `main` state record uses `state_only_pushed` against
   `refs/remotes/origin/main`.
-- After the state/docs record is committed and pushed to `origin/main`,
-  branch-head audit should PASS with:
+- Branch-head audit is expected to PASS for this pushed `main` state-only record
+  with:
   `node --import tsx scripts/run-state-sync-audit.ts --json`.
 - The collector verifies the structured claim upstream ref
   `refs/remotes/origin/main` exists locally, then computes divergence from Git
@@ -182,9 +183,9 @@ Boundary facts for this state alignment:
 - No release, deploy, provider execution, or environment/configuration change is
   part of this record.
 
-## Current Local Changes
+## Current State-Only Record
 
-Current state-only record changes are limited to:
+This state-only record line is limited to:
 
 - `docs/current/CURRENT_STATE.md`
 - `docs/current/state-sync-record.json`
@@ -201,13 +202,13 @@ The structured claim records:
 - branch: `main`
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `8404242`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 
-When this `main` state record is committed and pushed to `origin/main`, Git
-observation should compute the validated source divergence as `ahead 0 / behind 1`
-against `refs/remotes/origin/main`. This is the normal post-PR #53 `main` /
-`state_only_pushed` reanchor.
+For this `main` state-only record line, Git observation should compute the
+validated source divergence as `ahead 0 / behind 2` against
+`refs/remotes/origin/main`. This is the normal post-PR #53 `main` /
+`state_only_pushed` state record chain.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then
@@ -239,5 +240,6 @@ Current state line:
 - Strict state record path convergence: implemented, merged through PR #51, and
   reanchored on `main`.
 - State/docs cleanup: merged through PR #52 and reanchored on `main`.
-- Next: commit and push this post-PR #53 `main` state/docs reanchor, then verify
-  branch-head state-sync audit on `main`.
+- Post-PR #53 `main` reanchor and direct-pushable state/docs cleanup: recorded.
+- Next governance semantic work should use a focused PR unless separately
+  authorized.

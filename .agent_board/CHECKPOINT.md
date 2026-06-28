@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 2 / behind 0`
 
 Checkpoint facts:
 
@@ -79,9 +79,9 @@ Validation recorded:
 
 State-sync observation:
 
-- with this `main` state/docs record committed and pushed to `origin/main`,
-  branch-head state-sync audit should PASS using `refs/remotes/origin/main` as a
-  verified Git ref selected by the structured claim
+- branch-head state-sync audit is expected to PASS using
+  `refs/remotes/origin/main` as a verified Git ref selected by the structured
+  claim
 - `state_only_pushed` is expected for this post-PR #53 `main` reanchor
 
 <!-- state-sync-display:start -->
@@ -91,6 +91,6 @@ Generated from `docs/current/state-sync-record.json`.
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `8404242`
 - latest validated commit: `8404242`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->

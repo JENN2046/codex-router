@@ -2,8 +2,8 @@
 
 Current task:
 
-- Complete the post-PR #53 `main` state/docs reanchor for evidence drift
-  blocking and unknown structured claim field fail-closed behavior.
+- Record that all currently direct-pushable post-PR #53 state/docs cleanup is
+  complete.
 
 Done:
 
@@ -71,14 +71,15 @@ Validation completed:
 
 Todo:
 
-- commit this `main` state/docs reanchor
-- push the reanchor commit to `origin/main` under the current authorization
-- run post-push branch-head state-sync audit on `main`
+- no direct-pushable state/docs cleanup remains pending
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
+- use focused PRs for the next governance semantic changes unless separately
+  authorized
 
 Blocked until separately authorized:
 
-- direct pushes to `main` beyond this authorized state/docs reanchor
+- direct pushes to `main` for source, workflow, dependency, runtime, provider,
+  env, secret, user config, or system config changes
 - dependency changes
 - additional workflow edits beyond Phase 4 state-sync CI coverage
 - release or deploy
@@ -94,6 +95,6 @@ Generated from `docs/current/state-sync-record.json`.
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `8404242`
 - latest validated commit: `8404242`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->

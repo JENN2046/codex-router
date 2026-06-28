@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 2 / behind 0`
 
 Completed:
 
@@ -81,16 +81,17 @@ Validation completed:
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
-State-sync expectation:
+State-sync status:
 
-- with this `main` state/docs record committed and pushed to `origin/main`,
-  branch-head audit should PASS by resolving `refs/remotes/origin/main` as the
-  structured claim upstream ref and computing divergence from Git
+- branch-head audit is expected to PASS by resolving
+  `refs/remotes/origin/main` as the structured claim upstream ref and computing
+  divergence from Git
 - `state_only_pushed` is expected for this post-PR #53 `main` reanchor
 
 Not authorized:
 
-- direct pushes to `main` beyond this authorized state/docs reanchor
+- direct pushes to `main` for source, workflow, dependency, runtime, provider,
+  env, secret, user config, or system config changes
 - additional workflow edits beyond Phase 4 state-sync CI coverage
 - dependency changes
 - release or deploy
@@ -106,6 +107,6 @@ Generated from `docs/current/state-sync-record.json`.
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `8404242`
 - latest validated commit: `8404242`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->

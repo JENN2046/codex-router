@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 2 / behind 0`
 
 Recorded validation:
 
@@ -35,8 +35,8 @@ Recorded validation:
 
 State-sync audit observation:
 
-- with the state/docs record committed and pushed to `origin/main`,
-  `node --import tsx scripts/run-state-sync-audit.ts --json` should PASS
+- branch-head `node --import tsx scripts/run-state-sync-audit.ts --json` is
+  expected to PASS for this pushed `main` state-only record
 - `state_only_pushed` is expected for this post-PR #53 `main` reanchor
 - expected `claimSource`: `structured`
 - expected upstream observation: verified local Git ref `refs/remotes/origin/main`
@@ -79,6 +79,6 @@ Generated from `docs/current/state-sync-record.json`.
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `8404242`
 - latest validated commit: `8404242`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->

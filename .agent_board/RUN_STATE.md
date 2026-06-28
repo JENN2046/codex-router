@@ -1,6 +1,6 @@
 # Run State
 
-Status: Post-PR #53 main state/docs reanchor is prepared.
+Status: Post-PR #53 main state/docs cleanup is recorded.
 
 Machine-authoritative claim:
 
@@ -37,7 +37,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 2 / behind 0`
 
 Transition:
 
@@ -54,8 +54,7 @@ Validation recorded for this source commit:
 
 State-sync audit expectation:
 
-- with this `main` state/docs record committed and pushed to `origin/main`,
-  branch-head audit should PASS with `claimSource: structured` and
+- branch-head audit is expected to PASS with `claimSource: structured` and
   Git-computed divergence against verified `refs/remotes/origin/main`
 - `state_only_pushed` is expected for this post-PR #53 `main` reanchor
 - bounded squash-only checkout contexts should PASS without the side-branch
@@ -82,6 +81,6 @@ Generated from `docs/current/state-sync-record.json`.
 - upstream: `refs/remotes/origin/main`
 - validated source commit: `8404242`
 - latest validated commit: `8404242`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 2 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->
