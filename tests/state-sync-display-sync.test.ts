@@ -63,7 +63,19 @@ test("state-sync display sync checks drift, writes generated fields, then become
     join(cwd, ".agent_board", "TASK_QUEUE.md"),
     "utf8"
   );
+  const checkpoint = await readFile(
+    join(cwd, ".agent_board", "CHECKPOINT.md"),
+    "utf8"
+  );
   const runState = await readFile(join(cwd, ".agent_board", "RUN_STATE.md"), "utf8");
+  assert.match(checkpoint, /State-sync observation:/);
+  assert.match(
+    checkpoint,
+    /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
+  );
+  assert.match(checkpoint, /Boundary:\s+- stale boundary text/);
+  assert.match(checkpoint, /<!-- state-sync-display:start -->/);
+  assert.doesNotMatch(checkpoint, /stale-branch` \/ `state_only_pending_push/);
   assert.match(taskQueue, /<!-- state-sync-display:start -->/);
   assert.match(taskQueue, /- branch: `docs\/state-sync-display`/);
   assert.match(taskQueue, /- validated source commit: `abc1234`/);

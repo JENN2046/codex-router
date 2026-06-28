@@ -107,9 +107,12 @@ function updateDisplayFile(
     return updateCurrentState(text, display);
   }
 
-  return updateVolatileAgentBoardProse(
-    filePath,
-    upsertGeneratedDisplayBlock(updateAgentBoardFields(text, display), display),
+  return upsertGeneratedDisplayBlock(
+    updateVolatileAgentBoardProse(
+      filePath,
+      updateAgentBoardFields(text, display),
+      display
+    ),
     display
   );
 }
@@ -314,7 +317,7 @@ function updateAgentBoardStateSyncStatus(
   display: DisplayFields
 ): string {
   if (filePath === ".agent_board/CHECKPOINT.md") {
-    return replaceSectionIfPresent(
+    return replaceSectionBeforeMarkerOrNextSectionIfPresent(
       text,
       "State-sync observation:",
       DISPLAY_START,
@@ -537,6 +540,42 @@ function replaceSectionIfPresent(
   }
 
   return `${text.slice(0, startIndex)}${replacement}${text.slice(endIndex)}`;
+}
+
+function replaceSectionBeforeMarkerOrNextSectionIfPresent(
+  text: string,
+  startMarker: string,
+  preferredEndMarker: string,
+  replacement: string
+): string {
+  const startIndex = text.indexOf(startMarker);
+  if (startIndex < 0) {
+    return text;
+  }
+
+  const preferredEndIndex = text.indexOf(preferredEndMarker, startIndex);
+  const nextSectionIndex = nextSectionIndexAfter(
+    text,
+    startIndex + startMarker.length
+  );
+  const endIndexCandidates = [
+    preferredEndIndex >= 0 ? preferredEndIndex : undefined,
+    nextSectionIndex
+  ].filter((value): value is number => value !== undefined);
+  const endIndex = endIndexCandidates.length > 0
+    ? Math.min(...endIndexCandidates)
+    : text.length;
+  return `${text.slice(0, startIndex)}${replacement}${text.slice(endIndex)}`;
+}
+
+function nextSectionIndexAfter(
+  text: string,
+  startIndex: number
+): number | undefined {
+  const sectionPattern = /\n(?=(?:#{1,6} .+|[A-Z][A-Za-z0-9 -]+:)\r?\n)/g;
+  sectionPattern.lastIndex = startIndex;
+  const match = sectionPattern.exec(text);
+  return match?.index === undefined ? undefined : match.index + 1;
 }
 
 function replaceRequired(
