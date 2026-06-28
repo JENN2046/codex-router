@@ -698,9 +698,11 @@ post-merge `main` / `state_only_pushed` state record. It does not commit or
 push, and write mode requires a clean worktree before it updates local files. By
 default it infers a new source when `HEAD` contains non-state changes since the
 previous recorded source, or when the previous branch source is unavailable or
-not an ancestor after a squash merge. If `HEAD` already appears to be a
-state-only descendant, the helper fails closed unless an explicit `--source` is
-supplied.
+not an ancestor after a squash merge. Squash fallback is allowed only when
+`HEAD`'s filtered source tree digest still matches the recorded validated source
+digest; digest drift requires explicit revalidation or an explicit `--source`.
+If `HEAD` already appears to be a state-only descendant, the helper fails closed
+unless an explicit `--source` is supplied.
 
 ### Phase 4: CI Coverage Adjustment
 

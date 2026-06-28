@@ -95,6 +95,19 @@ test("state-sync reanchor helper infers HEAD after a squash merge", async () => 
   assert.equal(result.stateCommitsAfterSourceBeforeWrite, 0);
 });
 
+test("state-sync reanchor helper refuses squash HEAD source digest drift", async () => {
+  const repo = await createSquashMergeFixture({ sourceDrift: true });
+
+  await assert.rejects(
+    () => prepareStateSyncReanchor(repo.cwd),
+    /source tree digest does not match/
+  );
+
+  const result = await prepareStateSyncReanchor(repo.cwd, { source: "HEAD" });
+  assert.equal(result.validatedSourceCommit, repo.squashCommit);
+  assert.deepEqual(result.recordedDivergence, { ahead: 1, behind: 0 });
+});
+
 test("state-sync reanchor helper refuses non-main branches", async () => {
   const repo = await createReanchorFixture();
   await git(repo.cwd, ["switch", "-c", "feature/reanchor"]);
@@ -149,7 +162,9 @@ async function createReanchorFixture(): Promise<{
   return { cwd, sourceCommit };
 }
 
-async function createSquashMergeFixture(): Promise<{
+async function createSquashMergeFixture(options: {
+  sourceDrift?: boolean;
+} = {}): Promise<{
   cwd: string;
   squashCommit: string;
 }> {
@@ -186,6 +201,10 @@ async function createSquashMergeFixture(): Promise<{
 
   await git(cwd, ["switch", "main"]);
   await git(cwd, ["merge", "--squash", "feature/reanchor"]);
+  if (options.sourceDrift === true) {
+    await writeSource(cwd, "tampered squash source\n");
+    await git(cwd, ["add", "packages/example.txt"]);
+  }
   await git(cwd, ["commit", "-m", "squash feature"]);
 
   return {

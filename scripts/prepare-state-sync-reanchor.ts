@@ -137,6 +137,7 @@ async function inferSourceRef(
   const existingSource = claim.source.validatedSourceCommit;
   const existingSourceAvailable = await commitExists(existingSource, cwd);
   if (!existingSourceAvailable) {
+    await requireHeadMatchesRecordedSourceDigest(claim, cwd);
     return "HEAD";
   }
 
@@ -145,6 +146,7 @@ async function inferSourceRef(
     cwd
   );
   if (!existingSourceIsAncestor) {
+    await requireHeadMatchesRecordedSourceDigest(claim, cwd);
     return "HEAD";
   }
 
@@ -161,6 +163,25 @@ async function inferSourceRef(
   }
 
   return "HEAD";
+}
+
+async function requireHeadMatchesRecordedSourceDigest(
+  claim: StateSyncClaim,
+  cwd: string
+): Promise<void> {
+  const headSourceTreeDigest = await gitFilteredTreeDigest(
+    "HEAD",
+    claim.source.sourceTreeDigest.excludedPaths,
+    cwd
+  );
+  if (headSourceTreeDigest === undefined) {
+    throw new Error("Cannot compute HEAD source tree digest for squash reanchor");
+  }
+  if (headSourceTreeDigest !== claim.source.sourceTreeDigest.value) {
+    throw new Error(
+      "Squash HEAD source tree digest does not match the recorded validated source; pass --source after explicit revalidation"
+    );
+  }
 }
 
 function reanchorClaim(
