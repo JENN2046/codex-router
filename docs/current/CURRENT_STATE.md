@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/state-sync-strict-path-convergence` |
-| Current head | `c0ac1f2` |
-| Validated source commit | `c0ac1f2` |
+| Current head | `b51f96a` |
+| Validated source commit | `b51f96a` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `c0ac1f2` |
+| Upstream divergence | `ahead 3 / behind 0` |
+| Latest validated commit | `b51f96a` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `c0ac1f2`
-- latest validated commit: `c0ac1f2`
+- validated source commit: `b51f96a`
+- latest validated commit: `b51f96a`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `986cfcbfbf5d32e1a2211a7c3f21f0facfde2432284b628eb087e393907c4b9d`
+  `cd6b06450bc61f90001e27572b3472242d7b148027c3b296972e401e1cbc8480`
 
 Strict state record paths:
 
@@ -78,7 +78,7 @@ path set; any other `.agent_board` file is treated as a non-state path.
 
 ## Validation Baseline
 
-Validation recorded for source commit `c0ac1f2`:
+Validation recorded for source commit `b51f96a`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 79 tests.
@@ -173,12 +173,12 @@ The structured claim records:
 
 - branch: `fix/state-sync-strict-path-convergence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c0ac1f2`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `b51f96a`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 
 After this state record is pushed, Git observation should compute the validated
-source divergence as `ahead 1 / behind 0` against
+source divergence as `ahead 3 / behind 0` against
 `refs/remotes/origin/main`.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
