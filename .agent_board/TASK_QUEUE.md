@@ -2,8 +2,8 @@
 
 Current task:
 
-- Record that all currently direct-pushable post-PR #53 state/docs cleanup is
-  complete.
+- Address the P1 squash fallback digest review on the state-sync reanchor
+  helper PR.
 
 Done:
 
@@ -59,6 +59,10 @@ Done:
 - blocked supported `.agent_board/*` heading mirrors as evidence drift
 - made unknown structured claim fields fail closed in schema v1
 - updated the structured record plan to record those resolved semantics
+- implemented `scripts/prepare-state-sync-reanchor.ts`
+- added reanchor helper regression tests
+- hardened squash fallback reanchors to verify `HEAD` against the recorded
+  filtered source tree digest before inferring it as source
 
 Validation completed:
 
@@ -66,12 +70,16 @@ Validation completed:
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
   tests
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
+  tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
 
 Todo:
 
-- no direct-pushable state/docs cleanup remains pending
+- push the focused PR branch with the P1 review fix
+- let CI validate the helper review fix
+- after squash merge, perform the normal `main` / `state_only_pushed` reanchor
 - keep Markdown and `.agent_board/*` as evidence/display, not authority
 - use focused PRs for the next governance semantic changes unless separately
   authorized
@@ -91,10 +99,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `8404242`
-- latest validated commit: `8404242`
-- recorded divergence baseline: `ahead 2 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `9418bd3`
+- latest validated commit: `9418bd3`
+- recorded divergence baseline: `ahead 5 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

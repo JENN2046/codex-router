@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "chore/state-sync-reanchor-helper",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "8404242",
-    "latestValidatedCommit": "8404242",
+    "validatedSourceCommit": "9418bd3",
+    "latestValidatedCommit": "9418bd3",
     "recordedDivergence": {
-      "ahead": 2,
+      "ahead": 5,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "b9bd6cfec486d14aabe934ea95567574d35514f476d51b63e652b7a9f7da2fea",
+      "value": "5a4c4dbc871415d46c19c211dec1c3ebe27cfe16227175fc8fd3a19b64daecfd",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",

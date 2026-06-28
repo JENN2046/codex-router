@@ -8,11 +8,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `chore/state-sync-reanchor-helper`
 
 Current validated source:
 
-- `8404242`
+- `9418bd3`
 
 Current structured claim:
 
@@ -20,7 +20,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -28,7 +28,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 2 / behind 0`
+- `ahead 5 / behind 0`
 
 Completed:
 
@@ -71,12 +71,18 @@ Completed:
 - unknown structured claim fields fail closed in schema v1
 - transition formulas are enforced for structured claims
 - strict state-only path set includes `docs/current/state-sync-record.json`
+- `scripts/prepare-state-sync-reanchor.ts` prepares post-merge state-sync
+  reanchors without committing or pushing
+- squash fallback reanchors now verify `HEAD` against the recorded filtered
+  source tree digest before inferring it as source
 
 Validation completed:
 
 - `git diff --check`: PASS
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+  tests
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -86,7 +92,7 @@ State-sync status:
 - branch-head audit is expected to PASS by resolving
   `refs/remotes/origin/main` as the structured claim upstream ref and computing
   divergence from Git
-- `state_only_pushed` is expected for this post-PR #53 `main` reanchor
+- `state_only_pending_push` is expected for this PR branch state record
 
 Not authorized:
 
@@ -103,10 +109,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `8404242`
-- latest validated commit: `8404242`
-- recorded divergence baseline: `ahead 2 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `9418bd3`
+- latest validated commit: `9418bd3`
+- recorded divergence baseline: `ahead 5 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

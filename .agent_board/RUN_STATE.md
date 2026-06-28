@@ -1,6 +1,6 @@
 # Run State
 
-Status: Post-PR #53 main state/docs cleanup is recorded.
+Status: State-sync reanchor helper P1 digest hardening state/docs anchor is recorded.
 
 Machine-authoritative claim:
 
@@ -17,19 +17,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `main`
+- `chore/state-sync-reanchor-helper`
 
 Current head:
 
-- `8404242`
+- `9418bd3`
 
 Validated source commit:
 
-- `8404242`
+- `9418bd3`
 
 Latest validated commit:
 
-- `8404242`
+- `9418bd3`
 
 Upstream baseline:
 
@@ -37,17 +37,19 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 2 / behind 0`
+- `ahead 5 / behind 0`
 
 Transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
 - `node --import tsx --test tests/state-sync-audit.test.ts`: PASS, 95 tests
 - `node --import tsx --test tests/state-sync-display-sync.test.ts`: PASS, 3
+  tests
+- `node --import tsx --test tests/state-sync-reanchor-helper.test.ts`: PASS, 7
   tests
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -56,10 +58,12 @@ State-sync audit expectation:
 
 - branch-head audit is expected to PASS with `claimSource: structured` and
   Git-computed divergence against verified `refs/remotes/origin/main`
-- `state_only_pushed` is expected for this post-PR #53 `main` reanchor
+- `state_only_pending_push` is expected for this PR branch state record
 - bounded squash-only checkout contexts should PASS without the side-branch
   source commit object only when live `HEAD` has the recorded filtered source
   tree digest
+- reanchor helper squash fallback must verify `HEAD` against the recorded
+  filtered source tree digest before inferring it as source
 - evidence drift blocking, empty/missing mirror-field blocking, structured
   display mirror blocking, State Sync Expectations mirror blocking, per-file
   agent-board generated block checks, and unknown structured claim field
@@ -67,7 +71,8 @@ State-sync audit expectation:
 
 Boundary:
 
-- this commit intentionally changes only state/docs display and handoff surfaces
+- this state record commit intentionally changes only state/docs display and
+  handoff surfaces
 - no package, dependency, provider, env, secret, user config, or system config
   change is part of this state record
 - no manual CI rerun
@@ -77,10 +82,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `chore/state-sync-reanchor-helper`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `8404242`
-- latest validated commit: `8404242`
-- recorded divergence baseline: `ahead 2 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `9418bd3`
+- latest validated commit: `9418bd3`
+- recorded divergence baseline: `ahead 5 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
