@@ -12,7 +12,9 @@ import {
   type DesktopLiveExecutionResult
 } from "../packages/desktop-live-adapter/src/index.js";
 import {
-  createRecordingExecutionObservationStore
+  createExecutionObservationRef,
+  createRecordingExecutionObservationStore,
+  resolveExecutionObservationRef
 } from "../packages/execution-observation/src/index.js";
 import type {
   GovernanceState,
@@ -201,10 +203,6 @@ function createHighRiskStateWithTwoExecutionFailures(taskId: string): Governance
     createdAt: "2026-04-28T09:00:00.000Z",
     updatedAt: "2026-04-28T11:00:00.000Z"
   };
-}
-
-function createExecutionObservationRef(observationId: string): string {
-  return `execution-observation:${observationId}`;
 }
 
 // ── 21.1.1: missing handler updates governanceState ─────────────────────────
@@ -580,6 +578,12 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
   const ref = createExecutionObservationRef(failureObservation.observationId);
   assert.ok(execution.governance?.state.anomalies.at(-1)?.evidenceRefs.includes(ref));
   assert.ok(execution.governance?.arbitrationPacket.rawEvidenceRefs.includes(ref));
+  const resolvedObservation = await resolveExecutionObservationRef(
+    observationStore,
+    ready.task.taskId,
+    ref
+  );
+  assert.equal(resolvedObservation?.observationId, failureObservation.observationId);
   assert.deepEqual(
     execution.governance?.availableRecoveryActions,
     execution.governance?.arbitrationPacket.availableActions
@@ -597,6 +601,31 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
     ),
     "governance early return should persist a final execution checkpoint"
   );
+});
+
+test("governance: recovery remains compatible without consumable observation evidence", async () => {
+  const ready = await createReadyRunnerResult();
+  const highRiskState = createHighRiskStateWithTwoExecutionFailures(ready.task.taskId);
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => "thread context"
+      // spawn_agent handler intentionally missing
+    },
+    governanceState: highRiskState,
+    stopOnFailure: false,
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  assert.equal(execution.status, "failed");
+  assert.ok(execution.governance, "recovery governance should still be exposed");
+  assert.equal(execution.governance?.strategyDecision.actionFamily, "step_back");
+  assert.deepEqual(
+    execution.governance?.state.anomalies.at(-1)?.evidenceRefs,
+    []
+  );
+  assert.deepEqual(execution.governance?.arbitrationPacket.rawEvidenceRefs, []);
 });
 
 test("governance: thrown handler step_back persists audit and final checkpoint before returning", async () => {
@@ -996,6 +1025,12 @@ test("governance: codex-cli host dispatch third failure triggers recovery result
   const ref = createExecutionObservationRef(observations[0]!.observationId);
   assert.ok(result.executionResult.governance?.state.anomalies.at(-1)?.evidenceRefs.includes(ref));
   assert.ok(result.executionResult.governance?.arbitrationPacket.rawEvidenceRefs.includes(ref));
+  const resolvedObservation = await resolveExecutionObservationRef(
+    observationStore,
+    task.taskId,
+    ref
+  );
+  assert.equal(resolvedObservation?.observationId, observations[0]?.observationId);
   assert.equal(govUpdates[0]?.strategy.actionFamily, "step_back");
 });
 

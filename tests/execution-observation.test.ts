@@ -4,10 +4,13 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  createExecutionObservationRef,
   createFileExecutionObservationStore,
   createRecordingExecutionObservationStore,
   parseExecutionObservation,
-  createObservationId
+  createObservationId,
+  parseExecutionObservationRef,
+  resolveExecutionObservationRef
 } from "../packages/execution-observation/src/index.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -136,6 +139,71 @@ test("createObservationId builds id from task, primitive, status, and timestamp"
   });
 
   assert.equal(id, "task-1:read_thread_terminal:0:succeeded:2026-04-27T00:00:00.000Z");
+});
+
+test("execution observation ref helpers create and parse canonical refs", () => {
+  const observationId = createObservationId({
+    taskId: "task-1",
+    primitiveId: "spawn_agent:1",
+    status: "failed",
+    createdAt: "2026-04-27T00:00:00.000Z"
+  });
+  const ref = createExecutionObservationRef(observationId);
+
+  assert.equal(
+    ref,
+    "execution-observation:task-1:spawn_agent:1:failed:2026-04-27T00:00:00.000Z"
+  );
+  assert.deepEqual(parseExecutionObservationRef(ref), {
+    kind: "execution-observation",
+    observationId,
+    ref
+  });
+});
+
+test("execution observation ref parser fails closed on malformed refs", () => {
+  assert.equal(parseExecutionObservationRef(""), undefined);
+  assert.equal(parseExecutionObservationRef("execution-observation:"), undefined);
+  assert.equal(parseExecutionObservationRef("checkpoint:task-1"), undefined);
+  assert.throws(
+    () => createExecutionObservationRef(" "),
+    /execution_observation_ref_requires_observation_id/
+  );
+});
+
+test("execution observation refs resolve through an observation store", async () => {
+  const store = createRecordingExecutionObservationStore();
+  const observationId = createObservationId({
+    taskId: "task-1",
+    primitiveId: "spawn_agent:1",
+    status: "failed",
+    createdAt: "2026-04-27T00:00:00.000Z"
+  });
+
+  await store.emit(parseExecutionObservation({
+    observationId,
+    taskId: "task-1",
+    primitiveId: "spawn_agent:1",
+    stage: "execution",
+    status: "failed",
+    signals: {
+      errorClass: "agent_capacity_exceeded"
+    },
+    createdAt: "2026-04-27T00:00:00.000Z"
+  }));
+
+  const ref = createExecutionObservationRef(observationId);
+  const resolved = await resolveExecutionObservationRef(store, "task-1", ref);
+
+  assert.equal(resolved?.observationId, observationId);
+  assert.equal(
+    await resolveExecutionObservationRef(store, "task-2", ref),
+    undefined
+  );
+  assert.equal(
+    await resolveExecutionObservationRef(store, "task-1", "malformed"),
+    undefined
+  );
 });
 
 test("recording observation store returns empty array for unknown taskId", async () => {

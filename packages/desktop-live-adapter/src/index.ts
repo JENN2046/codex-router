@@ -33,6 +33,7 @@ import {
 } from "./result-envelope.js";
 import {
   createObservationId,
+  createExecutionObservationRef,
   parseExecutionObservation,
   type ExecutionObservationBus
 } from "../../execution-observation/src/index.js";
@@ -1259,7 +1260,7 @@ async function emitFailureObservationRefs(input: {
 
   return observationId === undefined
     ? []
-    : [`execution-observation:${observationId}`];
+    : [createExecutionObservationRef(observationId)];
 }
 
 // ── Error normalization ────────────────────────────────────────────────────
