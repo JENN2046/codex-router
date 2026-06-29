@@ -6,15 +6,15 @@
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "b8a8b0c",
-    "latestValidatedCommit": "b8a8b0c",
+    "validatedSourceCommit": "daba455",
+    "latestValidatedCommit": "daba455",
     "recordedDivergence": {
-      "ahead": 3,
+      "ahead": 5,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "2a45cc9dd0c8aa689af42b42d49dae390e01cfcb288a875972f13963133b75b8",
+      "value": "e8ca7bd1126b7f895d720a4e4101880100648cacae68aaaf5c08eb443060414a",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -42,7 +42,7 @@
     "requiredCommands": [
       "git diff --check",
       "npm run demo:runtime-governance",
-      "node --import tsx --test tests/desktop-live-adapter-governance.test.ts tests/desktop-host-client.test.ts tests/host-client-example.test.ts tests/runtime-governance-demo.test.ts",
+      "node --import tsx --test tests/recovery-control.test.ts tests/desktop-live-adapter-governance.test.ts tests/desktop-host-client.test.ts tests/host-client-example.test.ts tests/runtime-governance-demo.test.ts",
       "npm run typecheck",
       "npm run build",
       "npm test",

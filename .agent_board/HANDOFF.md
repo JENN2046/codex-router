@@ -11,7 +11,7 @@ Current branch:
 
 Current validated source:
 
-- `b8a8b0c`
+- `daba455`
 
 Current structured claim:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 5 / behind 0`
 
 Completed:
 
@@ -124,9 +124,9 @@ State-sync status:
 
 - structured claim: `capability/runtime-governance-host-actionability-v1` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `b8a8b0c`
-- latest validated commit: `b8a8b0c`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `daba455`
+- latest validated commit: `daba455`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -149,8 +149,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `capability/runtime-governance-host-actionability-v1`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b8a8b0c`
-- latest validated commit: `b8a8b0c`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `daba455`
+- latest validated commit: `daba455`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
