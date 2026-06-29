@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `fd21258`
+- `8d2008c`
 
 Latest validated commit:
 
-- `fd21258`
+- `8d2008c`
 
 Structured claim:
 
@@ -22,16 +22,15 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/codex-cli-host.test.ts
-  tests/desktop-live-adapter-governance.test.ts tests/desktop-live-adapter.test.ts
-  tests/host-dispatcher.test.ts tests/governance-failure-reducer.test.ts`: PASS
-- `node --import tsx --test tests/state-sync-display-sync.test.ts
-  tests/state-sync-audit.test.ts`: PASS
+- `npm run demo:runtime-governance`: PASS
+- `node --import tsx --test tests/runtime-governance-demo.test.ts
+  tests/host-client-example.test.ts tests/execution-observation.test.ts
+  tests/desktop-live-adapter-governance.test.ts`: PASS
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -42,9 +41,9 @@ State-sync audit observation:
 
 - structured claim: `capability/runtime-governance-example-evidence` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `fd21258`
-- latest validated commit: `fd21258`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `8d2008c`
+- latest validated commit: `8d2008c`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -64,8 +63,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `capability/runtime-governance-example-evidence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `fd21258`
-- latest validated commit: `fd21258`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `8d2008c`
+- latest validated commit: `8d2008c`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

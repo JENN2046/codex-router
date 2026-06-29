@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `capability/runtime-governance-example-evidence` |
-| Current head | `fd21258` |
-| Validated source commit | `fd21258` |
+| Current head | `8d2008c` |
+| Validated source commit | `8d2008c` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `fd21258` |
+| Upstream divergence | `ahead 3 / behind 0` |
+| Latest validated commit | `8d2008c` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `fd21258`
-- latest validated commit: `fd21258`
+- validated source commit: `8d2008c`
+- latest validated commit: `8d2008c`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `183cddfbe8970a011bda3864c63125336ce422bcfa922c53bb98df2a85370f92`
+  `6d217d81665c91fa9196bf3da534f1f3208c078590a42f18fe03eb5f940ba67a`
 
 Strict state record paths:
 
@@ -66,15 +66,13 @@ Strict state record paths:
 
 This state record commit records the source commit that:
 
-- adds canonical execution-observation evidence ref helpers for creating,
-  parsing, and resolving `execution-observation:<observationId>` refs;
-- makes `desktop-live-adapter` use the shared helper instead of hand-building
-  runtime governance evidence refs;
-- proves recovery packet `rawEvidenceRefs` can be resolved back to the emitted
-  execution observation through an observation store;
-- fails closed for malformed execution-observation refs; and
-- preserves compatibility when no observation bus is supplied by recording no
-  consumable evidence refs instead of fabricating one.
+- keeps the runtime governance recovery demo on the injected Desktop bridge
+  path instead of the policy default `read_only` / `codex-cli` route;
+- records `hostRoute` and `usedHostDispatch` in demo scenario output so the
+  no-real-host boundary is machine-checkable;
+- asserts the recovery scenario uses `hostRoute: desktop` and does not use
+  host dispatch; and
+- documents why the deterministic demo cannot invoke the real Codex CLI.
 
 This work does not run real provider execution and does not run the real Codex
 CLI. Runtime validation uses injected handlers, fake dispatchers, and local test
@@ -82,14 +80,13 @@ harnesses only.
 
 ## Validation Baseline
 
-Validation recorded for source commit `fd21258`:
+Validation recorded for source commit `8d2008c`:
 
 - `git diff --check`: PASS.
-- `node --import tsx --test tests/codex-cli-host.test.ts
-  tests/desktop-live-adapter-governance.test.ts tests/desktop-live-adapter.test.ts
-  tests/host-dispatcher.test.ts tests/governance-failure-reducer.test.ts`: PASS.
-- `node --import tsx --test tests/state-sync-display-sync.test.ts
-  tests/state-sync-audit.test.ts`: PASS.
+- `npm run demo:runtime-governance`: PASS.
+- `node --import tsx --test tests/runtime-governance-demo.test.ts
+  tests/host-client-example.test.ts tests/execution-observation.test.ts
+  tests/desktop-live-adapter-governance.test.ts`: PASS.
 - `npm test`: PASS.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
@@ -107,9 +104,9 @@ Current structured state-sync audit status:
 
 - structured claim: `capability/runtime-governance-example-evidence` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `fd21258`
-- latest validated commit: `fd21258`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `8d2008c`
+- latest validated commit: `8d2008c`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -173,13 +170,13 @@ The structured claim records:
 
 - branch: `capability/runtime-governance-example-evidence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `fd21258`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `8d2008c`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 
 For this `state_only_pending_push` record on branch `capability/runtime-governance-example-evidence`,
 Git observation should compute the validated source divergence as
-`ahead 1 / behind 0` against `refs/remotes/origin/main` before the state-only
+`ahead 3 / behind 0` against `refs/remotes/origin/main` before the state-only
 record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
