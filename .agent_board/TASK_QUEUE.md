@@ -124,8 +124,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `capability/runtime-governance-host-actionability-v1`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `bf0778c`
-- latest validated commit: `bf0778c`
-- recorded divergence baseline: `ahead 7 / behind 0`
+- validated source commit: `3fdedde`
+- latest validated commit: `3fdedde`
+- recorded divergence baseline: `ahead 9 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
