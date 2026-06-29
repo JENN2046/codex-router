@@ -7,11 +7,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `capability/runtime-governance-example-evidence`
 
 Current validated source:
 
-- `f60eca4`
+- `c08e525`
 
 Current structured claim:
 
@@ -19,7 +19,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 7 / behind 0`
 
 Completed:
 
@@ -110,11 +110,10 @@ Completed:
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/codex-cli-host.test.ts
-  tests/desktop-live-adapter-governance.test.ts tests/desktop-live-adapter.test.ts
-  tests/host-dispatcher.test.ts tests/governance-failure-reducer.test.ts`: PASS
-- `node --import tsx --test tests/state-sync-display-sync.test.ts
-  tests/state-sync-audit.test.ts`: PASS
+- `npm run demo:runtime-governance`: PASS
+- `node --import tsx --test tests/runtime-governance-demo.test.ts
+  tests/host-client-example.test.ts tests/execution-observation.test.ts
+  tests/desktop-live-adapter-governance.test.ts`: PASS
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -123,11 +122,11 @@ Validation completed:
 
 State-sync status:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `capability/runtime-governance-example-evidence` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `f60eca4`
-- latest validated commit: `f60eca4`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `c08e525`
+- latest validated commit: `c08e525`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -148,10 +147,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `capability/runtime-governance-example-evidence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `f60eca4`
-- latest validated commit: `f60eca4`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `c08e525`
+- latest validated commit: `c08e525`
+- recorded divergence baseline: `ahead 7 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

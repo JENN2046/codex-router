@@ -61,6 +61,12 @@ import {
   type DesktopHostBridge,
   type RunDesktopTaskResult
 } from "../../desktop-live-adapter/src/index.js";
+import {
+  createRecordingExecutionObservationStore,
+  type ExecutionObservation,
+  type ExecutionObservationBus,
+  type ExecutionObservationStore
+} from "../../execution-observation/src/index.js";
 export {
   createCodexDesktopTargetHostEmbeddingStarter,
   getCodexDesktopTargetHostEmbeddingStatus,
@@ -118,6 +124,8 @@ export interface ExampleHostClientOptions {
   telemetryAlertDeliveryWindowPreset?: TelemetryAlertDeliveryWindowPresetName;
   telemetryAlertDeliveryWindowStorePath?: string;
   telemetryAlertDeliveryWindowStore?: TelemetryAlertDeliveryWindowStore;
+  observationBus?: ExecutionObservationBus;
+  observationStore?: ExecutionObservationStore;
   preflight?: ExamplePreflightConfig;
   now?: () => string;
 }
@@ -249,6 +257,8 @@ export class ExampleDesktopHostClient {
   readonly telemetryAlertDeliveryMetricsCollector: TelemetryAlertDeliveryMetricsCollector | undefined;
   readonly telemetryAlertDeliveryAlertThresholds: TelemetryDeliveryAlertThresholds | undefined;
   readonly telemetryAlertDeliveryWindowPolicy: TelemetryAlertDeliveryWindowPolicy | undefined;
+  readonly observationBus: ExecutionObservationBus | undefined;
+  readonly observationStore: ExecutionObservationStore | undefined;
   telemetryAlertDeliveryWindowStore: TelemetryAlertDeliveryWindowStore | undefined;
   private readonly telemetryAlertDeliveryWindowPreset: TelemetryAlertDeliveryWindowPresetName | undefined;
   readonly bridge: DesktopHostBridge;
@@ -316,6 +326,9 @@ export class ExampleDesktopHostClient {
           : (this.telemetryAlertDeliveryWindowPolicy || this.telemetryAlertDeliveryWindowPreset
             ? createRecordingTelemetryAlertDeliveryWindowStore()
             : undefined));
+    this.observationStore = options.observationStore
+      ?? (options.observationBus ? undefined : createRecordingExecutionObservationStore());
+    this.observationBus = options.observationBus ?? this.observationStore;
     this.executionTelemetrySink = options.disableTelemetry
       ? undefined
       : options.telemetrySink || this.telemetryMetricsCollector
@@ -353,6 +366,7 @@ export class ExampleDesktopHostClient {
       availableAgents: this.options.availableAgents ?? 2,
       persistence: this.buildPersistence(),
       bridge: this.bridge,
+      ...(this.observationBus !== undefined ? { observationBus: this.observationBus } : {}),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
         : {}),
@@ -381,6 +395,7 @@ export class ExampleDesktopHostClient {
         ...(options.preferredSource !== undefined ? { preferredSource: options.preferredSource } : {})
       },
       bridge: this.bridge,
+      ...(this.observationBus !== undefined ? { observationBus: this.observationBus } : {}),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
         : {}),
@@ -403,6 +418,7 @@ export class ExampleDesktopHostClient {
     telemetryAlertDeliveryAlerts: TelemetryDeliveryAlert[] | undefined;
     telemetryAlertDeliveryAlertEvents: LogEvent[];
     telemetryAlertDeliverySuppressions: TelemetryAlertDeliverySuppression[];
+    observations: ExecutionObservation[];
   }> {
     const telemetryMetrics = this.telemetryMetricsCollector
       ? await this.telemetryMetricsCollector.loadSnapshot()
@@ -446,7 +462,8 @@ export class ExampleDesktopHostClient {
           source: "example-host-client-alert-delivery"
         })
         : [],
-      telemetryAlertDeliverySuppressions
+      telemetryAlertDeliverySuppressions,
+      observations: this.observationStore ? await this.observationStore.loadAll() : []
     };
   }
 
