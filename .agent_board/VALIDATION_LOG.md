@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `534d62f`
+- `b8a8b0c`
 
 Latest validated commit:
 
-- `534d62f`
+- `b8a8b0c`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Recorded validation:
 
@@ -41,9 +41,9 @@ State-sync audit observation:
 
 - structured claim: `capability/runtime-governance-host-actionability-v1` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `534d62f`
-- latest validated commit: `534d62f`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `b8a8b0c`
+- latest validated commit: `b8a8b0c`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -63,8 +63,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `capability/runtime-governance-host-actionability-v1`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `534d62f`
-- latest validated commit: `534d62f`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `b8a8b0c`
+- latest validated commit: `b8a8b0c`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
