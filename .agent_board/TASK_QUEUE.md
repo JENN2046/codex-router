@@ -124,8 +124,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `capability/runtime-governance-example-evidence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `f73b620`
-- latest validated commit: `f73b620`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- validated source commit: `c08e525`
+- latest validated commit: `c08e525`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

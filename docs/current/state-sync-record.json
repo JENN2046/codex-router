@@ -6,15 +6,15 @@
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "f73b620",
-    "latestValidatedCommit": "f73b620",
+    "validatedSourceCommit": "c08e525",
+    "latestValidatedCommit": "c08e525",
     "recordedDivergence": {
-      "ahead": 5,
+      "ahead": 7,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "526838f6aec9ca357619bd5fef78d154e7550f94da1b16e7a4194a8912197774",
+      "value": "e5773b302629d4a713674cff0824cbef18adec52f166e9a4d8f895b39144b4b0",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
