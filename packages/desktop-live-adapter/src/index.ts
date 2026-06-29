@@ -42,8 +42,10 @@ import {
 } from "../../state-manager/src/index.js";
 import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
 import {
+  createRecoveryOperatorAction,
   shouldLockdown,
   type ArbitrationPacket,
+  type RecoveryOperatorAction,
   type RecoveryAction,
   type RecoveryRecommendation
 } from "../../recovery-control/src/index.js";
@@ -147,6 +149,7 @@ export interface DesktopLiveExecutionGovernance {
   arbitrationPacket: ArbitrationPacket;
   availableRecoveryActions: RecoveryAction[];
   recoveryRecommendation?: RecoveryRecommendation;
+  operatorAction?: RecoveryOperatorAction;
   recoveryRequired: boolean;
   lockdown: boolean;
 }
@@ -597,25 +600,43 @@ function createRecoveryGovernanceIfRequired(input: {
     return undefined;
   }
 
+  const recoveryRecommendation = input.arbitrationPacket.recoveryRecommendation;
+  const lockdown = shouldLockdown(input.arbitrationPacket) ||
+    input.strategyDecision.actionFamily === "abort";
+  const blockingReasons = createGovernanceBlockingReasonsForStrategy(input.strategyDecision);
+
   return {
     state: input.state,
     strategyDecision: input.strategyDecision,
     arbitrationPacket: input.arbitrationPacket,
     availableRecoveryActions: [...input.arbitrationPacket.availableActions],
-    ...(input.arbitrationPacket.recoveryRecommendation !== undefined
-      ? { recoveryRecommendation: input.arbitrationPacket.recoveryRecommendation }
+    ...(recoveryRecommendation !== undefined
+      ? {
+          recoveryRecommendation,
+          operatorAction: createRecoveryOperatorAction({
+            arbitrationPacket: input.arbitrationPacket,
+            recoveryRecommendation,
+            lockdown,
+            blockingReasons
+          })
+        }
       : {}),
     recoveryRequired: true,
-    lockdown: shouldLockdown(input.arbitrationPacket) ||
-      input.strategyDecision.actionFamily === "abort"
+    lockdown
   };
 }
 
 function createGovernanceBlockingReasons(
   governance: DesktopLiveExecutionGovernance
 ): string[] {
+  return createGovernanceBlockingReasonsForStrategy(governance.strategyDecision);
+}
+
+function createGovernanceBlockingReasonsForStrategy(
+  strategyDecision: StrategyDecisionV2
+): string[] {
   return [
-    governance.strategyDecision.actionFamily === "abort"
+    strategyDecision.actionFamily === "abort"
       ? "governance_abort_triggered"
       : "governance_step_back_triggered",
     "arbitration_required"

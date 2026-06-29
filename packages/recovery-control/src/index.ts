@@ -97,6 +97,53 @@ export const ArbitrationTriggerSchema = z.enum([
   "manual"
 ]);
 
+// ── Operator action ─────────────────────────────────────────────────────────
+
+export const RecoveryOperatorActionStatusSchema = z.enum([
+  "requires_arbitration"
+]);
+
+export const RecoveryOperatorActionSchema = z.object({
+  schemaVersion: z.literal("recovery-operator-action.v1").default("recovery-operator-action.v1"),
+  taskId: z.string().min(1),
+  status: RecoveryOperatorActionStatusSchema,
+  trigger: ArbitrationTriggerSchema,
+  recommendedAction: RecoveryActionSchema,
+  reasonCode: RecoveryRecommendationReasonSchema,
+  summary: z.string().min(1),
+  requiresHumanApproval: z.boolean(),
+  lockdown: z.boolean(),
+  evidenceStatus: RecoveryRecommendationEvidenceStatusSchema,
+  evidenceRefs: z.array(z.string()).default([]),
+  checkpointRef: z.string().min(1).optional(),
+  availableActions: z.array(RecoveryActionSchema),
+  blockingReasons: z.array(z.string()).default([])
+}).superRefine((value, ctx) => {
+  if (!value.availableActions.includes(value.recommendedAction)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["recommendedAction"],
+      message: "operator_action_recommendation_unavailable"
+    });
+  }
+
+  if (value.evidenceStatus === "missing" && value.evidenceRefs.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["evidenceRefs"],
+      message: "missing_evidence_status_requires_no_refs"
+    });
+  }
+
+  if (value.evidenceStatus === "referenced" && value.evidenceRefs.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["evidenceRefs"],
+      message: "referenced_evidence_status_requires_refs"
+    });
+  }
+});
+
 // ── Arbitration packet ─────────────────────────────────────────────────────
 
 export const ArbitrationPacketSchema = z.object({
@@ -152,6 +199,10 @@ export type RecoveryRecommendationReason = z.infer<typeof RecoveryRecommendation
 export type RecoveryRecommendationEvidenceStatus = z.infer<typeof RecoveryRecommendationEvidenceStatusSchema>;
 export type RecoveryRecommendationInput = z.input<typeof RecoveryRecommendationSchema>;
 export type RecoveryRecommendation = z.infer<typeof RecoveryRecommendationSchema>;
+export type RecoveryOperatorActionStatus = z.infer<typeof RecoveryOperatorActionStatusSchema>;
+export type RecoveryOperatorActionInput = z.input<typeof RecoveryOperatorActionSchema>;
+export type RecoveryOperatorAction = z.infer<typeof RecoveryOperatorActionSchema>;
+export type OperatorActionEnvelope = RecoveryOperatorAction;
 export type ArbitrationTrigger = z.infer<typeof ArbitrationTriggerSchema>;
 export type ArbitrationPacketInput = z.input<typeof ArbitrationPacketSchema>;
 export type ArbitrationPacket = z.infer<typeof ArbitrationPacketSchema>;
@@ -173,6 +224,31 @@ export interface CreateArbitrationPacketInput {
 
 export function parseArbitrationPacket(input: ArbitrationPacketInput): ArbitrationPacket {
   return ArbitrationPacketSchema.parse(input);
+}
+
+export function createRecoveryOperatorAction(input: {
+  arbitrationPacket: ArbitrationPacket;
+  recoveryRecommendation: RecoveryRecommendation;
+  lockdown: boolean;
+  blockingReasons?: string[];
+}): RecoveryOperatorAction {
+  return RecoveryOperatorActionSchema.parse({
+    taskId: input.arbitrationPacket.taskId,
+    status: "requires_arbitration",
+    trigger: input.arbitrationPacket.trigger,
+    recommendedAction: input.recoveryRecommendation.action,
+    reasonCode: input.recoveryRecommendation.reasonCode,
+    summary: input.recoveryRecommendation.summary,
+    requiresHumanApproval: input.recoveryRecommendation.requiresHumanApproval,
+    lockdown: input.lockdown,
+    evidenceStatus: input.recoveryRecommendation.evidenceStatus,
+    evidenceRefs: input.recoveryRecommendation.evidenceRefs,
+    ...(input.recoveryRecommendation.checkpointRef !== undefined
+      ? { checkpointRef: input.recoveryRecommendation.checkpointRef }
+      : {}),
+    availableActions: input.arbitrationPacket.availableActions,
+    blockingReasons: input.blockingReasons ?? []
+  });
 }
 
 // ── Factory ─────────────────────────────────────────────────────────────────

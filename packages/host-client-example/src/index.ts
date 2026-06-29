@@ -67,6 +67,8 @@ import {
   type ExecutionObservationBus,
   type ExecutionObservationStore
 } from "../../execution-observation/src/index.js";
+import type { GovernanceState } from "../../state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
 export {
   createCodexDesktopTargetHostEmbeddingStarter,
   getCodexDesktopTargetHostEmbeddingStatus,
@@ -126,6 +128,8 @@ export interface ExampleHostClientOptions {
   telemetryAlertDeliveryWindowStore?: TelemetryAlertDeliveryWindowStore;
   observationBus?: ExecutionObservationBus;
   observationStore?: ExecutionObservationStore;
+  governanceState?: GovernanceState;
+  onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
   preflight?: ExamplePreflightConfig;
   now?: () => string;
 }
@@ -367,6 +371,12 @@ export class ExampleDesktopHostClient {
       persistence: this.buildPersistence(),
       bridge: this.bridge,
       ...(this.observationBus !== undefined ? { observationBus: this.observationBus } : {}),
+      ...(this.options.governanceState !== undefined
+        ? { governanceState: this.options.governanceState }
+        : {}),
+      ...(this.options.onGovernanceUpdate !== undefined
+        ? { onGovernanceUpdate: this.options.onGovernanceUpdate }
+        : {}),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
         : {}),
@@ -396,6 +406,12 @@ export class ExampleDesktopHostClient {
       },
       bridge: this.bridge,
       ...(this.observationBus !== undefined ? { observationBus: this.observationBus } : {}),
+      ...(this.options.governanceState !== undefined
+        ? { governanceState: this.options.governanceState }
+        : {}),
+      ...(this.options.onGovernanceUpdate !== undefined
+        ? { onGovernanceUpdate: this.options.onGovernanceUpdate }
+        : {}),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
         : {}),

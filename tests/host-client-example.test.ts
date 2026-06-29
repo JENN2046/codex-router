@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { TaskEnvelopeInput } from "../packages/contracts/src/index.js";
 import type {
   CodexMemoryClient,
   CodexMemorySearchInput,
@@ -28,6 +29,8 @@ import {
   createExampleDesktopHostClient,
   createFailingExampleHostBridge
 } from "../packages/host-client-example/src/index.js";
+import type { GovernanceState } from "../packages/state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../packages/strategy-router/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
 
@@ -101,6 +104,50 @@ function createSharedMemoryClient(
   };
 }
 
+function createHighRiskStateWithTwoExecutionFailures(taskId: string): GovernanceState {
+  return {
+    schemaVersion: "governance-state.v1",
+    taskId,
+    branchId: "main",
+    phase: "execution",
+    trustBalance: { centralOrder: 0.5, distributedVitality: 0.5 },
+    risk: {
+      entanglement: 0.6,
+      entropy: 0.7,
+      failureCost: 0.8,
+      reversibility: 0.3,
+      contextPressure: 0.5,
+      historicalTrust: 0.4,
+      globalCoherence: 0.6,
+      finalRiskLevel: "high"
+    },
+    anomalies: [
+      {
+        anomalyId: `anomaly:${taskId}:pre1`,
+        taskId,
+        kind: "execution_failure",
+        message: "previous failure one",
+        strikeNumber: 1,
+        createdAt: "2026-04-28T10:00:00.000Z",
+        evidenceRefs: []
+      },
+      {
+        anomalyId: `anomaly:${taskId}:pre2`,
+        taskId,
+        kind: "execution_failure",
+        message: "previous failure two",
+        strikeNumber: 2,
+        createdAt: "2026-04-28T11:00:00.000Z",
+        evidenceRefs: []
+      }
+    ],
+    approvals: [],
+    taskGraphRef: `task-graph:${taskId}`,
+    createdAt: "2026-04-28T09:00:00.000Z",
+    updatedAt: "2026-04-28T11:00:00.000Z"
+  };
+}
+
 test("example host client runs a task end-to-end and persists checkpoint state", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const client = createExampleDesktopHostClient({
@@ -131,6 +178,59 @@ test("example host client runs a task end-to-end and persists checkpoint state",
   assert.equal(state.checkpoints.length, 3);
   assert.ok(state.auditEvents.some((event) => event.type === "runner_ready"));
   assert.ok(state.telemetryEvents.length >= 1);
+});
+
+test("example host client exposes runtime governance operator action", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task: TaskEnvelopeInput = {
+    taskId: "example-governance-recovery",
+    source: "desktop-thread",
+    intent: {
+      summary: "implement host client recovery integration",
+      requestedAction: "add multi-file TypeScript host recovery integration changes",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: {
+      branches: [],
+      files: ["packages/host-client-example/src/index.ts"],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: []
+    }
+  };
+  const governanceUpdates: Array<{ state: GovernanceState; strategy: StrategyDecisionV2 }> = [];
+  const client = createExampleDesktopHostClient({
+    policy,
+    bridge: createFailingExampleHostBridge("send_input", "example_governance_failure"),
+    availableAgents: 3,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    onGovernanceUpdate: async (state, strategy) => {
+      governanceUpdates.push({ state, strategy });
+    },
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  const state = await client.getState();
+  const failedObservation = state.observations.find((observation) => observation.status === "failed");
+  assert.ok(failedObservation);
+  const ref = createExecutionObservationRef(failedObservation.observationId);
+
+  assert.equal(result.executionResult.status, "failed");
+  assert.equal(result.executionResult.governance?.operatorAction?.schemaVersion, "recovery-operator-action.v1");
+  assert.equal(result.executionResult.governance?.operatorAction?.taskId, task.taskId);
+  assert.equal(result.executionResult.governance?.operatorAction?.recommendedAction, "fork");
+  assert.equal(result.executionResult.governance?.operatorAction?.requiresHumanApproval, true);
+  assert.equal(result.executionResult.governance?.operatorAction?.lockdown, true);
+  assert.equal(result.executionResult.governance?.operatorAction?.evidenceStatus, "referenced");
+  assert.ok(result.executionResult.governance?.operatorAction?.evidenceRefs.includes(ref));
+  assert.ok(governanceUpdates.some((update) => update.strategy.actionFamily === "step_back"));
 });
 
 test("example host client resumes from memory and surfaces resume source", async () => {

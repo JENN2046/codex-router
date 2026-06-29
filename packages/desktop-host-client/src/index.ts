@@ -11,6 +11,9 @@ import type {
   MemoryOverviewProvider
 } from "../../audit-memory/src/index.js";
 import type { CodexCliProcessRunOptions } from "../../codex-cli-host/src/index.js";
+import type { ExecutionObservationBus } from "../../execution-observation/src/index.js";
+import type { GovernanceState } from "../../state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
 import type { TaskEnvelopeInput } from "../../contracts/src/index.js";
 import type { TelemetrySink } from "../../observability/src/index.js";
 import type { PolicySnapshot } from "../../policy-config/src/index.js";
@@ -42,6 +45,9 @@ export interface DesktopHostClientOptions {
   codexCliOptions?: CodexCliProcessRunOptions;
   availableAgents?: number;
   stopOnFailure?: boolean;
+  observationBus?: ExecutionObservationBus;
+  governanceState?: GovernanceState;
+  onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
   now?: () => string;
 }
 
@@ -77,6 +83,15 @@ export class DesktopHostClient {
         : {}),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
+        : {}),
+      ...(this.options.observationBus !== undefined
+        ? { observationBus: this.options.observationBus }
+        : {}),
+      ...(this.options.governanceState !== undefined
+        ? { governanceState: this.options.governanceState }
+        : {}),
+      ...(this.options.onGovernanceUpdate !== undefined
+        ? { onGovernanceUpdate: this.options.onGovernanceUpdate }
         : {}),
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
     });
@@ -114,6 +129,15 @@ export class DesktopHostClient {
         : {}),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
+        : {}),
+      ...(this.options.observationBus !== undefined
+        ? { observationBus: this.options.observationBus }
+        : {}),
+      ...(this.options.governanceState !== undefined
+        ? { governanceState: this.options.governanceState }
+        : {}),
+      ...(this.options.onGovernanceUpdate !== undefined
+        ? { onGovernanceUpdate: this.options.onGovernanceUpdate }
         : {}),
       ...(hasResumeConfig(resume) ? { resume } : {}),
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
