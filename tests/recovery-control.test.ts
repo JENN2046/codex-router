@@ -132,6 +132,29 @@ test("recovery control does not lockdown on first anomaly", () => {
   assert.equal(packet.trigger, "first_anomaly");
 });
 
+test("recovery control preserves full_control approval requirement for first anomaly", () => {
+  const state = createState();
+  const firstOnly: GovernanceState = {
+    ...state,
+    anomalies: [state.anomalies[0]!]
+  };
+
+  const packet = createArbitrationPacket({
+    state: firstOnly,
+    trigger: "first_anomaly",
+    delegationLevel: "full_control",
+    now: () => "2026-04-27T00:04:00.000Z"
+  });
+
+  assert.deepEqual(packet.availableActions, ["resume", "abort"]);
+  assert.equal(packet.recoveryRecommendation?.action, "resume");
+  assert.equal(
+    packet.recoveryRecommendation?.reasonCode,
+    "first_anomaly_resume_with_monitoring"
+  );
+  assert.equal(packet.recoveryRecommendation?.requiresHumanApproval, true);
+});
+
 test("recovery control uses provided recommendation", () => {
   const packet = createArbitrationPacket({
     state: createState(),
@@ -277,6 +300,23 @@ test("recovery control rejects mismatched recommendation action and reason", () 
   );
 });
 
+test("recovery control rejects recommendation reason that does not match trigger", () => {
+  assert.throws(
+    () => parseArbitrationPacket(createPacketInput({
+      trigger: "first_anomaly",
+      recoveryRecommendation: {
+        action: "fork",
+        reasonCode: "third_anomaly_fork_for_investigation",
+        requiresHumanApproval: true,
+        evidenceStatus: "referenced",
+        evidenceRefs: ["execution-observation:o1"],
+        summary: "wrong phase for recommendation"
+      }
+    })),
+    /recommendation_trigger_mismatch/
+  );
+});
+
 test("recovery control rejects recommendation evidence that differs from packet evidence", () => {
   assert.throws(
     () => parseArbitrationPacket(createPacketInput({
@@ -322,6 +362,7 @@ test("recovery control embeds current state in packet", () => {
 });
 
 function createPacketInput(overrides: {
+  trigger?: "first_anomaly" | "second_anomaly" | "third_anomaly" | "manual";
   rawEvidenceRefs?: string[];
   availableActions?: Array<"resume" | "rollback" | "abort" | "fork">;
   recoveryRecommendation?: {
@@ -345,7 +386,7 @@ function createPacketInput(overrides: {
   return {
     packetId: "packet:test",
     taskId: "recovery-task",
-    trigger: "third_anomaly" as const,
+    trigger: overrides.trigger ?? "third_anomaly" as const,
     currentState: createState(),
     rawEvidenceRefs,
     conflictingSignals: [],

@@ -63,7 +63,7 @@ export const RecoveryRecommendationSchema = z.object({
     });
   }
 
-  if (value.requiresHumanApproval !== expected.requiresHumanApproval) {
+  if (expected.requiresHumanApproval && !value.requiresHumanApproval) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["requiresHumanApproval"],
@@ -132,6 +132,17 @@ export const ArbitrationPacketSchema = z.object({
       message: "recommendation_evidence_refs_mismatch"
     });
   }
+
+  if (!recommendationReasonMatchesTrigger(
+    value.recoveryRecommendation.reasonCode,
+    value.trigger
+  )) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["recoveryRecommendation", "reasonCode"],
+      message: "recommendation_trigger_mismatch"
+    });
+  }
 });
 
 // ── Inferred types ──────────────────────────────────────────────────────────
@@ -178,7 +189,8 @@ export function createArbitrationPacket(input: CreateArbitrationPacketInput): Ar
     state: input.state,
     trigger,
     rawEvidenceRefs,
-    availableActions
+    availableActions,
+    ...(input.delegationLevel !== undefined ? { delegationLevel: input.delegationLevel } : {})
   });
 
   return parseArbitrationPacket({
@@ -249,6 +261,22 @@ function expectedRecommendationShape(reasonCode: RecoveryRecommendationReason): 
   }
 }
 
+function recommendationReasonMatchesTrigger(
+  reasonCode: RecoveryRecommendationReason,
+  trigger: ArbitrationTrigger
+): boolean {
+  if (trigger === "first_anomaly") {
+    return reasonCode === "first_anomaly_resume_with_monitoring";
+  }
+  if (trigger === "second_anomaly") {
+    return reasonCode === "second_anomaly_require_human_review";
+  }
+  if (trigger === "third_anomaly") {
+    return reasonCode.startsWith("third_anomaly_");
+  }
+  return reasonCode === "manual_review_requested";
+}
+
 function sameStringArray(left: string[], right: string[]): boolean {
   return left.length === right.length
     && left.every((value, index) => value === right[index]);
@@ -259,9 +287,12 @@ function createRecoveryRecommendation(input: {
   trigger: ArbitrationTrigger;
   rawEvidenceRefs: string[];
   availableActions: RecoveryAction[];
+  delegationLevel?: DelegationLevel;
 }): RecoveryRecommendation {
   const evidenceStatus: RecoveryRecommendationEvidenceStatus =
     input.rawEvidenceRefs.length > 0 ? "referenced" : "missing";
+  const firstAnomalyRequiresHumanApproval =
+    input.delegationLevel === "full_control";
 
   if (input.trigger === "third_anomaly") {
     if (
@@ -315,10 +346,12 @@ function createRecoveryRecommendation(input: {
     return RecoveryRecommendationSchema.parse({
       action: "resume",
       reasonCode: "first_anomaly_resume_with_monitoring",
-      requiresHumanApproval: false,
+      requiresHumanApproval: firstAnomalyRequiresHumanApproval,
       evidenceStatus,
       evidenceRefs: input.rawEvidenceRefs,
-      summary: "Resume with monitoring after the first anomaly."
+      summary: firstAnomalyRequiresHumanApproval
+        ? "Require human approval before resuming after the first anomaly."
+        : "Resume with monitoring after the first anomaly."
     });
   }
 
