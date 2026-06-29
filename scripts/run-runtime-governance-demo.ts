@@ -2,6 +2,8 @@
 
 import { pathToFileURL } from "node:url";
 import { parseTaskEnvelope, type TaskEnvelopeInput } from "../packages/contracts/src/index.js";
+import { classifyIntent } from "../packages/intent-gate/src/index.js";
+import { routeTask } from "../packages/routing-engine/src/index.js";
 import {
   createFailingExampleHostBridge,
   createExampleDesktopHostClient
@@ -14,7 +16,7 @@ import {
 import {
   runDesktopTask
 } from "../packages/desktop-live-adapter/src/index.js";
-import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
+import { loadPolicyFromFile, type PolicySnapshot } from "../packages/policy-config/src/index.js";
 import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import type { GovernanceState } from "../packages/state-manager/src/index.js";
 
@@ -45,14 +47,21 @@ export async function runRuntimeGovernanceDemo(
   policyPath = "routing-policy.yaml"
 ): Promise<RuntimeGovernanceDemoResult> {
   const policy = await loadPolicyFromFile(policyPath);
+  const successTask = createEngineeringTask("runtime-demo-success");
+  const failureTask = createEngineeringTask("runtime-demo-failure");
+  const recoveryTask = createDesktopRecoveryTask("runtime-demo-recovery");
+
+  assertDemoRoutesAreDesktop(policy, [
+    ["successful_example_execution", successTask],
+    ["failure_evidence_ref_resolution", failureTask],
+    ["third_failure_recovery_packet", recoveryTask]
+  ]);
 
   const successClient = createExampleDesktopHostClient({
     policy,
     now: fixedNow
   });
-  const success = await successClient.run(createEngineeringTask(
-    "runtime-demo-success"
-  ));
+  const success = await successClient.run(successTask);
   const successState = await successClient.getState();
 
   const failureClient = createExampleDesktopHostClient({
@@ -60,9 +69,7 @@ export async function runRuntimeGovernanceDemo(
     bridge: createFailingExampleHostBridge("send_input", "demo_agent_failure"),
     now: fixedNow
   });
-  const failure = await failureClient.run(createEngineeringTask(
-    "runtime-demo-failure"
-  ));
+  const failure = await failureClient.run(failureTask);
   const failureState = await failureClient.getState();
   const failedObservation = failureState.observations.find((observation) =>
     observation.taskId === "runtime-demo-failure" &&
@@ -81,7 +88,7 @@ export async function runRuntimeGovernanceDemo(
 
   const recoveryObservationStore = createRecordingExecutionObservationStore();
   const recovery = await runDesktopTask({
-    task: createDesktopRecoveryTask("runtime-demo-recovery"),
+    task: recoveryTask,
     policy,
     preflight: {
       authAvailable: true,
@@ -172,6 +179,27 @@ export async function runRuntimeGovernanceDemo(
       wroteEvidence: false
     }
   };
+}
+
+function assertDemoRoutesAreDesktop(
+  policy: PolicySnapshot,
+  scenarios: Array<[string, TaskEnvelopeInput]>
+): void {
+  for (const [scenarioName, task] of scenarios) {
+    const intent = classifyIntent(task);
+    const decision = routeTask(task, intent, policy);
+
+    if (decision.hostRoute !== "desktop") {
+      throw new Error(
+        [
+          "runtime_governance_demo_requires_desktop_route",
+          `scenario:${scenarioName}`,
+          `taskClass:${decision.classification.taskClass}`,
+          `hostRoute:${decision.hostRoute}`
+        ].join(":")
+      );
+    }
+  }
 }
 
 function createEngineeringTask(taskId: string): TaskEnvelopeInput {

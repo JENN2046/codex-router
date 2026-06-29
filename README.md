@@ -369,6 +369,9 @@ recovery packet without invoking the real Codex CLI or writing evidence files.
 The recovery scenario is intentionally routed as an `engineering` Desktop task
 so it uses the injected example bridge instead of the policy default
 `read_only` / `codex-cli` host route.
+Before executing any scenario, the script verifies that every demo task resolves
+to the `desktop` host route and fails closed if a policy change would route it
+to `codex-cli`.
 
 Validation is tiered to keep routine checks lightweight:
 
