@@ -164,10 +164,42 @@ test("execution observation ref helpers create and parse canonical refs", () => 
 test("execution observation ref parser fails closed on malformed refs", () => {
   assert.equal(parseExecutionObservationRef(""), undefined);
   assert.equal(parseExecutionObservationRef("execution-observation:"), undefined);
+  assert.equal(parseExecutionObservationRef(" execution-observation:obs-1"), undefined);
   assert.equal(parseExecutionObservationRef("checkpoint:task-1"), undefined);
   assert.throws(
-    () => createExecutionObservationRef(" "),
+    () => createExecutionObservationRef(""),
     /execution_observation_ref_requires_observation_id/
+  );
+});
+
+test("execution observation refs preserve observation ids verbatim", async () => {
+  const store = createRecordingExecutionObservationStore();
+  const taskId = " task-1 ";
+  const observationId = " obs-with-padding ";
+
+  await store.emit(parseExecutionObservation({
+    observationId,
+    taskId,
+    primitiveId: "spawn_agent:1",
+    stage: "execution",
+    status: "failed",
+    signals: {
+      errorClass: "agent_capacity_exceeded"
+    },
+    createdAt: "2026-04-27T00:00:00.000Z"
+  }));
+
+  const ref = createExecutionObservationRef(observationId);
+
+  assert.equal(ref, "execution-observation: obs-with-padding ");
+  assert.deepEqual(parseExecutionObservationRef(ref), {
+    kind: "execution-observation",
+    observationId,
+    ref
+  });
+  assert.equal(
+    (await resolveExecutionObservationRef(store, taskId, ref))?.observationId,
+    observationId
   );
 });
 

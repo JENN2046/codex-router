@@ -110,25 +110,21 @@ export function createObservationId(input: {
 }
 
 export function createExecutionObservationRef(observationId: string): string {
-  const normalizedObservationId = observationId.trim();
-  if (normalizedObservationId.length === 0) {
+  if (observationId.length === 0) {
     throw new Error("execution_observation_ref_requires_observation_id");
   }
 
-  return `${EXECUTION_OBSERVATION_REF_PREFIX}${normalizedObservationId}`;
+  return `${EXECUTION_OBSERVATION_REF_PREFIX}${observationId}`;
 }
 
 export function parseExecutionObservationRef(
   ref: string
 ): ParsedExecutionObservationRef | undefined {
-  const normalizedRef = ref.trim();
-  if (!normalizedRef.startsWith(EXECUTION_OBSERVATION_REF_PREFIX)) {
+  if (!ref.startsWith(EXECUTION_OBSERVATION_REF_PREFIX)) {
     return undefined;
   }
 
-  const observationId = normalizedRef
-    .slice(EXECUTION_OBSERVATION_REF_PREFIX.length)
-    .trim();
+  const observationId = ref.slice(EXECUTION_OBSERVATION_REF_PREFIX.length);
   if (observationId.length === 0) {
     return undefined;
   }
