@@ -43,6 +43,16 @@ export type ExecutionObservationSignals = z.infer<typeof ExecutionObservationSig
 export type ExecutionObservationInput = z.input<typeof ExecutionObservationSchema>;
 export type ExecutionObservation = z.infer<typeof ExecutionObservationSchema>;
 
+// ── Evidence ref helpers ───────────────────────────────────────────────────
+
+export const EXECUTION_OBSERVATION_REF_PREFIX = "execution-observation:";
+
+export interface ParsedExecutionObservationRef {
+  kind: "execution-observation";
+  observationId: string;
+  ref: string;
+}
+
 // ── Bus interface ───────────────────────────────────────────────────────────
 
 export interface ExecutionObservationBus {
@@ -97,6 +107,51 @@ export function createObservationId(input: {
   createdAt: string;
 }): string {
   return `${input.taskId}:${input.primitiveId}:${input.status}:${input.createdAt}`;
+}
+
+export function createExecutionObservationRef(observationId: string): string {
+  if (observationId.length === 0) {
+    throw new Error("execution_observation_ref_requires_observation_id");
+  }
+
+  return `${EXECUTION_OBSERVATION_REF_PREFIX}${observationId}`;
+}
+
+export function parseExecutionObservationRef(
+  ref: string
+): ParsedExecutionObservationRef | undefined {
+  if (!ref.startsWith(EXECUTION_OBSERVATION_REF_PREFIX)) {
+    return undefined;
+  }
+
+  const observationId = ref.slice(EXECUTION_OBSERVATION_REF_PREFIX.length);
+  if (observationId.length === 0) {
+    return undefined;
+  }
+
+  return {
+    kind: "execution-observation",
+    observationId,
+    ref: createExecutionObservationRef(observationId)
+  };
+}
+
+export async function resolveExecutionObservationRef(
+  store: ExecutionObservationStore,
+  taskId: string,
+  ref: string
+): Promise<ExecutionObservation | undefined> {
+  const parsedRef = parseExecutionObservationRef(ref);
+  if (parsedRef === undefined) {
+    return undefined;
+  }
+
+  const observations = await store.findByTaskId(taskId);
+  return observations.find(
+    (observation) =>
+      observation.taskId === taskId
+      && observation.observationId === parsedRef.observationId
+  );
 }
 
 // ── File-based store (JSONL persistence) ────────────────────────────────────

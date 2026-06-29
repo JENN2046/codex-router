@@ -2,8 +2,8 @@
 
 Current task:
 
-- Keep state-sync structured record automation current; no post-merge
-  reanchor is pending.
+- Prepare a focused PR for runtime governance evidence consumability by making
+  execution-observation refs canonical, parseable, and resolvable.
 Done:
 
 - committed `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
@@ -82,6 +82,13 @@ Done:
 - normalized opaque Codex CLI spawn and host-dispatch errors to
   `unknown_execution_error` before governance error class construction
 - hardened display sync heading replacement for `## State Sync Expectations`
+- added canonical execution-observation evidence ref helpers
+- made `desktop-live-adapter` use the shared ref helper for runtime governance
+  failure evidence
+- added regression coverage for resolving recovery packet `rawEvidenceRefs`
+  through an observation store
+- added malformed-ref fail-closed coverage
+- recorded the no-observationBus compatibility path as no consumable evidence
 
 Validation completed:
 
@@ -99,8 +106,8 @@ Validation completed:
 
 Todo:
 
-- use focused PRs for the next governance semantic changes unless separately
-  authorized
+- open the focused runtime governance evidence consumability PR and let CI
+  validate it
 Blocked until separately authorized:
 
 - direct pushes to `main` for source, workflow, dependency, runtime, provider,
@@ -116,10 +123,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/runtime-governance-evidence-consumability`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `eee89e7`
-- latest validated commit: `eee89e7`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `a179272`
+- latest validated commit: `a179272`
+- recorded divergence baseline: `ahead 7 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

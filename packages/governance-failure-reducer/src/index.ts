@@ -15,6 +15,7 @@ import {
 import {
   parseExecutionObservation,
   createObservationId,
+  EXECUTION_OBSERVATION_REF_PREFIX,
   type ExecutionObservation
 } from "../../execution-observation/src/index.js";
 
@@ -149,12 +150,27 @@ function normalizeEvidenceRefs(values: string[] | undefined): string[] {
 
   const normalized: string[] = [];
   for (const value of values) {
-    const trimmed = value.trim();
-    if (trimmed.length === 0 || normalized.includes(trimmed)) {
+    const normalizedValue = normalizeEvidenceRef(value);
+    if (
+      normalizedValue === undefined
+      || normalized.includes(normalizedValue)
+    ) {
       continue;
     }
-    normalized.push(trimmed);
+    normalized.push(normalizedValue);
   }
 
   return normalized;
+}
+
+function normalizeEvidenceRef(value: string): string | undefined {
+  if (value.length === 0 || value.trim().length === 0) {
+    return undefined;
+  }
+
+  if (value.startsWith(EXECUTION_OBSERVATION_REF_PREFIX)) {
+    return value;
+  }
+
+  return value.trim();
 }
