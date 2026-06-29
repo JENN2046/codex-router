@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `capability/runtime-governance-example-evidence`
 
 Validated source commit:
 
-- `f60eca4`
+- `fd21258`
 
 Latest validated commit:
 
-- `f60eca4`
+- `fd21258`
 
 Structured claim:
 
@@ -40,10 +40,10 @@ Recorded validation:
 
 State-sync audit observation:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `capability/runtime-governance-example-evidence` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `f60eca4`
-- latest validated commit: `f60eca4`
+- validated source commit: `fd21258`
+- latest validated commit: `fd21258`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -62,10 +62,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `capability/runtime-governance-example-evidence`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `f60eca4`
-- latest validated commit: `f60eca4`
+- validated source commit: `fd21258`
+- latest validated commit: `fd21258`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

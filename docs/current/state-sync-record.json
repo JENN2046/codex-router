@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "capability/runtime-governance-example-evidence",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "f60eca4",
-    "latestValidatedCommit": "f60eca4",
+    "validatedSourceCommit": "fd21258",
+    "latestValidatedCommit": "fd21258",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "f4f099f72bb8fabebf4069864b9b66665bb1299bf3d732254c8751eb40c1a79d",
+      "value": "183cddfbe8970a011bda3864c63125336ce422bcfa922c53bb98df2a85370f92",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
@@ -41,11 +41,11 @@
   "validation": {
     "requiredCommands": [
       "git diff --check",
-      "node --import tsx --test tests/codex-cli-host.test.ts tests/desktop-live-adapter-governance.test.ts tests/desktop-live-adapter.test.ts tests/host-dispatcher.test.ts tests/governance-failure-reducer.test.ts",
-      "node --import tsx --test tests/state-sync-display-sync.test.ts tests/state-sync-audit.test.ts",
-      "npm test",
+      "npm run demo:runtime-governance",
+      "node --import tsx --test tests/runtime-governance-demo.test.ts tests/host-client-example.test.ts tests/execution-observation.test.ts tests/desktop-live-adapter-governance.test.ts",
       "npm run typecheck",
       "npm run build",
+      "npm test",
       "node --import tsx scripts/sync-state-sync-display.ts --check",
       "node --import tsx scripts/run-state-sync-audit.ts --json"
     ]
