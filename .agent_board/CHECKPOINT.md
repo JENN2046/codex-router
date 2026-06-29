@@ -15,11 +15,11 @@ Branch:
 
 Validated source commit:
 
-- `cf98ee5`
+- `fea230c`
 
 Latest validated commit:
 
-- `cf98ee5`
+- `fea230c`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 3 / behind 0`
+- `ahead 5 / behind 0`
 
 Checkpoint facts:
 
@@ -115,9 +115,9 @@ State-sync observation:
 
 - structured claim: `capability/runtime-governance-recovery-recommendation` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `cf98ee5`
-- latest validated commit: `cf98ee5`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `fea230c`
+- latest validated commit: `fea230c`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -128,8 +128,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `capability/runtime-governance-recovery-recommendation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `cf98ee5`
-- latest validated commit: `cf98ee5`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `fea230c`
+- latest validated commit: `fea230c`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
