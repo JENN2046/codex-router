@@ -122,10 +122,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `capability/runtime-governance-recovery-recommendation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `bd0a319`
-- latest validated commit: `bd0a319`
+- validated source commit: `b718494`
+- latest validated commit: `b718494`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

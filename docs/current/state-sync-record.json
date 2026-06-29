@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "capability/runtime-governance-recovery-recommendation",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "bd0a319",
-    "latestValidatedCommit": "bd0a319",
+    "validatedSourceCommit": "b718494",
+    "latestValidatedCommit": "b718494",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "e5773b302629d4a713674cff0824cbef18adec52f166e9a4d8f895b39144b4b0",
+      "value": "0b2b2d0a529df987d4fb1ae390c18d5cc90d0b947957b83e15041f6b7224903f",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",

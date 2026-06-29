@@ -7,11 +7,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `capability/runtime-governance-recovery-recommendation`
 
 Current validated source:
 
-- `bd0a319`
+- `b718494`
 
 Current structured claim:
 
@@ -19,7 +19,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -122,10 +122,10 @@ Validation completed:
 
 State-sync status:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `capability/runtime-governance-recovery-recommendation` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `bd0a319`
-- latest validated commit: `bd0a319`
+- validated source commit: `b718494`
+- latest validated commit: `b718494`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -147,10 +147,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `capability/runtime-governance-recovery-recommendation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `bd0a319`
-- latest validated commit: `bd0a319`
+- validated source commit: `b718494`
+- latest validated commit: `b718494`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
