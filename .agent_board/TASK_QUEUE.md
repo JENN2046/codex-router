@@ -122,10 +122,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `capability/runtime-governance-example-evidence`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c08e525`
-- latest validated commit: `c08e525`
-- recorded divergence baseline: `ahead 7 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `bd0a319`
+- latest validated commit: `bd0a319`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
