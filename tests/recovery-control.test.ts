@@ -396,6 +396,19 @@ test("recovery control rejects operator action reason that does not match trigge
   );
 });
 
+test("recovery control rejects third-anomaly operator action without lockdown", () => {
+  assert.throws(
+    () => RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+      trigger: "third_anomaly",
+      recommendedAction: "fork",
+      reasonCode: "third_anomaly_fork_for_investigation",
+      requiresHumanApproval: true,
+      lockdown: false
+    })),
+    /operator_action_lockdown_required/
+  );
+});
+
 test("recovery control rejects rollback operator action without checkpoint", () => {
   assert.throws(
     () => RecoveryOperatorActionSchema.parse(createOperatorActionInput({
@@ -444,6 +457,7 @@ type OperatorActionInputOverrides = {
   evidenceRefs?: string[];
   checkpointRef?: string;
   availableActions?: Array<"resume" | "rollback" | "abort" | "fork">;
+  lockdown?: boolean;
 };
 
 function createOperatorActionInput(
@@ -460,7 +474,7 @@ function createOperatorActionInput(
     reasonCode: overrides.reasonCode ?? "third_anomaly_fork_for_investigation" as const,
     summary: "fork for investigation",
     requiresHumanApproval: overrides.requiresHumanApproval ?? true,
-    lockdown: true,
+    lockdown: overrides.lockdown ?? true,
     evidenceStatus: overrides.evidenceStatus
       ?? (evidenceRefs.length > 0 ? "referenced" as const : "missing" as const),
     evidenceRefs,

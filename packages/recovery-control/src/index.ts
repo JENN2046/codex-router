@@ -121,6 +121,14 @@ export const RecoveryOperatorActionSchema = z.object({
       message: "recommendation_trigger_mismatch"
     });
   }
+
+  if (value.trigger === "third_anomaly" && !value.lockdown) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["lockdown"],
+      message: "operator_action_lockdown_required"
+    });
+  }
 });
 
 // ── Arbitration packet ─────────────────────────────────────────────────────
