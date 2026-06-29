@@ -54,38 +54,7 @@ export const RecoveryRecommendationSchema = z.object({
     });
   }
 
-  const expected = expectedRecommendationShape(value.reasonCode);
-  if (value.action !== expected.action) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["action"],
-      message: "recommendation_action_mismatch"
-    });
-  }
-
-  if (expected.requiresHumanApproval && !value.requiresHumanApproval) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["requiresHumanApproval"],
-      message: "recommendation_approval_mismatch"
-    });
-  }
-
-  if (expected.checkpointRequired && value.checkpointRef === undefined) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["checkpointRef"],
-      message: "recommendation_checkpoint_required"
-    });
-  }
-
-  if (!expected.checkpointRequired && value.checkpointRef !== undefined) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["checkpointRef"],
-      message: "recommendation_checkpoint_not_allowed"
-    });
-  }
+  addRecommendationShapeIssues(ctx, value, { action: ["action"] });
 });
 
 // ── Arbitration trigger ─────────────────────────────────────────────────────
@@ -140,6 +109,16 @@ export const RecoveryOperatorActionSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["evidenceRefs"],
       message: "referenced_evidence_status_requires_refs"
+    });
+  }
+
+  addRecommendationShapeIssues(ctx, value, { action: ["recommendedAction"] });
+
+  if (!recommendationReasonMatchesTrigger(value.reasonCode, value.trigger)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reasonCode"],
+      message: "recommendation_trigger_mismatch"
     });
   }
 });
@@ -334,6 +313,61 @@ function expectedRecommendationShape(reasonCode: RecoveryRecommendationReason): 
         requiresHumanApproval: true,
         checkpointRequired: false
       };
+  }
+}
+
+function addRecommendationShapeIssues(
+  ctx: z.RefinementCtx,
+  value: {
+    reasonCode: RecoveryRecommendationReason;
+    requiresHumanApproval: boolean;
+    checkpointRef?: string | undefined;
+  } & (
+    | { action: RecoveryAction }
+    | { recommendedAction: RecoveryAction }
+  ),
+  paths: {
+    action: Array<string | number>;
+    requiresHumanApproval?: Array<string | number>;
+    checkpointRef?: Array<string | number>;
+  }
+): void {
+  const expected = expectedRecommendationShape(value.reasonCode);
+  const action = "action" in value ? value.action : value.recommendedAction;
+  const requiresHumanApprovalPath =
+    paths.requiresHumanApproval ?? ["requiresHumanApproval"];
+  const checkpointRefPath = paths.checkpointRef ?? ["checkpointRef"];
+
+  if (action !== expected.action) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: paths.action,
+      message: "recommendation_action_mismatch"
+    });
+  }
+
+  if (expected.requiresHumanApproval && !value.requiresHumanApproval) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: requiresHumanApprovalPath,
+      message: "recommendation_approval_mismatch"
+    });
+  }
+
+  if (expected.checkpointRequired && value.checkpointRef === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: checkpointRefPath,
+      message: "recommendation_checkpoint_required"
+    });
+  }
+
+  if (!expected.checkpointRequired && value.checkpointRef !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: checkpointRefPath,
+      message: "recommendation_checkpoint_not_allowed"
+    });
   }
 }
 
