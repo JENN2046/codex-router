@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `fix/runtime-governance-evidence-consumability` |
-| Current head | `a179272` |
-| Validated source commit | `a179272` |
+| Current branch | `main` |
+| Current head | `f60eca4` |
+| Validated source commit | `f60eca4` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 7 / behind 0` |
-| Latest validated commit | `a179272` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `f60eca4` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,11 +36,11 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pending_push`
-- validated source commit: `a179272`
-- latest validated commit: `a179272`
+- transition kind: `state_only_pushed`
+- validated source commit: `f60eca4`
+- latest validated commit: `f60eca4`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 7 / behind 0`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `f4f099f72bb8fabebf4069864b9b66665bb1299bf3d732254c8751eb40c1a79d`
 
@@ -82,7 +82,7 @@ harnesses only.
 
 ## Validation Baseline
 
-Validation recorded for source commit `a179272`:
+Validation recorded for source commit `f60eca4`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/codex-cli-host.test.ts
@@ -105,11 +105,11 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- structured claim: `fix/runtime-governance-evidence-consumability` / `state_only_pending_push` against
+- structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `a179272`
-- latest validated commit: `a179272`
-- recorded divergence baseline: `ahead 7 / behind 0`
+- validated source commit: `f60eca4`
+- latest validated commit: `f60eca4`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -171,16 +171,15 @@ This state-only record line is limited to:
 
 The structured claim records:
 
-- branch: `fix/runtime-governance-evidence-consumability`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `a179272`
-- recorded divergence baseline: `ahead 7 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `f60eca4`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 
-For this `state_only_pending_push` record on branch `fix/runtime-governance-evidence-consumability`,
-Git observation should compute the validated source divergence as
-`ahead 7 / behind 0` against `refs/remotes/origin/main` before the state-only
-record is pushed.
+For this `state_only_pushed` state-only record, Git observation should
+compute the validated source divergence as `ahead 0 / behind 1` against
+`refs/remotes/origin/main` after the state-only record is on upstream.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then

@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `fix/runtime-governance-evidence-consumability`
+- `main`
 
 Validated source commit:
 
-- `a179272`
+- `f60eca4`
 
 Latest validated commit:
 
-- `a179272`
+- `f60eca4`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 7 / behind 0`
+- `ahead 1 / behind 0`
 
 Recorded validation:
 
@@ -40,11 +40,11 @@ Recorded validation:
 
 State-sync audit observation:
 
-- structured claim: `fix/runtime-governance-evidence-consumability` / `state_only_pending_push` against
+- structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `a179272`
-- latest validated commit: `a179272`
-- recorded divergence baseline: `ahead 7 / behind 0`
+- validated source commit: `f60eca4`
+- latest validated commit: `f60eca4`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -62,10 +62,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `fix/runtime-governance-evidence-consumability`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `a179272`
-- latest validated commit: `a179272`
-- recorded divergence baseline: `ahead 7 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `f60eca4`
+- latest validated commit: `f60eca4`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

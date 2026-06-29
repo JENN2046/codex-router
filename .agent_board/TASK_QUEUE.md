@@ -2,8 +2,8 @@
 
 Current task:
 
-- Prepare a focused PR for runtime governance evidence consumability by making
-  execution-observation refs canonical, parseable, and resolvable.
+- Keep state-sync structured record automation current; no post-merge
+  reanchor is pending.
 Done:
 
 - committed `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
@@ -106,8 +106,8 @@ Validation completed:
 
 Todo:
 
-- open the focused runtime governance evidence consumability PR and let CI
-  validate it
+- use focused PRs for the next governance semantic changes unless separately
+  authorized
 Blocked until separately authorized:
 
 - direct pushes to `main` for source, workflow, dependency, runtime, provider,
@@ -123,10 +123,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `fix/runtime-governance-evidence-consumability`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `a179272`
-- latest validated commit: `a179272`
-- recorded divergence baseline: `ahead 7 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `f60eca4`
+- latest validated commit: `f60eca4`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
