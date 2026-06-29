@@ -18,19 +18,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `fix/runtime-governance-evidence-refs`
+- `main`
 
 Current head:
 
-- `745c1ac`
+- `eee89e7`
 
 Validated source commit:
 
-- `745c1ac`
+- `eee89e7`
 
 Latest validated commit:
 
-- `745c1ac`
+- `eee89e7`
 
 Upstream baseline:
 
@@ -42,7 +42,7 @@ Upstream divergence baseline:
 
 Transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Validation recorded for this source commit:
 
@@ -60,10 +60,10 @@ Validation recorded for this source commit:
 
 State-sync audit expectation:
 
-- structured claim: `fix/runtime-governance-evidence-refs` / `state_only_pending_push` against
+- structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `745c1ac`
-- latest validated commit: `745c1ac`
+- validated source commit: `eee89e7`
+- latest validated commit: `eee89e7`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -83,10 +83,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `fix/runtime-governance-evidence-refs`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `745c1ac`
-- latest validated commit: `745c1ac`
+- validated source commit: `eee89e7`
+- latest validated commit: `eee89e7`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
