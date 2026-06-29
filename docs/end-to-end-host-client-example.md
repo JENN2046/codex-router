@@ -8,6 +8,7 @@ It wires together:
 - in-memory `codex-memory` client
 - `CodexMemoryAdapter`
 - in-memory checkpoint and audit stores
+- in-memory execution observation store
 - typed primitive result envelopes
 - `runDesktopTask()`
 - `resumeDesktopTask()`
@@ -22,9 +23,10 @@ The example host client demonstrates:
 4. resume-aware execution through `resume()`
 5. memory-first resume with checkpoint fallback
 6. typed primitive success and failure results
-7. telemetry alert delivery window presets
-8. alert dedupe/cooldown state persistence across sessions
-9. resume across client instances through shared memory or persisted checkpoint fallback
+7. execution observations that can be referenced from recovery evidence
+8. telemetry alert delivery window presets
+9. alert dedupe/cooldown state persistence across sessions
+10. resume across client instances through shared memory or persisted checkpoint fallback
 
 ## Main Entry
 
@@ -37,8 +39,9 @@ from:
 - [packages/host-client-example/src/index.ts](A:/codex-router/packages/host-client-example/src/index.ts)
 
 The package keeps its in-memory checkpoint, audit, and codex-memory store
-implementations internal. Treat the public surface as the example client and
-bridge helpers rather than importing the backing store classes directly.
+implementations internal. Treat the public surface as the example client,
+observation store access, and bridge helpers rather than importing the backing
+store classes directly.
 
 ## Example Usage
 
@@ -79,6 +82,43 @@ await client.resume({
   required: true
 });
 ```
+
+## Run The Demo
+
+For a deterministic local walkthrough, run:
+
+```bash
+npm run demo:runtime-governance
+```
+
+The demo runs entirely in memory. It covers:
+
+- a successful example host execution
+- a primitive failure with a resolvable `execution-observation:*` evidence ref
+- a third execution failure that returns a recovery arbitration packet
+
+It does not invoke the real Codex CLI, call a provider, or write
+`docs/evidence` files.
+
+## Execution Evidence
+
+The example client records execution observations by default. A failed primitive
+emits an observation, and runtime governance can place an
+`execution-observation:*` ref in recovery evidence.
+
+```ts
+const result = await client.run(task);
+const state = await client.getState();
+
+const failedObservation = state.observations.find(
+  (observation) => observation.status === "failed"
+);
+```
+
+Hosts that already own observation persistence can pass `observationStore` or
+`observationBus` when creating the client. Passing only `observationBus` keeps
+execution compatible but `getState().observations` will be empty because the
+example client has no query surface for that external bus.
 
 ## Cross-Session Resume
 

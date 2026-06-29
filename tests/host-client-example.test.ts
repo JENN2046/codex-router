@@ -20,6 +20,11 @@ import {
   createRecordingTelemetrySink
 } from "../packages/observability/src/index.js";
 import {
+  createExecutionObservationRef,
+  type ExecutionObservationInput,
+  resolveExecutionObservationRef
+} from "../packages/execution-observation/src/index.js";
+import {
   createExampleDesktopHostClient,
   createFailingExampleHostBridge
 } from "../packages/host-client-example/src/index.js";
@@ -282,6 +287,60 @@ test("example host client can surface typed primitive failures through a failing
   assert.equal(result.executionResult.status, "failed");
   assert.equal(result.executionResult.steps[1]?.output?.ok, false);
   assert.equal(result.executionResult.steps[1]?.error, "example_agent_failure");
+
+  const state = await client.getState();
+  const failureObservation = state.observations.find((observation) =>
+    observation.taskId === "example-failure" &&
+    observation.primitiveId === "send_input:1" &&
+    observation.status === "failed"
+  );
+  assert.ok(failureObservation, "failed primitive observation should be visible in example state");
+  assert.equal(failureObservation.signals.errorClass, "example_agent_failure");
+
+  const ref = createExecutionObservationRef(failureObservation.observationId);
+  assert.equal(
+    (await resolveExecutionObservationRef(
+      client.observationStore!,
+      "example-failure",
+      ref
+    ))?.observationId,
+    failureObservation.observationId
+  );
+});
+
+test("example host client supports observation bus injection without queryable state", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const emittedObservations: ExecutionObservationInput[] = [];
+  const client = createExampleDesktopHostClient({
+    policy,
+    observationBus: {
+      async emit(observation) {
+        emittedObservations.push(observation);
+      }
+    },
+    now: () => "2026-04-23T12:40:00.000Z"
+  });
+
+  const result = await client.run({
+    taskId: "example-external-observation-bus",
+    source: "desktop-thread",
+    intent: {
+      summary: "implement host client integration",
+      requestedAction: "add multi-file TypeScript host client integration changes",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: { branches: [], files: ["packages/host-client-example/src/index.ts"], modules: [] },
+    constraints: {},
+    hints: { riskHints: [], tags: [] }
+  });
+
+  const state = await client.getState();
+
+  assert.equal(result.executionResult.status, "completed");
+  assert.ok(emittedObservations.length > 0, "external observation bus should receive observations");
+  assert.deepEqual(state.observations, []);
 });
 
 test("example host client blocks release execution when telemetry is disabled", async () => {

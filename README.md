@@ -357,10 +357,15 @@ Current docs:
 
 ```bash
 npm install
+npm run demo:runtime-governance
 npm run validate:daily
 npm run validate:pr
 npm run governance -- list
 ```
+
+`npm run demo:runtime-governance` is deterministic and in-memory. It exercises
+the example host client, execution observation refs, and a third-failure
+recovery packet without invoking the real Codex CLI or writing evidence files.
 
 Validation is tiered to keep routine checks lightweight:
 
