@@ -11,7 +11,7 @@ Current branch:
 
 Current validated source:
 
-- `3982dfc`
+- `a179272`
 
 Current structured claim:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 5 / behind 0`
+- `ahead 7 / behind 0`
 
 Completed:
 
@@ -125,9 +125,9 @@ State-sync status:
 
 - structured claim: `fix/runtime-governance-evidence-consumability` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `3982dfc`
-- latest validated commit: `3982dfc`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- validated source commit: `a179272`
+- latest validated commit: `a179272`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -150,8 +150,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `fix/runtime-governance-evidence-consumability`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `3982dfc`
-- latest validated commit: `3982dfc`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- validated source commit: `a179272`
+- latest validated commit: `a179272`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

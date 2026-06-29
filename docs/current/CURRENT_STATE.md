@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `fix/runtime-governance-evidence-consumability` |
-| Current head | `3982dfc` |
-| Validated source commit | `3982dfc` |
+| Current head | `a179272` |
+| Validated source commit | `a179272` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 5 / behind 0` |
-| Latest validated commit | `3982dfc` |
+| Upstream divergence | `ahead 7 / behind 0` |
+| Latest validated commit | `a179272` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `3982dfc`
-- latest validated commit: `3982dfc`
+- validated source commit: `a179272`
+- latest validated commit: `a179272`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `7ad6ae76baa9a1193d7b0b6e75a4c6a671ef5e1d516ed644dd0ab9ce8e4eb14f`
+  `f4f099f72bb8fabebf4069864b9b66665bb1299bf3d732254c8751eb40c1a79d`
 
 Strict state record paths:
 
@@ -82,7 +82,7 @@ harnesses only.
 
 ## Validation Baseline
 
-Validation recorded for source commit `3982dfc`:
+Validation recorded for source commit `a179272`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/codex-cli-host.test.ts
@@ -107,9 +107,9 @@ Current structured state-sync audit status:
 
 - structured claim: `fix/runtime-governance-evidence-consumability` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `3982dfc`
-- latest validated commit: `3982dfc`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- validated source commit: `a179272`
+- latest validated commit: `a179272`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -173,13 +173,13 @@ The structured claim records:
 
 - branch: `fix/runtime-governance-evidence-consumability`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `3982dfc`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- validated source commit: `a179272`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - transition: `state_only_pending_push`
 
 For this `state_only_pending_push` record on branch `fix/runtime-governance-evidence-consumability`,
 Git observation should compute the validated source divergence as
-`ahead 5 / behind 0` against `refs/remotes/origin/main` before the state-only
+`ahead 7 / behind 0` against `refs/remotes/origin/main` before the state-only
 record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
