@@ -11,12 +11,19 @@ import type {
   TaskEnvelopeInput
 } from "../packages/contracts/src/index.js";
 import {
+  createPrimitiveFailureEnvelope,
   createPrimitiveSuccessEnvelope,
   type DesktopHostBindings
 } from "../packages/desktop-live-adapter/src/index.js";
 import { createDesktopHostClient } from "../packages/desktop-host-client/src/index.js";
+import {
+  createExecutionObservationRef,
+  createRecordingExecutionObservationStore
+} from "../packages/execution-observation/src/index.js";
 import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
+import type { GovernanceState } from "../packages/state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../packages/strategy-router/src/index.js";
 import type {
   CodexMemoryClient,
   CodexMemorySearchInput,
@@ -216,6 +223,55 @@ function createHostBindings(
   };
 }
 
+function createHighRiskStateWithTwoExecutionFailures(taskId: string): GovernanceState {
+  return {
+    schemaVersion: "governance-state.v1",
+    taskId,
+    branchId: "main",
+    phase: "execution",
+    trustBalance: { centralOrder: 0.5, distributedVitality: 0.5 },
+    risk: {
+      entanglement: 0.6,
+      entropy: 0.7,
+      failureCost: 0.8,
+      reversibility: 0.3,
+      contextPressure: 0.5,
+      historicalTrust: 0.4,
+      globalCoherence: 0.6,
+      finalRiskLevel: "high"
+    },
+    anomalies: [
+      {
+        anomalyId: `anomaly:${taskId}:pre1`,
+        taskId,
+        kind: "execution_failure",
+        message: "previous failure one",
+        strikeNumber: 1,
+        createdAt: "2026-04-28T10:00:00.000Z",
+        evidenceRefs: []
+      },
+      {
+        anomalyId: `anomaly:${taskId}:pre2`,
+        taskId,
+        kind: "execution_failure",
+        message: "previous failure two",
+        strikeNumber: 2,
+        createdAt: "2026-04-28T11:00:00.000Z",
+        evidenceRefs: []
+      }
+    ],
+    approvals: [],
+    taskGraphRef: `task-graph:${taskId}`,
+    createdAt: "2026-04-28T09:00:00.000Z",
+    updatedAt: "2026-04-28T11:00:00.000Z"
+  };
+}
+
+function anomalyCount(state: GovernanceState | undefined): number {
+  assert.ok(state);
+  return state.anomalies.length;
+}
+
 function createReadTask(taskId: string): TaskEnvelopeInput {
   return {
     taskId,
@@ -311,6 +367,137 @@ test("desktop host client runs through real host bindings and persists artifacts
   assert.ok(checkpoints.length >= 2);
   assert.ok(auditEvents.some((event) => event.type === "runner_ready"));
   assert.ok(telemetryEvents.length >= 1);
+});
+
+test("desktop host client passes governance inputs and returns operator recovery action", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const observationStore = createRecordingExecutionObservationStore();
+  const governanceUpdates: Array<{ state: GovernanceState; strategy: StrategyDecisionV2 }> = [];
+  const task = createEngineeringTask("desktop-host-governance-recovery");
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: {
+      ...createHostBindings(),
+      read_thread_terminal() {
+        return createPrimitiveFailureEnvelope(
+          "read_thread_terminal",
+          "desktop_host_governance_failure"
+        );
+      }
+    },
+    availableAgents: 2,
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
+    observationBus: observationStore,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    onGovernanceUpdate: async (state, strategy) => {
+      governanceUpdates.push({ state, strategy });
+    },
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  const observations = await observationStore.findByTaskId(task.taskId);
+  const failedObservation = observations.find((observation) => observation.status === "failed");
+  assert.ok(failedObservation);
+  const ref = createExecutionObservationRef(failedObservation.observationId);
+
+  assert.equal(result.executionResult.status, "failed");
+  assert.equal(result.executionResult.governance?.operatorAction?.schemaVersion, "recovery-operator-action.v1");
+  assert.equal(result.executionResult.governance?.operatorAction?.taskId, task.taskId);
+  assert.equal(result.executionResult.governance?.operatorAction?.recommendedAction, "fork");
+  assert.equal(result.executionResult.governance?.operatorAction?.requiresHumanApproval, true);
+  assert.equal(result.executionResult.governance?.operatorAction?.lockdown, true);
+  assert.ok(result.executionResult.governance?.operatorAction?.evidenceRefs.includes(ref));
+  assert.ok(governanceUpdates.some((update) => update.strategy.actionFamily === "step_back"));
+});
+
+test("desktop host client persists updated governance state between run and resume", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = createEngineeringTask("desktop-host-governance-persist");
+  let tick = 0;
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: {
+      ...createHostBindings(),
+      read_thread_terminal() {
+        return createPrimitiveFailureEnvelope(
+          "read_thread_terminal",
+          "desktop_host_governance_persist_failure"
+        );
+      }
+    },
+    availableAgents: 2,
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => `2026-04-28T12:10:0${tick++}.000Z`
+  });
+
+  const first = await client.run(task);
+  const second = await client.resume(task);
+
+  assert.equal(anomalyCount(first.executionResult.governance?.state), 3);
+  assert.equal(anomalyCount(second.executionResult.governance?.state), 4);
+});
+
+test("desktop host client rejects stale governance state before bridge execution", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const calls: string[] = [];
+  const task = createEngineeringTask("desktop-host-governance-current-task");
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: createHostBindings(calls),
+    governanceState: createHighRiskStateWithTwoExecutionFailures("stale-desktop-host-task"),
+    now: () => "2026-04-28T12:05:00.000Z"
+  });
+
+  await assert.rejects(
+    () => client.run(task),
+    /governance_state_task_mismatch/
+  );
+  assert.deepEqual(calls, []);
 });
 
 test("desktop host client resumes from memory recall when the memory adapter supports it", async () => {

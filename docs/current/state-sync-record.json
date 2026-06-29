@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "capability/runtime-governance-host-actionability-v1",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "9157533",
-    "latestValidatedCommit": "9157533",
+    "validatedSourceCommit": "3fdedde",
+    "latestValidatedCommit": "3fdedde",
     "recordedDivergence": {
-      "ahead": 1,
+      "ahead": 9,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "4df41eb4c94d2d312d43116d8ed4ce1ca3257022d153d3f9abc75ec094a31e55",
+      "value": "b2af404120e71e917bce746425f86b92488c807966c05911d4f4dff7302ad6e4",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
@@ -42,7 +42,7 @@
     "requiredCommands": [
       "git diff --check",
       "npm run demo:runtime-governance",
-      "node --import tsx --test tests/runtime-governance-demo.test.ts tests/host-client-example.test.ts tests/execution-observation.test.ts tests/desktop-live-adapter-governance.test.ts",
+      "node --import tsx --test tests/recovery-control.test.ts tests/desktop-live-adapter-governance.test.ts tests/desktop-host-client.test.ts tests/host-client-example.test.ts tests/runtime-governance-demo.test.ts",
       "npm run typecheck",
       "npm run build",
       "npm test",

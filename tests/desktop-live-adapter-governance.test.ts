@@ -619,6 +619,18 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
     "third_anomaly_fork_for_investigation"
   );
   assert.equal(execution.governance?.recoveryRecommendation?.requiresHumanApproval, true);
+  assert.equal(execution.governance?.operatorAction?.schemaVersion, "recovery-operator-action.v1");
+  assert.equal(execution.governance?.operatorAction?.taskId, ready.task.taskId);
+  assert.equal(execution.governance?.operatorAction?.status, "requires_arbitration");
+  assert.equal(execution.governance?.operatorAction?.recommendedAction, "fork");
+  assert.equal(
+    execution.governance?.operatorAction?.reasonCode,
+    "third_anomaly_fork_for_investigation"
+  );
+  assert.equal(execution.governance?.operatorAction?.requiresHumanApproval, true);
+  assert.equal(execution.governance?.operatorAction?.lockdown, true);
+  assert.ok(execution.governance?.operatorAction?.blockingReasons.includes("governance_step_back_triggered"));
+  assert.ok(execution.governance?.operatorAction?.blockingReasons.includes("arbitration_required"));
   const observations = await observationStore.findByTaskId(ready.task.taskId);
   const failureObservation = observations.find(
     (observation) => observation.status === "failed"
@@ -628,7 +640,9 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
   assert.ok(execution.governance?.state.anomalies.at(-1)?.evidenceRefs.includes(ref));
   assert.ok(execution.governance?.arbitrationPacket.rawEvidenceRefs.includes(ref));
   assert.ok(execution.governance?.recoveryRecommendation?.evidenceRefs.includes(ref));
+  assert.ok(execution.governance?.operatorAction?.evidenceRefs.includes(ref));
   assert.equal(execution.governance?.recoveryRecommendation?.evidenceStatus, "referenced");
+  assert.equal(execution.governance?.operatorAction?.evidenceStatus, "referenced");
   const resolvedObservation = await resolveExecutionObservationRef(
     observationStore,
     ready.task.taskId,
@@ -680,6 +694,9 @@ test("governance: recovery remains compatible without consumable observation evi
   assert.equal(execution.governance?.recoveryRecommendation?.evidenceStatus, "missing");
   assert.deepEqual(execution.governance?.recoveryRecommendation?.evidenceRefs, []);
   assert.equal(execution.governance?.recoveryRecommendation?.requiresHumanApproval, true);
+  assert.equal(execution.governance?.operatorAction?.evidenceStatus, "missing");
+  assert.deepEqual(execution.governance?.operatorAction?.evidenceRefs, []);
+  assert.equal(execution.governance?.operatorAction?.requiresHumanApproval, true);
 });
 
 test("governance: thrown handler step_back persists audit and final checkpoint before returning", async () => {
@@ -983,6 +1000,42 @@ test("governance: codex-cli host dispatch failure appends anomaly and calls onGo
   assert.ok(anomaly.evidenceRefs.includes(ref));
 });
 
+test("governance: runDesktopTask rejects governance state scoped to another task", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = createReadOnlyCodexCliTask("gov-task-scope-target");
+  const observationStore = createRecordingExecutionObservationStore();
+  let spawnCalled = false;
+
+  await assert.rejects(
+    () => runDesktopTask({
+      task,
+      policy,
+      preflight: {
+        authAvailable: true,
+        availableTools: []
+      },
+      codexCliOptions: {
+        skipExecutionModelProbe: true,
+        spawn: () => {
+          spawnCalled = true;
+          throw new Error("spawn should not run");
+        }
+      },
+      observationBus: observationStore,
+      governanceState: createLowRiskGovernanceState("stale-governance-task"),
+      now: () => "2026-04-28T13:01:00.000Z"
+    }),
+    /governance_state_task_mismatch/
+  );
+
+  assert.equal(spawnCalled, false);
+  assert.deepEqual(await observationStore.findByTaskId(task.taskId), []);
+  assert.deepEqual(
+    await observationStore.findByTaskId("stale-governance-task"),
+    []
+  );
+});
+
 for (const [caseName, thrownValue] of [
   ["object", {}],
   ["undefined", undefined]
@@ -1069,6 +1122,8 @@ test("governance: codex-cli host dispatch third failure triggers recovery result
   assert.equal(result.executionResult.governance?.lockdown, true);
   assert.equal(result.executionResult.governance?.strategyDecision.actionFamily, "step_back");
   assert.equal(result.executionResult.governance?.arbitrationPacket.trigger, "third_anomaly");
+  assert.equal(result.executionResult.governance?.operatorAction?.recommendedAction, "fork");
+  assert.equal(result.executionResult.governance?.operatorAction?.lockdown, true);
   assert.equal(
     result.executionResult.governance?.state.anomalies.at(-1)?.message,
     "host_dispatch_failed:spawn sentinel"
@@ -1079,6 +1134,7 @@ test("governance: codex-cli host dispatch third failure triggers recovery result
   const ref = createExecutionObservationRef(observations[0]!.observationId);
   assert.ok(result.executionResult.governance?.state.anomalies.at(-1)?.evidenceRefs.includes(ref));
   assert.ok(result.executionResult.governance?.arbitrationPacket.rawEvidenceRefs.includes(ref));
+  assert.ok(result.executionResult.governance?.operatorAction?.evidenceRefs.includes(ref));
   const resolvedObservation = await resolveExecutionObservationRef(
     observationStore,
     task.taskId,

@@ -10,14 +10,9 @@ import {
 } from "../packages/host-client-example/src/index.js";
 import {
   createExecutionObservationRef,
-  createRecordingExecutionObservationStore,
   resolveExecutionObservationRef
 } from "../packages/execution-observation/src/index.js";
-import {
-  runDesktopTask
-} from "../packages/desktop-live-adapter/src/index.js";
 import { loadPolicyFromFile, type PolicySnapshot } from "../packages/policy-config/src/index.js";
-import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import type { GovernanceState } from "../packages/state-manager/src/index.js";
 
 export interface RuntimeGovernanceDemoScenario {
@@ -93,42 +88,27 @@ export async function runRuntimeGovernanceDemo(
     resolvedFailureObservation
   );
 
-  const recoveryObservationStore = createRecordingExecutionObservationStore();
-  const recovery = await runDesktopTask({
-    task: recoveryTask,
+  const recoveryClient = createExampleDesktopHostClient({
     policy,
-    preflight: {
-      authAvailable: true,
-      availableTools: [
-        "read_thread_terminal",
-        "send_input",
-        "shell_command",
-        "apply_patch"
-      ]
-    },
     availableAgents: 3,
     bridge: createFailingExampleHostBridge("send_input", "demo_recovery_failure"),
-    persistence: {
-      telemetryStore: createRecordingTelemetrySink()
-    },
     governanceState: createHighRiskStateWithTwoExecutionFailures(
       "runtime-demo-recovery"
     ),
-    observationBus: recoveryObservationStore,
-    stopOnFailure: false,
     now: fixedNow
   });
+  const recovery = await recoveryClient.run(recoveryTask);
   const recoveryObservationRef =
     recovery.executionResult.governance?.arbitrationPacket.rawEvidenceRefs[0];
   const resolvedRecoveryObservation = recoveryObservationRef
-    ? await resolveExecutionObservationRef(
-        recoveryObservationStore,
+    ? await resolveExecutionObservationRefFromClient(
+        recoveryClient,
         "runtime-demo-recovery",
         recoveryObservationRef
       )
     : undefined;
-  const recoveryObservations = await recoveryObservationStore.loadAll();
-  const recoveryRecommendation = recovery.executionResult.governance?.recoveryRecommendation;
+  const recoveryState = await recoveryClient.getState();
+  const operatorAction = recovery.executionResult.governance?.operatorAction;
 
   const scenarios: RuntimeGovernanceDemoScenario[] = [
     {
@@ -157,16 +137,16 @@ export async function runRuntimeGovernanceDemo(
       hostRoute: recovery.decisionResult.decision.hostRoute,
       usedHostDispatch: recovery.hostDispatch !== undefined,
       blockingReasons: recovery.executionResult.blockingReasons,
-      observationCount: recoveryObservations.length,
+      observationCount: recoveryState.observations.length,
       evidenceRefResolved:
         resolvedRecoveryObservation?.observationId !== undefined,
       recoveryRequired: recovery.executionResult.governance?.recoveryRequired ?? false,
       lockdown: recovery.executionResult.governance?.lockdown ?? false,
-      ...(recoveryRecommendation !== undefined
+      ...(operatorAction !== undefined
         ? {
-            recommendedRecoveryAction: recoveryRecommendation.action,
-            recoveryRecommendationReason: recoveryRecommendation.reasonCode,
-            recoveryRecommendationEvidenceStatus: recoveryRecommendation.evidenceStatus
+            recommendedRecoveryAction: operatorAction.recommendedAction,
+            recoveryRecommendationReason: operatorAction.reasonCode,
+            recoveryRecommendationEvidenceStatus: operatorAction.evidenceStatus
           }
         : {})
     }
@@ -182,7 +162,7 @@ export async function runRuntimeGovernanceDemo(
     recovery.hostDispatch === undefined &&
     recovery.executionResult.governance?.recoveryRequired === true &&
     recovery.executionResult.governance.lockdown === true &&
-    recovery.executionResult.governance.recoveryRecommendation?.requiresHumanApproval === true &&
+    recovery.executionResult.governance.operatorAction?.requiresHumanApproval === true &&
     resolvedRecoveryObservation !== undefined;
 
   return {
@@ -194,6 +174,18 @@ export async function runRuntimeGovernanceDemo(
       wroteEvidence: false
     }
   };
+}
+
+async function resolveExecutionObservationRefFromClient(
+  client: ReturnType<typeof createExampleDesktopHostClient>,
+  taskId: string,
+  ref: string
+) {
+  if (client.observationStore === undefined) {
+    return undefined;
+  }
+
+  return resolveExecutionObservationRef(client.observationStore, taskId, ref);
 }
 
 export function executionObservationResolutionMatches(

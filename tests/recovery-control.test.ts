@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createArbitrationPacket,
+  RecoveryOperatorActionSchema,
   parseArbitrationPacket,
   shouldLockdown
 } from "../packages/recovery-control/src/index.js";
@@ -351,6 +352,86 @@ test("recovery control rejects recommended action that is not available", () => 
   );
 });
 
+test("recovery control accepts a valid operator action envelope", () => {
+  const action = RecoveryOperatorActionSchema.parse(createOperatorActionInput());
+
+  assert.equal(action.schemaVersion, "recovery-operator-action.v1");
+  assert.equal(action.trigger, "third_anomaly");
+  assert.equal(action.recommendedAction, "fork");
+  assert.equal(action.reasonCode, "third_anomaly_fork_for_investigation");
+  assert.equal(action.requiresHumanApproval, true);
+});
+
+test("recovery control rejects operator action reason/action mismatch", () => {
+  assert.throws(
+    () => RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+      recommendedAction: "resume",
+      reasonCode: "third_anomaly_fork_for_investigation",
+      requiresHumanApproval: true
+    })),
+    /recommendation_action_mismatch/
+  );
+});
+
+test("recovery control rejects operator action that weakens required human approval", () => {
+  assert.throws(
+    () => RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+      recommendedAction: "fork",
+      reasonCode: "third_anomaly_fork_for_investigation",
+      requiresHumanApproval: false
+    })),
+    /recommendation_approval_mismatch/
+  );
+});
+
+test("recovery control rejects operator action reason that does not match trigger", () => {
+  assert.throws(
+    () => RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+      trigger: "first_anomaly",
+      recommendedAction: "fork",
+      reasonCode: "third_anomaly_fork_for_investigation",
+      requiresHumanApproval: true
+    })),
+    /recommendation_trigger_mismatch/
+  );
+});
+
+test("recovery control rejects third-anomaly operator action without lockdown", () => {
+  assert.throws(
+    () => RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+      trigger: "third_anomaly",
+      recommendedAction: "fork",
+      reasonCode: "third_anomaly_fork_for_investigation",
+      requiresHumanApproval: true,
+      lockdown: false
+    })),
+    /operator_action_lockdown_required/
+  );
+});
+
+test("recovery control rejects rollback operator action without checkpoint", () => {
+  assert.throws(
+    () => RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+      recommendedAction: "rollback",
+      reasonCode: "third_anomaly_rollback_to_checkpoint",
+      requiresHumanApproval: true
+    })),
+    /recommendation_checkpoint_required/
+  );
+});
+
+test("recovery control rejects operator action checkpoint for non-checkpoint reason", () => {
+  assert.throws(
+    () => RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+      recommendedAction: "fork",
+      reasonCode: "third_anomaly_fork_for_investigation",
+      requiresHumanApproval: true,
+      checkpointRef: "checkpoint:recovery-task:latest"
+    })),
+    /recommendation_checkpoint_not_allowed/
+  );
+});
+
 test("recovery control embeds current state in packet", () => {
   const state = createState();
   const packet = createArbitrationPacket({
@@ -360,6 +441,48 @@ test("recovery control embeds current state in packet", () => {
 
   assert.equal(packet.currentState, state);
 });
+
+type OperatorActionInputOverrides = {
+  trigger?: "first_anomaly" | "second_anomaly" | "third_anomaly" | "manual";
+  recommendedAction?: "resume" | "rollback" | "abort" | "fork";
+  reasonCode:
+    | "first_anomaly_resume_with_monitoring"
+    | "second_anomaly_require_human_review"
+    | "third_anomaly_rollback_to_checkpoint"
+    | "third_anomaly_fork_for_investigation"
+    | "third_anomaly_abort_without_reversible_action"
+    | "manual_review_requested";
+  requiresHumanApproval?: boolean;
+  evidenceStatus?: "referenced" | "missing";
+  evidenceRefs?: string[];
+  checkpointRef?: string;
+  availableActions?: Array<"resume" | "rollback" | "abort" | "fork">;
+  lockdown?: boolean;
+};
+
+function createOperatorActionInput(
+  overrides: Partial<OperatorActionInputOverrides> = {}
+) {
+  const evidenceRefs = overrides.evidenceRefs ?? ["execution-observation:o1"];
+
+  return {
+    schemaVersion: "recovery-operator-action.v1" as const,
+    taskId: "recovery-task",
+    status: "requires_arbitration" as const,
+    trigger: overrides.trigger ?? "third_anomaly" as const,
+    recommendedAction: overrides.recommendedAction ?? "fork" as const,
+    reasonCode: overrides.reasonCode ?? "third_anomaly_fork_for_investigation" as const,
+    summary: "fork for investigation",
+    requiresHumanApproval: overrides.requiresHumanApproval ?? true,
+    lockdown: overrides.lockdown ?? true,
+    evidenceStatus: overrides.evidenceStatus
+      ?? (evidenceRefs.length > 0 ? "referenced" as const : "missing" as const),
+    evidenceRefs,
+    ...(overrides.checkpointRef !== undefined ? { checkpointRef: overrides.checkpointRef } : {}),
+    availableActions: overrides.availableActions ?? ["resume", "rollback", "abort", "fork"],
+    blockingReasons: ["governance_step_back_triggered", "arbitration_required"]
+  };
+}
 
 function createPacketInput(overrides: {
   trigger?: "first_anomaly" | "second_anomaly" | "third_anomaly" | "manual";

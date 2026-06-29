@@ -42,8 +42,10 @@ import {
 } from "../../state-manager/src/index.js";
 import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
 import {
+  createRecoveryOperatorAction,
   shouldLockdown,
   type ArbitrationPacket,
+  type RecoveryOperatorAction,
   type RecoveryAction,
   type RecoveryRecommendation
 } from "../../recovery-control/src/index.js";
@@ -147,6 +149,7 @@ export interface DesktopLiveExecutionGovernance {
   arbitrationPacket: ArbitrationPacket;
   availableRecoveryActions: RecoveryAction[];
   recoveryRecommendation?: RecoveryRecommendation;
+  operatorAction?: RecoveryOperatorAction;
   recoveryRequired: boolean;
   lockdown: boolean;
 }
@@ -180,6 +183,8 @@ export interface RunDesktopTaskResult {
 export async function runDesktopTask(
   input: RunDesktopTaskInput
 ): Promise<RunDesktopTaskResult> {
+  assertGovernanceStateTaskScoped(input);
+
   const decisionRunnerInput: DesktopDecisionRunnerInput = {
     task: input.task,
     policy: input.policy,
@@ -196,6 +201,8 @@ export async function runDesktopTask(
 export async function resumeDesktopTask(
   input: ResumeDesktopTaskInput
 ): Promise<RunDesktopTaskResult> {
+  assertGovernanceStateTaskScoped(input);
+
   const decisionRunnerInput: DesktopDecisionResumeInput = {
     task: input.task,
     policy: input.policy,
@@ -208,6 +215,18 @@ export async function resumeDesktopTask(
 
   const decisionResult = await resumeDesktopDecision(decisionRunnerInput);
   return executeDesktopTaskFromDecision(input, decisionResult);
+}
+
+function assertGovernanceStateTaskScoped(input: {
+  task: { taskId: string };
+  governanceState?: GovernanceState;
+}): void {
+  if (
+    input.governanceState !== undefined &&
+    input.governanceState.taskId !== input.task.taskId
+  ) {
+    throw new Error("governance_state_task_mismatch");
+  }
 }
 
 async function executeDesktopTaskFromDecision(
@@ -597,25 +616,43 @@ function createRecoveryGovernanceIfRequired(input: {
     return undefined;
   }
 
+  const recoveryRecommendation = input.arbitrationPacket.recoveryRecommendation;
+  const lockdown = shouldLockdown(input.arbitrationPacket) ||
+    input.strategyDecision.actionFamily === "abort";
+  const blockingReasons = createGovernanceBlockingReasonsForStrategy(input.strategyDecision);
+
   return {
     state: input.state,
     strategyDecision: input.strategyDecision,
     arbitrationPacket: input.arbitrationPacket,
     availableRecoveryActions: [...input.arbitrationPacket.availableActions],
-    ...(input.arbitrationPacket.recoveryRecommendation !== undefined
-      ? { recoveryRecommendation: input.arbitrationPacket.recoveryRecommendation }
+    ...(recoveryRecommendation !== undefined
+      ? {
+          recoveryRecommendation,
+          operatorAction: createRecoveryOperatorAction({
+            arbitrationPacket: input.arbitrationPacket,
+            recoveryRecommendation,
+            lockdown,
+            blockingReasons
+          })
+        }
       : {}),
     recoveryRequired: true,
-    lockdown: shouldLockdown(input.arbitrationPacket) ||
-      input.strategyDecision.actionFamily === "abort"
+    lockdown
   };
 }
 
 function createGovernanceBlockingReasons(
   governance: DesktopLiveExecutionGovernance
 ): string[] {
+  return createGovernanceBlockingReasonsForStrategy(governance.strategyDecision);
+}
+
+function createGovernanceBlockingReasonsForStrategy(
+  strategyDecision: StrategyDecisionV2
+): string[] {
   return [
-    governance.strategyDecision.actionFamily === "abort"
+    strategyDecision.actionFamily === "abort"
       ? "governance_abort_triggered"
       : "governance_step_back_triggered",
     "arbitration_required"

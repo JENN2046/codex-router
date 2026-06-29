@@ -11,6 +11,9 @@ import type {
   MemoryOverviewProvider
 } from "../../audit-memory/src/index.js";
 import type { CodexCliProcessRunOptions } from "../../codex-cli-host/src/index.js";
+import type { ExecutionObservationBus } from "../../execution-observation/src/index.js";
+import type { GovernanceState } from "../../state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
 import type { TaskEnvelopeInput } from "../../contracts/src/index.js";
 import type { TelemetrySink } from "../../observability/src/index.js";
 import type { PolicySnapshot } from "../../policy-config/src/index.js";
@@ -42,6 +45,9 @@ export interface DesktopHostClientOptions {
   codexCliOptions?: CodexCliProcessRunOptions;
   availableAgents?: number;
   stopOnFailure?: boolean;
+  observationBus?: ExecutionObservationBus;
+  governanceState?: GovernanceState;
+  onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
   now?: () => string;
 }
 
@@ -55,9 +61,11 @@ export interface DesktopHostResumeOptions {
 
 export class DesktopHostClient {
   readonly bridge: DesktopHostBridge;
+  private currentGovernanceState: GovernanceState | undefined;
 
   constructor(private readonly options: DesktopHostClientOptions) {
     this.bridge = resolveHostBridge(options);
+    this.currentGovernanceState = options.governanceState;
   }
 
   async run(task: TaskEnvelopeInput): Promise<RunDesktopTaskResult> {
@@ -78,6 +86,10 @@ export class DesktopHostClient {
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
         : {}),
+      ...(this.options.observationBus !== undefined
+        ? { observationBus: this.options.observationBus }
+        : {}),
+      ...this.buildGovernanceForwarding(),
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
     });
   }
@@ -115,9 +127,37 @@ export class DesktopHostClient {
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
         : {}),
+      ...(this.options.observationBus !== undefined
+        ? { observationBus: this.options.observationBus }
+        : {}),
+      ...this.buildGovernanceForwarding(),
       ...(hasResumeConfig(resume) ? { resume } : {}),
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
     });
+  }
+
+  private buildGovernanceForwarding(): {
+    governanceState?: GovernanceState;
+    onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
+  } {
+    if (
+      this.currentGovernanceState === undefined &&
+      this.options.onGovernanceUpdate === undefined
+    ) {
+      return {};
+    }
+
+    return {
+      ...(this.currentGovernanceState !== undefined
+        ? { governanceState: this.currentGovernanceState }
+        : {}),
+      onGovernanceUpdate: async (state, strategy) => {
+        this.currentGovernanceState = state;
+        if (this.options.onGovernanceUpdate !== undefined) {
+          await this.options.onGovernanceUpdate(state, strategy);
+        }
+      }
+    };
   }
 }
 
