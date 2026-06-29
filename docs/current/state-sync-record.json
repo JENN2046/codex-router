@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "capability/runtime-governance-example-evidence",
+    "branch": "main",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "c08e525",
-    "latestValidatedCommit": "c08e525",
+    "validatedSourceCommit": "bd0a319",
+    "latestValidatedCommit": "bd0a319",
     "recordedDivergence": {
-      "ahead": 7,
+      "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pending_push",
+    "kind": "state_only_pushed",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
