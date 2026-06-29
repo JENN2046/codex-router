@@ -286,6 +286,49 @@ test("governance: primitive failure anomaly includes exact observation evidence 
   assert.ok(anomaly.evidenceRefs.includes(ref));
 });
 
+test("governance: primitive failure preserves padded runtime observation evidence ref", async () => {
+  const ready = await createReadyRunnerResult();
+  const govUpdates: GovernanceUpdateRecord[] = [];
+  const observationStore = createRecordingExecutionObservationStore();
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => "thread context"
+      // spawn_agent handler intentionally missing
+    },
+    observationBus: observationStore,
+    governanceState: createLowRiskGovernanceState(ready.task.taskId),
+    onGovernanceUpdate: async (state, strategy) => {
+      govUpdates.push({ state, strategy });
+    },
+    now: () => "2026-04-28T12:00:00.000Z "
+  });
+
+  assert.equal(execution.status, "failed");
+  assert.ok(govUpdates.length >= 1, "onGovernanceUpdate should be called");
+
+  const observations = await observationStore.findByTaskId(ready.task.taskId);
+  const failureObservation = observations.find(
+    (observation) => observation.status === "failed" &&
+      observation.primitiveId === "spawn_agent:1"
+  );
+  assert.ok(failureObservation, "failed primitive observation should be emitted");
+
+  const ref = createExecutionObservationRef(failureObservation.observationId);
+  const anomaly = govUpdates[0]?.state.anomalies.at(-1);
+  assert.ok(anomaly, "governance update should include anomaly");
+  assert.ok(anomaly.evidenceRefs.includes(ref));
+  assert.equal(
+    (await resolveExecutionObservationRef(
+      observationStore,
+      ready.task.taskId,
+      ref
+    ))?.observationId,
+    failureObservation.observationId
+  );
+});
+
 // ── 21.1.2: handler returns ok:false updates governanceState ────────────────
 
 test("governance: handler returning ok:false appends anomaly, re-scores risk, and calls onGovernanceUpdate", async () => {

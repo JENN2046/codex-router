@@ -134,6 +134,31 @@ test("reducer preserves supplied evidence refs on anomaly and arbitration packet
   assert.deepEqual(result.arbitrationPacket.rawEvidenceRefs, evidenceRefs);
 });
 
+test("reducer preserves execution observation refs verbatim", () => {
+  const state = createLowRiskState("reducer-task");
+  const task = createTask();
+  const paddedObservationRef =
+    "execution-observation:reducer-task:spawn_agent:1:failed:2026-04-28T12:00:00.000Z ";
+
+  const result = applyExecutionFailureToGovernanceState({
+    state,
+    task,
+    primitiveId: "spawn_agent:1",
+    errorClass: "agent_capacity_exceeded",
+    evidenceRefs: [
+      "",
+      "   ",
+      paddedObservationRef,
+      paddedObservationRef
+    ],
+    stepIndex: 1,
+    now: frozenNow
+  });
+
+  assert.deepEqual(result.anomaly.evidenceRefs, [paddedObservationRef]);
+  assert.deepEqual(result.arbitrationPacket.rawEvidenceRefs, [paddedObservationRef]);
+});
+
 test("reducer normalizes evidence refs by trimming, de-duping, and dropping empty values", () => {
   const state = createLowRiskState("reducer-task");
   const task = createTask();
