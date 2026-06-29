@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createArbitrationPacket,
+  parseArbitrationPacket,
   shouldLockdown
 } from "../packages/recovery-control/src/index.js";
 import type { GovernanceState } from "../packages/state-manager/src/index.js";
@@ -211,6 +212,105 @@ test("recovery control falls back to abort when delegation removes reversible ac
   assert.equal(packet.recoveryRecommendation?.requiresHumanApproval, true);
 });
 
+test("recovery control rejects missing evidence status with refs", () => {
+  assert.throws(
+    () => parseArbitrationPacket(createPacketInput({
+      recoveryRecommendation: {
+        action: "fork",
+        reasonCode: "third_anomaly_fork_for_investigation",
+        requiresHumanApproval: true,
+        evidenceStatus: "missing",
+        evidenceRefs: ["execution-observation:o1"],
+        summary: "contradictory evidence status"
+      }
+    })),
+    /missing_evidence_status_requires_no_refs/
+  );
+});
+
+test("recovery control rejects referenced evidence status without refs", () => {
+  assert.throws(
+    () => parseArbitrationPacket(createPacketInput({
+      rawEvidenceRefs: [],
+      recoveryRecommendation: {
+        action: "fork",
+        reasonCode: "third_anomaly_fork_for_investigation",
+        requiresHumanApproval: true,
+        evidenceStatus: "referenced",
+        evidenceRefs: [],
+        summary: "missing evidence refs"
+      }
+    })),
+    /referenced_evidence_status_requires_refs/
+  );
+});
+
+test("recovery control rejects rollback recommendation without checkpoint", () => {
+  assert.throws(
+    () => parseArbitrationPacket(createPacketInput({
+      recoveryRecommendation: {
+        action: "rollback",
+        reasonCode: "third_anomaly_rollback_to_checkpoint",
+        requiresHumanApproval: true,
+        evidenceStatus: "referenced",
+        evidenceRefs: ["execution-observation:o1"],
+        summary: "rollback without checkpoint"
+      }
+    })),
+    /recommendation_checkpoint_required/
+  );
+});
+
+test("recovery control rejects mismatched recommendation action and reason", () => {
+  assert.throws(
+    () => parseArbitrationPacket(createPacketInput({
+      recoveryRecommendation: {
+        action: "resume",
+        reasonCode: "third_anomaly_fork_for_investigation",
+        requiresHumanApproval: true,
+        evidenceStatus: "referenced",
+        evidenceRefs: ["execution-observation:o1"],
+        summary: "wrong action for reason"
+      }
+    })),
+    /recommendation_action_mismatch/
+  );
+});
+
+test("recovery control rejects recommendation evidence that differs from packet evidence", () => {
+  assert.throws(
+    () => parseArbitrationPacket(createPacketInput({
+      rawEvidenceRefs: ["execution-observation:o1"],
+      recoveryRecommendation: {
+        action: "fork",
+        reasonCode: "third_anomaly_fork_for_investigation",
+        requiresHumanApproval: true,
+        evidenceStatus: "referenced",
+        evidenceRefs: ["execution-observation:o2"],
+        summary: "evidence mismatch"
+      }
+    })),
+    /recommendation_evidence_refs_mismatch/
+  );
+});
+
+test("recovery control rejects recommended action that is not available", () => {
+  assert.throws(
+    () => parseArbitrationPacket(createPacketInput({
+      availableActions: ["resume", "abort"],
+      recoveryRecommendation: {
+        action: "fork",
+        reasonCode: "third_anomaly_fork_for_investigation",
+        requiresHumanApproval: true,
+        evidenceStatus: "referenced",
+        evidenceRefs: ["execution-observation:o1"],
+        summary: "unavailable action"
+      }
+    })),
+    /recommendation_action_unavailable/
+  );
+});
+
 test("recovery control embeds current state in packet", () => {
   const state = createState();
   const packet = createArbitrationPacket({
@@ -220,3 +320,45 @@ test("recovery control embeds current state in packet", () => {
 
   assert.equal(packet.currentState, state);
 });
+
+function createPacketInput(overrides: {
+  rawEvidenceRefs?: string[];
+  availableActions?: Array<"resume" | "rollback" | "abort" | "fork">;
+  recoveryRecommendation?: {
+    action: "resume" | "rollback" | "abort" | "fork";
+    reasonCode:
+      | "first_anomaly_resume_with_monitoring"
+      | "second_anomaly_require_human_review"
+      | "third_anomaly_rollback_to_checkpoint"
+      | "third_anomaly_fork_for_investigation"
+      | "third_anomaly_abort_without_reversible_action"
+      | "manual_review_requested";
+    requiresHumanApproval: boolean;
+    evidenceStatus: "referenced" | "missing";
+    evidenceRefs: string[];
+    checkpointRef?: string;
+    summary: string;
+  };
+}) {
+  const rawEvidenceRefs = overrides.rawEvidenceRefs ?? ["execution-observation:o1"];
+
+  return {
+    packetId: "packet:test",
+    taskId: "recovery-task",
+    trigger: "third_anomaly" as const,
+    currentState: createState(),
+    rawEvidenceRefs,
+    conflictingSignals: [],
+    availableActions: overrides.availableActions ?? ["resume", "rollback", "abort", "fork"],
+    recoveryRecommendation: overrides.recoveryRecommendation ?? {
+      action: "fork" as const,
+      reasonCode: "third_anomaly_fork_for_investigation" as const,
+      requiresHumanApproval: true,
+      evidenceStatus: rawEvidenceRefs.length > 0 ? "referenced" as const : "missing" as const,
+      evidenceRefs: rawEvidenceRefs,
+      summary: "fork for investigation"
+    },
+    probabilityPredictionAllowed: false as const,
+    createdAt: "2026-04-27T00:04:00.000Z"
+  };
+}

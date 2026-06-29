@@ -37,6 +37,55 @@ export const RecoveryRecommendationSchema = z.object({
   evidenceRefs: z.array(z.string()).default([]),
   checkpointRef: z.string().min(1).optional(),
   summary: z.string().min(1)
+}).superRefine((value, ctx) => {
+  if (value.evidenceStatus === "missing" && value.evidenceRefs.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["evidenceRefs"],
+      message: "missing_evidence_status_requires_no_refs"
+    });
+  }
+
+  if (value.evidenceStatus === "referenced" && value.evidenceRefs.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["evidenceRefs"],
+      message: "referenced_evidence_status_requires_refs"
+    });
+  }
+
+  const expected = expectedRecommendationShape(value.reasonCode);
+  if (value.action !== expected.action) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["action"],
+      message: "recommendation_action_mismatch"
+    });
+  }
+
+  if (value.requiresHumanApproval !== expected.requiresHumanApproval) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["requiresHumanApproval"],
+      message: "recommendation_approval_mismatch"
+    });
+  }
+
+  if (expected.checkpointRequired && value.checkpointRef === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "recommendation_checkpoint_required"
+    });
+  }
+
+  if (!expected.checkpointRequired && value.checkpointRef !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "recommendation_checkpoint_not_allowed"
+    });
+  }
 });
 
 // ── Arbitration trigger ─────────────────────────────────────────────────────
@@ -63,6 +112,26 @@ export const ArbitrationPacketSchema = z.object({
   recommendation: z.string().optional(),
   probabilityPredictionAllowed: z.literal(false),
   createdAt: z.string().min(1)
+}).superRefine((value, ctx) => {
+  if (value.recoveryRecommendation === undefined) {
+    return;
+  }
+
+  if (!value.availableActions.includes(value.recoveryRecommendation.action)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["recoveryRecommendation", "action"],
+      message: "recommendation_action_unavailable"
+    });
+  }
+
+  if (!sameStringArray(value.recoveryRecommendation.evidenceRefs, value.rawEvidenceRefs)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["recoveryRecommendation", "evidenceRefs"],
+      message: "recommendation_evidence_refs_mismatch"
+    });
+  }
 });
 
 // ── Inferred types ──────────────────────────────────────────────────────────
@@ -134,6 +203,56 @@ export function shouldLockdown(packet: ArbitrationPacket): boolean {
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────
+
+function expectedRecommendationShape(reasonCode: RecoveryRecommendationReason): {
+  action: RecoveryAction;
+  requiresHumanApproval: boolean;
+  checkpointRequired: boolean;
+} {
+  switch (reasonCode) {
+    case "first_anomaly_resume_with_monitoring":
+      return {
+        action: "resume",
+        requiresHumanApproval: false,
+        checkpointRequired: false
+      };
+    case "second_anomaly_require_human_review":
+      return {
+        action: "resume",
+        requiresHumanApproval: true,
+        checkpointRequired: false
+      };
+    case "third_anomaly_rollback_to_checkpoint":
+      return {
+        action: "rollback",
+        requiresHumanApproval: true,
+        checkpointRequired: true
+      };
+    case "third_anomaly_fork_for_investigation":
+      return {
+        action: "fork",
+        requiresHumanApproval: true,
+        checkpointRequired: false
+      };
+    case "third_anomaly_abort_without_reversible_action":
+      return {
+        action: "abort",
+        requiresHumanApproval: true,
+        checkpointRequired: false
+      };
+    case "manual_review_requested":
+      return {
+        action: "resume",
+        requiresHumanApproval: true,
+        checkpointRequired: false
+      };
+  }
+}
+
+function sameStringArray(left: string[], right: string[]): boolean {
+  return left.length === right.length
+    && left.every((value, index) => value === right[index]);
+}
 
 function createRecoveryRecommendation(input: {
   state: GovernanceState;
