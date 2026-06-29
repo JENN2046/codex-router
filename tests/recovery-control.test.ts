@@ -141,6 +141,76 @@ test("recovery control uses provided recommendation", () => {
   assert.equal(packet.recommendation, "freeze execution and wait for human review");
 });
 
+test("recovery control recommends rollback when third anomaly has a checkpoint", () => {
+  const packet = createArbitrationPacket({
+    state: {
+      ...createState(),
+      latestCheckpointId: "checkpoint:recovery-task:latest"
+    },
+    now: () => "2026-04-27T00:04:00.000Z"
+  });
+
+  assert.equal(packet.recoveryRecommendation?.action, "rollback");
+  assert.equal(
+    packet.recoveryRecommendation?.reasonCode,
+    "third_anomaly_rollback_to_checkpoint"
+  );
+  assert.equal(packet.recoveryRecommendation?.requiresHumanApproval, true);
+  assert.equal(packet.recoveryRecommendation?.checkpointRef, "checkpoint:recovery-task:latest");
+  assert.deepEqual(packet.recoveryRecommendation?.evidenceRefs, packet.rawEvidenceRefs);
+  assert.equal(packet.recoveryRecommendation?.evidenceStatus, "referenced");
+});
+
+test("recovery control recommends fork when third anomaly has no checkpoint", () => {
+  const packet = createArbitrationPacket({
+    state: createState(),
+    now: () => "2026-04-27T00:04:00.000Z"
+  });
+
+  assert.equal(packet.recoveryRecommendation?.action, "fork");
+  assert.equal(
+    packet.recoveryRecommendation?.reasonCode,
+    "third_anomaly_fork_for_investigation"
+  );
+  assert.equal(packet.recoveryRecommendation?.requiresHumanApproval, true);
+  assert.equal(packet.recoveryRecommendation?.evidenceStatus, "referenced");
+});
+
+test("recovery control marks recommendation evidence as missing when refs are absent", () => {
+  const state: GovernanceState = {
+    ...createState(),
+    anomalies: createState().anomalies.map((anomaly) => ({
+      ...anomaly,
+      evidenceRefs: []
+    }))
+  };
+
+  const packet = createArbitrationPacket({
+    state,
+    now: () => "2026-04-27T00:04:00.000Z"
+  });
+
+  assert.deepEqual(packet.rawEvidenceRefs, []);
+  assert.equal(packet.recoveryRecommendation?.evidenceStatus, "missing");
+  assert.deepEqual(packet.recoveryRecommendation?.evidenceRefs, []);
+});
+
+test("recovery control falls back to abort when delegation removes reversible actions", () => {
+  const packet = createArbitrationPacket({
+    state: createState(),
+    delegationLevel: "full_control",
+    now: () => "2026-04-27T00:04:00.000Z"
+  });
+
+  assert.deepEqual(packet.availableActions, ["resume", "abort"]);
+  assert.equal(packet.recoveryRecommendation?.action, "abort");
+  assert.equal(
+    packet.recoveryRecommendation?.reasonCode,
+    "third_anomaly_abort_without_reversible_action"
+  );
+  assert.equal(packet.recoveryRecommendation?.requiresHumanApproval, true);
+});
+
 test("recovery control embeds current state in packet", () => {
   const state = createState();
   const packet = createArbitrationPacket({

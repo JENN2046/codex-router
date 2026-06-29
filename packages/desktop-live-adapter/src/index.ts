@@ -44,7 +44,8 @@ import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
 import {
   shouldLockdown,
   type ArbitrationPacket,
-  type RecoveryAction
+  type RecoveryAction,
+  type RecoveryRecommendation
 } from "../../recovery-control/src/index.js";
 import {
   applyExecutionFailureToGovernanceState
@@ -145,6 +146,7 @@ export interface DesktopLiveExecutionGovernance {
   strategyDecision: StrategyDecisionV2;
   arbitrationPacket: ArbitrationPacket;
   availableRecoveryActions: RecoveryAction[];
+  recoveryRecommendation?: RecoveryRecommendation;
   recoveryRequired: boolean;
   lockdown: boolean;
 }
@@ -600,6 +602,9 @@ function createRecoveryGovernanceIfRequired(input: {
     strategyDecision: input.strategyDecision,
     arbitrationPacket: input.arbitrationPacket,
     availableRecoveryActions: [...input.arbitrationPacket.availableActions],
+    ...(input.arbitrationPacket.recoveryRecommendation !== undefined
+      ? { recoveryRecommendation: input.arbitrationPacket.recoveryRecommendation }
+      : {}),
     recoveryRequired: true,
     lockdown: shouldLockdown(input.arbitrationPacket) ||
       input.strategyDecision.actionFamily === "abort"

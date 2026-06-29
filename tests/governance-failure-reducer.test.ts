@@ -413,6 +413,12 @@ test("reducer creates arbitration packet with third_anomaly trigger on third str
 
   assert.equal(result.arbitrationPacket.trigger, "third_anomaly");
   assert.ok(result.arbitrationPacket.availableActions.length >= 2);
+  assert.equal(result.arbitrationPacket.recoveryRecommendation?.action, "fork");
+  assert.equal(
+    result.arbitrationPacket.recoveryRecommendation?.reasonCode,
+    "third_anomaly_fork_for_investigation"
+  );
+  assert.equal(result.arbitrationPacket.recoveryRecommendation?.requiresHumanApproval, true);
 });
 
 test("reducer creates arbitration packet with first_anomaly trigger on first failure", () => {
@@ -430,6 +436,12 @@ test("reducer creates arbitration packet with first_anomaly trigger on first fai
 
   assert.equal(result.arbitrationPacket.trigger, "first_anomaly");
   assert.ok(result.arbitrationPacket.availableActions.includes("resume"));
+  assert.equal(result.arbitrationPacket.recoveryRecommendation?.action, "resume");
+  assert.equal(
+    result.arbitrationPacket.recoveryRecommendation?.reasonCode,
+    "first_anomaly_resume_with_monitoring"
+  );
+  assert.equal(result.arbitrationPacket.recoveryRecommendation?.requiresHumanApproval, false);
 });
 
 // ── Immutability ────────────────────────────────────────────────────────────

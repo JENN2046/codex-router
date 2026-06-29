@@ -613,6 +613,12 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
   assert.equal(execution.governance?.strategyDecision.actionFamily, "step_back");
   assert.equal(execution.governance?.arbitrationPacket.trigger, "third_anomaly");
   assert.equal(execution.governance?.arbitrationPacket.probabilityPredictionAllowed, false);
+  assert.equal(execution.governance?.recoveryRecommendation?.action, "fork");
+  assert.equal(
+    execution.governance?.recoveryRecommendation?.reasonCode,
+    "third_anomaly_fork_for_investigation"
+  );
+  assert.equal(execution.governance?.recoveryRecommendation?.requiresHumanApproval, true);
   const observations = await observationStore.findByTaskId(ready.task.taskId);
   const failureObservation = observations.find(
     (observation) => observation.status === "failed"
@@ -621,6 +627,8 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
   const ref = createExecutionObservationRef(failureObservation.observationId);
   assert.ok(execution.governance?.state.anomalies.at(-1)?.evidenceRefs.includes(ref));
   assert.ok(execution.governance?.arbitrationPacket.rawEvidenceRefs.includes(ref));
+  assert.ok(execution.governance?.recoveryRecommendation?.evidenceRefs.includes(ref));
+  assert.equal(execution.governance?.recoveryRecommendation?.evidenceStatus, "referenced");
   const resolvedObservation = await resolveExecutionObservationRef(
     observationStore,
     ready.task.taskId,
@@ -669,6 +677,9 @@ test("governance: recovery remains compatible without consumable observation evi
     []
   );
   assert.deepEqual(execution.governance?.arbitrationPacket.rawEvidenceRefs, []);
+  assert.equal(execution.governance?.recoveryRecommendation?.evidenceStatus, "missing");
+  assert.deepEqual(execution.governance?.recoveryRecommendation?.evidenceRefs, []);
+  assert.equal(execution.governance?.recoveryRecommendation?.requiresHumanApproval, true);
 });
 
 test("governance: thrown handler step_back persists audit and final checkpoint before returning", async () => {

@@ -20,6 +20,7 @@ interface DesktopLiveExecutionGovernance {
   strategyDecision: StrategyDecisionV2;
   arbitrationPacket: ArbitrationPacket;
   availableRecoveryActions: RecoveryAction[];
+  recoveryRecommendation?: RecoveryRecommendation;
   recoveryRequired: boolean;
   lockdown: boolean;
 }
@@ -33,14 +34,29 @@ When `executionResult.governance` is present, hosts can display:
 - `governance.arbitrationPacket.rawEvidenceRefs`
 - `governance.arbitrationPacket.conflictingSignals`
 - `governance.availableRecoveryActions`
+- `governance.recoveryRecommendation`
 - `governance.strategyDecision.reasons`
 - `governance.state.anomalies`
+
+`governance.recoveryRecommendation` is a machine-readable recommendation,
+not an instruction to execute automatically. Hosts should display the
+recommended action, stable reason code, evidence status, and any checkpoint ref
+for human arbitration. Runtime governance does not auto-resume, rollback, fork,
+or abort from this field.
 
 Runtime live adapter recovery packets use
 `execution-observation:<observationId>` refs when an observation bus
 successfully records the failure observation. Absence of `rawEvidenceRefs`
 means no observation bus was provided or no failure observation was
 successfully emitted.
+
+The recommendation mirrors that evidence boundary:
+
+- `evidenceStatus: "referenced"` means the recommendation carries evidence
+  refs. Hosts should resolve known ref types before presenting them as
+  consumable evidence.
+- `evidenceStatus: "missing"` means the recovery result remains compatible, but
+  the host should treat the recommendation as requiring manual inspection.
 
 `governance.lockdown === true` means the adapter has stopped execution and
 requires arbitration before continuing. The result also preserves the existing
