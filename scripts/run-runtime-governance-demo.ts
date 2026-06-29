@@ -85,6 +85,10 @@ export async function runRuntimeGovernanceDemo(
         failureRef
       )
     : undefined;
+  const failureEvidenceRefResolved = executionObservationResolutionMatches(
+    failedObservation,
+    resolvedFailureObservation
+  );
 
   const recoveryObservationStore = createRecordingExecutionObservationStore();
   const recovery = await runDesktopTask({
@@ -140,8 +144,7 @@ export async function runRuntimeGovernanceDemo(
       usedHostDispatch: failure.hostDispatch !== undefined,
       blockingReasons: failure.executionResult.blockingReasons,
       observationCount: failureState.observations.length,
-      evidenceRefResolved:
-        resolvedFailureObservation?.observationId === failedObservation?.observationId
+      evidenceRefResolved: failureEvidenceRefResolved
     },
     {
       name: "third_failure_recovery_packet",
@@ -163,7 +166,7 @@ export async function runRuntimeGovernanceDemo(
     success.executionResult.status === "completed" &&
     successState.observations.length > 0 &&
     failure.executionResult.status === "failed" &&
-    resolvedFailureObservation?.observationId === failedObservation?.observationId &&
+    failureEvidenceRefResolved &&
     recovery.decisionResult.decision.hostRoute === "desktop" &&
     recovery.hostDispatch === undefined &&
     recovery.executionResult.governance?.recoveryRequired === true &&
@@ -179,6 +182,15 @@ export async function runRuntimeGovernanceDemo(
       wroteEvidence: false
     }
   };
+}
+
+export function executionObservationResolutionMatches(
+  expectedObservation: { observationId: string } | undefined,
+  resolvedObservation: { observationId: string } | undefined
+): boolean {
+  return expectedObservation !== undefined
+    && resolvedObservation !== undefined
+    && resolvedObservation.observationId === expectedObservation.observationId;
 }
 
 function assertDemoRoutesAreDesktop(

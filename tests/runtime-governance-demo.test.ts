@@ -4,7 +4,10 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runRuntimeGovernanceDemo } from "../scripts/run-runtime-governance-demo.js";
+import {
+  executionObservationResolutionMatches,
+  runRuntimeGovernanceDemo
+} from "../scripts/run-runtime-governance-demo.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
 
@@ -57,5 +60,37 @@ test("runtime governance demo fails closed before host dispatch when policy rout
   await assert.rejects(
     () => runRuntimeGovernanceDemo(unsafePolicyPath),
     /runtime_governance_demo_requires_desktop_route:scenario:successful_example_execution:taskClass:engineering:hostRoute:codex-cli/
+  );
+});
+
+test("runtime governance demo requires real failed and resolved observations before marking evidence resolved", () => {
+  assert.equal(executionObservationResolutionMatches(undefined, undefined), false);
+  assert.equal(
+    executionObservationResolutionMatches(
+      { observationId: "runtime-demo-failure:send_input:failed:1" },
+      undefined
+    ),
+    false
+  );
+  assert.equal(
+    executionObservationResolutionMatches(
+      undefined,
+      { observationId: "runtime-demo-failure:send_input:failed:1" }
+    ),
+    false
+  );
+  assert.equal(
+    executionObservationResolutionMatches(
+      { observationId: "runtime-demo-failure:send_input:failed:1" },
+      { observationId: "runtime-demo-failure:send_input:failed:2" }
+    ),
+    false
+  );
+  assert.equal(
+    executionObservationResolutionMatches(
+      { observationId: "runtime-demo-failure:send_input:failed:1" },
+      { observationId: "runtime-demo-failure:send_input:failed:1" }
+    ),
+    true
   );
 });
