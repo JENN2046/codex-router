@@ -29,6 +29,8 @@ test("runtime governance demo summarizes executable evidence and recovery withou
   const recovery = result.scenarios.find(
     (scenario) => scenario.name === "third_failure_recovery_packet"
   );
+  assert.equal(recovery?.hostRoute, "desktop");
+  assert.equal(recovery?.usedHostDispatch, false);
   assert.equal(recovery?.executionStatus, "failed");
   assert.equal(recovery?.evidenceRefResolved, true);
   assert.equal(recovery?.recoveryRequired, true);

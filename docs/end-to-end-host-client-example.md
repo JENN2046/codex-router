@@ -100,6 +100,10 @@ The demo runs entirely in memory. It covers:
 It does not invoke the real Codex CLI, call a provider, or write
 `docs/evidence` files.
 
+The recovery case is deliberately modeled as an `engineering` Desktop task so
+`runDesktopTask()` dispatches to the injected in-memory bridge. It does not use
+the policy default `read_only` / `codex-cli` route.
+
 ## Execution Evidence
 
 The example client records execution observations by default. A failed primitive

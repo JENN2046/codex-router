@@ -15,12 +15,15 @@ import {
   runDesktopTask
 } from "../packages/desktop-live-adapter/src/index.js";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
+import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import type { GovernanceState } from "../packages/state-manager/src/index.js";
 
 export interface RuntimeGovernanceDemoScenario {
   name: string;
   decisionStatus: string;
   executionStatus: string;
+  hostRoute: string;
+  usedHostDispatch: boolean;
   blockingReasons: string[];
   observationCount: number;
   evidenceRefResolved?: boolean;
@@ -78,14 +81,22 @@ export async function runRuntimeGovernanceDemo(
 
   const recoveryObservationStore = createRecordingExecutionObservationStore();
   const recovery = await runDesktopTask({
-    task: createReadOnlyTask("runtime-demo-recovery"),
+    task: createDesktopRecoveryTask("runtime-demo-recovery"),
     policy,
     preflight: {
       authAvailable: true,
-      availableTools: ["read_thread_terminal", "spawn_agent", "wait_agent"]
+      availableTools: [
+        "read_thread_terminal",
+        "send_input",
+        "shell_command",
+        "apply_patch"
+      ]
     },
     availableAgents: 3,
-    bridge: createFailingExampleHostBridge("spawn_agent", "demo_recovery_failure"),
+    bridge: createFailingExampleHostBridge("send_input", "demo_recovery_failure"),
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
     governanceState: createHighRiskStateWithTwoExecutionFailures(
       "runtime-demo-recovery"
     ),
@@ -109,6 +120,8 @@ export async function runRuntimeGovernanceDemo(
       name: "successful_example_execution",
       decisionStatus: success.decisionResult.status,
       executionStatus: success.executionResult.status,
+      hostRoute: success.decisionResult.decision.hostRoute,
+      usedHostDispatch: success.hostDispatch !== undefined,
       blockingReasons: success.executionResult.blockingReasons,
       observationCount: successState.observations.length
     },
@@ -116,6 +129,8 @@ export async function runRuntimeGovernanceDemo(
       name: "failure_evidence_ref_resolution",
       decisionStatus: failure.decisionResult.status,
       executionStatus: failure.executionResult.status,
+      hostRoute: failure.decisionResult.decision.hostRoute,
+      usedHostDispatch: failure.hostDispatch !== undefined,
       blockingReasons: failure.executionResult.blockingReasons,
       observationCount: failureState.observations.length,
       evidenceRefResolved:
@@ -125,6 +140,8 @@ export async function runRuntimeGovernanceDemo(
       name: "third_failure_recovery_packet",
       decisionStatus: recovery.decisionResult.status,
       executionStatus: recovery.executionResult.status,
+      hostRoute: recovery.decisionResult.decision.hostRoute,
+      usedHostDispatch: recovery.hostDispatch !== undefined,
       blockingReasons: recovery.executionResult.blockingReasons,
       observationCount: recoveryObservations.length,
       evidenceRefResolved:
@@ -140,6 +157,8 @@ export async function runRuntimeGovernanceDemo(
     successState.observations.length > 0 &&
     failure.executionResult.status === "failed" &&
     resolvedFailureObservation?.observationId === failedObservation?.observationId &&
+    recovery.decisionResult.decision.hostRoute === "desktop" &&
+    recovery.hostDispatch === undefined &&
     recovery.executionResult.governance?.recoveryRequired === true &&
     recovery.executionResult.governance.lockdown === true &&
     resolvedRecoveryObservation !== undefined;
@@ -176,20 +195,35 @@ function createEngineeringTask(taskId: string): TaskEnvelopeInput {
   };
 }
 
-function createReadOnlyTask(taskId: string): TaskEnvelopeInput {
+function createDesktopRecoveryTask(taskId: string): TaskEnvelopeInput {
   return parseTaskEnvelope({
     taskId,
     source: "desktop-thread",
     intent: {
-      summary: "review current config",
-      requestedAction: "inspect and summarize the current config state",
+      summary: "implement deterministic runtime governance recovery exercise",
+      requestedAction: "implement a local desktop bridge recovery exercise with injected failing primitives",
       successCriteria: [],
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
-    target: { branches: [], files: ["routing-policy.yaml"], modules: [] },
+    target: {
+      branches: [],
+      files: ["packages/host-client-example/src/index.ts"],
+      modules: ["host-client-example"]
+    },
     constraints: {},
-    hints: { riskHints: [], tags: [] }
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: ["runtime-governance-demo"],
+      provenance: [{
+        field: "taskClassHint",
+        value: "engineering",
+        source: "operator",
+        reason: "demo must exercise the injected desktop bridge, not the read_only codex-cli route",
+        createdAt: fixedNow()
+      }]
+    }
   });
 }
 
