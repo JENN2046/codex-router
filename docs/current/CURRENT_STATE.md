@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `capability/runtime-governance-host-actionability-v1` |
-| Current head | `daba455` |
-| Validated source commit | `daba455` |
+| Current head | `bf0778c` |
+| Validated source commit | `bf0778c` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 5 / behind 0` |
-| Latest validated commit | `daba455` |
+| Upstream divergence | `ahead 7 / behind 0` |
+| Latest validated commit | `bf0778c` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `daba455`
-- latest validated commit: `daba455`
+- validated source commit: `bf0778c`
+- latest validated commit: `bf0778c`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `e8ca7bd1126b7f895d720a4e4101880100648cacae68aaaf5c08eb443060414a`
+  `92b2972e9acfa85a788538b130e235ed5f0101fc2162c382559c0ca706c6157c`
 
 Strict state record paths:
 
@@ -84,7 +84,7 @@ harnesses only.
 
 ## Validation Baseline
 
-Validation recorded for source commit `daba455`:
+Validation recorded for source commit `bf0778c`:
 
 - `git diff --check`: PASS.
 - `npm run demo:runtime-governance`: PASS.
@@ -108,9 +108,9 @@ Current structured state-sync audit status:
 
 - structured claim: `capability/runtime-governance-host-actionability-v1` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `daba455`
-- latest validated commit: `daba455`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- validated source commit: `bf0778c`
+- latest validated commit: `bf0778c`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -174,13 +174,13 @@ The structured claim records:
 
 - branch: `capability/runtime-governance-host-actionability-v1`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `daba455`
-- recorded divergence baseline: `ahead 5 / behind 0`
+- validated source commit: `bf0778c`
+- recorded divergence baseline: `ahead 7 / behind 0`
 - transition: `state_only_pending_push`
 
 For this `state_only_pending_push` record on branch `capability/runtime-governance-host-actionability-v1`,
 Git observation should compute the validated source divergence as
-`ahead 5 / behind 0` against `refs/remotes/origin/main` before the state-only
+`ahead 7 / behind 0` against `refs/remotes/origin/main` before the state-only
 record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
