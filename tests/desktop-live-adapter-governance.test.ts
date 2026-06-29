@@ -203,6 +203,10 @@ function createHighRiskStateWithTwoExecutionFailures(taskId: string): Governance
   };
 }
 
+function createExecutionObservationRef(observationId: string): string {
+  return `execution-observation:${observationId}`;
+}
+
 // ── 21.1.1: missing handler updates governanceState ─────────────────────────
 
 test("governance: missing handler appends anomaly, re-scores risk, re-routes strategy, and calls onGovernanceUpdate", async () => {
@@ -236,6 +240,7 @@ test("governance: missing handler appends anomaly, re-scores risk, re-routes str
   assert.equal(anomaly.kind, "execution_failure");
   assert.equal(anomaly.strikeNumber, 1);
   assert.match(anomaly.message, /missing_handler/);
+  assert.deepEqual(anomaly.evidenceRefs, []);
 
   // Risk should be updated (no longer the initial low risk defaults)
   assert.ok(
@@ -246,6 +251,41 @@ test("governance: missing handler appends anomaly, re-scores risk, re-routes str
 
   // Strategy should be present
   assert.ok(firstUpdate.strategy.actionFamily.length > 0);
+});
+
+test("governance: primitive failure anomaly includes exact observation evidence ref", async () => {
+  const ready = await createReadyRunnerResult();
+  const govUpdates: GovernanceUpdateRecord[] = [];
+  const observationStore = createRecordingExecutionObservationStore();
+
+  const execution = await executeDesktopPlan({
+    runnerResult: ready,
+    handlers: {
+      read_thread_terminal: () => "thread context"
+      // spawn_agent handler intentionally missing
+    },
+    observationBus: observationStore,
+    governanceState: createLowRiskGovernanceState(ready.task.taskId),
+    onGovernanceUpdate: async (state, strategy) => {
+      govUpdates.push({ state, strategy });
+    },
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  assert.equal(execution.status, "failed");
+  assert.ok(govUpdates.length >= 1, "onGovernanceUpdate should be called");
+
+  const observations = await observationStore.findByTaskId(ready.task.taskId);
+  const failureObservation = observations.find(
+    (observation) => observation.status === "failed" &&
+      observation.primitiveId === "spawn_agent:1"
+  );
+  assert.ok(failureObservation, "failed primitive observation should be emitted");
+
+  const ref = createExecutionObservationRef(failureObservation.observationId);
+  const anomaly = govUpdates[0]?.state.anomalies.at(-1);
+  assert.ok(anomaly, "governance update should include anomaly");
+  assert.ok(anomaly.evidenceRefs.includes(ref));
 });
 
 // ── 21.1.2: handler returns ok:false updates governanceState ────────────────
@@ -482,6 +522,7 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
     checkpointFrequency: "standard"
   };
   const govUpdates: GovernanceUpdateRecord[] = [];
+  const observationStore = createRecordingExecutionObservationStore();
   const persistedAuditEvents: Array<{ type: string }> = [];
   const persistedCheckpoints: Array<{ stage: string; summary: string }> = [];
 
@@ -495,6 +536,7 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
       read_thread_terminal: () => "thread context",
       // Two primitives will be missing — this gives us the third failure
     },
+    observationBus: observationStore,
     governanceState: highRiskState,
     onGovernanceUpdate: async (state, strategy) => {
       govUpdates.push({ state, strategy });
@@ -530,6 +572,14 @@ test("governance: step_back is triggered and blocks execution when risk crosses 
   assert.equal(execution.governance?.strategyDecision.actionFamily, "step_back");
   assert.equal(execution.governance?.arbitrationPacket.trigger, "third_anomaly");
   assert.equal(execution.governance?.arbitrationPacket.probabilityPredictionAllowed, false);
+  const observations = await observationStore.findByTaskId(ready.task.taskId);
+  const failureObservation = observations.find(
+    (observation) => observation.status === "failed"
+  );
+  assert.ok(failureObservation, "failed primitive observation should be emitted");
+  const ref = createExecutionObservationRef(failureObservation.observationId);
+  assert.ok(execution.governance?.state.anomalies.at(-1)?.evidenceRefs.includes(ref));
+  assert.ok(execution.governance?.arbitrationPacket.rawEvidenceRefs.includes(ref));
   assert.deepEqual(
     execution.governance?.availableRecoveryActions,
     execution.governance?.arbitrationPacket.availableActions
@@ -846,6 +896,8 @@ test("governance: codex-cli host dispatch failure appends anomaly and calls onGo
     observations[0]?.signals.errorClass,
     "host_dispatch_failed:spawn sentinel"
   );
+  const ref = createExecutionObservationRef(observations[0]!.observationId);
+  assert.ok(anomaly.evidenceRefs.includes(ref));
 });
 
 for (const [caseName, thrownValue] of [
@@ -902,6 +954,7 @@ test("governance: codex-cli host dispatch third failure triggers recovery result
   const policy = await loadPolicyFromFile(policyPath);
   const task = createReadOnlyCodexCliTask("gov-codex-cli-host-dispatch-step-back");
   const govUpdates: GovernanceUpdateRecord[] = [];
+  const observationStore = createRecordingExecutionObservationStore();
 
   const result = await runDesktopTask({
     task,
@@ -916,6 +969,7 @@ test("governance: codex-cli host dispatch third failure triggers recovery result
         throw new Error("spawn sentinel");
       }
     },
+    observationBus: observationStore,
     governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
     onGovernanceUpdate: async (state, strategy) => {
       govUpdates.push({ state, strategy });
@@ -936,6 +990,12 @@ test("governance: codex-cli host dispatch third failure triggers recovery result
     result.executionResult.governance?.state.anomalies.at(-1)?.message,
     "host_dispatch_failed:spawn sentinel"
   );
+  const observations = await observationStore.findByTaskId(task.taskId);
+  assert.equal(observations.length, 1);
+  assert.equal(observations[0]?.primitiveId, "host_dispatch:codex-cli");
+  const ref = createExecutionObservationRef(observations[0]!.observationId);
+  assert.ok(result.executionResult.governance?.state.anomalies.at(-1)?.evidenceRefs.includes(ref));
+  assert.ok(result.executionResult.governance?.arbitrationPacket.rawEvidenceRefs.includes(ref));
   assert.equal(govUpdates[0]?.strategy.actionFamily, "step_back");
 });
 

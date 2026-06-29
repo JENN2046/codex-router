@@ -29,6 +29,8 @@ export interface ApplyExecutionFailureInput {
   primitiveId: string;
   /** Error class string (e.g. "missing_handler:spawn_agent", "agent_capacity_exceeded") */
   errorClass: string;
+  /** Machine evidence references associated with this failure */
+  evidenceRefs?: string[];
   /** Step index within the execution plan (used in anomalyId) */
   stepIndex: number;
   /** Optional clock (defaults to Date.now ISO) */
@@ -96,7 +98,7 @@ export function applyExecutionFailureToGovernanceState(
     message: input.errorClass,
     strikeNumber,
     createdAt: timestamp,
-    evidenceRefs: []
+    evidenceRefs: normalizeEvidenceRefs(input.evidenceRefs)
   };
 
   // 4. Append anomaly to state
@@ -138,4 +140,21 @@ export function applyExecutionFailureToGovernanceState(
     anomaly,
     arbitrationPacket
   };
+}
+
+function normalizeEvidenceRefs(values: string[] | undefined): string[] {
+  if (values === undefined) {
+    return [];
+  }
+
+  const normalized: string[] = [];
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (trimmed.length === 0 || normalized.includes(trimmed)) {
+      continue;
+    }
+    normalized.push(trimmed);
+  }
+
+  return normalized;
 }

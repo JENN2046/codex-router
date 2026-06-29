@@ -398,15 +398,15 @@ async function applyHostDispatchFailureToGovernance(input: {
     input.hostDispatch,
     input.blockingReasons
   );
+  const failureCreatedAt = input.now();
 
-  await emitPrimitiveObservation({
+  const evidenceRefs = await emitFailureObservationRefs({
     ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
     taskId: input.runnerResult.task.taskId,
     primitiveId,
     stage: "host_dispatch",
-    status: "failed" as const,
     error: errorClass,
-    createdAt: input.now()
+    createdAt: failureCreatedAt
   });
 
   if (input.governanceState === undefined) {
@@ -418,8 +418,9 @@ async function applyHostDispatchFailureToGovernance(input: {
     task: input.runnerResult.task,
     primitiveId,
     errorClass,
+    evidenceRefs,
     stepIndex: 0,
-    now: input.now
+    now: () => failureCreatedAt
   });
 
   if (input.onGovernanceUpdate !== undefined) {
@@ -689,6 +690,8 @@ export async function executeDesktopPlan(
     const handler = input.handlers[operation.primitive];
     if (!handler) {
       const errorMessage = `missing_handler:${operation.primitive}`;
+      const failureCreatedAt = now();
+      const primitiveId = `${operation.primitive}:${stepIndex}`;
       const failedStep: PrimitiveExecutionResult = {
         primitive: operation.primitive,
         status: "failed",
@@ -700,21 +703,20 @@ export async function executeDesktopPlan(
       auditEvents.push({
         type: "primitive_failed",
         taskId: result.task.taskId,
-        timestamp: now(),
+        timestamp: failureCreatedAt,
         details: {
           primitive: operation.primitive,
           error: failedStep.error,
           stepIndex
         }
       });
-      await emitPrimitiveObservation({
+      const evidenceRefs = await emitFailureObservationRefs({
         ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
         taskId: result.task.taskId,
-        primitiveId: `${operation.primitive}:${stepIndex}`,
+        primitiveId,
         stage: "execution",
-        status: "failed" as const,
         error: errorMessage,
-        createdAt: now()
+        createdAt: failureCreatedAt
       });
 
       // Update governance state on failure
@@ -722,10 +724,11 @@ export async function executeDesktopPlan(
         const failureResult = applyExecutionFailureToGovernanceState({
           state: governanceState,
           task: result.task,
-          primitiveId: `${operation.primitive}:${stepIndex}`,
+          primitiveId,
           errorClass: errorMessage,
+          evidenceRefs,
           stepIndex,
-          now
+          now: () => failureCreatedAt
         });
         governanceState = failureResult.state;
         strategyDecision = failureResult.strategyDecision;
@@ -792,6 +795,8 @@ export async function executeDesktopPlan(
 
       if (!output.ok) {
         const errorMessage = getPrimitiveFailureError(operation.primitive, output);
+        const failureCreatedAt = now();
+        const primitiveId = `${operation.primitive}:${stepIndex}`;
         const failedStep: PrimitiveExecutionResult = {
           primitive: operation.primitive,
           status: "failed",
@@ -803,21 +808,20 @@ export async function executeDesktopPlan(
         auditEvents.push({
           type: "primitive_failed",
           taskId: result.task.taskId,
-          timestamp: now(),
+          timestamp: failureCreatedAt,
           details: {
             primitive: operation.primitive,
             error: errorMessage,
             stepIndex
           }
         });
-        await emitPrimitiveObservation({
+        const evidenceRefs = await emitFailureObservationRefs({
           ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
           taskId: result.task.taskId,
-          primitiveId: `${operation.primitive}:${stepIndex}`,
+          primitiveId,
           stage: "execution",
-          status: "failed",
           error: errorMessage,
-          createdAt: now()
+          createdAt: failureCreatedAt
         });
 
         // Update governance state on handler failure
@@ -825,10 +829,11 @@ export async function executeDesktopPlan(
           const failureResult = applyExecutionFailureToGovernanceState({
             state: governanceState,
             task: result.task,
-            primitiveId: `${operation.primitive}:${stepIndex}`,
+            primitiveId,
             errorClass: errorMessage,
+            evidenceRefs,
             stepIndex,
-            now
+            now: () => failureCreatedAt
           });
           governanceState = failureResult.state;
           strategyDecision = failureResult.strategyDecision;
@@ -918,6 +923,8 @@ export async function executeDesktopPlan(
       });
     } catch (error) {
       const errorMessage = normalizeThrownError(error);
+      const failureCreatedAt = now();
+      const primitiveId = `${operation.primitive}:${stepIndex}`;
       const failedStep: PrimitiveExecutionResult = {
         primitive: operation.primitive,
         status: "failed",
@@ -932,31 +939,31 @@ export async function executeDesktopPlan(
       auditEvents.push({
         type: "primitive_failed",
         taskId: result.task.taskId,
-        timestamp: now(),
+        timestamp: failureCreatedAt,
         details: {
           primitive: operation.primitive,
           error: failedStep.error,
           stepIndex
         }
       });
-      await emitPrimitiveObservation({
+      const evidenceRefs = await emitFailureObservationRefs({
         ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
         taskId: result.task.taskId,
-        primitiveId: `${operation.primitive}:${stepIndex}`,
+        primitiveId,
         stage: "execution",
-        status: "failed" as const,
         error: errorMessage,
-        createdAt: now()
+        createdAt: failureCreatedAt
       });
 
       if (governanceState) {
         const failureResult = applyExecutionFailureToGovernanceState({
           state: governanceState,
           task: result.task,
-          primitiveId: `${operation.primitive}:${stepIndex}`,
+          primitiveId,
           errorClass: errorMessage,
+          evidenceRefs,
           stepIndex,
-          now
+          now: () => failureCreatedAt
         });
         governanceState = failureResult.state;
         strategyDecision = failureResult.strategyDecision;
@@ -1204,18 +1211,20 @@ async function emitPrimitiveObservation(input: {
   error?: string;
   evidenceRef?: string;
   createdAt: string;
-}): Promise<void> {
+}): Promise<string | undefined> {
   if (!input.observationBus) {
-    return;
+    return undefined;
   }
 
+  const observationId = createObservationId({
+    taskId: input.taskId,
+    primitiveId: input.primitiveId,
+    status: input.status,
+    createdAt: input.createdAt
+  });
+
   await input.observationBus.emit(parseExecutionObservation({
-    observationId: createObservationId({
-      taskId: input.taskId,
-      primitiveId: input.primitiveId,
-      status: input.status,
-      createdAt: input.createdAt
-    }),
+    observationId,
     taskId: input.taskId,
     primitiveId: input.primitiveId,
     stage: input.stage,
@@ -1226,6 +1235,31 @@ async function emitPrimitiveObservation(input: {
     ...(input.evidenceRef !== undefined ? { evidenceRef: input.evidenceRef } : {}),
     createdAt: input.createdAt
   }));
+
+  return observationId;
+}
+
+async function emitFailureObservationRefs(input: {
+  observationBus?: ExecutionObservationBus;
+  taskId: string;
+  primitiveId: string;
+  stage: string;
+  error: string;
+  createdAt: string;
+}): Promise<string[]> {
+  const observationId = await emitPrimitiveObservation({
+    ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+    taskId: input.taskId,
+    primitiveId: input.primitiveId,
+    stage: input.stage,
+    status: "failed",
+    error: input.error,
+    createdAt: input.createdAt
+  });
+
+  return observationId === undefined
+    ? []
+    : [`execution-observation:${observationId}`];
 }
 
 // ── Error normalization ────────────────────────────────────────────────────

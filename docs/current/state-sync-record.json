@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "fix/runtime-governance-evidence-refs",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "b3aab35",
-    "latestValidatedCommit": "b3aab35",
+    "validatedSourceCommit": "745c1ac",
+    "latestValidatedCommit": "745c1ac",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "dc26bd6071efb7b5f34e02b87f9325f38387817ef5684367f9f092e0de85d14f",
+      "value": "0c04f687ad0a71b6837ff11d01c156f368c8527224937f46c6783ce44dd07af1",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
