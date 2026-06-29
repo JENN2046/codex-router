@@ -124,8 +124,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `capability/runtime-governance-recovery-recommendation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b718494`
-- latest validated commit: `b718494`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `cf98ee5`
+- latest validated commit: `cf98ee5`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
