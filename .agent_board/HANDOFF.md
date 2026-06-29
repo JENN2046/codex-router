@@ -7,11 +7,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `capability/runtime-governance-host-actionability-v1`
 
 Current validated source:
 
-- `9157533`
+- `534d62f`
 
 Current structured claim:
 
@@ -19,7 +19,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -122,10 +122,10 @@ Validation completed:
 
 State-sync status:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `capability/runtime-governance-host-actionability-v1` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `9157533`
-- latest validated commit: `9157533`
+- validated source commit: `534d62f`
+- latest validated commit: `534d62f`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -147,10 +147,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `capability/runtime-governance-host-actionability-v1`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `9157533`
-- latest validated commit: `9157533`
+- validated source commit: `534d62f`
+- latest validated commit: `534d62f`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
