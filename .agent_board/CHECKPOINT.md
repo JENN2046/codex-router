@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `main`
+- `fix/runtime-governance-evidence-consumability`
 
 Validated source commit:
 
-- `eee89e7`
+- `219c94f`
 
 Latest validated commit:
 
-- `eee89e7`
+- `219c94f`
 
 Upstream baseline:
 
@@ -85,6 +85,14 @@ Checkpoint facts:
   `unknown_execution_error` before they become governance error classes.
 - Display sync now targets standalone Markdown headings when replacing
   `## State Sync Expectations`, avoiding accidental prose matches.
+- Execution-observation evidence refs now have shared create/parse/resolve
+  helpers.
+- Runtime governance failure evidence refs in `desktop-live-adapter` use the
+  shared helper instead of hand-built strings.
+- Recovery packet `rawEvidenceRefs` are covered by tests that resolve them back
+  to emitted observations.
+- Malformed execution-observation refs fail closed, and recovery without an
+  observation bus remains compatible with no consumable evidence refs.
 - Markdown and `.agent_board/*` are evidence/display surfaces, not governance
   authority.
 - `docs/current/state-sync-record.json` is included in strict state-only paths.
@@ -106,10 +114,10 @@ Validation recorded:
 
 State-sync observation:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `fix/runtime-governance-evidence-consumability` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `eee89e7`
-- latest validated commit: `eee89e7`
+- validated source commit: `219c94f`
+- latest validated commit: `219c94f`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -119,10 +127,10 @@ State-sync observation:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/runtime-governance-evidence-consumability`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `eee89e7`
-- latest validated commit: `eee89e7`
+- validated source commit: `219c94f`
+- latest validated commit: `219c94f`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

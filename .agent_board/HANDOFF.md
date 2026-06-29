@@ -2,16 +2,16 @@
 
 Goal:
 
-- Prepare a focused PR that routes `codex-cli` host-dispatch failures through
-  runtime governance and records the matching state-sync pending-push claim.
+- Prepare a focused PR that makes runtime governance evidence refs canonical,
+  parseable, and resolvable while preserving no-observationBus compatibility.
 
 Current branch:
 
-- `main`
+- `fix/runtime-governance-evidence-consumability`
 
 Current validated source:
 
-- `eee89e7`
+- `219c94f`
 
 Current structured claim:
 
@@ -19,7 +19,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -97,6 +97,15 @@ Completed:
   `unknown_execution_error` before governance error class construction
 - display sync matches standalone headings for `## State Sync Expectations`
   updates
+- execution-observation evidence refs now have shared create/parse/resolve
+  helpers
+- runtime governance failure evidence refs in `desktop-live-adapter` use the
+  shared helper instead of hand-built strings
+- recovery packet `rawEvidenceRefs` are covered by tests that resolve them back
+  to emitted observations
+- malformed execution-observation refs fail closed
+- no-observationBus recovery remains compatible and records no consumable
+  evidence refs
 
 Validation completed:
 
@@ -114,10 +123,10 @@ Validation completed:
 
 State-sync status:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `fix/runtime-governance-evidence-consumability` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `eee89e7`
-- latest validated commit: `eee89e7`
+- validated source commit: `219c94f`
+- latest validated commit: `219c94f`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -139,10 +148,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `fix/runtime-governance-evidence-consumability`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `eee89e7`
-- latest validated commit: `eee89e7`
+- validated source commit: `219c94f`
+- latest validated commit: `219c94f`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

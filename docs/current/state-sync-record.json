@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "fix/runtime-governance-evidence-consumability",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "eee89e7",
-    "latestValidatedCommit": "eee89e7",
+    "validatedSourceCommit": "219c94f",
+    "latestValidatedCommit": "219c94f",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "0c04f687ad0a71b6837ff11d01c156f368c8527224937f46c6783ce44dd07af1",
+      "value": "dcee4b27afbe4ce771714c8a620b6c6046de73998ba7fd8a582517e30d125f43",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
