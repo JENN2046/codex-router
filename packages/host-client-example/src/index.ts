@@ -264,6 +264,7 @@ export class ExampleDesktopHostClient {
   readonly observationBus: ExecutionObservationBus | undefined;
   readonly observationStore: ExecutionObservationStore | undefined;
   telemetryAlertDeliveryWindowStore: TelemetryAlertDeliveryWindowStore | undefined;
+  private currentGovernanceState: GovernanceState | undefined;
   private readonly telemetryAlertDeliveryWindowPreset: TelemetryAlertDeliveryWindowPresetName | undefined;
   readonly bridge: DesktopHostBridge;
 
@@ -271,6 +272,7 @@ export class ExampleDesktopHostClient {
 
   constructor(private readonly options: ExampleHostClientOptions) {
     this.now = options.now ?? (() => new Date().toISOString());
+    this.currentGovernanceState = options.governanceState;
     this.memoryClient = options.memoryClient ?? new InMemoryCodexMemoryClient(this.now);
     this.memoryAdapter = new CodexMemoryAdapter(this.memoryClient, {
       anchor: options.anchor ?? "codex-router@A:/codex-router",
@@ -371,12 +373,7 @@ export class ExampleDesktopHostClient {
       persistence: this.buildPersistence(),
       bridge: this.bridge,
       ...(this.observationBus !== undefined ? { observationBus: this.observationBus } : {}),
-      ...(this.options.governanceState !== undefined
-        ? { governanceState: this.options.governanceState }
-        : {}),
-      ...(this.options.onGovernanceUpdate !== undefined
-        ? { onGovernanceUpdate: this.options.onGovernanceUpdate }
-        : {}),
+      ...this.buildGovernanceForwarding(),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
         : {}),
@@ -406,12 +403,7 @@ export class ExampleDesktopHostClient {
       },
       bridge: this.bridge,
       ...(this.observationBus !== undefined ? { observationBus: this.observationBus } : {}),
-      ...(this.options.governanceState !== undefined
-        ? { governanceState: this.options.governanceState }
-        : {}),
-      ...(this.options.onGovernanceUpdate !== undefined
-        ? { onGovernanceUpdate: this.options.onGovernanceUpdate }
-        : {}),
+      ...this.buildGovernanceForwarding(),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
         : {}),
@@ -420,6 +412,30 @@ export class ExampleDesktopHostClient {
 
     await this.flushTelemetryAlerts(result.decisionResult.decision);
     return result;
+  }
+
+  private buildGovernanceForwarding(): {
+    governanceState?: GovernanceState;
+    onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
+  } {
+    if (
+      this.currentGovernanceState === undefined &&
+      this.options.onGovernanceUpdate === undefined
+    ) {
+      return {};
+    }
+
+    return {
+      ...(this.currentGovernanceState !== undefined
+        ? { governanceState: this.currentGovernanceState }
+        : {}),
+      onGovernanceUpdate: async (state, strategy) => {
+        this.currentGovernanceState = state;
+        if (this.options.onGovernanceUpdate !== undefined) {
+          await this.options.onGovernanceUpdate(state, strategy);
+        }
+      }
+    };
   }
 
   async getState(): Promise<{

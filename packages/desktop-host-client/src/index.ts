@@ -61,9 +61,11 @@ export interface DesktopHostResumeOptions {
 
 export class DesktopHostClient {
   readonly bridge: DesktopHostBridge;
+  private currentGovernanceState: GovernanceState | undefined;
 
   constructor(private readonly options: DesktopHostClientOptions) {
     this.bridge = resolveHostBridge(options);
+    this.currentGovernanceState = options.governanceState;
   }
 
   async run(task: TaskEnvelopeInput): Promise<RunDesktopTaskResult> {
@@ -87,12 +89,7 @@ export class DesktopHostClient {
       ...(this.options.observationBus !== undefined
         ? { observationBus: this.options.observationBus }
         : {}),
-      ...(this.options.governanceState !== undefined
-        ? { governanceState: this.options.governanceState }
-        : {}),
-      ...(this.options.onGovernanceUpdate !== undefined
-        ? { onGovernanceUpdate: this.options.onGovernanceUpdate }
-        : {}),
+      ...this.buildGovernanceForwarding(),
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
     });
   }
@@ -133,15 +130,34 @@ export class DesktopHostClient {
       ...(this.options.observationBus !== undefined
         ? { observationBus: this.options.observationBus }
         : {}),
-      ...(this.options.governanceState !== undefined
-        ? { governanceState: this.options.governanceState }
-        : {}),
-      ...(this.options.onGovernanceUpdate !== undefined
-        ? { onGovernanceUpdate: this.options.onGovernanceUpdate }
-        : {}),
+      ...this.buildGovernanceForwarding(),
       ...(hasResumeConfig(resume) ? { resume } : {}),
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
     });
+  }
+
+  private buildGovernanceForwarding(): {
+    governanceState?: GovernanceState;
+    onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
+  } {
+    if (
+      this.currentGovernanceState === undefined &&
+      this.options.onGovernanceUpdate === undefined
+    ) {
+      return {};
+    }
+
+    return {
+      ...(this.currentGovernanceState !== undefined
+        ? { governanceState: this.currentGovernanceState }
+        : {}),
+      onGovernanceUpdate: async (state, strategy) => {
+        this.currentGovernanceState = state;
+        if (this.options.onGovernanceUpdate !== undefined) {
+          await this.options.onGovernanceUpdate(state, strategy);
+        }
+      }
+    };
   }
 }
 

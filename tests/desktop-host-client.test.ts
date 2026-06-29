@@ -267,6 +267,11 @@ function createHighRiskStateWithTwoExecutionFailures(taskId: string): Governance
   };
 }
 
+function anomalyCount(state: GovernanceState | undefined): number {
+  assert.ok(state);
+  return state.anomalies.length;
+}
+
 function createReadTask(taskId: string): TaskEnvelopeInput {
   return {
     taskId,
@@ -419,6 +424,49 @@ test("desktop host client passes governance inputs and returns operator recovery
   assert.equal(result.executionResult.governance?.operatorAction?.lockdown, true);
   assert.ok(result.executionResult.governance?.operatorAction?.evidenceRefs.includes(ref));
   assert.ok(governanceUpdates.some((update) => update.strategy.actionFamily === "step_back"));
+});
+
+test("desktop host client persists updated governance state between run and resume", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = createEngineeringTask("desktop-host-governance-persist");
+  let tick = 0;
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: {
+      ...createHostBindings(),
+      read_thread_terminal() {
+        return createPrimitiveFailureEnvelope(
+          "read_thread_terminal",
+          "desktop_host_governance_persist_failure"
+        );
+      }
+    },
+    availableAgents: 2,
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => `2026-04-28T12:10:0${tick++}.000Z`
+  });
+
+  const first = await client.run(task);
+  const second = await client.resume(task);
+
+  assert.equal(anomalyCount(first.executionResult.governance?.state), 3);
+  assert.equal(anomalyCount(second.executionResult.governance?.state), 4);
 });
 
 test("desktop host client rejects stale governance state before bridge execution", async () => {

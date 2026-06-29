@@ -148,6 +148,11 @@ function createHighRiskStateWithTwoExecutionFailures(taskId: string): Governance
   };
 }
 
+function anomalyCount(state: GovernanceState | undefined): number {
+  assert.ok(state);
+  return state.anomalies.length;
+}
+
 test("example host client runs a task end-to-end and persists checkpoint state", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const client = createExampleDesktopHostClient({
@@ -231,6 +236,46 @@ test("example host client exposes runtime governance operator action", async () 
   assert.equal(result.executionResult.governance?.operatorAction?.evidenceStatus, "referenced");
   assert.ok(result.executionResult.governance?.operatorAction?.evidenceRefs.includes(ref));
   assert.ok(governanceUpdates.some((update) => update.strategy.actionFamily === "step_back"));
+});
+
+test("example host client persists updated governance state between run and resume", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task: TaskEnvelopeInput = {
+    taskId: "example-governance-persist",
+    source: "desktop-thread",
+    intent: {
+      summary: "implement host client recovery integration",
+      requestedAction: "add multi-file TypeScript host recovery integration changes",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: {
+      branches: [],
+      files: ["packages/host-client-example/src/index.ts"],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: []
+    }
+  };
+  let tick = 0;
+  const client = createExampleDesktopHostClient({
+    policy,
+    bridge: createFailingExampleHostBridge("send_input", "example_governance_persist_failure"),
+    availableAgents: 3,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => `2026-04-28T12:10:0${tick++}.000Z`
+  });
+
+  const first = await client.run(task);
+  const second = await client.resume(task);
+
+  assert.equal(anomalyCount(first.executionResult.governance?.state), 3);
+  assert.equal(anomalyCount(second.executionResult.governance?.state), 4);
 });
 
 test("example host client rejects stale governance state before bridge execution", async () => {
