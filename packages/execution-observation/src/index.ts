@@ -148,7 +148,9 @@ export async function resolveExecutionObservationRef(
 
   const observations = await store.findByTaskId(taskId);
   return observations.find(
-    (observation) => observation.observationId === parsedRef.observationId
+    (observation) =>
+      observation.taskId === taskId
+      && observation.observationId === parsedRef.observationId
   );
 }
 

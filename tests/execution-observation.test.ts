@@ -300,6 +300,46 @@ test("file execution observation store finds by task id", async () => {
   await rm(TEST_BASE_PATH, { recursive: true, force: true });
 });
 
+test("execution observation refs do not resolve across colliding file store task paths", async () => {
+  await rm(TEST_BASE_PATH, { recursive: true, force: true });
+  const store = createFileExecutionObservationStore({ basePath: TEST_BASE_PATH });
+
+  await store.emit(parseExecutionObservation({
+    observationId: "same",
+    taskId: "task:1",
+    primitiveId: "step-1",
+    stage: "execution",
+    status: "failed",
+    signals: { errorClass: "source_task_failure" },
+    createdAt: "2026-04-27T00:00:00.000Z"
+  }));
+
+  await store.emit(parseExecutionObservation({
+    observationId: "other",
+    taskId: "task_1",
+    primitiveId: "step-2",
+    stage: "execution",
+    status: "succeeded",
+    signals: {},
+    createdAt: "2026-04-27T00:01:00.000Z"
+  }));
+
+  const ref = createExecutionObservationRef("same");
+  const collidingTaskEvents = await store.findByTaskId("task_1");
+
+  assert.equal(collidingTaskEvents.length, 2);
+  assert.equal(
+    await resolveExecutionObservationRef(store, "task_1", ref),
+    undefined
+  );
+  assert.equal(
+    (await resolveExecutionObservationRef(store, "task:1", ref))?.taskId,
+    "task:1"
+  );
+
+  await rm(TEST_BASE_PATH, { recursive: true, force: true });
+});
+
 test("file execution observation store returns empty for non-existent task", async () => {
   const store = createFileExecutionObservationStore({ basePath: TEST_BASE_PATH });
   const events = await store.findByTaskId("non-existent");
