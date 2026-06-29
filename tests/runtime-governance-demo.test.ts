@@ -41,6 +41,12 @@ test("runtime governance demo summarizes executable evidence and recovery withou
   assert.equal(recovery?.evidenceRefResolved, true);
   assert.equal(recovery?.recoveryRequired, true);
   assert.equal(recovery?.lockdown, true);
+  assert.equal(recovery?.recommendedRecoveryAction, "fork");
+  assert.equal(
+    recovery?.recoveryRecommendationReason,
+    "third_anomaly_fork_for_investigation"
+  );
+  assert.equal(recovery?.recoveryRecommendationEvidenceStatus, "referenced");
   assert.ok(recovery?.blockingReasons.includes("governance_step_back_triggered"));
   assert.ok(recovery?.blockingReasons.includes("arbitration_required"));
 });

@@ -31,6 +31,9 @@ export interface RuntimeGovernanceDemoScenario {
   evidenceRefResolved?: boolean;
   recoveryRequired?: boolean;
   lockdown?: boolean;
+  recommendedRecoveryAction?: string;
+  recoveryRecommendationReason?: string;
+  recoveryRecommendationEvidenceStatus?: string;
 }
 
 export interface RuntimeGovernanceDemoResult {
@@ -125,6 +128,7 @@ export async function runRuntimeGovernanceDemo(
       )
     : undefined;
   const recoveryObservations = await recoveryObservationStore.loadAll();
+  const recoveryRecommendation = recovery.executionResult.governance?.recoveryRecommendation;
 
   const scenarios: RuntimeGovernanceDemoScenario[] = [
     {
@@ -157,7 +161,14 @@ export async function runRuntimeGovernanceDemo(
       evidenceRefResolved:
         resolvedRecoveryObservation?.observationId !== undefined,
       recoveryRequired: recovery.executionResult.governance?.recoveryRequired ?? false,
-      lockdown: recovery.executionResult.governance?.lockdown ?? false
+      lockdown: recovery.executionResult.governance?.lockdown ?? false,
+      ...(recoveryRecommendation !== undefined
+        ? {
+            recommendedRecoveryAction: recoveryRecommendation.action,
+            recoveryRecommendationReason: recoveryRecommendation.reasonCode,
+            recoveryRecommendationEvidenceStatus: recoveryRecommendation.evidenceStatus
+          }
+        : {})
     }
   ];
 
@@ -171,6 +182,7 @@ export async function runRuntimeGovernanceDemo(
     recovery.hostDispatch === undefined &&
     recovery.executionResult.governance?.recoveryRequired === true &&
     recovery.executionResult.governance.lockdown === true &&
+    recovery.executionResult.governance.recoveryRecommendation?.requiresHumanApproval === true &&
     resolvedRecoveryObservation !== undefined;
 
   return {

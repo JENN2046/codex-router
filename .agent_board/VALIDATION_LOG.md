@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `capability/runtime-governance-recovery-recommendation`
 
 Validated source commit:
 
-- `bd0a319`
+- `fea230c`
 
 Latest validated commit:
 
-- `bd0a319`
+- `fea230c`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 5 / behind 0`
 
 Recorded validation:
 
@@ -39,11 +39,11 @@ Recorded validation:
 
 State-sync audit observation:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `capability/runtime-governance-recovery-recommendation` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `bd0a319`
-- latest validated commit: `bd0a319`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `fea230c`
+- latest validated commit: `fea230c`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -61,10 +61,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `capability/runtime-governance-recovery-recommendation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `bd0a319`
-- latest validated commit: `bd0a319`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `fea230c`
+- latest validated commit: `fea230c`
+- recorded divergence baseline: `ahead 5 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
