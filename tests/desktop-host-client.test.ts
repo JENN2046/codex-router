@@ -421,6 +421,37 @@ test("desktop host client passes governance inputs and returns operator recovery
   assert.ok(governanceUpdates.some((update) => update.strategy.actionFamily === "step_back"));
 });
 
+test("desktop host client rejects stale governance state before bridge execution", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const calls: string[] = [];
+  const task = createEngineeringTask("desktop-host-governance-current-task");
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: createHostBindings(calls),
+    governanceState: createHighRiskStateWithTwoExecutionFailures("stale-desktop-host-task"),
+    now: () => "2026-04-28T12:05:00.000Z"
+  });
+
+  await assert.rejects(
+    () => client.run(task),
+    /governance_state_task_mismatch/
+  );
+  assert.deepEqual(calls, []);
+});
+
 test("desktop host client resumes from memory recall when the memory adapter supports it", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const now = () => "2026-04-23T16:16:00.000Z";

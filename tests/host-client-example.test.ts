@@ -233,6 +233,44 @@ test("example host client exposes runtime governance operator action", async () 
   assert.ok(governanceUpdates.some((update) => update.strategy.actionFamily === "step_back"));
 });
 
+test("example host client rejects stale governance state before bridge execution", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task: TaskEnvelopeInput = {
+    taskId: "example-governance-current-task",
+    source: "desktop-thread",
+    intent: {
+      summary: "implement host client recovery integration",
+      requestedAction: "add multi-file TypeScript host recovery integration changes",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: {
+      branches: [],
+      files: ["packages/host-client-example/src/index.ts"],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: []
+    }
+  };
+  const client = createExampleDesktopHostClient({
+    policy,
+    bridge: createFailingExampleHostBridge("send_input", "should_not_run"),
+    governanceState: createHighRiskStateWithTwoExecutionFailures("stale-example-task"),
+    now: () => "2026-04-28T12:05:00.000Z"
+  });
+
+  await assert.rejects(
+    () => client.run(task),
+    /governance_state_task_mismatch/
+  );
+  assert.deepEqual((await client.getState()).observations, []);
+});
+
 test("example host client resumes from memory and surfaces resume source", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const client = createExampleDesktopHostClient({

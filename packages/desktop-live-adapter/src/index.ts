@@ -183,6 +183,8 @@ export interface RunDesktopTaskResult {
 export async function runDesktopTask(
   input: RunDesktopTaskInput
 ): Promise<RunDesktopTaskResult> {
+  assertGovernanceStateTaskScoped(input);
+
   const decisionRunnerInput: DesktopDecisionRunnerInput = {
     task: input.task,
     policy: input.policy,
@@ -199,6 +201,8 @@ export async function runDesktopTask(
 export async function resumeDesktopTask(
   input: ResumeDesktopTaskInput
 ): Promise<RunDesktopTaskResult> {
+  assertGovernanceStateTaskScoped(input);
+
   const decisionRunnerInput: DesktopDecisionResumeInput = {
     task: input.task,
     policy: input.policy,
@@ -211,6 +215,18 @@ export async function resumeDesktopTask(
 
   const decisionResult = await resumeDesktopDecision(decisionRunnerInput);
   return executeDesktopTaskFromDecision(input, decisionResult);
+}
+
+function assertGovernanceStateTaskScoped(input: {
+  task: { taskId: string };
+  governanceState?: GovernanceState;
+}): void {
+  if (
+    input.governanceState !== undefined &&
+    input.governanceState.taskId !== input.task.taskId
+  ) {
+    throw new Error("governance_state_task_mismatch");
+  }
 }
 
 async function executeDesktopTaskFromDecision(

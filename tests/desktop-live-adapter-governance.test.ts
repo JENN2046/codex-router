@@ -1000,6 +1000,42 @@ test("governance: codex-cli host dispatch failure appends anomaly and calls onGo
   assert.ok(anomaly.evidenceRefs.includes(ref));
 });
 
+test("governance: runDesktopTask rejects governance state scoped to another task", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = createReadOnlyCodexCliTask("gov-task-scope-target");
+  const observationStore = createRecordingExecutionObservationStore();
+  let spawnCalled = false;
+
+  await assert.rejects(
+    () => runDesktopTask({
+      task,
+      policy,
+      preflight: {
+        authAvailable: true,
+        availableTools: []
+      },
+      codexCliOptions: {
+        skipExecutionModelProbe: true,
+        spawn: () => {
+          spawnCalled = true;
+          throw new Error("spawn should not run");
+        }
+      },
+      observationBus: observationStore,
+      governanceState: createLowRiskGovernanceState("stale-governance-task"),
+      now: () => "2026-04-28T13:01:00.000Z"
+    }),
+    /governance_state_task_mismatch/
+  );
+
+  assert.equal(spawnCalled, false);
+  assert.deepEqual(await observationStore.findByTaskId(task.taskId), []);
+  assert.deepEqual(
+    await observationStore.findByTaskId("stale-governance-task"),
+    []
+  );
+});
+
 for (const [caseName, thrownValue] of [
   ["object", {}],
   ["undefined", undefined]
