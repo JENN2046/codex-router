@@ -1,14 +1,33 @@
 import type {
   ModelId,
   RoutingDecision,
+  RuntimeEventType,
   RuntimeSignal
 } from "../../contracts/src/index.js";
+import { RuntimeSignalSchema } from "../../contracts/src/index.js";
 import type { PolicySnapshot } from "../../policy-config/src/index.js";
 
 export interface EscalationOutcome {
   action: "none" | "upgrade_model" | "open_circuit";
   nextModel?: ModelId;
   reasons: string[];
+}
+
+export interface GovernanceStateRuntimeSignalSource {
+  taskId: string;
+  risk: {
+    contextPressure: number;
+    finalRiskLevel: "low" | "medium" | "high" | "critical";
+  };
+  anomalies: ReadonlyArray<{
+    kind: string;
+  }>;
+}
+
+export interface CreateRuntimeSignalFromGovernanceStateInput {
+  state: GovernanceStateRuntimeSignalSource;
+  eventType?: RuntimeEventType;
+  details?: string[];
 }
 
 const MODEL_LADDER: ModelId[] = [
@@ -18,6 +37,34 @@ const MODEL_LADDER: ModelId[] = [
   "gpt-5.4",
   "gpt-5.1-codex-max"
 ];
+
+export function createRuntimeSignalFromGovernanceState(
+  input: CreateRuntimeSignalFromGovernanceStateInput
+): RuntimeSignal {
+  const failureCount = countExecutionFailures(input.state);
+  const eventType =
+    input.eventType ?? inferRuntimeEventType(input.state, failureCount);
+  const details = [...(input.details ?? [])];
+
+  if (failureCount > 0) {
+    details.push(`execution_failures:${failureCount}`);
+  }
+
+  if (
+    input.state.risk.finalRiskLevel === "high" ||
+    input.state.risk.finalRiskLevel === "critical"
+  ) {
+    details.push(`risk:${input.state.risk.finalRiskLevel}`);
+  }
+
+  return RuntimeSignalSchema.parse({
+    taskId: input.state.taskId,
+    eventType,
+    failureCount,
+    contextPressure: input.state.risk.contextPressure,
+    details
+  });
+}
 
 export function evaluateRuntimeSignals(
   decision: RoutingDecision,
@@ -79,4 +126,26 @@ export function upgradeModel(current: ModelId): ModelId {
   }
 
   return MODEL_LADDER[index + 1] ?? current;
+}
+
+function countExecutionFailures(state: GovernanceStateRuntimeSignalSource): number {
+  return state.anomalies.filter((anomaly) => anomaly.kind === "execution_failure").length;
+}
+
+function inferRuntimeEventType(
+  state: GovernanceStateRuntimeSignalSource,
+  failureCount: number
+): RuntimeEventType {
+  if (
+    state.risk.finalRiskLevel === "high" ||
+    state.risk.finalRiskLevel === "critical"
+  ) {
+    return "risk_detected";
+  }
+
+  if (failureCount > 0) {
+    return "attempt_failed";
+  }
+
+  return "attempt_succeeded";
 }
