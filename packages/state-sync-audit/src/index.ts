@@ -689,6 +689,19 @@ function isStateSyncCommitLike(value: string): boolean {
   return /^[0-9a-f]{7,40}$/i.test(value);
 }
 
+function commitMatchesObservedHead(commit: string, head: string): boolean {
+  if (!isStateSyncCommitLike(commit) || !isStateSyncCommitLike(head)) {
+    return false;
+  }
+
+  const normalizedCommit = commit.toLowerCase();
+  const normalizedHead = head.toLowerCase();
+
+  return normalizedCommit === normalizedHead
+    || normalizedCommit.startsWith(normalizedHead)
+    || normalizedHead.startsWith(normalizedCommit);
+}
+
 function transitionKindField(
   record: Record<string, unknown>,
   key: string
@@ -881,7 +894,7 @@ function structuredTransitionIsAllowed(
   return detachedSyntheticReviewCheckout
     && input.branch === ""
     && input.upstream === ""
-    && input.head === resolvedClaim.validatedSourceCommit
+    && commitMatchesObservedHead(resolvedClaim.validatedSourceCommit, input.head)
     && currentAhead === -1
     && currentBehind === -1
     && validatedSourceAhead === -1
@@ -1360,7 +1373,7 @@ function syntheticReviewStateAllowed(
     || latestValidatedCommit === undefined
     || currentHead !== validatedSourceCommit
     || validatedSourceCommit !== latestValidatedCommit
-    || validatedSourceCommit !== input.head
+    || !commitMatchesObservedHead(validatedSourceCommit, input.head)
   ) {
     return undefined;
   }

@@ -354,7 +354,7 @@ observation.upstream == ""
 observation.currentDivergence is unknown
 observation.validatedSourceDivergence is unknown
 worktree is clean
-observation.head == claim.source.validatedSourceCommit
+observation.head matches claim.source.validatedSourceCommit after commit-id normalization
 claim.source.validatedSourceCommit == claim.source.latestValidatedCommit
 claim explicitly marks detached review compatibility through transition.kind
 no validated source evidence shows the source anchor is unreachable

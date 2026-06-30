@@ -762,6 +762,32 @@ test("state sync audit accepts structured detached review checkout without valid
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
 });
 
+test("state sync audit accepts detached review claims with full source commit IDs", async () => {
+  const input = await createInputFromWorkspace();
+  const observedHead = (await git(process.cwd(), ["rev-parse", "--short", "HEAD"])).trim();
+  const fullObservedHead = (await git(process.cwd(), ["rev-parse", "HEAD"])).trim();
+  const observedInput = {
+    ...input,
+    head: observedHead,
+    parentHead: observedHead
+  };
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(observedInput, {
+    head: observedHead,
+    parentHead: observedHead,
+    ...withStateSyncClaim(observedInput, {
+      upstream: "",
+      validatedSourceCommit: fullObservedHead,
+      latestValidatedCommit: fullObservedHead,
+      transitionKind: "detached_review_checkout"
+    })
+  }));
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.structuredTransitionAllowed, true);
+});
+
 test("state sync audit blocks detached review claims that do not match observed head", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
