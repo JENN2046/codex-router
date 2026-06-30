@@ -479,7 +479,9 @@ The default command is read-only. Write, commit, and push are opt-in. The runner
 keeps the operation bounded by checking that:
 
 - the current branch is exactly `main`;
-- local `HEAD` equals `refs/remotes/origin/main` before writing;
+- local `HEAD` equals `refs/remotes/origin/main` before writing, except for the
+  explicit resume case where `--push` continues a clean local commit-only
+  reanchor;
 - the structured reanchor gate says a reanchor is needed;
 - generated state/docs changes are limited to the strict state record paths;
 - display mirrors are synchronized from `docs/current/state-sync-record.json`;
@@ -491,6 +493,16 @@ keeps the operation bounded by checking that:
   the originally observed remote head;
 - the local reanchor commit is exactly `ahead 1 / behind 0` from
   `refs/remotes/origin/main` before push.
+
+Commit-only reanchors are intentionally resumable through the same guarded
+runner. After `npm run state-sync:reanchor-main -- --write --commit`, the local
+claim is already `main` / `state_only_pushed`, but upstream does not contain the
+commit yet, so the full state-sync audit is expected to fail until the push
+lands. A later `npm run state-sync:reanchor-main -- --push` may continue only
+when the worktree is clean, local `main` is exactly one commit ahead of
+`origin/main`, that commit's parent is the observed remote head, the structured
+gate reports `already_reanchored`, and the commit diff is limited to strict
+state/docs paths with no stale reanchor prose.
 
 If `origin/main` moves after the local commit is prepared, the runner blocks
 instead of pushing a stale reanchor. This keeps the direct-push path safe enough

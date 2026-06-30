@@ -7,7 +7,8 @@ import { prepareStateSyncReanchor } from "./prepare-state-sync-reanchor.js";
 import { resolveStateSyncReanchorPrGate } from "./resolve-state-sync-reanchor-pr-gate.js";
 import {
   STATE_SYNC_REANCHOR_ALLOWED_PATHS,
-  verifyStateSyncReanchorDiff
+  verifyStateSyncReanchorDiff,
+  verifyStateSyncReanchorRange
 } from "./verify-state-sync-reanchor-diff.js";
 
 const execFileAsync = promisify(execFile);
@@ -60,12 +61,26 @@ export async function runStateSyncMainReanchor(
   await fetchRemoteMain(cwd, remote);
   const baseHead = await gitTrim(["rev-parse", "HEAD"], cwd);
   const remoteHeadBefore = await remoteMainHead(cwd, remote);
+  const validations: string[] = [];
 
   if (baseHead !== remoteHeadBefore) {
+    if (options.push === true) {
+      return resumeCommittedMainReanchor(cwd, {
+        branch,
+        baseHead,
+        remote,
+        remoteHeadBefore,
+        validate,
+        validations,
+        ...(options.validationRunner === undefined
+          ? {}
+          : { validationRunner: options.validationRunner }),
+        ...(options.beforePush === undefined ? {} : { beforePush: options.beforePush })
+      });
+    }
     throw new Error("state_sync_main_reanchor_requires_head_at_origin_main");
   }
 
-  const validations: string[] = [];
   const gate = await resolveStateSyncReanchorPrGate(cwd);
   if (!gate.runReanchor) {
     return {
@@ -202,6 +217,131 @@ export async function runStateSyncMainReanchor(
     pushedHead: await remoteMainHead(cwd, remote),
     changedPaths: prepareResult.changedPaths,
     validations
+  };
+}
+
+async function resumeCommittedMainReanchor(
+  cwd: string,
+  input: {
+    branch: string;
+    baseHead: string;
+    remote: string;
+    remoteHeadBefore: string;
+    validate: boolean;
+    validations: string[];
+    validationRunner?: (command: RunStateSyncMainReanchorValidationCommand) => Promise<void>;
+    beforePush?: () => Promise<void>;
+  }
+): Promise<RunStateSyncMainReanchorResult> {
+  const status = await gitTrim(["status", "--porcelain"], cwd);
+  if (status !== "") {
+    throw new Error("state_sync_main_reanchor_resume_requires_clean_worktree");
+  }
+
+  const divergence = await gitTrim(
+    [
+      "rev-list",
+      "--left-right",
+      "--count",
+      `HEAD...refs/remotes/${input.remote}/main`
+    ],
+    cwd
+  );
+  if (divergence !== "1\t0") {
+    throw new Error(
+      `state_sync_main_reanchor_resume_requires_single_local_commit:${divergence}`
+    );
+  }
+
+  const parent = await gitTrim(["rev-parse", "HEAD^"], cwd);
+  if (parent !== input.remoteHeadBefore) {
+    throw new Error("state_sync_main_reanchor_resume_parent_mismatch");
+  }
+
+  const gate = await resolveStateSyncReanchorPrGate(cwd);
+  if (gate.runReanchor || gate.reason !== "already_reanchored") {
+    throw new Error("state_sync_main_reanchor_resume_requires_reanchored_claim");
+  }
+
+  const rangeVerification = await verifyStateSyncReanchorRange(
+    cwd,
+    input.remoteHeadBefore,
+    "HEAD"
+  );
+  if (rangeVerification.status !== "passed") {
+    throw new Error("state_sync_main_reanchor_resume_diff_verification_failed");
+  }
+
+  if (input.validate) {
+    await runValidation(
+      ["diff", "--check", input.remoteHeadBefore, "HEAD"],
+      cwd,
+      "git diff --check origin/main..HEAD",
+      input.validations,
+      input.validationRunner
+    );
+    await runNodeScript(
+      "scripts/sync-state-sync-display.ts",
+      ["--check"],
+      cwd,
+      "node --import tsx scripts/sync-state-sync-display.ts --check",
+      input.validations,
+      input.validationRunner
+    );
+    await runNodeScript(
+      "scripts/verify-state-sync-reanchor-diff.ts",
+      ["--range", `refs/remotes/${input.remote}/main..HEAD`],
+      cwd,
+      `node --import tsx scripts/verify-state-sync-reanchor-diff.ts --range ${input.remote}/main..HEAD`,
+      input.validations,
+      input.validationRunner
+    );
+  }
+
+  if (input.beforePush !== undefined) {
+    await input.beforePush();
+  }
+  await fetchRemoteMain(cwd, input.remote);
+  const remoteHeadAtPush = await remoteMainHead(cwd, input.remote);
+  if (remoteHeadAtPush !== input.remoteHeadBefore) {
+    throw new Error("state_sync_main_reanchor_origin_main_moved");
+  }
+  const divergenceAtPush = await gitTrim(
+    [
+      "rev-list",
+      "--left-right",
+      "--count",
+      `HEAD...refs/remotes/${input.remote}/main`
+    ],
+    cwd
+  );
+  if (divergenceAtPush !== "1\t0") {
+    throw new Error(`state_sync_main_reanchor_unexpected_divergence:${divergenceAtPush}`);
+  }
+
+  await git(["push", input.remote, "HEAD:main"], cwd);
+  await fetchRemoteMain(cwd, input.remote);
+  if (input.validate) {
+    await runNodeScript(
+      "scripts/run-state-sync-audit.ts",
+      ["--json"],
+      cwd,
+      "node --import tsx scripts/run-state-sync-audit.ts --json after push",
+      input.validations,
+      input.validationRunner
+    );
+  }
+
+  return {
+    mode: "push",
+    reanchorNeeded: true,
+    branch: input.branch,
+    baseHead: input.baseHead,
+    remoteHeadBefore: input.remoteHeadBefore,
+    committedHead: input.baseHead,
+    pushedHead: await remoteMainHead(cwd, input.remote),
+    changedPaths: rangeVerification.changedPaths,
+    validations: input.validations
   };
 }
 

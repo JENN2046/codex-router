@@ -230,6 +230,58 @@ test("state-sync main reanchor runner commits and pushes a bounded reanchor", as
   assert.ok(result.changedPaths.includes("docs/current/state-sync-record.json"));
 });
 
+test("state-sync main reanchor runner resumes a commit-only reanchor push", async () => {
+  const fixture = await createSquashMainReanchorFixture();
+
+  const commitResult = await runStateSyncMainReanchor(fixture.cwd, {
+    commit: true,
+    validate: false
+  });
+  const divergenceBeforePush = await git(
+    fixture.cwd,
+    ["rev-list", "--left-right", "--count", "HEAD...refs/remotes/origin/main"]
+  );
+
+  const pushResult = await runStateSyncMainReanchor(fixture.cwd, {
+    push: true,
+    validate: false
+  });
+  const remoteHead = await git(fixture.cwd, ["rev-parse", "refs/remotes/origin/main"]);
+  const claim = JSON.parse(await readFile(
+    join(fixture.cwd, "docs", "current", "state-sync-record.json"),
+    "utf8"
+  ));
+
+  assert.equal(commitResult.mode, "commit");
+  assert.equal(divergenceBeforePush.trim(), "1\t0");
+  assert.equal(pushResult.mode, "push");
+  assert.equal(pushResult.committedHead, commitResult.committedHead);
+  assert.equal(pushResult.pushedHead, remoteHead.trim());
+  assert.equal(claim.subject.branch, "main");
+  assert.equal(claim.transition.kind, "state_only_pushed");
+  assert.deepEqual(pushResult.changedPaths.sort(), strictStateRecordPaths().sort());
+});
+
+test("state-sync main reanchor runner blocks contaminated commit-only resumes", async () => {
+  const fixture = await createSquashMainReanchorFixture();
+
+  await runStateSyncMainReanchor(fixture.cwd, {
+    commit: true,
+    validate: false
+  });
+  await writeFile(join(fixture.cwd, "packages", "extra.txt"), "non-state\n", "utf8");
+  await git(fixture.cwd, ["add", "packages/extra.txt"]);
+  await git(fixture.cwd, ["commit", "--amend", "--no-edit"]);
+
+  await assert.rejects(
+    () => runStateSyncMainReanchor(fixture.cwd, {
+      push: true,
+      validate: false
+    }),
+    /state_sync_main_reanchor_resume_diff_verification_failed/
+  );
+});
+
 test("state-sync main reanchor runner delays state-sync audit until after push", async () => {
   const fixture = await createSquashMainReanchorFixture();
   const validationLabels: string[] = [];

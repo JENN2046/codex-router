@@ -40,7 +40,7 @@ export const STATE_SYNC_REANCHOR_STALE_PHRASES = [
 
 export interface StateSyncReanchorDiffVerificationResult {
   status: "passed" | "blocked";
-  mode: "worktree" | "cached";
+  mode: "worktree" | "cached" | "range";
   changedPaths: string[];
   disallowedPaths: string[];
   stalePhraseHits: Array<{
@@ -54,6 +54,23 @@ export async function verifyStateSyncReanchorDiff(
   mode: "worktree" | "cached" = "worktree"
 ): Promise<StateSyncReanchorDiffVerificationResult> {
   const changedPaths = await changedPathsForMode(cwd, mode);
+  return verifyStateSyncReanchorPaths(cwd, mode, changedPaths);
+}
+
+export async function verifyStateSyncReanchorRange(
+  cwd: string,
+  baseRef: string,
+  headRef = "HEAD"
+): Promise<StateSyncReanchorDiffVerificationResult> {
+  const changedPaths = await changedPathsForRange(cwd, baseRef, headRef);
+  return verifyStateSyncReanchorPaths(cwd, "range", changedPaths);
+}
+
+async function verifyStateSyncReanchorPaths(
+  cwd: string,
+  mode: StateSyncReanchorDiffVerificationResult["mode"],
+  changedPaths: string[]
+): Promise<StateSyncReanchorDiffVerificationResult> {
   const disallowedPaths = changedPaths.filter(
     (filePath) => !STATE_SYNC_REANCHOR_ALLOWED_PATH_SET.has(filePath)
   );
@@ -94,6 +111,15 @@ async function changedPathsForMode(
   ]);
 }
 
+async function changedPathsForRange(
+  cwd: string,
+  baseRef: string,
+  headRef: string
+): Promise<string[]> {
+  const output = await git(["diff", "--name-only", baseRef, headRef], cwd);
+  return output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
 async function collectStalePhraseHits(cwd: string): Promise<Array<{
   path: string;
   phrase: string;
@@ -128,11 +154,36 @@ function modeFromArgs(args: string[]): "worktree" | "cached" {
   return args.includes("--cached") ? "cached" : "worktree";
 }
 
+function rangeRefsFromArgs(args: string[]): [string, string] {
+  const index = args.indexOf("--range");
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error("Missing value for --range");
+  }
+
+  const separator = value.indexOf("..");
+  if (separator >= 0) {
+    const baseRef = value.slice(0, separator);
+    const headRef = value.slice(separator + 2);
+    if (baseRef === "" || headRef === "") {
+      throw new Error("Invalid --range value");
+    }
+    return [baseRef, headRef];
+  }
+
+  const headRef = args[index + 2];
+  if (headRef !== undefined && !headRef.startsWith("--")) {
+    return [value, headRef];
+  }
+
+  return [value, "HEAD"];
+}
+
 async function main(): Promise<void> {
-  const result = await verifyStateSyncReanchorDiff(
-    process.cwd(),
-    modeFromArgs(process.argv.slice(2))
-  );
+  const args = process.argv.slice(2);
+  const result = args.includes("--range")
+    ? await verifyStateSyncReanchorRange(process.cwd(), ...rangeRefsFromArgs(args))
+    : await verifyStateSyncReanchorDiff(process.cwd(), modeFromArgs(args));
   console.log(JSON.stringify(result, null, 2));
   if (result.status !== "passed") {
     process.exitCode = 1;
