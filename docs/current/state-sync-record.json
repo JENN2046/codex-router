@@ -2,26 +2,26 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "codex/state-sync-markdown-checklist-prune",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "a06ec13",
-    "latestValidatedCommit": "a06ec13",
+    "validatedSourceCommit": "919aaa6",
+    "latestValidatedCommit": "919aaa6",
     "recordedDivergence": {
-      "ahead": 1,
+      "ahead": 9,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "5d724fe710d20241b3e9920544d2f7f76265cbe6784a35e7987d0a068b1f7a80",
+      "value": "e41d28ec91340c6967dc6b74483ee937b438fdaac038fcd3efe82cac319abc61",
       "excludedPaths": [
         "docs/current/state-sync-record.json"
       ]
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]

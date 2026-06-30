@@ -354,6 +354,7 @@ observation.upstream == ""
 observation.currentDivergence is unknown
 observation.validatedSourceDivergence is unknown
 worktree is clean
+claim.source.validatedSourceCommit resolves to the observed HEAD object
 claim.source.validatedSourceCommit == claim.source.latestValidatedCommit
 claim explicitly marks detached review compatibility through transition.kind
 no validated source evidence shows the source anchor is unreachable
@@ -411,7 +412,7 @@ but their role changes:
 - they may display facts derived from `StateSyncClaim`;
 - they may record validation summaries and handoff notes;
 - they are checked for secret or machine-path leakage;
-- they are checked for obvious stale phrases;
+- optional freshness tools may flag obvious stale phrases;
 - conflicts between Markdown and `StateSyncClaim` are display drift, not
   branch-head audit authority.
 
@@ -429,6 +430,13 @@ Display drift contract:
 - `scripts/sync-state-sync-display.ts --check` may report optional display
   freshness through `changedPaths`, `authority: "display_only"`, and
   `requiredForAudit: false`.
+- Markdown checklist fields such as `CURRENT_STATE_RECORDED`, validation
+  command lists, boundary marker lists, stale phrase scans, and state-mode rows
+  are not state-sync audit gates. Legacy check fields may remain in the JSON
+  result only as compatibility placeholders.
+- Detached review checkout compatibility is also declared by structured
+  `transition.kind: "detached_review_checkout"`, not by Markdown state-mode
+  rows.
 - Free-form Markdown prose and handoff notes remain evidence/display surfaces;
   they do not become governance authority unless represented by a structured
   check.
@@ -702,8 +710,6 @@ Checks should include:
 - required files exist;
 - no secret markers;
 - no machine-local absolute paths;
-- no known stale phase phrases such as `no push yet`, `not committed yet`, or
-  `in progress` after a pushed state;
 - current structured claim/source anchors are valid and reachable through JSON
   claim semantics.
 
@@ -906,5 +912,8 @@ state/docs through the existing state-only process.
   structured claim remains authoritative; conflicting display fields are
   optional operator-facing freshness signals rather than branch-head audit
   blockers.
+- Markdown checklist blocking has been retired. `CURRENT_STATE_RECORDED`,
+  validation command lists, execution boundary marker lists, state-mode rows,
+  and stale phrase scans no longer decide state-sync PASS/BLOCK.
 - Unknown structured claim fields fail closed in schema v1. They are not warning
   fields and are not ignored.

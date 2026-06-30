@@ -54,8 +54,8 @@ test("state sync audit passes when clean HEAD matches a structured source claim"
   assert.equal(review.checks.staleMarkersAbsent, true);
   assert.equal(review.checks.structuredClaimValid, true);
   assert.equal(review.checks.evidenceDriftAbsent, true);
-  assert.equal(review.summary.requiredValidationCommandCount, 4);
-  assert.equal(review.summary.requiredBoundaryMarkerCount, 7);
+  assert.equal(review.summary.requiredValidationCommandCount, 0);
+  assert.equal(review.summary.requiredBoundaryMarkerCount, 0);
   assert.equal(review.summary.stateWritesDuringAudit, 0);
   assert.equal(review.summary.remoteWritesDuringAudit, 0);
 });
@@ -95,6 +95,36 @@ test("state sync audit ignores stale Markdown and agent board display mirrors", 
   assert.equal(review.checks.agentBoardAligned, true);
   assert.equal(review.checks.evidenceDriftAbsent, true);
   assert.deepEqual(review.issues, []);
+});
+
+test("state sync audit ignores Markdown checklist and display-state fields", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText
+      .replace("CURRENT_STATE_RECORDED", "")
+      .replace(/\| Stale after commit \| `[^`]+` \|\n/, "")
+      .replaceAll("`npx tsx --test tests\\codex-cli-host.test.ts`", "`retired-validation`")
+      .replaceAll("`npm run typecheck`", "`retired-typecheck`")
+      .replaceAll("`npm test`", "`retired-test`")
+      .replaceAll("`npm run build`", "`retired-build`")
+      .replaceAll("`general_provider_execution`", "`retired-provider-boundary`")
+      .replaceAll("`general_workspace_write`", "`retired-workspace-boundary`")
+      .replaceAll("`protected_remote_write`", "`retired-remote-boundary`")
+      .replaceAll("`push_to_main`", "`retired-push-boundary`")
+      .replaceAll("`release_tag_deploy`", "`retired-release-boundary`")
+      .replaceAll("`secret_or_credential_change`", "`retired-secret-boundary`")
+      .replaceAll("`external_service_write`", "`retired-external-boundary`")
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.currentStateRecorded, true);
+  assert.equal(review.checks.staleAfterCommitRecorded, true);
+  assert.equal(review.checks.validationBaselineRecorded, true);
+  assert.equal(review.checks.executionBoundaryRecorded, true);
+  assert.equal(review.summary.requiredValidationCommandCount, 0);
+  assert.equal(review.summary.requiredBoundaryMarkerCount, 0);
 });
 
 test("state sync audit blocks structured claims with stale subject branch", async () => {
@@ -689,10 +719,11 @@ test("state sync audit blocks unreachable synthetic anchors with validated sourc
   }));
 
   assert.equal(review.status, "blocked");
-  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
   assert.equal(review.checks.validatedSourceHeadRecorded, false);
   assert.equal(review.checks.validatedSourceCommitRecorded, false);
   assert.equal(review.checks.latestValidatedCommitRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
   assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
@@ -716,6 +747,7 @@ test("state sync audit blocks synthetic anchors when validated source paths are 
 test("state sync audit accepts structured detached review checkout without validated source evidence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
+    head: input.head,
     ...withStateSyncClaim(input, {
       upstream: "",
       transitionKind: "detached_review_checkout"
@@ -728,6 +760,89 @@ test("state sync audit accepts structured detached review checkout without valid
   assert.equal(review.checks.validatedSourceCommitRecorded, true);
   assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
+});
+
+test("state sync audit accepts detached review claims with full source commit IDs", async () => {
+  const input = await createInputFromWorkspace();
+  const observedHead = (await git(process.cwd(), ["rev-parse", "--short", "HEAD"])).trim();
+  const fullObservedHead = (await git(process.cwd(), ["rev-parse", "HEAD"])).trim();
+  const observedInput = {
+    ...input,
+    head: observedHead,
+    headFull: fullObservedHead,
+    parentHead: observedHead
+  };
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(observedInput, {
+    head: observedHead,
+    headFull: fullObservedHead,
+    parentHead: observedHead,
+    ...withStateSyncClaim(observedInput, {
+      upstream: "",
+      validatedSourceCommit: fullObservedHead,
+      latestValidatedCommit: fullObservedHead,
+      transitionKind: "detached_review_checkout"
+    })
+  }));
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.structuredTransitionAllowed, true);
+});
+
+test("state sync audit blocks forged full detached claim IDs sharing the observed short prefix", async () => {
+  const input = await createInputFromWorkspace();
+  const observedHead = (await git(process.cwd(), ["rev-parse", "--short", "HEAD"])).trim();
+  const fullObservedHead = (await git(process.cwd(), ["rev-parse", "HEAD"])).trim();
+  const zeroPaddedCommit = `${observedHead}${"0".repeat(40 - observedHead.length)}`;
+  const forgedCommit = zeroPaddedCommit === fullObservedHead
+    ? `${observedHead}${"1".repeat(40 - observedHead.length)}`
+    : zeroPaddedCommit;
+  const observedInput = {
+    ...input,
+    head: observedHead,
+    headFull: fullObservedHead,
+    parentHead: observedHead
+  };
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(observedInput, {
+    head: observedHead,
+    headFull: fullObservedHead,
+    parentHead: observedHead,
+    validatedSourceCommitAvailable: false,
+    headSourceTreeDigest: TEST_SOURCE_TREE_DIGEST,
+    ...withStateSyncClaim(observedInput, {
+      upstream: "",
+      validatedSourceCommit: forgedCommit,
+      latestValidatedCommit: forgedCommit,
+      transitionKind: "detached_review_checkout"
+    })
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks detached review claims that do not match observed head", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
+    head: "8a5c580",
+    validatedSourceCommitAvailable: false,
+    headSourceTreeDigest: TEST_SOURCE_TREE_DIGEST,
+    validatedSourceAheadBehind: "unknown\tunknown",
+    ...withStateSyncClaim(input, {
+      upstream: "",
+      transitionKind: "detached_review_checkout"
+    })
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
 });
 
 test("state sync audit still accepts valid state-only descendants after synthetic hardening", async () => {
@@ -751,13 +866,13 @@ test("state sync audit still accepts valid state-only descendants after syntheti
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
 });
 
-test("state sync audit accepts clean detached PR checkouts when explicitly allowed", async () => {
+test("state sync audit accepts clean detached PR checkouts through structured transition", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
     gitStatusShort: "",
     branch: "",
-    head: "8a5c580",
+    head: input.head,
     allowedStateCommits: [input.head],
     upstream: "",
     aheadBehind: "unknown\tunknown",
@@ -772,7 +887,13 @@ test("state sync audit accepts clean detached PR checkouts when explicitly allow
     ...withStateSyncClaim(input, {
       upstream: "",
       transitionKind: "detached_review_checkout"
+    }),
+    currentStateText: withCurrentStateMirrors(input.currentStateText, input, {
+      upstream: "",
+      transitionKind: "detached_review_checkout"
     })
+      .replace(/\| Stale after commit \| `[^`]+` \|\n/, "")
+      .replace(/\| Synthetic review checkout \| `allowed` \|\n/, "")
   });
 
   assert.equal(review.status, "passed");
@@ -783,7 +904,7 @@ test("state sync audit accepts clean detached PR checkouts when explicitly allow
   assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
 });
 
-test("state sync audit blocks detached PR checkouts without explicit state marker", async () => {
+test("state sync audit blocks detached PR checkouts without detached review transition", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -798,10 +919,10 @@ test("state sync audit blocks detached PR checkouts without explicit state marke
     committedPathsSinceValidatedSource: [
       "packages/state-sync-audit/src/index.ts"
     ],
-    currentStateText: input.currentStateText.replace(
-      /\| Synthetic review checkout \| `allowed` \|\n/,
-      ""
-    )
+    ...withStateSyncClaim(input, {
+      upstream: "",
+      transitionKind: "state_only_pending_push"
+    })
   });
 
   assert.equal(review.status, "blocked");
@@ -1244,7 +1365,7 @@ test("state sync audit blocks malformed recorded upstream divergence", async () 
   assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
-test("state sync audit blocks stale agent board facts", async () => {
+test("state sync audit ignores obsolete stale agent board checklist markers", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -1254,8 +1375,10 @@ test("state sync audit blocks stale agent board facts", async () => {
     ].join("\n")
   });
 
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_staleMarkersAbsent"));
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.staleMarkersAbsent, true);
+  assert.equal(review.summary.staleMarkerHitCount, 0);
 });
 
 test("state sync audit ignores stale agent board commit facts", async () => {
@@ -1273,7 +1396,7 @@ test("state sync audit ignores stale agent board commit facts", async () => {
   assert.equal(review.checks.agentBoardAligned, true);
 });
 
-test("state sync audit blocks missing script and boundary markers", async () => {
+test("state sync audit blocks missing governance script but ignores boundary checklist markers", async () => {
   const input = await createInputFromWorkspace();
   const packageJson = JSON.parse(input.packageJsonText) as {
     scripts: Record<string, string>;
@@ -1290,7 +1413,8 @@ test("state sync audit blocks missing script and boundary markers", async () => 
 
   assert.equal(review.status, "blocked");
   assert.ok(review.reasons.includes("state_sync_packageScriptPresent"));
-  assert.ok(review.reasons.includes("state_sync_executionBoundaryRecorded"));
+  assert.equal(review.checks.executionBoundaryRecorded, true);
+  assert.ok(!review.reasons.includes("state_sync_executionBoundaryRecorded"));
 });
 
 test("state sync audit output stays summarized", async () => {
@@ -1540,6 +1664,8 @@ test("state sync audit accepts structured detached branch-head checkouts", async
   const review = reviewStateSyncAudit(input);
 
   assert.equal(input.branch, "");
+  assert.match(input.headFull ?? "", /^[0-9a-f]{40}$/);
+  assert.equal(input.headFull?.startsWith(input.head), true);
   assert.equal(input.upstream, "refs/remotes/origin/main");
   assert.equal(input.aheadBehind, "2\t0");
   assert.equal(input.validatedSourceAheadBehind, "1\t0");
