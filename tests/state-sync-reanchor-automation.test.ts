@@ -126,6 +126,25 @@ test("state-sync reanchor range verifier blocks rename sources", async () => {
   assert.ok(result.disallowedPaths.includes("packages/source.ts"));
 });
 
+test("state-sync reanchor range verifier preserves padded path names", async () => {
+  const cwd = await createGitFixture();
+  const baseRef = (await git(cwd, ["rev-parse", "HEAD"])).trim();
+
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md "),
+    "padded path\n",
+    "utf8"
+  );
+  await git(cwd, ["add", "docs/current/CURRENT_STATE.md "]);
+  await git(cwd, ["commit", "-m", "docs(state): padded path"]);
+
+  const result = await verifyStateSyncReanchorRange(cwd, baseRef, "HEAD");
+
+  assert.equal(result.status, "blocked");
+  assert.ok(result.changedPaths.includes("docs/current/CURRENT_STATE.md "));
+  assert.ok(result.disallowedPaths.includes("docs/current/CURRENT_STATE.md "));
+});
+
 test("state-sync reanchor PR body records validation and boundaries", () => {
   const body = stateSyncReanchorPrBody({
     triggeringSha: "abc1234",
@@ -296,6 +315,36 @@ test("state-sync main reanchor runner resumes a commit-only reanchor push", asyn
   assert.equal(claim.subject.branch, "main");
   assert.equal(claim.transition.kind, "state_only_pushed");
   assert.deepEqual(pushResult.changedPaths.sort(), strictStateRecordPaths().sort());
+});
+
+test("state-sync main reanchor runner resumes explicit-source reanchor pushes", async () => {
+  const fixture = await createStateOnlyAncestorMainReanchorFixture();
+
+  const commitResult = await runStateSyncMainReanchor(fixture.cwd, {
+    commit: true,
+    source: fixture.sourceCommit,
+    validate: false
+  });
+
+  const pushResult = await runStateSyncMainReanchor(fixture.cwd, {
+    push: true,
+    source: fixture.sourceCommit,
+    validate: false
+  });
+  const remoteHead = await git(fixture.cwd, ["rev-parse", "refs/remotes/origin/main"]);
+  const claim = JSON.parse(await readFile(
+    join(fixture.cwd, "docs", "current", "state-sync-record.json"),
+    "utf8"
+  ));
+
+  assert.equal(commitResult.mode, "commit");
+  assert.equal(pushResult.mode, "push");
+  assert.equal(pushResult.committedHead, commitResult.committedHead);
+  assert.equal(pushResult.pushedHead, remoteHead.trim());
+  assert.equal(claim.subject.branch, "main");
+  assert.equal(claim.transition.kind, "state_only_pushed");
+  assert.equal(claim.source.validatedSourceCommit, fixture.sourceCommit);
+  assert.deepEqual(claim.source.recordedDivergence, { ahead: 2, behind: 0 });
 });
 
 test("state-sync main reanchor runner blocks contaminated commit-only resumes", async () => {
@@ -526,6 +575,42 @@ async function createSquashMainReanchorFixture(): Promise<{
   return {
     ...fixture,
     squashCommit
+  };
+}
+
+async function createStateOnlyAncestorMainReanchorFixture(): Promise<{
+  cwd: string;
+  remote: string;
+  sourceCommit: string;
+}> {
+  const fixture = await createRepoWithBareOrigin("state-sync-main-reanchor-source-");
+  await writeSource(fixture.cwd, "source\n");
+  await git(fixture.cwd, ["add", "packages/example.txt"]);
+  await git(fixture.cwd, ["commit", "-m", "feat: source"]);
+  const sourceCommit = await shortHead(fixture.cwd);
+  const sourceDigest = await gitFilteredTreeDigest(
+    "HEAD",
+    strictStateRecordPaths(),
+    fixture.cwd
+  );
+  assert.ok(sourceDigest);
+  await git(fixture.cwd, ["push", "-u", "origin", "main"]);
+
+  await writeStateSurfaces(fixture.cwd, {
+    branch: "feature/reanchor",
+    sourceCommit,
+    sourceDigest,
+    recordedAhead: 1,
+    transitionKind: "state_only_pending_push"
+  });
+  await git(fixture.cwd, ["add", "."]);
+  await git(fixture.cwd, ["commit", "-m", "docs(state): record pending state"]);
+  await git(fixture.cwd, ["push", "origin", "main"]);
+  await git(fixture.cwd, ["fetch", "origin", "main"]);
+
+  return {
+    ...fixture,
+    sourceCommit
   };
 }
 

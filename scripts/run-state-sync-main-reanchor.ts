@@ -84,6 +84,7 @@ export async function runStateSyncMainReanchor(
         remoteHeadBefore,
         validate,
         validations,
+        ...(options.source === undefined ? {} : { source: options.source }),
         ...(options.validationRunner === undefined
           ? {}
           : { validationRunner: options.validationRunner }),
@@ -241,6 +242,7 @@ async function resumeCommittedMainReanchor(
     remoteHeadBefore: string;
     validate: boolean;
     validations: string[];
+    source?: string;
     validationRunner?: (command: RunStateSyncMainReanchorValidationCommand) => Promise<void>;
     beforePush?: () => Promise<void>;
   }
@@ -297,7 +299,8 @@ async function resumeCommittedMainReanchor(
   const expectedReanchor = await buildStateSyncReanchorClaim(cwd, {
     claim: parentClaim,
     branch: "main",
-    targetRef: input.remoteHeadBefore
+    targetRef: input.remoteHeadBefore,
+    ...(input.source === undefined ? {} : { source: input.source })
   });
   if (!isDeepStrictEqual(headClaim, expectedReanchor.claim)) {
     throw new Error("state_sync_main_reanchor_resume_claim_mismatch");

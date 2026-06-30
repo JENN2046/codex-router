@@ -145,7 +145,7 @@ function pathsFromNameStatusZ(output: string): string[] {
 }
 
 function pathsFromNulOutput(output: string): string[] {
-  return output.split("\0").map((line) => line.trim()).filter(Boolean);
+  return output.split("\0").filter((field) => field !== "");
 }
 
 async function collectStalePhraseHits(cwd: string): Promise<Array<{
