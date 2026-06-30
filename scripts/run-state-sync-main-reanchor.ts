@@ -132,14 +132,6 @@ export async function runStateSyncMainReanchor(
       validations,
       options.validationRunner
     );
-    await runNodeScript(
-      "scripts/sync-state-sync-display.ts",
-      ["--check"],
-      cwd,
-      "node --import tsx scripts/sync-state-sync-display.ts --check",
-      validations,
-      options.validationRunner
-    );
     const diffVerification = await verifyStateSyncReanchorDiff(cwd);
     if (diffVerification.status !== "passed") {
       throw new Error("state_sync_main_reanchor_diff_verification_failed");
@@ -311,14 +303,6 @@ async function resumeCommittedMainReanchor(
       ["diff", "--check", input.remoteHeadBefore, "HEAD"],
       cwd,
       "git diff --check origin/main..HEAD",
-      input.validations,
-      input.validationRunner
-    );
-    await runNodeScript(
-      "scripts/sync-state-sync-display.ts",
-      ["--check"],
-      cwd,
-      "node --import tsx scripts/sync-state-sync-display.ts --check",
       input.validations,
       input.validationRunner
     );

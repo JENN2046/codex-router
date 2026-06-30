@@ -30,7 +30,7 @@ test("state-sync reanchor helper infers a new source commit without writing by d
   assert.equal(await readRecord(repo.cwd), originalRecord);
 });
 
-test("state-sync reanchor helper writes the record and generated displays", async () => {
+test("state-sync reanchor helper writes only the structured record", async () => {
   const repo = await createReanchorFixture();
   await writeSource(repo.cwd, "new source content\n");
   await git(repo.cwd, ["add", "packages/example.txt"]);
@@ -47,8 +47,7 @@ test("state-sync reanchor helper writes the record and generated displays", asyn
   assert.equal(result.mode, "write");
   assert.equal(result.validatedSourceCommit, newSource);
   assert.equal(result.sourceTreeDigest, expectedDigest);
-  assert.ok(result.changedPaths.includes("docs/current/state-sync-record.json"));
-  assert.ok(result.changedPaths.includes("docs/current/CURRENT_STATE.md"));
+  assert.deepEqual(result.changedPaths, ["docs/current/state-sync-record.json"]);
 
   const claim = JSON.parse(await readRecord(repo.cwd));
   assert.equal(claim.subject.branch, "main");
@@ -63,9 +62,7 @@ test("state-sync reanchor helper writes the record and generated displays", asyn
     join(repo.cwd, "docs", "current", "CURRENT_STATE.md"),
     "utf8"
   );
-  assert.match(currentState, new RegExp(`\\| Current head \\| \`${newSource}\` \\|`));
-  assert.match(currentState, /\| Upstream divergence \| `ahead 1 \/ behind 0` \|/);
-  assert.match(currentState, /source divergence as `ahead 0 \/ behind 1`/);
+  assert.doesNotMatch(currentState, new RegExp(`\\| Current head \\| \`${newSource}\` \\|`));
 });
 
 test("state-sync reanchor helper refuses to infer source from a state-only descendant", async () => {
@@ -140,8 +137,9 @@ async function createReanchorFixture(): Promise<{
   await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
   await git(cwd, ["config", "user.name", "State Sync Test"]);
 
+  await writeStableDisplaySurfaces(cwd);
   await writeSource(cwd, "initial source\n");
-  await git(cwd, ["add", "packages/example.txt"]);
+  await git(cwd, ["add", "."]);
   await git(cwd, ["commit", "-m", "feat: initial source"]);
   const sourceCommit = await shortHead(cwd);
   const sourceDigest = await gitFilteredTreeDigest(
@@ -173,8 +171,9 @@ async function createSquashMergeFixture(options: {
   await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
   await git(cwd, ["config", "user.name", "State Sync Test"]);
 
+  await writeStableDisplaySurfaces(cwd);
   await writeSource(cwd, "initial source\n");
-  await git(cwd, ["add", "packages/example.txt"]);
+  await git(cwd, ["add", "."]);
   await git(cwd, ["commit", "-m", "feat: initial source"]);
 
   await git(cwd, ["switch", "-c", "feature/reanchor"]);
@@ -218,6 +217,25 @@ async function writeSource(cwd: string, value: string): Promise<void> {
   await writeFile(join(cwd, "packages", "example.txt"), value, "utf8");
 }
 
+async function writeStableDisplaySurfaces(cwd: string): Promise<void> {
+  await mkdir(join(cwd, "docs", "current"), { recursive: true });
+  await mkdir(join(cwd, ".agent_board"), { recursive: true });
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    "# Current State\n\nCURRENT_STATE_RECORDED\n",
+    "utf8"
+  );
+  for (const filePath of [
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/TASK_QUEUE.md",
+    ".agent_board/VALIDATION_LOG.md"
+  ]) {
+    await writeFile(join(cwd, filePath), "# Agent Board\n", "utf8");
+  }
+}
+
 async function writeStateSurfaces(
   cwd: string,
   input: {
@@ -231,7 +249,6 @@ async function writeStateSurfaces(
   const branch = input.branch ?? "main";
   const transitionKind = input.transitionKind ?? "state_only_pushed";
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
-  await mkdir(join(cwd, ".agent_board"), { recursive: true });
   await writeFile(
     join(cwd, "docs", "current", "state-sync-record.json"),
     `${JSON.stringify({
@@ -272,24 +289,6 @@ async function writeStateSurfaces(
     }, null, 2)}\n`,
     "utf8"
   );
-  await writeFile(
-    join(cwd, "docs", "current", "CURRENT_STATE.md"),
-    currentState({ ...input, branch, transitionKind }),
-    "utf8"
-  );
-  for (const filePath of [
-    ".agent_board/CHECKPOINT.md",
-    ".agent_board/HANDOFF.md",
-    ".agent_board/RUN_STATE.md",
-    ".agent_board/TASK_QUEUE.md",
-    ".agent_board/VALIDATION_LOG.md"
-  ]) {
-    await writeFile(
-      join(cwd, filePath),
-      agentBoard({ ...input, branch, transitionKind }),
-      "utf8"
-    );
-  }
 }
 
 function currentState(input: {
@@ -395,13 +394,7 @@ function agentBoard(input: {
 
 function strictStateRecordPaths(): string[] {
   return [
-    "docs/current/CURRENT_STATE.md",
-    "docs/current/state-sync-record.json",
-    ".agent_board/CHECKPOINT.md",
-    ".agent_board/HANDOFF.md",
-    ".agent_board/RUN_STATE.md",
-    ".agent_board/TASK_QUEUE.md",
-    ".agent_board/VALIDATION_LOG.md"
+    "docs/current/state-sync-record.json"
   ];
 }
 

@@ -62,7 +62,7 @@ test("state-sync reanchor PR gate fails closed on invalid claims", async () => {
   );
 });
 
-test("state-sync reanchor diff verifier blocks disallowed files and stale prose", async () => {
+test("state-sync reanchor diff verifier blocks disallowed files and ignores stale prose", async () => {
   const cwd = await createGitFixture();
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
@@ -80,17 +80,18 @@ test("state-sync reanchor diff verifier blocks disallowed files and stale prose"
   const result = await verifyStateSyncReanchorDiff(cwd);
 
   assert.equal(result.status, "blocked");
-  assert.deepEqual(result.disallowedPaths, ["packages/source.ts"]);
-  assert.ok(result.stalePhraseHits.some((hit) =>
-    hit.path === ".agent_board/TASK_QUEUE.md"
-    && hit.phrase === "push the post-PR"
-  ));
+  assert.deepEqual(result.disallowedPaths, [
+    ".agent_board/TASK_QUEUE.md",
+    "docs/current/CURRENT_STATE.md",
+    "packages/source.ts"
+  ]);
+  assert.deepEqual(result.stalePhraseHits, []);
 });
 
-test("state-sync reanchor diff verifier accepts strict state/docs changes", async () => {
+test("state-sync reanchor diff verifier accepts structured record changes", async () => {
   const cwd = await createGitFixture();
   await writeFile(
-    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    join(cwd, "docs", "current", "state-sync-record.json"),
     "safe update\n",
     "utf8"
   );
@@ -98,7 +99,7 @@ test("state-sync reanchor diff verifier accepts strict state/docs changes", asyn
   const result = await verifyStateSyncReanchorDiff(cwd);
 
   assert.equal(result.status, "passed");
-  assert.deepEqual(result.changedPaths, ["docs/current/CURRENT_STATE.md"]);
+  assert.deepEqual(result.changedPaths, ["docs/current/state-sync-record.json"]);
   assert.deepEqual(result.disallowedPaths, []);
   assert.deepEqual(result.stalePhraseHits, []);
 });
@@ -403,7 +404,7 @@ test("state-sync main reanchor runner blocks note-only commit resumes", async ()
       push: true,
       validate: false
     }),
-    /state_sync_main_reanchor_resume_requires_reanchor_delta/
+    /state_sync_main_reanchor_resume_diff_verification_failed/
   );
 });
 
@@ -539,8 +540,9 @@ async function createSquashMainReanchorFixture(): Promise<{
   squashCommit: string;
 }> {
   const fixture = await createRepoWithBareOrigin("state-sync-main-reanchor-");
+  await writeStableDisplaySurfaces(fixture.cwd);
   await writeSource(fixture.cwd, "initial source\n");
-  await git(fixture.cwd, ["add", "packages/example.txt"]);
+  await git(fixture.cwd, ["add", "."]);
   await git(fixture.cwd, ["commit", "-m", "feat: initial"]);
   await git(fixture.cwd, ["push", "-u", "origin", "main"]);
 
@@ -584,8 +586,9 @@ async function createStateOnlyAncestorMainReanchorFixture(): Promise<{
   sourceCommit: string;
 }> {
   const fixture = await createRepoWithBareOrigin("state-sync-main-reanchor-source-");
+  await writeStableDisplaySurfaces(fixture.cwd);
   await writeSource(fixture.cwd, "source\n");
-  await git(fixture.cwd, ["add", "packages/example.txt"]);
+  await git(fixture.cwd, ["add", "."]);
   await git(fixture.cwd, ["commit", "-m", "feat: source"]);
   const sourceCommit = await shortHead(fixture.cwd);
   const sourceDigest = await gitFilteredTreeDigest(
@@ -646,6 +649,25 @@ async function writeSource(cwd: string, value: string): Promise<void> {
   await writeFile(join(cwd, "packages", "example.txt"), value, "utf8");
 }
 
+async function writeStableDisplaySurfaces(cwd: string): Promise<void> {
+  await mkdir(join(cwd, "docs", "current"), { recursive: true });
+  await mkdir(join(cwd, ".agent_board"), { recursive: true });
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    "# Current State\n\nCURRENT_STATE_RECORDED\n",
+    "utf8"
+  );
+  for (const filePath of [
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/TASK_QUEUE.md",
+    ".agent_board/VALIDATION_LOG.md"
+  ]) {
+    await writeFile(join(cwd, filePath), "# Agent Board\n", "utf8");
+  }
+}
+
 async function writeStateSurfaces(
   cwd: string,
   input: {
@@ -657,7 +679,6 @@ async function writeStateSurfaces(
   }
 ): Promise<void> {
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
-  await mkdir(join(cwd, ".agent_board"), { recursive: true });
   await writeFile(
     join(cwd, "docs", "current", "state-sync-record.json"),
     `${JSON.stringify({
@@ -694,20 +715,6 @@ async function writeStateSurfaces(
     }, null, 2)}\n`,
     "utf8"
   );
-  await writeFile(
-    join(cwd, "docs", "current", "CURRENT_STATE.md"),
-    displaySurface(input),
-    "utf8"
-  );
-  for (const filePath of [
-    ".agent_board/CHECKPOINT.md",
-    ".agent_board/HANDOFF.md",
-    ".agent_board/RUN_STATE.md",
-    ".agent_board/TASK_QUEUE.md",
-    ".agent_board/VALIDATION_LOG.md"
-  ]) {
-    await writeFile(join(cwd, filePath), displaySurface(input), "utf8");
-  }
 }
 
 function displaySurface(input: {
@@ -827,13 +834,7 @@ async function createGitFixture(): Promise<string> {
 
 function strictStateRecordPaths(): string[] {
   return [
-    "docs/current/CURRENT_STATE.md",
-    "docs/current/state-sync-record.json",
-    ".agent_board/CHECKPOINT.md",
-    ".agent_board/HANDOFF.md",
-    ".agent_board/RUN_STATE.md",
-    ".agent_board/TASK_QUEUE.md",
-    ".agent_board/VALIDATION_LOG.md"
+    "docs/current/state-sync-record.json"
   ];
 }
 
