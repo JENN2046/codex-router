@@ -26,9 +26,12 @@ export interface StateSyncDisplaySyncOptions {
 }
 
 export interface StateSyncDisplaySyncResult {
+  authority: "display_only";
+  authoritativeClaimPath: typeof STATE_SYNC_RECORD_DOC;
   checkedPaths: string[];
   changedPaths: string[];
   mode: "check" | "write";
+  requiredForAudit: false;
 }
 
 interface DisplayFields {
@@ -72,9 +75,12 @@ export async function syncStateSyncDisplay(
   }
 
   return {
+    authority: "display_only",
+    authoritativeClaimPath: STATE_SYNC_RECORD_DOC,
     checkedPaths,
     changedPaths,
-    mode: options.write === true ? "write" : "check"
+    mode: options.write === true ? "write" : "check",
+    requiredForAudit: false
   };
 }
 
@@ -361,8 +367,9 @@ function renderCurrentStateAuditStatus(display: DisplayFields): string {
     "",
     ...renderStateSyncStatusBullets(display),
     "- Generated display, Markdown mirrors, and `.agent_board/*` mirrors are",
-    "  evidence surfaces derived from `docs/current/state-sync-record.json`.",
-    "- Evidence drift remains blocking through `state_sync_evidenceDriftAbsent`.",
+    "  optional operator-facing views derived from `docs/current/state-sync-record.json`.",
+    "- Display drift is informational; branch-head audit reads the structured",
+    "  record directly and does not require display sync.",
     ""
   ].join("\n");
 }
@@ -412,7 +419,7 @@ function upsertGeneratedDisplayBlock(
 function renderGeneratedDisplayBlock(display: DisplayFields): string {
   return [
     DISPLAY_START,
-    "Generated from `docs/current/state-sync-record.json`.",
+    "Optional display generated from `docs/current/state-sync-record.json`.",
     "",
     `- branch: \`${display.branch}\``,
     `- upstream: \`${display.upstream}\``,

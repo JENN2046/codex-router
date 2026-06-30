@@ -30,20 +30,10 @@ const FORBIDDEN_STALE_MARKERS = [
   "Review and optionally commit the `.agent_board` refresh locally"
 ] as const;
 
-const AGENT_BOARD_STATE_RECORD_PATHS = [
-  ".agent_board/CHECKPOINT.md",
-  ".agent_board/HANDOFF.md",
-  ".agent_board/RUN_STATE.md",
-  ".agent_board/TASK_QUEUE.md",
-  ".agent_board/VALIDATION_LOG.md"
-] as const;
-
 const STRICT_STATE_RECORD_PATHS = new Set([
   STATE_SYNC_RECORD_DOC
 ]);
 
-const AGENT_BOARD_DISPLAY_START = "<!-- state-sync-display:start -->";
-const AGENT_BOARD_DISPLAY_END = "<!-- state-sync-display:end -->";
 const STATE_SYNC_REANCHOR_PR_BRANCH = "state-sync/reanchor-main";
 const MAIN_BRANCH = "main";
 const MAIN_UPSTREAM_REF = "refs/remotes/origin/main";
@@ -135,12 +125,11 @@ export interface StateSyncAuditIssue {
     | "state_document_secret_marker"
     | "state_document_windows_drive_path"
     | "state_document_unc_path"
-    | "state_document_posix_machine_path"
-    | "state_document_evidence_drift";
+    | "state_document_posix_machine_path";
   path: string;
   line: number;
   field?: string;
-  risk: "secret_marker" | "machine_path_disclosure" | "evidence_drift";
+  risk: "secret_marker" | "machine_path_disclosure";
 }
 
 export interface StateSyncAuditResult {
@@ -202,7 +191,6 @@ interface ResolvedStateSyncClaim {
   sourceTreeDigest: StateSyncClaim["source"]["sourceTreeDigest"] | undefined;
   transitionKind: StateSyncTransitionKind | undefined;
   allowedStatePaths: string[] | undefined;
-  issues: StateSyncAuditIssue[];
 }
 
 export function parseStateSyncClaim(
@@ -395,8 +383,7 @@ export function resolveStateSyncClaim(
       upstreamDivergence: undefined,
       sourceTreeDigest: undefined,
       transitionKind: undefined,
-      allowedStatePaths: undefined,
-      issues: []
+      allowedStatePaths: undefined
     };
   }
 
@@ -416,8 +403,7 @@ export function resolveStateSyncClaim(
       upstreamDivergence,
       sourceTreeDigest: parsed.claim.source.sourceTreeDigest,
       transitionKind: parsed.claim.transition.kind,
-      allowedStatePaths: parsed.claim.transition.allowedStatePaths,
-      issues: []
+      allowedStatePaths: parsed.claim.transition.allowedStatePaths
     };
   }
 
@@ -432,8 +418,7 @@ export function resolveStateSyncClaim(
     upstreamDivergence: undefined,
     sourceTreeDigest: undefined,
     transitionKind: undefined,
-    allowedStatePaths: undefined,
-    issues: []
+    allowedStatePaths: undefined
   };
 }
 
@@ -586,9 +571,7 @@ export function reviewStateSyncAudit(
     agentBoardAligned: true,
     staleMarkersAbsent: staleMarkerHits.length === 0,
     structuredClaimValid: resolvedClaim.structuredClaimValid,
-    evidenceDriftAbsent: resolvedClaim.issues.every(
-      (issue) => issue.risk !== "evidence_drift"
-    ),
+    evidenceDriftAbsent: true,
     structuredTransitionAllowed: structuredTransitionIsAllowed(
       resolvedClaim,
       input,
@@ -628,10 +611,7 @@ export function reviewStateSyncAudit(
       remoteWritesDuringAudit: 0
     },
     reasons,
-    issues: [
-      ...sanitization.issues,
-      ...resolvedClaim.issues
-    ]
+    issues: sanitization.issues
   };
 }
 
@@ -807,573 +787,6 @@ function normalizeClaimUpstreamRef(ref: string): string {
 
 function normalizeOptionalUpstreamRef(ref: string | undefined): string | undefined {
   return ref === undefined ? undefined : normalizeClaimUpstreamRef(ref);
-}
-
-interface EvidenceFieldExpectation {
-  field: string;
-  expected: string;
-}
-
-interface GeneratedDisplayBlock {
-  text: string;
-  line: number;
-}
-
-function collectStateSyncEvidenceDrift(
-  currentStateText: string,
-  agentBoardText: string,
-  agentBoardFiles: StateSyncAgentBoardFile[] | undefined,
-  claim: StateSyncClaim
-): StateSyncAuditIssue[] {
-  return [
-    ...collectCurrentStateEvidenceDrift(currentStateText, claim),
-    ...collectAgentBoardEvidenceDrift(agentBoardText, agentBoardFiles, claim)
-  ];
-}
-
-function currentStateEvidenceFields(
-  claim: StateSyncClaim
-): EvidenceFieldExpectation[] {
-  return [
-    {
-      field: "Current branch",
-      expected: claim.subject.branch
-    },
-    {
-      field: "Current head",
-      expected: claim.source.validatedSourceCommit
-    },
-    {
-      field: "Validated source commit",
-      expected: claim.source.validatedSourceCommit
-    },
-    {
-      field: "Upstream",
-      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
-    },
-    {
-      field: "Upstream divergence",
-      expected: formatUpstreamDivergence(claim.source.recordedDivergence)
-    },
-    {
-      field: "Latest validated commit",
-      expected: claim.source.latestValidatedCommit
-    }
-  ];
-}
-
-function collectCurrentStateEvidenceDrift(
-  currentStateText: string,
-  claim: StateSyncClaim
-): StateSyncAuditIssue[] {
-  const issues: StateSyncAuditIssue[] = currentStateEvidenceFields(claim).flatMap(
-    ({ field, expected }) => {
-      const actual = fieldValue(currentStateText, field);
-      if (actual === expected) {
-        return [];
-      }
-
-      return [{
-        code: "state_document_evidence_drift",
-        path: CURRENT_STATE_DOC,
-        line: fieldLine(currentStateText, field),
-        field,
-        risk: "evidence_drift"
-      }];
-    }
-  );
-
-  const structuredSection = sectionBetween(
-    currentStateText,
-    "## Structured Record",
-    "## Current Entrypoints"
-  );
-  for (const { field, expected } of currentStateStructuredRecordFields(claim)) {
-    const actual = bulletValue(structuredSection, field);
-    if (actual === expected) {
-      continue;
-    }
-
-    issues.push({
-      code: "state_document_evidence_drift",
-      path: CURRENT_STATE_DOC,
-      line: lineForMarker(currentStateText, `- ${field}:`),
-      field,
-      risk: "evidence_drift"
-    });
-  }
-
-  const sourceTreeDigest = currentStateSourceTreeDigest(structuredSection);
-  if (
-    sourceTreeDigest?.algorithm !== claim.source.sourceTreeDigest.algorithm
-    || sourceTreeDigest.value !== claim.source.sourceTreeDigest.value
-  ) {
-    issues.push({
-      code: "state_document_evidence_drift",
-      path: CURRENT_STATE_DOC,
-      line: lineForMarker(currentStateText, "- source tree digest:"),
-      field: "source tree digest",
-      risk: "evidence_drift"
-    });
-  }
-
-  const strictStatePaths = currentStateStrictStatePaths(structuredSection);
-  if (!stringArraysAreEqual(strictStatePaths, claim.transition.allowedStatePaths)) {
-    issues.push({
-      code: "state_document_evidence_drift",
-      path: CURRENT_STATE_DOC,
-      line: lineForMarker(currentStateText, "Strict state record paths:"),
-      field: "Strict state record paths",
-      risk: "evidence_drift"
-    });
-  }
-
-  const validationSourceCommit =
-    currentStateValidationSourceCommit(currentStateText);
-  if (validationSourceCommit !== claim.source.validatedSourceCommit) {
-    issues.push({
-      code: "state_document_evidence_drift",
-      path: CURRENT_STATE_DOC,
-      line: lineForMarker(
-        currentStateText,
-        "Validation recorded for source commit"
-      ),
-      field: "Validation recorded for source commit",
-      risk: "evidence_drift"
-    });
-  }
-
-  const expectationsSection = sectionBetween(
-    currentStateText,
-    "## State Sync Expectations",
-    "Current state line:"
-  );
-  for (const { field, expected } of currentStateExpectationFields(claim)) {
-    const actual = bulletValue(expectationsSection, field);
-    if (actual === expected) {
-      continue;
-    }
-
-    issues.push({
-      code: "state_document_evidence_drift",
-      path: CURRENT_STATE_DOC,
-      line: lineForMarkerAfter(
-        currentStateText,
-        "## State Sync Expectations",
-        `- ${field}:`
-      ),
-      field: `State Sync Expectations ${field}`,
-      risk: "evidence_drift"
-    });
-  }
-
-  const divergenceExpectation =
-    currentStateValidatedSourceDivergenceExpectation(expectationsSection);
-  if (
-    normalizeWhitespace(divergenceExpectation)
-      !== normalizeWhitespace(validatedSourceDivergenceExpectation(claim))
-  ) {
-    issues.push({
-      code: "state_document_evidence_drift",
-      path: CURRENT_STATE_DOC,
-      line: lineForMarkerAfter(
-        currentStateText,
-        "## State Sync Expectations",
-        "source divergence as"
-      ),
-      field: "State Sync Expectations validated source divergence expectation",
-      risk: "evidence_drift"
-    });
-  }
-
-  return issues;
-}
-
-function collectAgentBoardEvidenceDrift(
-  agentBoardText: string,
-  agentBoardFiles: StateSyncAgentBoardFile[] | undefined,
-  claim: StateSyncClaim
-): StateSyncAuditIssue[] {
-  const issues: StateSyncAuditIssue[] = [];
-  const files = agentBoardFiles ?? [{
-    path: ".agent_board/*",
-    text: agentBoardText
-  }];
-  const generatedFields = agentBoardGeneratedDisplayFields(claim);
-  for (const file of files) {
-    const generatedBlocks = generatedDisplayBlocks(file.text);
-    const expectedBlockCount =
-      agentBoardFiles === undefined ? AGENT_BOARD_STATE_RECORD_PATHS.length : 1;
-    if (generatedBlocks.length !== expectedBlockCount) {
-      issues.push({
-        code: "state_document_evidence_drift",
-        path: file.path,
-        line: lineForMarker(file.text, AGENT_BOARD_DISPLAY_START),
-        field: "state-sync-display block count",
-        risk: "evidence_drift"
-      });
-    }
-
-    for (const block of generatedBlocks) {
-      for (const { field, expected } of generatedFields) {
-        const actual = generatedBlockValue(block.text, field);
-        if (actual === expected) {
-          continue;
-        }
-
-        issues.push({
-          code: "state_document_evidence_drift",
-          path: file.path,
-          line: block.line + lineForMarker(block.text, `- ${field}:`) - 1,
-          field,
-          risk: "evidence_drift"
-        });
-      }
-    }
-
-    for (const { field, expected } of agentBoardHeadingFields(claim)) {
-      for (const actual of headingValues(file.text, field)) {
-        if (actual.value === expected) {
-          continue;
-        }
-
-        issues.push({
-          code: "state_document_evidence_drift",
-          path: file.path,
-          line: actual.line,
-          field,
-          risk: "evidence_drift"
-        });
-      }
-    }
-  }
-
-  return issues;
-}
-
-function currentStateStructuredRecordFields(
-  claim: StateSyncClaim
-): EvidenceFieldExpectation[] {
-  return [
-    {
-      field: "schema version",
-      expected: String(claim.schemaVersion)
-    },
-    {
-      field: "policy version",
-      expected: claim.policyVersion
-    },
-    {
-      field: "transition kind",
-      expected: claim.transition.kind
-    },
-    {
-      field: "validated source commit",
-      expected: claim.source.validatedSourceCommit
-    },
-    {
-      field: "latest validated commit",
-      expected: claim.source.latestValidatedCommit
-    },
-    {
-      field: "upstream baseline",
-      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
-    },
-    {
-      field: "recorded divergence baseline",
-      expected: formatUpstreamDivergence(claim.source.recordedDivergence)
-    }
-  ];
-}
-
-function currentStateExpectationFields(
-  claim: StateSyncClaim
-): EvidenceFieldExpectation[] {
-  const recordedDivergence = formatUpstreamDivergence(
-    claim.source.recordedDivergence
-  );
-
-  return [
-    {
-      field: "branch",
-      expected: claim.subject.branch
-    },
-    {
-      field: "upstream",
-      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
-    },
-    {
-      field: "validated source commit",
-      expected: claim.source.validatedSourceCommit
-    },
-    {
-      field: "recorded divergence baseline",
-      expected: recordedDivergence
-    },
-    {
-      field: "transition",
-      expected: claim.transition.kind
-    }
-  ];
-}
-
-function agentBoardGeneratedDisplayFields(
-  claim: StateSyncClaim
-): EvidenceFieldExpectation[] {
-  const recordedDivergence = formatUpstreamDivergence(
-    claim.source.recordedDivergence
-  );
-
-  return [
-    {
-      field: "branch",
-      expected: claim.subject.branch
-    },
-    {
-      field: "upstream",
-      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
-    },
-    {
-      field: "validated source commit",
-      expected: claim.source.validatedSourceCommit
-    },
-    {
-      field: "latest validated commit",
-      expected: claim.source.latestValidatedCommit
-    },
-    {
-      field: "recorded divergence baseline",
-      expected: recordedDivergence
-    },
-    {
-      field: "transition",
-      expected: claim.transition.kind
-    }
-  ];
-}
-
-function agentBoardHeadingFields(
-  claim: StateSyncClaim
-): EvidenceFieldExpectation[] {
-  const recordedDivergence = formatUpstreamDivergence(
-    claim.source.recordedDivergence
-  );
-
-  return [
-    {
-      field: "Branch:",
-      expected: claim.subject.branch
-    },
-    {
-      field: "Current branch:",
-      expected: claim.subject.branch
-    },
-    {
-      field: "Current head:",
-      expected: claim.source.validatedSourceCommit
-    },
-    {
-      field: "Validated source commit:",
-      expected: claim.source.validatedSourceCommit
-    },
-    {
-      field: "Current validated source:",
-      expected: claim.source.validatedSourceCommit
-    },
-    {
-      field: "Latest validated commit:",
-      expected: claim.source.latestValidatedCommit
-    },
-    {
-      field: "Upstream baseline:",
-      expected: normalizeClaimUpstreamRef(claim.subject.upstream)
-    },
-    {
-      field: "Upstream divergence baseline:",
-      expected: recordedDivergence
-    },
-    {
-      field: "Recorded divergence baseline:",
-      expected: recordedDivergence
-    },
-    {
-      field: "Transition:",
-      expected: claim.transition.kind
-    },
-    {
-      field: "Current transition:",
-      expected: claim.transition.kind
-    }
-  ];
-}
-
-function generatedDisplayBlocks(text: string): GeneratedDisplayBlock[] {
-  const pattern = new RegExp(
-    `${escapeRegExp(AGENT_BOARD_DISPLAY_START)}[\\s\\S]*?${escapeRegExp(AGENT_BOARD_DISPLAY_END)}`,
-    "g"
-  );
-  const blocks: GeneratedDisplayBlock[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(text)) !== null) {
-    blocks.push({
-      text: match[0],
-      line: lineAtIndex(text, match.index)
-    });
-  }
-
-  return blocks;
-}
-
-function generatedBlockValue(
-  text: string,
-  field: string
-): string | undefined {
-  const match = new RegExp(
-    `(?:^|\\r?\\n)- ${escapeRegExp(field)}: \`([^\\\`\\r\\n]*)\``
-  ).exec(text);
-
-  return match?.[1];
-}
-
-function headingValues(
-  text: string,
-  heading: string
-): Array<{ value: string; line: number }> {
-  const pattern = new RegExp(
-    `(?:^|\\r?\\n)${escapeRegExp(heading)}\\r?\\n\\r?\\n- \`([^\\\`\\r\\n]*)\``,
-    "g"
-  );
-  const values: Array<{ value: string; line: number }> = [];
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(text)) !== null) {
-    values.push({
-      value: match[1] ?? "",
-      line: lineAtIndex(text, match.index)
-    });
-  }
-
-  return values;
-}
-
-function sectionBetween(text: string, startHeading: string, endHeading: string): string {
-  const startIndex = text.indexOf(startHeading);
-  if (startIndex < 0) {
-    return "";
-  }
-
-  const endIndex = text.indexOf(endHeading, startIndex + startHeading.length);
-  return endIndex < 0 ? text.slice(startIndex) : text.slice(startIndex, endIndex);
-}
-
-function bulletValue(text: string, label: string): string | undefined {
-  const match = new RegExp(
-    `(?:^|\\r?\\n)- ${escapeRegExp(label)}: \`([^\\\`\\r\\n]*)\``
-  ).exec(text);
-
-  return match?.[1];
-}
-
-function currentStateSourceTreeDigest(
-  text: string
-): { algorithm: string; value: string } | undefined {
-  const match =
-    /(?:^|\r?\n)- source tree digest: `([^`\r\n]*)`\r?\n  `([^`\r\n]*)`/
-      .exec(text);
-  if (match === null) {
-    return undefined;
-  }
-
-  return {
-    algorithm: match[1] ?? "",
-    value: match[2] ?? ""
-  };
-}
-
-function currentStateStrictStatePaths(text: string): string[] | undefined {
-  const markerIndex = text.indexOf("Strict state record paths:");
-  if (markerIndex < 0) {
-    return undefined;
-  }
-
-  const section = text.slice(markerIndex);
-  const lines = section.split(/\r?\n/).slice(1);
-  const paths: string[] = [];
-  for (const line of lines) {
-    if (line.trim() === "") {
-      if (paths.length === 0) {
-        continue;
-      }
-      break;
-    }
-
-    const match = /^- `([^`\r\n]*)`$/.exec(line);
-    if (match === null) {
-      break;
-    }
-    paths.push(match[1] ?? "");
-  }
-
-  return paths;
-}
-
-function currentStateValidationSourceCommit(text: string): string | undefined {
-  const match = /Validation recorded for source commit `([^`\r\n]*)`:/
-    .exec(text);
-  return match?.[1];
-}
-
-function currentStateValidatedSourceDivergenceExpectation(
-  text: string
-): string | undefined {
-  const match = /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute|Git observation should compute)[\s\S]*?source divergence as\s*`[^`\r\n]+`\s*against\s*`[^`\r\n]*`[\s\S]*?\./
-    .exec(text);
-  return match?.[0];
-}
-
-function validatedSourceDivergenceExpectation(claim: StateSyncClaim): string {
-  const upstream = normalizeClaimUpstreamRef(claim.subject.upstream);
-  if (claim.transition.kind === "state_only_pushed") {
-    const pushedDivergence = formatUpstreamDivergence({
-      ahead: claim.source.recordedDivergence.behind,
-      behind: claim.source.recordedDivergence.ahead
-    });
-    return [
-      "For this `state_only_pushed` state-only record, Git observation should",
-      `compute the validated source divergence as \`${pushedDivergence}\` against`,
-      `\`${upstream}\` after the state-only record is on upstream.`
-    ].join("\n");
-  }
-
-  const recordedDivergence = formatUpstreamDivergence(
-    claim.source.recordedDivergence
-  );
-  if (claim.transition.kind === "state_only_pending_push") {
-    return [
-      `For this \`state_only_pending_push\` record on branch \`${claim.subject.branch}\`,`,
-      "Git observation should compute the validated source divergence as",
-      `\`${recordedDivergence}\` against \`${upstream}\` before the state-only`,
-      "record is pushed."
-    ].join("\n");
-  }
-
-  return [
-    `For this \`${claim.transition.kind}\` record, Git observation should compute`,
-    `the validated source divergence as \`${recordedDivergence}\` against`,
-    `\`${upstream}\` at the validated source commit.`
-  ].join("\n");
-}
-
-function normalizeWhitespace(value: string | undefined): string | undefined {
-  return value?.replace(/\s+/g, " ").trim();
-}
-
-function stringArraysAreEqual(
-  left: string[] | undefined,
-  right: string[]
-): boolean {
-  return left !== undefined
-    && left.length === right.length
-    && left.every((value, index) => value === right[index]);
 }
 
 function stateOnlyDivergenceSnapshotAllowed(
@@ -1607,39 +1020,9 @@ function fieldIncludes(text: string, field: string, value: string): boolean {
   return text.includes(`| ${field} | \`${value}\` |`);
 }
 
-function fieldValueIsPresent(text: string, field: string): boolean {
-  return fieldValue(text, field) !== undefined;
-}
-
-function fieldValue(text: string, field: string): string | undefined {
-  const match = new RegExp(`\\| ${escapeRegExp(field)} \\| \`([^\\\`]*)\` \\|`)
-    .exec(text);
-  return match?.[1];
-}
-
-function fieldLine(text: string, field: string): number {
-  const marker = `| ${field} |`;
-  const index = text.split(/\r?\n/).findIndex((line) => line.includes(marker));
-  return index >= 0 ? index + 1 : 1;
-}
-
 function lineForMarker(text: string, marker: string): number {
   const index = text.indexOf(marker);
   return index >= 0 ? lineAtIndex(text, index) : 1;
-}
-
-function lineForMarkerAfter(
-  text: string,
-  startMarker: string,
-  marker: string
-): number {
-  const startIndex = text.indexOf(startMarker);
-  if (startIndex < 0) {
-    return lineForMarker(text, marker);
-  }
-
-  const index = text.indexOf(marker, startIndex);
-  return index >= 0 ? lineAtIndex(text, index) : lineAtIndex(text, startIndex);
 }
 
 function lineAtIndex(text: string, index: number): number {

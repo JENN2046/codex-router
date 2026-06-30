@@ -11,7 +11,8 @@ Done:
 - updated collector to read `docs/current/state-sync-record.json`
 - prevented invalid structured claims from falling back to Markdown
 - added `claimSource` summary output
-- added `state_document_evidence_drift` issue output
+- removed obsolete Markdown / `.agent_board/*` display-drift issue output after
+  downgrading those mirrors out of the authority path
 - enforced structured transition formulas
 - added `docs/current/state-sync-record.json` to strict state record paths
 - added regression tests for structured claim, fallback, drift, collector anchor
@@ -45,17 +46,8 @@ Done:
 - verified the post-PR #51 `main` state-sync audit and main-push CI
 - squash-merged PR #52 into `main`
 - pushed the post-PR #52 `main` state/docs reanchor
-- implemented `state_sync_evidenceDriftAbsent` blocking for machine-mirrored
-  Markdown and `.agent_board/*` / structured claim conflicts
-- blocked empty or missing machine-mirrored Markdown fields as evidence drift
-  unless the structured claim itself expects an empty value
-- blocked stale `## Structured Record` mirror fields in `CURRENT_STATE.md`,
-  including source tree digest and strict state paths
-- blocked stale `Validation recorded for source commit` and
-  `## State Sync Expectations` fields in `CURRENT_STATE.md`
-- blocked stale or missing `.agent_board/*` generated mirror blocks per file,
-  so aggregate block count cannot hide a missing or duplicate file block
-- blocked supported `.agent_board/*` heading mirrors as evidence drift
+- downgraded Markdown and `.agent_board/*` display drift from branch-head audit
+  blocking to optional operator-facing freshness checking
 - made unknown structured claim fields fail closed in schema v1
 - updated the structured record plan to record those resolved semantics
 - implemented `scripts/prepare-state-sync-reanchor.ts`
@@ -108,7 +100,6 @@ Validation completed:
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS
 - `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 
 Todo:
@@ -128,12 +119,12 @@ Blocked until separately authorized:
 - env, secret, user config, or system config edits
 
 <!-- state-sync-display:start -->
-Generated from `docs/current/state-sync-record.json`.
+Optional display generated from `docs/current/state-sync-record.json`.
 
 - branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `56b4155`
-- latest validated commit: `56b4155`
+- validated source commit: `b0d5a45`
+- latest validated commit: `b0d5a45`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->

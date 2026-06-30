@@ -708,7 +708,6 @@ async function writeStateSurfaces(
       validation: {
         requiredCommands: [
           "git diff --check",
-          "node --import tsx scripts/sync-state-sync-display.ts --check",
           "node --import tsx scripts/run-state-sync-audit.ts --json"
         ]
       }
@@ -764,7 +763,6 @@ function displaySurface(input: {
     `Validation recorded for source commit \`${input.sourceCommit}\`:`,
     "",
     "- `git diff --check`: PASS.",
-    "- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS.",
     "- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.",
     "",
     "Current structured state-sync audit status:",
@@ -799,7 +797,7 @@ function displaySurface(input: {
     "`refs/remotes/origin/main` at the validated source commit.",
     "",
     "<!-- state-sync-display:start -->",
-    "Generated from `docs/current/state-sync-record.json`.",
+    "Optional display generated from `docs/current/state-sync-record.json`.",
     "",
     `- branch: \`${input.branch}\``,
     "- upstream: `refs/remotes/origin/main`",

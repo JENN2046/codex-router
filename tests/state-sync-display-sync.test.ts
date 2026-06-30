@@ -11,12 +11,15 @@ const CLAIM_SOURCE_COMMIT = "abc1234";
 const CLAIM_DIGEST =
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-test("state-sync display sync checks drift, writes generated fields, then becomes idempotent", async () => {
+test("state-sync display sync reports optional display drift, writes fields, then becomes idempotent", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-sync-"));
   await writeDisplayFixture(cwd, "state_only_pushed");
 
   const drift = await syncStateSyncDisplay(cwd);
   assert.equal(drift.mode, "check");
+  assert.equal(drift.authority, "display_only");
+  assert.equal(drift.authoritativeClaimPath, "docs/current/state-sync-record.json");
+  assert.equal(drift.requiredForAudit, false);
   assert.deepEqual(
     new Set(drift.changedPaths),
     new Set([
@@ -37,6 +40,8 @@ test("state-sync display sync checks drift, writes generated fields, then become
 
   const written = await syncStateSyncDisplay(cwd, { write: true });
   assert.equal(written.mode, "write");
+  assert.equal(written.authority, "display_only");
+  assert.equal(written.requiredForAudit, false);
   assert.deepEqual(new Set(written.changedPaths), new Set(drift.changedPaths));
 
   const currentState = await readFile(
@@ -62,6 +67,11 @@ test("state-sync display sync checks drift, writes generated fields, then become
     currentState,
     /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
   );
+  assert.match(
+    currentState,
+    /Display drift is informational; branch-head audit reads the structured\s+record directly and does not require display sync\./
+  );
+  assert.doesNotMatch(currentState, /Evidence drift remains blocking/);
   assert.doesNotMatch(currentState, /stale-branch` \/ `state_only_pending_push/);
   assert.match(
     currentState,
@@ -84,6 +94,10 @@ test("state-sync display sync checks drift, writes generated fields, then become
   );
   assert.match(checkpoint, /Boundary:\s+- stale boundary text/);
   assert.match(checkpoint, /<!-- state-sync-display:start -->/);
+  assert.match(
+    checkpoint,
+    /Optional display generated from `docs\/current\/state-sync-record\.json`\./
+  );
   assert.doesNotMatch(checkpoint, /stale-branch` \/ `state_only_pending_push/);
   assert.match(taskQueue, /<!-- state-sync-display:start -->/);
   assert.match(taskQueue, /- branch: `docs\/state-sync-display`/);
@@ -97,6 +111,7 @@ test("state-sync display sync checks drift, writes generated fields, then become
 
   const clean = await syncStateSyncDisplay(cwd);
   assert.deepEqual(clean.changedPaths, []);
+  assert.equal(clean.requiredForAudit, false);
 });
 
 test("state-sync display sync preserves pending-push divergence baseline", async () => {
