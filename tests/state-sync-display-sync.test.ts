@@ -403,12 +403,6 @@ function staleAgentBoard(
 
 function strictStateRecordPaths(): string[] {
   return [
-    "docs/current/CURRENT_STATE.md",
-    "docs/current/state-sync-record.json",
-    ".agent_board/CHECKPOINT.md",
-    ".agent_board/HANDOFF.md",
-    ".agent_board/RUN_STATE.md",
-    ".agent_board/TASK_QUEUE.md",
-    ".agent_board/VALIDATION_LOG.md"
+    "docs/current/state-sync-record.json"
   ];
 }

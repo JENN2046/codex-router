@@ -10,10 +10,6 @@ import {
   type StateSyncClaim
 } from "../packages/state-sync-audit/src/index.js";
 import { gitFilteredTreeDigest } from "./run-state-sync-audit.js";
-import {
-  syncStateSyncDisplay,
-  type StateSyncDisplaySyncResult
-} from "./sync-state-sync-display.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -36,7 +32,6 @@ export interface PrepareStateSyncReanchorResult {
   sourceTreeDigest: string;
   stateCommitsAfterSourceBeforeWrite: number;
   changedPaths: string[];
-  displaySync?: StateSyncDisplaySyncResult;
 }
 
 export interface BuildStateSyncReanchorClaimResult {
@@ -96,13 +91,10 @@ export async function prepareStateSyncReanchor(
     changedPaths.push(STATE_SYNC_RECORD_DOC);
   }
 
-  let displaySync: StateSyncDisplaySyncResult | undefined;
   if (options.write === true) {
     if (changedPaths.includes(STATE_SYNC_RECORD_DOC)) {
       await writeFile(join(cwd, STATE_SYNC_RECORD_DOC), updatedClaimText, "utf8");
     }
-    displaySync = await syncStateSyncDisplay(cwd, { write: true });
-    changedPaths.push(...displaySync.changedPaths);
   }
 
   return {
@@ -114,8 +106,7 @@ export async function prepareStateSyncReanchor(
     sourceTreeDigest: reanchor.sourceTreeDigest,
     stateCommitsAfterSourceBeforeWrite:
       reanchor.stateCommitsAfterSourceBeforeWrite,
-    changedPaths: unique(changedPaths),
-    ...(displaySync === undefined ? {} : { displaySync })
+    changedPaths: unique(changedPaths)
   };
 }
 

@@ -105,7 +105,7 @@ export function stateSyncReanchorPrBody(input: {
     "",
     "- Records `main` as the structured state-sync subject.",
     "- Records `state_only_pushed` as the transition.",
-    "- Keeps the diff limited to state/docs surfaces.",
+    "- Keeps the diff limited to the structured state-sync record.",
     "",
     "## Trigger",
     "",
@@ -242,7 +242,6 @@ async function main(): Promise<void> {
     changedPaths,
     validationCommands: [
       "node --import tsx scripts/prepare-state-sync-reanchor.ts --write",
-      "node --import tsx scripts/sync-state-sync-display.ts --check",
       "node --import tsx scripts/verify-state-sync-reanchor-diff.ts",
       "git diff --check",
       "node --import tsx scripts/run-state-sync-audit.ts --json"

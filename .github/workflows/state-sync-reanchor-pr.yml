@@ -38,21 +38,13 @@ jobs:
         if: steps.reanchor-gate.outputs.run_reanchor == 'true'
         run: |
           node --import tsx scripts/prepare-state-sync-reanchor.ts --write
-          node --import tsx scripts/sync-state-sync-display.ts --check
           node --import tsx scripts/verify-state-sync-reanchor-diff.ts
           git diff --check
       - name: Commit state-sync reanchor branch
         if: steps.reanchor-gate.outputs.run_reanchor == 'true'
         run: |
           git switch -c state-sync/reanchor-main
-          git add \
-            docs/current/CURRENT_STATE.md \
-            docs/current/state-sync-record.json \
-            .agent_board/CHECKPOINT.md \
-            .agent_board/HANDOFF.md \
-            .agent_board/RUN_STATE.md \
-            .agent_board/TASK_QUEUE.md \
-            .agent_board/VALIDATION_LOG.md
+          git add docs/current/state-sync-record.json
           node --import tsx scripts/verify-state-sync-reanchor-diff.ts --cached
           git diff --cached --check
           git commit -m "docs(state): reanchor main after squash merge"

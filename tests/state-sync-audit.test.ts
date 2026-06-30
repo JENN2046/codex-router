@@ -71,334 +71,30 @@ test("state sync audit blocks when the structured claim is missing", async () =>
   assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
-test("state sync audit blocks structured claim evidence drift", async () => {
+test("state sync audit ignores stale Markdown and agent board display mirrors", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
-    ...input,
-    stateSyncClaimText: stateSyncClaimTextFromInput(input),
+    ...withoutAgentBoardFiles(input),
     currentStateText: input.currentStateText
       .replace(/\| Current branch \| `[^`]+` \|/, "| Current branch | `stale-branch` |")
       .replace(/\| Current head \| `[^`]+` \|/, "| Current head | `1111111` |")
       .replace(/\| Validated source commit \| `[^`]+` \|/, "| Validated source commit | `2222222` |")
       .replace(/\| Upstream \| `[^`]+` \|/, "| Upstream | `origin/stale` |")
       .replace(/\| Upstream divergence \| `[^`]+` \|/, "| Upstream divergence | `ahead 999 / behind 999` |")
-      .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit | `3333333` |")
-  });
-
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
-  assert.equal(review.summary.claimSource, "structured");
-  assert.equal(review.checks.currentBranchMatches, true);
-  assert.equal(review.checks.validatedSourceHeadRecorded, true);
-  assert.equal(review.checks.validatedSourceCommitRecorded, true);
-  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
-  assert.equal(review.checks.latestValidatedCommitRecorded, true);
-  assert.equal(review.checks.structuredTransitionAllowed, true);
-  assert.equal(review.checks.evidenceDriftAbsent, false);
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.field === "Validated source commit"
-  )));
-});
-
-test("state sync audit blocks empty structured claim mirror fields", async () => {
-  const input = await createInputFromWorkspace();
-  const review = reviewStateSyncAudit({
-    ...input,
-    currentStateText: input.currentStateText.replace(
-      /\| Current head \| `[^`]+` \|/,
-      "| Current head | `` |"
-    )
-  });
-
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
-  assert.equal(review.checks.evidenceDriftAbsent, false);
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.field === "Current head"
-  )));
-});
-
-test("state sync audit blocks missing structured claim mirror fields", async () => {
-  const input = await createInputFromWorkspace();
-  const review = reviewStateSyncAudit({
-    ...input,
-    currentStateText: input.currentStateText.replace(
-      /\| Current head \| `[^`]+` \|\n/,
-      ""
-    )
-  });
-
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
-  assert.equal(review.checks.evidenceDriftAbsent, false);
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.field === "Current head"
-  )));
-});
-
-test("state sync audit blocks stale current state structured record mirrors", async () => {
-  const input = await createInputFromWorkspace();
-  const review = reviewStateSyncAudit({
-    ...input,
-    currentStateText: input.currentStateText
-      .replace(
-        /- transition kind: `[^`]+`/,
-        "- transition kind: `state_only_pushed`"
-      )
-      .replace(
-        /- source tree digest: `git-ls-tree-sha256`\r?\n  `[^`]+`/,
-        [
-          "- source tree digest: `git-ls-tree-sha256`",
-          "  `1111111111111111111111111111111111111111111111111111111111111111`"
-        ].join("\n")
-      )
-      .replace(
-        "- `.agent_board/VALIDATION_LOG.md`",
-        "- `.agent_board/STALE.md`"
-      )
-  });
-
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
-  assert.equal(review.checks.evidenceDriftAbsent, false);
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === "docs/current/CURRENT_STATE.md"
-    && issue.field === "transition kind"
-  )));
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === "docs/current/CURRENT_STATE.md"
-    && issue.field === "source tree digest"
-  )));
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === "docs/current/CURRENT_STATE.md"
-    && issue.field === "Strict state record paths"
-  )));
-});
-
-test("state sync audit blocks stale current state expectation mirrors", async () => {
-  const input = await createInputFromWorkspace();
-  let currentStateText = input.currentStateText;
-  currentStateText = replaceCurrentStateValidationSourceCommit(
-    currentStateText,
-    "1111111"
-  );
-  currentStateText = replaceCurrentStateExpectation(
-    currentStateText,
-    "branch",
-    "stale-branch"
-  );
-  currentStateText = replaceCurrentStateExpectation(
-    currentStateText,
-    "upstream",
-    "refs/remotes/origin/stale"
-  );
-  currentStateText = replaceCurrentStateExpectation(
-    currentStateText,
-    "validated source commit",
-    "2222222"
-  );
-  currentStateText = replaceCurrentStateExpectation(
-    currentStateText,
-    "recorded divergence baseline",
-    "ahead 999 / behind 999"
-  );
-  currentStateText = replaceCurrentStateExpectation(
-    currentStateText,
-    "transition",
-    "state_only_pushed"
-  );
-  currentStateText = replaceCurrentStateValidatedSourceDivergenceExpectation(
-    currentStateText,
-    [
-      "For this `state_only_pushed` state-only record, Git observation should",
-      "compute the validated source divergence as `ahead 999 / behind 999` against",
-      "`refs/remotes/origin/main` after the state-only record is on upstream."
-    ].join("\n")
-  );
-  const review = reviewStateSyncAudit({
-    ...input,
-    currentStateText
-  });
-
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
-  assert.equal(review.checks.evidenceDriftAbsent, false);
-  for (const field of [
-    "Validation recorded for source commit",
-    "State Sync Expectations branch",
-    "State Sync Expectations upstream",
-    "State Sync Expectations validated source commit",
-    "State Sync Expectations recorded divergence baseline",
-    "State Sync Expectations transition",
-    "State Sync Expectations validated source divergence expectation"
-  ]) {
-    assert.ok(review.issues.some((issue) => (
-      issue.code === "state_document_evidence_drift"
-      && issue.path === "docs/current/CURRENT_STATE.md"
-      && issue.field === field
-    )), `missing evidence drift issue for ${field}`);
-  }
-});
-
-test("state sync audit blocks stale agent board generated mirror fields", async () => {
-  const input = await createInputFromWorkspace();
-  const aggregateInput = withoutAgentBoardFiles(input);
-  const review = reviewStateSyncAudit({
-    ...aggregateInput,
-    agentBoardText: replaceLast(
-      replaceLast(
-        replaceLast(
-          input.agentBoardText,
-          /- upstream: `[^`]*`/g,
-          "- upstream: `refs/remotes/origin/stale`"
-        ),
-        /- recorded divergence baseline: `[^`]*`/g,
-        "- recorded divergence baseline: `ahead 999 / behind 999`"
-      ),
-      /- transition: `[^`]*`/g,
-      "- transition: `state_only_pushed`"
-    )
-  });
-
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
-  assert.equal(review.checks.agentBoardAligned, true);
-  assert.equal(review.checks.evidenceDriftAbsent, false);
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === ".agent_board/*"
-    && issue.field === "upstream"
-  )));
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === ".agent_board/*"
-    && issue.field === "recorded divergence baseline"
-  )));
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === ".agent_board/*"
-    && issue.field === "transition"
-  )));
-});
-
-test("state sync audit blocks stale agent board heading mirror fields", async () => {
-  const input = await createInputFromWorkspace();
-  const aggregateInput = withoutAgentBoardFiles(input);
-  const review = reviewStateSyncAudit({
-    ...aggregateInput,
+      .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit | `3333333` |"),
     agentBoardText: input.agentBoardText
+      .replace(/<!-- state-sync-display:start -->[\s\S]*?<!-- state-sync-display:end -->\n?/g, "")
       .replace(
         /Upstream baseline:\r?\n\r?\n- `[^`]*`/,
         "Upstream baseline:\n\n- `refs/remotes/origin/stale`"
       )
-      .replace(
-        /Recorded divergence baseline:\r?\n\r?\n- `[^`]*`/,
-        "Recorded divergence baseline:\n\n- `ahead 999 / behind 999`"
-      )
-      .replace(
-        /Current transition:\r?\n\r?\n- `[^`]*`/,
-        "Current transition:\n\n- `state_only_pushed`"
-      )
   });
 
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
   assert.equal(review.checks.agentBoardAligned, true);
-  assert.equal(review.checks.evidenceDriftAbsent, false);
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === ".agent_board/*"
-    && issue.field === "Upstream baseline:"
-  )));
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === ".agent_board/*"
-    && issue.field === "Recorded divergence baseline:"
-  )));
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === ".agent_board/*"
-    && issue.field === "Current transition:"
-  )));
-});
-
-test("state sync audit blocks missing agent board generated mirror blocks", async () => {
-  const input = await createInputFromWorkspace();
-  const aggregateInput = withoutAgentBoardFiles(input);
-  const review = reviewStateSyncAudit({
-    ...aggregateInput,
-    agentBoardText: input.agentBoardText.replace(
-      /<!-- state-sync-display:start -->[\s\S]*?<!-- state-sync-display:end -->\n?/g,
-      ""
-    )
-  });
-
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
-  assert.equal(review.checks.agentBoardAligned, true);
-  assert.equal(review.checks.evidenceDriftAbsent, false);
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === ".agent_board/*"
-    && issue.field === "state-sync-display block count"
-  )));
-});
-
-test("state sync audit checks agent board generated blocks per file", async () => {
-  const input = await createInputFromWorkspace();
-  assert.ok(input.agentBoardFiles !== undefined);
-  const displayBlock = input.agentBoardFiles
-    .find((file) => file.path === ".agent_board/RUN_STATE.md")
-    ?.text.match(/<!-- state-sync-display:start -->[\s\S]*?<!-- state-sync-display:end -->/)
-    ?.[0];
-  assert.ok(displayBlock !== undefined);
-
-  const agentBoardFiles = input.agentBoardFiles.map((file) => {
-    if (file.path === ".agent_board/HANDOFF.md") {
-      return {
-        path: file.path,
-        text: file.text.replace(
-          /<!-- state-sync-display:start -->[\s\S]*?<!-- state-sync-display:end -->\n?/,
-          ""
-        )
-      };
-    }
-
-    if (file.path === ".agent_board/RUN_STATE.md") {
-      return {
-        path: file.path,
-        text: `${file.text.trimEnd()}\n\n${displayBlock}\n`
-      };
-    }
-
-    return file;
-  });
-  const review = reviewStateSyncAudit({
-    ...input,
-    agentBoardFiles,
-    agentBoardText: agentBoardFiles.map((file) => file.text).join("\n")
-  });
-
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
-  assert.equal(review.checks.agentBoardAligned, true);
-  assert.equal(review.checks.evidenceDriftAbsent, false);
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === ".agent_board/HANDOFF.md"
-    && issue.field === "state-sync-display block count"
-  )));
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.path === ".agent_board/RUN_STATE.md"
-    && issue.field === "state-sync-display block count"
-  )));
+  assert.equal(review.checks.evidenceDriftAbsent, true);
+  assert.deepEqual(review.issues, []);
 });
 
 test("state sync audit blocks structured claims with stale subject branch", async () => {
@@ -646,7 +342,7 @@ test("state sync audit applies structured claim allowed paths to dirty worktree 
     ...input,
     gitStatusShort: " M .agent_board/RUN_STATE.md",
     stateSyncClaimText: stateSyncClaimTextFromInput(input, {
-      allowedStatePaths: ["docs/current/CURRENT_STATE.md"]
+      allowedStatePaths: strictStateRecordPaths()
     })
   });
 
@@ -666,7 +362,7 @@ test("state sync audit applies structured claim allowed paths to state-only desc
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: [".agent_board/RUN_STATE.md"],
     stateSyncClaimText: stateSyncClaimTextFromInput(input, {
-      allowedStatePaths: ["docs/current/CURRENT_STATE.md"]
+      allowedStatePaths: strictStateRecordPaths()
     })
   });
 
@@ -785,18 +481,15 @@ test("state sync audit fails closed on unknown structured claim fields", async (
   }
 });
 
-test("state sync audit accepts dirty state-only files", async () => {
+test("state sync audit accepts dirty structured record files", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace({
-    gitStatusShort: [
-      " M .agent_board/RUN_STATE.md",
-      " M docs/current/CURRENT_STATE.md"
-    ].join("\n")
+    gitStatusShort: " M docs/current/state-sync-record.json"
   }));
 
   assert.equal(review.status, "passed");
   assert.deepEqual(review.reasons, []);
   assert.equal(review.checks.dirtyWorktreeStateOnly, true);
-  assert.equal(review.summary.gitStatusEntryCount, 2);
+  assert.equal(review.summary.gitStatusEntryCount, 1);
 });
 
 test("state sync audit blocks dirty non-state files", async () => {
@@ -841,9 +534,7 @@ test("state sync audit accepts committed state-only descendants", async () => {
     aheadBehind: `${baseline.ahead + 1}\t${baseline.behind}`,
     validatedSourceAncestorOfHead: true,
     committedPathsSinceValidatedSource: [
-      ".agent_board/RUN_STATE.md",
-      ".agent_board/HANDOFF.md",
-      "docs/current/CURRENT_STATE.md"
+      "docs/current/state-sync-record.json"
     ],
     ...withStateSyncClaim(input, {
       transitionKind: "state_only_pending_push"
@@ -928,7 +619,7 @@ test("state sync audit blocks stale observed branch without using Markdown head 
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
 });
 
-test("state sync audit blocks Markdown current head evidence drift", async () => {
+test("state sync audit ignores Markdown current head evidence drift", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -937,17 +628,10 @@ test("state sync audit blocks Markdown current head evidence drift", async () =>
       .replace(/\| Latest validated commit \| `[^`]+` \|/, "| Latest validated commit | `feed123` |")
   });
 
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_evidenceDriftAbsent"));
-  assert.equal(review.checks.evidenceDriftAbsent, false);
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.field === "Current head"
-  )));
-  assert.ok(review.issues.some((issue) => (
-    issue.code === "state_document_evidence_drift"
-    && issue.field === "Latest validated commit"
-  )));
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.evidenceDriftAbsent, true);
+  assert.deepEqual(review.issues, []);
 });
 
 test("state sync audit blocks stale state from merge checkout second-parent ancestry", async () => {
@@ -1124,7 +808,6 @@ test("state sync audit blocks detached PR checkouts without explicit state marke
   assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
-  assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
 });
 
 test("state sync audit blocks non-detached synthetic markers with stale anchors", async () => {
@@ -1157,7 +840,6 @@ test("state sync audit blocks stale state outside merge checkout ancestry", asyn
   assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
-  assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
 });
 
 test("state sync audit blocks merge base as state when merge ancestry is available", async () => {
@@ -1177,7 +859,6 @@ test("state sync audit blocks merge base as state when merge ancestry is availab
   assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
-  assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
 });
 
 test("state sync audit collector excludes merge base from allowed commits", () => {
@@ -1577,7 +1258,7 @@ test("state sync audit blocks stale agent board facts", async () => {
   assert.ok(review.reasons.includes("state_sync_staleMarkersAbsent"));
 });
 
-test("state sync audit blocks stale agent board commit facts", async () => {
+test("state sync audit ignores stale agent board commit facts", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -1587,8 +1268,9 @@ test("state sync audit blocks stale agent board commit facts", async () => {
     ].join("\n")
   });
 
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_agentBoardAligned"));
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.agentBoardAligned, true);
 });
 
 test("state sync audit blocks missing script and boundary markers", async () => {
@@ -1746,10 +1428,6 @@ test("state sync audit collector observes structured claim upstream ref without 
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
-    upstream: "refs/remotes/origin/main",
-    upstreamDivergence: "ahead 1 / behind 0"
-  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1799,10 +1477,6 @@ test("state sync audit collector prefers structured claim upstream over local up
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
-    upstream: "refs/remotes/origin/main",
-    upstreamDivergence: "ahead 1 / behind 0"
-  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1849,10 +1523,6 @@ test("state sync audit accepts structured detached branch-head checkouts", async
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
-    upstream: "refs/remotes/origin/main",
-    upstreamDivergence: "ahead 1 / behind 0"
-  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1899,10 +1569,6 @@ test("state sync audit accepts structured detached PR merge-ref checkouts", asyn
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
-    upstream: "refs/remotes/origin/main",
-    upstreamDivergence: "ahead 1 / behind 0"
-  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -1957,10 +1623,6 @@ test("state sync audit accepts structured squash-equivalent state records", asyn
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
-    upstream: "refs/remotes/origin/main",
-    upstreamDivergence: "ahead 1 / behind 0"
-  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -2028,10 +1690,6 @@ test("state sync audit accepts structured squash-only records without source com
   );
   assert.ok(sourceDigest !== undefined);
 
-  await writeMinimalWorkspace(sourceRepo, "structured-record", sourceCommit, {
-    upstream: "refs/remotes/origin/main",
-    upstreamDivergence: "ahead 1 / behind 0"
-  });
   await writeStateSyncClaim(sourceRepo, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -2111,10 +1769,6 @@ test("state sync audit blocks structured squash records with non-state source dr
     join(cwd, "packages", "unvalidated.ts"),
     "export const unvalidated = true;\n"
   );
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
-    upstream: "refs/remotes/origin/main",
-    upstreamDivergence: "ahead 1 / behind 0"
-  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -2245,10 +1899,6 @@ test("state sync audit collector rejects claim upstream refs outside remote trac
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
-    upstream: "refs/remotes/origin/main",
-    upstreamDivergence: "ahead 1 / behind 0"
-  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "HEAD",
@@ -2293,10 +1943,6 @@ test("state sync audit collector normalizes claim upstream before git resolution
   await git(cwd, ["commit", "-m", "source"]);
   const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
 
-  await writeMinimalWorkspace(cwd, "structured-record", sourceCommit, {
-    upstream: "refs/remotes/origin/main",
-    upstreamDivergence: "ahead 1 / behind 0"
-  });
   await writeStateSyncClaim(cwd, {
     branch: "structured-record",
     upstream: "origin/main",
@@ -2958,13 +2604,7 @@ function escapeTestRegExp(value: string): string {
 
 function strictStateRecordPaths(): string[] {
   return [
-    "docs/current/CURRENT_STATE.md",
-    "docs/current/state-sync-record.json",
-    ".agent_board/CHECKPOINT.md",
-    ".agent_board/HANDOFF.md",
-    ".agent_board/RUN_STATE.md",
-    ".agent_board/TASK_QUEUE.md",
-    ".agent_board/VALIDATION_LOG.md"
+    "docs/current/state-sync-record.json"
   ];
 }
 
@@ -3109,10 +2749,6 @@ async function writeStateSyncClaim(
       }
     }, null, 2)
   );
-  await writeMinimalStateSurfacesForClaim(cwd, {
-    ...input,
-    sourceTreeDigest
-  });
 }
 
 async function writeMinimalStateSurfacesForClaim(
