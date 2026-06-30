@@ -449,6 +449,52 @@ from aggregate text. `field` should name the logical field, such as
 `Current head`, `Validated source commit`, `Upstream divergence`, or
 `Latest validated commit`.
 
+### Main Reanchor Operation
+
+Post-merge main reanchors should be a guarded operation, not a repeated manual
+checklist.
+
+The conservative path remains:
+
+```text
+main push -> state-sync/reanchor-main PR -> review / CI -> merge
+```
+
+That PR path is still useful where direct `main` pushes are not authorized or
+where repository branch protection should require review for every state/docs
+record. Because the PR is created or updated with `GITHUB_TOKEN`, approval
+required workflow runs are an expected GitHub authorization behavior and should
+not be mistaken for proof that CI failed to trigger.
+
+For operator-authorized direct reanchor pushes, the local runner is:
+
+```bash
+npm run state-sync:reanchor-main
+npm run state-sync:reanchor-main -- --write
+npm run state-sync:reanchor-main -- --write --commit
+npm run state-sync:reanchor-main -- --write --commit --push
+```
+
+The default command is read-only. Write, commit, and push are opt-in. The runner
+keeps the operation bounded by checking that:
+
+- the current branch is exactly `main`;
+- local `HEAD` equals `refs/remotes/origin/main` before writing;
+- the structured reanchor gate says a reanchor is needed;
+- generated state/docs changes are limited to the strict state record paths;
+- display mirrors are synchronized from `docs/current/state-sync-record.json`;
+- state-sync audit passes before and after the reanchor commit when validation
+  is enabled;
+- immediately before push, `origin/main` is fetched again and must still equal
+  the originally observed remote head;
+- the local reanchor commit is exactly `ahead 1 / behind 0` from
+  `refs/remotes/origin/main` before push.
+
+If `origin/main` moves after the local commit is prepared, the runner blocks
+instead of pushing a stale reanchor. This keeps the direct-push path safe enough
+for explicit operator authorization without replacing review as the default
+collaboration boundary.
+
 ## Implementation Phases
 
 ### Phase 0: Design Record

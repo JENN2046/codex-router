@@ -10,6 +10,7 @@
     "validate:daily": "tsx scripts/run-governance-check.ts tier daily",
     "validate:pr": "tsx scripts/run-governance-check.ts tier pr",
     "validate:release": "tsx scripts/run-governance-check.ts tier release",
+    "state-sync:reanchor-main": "tsx scripts/run-state-sync-main-reanchor.ts",
     "demo:runtime-governance": "tsx scripts/run-runtime-governance-demo.ts",
     "model:check": "tsx scripts/check-codex-cli-models.ts",
     "preflight:codex-cli-env": "tsx scripts/run-codex-cli-environment-preflight.ts",
