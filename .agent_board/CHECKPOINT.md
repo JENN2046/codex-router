@@ -15,11 +15,11 @@ Branch:
 
 Validated source commit:
 
-- `88ca86c`
+- `16f23e9`
 
 Latest validated commit:
 
-- `88ca86c`
+- `16f23e9`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 3 / behind 0`
 
 Checkpoint facts:
 
@@ -98,6 +98,9 @@ Checkpoint facts:
 - The runner defaults to read-only, rejects non-`main` branches, requires local
   `HEAD` to match `refs/remotes/origin/main`, verifies strict state/docs diffs,
   and blocks stale pushes when `origin/main` moves before push.
+- Full state-sync audit in the direct-push runner now runs only after a
+  successful push, because `state_only_pushed` is not valid in the pre-push
+  local commit state.
 - README and the structured record plan now document the local runner as an
   operator-authorized direct-push path while preserving the conservative
   `state-sync/reanchor-main` PR workflow fallback.
@@ -122,9 +125,9 @@ State-sync observation:
 
 - structured claim: `improve/state-sync-main-reanchor-runner` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `88ca86c`
-- latest validated commit: `88ca86c`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `16f23e9`
+- latest validated commit: `16f23e9`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -135,8 +138,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `improve/state-sync-main-reanchor-runner`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `88ca86c`
-- latest validated commit: `88ca86c`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `16f23e9`
+- latest validated commit: `16f23e9`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

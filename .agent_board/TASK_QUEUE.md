@@ -93,6 +93,8 @@ Done:
 - added `npm run state-sync:reanchor-main`
 - covered no-op, non-main branch rejection, bounded local commit/push, and stale
   remote push blocking with tests
+- fixed the reviewed P1 by proving state-sync audit is not invoked until after
+  the direct-push runner has pushed the reanchor commit
 - documented the operator-authorized direct-push runner while preserving the
   conservative `state-sync/reanchor-main` PR fallback
 
@@ -129,8 +131,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `improve/state-sync-main-reanchor-runner`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `88ca86c`
-- latest validated commit: `88ca86c`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `16f23e9`
+- latest validated commit: `16f23e9`
+- recorded divergence baseline: `ahead 3 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
