@@ -2,50 +2,37 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "codex/state-sync-record-only-authority",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "56b4155",
-    "latestValidatedCommit": "56b4155",
+    "validatedSourceCommit": "57dfb2e",
+    "latestValidatedCommit": "57dfb2e",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "9b45fad832118cb8323d2fc8c812af1debe92f2e4f6e921b3613d293422c57a7",
+      "value": "dabc59c330baf0e4ed01a31f60bf7dd13c5672cfc240dffb44171ea7dc0577d9",
       "excludedPaths": [
-        "docs/current/CURRENT_STATE.md",
-        "docs/current/state-sync-record.json",
-        ".agent_board/CHECKPOINT.md",
-        ".agent_board/HANDOFF.md",
-        ".agent_board/RUN_STATE.md",
-        ".agent_board/TASK_QUEUE.md",
-        ".agent_board/VALIDATION_LOG.md"
+        "docs/current/state-sync-record.json"
       ]
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
-      "docs/current/CURRENT_STATE.md",
-      "docs/current/state-sync-record.json",
-      ".agent_board/CHECKPOINT.md",
-      ".agent_board/HANDOFF.md",
-      ".agent_board/RUN_STATE.md",
-      ".agent_board/TASK_QUEUE.md",
-      ".agent_board/VALIDATION_LOG.md"
+      "docs/current/state-sync-record.json"
     ]
   },
   "validation": {
     "requiredCommands": [
       "git diff --check",
-      "node --import tsx --test tests/runtime-control.test.ts",
+      "node --import tsx --test tests/state-sync-audit.test.ts tests/state-sync-display-sync.test.ts tests/state-sync-reanchor-helper.test.ts tests/state-sync-reanchor-automation.test.ts",
       "npm test",
       "npm run typecheck",
       "npm run build",
-      "node --import tsx scripts/sync-state-sync-display.ts --check",
       "node --import tsx scripts/run-state-sync-audit.ts --json"
     ]
   }
