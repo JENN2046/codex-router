@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "improve/runtime-control-signal-escalation",
+    "branch": "main",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "d2c8c5a",
-    "latestValidatedCommit": "d2c8c5a",
+    "validatedSourceCommit": "56b4155",
+    "latestValidatedCommit": "56b4155",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pending_push",
+    "kind": "state_only_pushed",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",

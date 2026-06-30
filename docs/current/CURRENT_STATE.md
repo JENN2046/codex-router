@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `improve/runtime-control-signal-escalation` |
-| Current head | `d2c8c5a` |
-| Validated source commit | `d2c8c5a` |
+| Current branch | `main` |
+| Current head | `56b4155` |
+| Validated source commit | `56b4155` |
 | Upstream | `refs/remotes/origin/main` |
 | Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `d2c8c5a` |
+| Latest validated commit | `56b4155` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,9 +36,9 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pending_push`
-- validated source commit: `d2c8c5a`
-- latest validated commit: `d2c8c5a`
+- transition kind: `state_only_pushed`
+- validated source commit: `56b4155`
+- latest validated commit: `56b4155`
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
@@ -83,7 +83,7 @@ and does not push to `main`.
 
 ## Validation Baseline
 
-Validation recorded for source commit `d2c8c5a`:
+Validation recorded for source commit `56b4155`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/runtime-control.test.ts`: PASS.
@@ -102,10 +102,10 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- structured claim: `improve/runtime-control-signal-escalation` / `state_only_pending_push` against
+- structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `d2c8c5a`
-- latest validated commit: `d2c8c5a`
+- validated source commit: `56b4155`
+- latest validated commit: `56b4155`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -168,16 +168,15 @@ This state-only record line is limited to:
 
 The structured claim records:
 
-- branch: `improve/runtime-control-signal-escalation`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `d2c8c5a`
+- validated source commit: `56b4155`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 
-For this `state_only_pending_push` record on branch `improve/runtime-control-signal-escalation`,
-Git observation should compute the validated source divergence as
-`ahead 1 / behind 0` against `refs/remotes/origin/main` before the state-only
-record is pushed.
+For this `state_only_pushed` state-only record, Git observation should
+compute the validated source divergence as `ahead 0 / behind 1` against
+`refs/remotes/origin/main` after the state-only record is on upstream.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then

@@ -2,8 +2,8 @@
 
 Current task:
 
-- Prepare a focused runtime-control PR that turns governance state into
-  escalation-ready runtime signals.
+- Keep state-sync structured record automation current; no post-merge
+  reanchor is pending.
 Done:
 
 - committed `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
@@ -130,10 +130,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `improve/runtime-control-signal-escalation`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `d2c8c5a`
-- latest validated commit: `d2c8c5a`
+- validated source commit: `56b4155`
+- latest validated commit: `56b4155`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

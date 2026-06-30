@@ -7,11 +7,11 @@ Goal:
 
 Current branch:
 
-- `improve/runtime-control-signal-escalation`
+- `main`
 
 Current validated source:
 
-- `d2c8c5a`
+- `56b4155`
 
 Current structured claim:
 
@@ -19,7 +19,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Upstream baseline:
 
@@ -136,10 +136,10 @@ Validation completed:
 
 State-sync status:
 
-- structured claim: `improve/runtime-control-signal-escalation` / `state_only_pending_push` against
+- structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `d2c8c5a`
-- latest validated commit: `d2c8c5a`
+- validated source commit: `56b4155`
+- latest validated commit: `56b4155`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -161,10 +161,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `improve/runtime-control-signal-escalation`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `d2c8c5a`
-- latest validated commit: `d2c8c5a`
+- validated source commit: `56b4155`
+- latest validated commit: `56b4155`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pending_push`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
