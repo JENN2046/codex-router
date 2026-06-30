@@ -15,7 +15,8 @@ import {
 } from "../scripts/run-state-sync-main-reanchor.js";
 import { resolveStateSyncReanchorPrGate } from "../scripts/resolve-state-sync-reanchor-pr-gate.js";
 import {
-  verifyStateSyncReanchorDiff
+  verifyStateSyncReanchorDiff,
+  verifyStateSyncReanchorRange
 } from "../scripts/verify-state-sync-reanchor-diff.js";
 
 const execFileAsync = promisify(execFile);
@@ -100,6 +101,29 @@ test("state-sync reanchor diff verifier accepts strict state/docs changes", asyn
   assert.deepEqual(result.changedPaths, ["docs/current/CURRENT_STATE.md"]);
   assert.deepEqual(result.disallowedPaths, []);
   assert.deepEqual(result.stalePhraseHits, []);
+});
+
+test("state-sync reanchor range verifier blocks rename sources", async () => {
+  const cwd = await createGitFixture();
+  await mkdir(join(cwd, "packages"), { recursive: true });
+  await writeFile(join(cwd, "packages", "source.ts"), "source\n", "utf8");
+  await git(cwd, ["add", "packages/source.ts"]);
+  await git(cwd, ["commit", "-m", "feat: source"]);
+  const baseRef = (await git(cwd, ["rev-parse", "HEAD"])).trim();
+
+  await git(cwd, [
+    "mv",
+    "-f",
+    "packages/source.ts",
+    ".agent_board/TASK_QUEUE.md"
+  ]);
+  await git(cwd, ["commit", "-m", "docs(state): rename source into state"]);
+
+  const result = await verifyStateSyncReanchorRange(cwd, baseRef, "HEAD");
+
+  assert.equal(result.status, "blocked");
+  assert.ok(result.changedPaths.includes("packages/source.ts"));
+  assert.ok(result.disallowedPaths.includes("packages/source.ts"));
 });
 
 test("state-sync reanchor PR body records validation and boundaries", () => {
@@ -331,6 +355,29 @@ test("state-sync main reanchor runner blocks note-only commit resumes", async ()
       validate: false
     }),
     /state_sync_main_reanchor_resume_requires_reanchor_delta/
+  );
+});
+
+test("state-sync main reanchor runner blocks tampered resume claims", async () => {
+  const fixture = await createSquashMainReanchorFixture();
+
+  await runStateSyncMainReanchor(fixture.cwd, {
+    commit: true,
+    validate: false
+  });
+  const claimPath = join(fixture.cwd, "docs", "current", "state-sync-record.json");
+  const claim = JSON.parse(await readFile(claimPath, "utf8"));
+  claim.source.recordedDivergence = { ahead: 99, behind: 0 };
+  await writeFile(claimPath, `${JSON.stringify(claim, null, 2)}\n`, "utf8");
+  await git(fixture.cwd, ["add", "docs/current/state-sync-record.json"]);
+  await git(fixture.cwd, ["commit", "--amend", "--no-edit"]);
+
+  await assert.rejects(
+    () => runStateSyncMainReanchor(fixture.cwd, {
+      push: true,
+      validate: false
+    }),
+    /state_sync_main_reanchor_resume_claim_mismatch/
   );
 });
 

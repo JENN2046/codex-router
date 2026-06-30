@@ -93,21 +93,21 @@ async function changedPathsForMode(
   mode: "worktree" | "cached"
 ): Promise<string[]> {
   const args = mode === "cached"
-    ? ["diff", "--cached", "--name-only"]
-    : ["diff", "--name-only"];
+    ? ["diff", "--cached", "--name-status", "-z", "--no-renames"]
+    : ["diff", "--name-status", "-z", "--no-renames"];
   const output = await git(args, cwd);
-  const changed = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const changed = pathsFromNameStatusZ(output);
   if (mode === "cached") {
     return changed;
   }
 
   const untracked = await git(
-    ["ls-files", "--others", "--exclude-standard"],
+    ["ls-files", "-z", "--others", "--exclude-standard"],
     cwd
   );
   return unique([
     ...changed,
-    ...untracked.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    ...pathsFromNulOutput(untracked)
   ]);
 }
 
@@ -116,8 +116,36 @@ async function changedPathsForRange(
   baseRef: string,
   headRef: string
 ): Promise<string[]> {
-  const output = await git(["diff", "--name-only", baseRef, headRef], cwd);
-  return output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const output = await git(
+    ["diff", "--name-status", "-z", "--no-renames", baseRef, headRef],
+    cwd
+  );
+  return pathsFromNameStatusZ(output);
+}
+
+function pathsFromNameStatusZ(output: string): string[] {
+  const fields = pathsFromNulOutput(output);
+  const paths: string[] = [];
+  for (let index = 0; index < fields.length;) {
+    const status = fields[index++];
+    if (status === undefined) {
+      break;
+    }
+
+    const pathCount = status.startsWith("R") || status.startsWith("C") ? 2 : 1;
+    for (let offset = 0; offset < pathCount; offset += 1) {
+      const filePath = fields[index++];
+      if (filePath !== undefined) {
+        paths.push(filePath);
+      }
+    }
+  }
+
+  return unique(paths);
+}
+
+function pathsFromNulOutput(output: string): string[] {
+  return output.split("\0").map((line) => line.trim()).filter(Boolean);
 }
 
 async function collectStalePhraseHits(cwd: string): Promise<Array<{

@@ -2,12 +2,15 @@
 
 import { execFile } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { promisify } from "node:util";
+import { isDeepStrictEqual, promisify } from "node:util";
 import {
   parseStateSyncClaim,
   type StateSyncClaim
 } from "../packages/state-sync-audit/src/index.js";
-import { prepareStateSyncReanchor } from "./prepare-state-sync-reanchor.js";
+import {
+  buildStateSyncReanchorClaim,
+  prepareStateSyncReanchor
+} from "./prepare-state-sync-reanchor.js";
 import { resolveStateSyncReanchorPrGate } from "./resolve-state-sync-reanchor-pr-gate.js";
 import {
   STATE_SYNC_REANCHOR_ALLOWED_PATHS,
@@ -290,6 +293,14 @@ async function resumeCommittedMainReanchor(
   const headClaim = await claimAtRef(cwd, "HEAD");
   if (!claimIsMainPushed(headClaim)) {
     throw new Error("state_sync_main_reanchor_resume_requires_reanchored_claim");
+  }
+  const expectedReanchor = await buildStateSyncReanchorClaim(cwd, {
+    claim: parentClaim,
+    branch: "main",
+    targetRef: input.remoteHeadBefore
+  });
+  if (!isDeepStrictEqual(headClaim, expectedReanchor.claim)) {
+    throw new Error("state_sync_main_reanchor_resume_claim_mismatch");
   }
 
   if (input.validate) {

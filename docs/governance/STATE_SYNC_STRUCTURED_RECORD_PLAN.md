@@ -507,7 +507,10 @@ claim is not already `main` / `state_only_pushed`, the structured gate reports
 `already_reanchored` at local `HEAD`, and the commit diff contains the full
 generated state-sync reanchor delta across the strict state/docs paths with no
 stale reanchor prose. Empty commits, note-only commits, and other allowed-path
-changes are not resumable reanchors.
+changes are not resumable reanchors. The range verifier includes rename sources
+by treating renames as delete/add path changes, and the resume path compares the
+local `HEAD` claim with the claim regenerated from the parent state before any
+push is attempted.
 
 If `origin/main` moves after the local commit is prepared, the runner blocks
 instead of pushing a stale reanchor. This keeps the direct-push path safe enough
