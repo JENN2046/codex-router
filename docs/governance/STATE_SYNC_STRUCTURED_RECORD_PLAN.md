@@ -483,8 +483,10 @@ keeps the operation bounded by checking that:
 - the structured reanchor gate says a reanchor is needed;
 - generated state/docs changes are limited to the strict state record paths;
 - display mirrors are synchronized from `docs/current/state-sync-record.json`;
-- state-sync audit passes before and after the reanchor commit when validation
-  is enabled;
+- pre-push validation is limited to diff, display, and strict state/docs checks;
+- the full state-sync audit runs after a successful direct push, because a
+  `state_only_pushed` claim is valid only once upstream contains the reanchor
+  commit;
 - immediately before push, `origin/main` is fetched again and must still equal
   the originally observed remote head;
 - the local reanchor commit is exactly `ahead 1 / behind 0` from

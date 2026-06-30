@@ -397,8 +397,9 @@ npm run state-sync:reanchor-main -- --write --commit --push
 
 The first form is read-only. The push form requires `main` to be aligned with
 `origin/main`, limits changes to strict state/docs paths, reruns the state-sync
-guards, and refuses to push if `origin/main` moved while the local reanchor was
-being prepared. The existing reanchor PR workflow remains the conservative
-fallback when direct `main` push is not authorized.
+diff and display guards before commit, runs the full state-sync audit after the
+successful push, and refuses to push if `origin/main` moved while the local
+reanchor was being prepared. The existing reanchor PR workflow remains the
+conservative fallback when direct `main` push is not authorized.
 
 The old per-check package script aliases have been removed; use `npm run governance -- audit|acceptance|operator ...` instead.

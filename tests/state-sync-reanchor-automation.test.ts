@@ -230,6 +230,40 @@ test("state-sync main reanchor runner commits and pushes a bounded reanchor", as
   assert.ok(result.changedPaths.includes("docs/current/state-sync-record.json"));
 });
 
+test("state-sync main reanchor runner delays state-sync audit until after push", async () => {
+  const fixture = await createSquashMainReanchorFixture();
+  const validationLabels: string[] = [];
+  let checkedBeforePush = false;
+
+  const result = await runStateSyncMainReanchor(fixture.cwd, {
+    push: true,
+    validationRunner: async (command) => {
+      validationLabels.push(command.label);
+    },
+    beforePush: async () => {
+      checkedBeforePush = true;
+      assert.ok(validationLabels.every(
+        (label) => !label.includes("scripts/run-state-sync-audit.ts")
+      ));
+    }
+  });
+
+  assert.equal(checkedBeforePush, true);
+  assert.equal(result.mode, "push");
+  assert.deepEqual(
+    validationLabels.filter((label) =>
+      label.includes("scripts/run-state-sync-audit.ts")
+    ),
+    ["node --import tsx scripts/run-state-sync-audit.ts --json after push"]
+  );
+  assert.equal(
+    result.validations.includes(
+      "node --import tsx scripts/run-state-sync-audit.ts --json after commit"
+    ),
+    false
+  );
+});
+
 test("state-sync main reanchor runner blocks stale pushes when origin main moved", async () => {
   const fixture = await createSquashMainReanchorFixture();
 

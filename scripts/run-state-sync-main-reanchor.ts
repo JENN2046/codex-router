@@ -19,7 +19,15 @@ export interface RunStateSyncMainReanchorOptions {
   source?: string;
   remote?: string;
   validate?: boolean;
+  validationRunner?: (command: RunStateSyncMainReanchorValidationCommand) => Promise<void>;
   beforePush?: () => Promise<void>;
+}
+
+export interface RunStateSyncMainReanchorValidationCommand {
+  type: "git" | "node";
+  label: string;
+  args: string[];
+  cwd: string;
 }
 
 export interface RunStateSyncMainReanchorResult {
@@ -89,26 +97,26 @@ export async function runStateSyncMainReanchor(
   }
 
   if (validate) {
-    await runValidation(["diff", "--check"], cwd, "git diff --check", validations);
+    await runValidation(
+      ["diff", "--check"],
+      cwd,
+      "git diff --check",
+      validations,
+      options.validationRunner
+    );
     await runNodeScript(
       "scripts/sync-state-sync-display.ts",
       ["--check"],
       cwd,
       "node --import tsx scripts/sync-state-sync-display.ts --check",
-      validations
+      validations,
+      options.validationRunner
     );
     const diffVerification = await verifyStateSyncReanchorDiff(cwd);
     if (diffVerification.status !== "passed") {
       throw new Error("state_sync_main_reanchor_diff_verification_failed");
     }
     validations.push("node --import tsx scripts/verify-state-sync-reanchor-diff.ts");
-    await runNodeScript(
-      "scripts/run-state-sync-audit.ts",
-      ["--json"],
-      cwd,
-      "node --import tsx scripts/run-state-sync-audit.ts --json",
-      validations
-    );
   }
 
   if (!commit) {
@@ -135,20 +143,12 @@ export async function runStateSyncMainReanchor(
       ["diff", "--cached", "--check"],
       cwd,
       "git diff --cached --check",
-      validations
+      validations,
+      options.validationRunner
     );
   }
   await git(["commit", "-m", "docs(state): reanchor main state-sync record"], cwd);
   const committedHead = await gitTrim(["rev-parse", "HEAD"], cwd);
-  if (validate) {
-    await runNodeScript(
-      "scripts/run-state-sync-audit.ts",
-      ["--json"],
-      cwd,
-      "node --import tsx scripts/run-state-sync-audit.ts --json after commit",
-      validations
-    );
-  }
 
   if (options.push !== true) {
     return {
@@ -181,6 +181,16 @@ export async function runStateSyncMainReanchor(
 
   await git(["push", remote, "HEAD:main"], cwd);
   await fetchRemoteMain(cwd, remote);
+  if (validate) {
+    await runNodeScript(
+      "scripts/run-state-sync-audit.ts",
+      ["--json"],
+      cwd,
+      "node --import tsx scripts/run-state-sync-audit.ts --json after push",
+      validations,
+      options.validationRunner
+    );
+  }
 
   return {
     mode: "push",
@@ -212,8 +222,20 @@ async function runNodeScript(
   args: string[],
   cwd: string,
   label: string,
-  validations: string[]
+  validations: string[],
+  validationRunner?: (command: RunStateSyncMainReanchorValidationCommand) => Promise<void>
 ): Promise<void> {
+  if (validationRunner !== undefined) {
+    await validationRunner({
+      type: "node",
+      label,
+      args: ["--import", "tsx", scriptPath, ...args],
+      cwd
+    });
+    validations.push(label);
+    return;
+  }
+
   await execFileAsync("node", ["--import", "tsx", scriptPath, ...args], {
     cwd,
     encoding: "utf8",
@@ -226,8 +248,20 @@ async function runValidation(
   args: string[],
   cwd: string,
   label: string,
-  validations: string[]
+  validations: string[],
+  validationRunner?: (command: RunStateSyncMainReanchorValidationCommand) => Promise<void>
 ): Promise<void> {
+  if (validationRunner !== undefined) {
+    await validationRunner({
+      type: "git",
+      label,
+      args,
+      cwd
+    });
+    validations.push(label);
+    return;
+  }
+
   await git(args, cwd);
   validations.push(label);
 }
