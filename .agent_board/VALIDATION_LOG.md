@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `improve/runtime-control-signal-escalation`
 
 Validated source commit:
 
-- `44addd6`
+- `d2c8c5a`
 
 Latest validated commit:
 
-- `44addd6`
+- `d2c8c5a`
 
 Structured claim:
 
@@ -27,9 +27,7 @@ Upstream divergence baseline:
 Recorded validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
-  tests/state-sync-reanchor-helper.test.ts tests/state-sync-display-sync.test.ts
-  tests/canary-evidence.test.ts`: PASS
+- `node --import tsx --test tests/runtime-control.test.ts`: PASS
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -38,10 +36,10 @@ Recorded validation:
 
 State-sync audit observation:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `improve/runtime-control-signal-escalation` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `44addd6`
-- latest validated commit: `44addd6`
+- validated source commit: `d2c8c5a`
+- latest validated commit: `d2c8c5a`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -61,10 +59,10 @@ Execution boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `improve/runtime-control-signal-escalation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `44addd6`
-- latest validated commit: `44addd6`
+- validated source commit: `d2c8c5a`
+- latest validated commit: `d2c8c5a`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

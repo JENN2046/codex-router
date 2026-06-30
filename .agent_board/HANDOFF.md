@@ -2,16 +2,16 @@
 
 Goal:
 
-- Prepare a focused PR that makes post-merge `main` state-sync reanchor a
-  guarded local operation instead of a repeated manual checklist.
+- Prepare a focused PR that makes runtime governance state consumable by
+  `runtime-control` escalation decisions.
 
 Current branch:
 
-- `main`
+- `improve/runtime-control-signal-escalation`
 
 Current validated source:
 
-- `44addd6`
+- `d2c8c5a`
 
 Current structured claim:
 
@@ -19,7 +19,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Upstream baseline:
 
@@ -117,13 +117,17 @@ Completed:
 - README and the structured record plan document the runner as an
   operator-authorized direct-push path while preserving the conservative
   `state-sync/reanchor-main` PR workflow fallback
+- `runtime-control` now exports `createRuntimeSignalFromGovernanceState()`
+- runtime signal derivation counts `execution_failure` anomalies, preserves
+  context pressure, and maps high/critical governance risk to `risk_detected`
+- runtime-control tests now cover no-op, failure threshold, scope expansion,
+  validation failure, context pressure, high-risk open-circuit, and governance
+  state signal derivation
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
-  tests/state-sync-reanchor-helper.test.ts tests/state-sync-display-sync.test.ts
-  tests/canary-evidence.test.ts`: PASS
+- `node --import tsx --test tests/runtime-control.test.ts`: PASS
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -132,10 +136,10 @@ Validation completed:
 
 State-sync status:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `improve/runtime-control-signal-escalation` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `44addd6`
-- latest validated commit: `44addd6`
+- validated source commit: `d2c8c5a`
+- latest validated commit: `d2c8c5a`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -157,10 +161,10 @@ Not authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `improve/runtime-control-signal-escalation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `44addd6`
-- latest validated commit: `44addd6`
+- validated source commit: `d2c8c5a`
+- latest validated commit: `d2c8c5a`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
