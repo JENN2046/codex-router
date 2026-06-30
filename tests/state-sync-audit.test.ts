@@ -769,10 +769,12 @@ test("state sync audit accepts detached review claims with full source commit ID
   const observedInput = {
     ...input,
     head: observedHead,
+    headFull: fullObservedHead,
     parentHead: observedHead
   };
   const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(observedInput, {
     head: observedHead,
+    headFull: fullObservedHead,
     parentHead: observedHead,
     ...withStateSyncClaim(observedInput, {
       upstream: "",
@@ -786,6 +788,41 @@ test("state sync audit accepts detached review claims with full source commit ID
   assert.deepEqual(review.reasons, []);
   assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
   assert.equal(review.checks.structuredTransitionAllowed, true);
+});
+
+test("state sync audit blocks forged full detached claim IDs sharing the observed short prefix", async () => {
+  const input = await createInputFromWorkspace();
+  const observedHead = (await git(process.cwd(), ["rev-parse", "--short", "HEAD"])).trim();
+  const fullObservedHead = (await git(process.cwd(), ["rev-parse", "HEAD"])).trim();
+  const zeroPaddedCommit = `${observedHead}${"0".repeat(40 - observedHead.length)}`;
+  const forgedCommit = zeroPaddedCommit === fullObservedHead
+    ? `${observedHead}${"1".repeat(40 - observedHead.length)}`
+    : zeroPaddedCommit;
+  const observedInput = {
+    ...input,
+    head: observedHead,
+    headFull: fullObservedHead,
+    parentHead: observedHead
+  };
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(observedInput, {
+    head: observedHead,
+    headFull: fullObservedHead,
+    parentHead: observedHead,
+    validatedSourceCommitAvailable: false,
+    headSourceTreeDigest: TEST_SOURCE_TREE_DIGEST,
+    ...withStateSyncClaim(observedInput, {
+      upstream: "",
+      validatedSourceCommit: forgedCommit,
+      latestValidatedCommit: forgedCommit,
+      transitionKind: "detached_review_checkout"
+    })
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
 });
 
 test("state sync audit blocks detached review claims that do not match observed head", async () => {
@@ -1627,6 +1664,8 @@ test("state sync audit accepts structured detached branch-head checkouts", async
   const review = reviewStateSyncAudit(input);
 
   assert.equal(input.branch, "");
+  assert.match(input.headFull ?? "", /^[0-9a-f]{40}$/);
+  assert.equal(input.headFull?.startsWith(input.head), true);
   assert.equal(input.upstream, "refs/remotes/origin/main");
   assert.equal(input.aheadBehind, "2\t0");
   assert.equal(input.validatedSourceAheadBehind, "1\t0");

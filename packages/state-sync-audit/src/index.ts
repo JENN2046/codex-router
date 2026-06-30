@@ -27,6 +27,7 @@ export interface StateSyncAuditInput {
   gitStatusShort: string;
   branch: string;
   head: string;
+  headFull?: string;
   parentHead?: string;
   allowedStateCommits?: string[];
   committedPathsSinceValidatedSource?: string[];
@@ -689,17 +690,28 @@ function isStateSyncCommitLike(value: string): boolean {
   return /^[0-9a-f]{7,40}$/i.test(value);
 }
 
-function commitMatchesObservedHead(commit: string, head: string): boolean {
-  if (!isStateSyncCommitLike(commit) || !isStateSyncCommitLike(head)) {
+function commitMatchesObservedHead(
+  commit: string,
+  input: StateSyncAuditInput
+): boolean {
+  if (!isStateSyncCommitLike(commit) || !isStateSyncCommitLike(input.head)) {
     return false;
   }
 
   const normalizedCommit = commit.toLowerCase();
-  const normalizedHead = head.toLowerCase();
+  const normalizedHead = input.head.toLowerCase();
+  const normalizedFullHead = input.headFull?.toLowerCase();
+  if (normalizedFullHead !== undefined) {
+    if (!isStateSyncCommitLike(normalizedFullHead)) {
+      return false;
+    }
 
-  return normalizedCommit === normalizedHead
-    || normalizedCommit.startsWith(normalizedHead)
-    || normalizedHead.startsWith(normalizedCommit);
+    return normalizedCommit.length === 40
+      ? normalizedCommit === normalizedFullHead
+      : normalizedFullHead.startsWith(normalizedCommit);
+  }
+
+  return normalizedCommit === normalizedHead;
 }
 
 function transitionKindField(
@@ -894,7 +906,7 @@ function structuredTransitionIsAllowed(
   return detachedSyntheticReviewCheckout
     && input.branch === ""
     && input.upstream === ""
-    && commitMatchesObservedHead(resolvedClaim.validatedSourceCommit, input.head)
+    && commitMatchesObservedHead(resolvedClaim.validatedSourceCommit, input)
     && currentAhead === -1
     && currentBehind === -1
     && validatedSourceAhead === -1
@@ -1373,7 +1385,7 @@ function syntheticReviewStateAllowed(
     || latestValidatedCommit === undefined
     || currentHead !== validatedSourceCommit
     || validatedSourceCommit !== latestValidatedCommit
-    || !commitMatchesObservedHead(validatedSourceCommit, input.head)
+    || !commitMatchesObservedHead(validatedSourceCommit, input)
   ) {
     return undefined;
   }
