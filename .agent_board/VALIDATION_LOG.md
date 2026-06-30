@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `6e31871`
+- `c3368fb`
 
 Latest validated commit:
 
-- `6e31871`
+- `c3368fb`
 
 Structured claim:
 
@@ -22,7 +22,7 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 9 / behind 0`
+- `ahead 11 / behind 0`
 
 Recorded validation:
 
@@ -40,9 +40,9 @@ State-sync audit observation:
 
 - structured claim: `improve/state-sync-main-reanchor-runner` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `6e31871`
-- latest validated commit: `6e31871`
-- recorded divergence baseline: `ahead 9 / behind 0`
+- validated source commit: `c3368fb`
+- latest validated commit: `c3368fb`
+- recorded divergence baseline: `ahead 11 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -63,8 +63,8 @@ Generated from `docs/current/state-sync-record.json`.
 
 - branch: `improve/state-sync-main-reanchor-runner`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `6e31871`
-- latest validated commit: `6e31871`
-- recorded divergence baseline: `ahead 9 / behind 0`
+- validated source commit: `c3368fb`
+- latest validated commit: `c3368fb`
+- recorded divergence baseline: `ahead 11 / behind 0`
 - transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
