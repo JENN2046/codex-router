@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `main` |
-| Current head | `56b4155` |
-| Validated source commit | `56b4155` |
+| Current head | `b0d5a45` |
+| Validated source commit | `b0d5a45` |
 | Upstream | `refs/remotes/origin/main` |
 | Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `56b4155` |
+| Latest validated commit | `b0d5a45` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,22 +37,16 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pushed`
-- validated source commit: `56b4155`
-- latest validated commit: `56b4155`
+- validated source commit: `b0d5a45`
+- latest validated commit: `b0d5a45`
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `9b45fad832118cb8323d2fc8c812af1debe92f2e4f6e921b3613d293422c57a7`
+  `dabc59c330baf0e4ed01a31f60bf7dd13c5672cfc240dffb44171ea7dc0577d9`
 
 Strict state record paths:
 
-- `docs/current/CURRENT_STATE.md`
 - `docs/current/state-sync-record.json`
-- `.agent_board/CHECKPOINT.md`
-- `.agent_board/HANDOFF.md`
-- `.agent_board/RUN_STATE.md`
-- `.agent_board/TASK_QUEUE.md`
-- `.agent_board/VALIDATION_LOG.md`
 
 ## Current Entrypoints
 
@@ -83,14 +77,13 @@ and does not push to `main`.
 
 ## Validation Baseline
 
-Validation recorded for source commit `56b4155`:
+Validation recorded for source commit `b0d5a45`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/runtime-control.test.ts`: PASS.
 - `npm test`: PASS.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
-- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS.
 - `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
 
 State-sync required validation command literals retained in this state surface:
@@ -104,8 +97,8 @@ Current structured state-sync audit status:
 
 - structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `56b4155`
-- latest validated commit: `56b4155`
+- validated source commit: `b0d5a45`
+- latest validated commit: `b0d5a45`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -113,8 +106,9 @@ Current structured state-sync audit status:
 - Git ancestry, divergence, source-tree digest, and strict state path
   checks remain enforced by the state-sync audit.
 - Generated display, Markdown mirrors, and `.agent_board/*` mirrors are
-  evidence surfaces derived from `docs/current/state-sync-record.json`.
-- Evidence drift remains blocking through `state_sync_evidenceDriftAbsent`.
+  optional operator-facing views derived from `docs/current/state-sync-record.json`.
+- Display drift is informational; branch-head audit reads the structured
+  record directly and does not require display sync.
 ## Execution Boundary
 
 PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
@@ -154,15 +148,12 @@ Boundary facts for this state alignment:
 
 ## Current State-Only Record
 
-This state-only record line is limited to:
+The machine state-only record line is limited to:
 
-- `docs/current/CURRENT_STATE.md`
 - `docs/current/state-sync-record.json`
-- `.agent_board/CHECKPOINT.md`
-- `.agent_board/HANDOFF.md`
-- `.agent_board/RUN_STATE.md`
-- `.agent_board/TASK_QUEUE.md`
-- `.agent_board/VALIDATION_LOG.md`
+
+Markdown and `.agent_board/*` display updates are optional operator evidence,
+not state-only authority.
 
 ## State Sync Expectations
 
@@ -170,7 +161,7 @@ The structured claim records:
 
 - branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `56b4155`
+- validated source commit: `b0d5a45`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - transition: `state_only_pushed`
 
@@ -194,14 +185,8 @@ Current state line:
   committed `main` / `state_only_pushed` record.
 - Bounded source tree digest verification for squash-only state records:
   implemented and tested.
-- Evidence drift blocking for machine-mirrored Markdown fields: implemented and
-  tested.
-- Empty and missing machine-mirrored field blocking: implemented and tested.
-- Structured `CURRENT_STATE.md` display mirror drift blocking: implemented and
-  tested.
-- `CURRENT_STATE.md` State Sync Expectations mirror drift blocking:
-  implemented and tested.
-- Per-file agent-board generated block count checks: implemented and tested.
+- Markdown and `.agent_board/*` display drift blocking: retired from the
+  branch-head state-sync audit; display sync is now an optional freshness tool.
 - Unknown structured claim field fail-closed behavior: implemented and tested.
 - Machine-authoritative claim file: introduced.
 - Markdown and agent board: evidence/display surfaces.

@@ -412,42 +412,28 @@ but their role changes:
 - they may record validation summaries and handoff notes;
 - they are checked for secret or machine-path leakage;
 - they are checked for obvious stale phrases;
-- conflicts between Markdown and `StateSyncClaim` become evidence drift.
+- conflicts between Markdown and `StateSyncClaim` are display drift, not
+  branch-head audit authority.
 
 They should not be the source of truth for validated source, latest validated
 commit, upstream divergence, or transition kind.
 
-Evidence drift output contract:
+Display drift contract:
 
-- Markdown / claim conflict in machine-mirrored fields is reported as a
-  structured issue with `risk: "evidence_drift"`.
-- After Markdown authority removal, machine-mirrored evidence drift is blocking.
-  The audit reports `state_sync_evidenceDriftAbsent` when a mirrored field in
-  `docs/current/CURRENT_STATE.md` conflicts with
-  `docs/current/state-sync-record.json`.
+- `docs/current/state-sync-record.json` is the only machine-authoritative state
+  sync claim surface.
+- Markdown / claim conflicts in mirrored fields are not emitted as
+  `StateSyncAuditIssue` values and do not block branch-head audit.
+- `state_sync_evidenceDriftAbsent` is retained only as a compatibility output;
+  it must not be treated as proof that display mirrors are current.
+- `scripts/sync-state-sync-display.ts --check` may report optional display
+  freshness through `changedPaths`, `authority: "display_only"`, and
+  `requiredForAudit: false`.
 - Free-form Markdown prose and handoff notes remain evidence/display surfaces;
   they do not become governance authority unless represented by a structured
   check.
-- Evidence drift output must identify the surface and field name, but must not
-  echo secrets or machine-local absolute paths.
-
-Initial issue shape:
-
-```ts
-{
-  code: "state_document_evidence_drift";
-  path: string;
-  line: number;
-  field: string;
-  risk: "evidence_drift";
-}
-```
-
-`path` should identify the Markdown or `.agent_board` surface. `line` should use
-the conflicting field line when available and `1` when the conflict is derived
-from aggregate text. `field` should name the logical field, such as
-`Current head`, `Validated source commit`, `Upstream divergence`, or
-`Latest validated commit`.
+- Sanitization issues still identify the surface and line, but must not echo
+  secrets or machine-local absolute paths.
 
 ### Main Reanchor Operation
 
@@ -553,19 +539,16 @@ Update audit input collection so the verifier can read:
 The verifier should use the JSON claim for core facts whenever the claim file is
 present and valid. Markdown field parsing is only a temporary migration fallback
 when the claim file is completely absent. When a claim exists, Markdown may only
-produce evidence drift; it must not provide core source, divergence, transition,
-or allowed-path facts.
+serve as optional display or human handoff context; it must not provide core
+source, divergence, transition, or allowed-path facts.
 
 Project-realistic implementation order:
 
 1. Extend `StateSyncAuditInput` with a structured claim surface, such as
    `stateSyncClaimText?: string`.
-2. Extend `StateSyncAuditIssue` so it can represent evidence drift:
-
-   ```ts
-   code: "state_document_evidence_drift";
-   risk: "evidence_drift";
-   ```
+2. Keep `StateSyncAuditIssue` scoped to sanitization risks such as secret
+   markers and machine-path disclosure. Display drift must not become a branch
+   audit issue class.
 
 3. Extend `StateSyncAuditResult.summary` with:
 
@@ -704,15 +687,15 @@ Phase 2-A removes the final missing-claim compatibility fallback:
   unknown until a valid structured claim is present;
 - `summary.claimSource` reports `missing_structured` for this failure mode.
 
-Phase 2-B keeps Markdown and `.agent_board/*` as evidence surfaces:
+Phase 2-B keeps Markdown and `.agent_board/*` as display/evidence surfaces:
 
 - structured claims remain the only authority for branch, upstream, validated
   source commit, recorded divergence, transition kind, and allowed state paths;
-- conflicting `CURRENT_STATE.md` machine fields are emitted as
-  `state_document_evidence_drift` issues, without being used as fallback
+- conflicting `CURRENT_STATE.md` machine fields are display drift only; they are
+  not emitted as branch-head audit issues and are never used as fallback
   authority;
-- `.agent_board/*` alignment remains a display/evidence integrity check during
-  the compatibility window, but it does not supply core source facts.
+- `.agent_board/*` generated blocks are optional operator-facing mirrors, not
+  audit gates and not core source fact providers.
 
 Checks should include:
 
@@ -721,8 +704,8 @@ Checks should include:
 - no machine-local absolute paths;
 - no known stale phase phrases such as `no push yet`, `not committed yet`, or
   `in progress` after a pushed state;
-- current claim/source anchors are referenced where expected;
-- conflicting prose is reported as evidence drift.
+- current structured claim/source anchors are valid and reachable through JSON
+  claim semantics.
 
 Core PASS / BLOCK should not depend on Markdown prose fields.
 
@@ -737,7 +720,7 @@ Goal:
 - keep prose useful;
 - avoid reintroducing Markdown as the authority.
 
-Implemented display-sync path:
+Implemented optional display-sync path:
 
 ```bash
 node --import tsx scripts/sync-state-sync-display.ts --check
@@ -748,6 +731,9 @@ The script:
 
 - reads and validates only `docs/current/state-sync-record.json`;
 - fails closed when the structured claim is missing or invalid;
+- reports `authority: "display_only"` and `requiredForAudit: false`;
+- is useful for operator-facing freshness, but is not a required state-sync
+  audit or reanchor validation command;
 - updates fixed machine fields in `docs/current/CURRENT_STATE.md`;
 - maintains a generated `state-sync-display` block in each listed
   `.agent_board/*` display file;
@@ -916,8 +902,9 @@ state/docs through the existing state-only process.
   `main` / `state_only_pushed` structured record.
 - Strict state record path convergence is implemented. Broad `.agent_board/*`
   state-path allowance has been removed from state-sync path checks.
-- Machine-mirrored Markdown evidence drift is blocking after Markdown authority
-  removal. The claim remains authoritative; conflicting display fields block as
-  stale evidence rather than overriding the claim.
+- Machine-mirrored Markdown display drift blocking has been retired. The
+  structured claim remains authoritative; conflicting display fields are
+  optional operator-facing freshness signals rather than branch-head audit
+  blockers.
 - Unknown structured claim fields fail closed in schema v1. They are not warning
   fields and are not ignored.

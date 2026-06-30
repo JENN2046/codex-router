@@ -6,11 +6,11 @@ Current branch:
 
 Validated source commit:
 
-- `56b4155`
+- `b0d5a45`
 
 Latest validated commit:
 
-- `56b4155`
+- `b0d5a45`
 
 Structured claim:
 
@@ -31,15 +31,14 @@ Recorded validation:
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS
 - `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 
 State-sync audit observation:
 
 - structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `56b4155`
-- latest validated commit: `56b4155`
+- validated source commit: `b0d5a45`
+- latest validated commit: `b0d5a45`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -57,12 +56,12 @@ Execution boundary:
 - no direct push to `main` was executed by this branch record
 
 <!-- state-sync-display:start -->
-Generated from `docs/current/state-sync-record.json`.
+Optional display generated from `docs/current/state-sync-record.json`.
 
 - branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `56b4155`
-- latest validated commit: `56b4155`
+- validated source commit: `b0d5a45`
+- latest validated commit: `b0d5a45`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->

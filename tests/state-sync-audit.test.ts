@@ -2825,7 +2825,7 @@ function renderTestGeneratedDisplayBlock(input: {
 }): string {
   return [
     "<!-- state-sync-display:start -->",
-    "Generated from `docs/current/state-sync-record.json`.",
+    "Optional display generated from `docs/current/state-sync-record.json`.",
     "",
     `- branch: \`${input.branch}\``,
     `- upstream: \`${normalizeTestUpstream(input.upstream)}\``,

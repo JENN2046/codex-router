@@ -282,7 +282,6 @@ async function writeStateSurfaces(
           "node --import tsx --test tests/state-sync-display-sync.test.ts",
           "npm run typecheck",
           "npm run build",
-          "node --import tsx scripts/sync-state-sync-display.ts --check",
           "node --import tsx scripts/run-state-sync-audit.ts --json"
         ]
       }
@@ -379,7 +378,7 @@ function agentBoard(input: {
     `- \`ahead ${input.recordedAhead} / behind 0\``,
     "",
     "<!-- state-sync-display:start -->",
-    "Generated from `docs/current/state-sync-record.json`.",
+    "Optional display generated from `docs/current/state-sync-record.json`.",
     "",
     `- branch: \`${input.branch}\``,
     "- upstream: `refs/remotes/origin/main`",

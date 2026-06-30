@@ -15,11 +15,11 @@ Branch:
 
 Validated source commit:
 
-- `56b4155`
+- `b0d5a45`
 
 Latest validated commit:
 
-- `56b4155`
+- `b0d5a45`
 
 Upstream baseline:
 
@@ -50,18 +50,11 @@ Checkpoint facts:
   tree digest.
 - A present but invalid structured claim blocks without Markdown fallback.
 - A valid structured claim supplies core source and divergence facts.
-- Machine-mirrored Markdown and `.agent_board/*` evidence drift now blocks
-  through `state_sync_evidenceDriftAbsent`.
-- Empty or missing machine-mirrored Markdown fields block as evidence drift
-  unless the structured claim itself expects an empty value.
-- Stale `## Structured Record` mirror fields in `CURRENT_STATE.md`, including
-  source tree digest and strict state paths, block as evidence drift.
-- Stale `Validation recorded for source commit` and
-  `## State Sync Expectations` fields in `CURRENT_STATE.md` block as evidence
-  drift.
-- Stale or missing `.agent_board/*` generated mirror blocks are checked per
-  file, so aggregate block count cannot hide a missing or duplicate file block.
-- Supported `.agent_board/*` heading mirrors block as evidence drift.
+- Markdown and `.agent_board/*` display drift has been downgraded out of the
+  branch-head state-sync audit; the structured JSON record is the machine
+  authority.
+- `scripts/sync-state-sync-display.ts` remains available as an optional display
+  freshness helper.
 - Unknown structured claim fields fail closed in schema v1.
 - The reanchor preparation helper is merged through PR #54, remains
   non-committing and non-pushing, and verifies squash fallback `HEAD` against
@@ -122,15 +115,14 @@ Validation recorded:
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
-- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS
 - `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
 
 State-sync observation:
 
 - structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `56b4155`
-- latest validated commit: `56b4155`
+- validated source commit: `b0d5a45`
+- latest validated commit: `b0d5a45`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -138,12 +130,12 @@ State-sync observation:
 - Git ancestry, divergence, source-tree digest, and strict state path
   checks remain enforced by the state-sync audit.
 <!-- state-sync-display:start -->
-Generated from `docs/current/state-sync-record.json`.
+Optional display generated from `docs/current/state-sync-record.json`.
 
 - branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `56b4155`
-- latest validated commit: `56b4155`
+- validated source commit: `b0d5a45`
+- latest validated commit: `b0d5a45`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - transition: `state_only_pushed`
 <!-- state-sync-display:end -->
