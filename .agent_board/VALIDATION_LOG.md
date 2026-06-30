@@ -2,15 +2,15 @@
 
 Current branch:
 
-- `main`
+- `improve/state-sync-main-reanchor-runner`
 
 Validated source commit:
 
-- `f04b369`
+- `88ca86c`
 
 Latest validated commit:
 
-- `f04b369`
+- `88ca86c`
 
 Structured claim:
 
@@ -27,10 +27,9 @@ Upstream divergence baseline:
 Recorded validation:
 
 - `git diff --check`: PASS
-- `npm run demo:runtime-governance`: PASS
-- `node --import tsx --test tests/runtime-governance-demo.test.ts
-  tests/host-client-example.test.ts tests/execution-observation.test.ts
-  tests/desktop-live-adapter-governance.test.ts`: PASS
+- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
+  tests/state-sync-reanchor-helper.test.ts tests/state-sync-display-sync.test.ts
+  tests/canary-evidence.test.ts`: PASS
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -39,10 +38,10 @@ Recorded validation:
 
 State-sync audit observation:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `improve/state-sync-main-reanchor-runner` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `f04b369`
-- latest validated commit: `f04b369`
+- validated source commit: `88ca86c`
+- latest validated commit: `88ca86c`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -57,14 +56,15 @@ Execution boundary:
 - no manual CI rerun
 - no real provider execution
 - no real Codex CLI execution
+- no direct push to `main` was executed by this branch record
 
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `improve/state-sync-main-reanchor-runner`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `f04b369`
-- latest validated commit: `f04b369`
+- validated source commit: `88ca86c`
+- latest validated commit: `88ca86c`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

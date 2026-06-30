@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `main`
+- `improve/state-sync-main-reanchor-runner`
 
 Validated source commit:
 
-- `f04b369`
+- `88ca86c`
 
 Latest validated commit:
 
-- `f04b369`
+- `88ca86c`
 
 Upstream baseline:
 
@@ -93,6 +93,14 @@ Checkpoint facts:
   to emitted observations.
 - Malformed execution-observation refs fail closed, and recovery without an
   observation bus remains compatible with no consumable evidence refs.
+- Guarded local `main` state-sync reanchor runner is implemented as
+  `npm run state-sync:reanchor-main`.
+- The runner defaults to read-only, rejects non-`main` branches, requires local
+  `HEAD` to match `refs/remotes/origin/main`, verifies strict state/docs diffs,
+  and blocks stale pushes when `origin/main` moves before push.
+- README and the structured record plan now document the local runner as an
+  operator-authorized direct-push path while preserving the conservative
+  `state-sync/reanchor-main` PR workflow fallback.
 - Markdown and `.agent_board/*` are evidence/display surfaces, not governance
   authority.
 - `docs/current/state-sync-record.json` is included in strict state-only paths.
@@ -101,10 +109,9 @@ Checkpoint facts:
 Validation recorded:
 
 - `git diff --check`: PASS
-- `npm run demo:runtime-governance`: PASS
-- `node --import tsx --test tests/runtime-governance-demo.test.ts
-  tests/host-client-example.test.ts tests/execution-observation.test.ts
-  tests/desktop-live-adapter-governance.test.ts`: PASS
+- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
+  tests/state-sync-reanchor-helper.test.ts tests/state-sync-display-sync.test.ts
+  tests/canary-evidence.test.ts`: PASS
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -113,10 +120,10 @@ Validation recorded:
 
 State-sync observation:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `improve/state-sync-main-reanchor-runner` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `f04b369`
-- latest validated commit: `f04b369`
+- validated source commit: `88ca86c`
+- latest validated commit: `88ca86c`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -126,10 +133,10 @@ State-sync observation:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `improve/state-sync-main-reanchor-runner`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `f04b369`
-- latest validated commit: `f04b369`
+- validated source commit: `88ca86c`
+- latest validated commit: `88ca86c`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
