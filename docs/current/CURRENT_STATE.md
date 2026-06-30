@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `improve/state-sync-main-reanchor-runner` |
-| Current head | `c3368fb` |
-| Validated source commit | `c3368fb` |
+| Current branch | `main` |
+| Current head | `44addd6` |
+| Validated source commit | `44addd6` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 11 / behind 0` |
-| Latest validated commit | `c3368fb` |
+| Upstream divergence | `ahead 1 / behind 0` |
+| Latest validated commit | `44addd6` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,11 +36,11 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pending_push`
-- validated source commit: `c3368fb`
-- latest validated commit: `c3368fb`
+- transition kind: `state_only_pushed`
+- validated source commit: `44addd6`
+- latest validated commit: `44addd6`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 11 / behind 0`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
   `a70f8479cbcab25ddee9f83d7757efe06c8decf00680f2b13f53299df413f179`
 
@@ -101,7 +101,7 @@ remotes in tests.
 
 ## Validation Baseline
 
-Validation recorded for source commit `c3368fb`:
+Validation recorded for source commit `44addd6`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
@@ -122,11 +122,11 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- structured claim: `improve/state-sync-main-reanchor-runner` / `state_only_pending_push` against
+- structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `c3368fb`
-- latest validated commit: `c3368fb`
-- recorded divergence baseline: `ahead 11 / behind 0`
+- validated source commit: `44addd6`
+- latest validated commit: `44addd6`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -188,16 +188,15 @@ This state-only record line is limited to:
 
 The structured claim records:
 
-- branch: `improve/state-sync-main-reanchor-runner`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c3368fb`
-- recorded divergence baseline: `ahead 11 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `44addd6`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 
-For this `state_only_pending_push` record on branch `improve/state-sync-main-reanchor-runner`,
-Git observation should compute the validated source divergence as
-`ahead 11 / behind 0` against `refs/remotes/origin/main` before the state-only
-record is pushed.
+For this `state_only_pushed` state-only record, Git observation should
+compute the validated source divergence as `ahead 0 / behind 1` against
+`refs/remotes/origin/main` after the state-only record is on upstream.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then

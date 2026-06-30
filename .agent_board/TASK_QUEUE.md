@@ -2,8 +2,8 @@
 
 Current task:
 
-- Open a focused PR for the guarded local `main` state-sync reanchor runner
-  after final branch validation.
+- Keep state-sync structured record automation current; no post-merge
+  reanchor is pending.
 Done:
 
 - committed `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
@@ -129,10 +129,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `improve/state-sync-main-reanchor-runner`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c3368fb`
-- latest validated commit: `c3368fb`
-- recorded divergence baseline: `ahead 11 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `44addd6`
+- latest validated commit: `44addd6`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->

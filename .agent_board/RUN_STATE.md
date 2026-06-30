@@ -1,6 +1,6 @@
 # Run State
 
-Status: Branch state-sync record is current and pending push.
+Status: Main state-sync record is current and pushed.
 
 Machine-authoritative claim:
 
@@ -17,19 +17,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `improve/state-sync-main-reanchor-runner`
+- `main`
 
 Current head:
 
-- `c3368fb`
+- `44addd6`
 
 Validated source commit:
 
-- `c3368fb`
+- `44addd6`
 
 Latest validated commit:
 
-- `c3368fb`
+- `44addd6`
 
 Upstream baseline:
 
@@ -37,11 +37,11 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 11 / behind 0`
+- `ahead 1 / behind 0`
 
 Transition:
 
-- `state_only_pending_push`
+- `state_only_pushed`
 
 Validation recorded for this source commit:
 
@@ -57,11 +57,11 @@ Validation recorded for this source commit:
 
 State-sync audit expectation:
 
-- structured claim: `improve/state-sync-main-reanchor-runner` / `state_only_pending_push` against
+- structured claim: `main` / `state_only_pushed` against
   `refs/remotes/origin/main`
-- validated source commit: `c3368fb`
-- latest validated commit: `c3368fb`
-- recorded divergence baseline: `ahead 11 / behind 0`
+- validated source commit: `44addd6`
+- latest validated commit: `44addd6`
+- recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -81,10 +81,10 @@ Boundary:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `improve/state-sync-main-reanchor-runner`
+- branch: `main`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `c3368fb`
-- latest validated commit: `c3368fb`
-- recorded divergence baseline: `ahead 11 / behind 0`
-- transition: `state_only_pending_push`
+- validated source commit: `44addd6`
+- latest validated commit: `44addd6`
+- recorded divergence baseline: `ahead 1 / behind 0`
+- transition: `state_only_pushed`
 <!-- state-sync-display:end -->
