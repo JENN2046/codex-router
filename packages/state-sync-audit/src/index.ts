@@ -881,6 +881,7 @@ function structuredTransitionIsAllowed(
   return detachedSyntheticReviewCheckout
     && input.branch === ""
     && input.upstream === ""
+    && input.head === resolvedClaim.validatedSourceCommit
     && currentAhead === -1
     && currentBehind === -1
     && validatedSourceAhead === -1
@@ -1359,6 +1360,7 @@ function syntheticReviewStateAllowed(
     || latestValidatedCommit === undefined
     || currentHead !== validatedSourceCommit
     || validatedSourceCommit !== latestValidatedCommit
+    || validatedSourceCommit !== input.head
   ) {
     return undefined;
   }

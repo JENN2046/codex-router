@@ -747,6 +747,7 @@ test("state sync audit blocks synthetic anchors when validated source paths are 
 test("state sync audit accepts structured detached review checkout without validated source evidence", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
+    head: input.head,
     ...withStateSyncClaim(input, {
       upstream: "",
       transitionKind: "detached_review_checkout"
@@ -759,6 +760,26 @@ test("state sync audit accepts structured detached review checkout without valid
   assert.equal(review.checks.validatedSourceCommitRecorded, true);
   assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
+});
+
+test("state sync audit blocks detached review claims that do not match observed head", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit(asDetachedSyntheticReviewInput(input, {
+    head: "8a5c580",
+    validatedSourceCommitAvailable: false,
+    headSourceTreeDigest: TEST_SOURCE_TREE_DIGEST,
+    validatedSourceAheadBehind: "unknown\tunknown",
+    ...withStateSyncClaim(input, {
+      upstream: "",
+      transitionKind: "detached_review_checkout"
+    })
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
 });
 
 test("state sync audit still accepts valid state-only descendants after synthetic hardening", async () => {
@@ -788,7 +809,7 @@ test("state sync audit accepts clean detached PR checkouts through structured tr
     ...input,
     gitStatusShort: "",
     branch: "",
-    head: "8a5c580",
+    head: input.head,
     allowedStateCommits: [input.head],
     upstream: "",
     aheadBehind: "unknown\tunknown",
