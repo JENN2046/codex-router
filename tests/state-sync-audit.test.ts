@@ -54,8 +54,8 @@ test("state sync audit passes when clean HEAD matches a structured source claim"
   assert.equal(review.checks.staleMarkersAbsent, true);
   assert.equal(review.checks.structuredClaimValid, true);
   assert.equal(review.checks.evidenceDriftAbsent, true);
-  assert.equal(review.summary.requiredValidationCommandCount, 4);
-  assert.equal(review.summary.requiredBoundaryMarkerCount, 7);
+  assert.equal(review.summary.requiredValidationCommandCount, 0);
+  assert.equal(review.summary.requiredBoundaryMarkerCount, 0);
   assert.equal(review.summary.stateWritesDuringAudit, 0);
   assert.equal(review.summary.remoteWritesDuringAudit, 0);
 });
@@ -95,6 +95,36 @@ test("state sync audit ignores stale Markdown and agent board display mirrors", 
   assert.equal(review.checks.agentBoardAligned, true);
   assert.equal(review.checks.evidenceDriftAbsent, true);
   assert.deepEqual(review.issues, []);
+});
+
+test("state sync audit ignores Markdown checklist and display-state fields", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    currentStateText: input.currentStateText
+      .replace("CURRENT_STATE_RECORDED", "")
+      .replace(/\| Stale after commit \| `[^`]+` \|\n/, "")
+      .replaceAll("`npx tsx --test tests\\codex-cli-host.test.ts`", "`retired-validation`")
+      .replaceAll("`npm run typecheck`", "`retired-typecheck`")
+      .replaceAll("`npm test`", "`retired-test`")
+      .replaceAll("`npm run build`", "`retired-build`")
+      .replaceAll("`general_provider_execution`", "`retired-provider-boundary`")
+      .replaceAll("`general_workspace_write`", "`retired-workspace-boundary`")
+      .replaceAll("`protected_remote_write`", "`retired-remote-boundary`")
+      .replaceAll("`push_to_main`", "`retired-push-boundary`")
+      .replaceAll("`release_tag_deploy`", "`retired-release-boundary`")
+      .replaceAll("`secret_or_credential_change`", "`retired-secret-boundary`")
+      .replaceAll("`external_service_write`", "`retired-external-boundary`")
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.currentStateRecorded, true);
+  assert.equal(review.checks.staleAfterCommitRecorded, true);
+  assert.equal(review.checks.validationBaselineRecorded, true);
+  assert.equal(review.checks.executionBoundaryRecorded, true);
+  assert.equal(review.summary.requiredValidationCommandCount, 0);
+  assert.equal(review.summary.requiredBoundaryMarkerCount, 0);
 });
 
 test("state sync audit blocks structured claims with stale subject branch", async () => {
@@ -1244,7 +1274,7 @@ test("state sync audit blocks malformed recorded upstream divergence", async () 
   assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
-test("state sync audit blocks stale agent board facts", async () => {
+test("state sync audit ignores obsolete stale agent board checklist markers", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -1254,8 +1284,10 @@ test("state sync audit blocks stale agent board facts", async () => {
     ].join("\n")
   });
 
-  assert.equal(review.status, "blocked");
-  assert.ok(review.reasons.includes("state_sync_staleMarkersAbsent"));
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.staleMarkersAbsent, true);
+  assert.equal(review.summary.staleMarkerHitCount, 0);
 });
 
 test("state sync audit ignores stale agent board commit facts", async () => {
@@ -1273,7 +1305,7 @@ test("state sync audit ignores stale agent board commit facts", async () => {
   assert.equal(review.checks.agentBoardAligned, true);
 });
 
-test("state sync audit blocks missing script and boundary markers", async () => {
+test("state sync audit blocks missing governance script but ignores boundary checklist markers", async () => {
   const input = await createInputFromWorkspace();
   const packageJson = JSON.parse(input.packageJsonText) as {
     scripts: Record<string, string>;
@@ -1290,7 +1322,8 @@ test("state sync audit blocks missing script and boundary markers", async () => 
 
   assert.equal(review.status, "blocked");
   assert.ok(review.reasons.includes("state_sync_packageScriptPresent"));
-  assert.ok(review.reasons.includes("state_sync_executionBoundaryRecorded"));
+  assert.equal(review.checks.executionBoundaryRecorded, true);
+  assert.ok(!review.reasons.includes("state_sync_executionBoundaryRecorded"));
 });
 
 test("state sync audit output stays summarized", async () => {
