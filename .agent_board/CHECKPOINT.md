@@ -11,15 +11,15 @@ Operator evidence surfaces:
 
 Branch:
 
-- `main`
+- `improve/runtime-control-signal-escalation`
 
 Validated source commit:
 
-- `44addd6`
+- `d2c8c5a`
 
 Latest validated commit:
 
-- `44addd6`
+- `d2c8c5a`
 
 Upstream baseline:
 
@@ -104,6 +104,12 @@ Checkpoint facts:
 - README and the structured record plan now document the local runner as an
   operator-authorized direct-push path while preserving the conservative
   `state-sync/reanchor-main` PR workflow fallback.
+- `runtime-control` now exposes
+  `createRuntimeSignalFromGovernanceState()` for converting governance state
+  into escalation-ready runtime signals.
+- Runtime-control tests now cover no-op, failure threshold, scope expansion,
+  validation failure, context pressure, high-risk open-circuit, and governance
+  state signal derivation.
 - Markdown and `.agent_board/*` are evidence/display surfaces, not governance
   authority.
 - `docs/current/state-sync-record.json` is included in strict state-only paths.
@@ -112,9 +118,7 @@ Checkpoint facts:
 Validation recorded:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
-  tests/state-sync-reanchor-helper.test.ts tests/state-sync-display-sync.test.ts
-  tests/canary-evidence.test.ts`: PASS
+- `node --import tsx --test tests/runtime-control.test.ts`: PASS
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -123,10 +127,10 @@ Validation recorded:
 
 State-sync observation:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `improve/runtime-control-signal-escalation` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `44addd6`
-- latest validated commit: `44addd6`
+- validated source commit: `d2c8c5a`
+- latest validated commit: `d2c8c5a`
 - recorded divergence baseline: `ahead 1 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
@@ -136,10 +140,10 @@ State-sync observation:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `improve/runtime-control-signal-escalation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `44addd6`
-- latest validated commit: `44addd6`
+- validated source commit: `d2c8c5a`
+- latest validated commit: `d2c8c5a`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

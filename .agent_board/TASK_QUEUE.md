@@ -2,8 +2,8 @@
 
 Current task:
 
-- Keep state-sync structured record automation current; no post-merge
-  reanchor is pending.
+- Prepare a focused runtime-control PR that turns governance state into
+  escalation-ready runtime signals.
 Done:
 
 - committed `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
@@ -97,13 +97,14 @@ Done:
   the direct-push runner has pushed the reanchor commit
 - documented the operator-authorized direct-push runner while preserving the
   conservative `state-sync/reanchor-main` PR fallback
+- added `createRuntimeSignalFromGovernanceState()` in `runtime-control`
+- added regression coverage for runtime-control no-op, escalation, open-circuit,
+  and governance-state signal derivation
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
-  tests/state-sync-reanchor-helper.test.ts tests/state-sync-display-sync.test.ts
-  tests/canary-evidence.test.ts`: PASS
+- `node --import tsx --test tests/runtime-control.test.ts`: PASS
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -129,10 +130,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `improve/runtime-control-signal-escalation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `44addd6`
-- latest validated commit: `44addd6`
+- validated source commit: `d2c8c5a`
+- latest validated commit: `d2c8c5a`
 - recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
