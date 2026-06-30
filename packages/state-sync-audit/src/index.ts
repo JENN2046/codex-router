@@ -412,11 +412,6 @@ export function reviewStateSyncAudit(
   const validatedSourceCommit = resolvedClaim.validatedSourceCommit;
   const latestValidatedCommit = resolvedClaim.latestValidatedCommit;
   const upstreamDivergence = resolvedClaim.upstreamDivergence;
-  const staleAfterCommit = fieldIncludes(
-    input.currentStateText,
-    "Stale after commit",
-    "true"
-  );
   const stateSurfaces = [
     {
       path: CURRENT_STATE_DOC,
@@ -436,14 +431,14 @@ export function reviewStateSyncAudit(
   const sanitization = inspectStateSyncSanitization(stateSurfaces);
   const syntheticReviewState = syntheticReviewStateAllowed(
     input,
+    resolvedClaim,
     currentHead,
     validatedSourceCommit,
     latestValidatedCommit,
     ahead,
     behind,
     validatedSourceAhead,
-    validatedSourceBehind,
-    staleAfterCommit
+    validatedSourceBehind
   );
   const detachedSyntheticReviewCheckout = syntheticReviewState !== undefined;
   const sourceTreeDigestCompatibleWithHead =
@@ -474,7 +469,6 @@ export function reviewStateSyncAudit(
       sourceTreeDigestOnlyCompatibility,
       input.allowedStateCommits,
       syntheticReviewState,
-      staleAfterCommit,
       resolvedClaim.allowedStatePaths
     ),
     validatedSourceCommitRecorded: stateCommitMatchesValidatedSource(
@@ -489,7 +483,6 @@ export function reviewStateSyncAudit(
       sourceTreeDigestOnlyCompatibility,
       input.allowedStateCommits,
       syntheticReviewState,
-      staleAfterCommit,
       resolvedClaim.allowedStatePaths
     ),
     upstreamRecorded:
@@ -524,7 +517,6 @@ export function reviewStateSyncAudit(
         sourceTreeDigestOnlyCompatibility,
         input.allowedStateCommits,
         syntheticReviewState,
-        staleAfterCommit,
         resolvedClaim.allowedStatePaths
       ),
     dirtyWorktreeStateOnly: dirtyStatusEntriesAreAllowedStatePaths(
@@ -997,7 +989,6 @@ function stateCommitMatchesHead(
   sourceTreeDigestCompatibleWithHead: boolean,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
-  staleAfterCommit: boolean,
   allowedStatePaths: string[] | undefined
 ): boolean {
   if (value === undefined) {
@@ -1020,8 +1011,7 @@ function stateCommitMatchesHead(
     )
     || sourceTreeDigestCompatibleWithHead
     || (
-      staleAfterCommit
-      && syntheticReviewState !== undefined
+      syntheticReviewState !== undefined
       && reviewCheckoutCommitIsAllowed(
         value,
         parentHead,
@@ -1044,7 +1034,6 @@ function stateCommitMatchesValidatedSource(
   sourceTreeDigestCompatibleWithHead: boolean,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
-  staleAfterCommit: boolean,
   allowedStatePaths: string[] | undefined
 ): boolean {
   if (
@@ -1067,7 +1056,6 @@ function stateCommitMatchesValidatedSource(
       sourceTreeDigestCompatibleWithHead,
       allowedStateCommits,
       syntheticReviewState,
-      staleAfterCommit,
       allowedStatePaths
     );
 }
@@ -1216,7 +1204,6 @@ function agentBoardCommitsMatchState(
   sourceTreeDigestCompatibleWithHead: boolean,
   allowedStateCommits: string[] | undefined,
   syntheticReviewState: string | undefined,
-  staleAfterCommit: boolean,
   allowedStatePaths: string[] | undefined
 ): boolean {
   const allowed = new Set([head]);
@@ -1233,7 +1220,6 @@ function agentBoardCommitsMatchState(
       sourceTreeDigestCompatibleWithHead,
       allowedStateCommits,
       syntheticReviewState,
-      staleAfterCommit,
       allowedStatePaths
     )
   ) {
@@ -1351,16 +1337,19 @@ function stateCompatibleCommits(
 
 function syntheticReviewStateAllowed(
   input: StateSyncAuditInput,
+  resolvedClaim: ResolvedStateSyncClaim,
   currentHead: string | undefined,
   validatedSourceCommit: string | undefined,
   latestValidatedCommit: string | undefined,
   ahead: number,
   behind: number,
   validatedSourceAhead: number,
-  validatedSourceBehind: number,
-  staleAfterCommit: boolean
+  validatedSourceBehind: number
 ): string | undefined {
-  if (!fieldIncludes(input.currentStateText, "Synthetic review checkout", "allowed")) {
+  if (
+    resolvedClaim.claimSource !== "structured"
+    || resolvedClaim.transitionKind !== "detached_review_checkout"
+  ) {
     return undefined;
   }
 
@@ -1382,7 +1371,7 @@ function syntheticReviewStateAllowed(
     && validatedSourceAhead === -1
     && validatedSourceBehind === -1;
 
-  if (!staleAfterCommit || !cleanDetachedUnknownDivergence) {
+  if (!cleanDetachedUnknownDivergence) {
     return undefined;
   }
 

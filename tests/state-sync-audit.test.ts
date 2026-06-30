@@ -719,10 +719,11 @@ test("state sync audit blocks unreachable synthetic anchors with validated sourc
   }));
 
   assert.equal(review.status, "blocked");
-  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, false);
   assert.equal(review.checks.validatedSourceHeadRecorded, false);
   assert.equal(review.checks.validatedSourceCommitRecorded, false);
   assert.equal(review.checks.latestValidatedCommitRecorded, false);
+  assert.ok(review.reasons.includes("state_sync_validatedSourceDivergenceRecorded"));
   assert.ok(review.reasons.includes("state_sync_validatedSourceHeadRecorded"));
   assert.ok(review.reasons.includes("state_sync_validatedSourceCommitRecorded"));
   assert.ok(review.reasons.includes("state_sync_latestValidatedCommitRecorded"));
@@ -781,7 +782,7 @@ test("state sync audit still accepts valid state-only descendants after syntheti
   assert.equal(review.checks.latestValidatedCommitRecorded, true);
 });
 
-test("state sync audit accepts clean detached PR checkouts when explicitly allowed", async () => {
+test("state sync audit accepts clean detached PR checkouts through structured transition", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -802,7 +803,13 @@ test("state sync audit accepts clean detached PR checkouts when explicitly allow
     ...withStateSyncClaim(input, {
       upstream: "",
       transitionKind: "detached_review_checkout"
+    }),
+    currentStateText: withCurrentStateMirrors(input.currentStateText, input, {
+      upstream: "",
+      transitionKind: "detached_review_checkout"
     })
+      .replace(/\| Stale after commit \| `[^`]+` \|\n/, "")
+      .replace(/\| Synthetic review checkout \| `allowed` \|\n/, "")
   });
 
   assert.equal(review.status, "passed");
@@ -813,7 +820,7 @@ test("state sync audit accepts clean detached PR checkouts when explicitly allow
   assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
 });
 
-test("state sync audit blocks detached PR checkouts without explicit state marker", async () => {
+test("state sync audit blocks detached PR checkouts without detached review transition", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewStateSyncAudit({
     ...input,
@@ -828,10 +835,10 @@ test("state sync audit blocks detached PR checkouts without explicit state marke
     committedPathsSinceValidatedSource: [
       "packages/state-sync-audit/src/index.ts"
     ],
-    currentStateText: input.currentStateText.replace(
-      /\| Synthetic review checkout \| `allowed` \|\n/,
-      ""
-    )
+    ...withStateSyncClaim(input, {
+      upstream: "",
+      transitionKind: "state_only_pending_push"
+    })
   });
 
   assert.equal(review.status, "blocked");

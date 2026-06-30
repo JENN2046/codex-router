@@ -433,6 +433,9 @@ Display drift contract:
   command lists, boundary marker lists, stale phrase scans, and state-mode rows
   are not state-sync audit gates. Legacy check fields may remain in the JSON
   result only as compatibility placeholders.
+- Detached review checkout compatibility is also declared by structured
+  `transition.kind: "detached_review_checkout"`, not by Markdown state-mode
+  rows.
 - Free-form Markdown prose and handoff notes remain evidence/display surfaces;
   they do not become governance authority unless represented by a structured
   check.
