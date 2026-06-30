@@ -2,26 +2,26 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "codex/state-sync-display-downgrade",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "b0d5a45",
-    "latestValidatedCommit": "b0d5a45",
+    "validatedSourceCommit": "ddf7349",
+    "latestValidatedCommit": "ddf7349",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "dabc59c330baf0e4ed01a31f60bf7dd13c5672cfc240dffb44171ea7dc0577d9",
+      "value": "eabb9d74ef51b83b0d9ad91a3df2b4897d04dc651219d1a3330de02ae061e82f",
       "excludedPaths": [
         "docs/current/state-sync-record.json"
       ]
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]
