@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "codex/state-sync-markdown-checklist-prune",
+    "branch": "main",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "919aaa6",
-    "latestValidatedCommit": "919aaa6",
+    "validatedSourceCommit": "d2fefd5",
+    "latestValidatedCommit": "d2fefd5",
     "recordedDivergence": {
-      "ahead": 9,
+      "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
@@ -21,7 +21,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pending_push",
+    "kind": "state_only_pushed",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]
