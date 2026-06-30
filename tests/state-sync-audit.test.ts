@@ -1533,6 +1533,53 @@ test("state sync audit collector uses structured claim for validated source anch
   assert.deepEqual(input.committedPathsSinceValidatedSource, []);
 });
 
+test("state sync audit collector does not require display or handoff surfaces", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-json-only-"));
+  await git(cwd, ["init"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+  await git(cwd, ["checkout", "-b", "main"]);
+
+  await writeFile(
+    join(cwd, "package.json"),
+    JSON.stringify({
+      scripts: {
+        governance: "tsx scripts/run-governance-check.ts"
+      }
+    }, null, 2)
+  );
+  await git(cwd, ["add", "package.json"]);
+  await git(cwd, ["commit", "-m", "source"]);
+  const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
+
+  await writeStateSyncClaim(cwd, {
+    branch: "main",
+    upstream: "refs/remotes/origin/main",
+    validatedSourceCommit: sourceCommit,
+    latestValidatedCommit: sourceCommit,
+    recordedAhead: 1,
+    recordedBehind: 0,
+    transitionKind: "state_only_pushed"
+  });
+  await git(cwd, ["add", "docs/current/state-sync-record.json"]);
+  await git(cwd, ["commit", "-m", "state record"]);
+  await git(cwd, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+  const input = await collectStateSyncAuditInput(cwd);
+  const review = reviewStateSyncAudit(input);
+
+  assert.equal(input.currentStateText, "");
+  assert.equal(input.agentBoardText, "");
+  assert.equal(input.agentBoardFiles, undefined);
+  assert.deepEqual(input.committedPathsSinceValidatedSource, strictStateRecordPaths());
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.summary.claimSource, "structured");
+  assert.equal(review.checks.currentStateRecorded, true);
+  assert.equal(review.checks.agentBoardAligned, true);
+  assert.equal(review.checks.outputSanitized, true);
+});
+
 test("state sync audit collector observes structured claim upstream ref without local upstream", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-claim-upstream-"));
   await git(cwd, ["init"]);

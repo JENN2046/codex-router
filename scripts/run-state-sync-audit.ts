@@ -15,15 +15,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-const CURRENT_STATE_DOC = "docs/current/CURRENT_STATE.md";
 const STATE_SYNC_RECORD_DOC = "docs/current/state-sync-record.json";
-const AGENT_BOARD_FILES = [
-  ".agent_board/RUN_STATE.md",
-  ".agent_board/TASK_QUEUE.md",
-  ".agent_board/CHECKPOINT.md",
-  ".agent_board/HANDOFF.md",
-  ".agent_board/VALIDATION_LOG.md"
-] as const;
 
 export async function collectStateSyncAuditInput(
   cwd = process.cwd()
@@ -39,8 +31,6 @@ export async function collectStateSyncAuditInput(
     mergeParentDeclaredParents,
     localUpstream,
     packageJsonText,
-    currentStateText,
-    agentBoardFiles,
     stateSyncClaimText
   ] =
     await Promise.all([
@@ -55,11 +45,8 @@ export async function collectStateSyncAuditInput(
       git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd)
         .catch(() => ""),
       read(cwd, "package.json"),
-      read(cwd, CURRENT_STATE_DOC),
-      readAgentBoardFiles(cwd),
       readOptional(cwd, STATE_SYNC_RECORD_DOC)
     ]);
-  const agentBoardText = agentBoardFiles.map((file) => file.text).join("\n");
 
   const parsedClaim = parseStateSyncClaim(stateSyncClaimText);
   const observedUpstream = await resolveObservedUpstream(
@@ -81,9 +68,8 @@ export async function collectStateSyncAuditInput(
     upstream: observedUpstream,
     aheadBehind: aheadBehind.trim(),
     packageJsonText,
-    currentStateText,
-    agentBoardText,
-    agentBoardFiles
+    currentStateText: "",
+    agentBoardText: ""
   };
   if (stateSyncClaimText !== undefined) {
     input.stateSyncClaimText = stateSyncClaimText;
@@ -114,10 +100,7 @@ export async function collectStateSyncAuditInput(
     input.allowedStateCommits = allowedStateCommits;
   }
 
-  const validatedSourceAnchor = validatedSourceAnchorFromClaimOrLegacy(
-    parsedClaim,
-    currentStateText
-  );
+  const validatedSourceAnchor = validatedSourceAnchorFromClaimOrLegacy(parsedClaim);
   if (validatedSourceAnchor !== undefined) {
     if (isCommitLike(validatedSourceAnchor)) {
       const validatedSourceCommitAvailable =
@@ -186,20 +169,8 @@ async function resolveObservedUpstream(
   return await gitRefExists(normalizedUpstream, cwd) ? normalizedUpstream : "";
 }
 
-async function readAgentBoardFiles(
-  cwd: string
-): Promise<Array<{ path: string; text: string }>> {
-  return Promise.all(
-    AGENT_BOARD_FILES.map(async (filePath) => ({
-      path: filePath,
-      text: await read(cwd, filePath).catch(() => "")
-    }))
-  );
-}
-
 function validatedSourceAnchorFromClaimOrLegacy(
-  parsedClaim: ReturnType<typeof parseStateSyncClaim>,
-  _currentStateText: string
+  parsedClaim: ReturnType<typeof parseStateSyncClaim>
 ): string | undefined {
   if (parsedClaim.status === "valid") {
     return parsedClaim.claim.source.validatedSourceCommit;

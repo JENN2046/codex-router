@@ -89,26 +89,14 @@ Candidate fields and field meaning:
       "algorithm": "git-ls-tree-sha256",
       "value": "64 lowercase hex characters",
       "excludedPaths": [
-        "docs/current/CURRENT_STATE.md",
-        "docs/current/state-sync-record.json",
-        ".agent_board/CHECKPOINT.md",
-        ".agent_board/HANDOFF.md",
-        ".agent_board/RUN_STATE.md",
-        ".agent_board/TASK_QUEUE.md",
-        ".agent_board/VALIDATION_LOG.md"
+        "docs/current/state-sync-record.json"
       ]
     }
   },
   "transition": {
     "kind": "state_only_pushed",
     "allowedStatePaths": [
-      "docs/current/CURRENT_STATE.md",
-      "docs/current/state-sync-record.json",
-      ".agent_board/CHECKPOINT.md",
-      ".agent_board/HANDOFF.md",
-      ".agent_board/RUN_STATE.md",
-      ".agent_board/TASK_QUEUE.md",
-      ".agent_board/VALIDATION_LOG.md"
+      "docs/current/state-sync-record.json"
     ]
   },
   "validation": {
@@ -160,8 +148,9 @@ observation. This avoids reintroducing the current ambiguity where a state-only
 record commit may be live `HEAD` while the validated source commit remains the
 recorded source anchor.
 
-`docs/current/state-sync-record.json` is itself a state-only record path. Any
-strict state-only path helper introduced for this plan must include it.
+`docs/current/state-sync-record.json` is the Phase 1 strict state-only record
+path. Markdown and `.agent_board/*` paths are display / handoff surfaces and are
+not part of the strict state-only transition set.
 
 ### Git Observation
 
@@ -225,10 +214,9 @@ Claim handling must fail closed:
   accepted transitions use this path list for dirty worktree or state-only path
   checks.
 
-Legacy Markdown fallback is allowed only during the compatibility window and only
-when the claim file is completely absent.
-
-No fallback is allowed when the claim file is present but invalid.
+Legacy Markdown fallback has been retired. If the claim file is absent or
+invalid, the audit blocks; Markdown fields are not used as replacement
+authority.
 
 ### Policy Verification
 
@@ -367,8 +355,8 @@ audit remains read-only
 ```
 
 This transition may satisfy only the divergence compatibility portion of the
-audit. It must not bypass source reachability, agent board evidence, output
-sanitization, dirty worktree checks, or synthetic anchor hardening.
+audit. It must not bypass source reachability, output sanitization, dirty
+worktree checks, or synthetic anchor hardening.
 
 `merge_ref_checkout` is not accepted as a structured claim transition in Phase 1.
 Detached pull request merge refs may still pass an existing branch-head
@@ -442,6 +430,10 @@ Display drift contract:
   check.
 - Sanitization issues still identify the surface and line, but must not echo
   secrets or machine-local absolute paths.
+- The default branch-head state-sync audit no longer needs to read
+  `CURRENT_STATE.md` or `.agent_board/*`. Callers may pass those texts
+  explicitly for optional sanitization, but missing display or handoff files are
+  not a state-sync audit failure.
 
 ### Main Reanchor Operation
 
@@ -479,9 +471,11 @@ keeps the operation bounded by checking that:
   explicit resume case where `--push` continues a clean local commit-only
   reanchor;
 - the structured reanchor gate says a reanchor is needed;
-- generated state/docs changes are limited to the strict state record paths;
-- display mirrors are synchronized from `docs/current/state-sync-record.json`;
-- pre-push validation is limited to diff, display, and strict state/docs checks;
+- generated state changes are limited to the strict state record path;
+- display mirrors may be synchronized separately from
+  `docs/current/state-sync-record.json`, but they are not part of the guarded
+  main reanchor delta;
+- pre-push validation is limited to diff and strict state-record checks;
 - the full state-sync audit runs after a successful direct push, because a
   `state_only_pushed` claim is valid only once upstream contains the reanchor
   commit;
@@ -498,13 +492,12 @@ lands. A later `npm run state-sync:reanchor-main -- --push` may continue only
 when the worktree is clean, local `main` is exactly one commit ahead of
 `origin/main`, that commit's parent is the observed remote head, the parent
 claim is not already `main` / `state_only_pushed`, the structured gate reports
-`already_reanchored` at local `HEAD`, and the commit diff contains the full
-generated state-sync reanchor delta across the strict state/docs paths with no
-stale reanchor prose. Empty commits, note-only commits, and other allowed-path
-changes are not resumable reanchors. The range verifier includes rename sources
-by treating renames as delete/add path changes, and the resume path compares the
-local `HEAD` claim with the claim regenerated from the parent state before any
-push is attempted.
+`already_reanchored` at local `HEAD`, and the commit diff contains the generated
+state-sync reanchor delta for the strict state record path. Empty commits,
+note-only commits, and other allowed-path changes are not resumable reanchors.
+The range verifier includes rename sources by treating renames as delete/add
+path changes, and the resume path compares the local `HEAD` claim with the
+claim regenerated from the parent state before any push is attempted.
 
 If `origin/main` moves after the local commit is prepared, the runner blocks
 instead of pushing a stale reanchor. This keeps the direct-push path safe enough
@@ -541,12 +534,10 @@ Add `docs/current/state-sync-record.json`.
 Update audit input collection so the verifier can read:
 
 - the JSON claim;
-- existing Markdown state surfaces for compatibility and evidence checks;
 - live Git observation as today.
 
-The verifier should use the JSON claim for core facts whenever the claim file is
-present and valid. Markdown field parsing is only a temporary migration fallback
-when the claim file is completely absent. When a claim exists, Markdown may only
+The verifier uses the JSON claim for core facts when the claim file is present
+and valid. Markdown field parsing is not a fallback authority path. Markdown may
 serve as optional display or human handoff context; it must not provide core
 source, divergence, transition, or allowed-path facts.
 
@@ -575,11 +566,10 @@ Project-realistic implementation order:
    ```text
    validatedSourceAnchor =
      structured claim source.validatedSourceCommit
-     or legacy Markdown Validated source commit / Latest validated commit
    ```
 
-   This is required because the collector currently computes ancestry,
-   validated-source divergence, and changed paths from Markdown-derived fields.
+   This is required because the collector computes ancestry, validated-source
+   divergence, and changed paths from the validated source anchor.
 
    If the structured claim file is present but invalid, the collector must not
    fall back to Markdown to choose `validatedSourceAnchor`. It should emit
@@ -589,11 +579,11 @@ Project-realistic implementation order:
 6. Add a resolver inside `packages/state-sync-audit`:
 
    ```text
-   resolveStateSyncClaim(input) -> structured claim | legacy markdown claim | invalid
+   resolveStateSyncClaim(input) -> structured claim | missing | invalid
    ```
 
-   The resolver owns parsing, schema validation, policy version validation,
-   fallback selection, and evidence drift detection.
+   The resolver owns parsing, schema validation, policy version validation, and
+   fail-closed missing / invalid claim classification.
 
    The parser / validator used by this resolver must be exported from
    `packages/state-sync-audit` and reused by `scripts/run-state-sync-audit.ts`.
@@ -609,17 +599,16 @@ Project-realistic implementation order:
 
    `scripts/run-state-sync-audit.ts` can use this parser before the full
    `StateSyncAuditInput` exists. `resolveStateSyncClaim(input)` remains the audit
-   layer resolver that combines parsed claim state, legacy Markdown fallback, and
-   evidence drift reporting.
+   layer resolver that combines parsed claim state with live Git observation.
 
 7. In Phase 1, feed resolved claim fields into the existing checks instead of
    rewriting all state-sync checks at once. Existing helpers such as
    state-only descendant, bounded divergence snapshot, synthetic checkout
    hardening, and merge-parent compatibility should stay in place.
 
-   Phase 1 must not expand `.agent_board` authority. Existing agent board checks
-   may remain for compatibility, but `.agent_board/*` must not become a source of
-   core source, divergence, transition, or allowed-path facts.
+   Phase 1 must not expand `.agent_board` authority. Existing agent board check
+   outputs may remain for compatibility, but `.agent_board/*` must not become a
+   source of core source, divergence, transition, or allowed-path facts.
 
 8. Introduce transition formulas as explicit policy helper functions only after
    the resolver and collector are stable.
@@ -632,22 +621,21 @@ Phase 1 compatibility rules:
 
 - claim present and valid: core facts come from the claim;
 - claim present and invalid: BLOCK, with no Markdown fallback;
-- claim absent: use legacy Markdown parsing and report legacy fallback mode;
-- claim / Markdown conflict: report evidence drift;
+- claim absent: BLOCK with `summary.claimSource = "missing_structured"`;
+- claim / Markdown conflict: optional display drift only;
 - claim / observation conflict: BLOCK;
-- Markdown prose stale but claim and observation valid: PASS with evidence drift
-  only if a checked Markdown field conflicts with the claim.
+- Markdown prose stale but claim and observation valid: PASS. Display freshness
+  belongs to the optional display sync tool, not the branch-head audit.
 
 Compatibility exit rule:
 
-- Phase 1 is the only phase where a missing claim may fall back to Markdown.
-- Phase 2 changes missing `docs/current/state-sync-record.json` from legacy
-  fallback to BLOCK and reports `summary.claimSource = "missing_structured"`.
-- The verifier output should expose `claimSource: "structured"` or
-  `claimSource: "missing_structured"` or
-  `claimSource: "invalid_structured"` in `summary.claimSource` after the Phase 2
-  missing-claim gate is enabled so absent-claim and invalid-claim blocks are
-  visible in tests, local output, and CI logs.
+- Missing-claim fallback has exited. A missing
+  `docs/current/state-sync-record.json` blocks with
+  `summary.claimSource = "missing_structured"`.
+- The verifier output exposes `claimSource: "structured"` or
+  `claimSource: "missing_structured"` or `claimSource: "invalid_structured"` in
+  `summary.claimSource` so absent-claim and invalid-claim blocks are visible in
+  tests, local output, and CI logs.
 
 New tests should cover:
 
@@ -659,8 +647,8 @@ New tests should cover:
 - unknown schema or policy version blocks;
 - invalid transition kind blocks;
 - stale Markdown prose does not override a valid claim;
-- Markdown / claim conflict is reported as evidence drift;
-- missing claim blocks after the Phase 2 missing-claim gate is enabled.
+- Markdown / claim conflict is optional display drift, not an audit issue;
+- missing claim blocks.
 
 Project-realistic test migration requirements:
 
@@ -673,12 +661,10 @@ Project-realistic test migration requirements:
   valid Markdown for validated-source ancestry, divergence, or changed-path
   observation;
 - add a real-shape `state_only_pushed` fixture matching the current mainline
-  pattern: live `HEAD` is a state/docs commit, the validated source commit is its
-  ancestor, committed paths since validated source are strict state record paths,
-  current branch divergence is `ahead 0 / behind 0`, and recorded divergence is
-  the inverse validated-source baseline;
-- keep existing Markdown-only tests passing through `legacy_markdown` fallback
-  during Phase 1;
+  pattern: live `HEAD` is a state-record commit, the validated source commit is
+  its ancestor, committed paths since validated source are strict state record
+  paths, current branch divergence is `ahead 0 / behind 0`, and recorded
+  divergence is the inverse validated-source baseline;
 - update output tests to assert `summary.claimSource`.
 
 ### Phase 2: Markdown And Agent Board Downgrade
@@ -704,12 +690,15 @@ Phase 2-B keeps Markdown and `.agent_board/*` as display/evidence surfaces:
   authority;
 - `.agent_board/*` generated blocks are optional operator-facing mirrors, not
   audit gates and not core source fact providers.
+- branch-head audit collection does not require these files to exist and does
+  not read them by default.
 
 Checks should include:
 
-- required files exist;
-- no secret markers;
-- no machine-local absolute paths;
+- required structured claim file exists;
+- no secret markers in surfaces explicitly supplied for sanitization;
+- no machine-local absolute paths in surfaces explicitly supplied for
+  sanitization;
 - current structured claim/source anchors are valid and reachable through JSON
   claim semantics.
 
@@ -826,20 +815,17 @@ future structured review-context claim is designed.
 Accepted strict state record paths:
 
 ```text
-docs/current/CURRENT_STATE.md
 docs/current/state-sync-record.json
-.agent_board/CHECKPOINT.md
-.agent_board/HANDOFF.md
-.agent_board/RUN_STATE.md
-.agent_board/TASK_QUEUE.md
-.agent_board/VALIDATION_LOG.md
 ```
 
-Strict path convergence removes the earlier broad `.agent_board/*` allowance.
-Dirty worktree paths, committed state-only descendant paths, source-tree digest
+Strict path convergence removes the earlier broad `.agent_board/*` allowance and
+also removes Markdown display files from the state-only transition set. Dirty
+worktree paths, committed state-only descendant paths, source-tree digest
 exclusions, and claim `transition.allowedStatePaths` must all resolve through
-the same fixed strict state record path set. Any other `.agent_board` file, such
-as `.agent_board/EXTRA.md`, is treated as a non-state path and must block.
+the same fixed strict state record path set. Any `.agent_board` file,
+`CURRENT_STATE.md`, source file, test file, script, or workflow file is treated
+as a non-state path and must block if it appears in a structured state-only
+delta.
 
 Structured claim schema v1 is fail-closed for unknown fields. Unknown fields in
 the top-level claim object, `subject`, `source`, `source.recordedDivergence`,
@@ -896,10 +882,10 @@ npm test
 
 ## Rollback Plan
 
-Phase 1 should preserve legacy Markdown compatibility. If the new structured
-claim behavior causes unexpected blockage, revert the feature branch before
-merge. If already merged, revert the source/test commit first, then re-anchor
-state/docs through the existing state-only process.
+If structured claim behavior causes unexpected blockage, revert the feature
+branch before merge. If already merged, revert the source/test commit first,
+then re-anchor `docs/current/state-sync-record.json` through the existing
+state-only process.
 
 ## Resolved Decisions
 
@@ -915,5 +901,7 @@ state/docs through the existing state-only process.
 - Markdown checklist blocking has been retired. `CURRENT_STATE_RECORDED`,
   validation command lists, execution boundary marker lists, state-mode rows,
   and stale phrase scans no longer decide state-sync PASS/BLOCK.
+- Branch-head audit collection no longer requires `CURRENT_STATE.md` or
+  `.agent_board/*`; those files remain optional display / handoff surfaces.
 - Unknown structured claim fields fail closed in schema v1. They are not warning
   fields and are not ignored.
