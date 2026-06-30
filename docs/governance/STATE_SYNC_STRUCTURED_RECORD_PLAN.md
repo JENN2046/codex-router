@@ -449,6 +449,74 @@ from aggregate text. `field` should name the logical field, such as
 `Current head`, `Validated source commit`, `Upstream divergence`, or
 `Latest validated commit`.
 
+### Main Reanchor Operation
+
+Post-merge main reanchors should be a guarded operation, not a repeated manual
+checklist.
+
+The conservative path remains:
+
+```text
+main push -> state-sync/reanchor-main PR -> review / CI -> merge
+```
+
+That PR path is still useful where direct `main` pushes are not authorized or
+where repository branch protection should require review for every state/docs
+record. Because the PR is created or updated with `GITHUB_TOKEN`, approval
+required workflow runs are an expected GitHub authorization behavior and should
+not be mistaken for proof that CI failed to trigger.
+
+For operator-authorized direct reanchor pushes, the local runner is:
+
+```bash
+npm run state-sync:reanchor-main
+npm run state-sync:reanchor-main -- --write
+npm run state-sync:reanchor-main -- --write --commit
+npm run state-sync:reanchor-main -- --write --commit --push
+```
+
+The default command is read-only. Write, commit, and push are opt-in. The runner
+keeps the operation bounded by checking that:
+
+- the current branch is exactly `main`;
+- the selected remote is exactly `origin`, matching the Phase 1 structured
+  claim policy that accepts only `refs/remotes/origin/*` upstream baselines;
+- local `HEAD` equals `refs/remotes/origin/main` before writing, except for the
+  explicit resume case where `--push` continues a clean local commit-only
+  reanchor;
+- the structured reanchor gate says a reanchor is needed;
+- generated state/docs changes are limited to the strict state record paths;
+- display mirrors are synchronized from `docs/current/state-sync-record.json`;
+- pre-push validation is limited to diff, display, and strict state/docs checks;
+- the full state-sync audit runs after a successful direct push, because a
+  `state_only_pushed` claim is valid only once upstream contains the reanchor
+  commit;
+- immediately before push, `origin/main` is fetched again and must still equal
+  the originally observed remote head;
+- the local reanchor commit is exactly `ahead 1 / behind 0` from
+  `refs/remotes/origin/main` before push.
+
+Commit-only reanchors are intentionally resumable through the same guarded
+runner. After `npm run state-sync:reanchor-main -- --write --commit`, the local
+claim is already `main` / `state_only_pushed`, but upstream does not contain the
+commit yet, so the full state-sync audit is expected to fail until the push
+lands. A later `npm run state-sync:reanchor-main -- --push` may continue only
+when the worktree is clean, local `main` is exactly one commit ahead of
+`origin/main`, that commit's parent is the observed remote head, the parent
+claim is not already `main` / `state_only_pushed`, the structured gate reports
+`already_reanchored` at local `HEAD`, and the commit diff contains the full
+generated state-sync reanchor delta across the strict state/docs paths with no
+stale reanchor prose. Empty commits, note-only commits, and other allowed-path
+changes are not resumable reanchors. The range verifier includes rename sources
+by treating renames as delete/add path changes, and the resume path compares the
+local `HEAD` claim with the claim regenerated from the parent state before any
+push is attempted.
+
+If `origin/main` moves after the local commit is prepared, the runner blocks
+instead of pushing a stale reanchor. This keeps the direct-push path safe enough
+for explicit operator authorization without replacing review as the default
+collaboration boundary.
+
 ## Implementation Phases
 
 ### Phase 0: Design Record

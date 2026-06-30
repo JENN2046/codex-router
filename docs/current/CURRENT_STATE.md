@@ -16,12 +16,12 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `main` |
-| Current head | `f04b369` |
-| Validated source commit | `f04b369` |
+| Current branch | `improve/state-sync-main-reanchor-runner` |
+| Current head | `c3368fb` |
+| Validated source commit | `c3368fb` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `f04b369` |
+| Upstream divergence | `ahead 11 / behind 0` |
+| Latest validated commit | `c3368fb` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -36,13 +36,13 @@ The structured claim records:
 
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pushed`
-- validated source commit: `f04b369`
-- latest validated commit: `f04b369`
+- transition kind: `state_only_pending_push`
+- validated source commit: `c3368fb`
+- latest validated commit: `c3368fb`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `ahead 11 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `b2af404120e71e917bce746425f86b92488c807966c05911d4f4dff7302ad6e4`
+  `a70f8479cbcab25ddee9f83d7757efe06c8decf00680f2b13f53299df413f179`
 
 Strict state record paths:
 
@@ -66,31 +66,47 @@ Strict state record paths:
 
 This state record commit records the source commit that:
 
-- keeps the runtime governance recovery demo on the injected Desktop bridge
-  path instead of the policy default `read_only` / `codex-cli` route;
-- validates every demo scenario's route before execution and fails closed if a
-  supplied or future default policy resolves any scenario to `codex-cli`;
-- records `hostRoute` and `usedHostDispatch` in demo scenario output so the
-  no-real-host boundary is machine-checkable;
-- requires both a real failed observation and a resolved observation before the
-  failure evidence ref is marked resolved;
-- asserts the recovery scenario uses `hostRoute: desktop` and does not use
-  host dispatch; and
-- documents why the deterministic demo cannot invoke the real Codex CLI.
+- adds `scripts/run-state-sync-main-reanchor.ts` as a guarded local runner for
+  operator-authorized post-merge `main` state-sync reanchors;
+- keeps the default runner mode read-only and requires explicit write / commit /
+  push flags for state changes;
+- refuses to operate outside `main` and requires local `HEAD` to match
+  `refs/remotes/origin/main` before writing, except for the strict `--push`
+  resume path for a clean single commit-only reanchor;
+- refuses non-`origin` remotes because the current structured claim policy only
+  accepts `refs/remotes/origin/*` upstream baselines;
+- requires resumed commit-only pushes to contain the full generated reanchor
+  delta, blocking empty commits, note-only commits, and other allowed-path
+  changes that are not real reanchors;
+- includes rename source paths in resume range verification before push;
+- regenerates the expected reanchor claim from the parent state and requires the
+  local `HEAD` claim to match it before push;
+- validates strict state/docs paths and generated display sync before
+  committing when validation is enabled;
+- delays the full state-sync audit until after a successful direct push, because
+  `state_only_pushed` is valid only once upstream contains the reanchor commit;
+- fetches `origin/main` again immediately before push and blocks if the remote
+  moved while the local reanchor was prepared;
+- documents that the existing `state-sync/reanchor-main` PR workflow remains the
+  conservative fallback when direct `main` push is not authorized; and
+- records regression coverage for no-op, non-main branch rejection, non-origin
+  remote rejection, bounded commit/push, commit-only resume, contaminated
+  resume blocking, empty/note-only resume blocking, rename-source blocking,
+  tampered-claim blocking, stale remote push blocking, and after-push audit
+  ordering.
 
-This work does not run real provider execution and does not run the real Codex
-CLI. Runtime validation uses injected handlers, fake dispatchers, and local test
-harnesses only.
+This work does not run real provider execution, does not run the real Codex CLI,
+and does not push to `main`. Push behavior is covered with temporary local Git
+remotes in tests.
 
 ## Validation Baseline
 
-Validation recorded for source commit `f04b369`:
+Validation recorded for source commit `c3368fb`:
 
 - `git diff --check`: PASS.
-- `npm run demo:runtime-governance`: PASS.
-- `node --import tsx --test tests/runtime-governance-demo.test.ts
-  tests/host-client-example.test.ts tests/execution-observation.test.ts
-  tests/desktop-live-adapter-governance.test.ts`: PASS.
+- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
+  tests/state-sync-reanchor-helper.test.ts tests/state-sync-display-sync.test.ts
+  tests/canary-evidence.test.ts`: PASS.
 - `npm test`: PASS.
 - `npm run typecheck`: PASS.
 - `npm run build`: PASS.
@@ -106,11 +122,11 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `improve/state-sync-main-reanchor-runner` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `f04b369`
-- latest validated commit: `f04b369`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `c3368fb`
+- latest validated commit: `c3368fb`
+- recorded divergence baseline: `ahead 11 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -172,15 +188,16 @@ This state-only record line is limited to:
 
 The structured claim records:
 
-- branch: `main`
+- branch: `improve/state-sync-main-reanchor-runner`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `f04b369`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `c3368fb`
+- recorded divergence baseline: `ahead 11 / behind 0`
+- transition: `state_only_pending_push`
 
-For this `state_only_pushed` state-only record, Git observation should
-compute the validated source divergence as `ahead 0 / behind 1` against
-`refs/remotes/origin/main` after the state-only record is on upstream.
+For this `state_only_pending_push` record on branch `improve/state-sync-main-reanchor-runner`,
+Git observation should compute the validated source divergence as
+`ahead 11 / behind 0` against `refs/remotes/origin/main` before the state-only
+record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then

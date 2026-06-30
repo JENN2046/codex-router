@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "improve/state-sync-main-reanchor-runner",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "f04b369",
-    "latestValidatedCommit": "f04b369",
+    "validatedSourceCommit": "c3368fb",
+    "latestValidatedCommit": "c3368fb",
     "recordedDivergence": {
-      "ahead": 1,
+      "ahead": 11,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "b2af404120e71e917bce746425f86b92488c807966c05911d4f4dff7302ad6e4",
+      "value": "a70f8479cbcab25ddee9f83d7757efe06c8decf00680f2b13f53299df413f179",
       "excludedPaths": [
         "docs/current/CURRENT_STATE.md",
         "docs/current/state-sync-record.json",
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
@@ -41,11 +41,10 @@
   "validation": {
     "requiredCommands": [
       "git diff --check",
-      "npm run demo:runtime-governance",
-      "node --import tsx --test tests/recovery-control.test.ts tests/desktop-live-adapter-governance.test.ts tests/desktop-host-client.test.ts tests/host-client-example.test.ts tests/runtime-governance-demo.test.ts",
+      "node --import tsx --test tests/state-sync-reanchor-automation.test.ts tests/state-sync-reanchor-helper.test.ts tests/state-sync-display-sync.test.ts tests/canary-evidence.test.ts",
+      "npm test",
       "npm run typecheck",
       "npm run build",
-      "npm test",
       "node --import tsx scripts/sync-state-sync-display.ts --check",
       "node --import tsx scripts/run-state-sync-audit.ts --json"
     ]

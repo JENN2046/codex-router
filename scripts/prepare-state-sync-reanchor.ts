@@ -39,6 +39,25 @@ export interface PrepareStateSyncReanchorResult {
   displaySync?: StateSyncDisplaySyncResult;
 }
 
+export interface BuildStateSyncReanchorClaimResult {
+  claim: StateSyncClaim;
+  upstream: string;
+  validatedSourceCommit: string;
+  recordedDivergence: {
+    ahead: number;
+    behind: number;
+  };
+  sourceTreeDigest: string;
+  stateCommitsAfterSourceBeforeWrite: number;
+}
+
+export interface BuildStateSyncReanchorClaimOptions {
+  claim: StateSyncClaim;
+  branch: string;
+  targetRef: string;
+  source?: string;
+}
+
 export async function prepareStateSyncReanchor(
   cwd = process.cwd(),
   options: PrepareStateSyncReanchorOptions = {}
@@ -64,44 +83,13 @@ export async function prepareStateSyncReanchor(
     await requireCleanWorktree(cwd);
   }
 
-  const sourceRef =
-    options.source ?? await inferSourceRef(parsedClaim.claim, cwd);
-  await requireCommit(sourceRef, cwd);
-  await requireAncestorOfHead(sourceRef, cwd);
-
-  const allowedStatePaths = parsedClaim.claim.transition.allowedStatePaths;
-  const pathsSinceSource = await changedPathsSince(sourceRef, cwd);
-  const nonStatePaths = pathsSinceSource.filter(
-    (filePath) => !allowedStatePaths.includes(filePath)
-  );
-  if (nonStatePaths.length > 0) {
-    throw new Error(
-      `Source ${sourceRef} is not followed only by state paths: ${nonStatePaths.join(", ")}`
-    );
-  }
-
-  const stateCommitsAfterSourceBeforeWrite =
-    await revListCount(`${sourceRef}..HEAD`, cwd);
-  const validatedSourceCommit = (
-    await git(["rev-parse", "--short", sourceRef], cwd)
-  ).trim();
-  const sourceTreeDigest = await gitFilteredTreeDigest(
-    sourceRef,
-    allowedStatePaths,
-    cwd
-  );
-  if (sourceTreeDigest === undefined) {
-    throw new Error(`Cannot compute source tree digest for ${sourceRef}`);
-  }
-
-  const updatedClaim = reanchorClaim(parsedClaim.claim, {
+  const reanchor = await buildStateSyncReanchorClaim(cwd, {
+    claim: parsedClaim.claim,
     branch,
-    upstream: upstreamForBranch(branch, parsedClaim.claim),
-    validatedSourceCommit,
-    sourceTreeDigest,
-    recordedAhead: stateCommitsAfterSourceBeforeWrite + 1
+    targetRef: "HEAD",
+    ...(options.source === undefined ? {} : { source: options.source })
   });
-  const updatedClaimText = `${JSON.stringify(updatedClaim, null, 2)}\n`;
+  const updatedClaimText = `${JSON.stringify(reanchor.claim, null, 2)}\n`;
 
   const changedPaths: string[] = [];
   if (claimText !== updatedClaimText) {
@@ -120,37 +108,94 @@ export async function prepareStateSyncReanchor(
   return {
     mode: options.write === true ? "write" : "check",
     branch,
-    upstream: updatedClaim.subject.upstream,
-    validatedSourceCommit,
-    recordedDivergence: updatedClaim.source.recordedDivergence,
-    sourceTreeDigest,
-    stateCommitsAfterSourceBeforeWrite,
+    upstream: reanchor.upstream,
+    validatedSourceCommit: reanchor.validatedSourceCommit,
+    recordedDivergence: reanchor.recordedDivergence,
+    sourceTreeDigest: reanchor.sourceTreeDigest,
+    stateCommitsAfterSourceBeforeWrite:
+      reanchor.stateCommitsAfterSourceBeforeWrite,
     changedPaths: unique(changedPaths),
     ...(displaySync === undefined ? {} : { displaySync })
   };
 }
 
+export async function buildStateSyncReanchorClaim(
+  cwd: string,
+  options: BuildStateSyncReanchorClaimOptions
+): Promise<BuildStateSyncReanchorClaimResult> {
+  await requireCommit(options.targetRef, cwd);
+  const sourceRef =
+    options.source ?? await inferSourceRef(options.claim, cwd, options.targetRef);
+  await requireCommit(sourceRef, cwd);
+  await requireAncestorOfRef(sourceRef, options.targetRef, cwd);
+
+  const allowedStatePaths = options.claim.transition.allowedStatePaths;
+  const pathsSinceSource = await changedPathsBetween(sourceRef, options.targetRef, cwd);
+  const nonStatePaths = pathsSinceSource.filter(
+    (filePath) => !allowedStatePaths.includes(filePath)
+  );
+  if (nonStatePaths.length > 0) {
+    throw new Error(
+      `Source ${sourceRef} is not followed only by state paths: ${nonStatePaths.join(", ")}`
+    );
+  }
+
+  const stateCommitsAfterSourceBeforeWrite =
+    await revListCount(`${sourceRef}..${options.targetRef}`, cwd);
+  const validatedSourceCommit = (
+    await git(["rev-parse", "--short", sourceRef], cwd)
+  ).trim();
+  const sourceTreeDigest = await gitFilteredTreeDigest(
+    sourceRef,
+    allowedStatePaths,
+    cwd
+  );
+  if (sourceTreeDigest === undefined) {
+    throw new Error(`Cannot compute source tree digest for ${sourceRef}`);
+  }
+
+  const claim = reanchorClaim(options.claim, {
+    branch: options.branch,
+    upstream: upstreamForBranch(options.branch, options.claim),
+    validatedSourceCommit,
+    sourceTreeDigest,
+    recordedAhead: stateCommitsAfterSourceBeforeWrite + 1
+  });
+
+  return {
+    claim,
+    upstream: claim.subject.upstream,
+    validatedSourceCommit,
+    recordedDivergence: claim.source.recordedDivergence,
+    sourceTreeDigest,
+    stateCommitsAfterSourceBeforeWrite
+  };
+}
+
 async function inferSourceRef(
   claim: StateSyncClaim,
-  cwd: string
+  cwd: string,
+  targetRef: string
 ): Promise<string> {
   const existingSource = claim.source.validatedSourceCommit;
   const existingSourceAvailable = await commitExists(existingSource, cwd);
   if (!existingSourceAvailable) {
-    await requireHeadMatchesRecordedSourceDigest(claim, cwd);
-    return "HEAD";
+    await requireRefMatchesRecordedSourceDigest(claim, targetRef, cwd);
+    return targetRef;
   }
 
   const existingSourceIsAncestor = await commitIsAncestorOfHead(
     existingSource,
+    targetRef,
     cwd
   );
   if (!existingSourceIsAncestor) {
-    await requireHeadMatchesRecordedSourceDigest(claim, cwd);
-    return "HEAD";
+    await requireRefMatchesRecordedSourceDigest(claim, targetRef, cwd);
+    return targetRef;
   }
 
-  const pathsSinceExistingSource = await changedPathsSince(existingSource, cwd);
+  const pathsSinceExistingSource =
+    await changedPathsBetween(existingSource, targetRef, cwd);
   const onlyStatePathsSinceExistingSource =
     pathsSinceExistingSource.length === 0
     || pathsSinceExistingSource.every((filePath) => (
@@ -162,24 +207,25 @@ async function inferSourceRef(
     );
   }
 
-  return "HEAD";
+  return targetRef;
 }
 
-async function requireHeadMatchesRecordedSourceDigest(
+async function requireRefMatchesRecordedSourceDigest(
   claim: StateSyncClaim,
+  ref: string,
   cwd: string
 ): Promise<void> {
-  const headSourceTreeDigest = await gitFilteredTreeDigest(
-    "HEAD",
+  const refSourceTreeDigest = await gitFilteredTreeDigest(
+    ref,
     claim.source.sourceTreeDigest.excludedPaths,
     cwd
   );
-  if (headSourceTreeDigest === undefined) {
-    throw new Error("Cannot compute HEAD source tree digest for squash reanchor");
+  if (refSourceTreeDigest === undefined) {
+    throw new Error(`Cannot compute ${ref} source tree digest for squash reanchor`);
   }
-  if (headSourceTreeDigest !== claim.source.sourceTreeDigest.value) {
+  if (refSourceTreeDigest !== claim.source.sourceTreeDigest.value) {
     throw new Error(
-      "Squash HEAD source tree digest does not match the recorded validated source; pass --source after explicit revalidation"
+      `Squash ${ref} source tree digest does not match the recorded validated source; pass --source after explicit revalidation`
     );
   }
 }
@@ -240,9 +286,13 @@ async function requireCommit(ref: string, cwd: string): Promise<void> {
   }
 }
 
-async function requireAncestorOfHead(ref: string, cwd: string): Promise<void> {
-  if (!await commitIsAncestorOfHead(ref, cwd)) {
-    throw new Error(`Source is not an ancestor of HEAD: ${ref}`);
+async function requireAncestorOfRef(
+  ref: string,
+  targetRef: string,
+  cwd: string
+): Promise<void> {
+  if (!await commitIsAncestorOfHead(ref, targetRef, cwd)) {
+    throw new Error(`Source is not an ancestor of ${targetRef}: ${ref}`);
   }
 }
 
@@ -264,19 +314,24 @@ async function commitExists(ref: string, cwd: string): Promise<boolean> {
 
 async function commitIsAncestorOfHead(
   ref: string,
+  targetRef: string,
   cwd: string
 ): Promise<boolean> {
   try {
-    await git(["merge-base", "--is-ancestor", ref, "HEAD"], cwd);
+    await git(["merge-base", "--is-ancestor", ref, targetRef], cwd);
     return true;
   } catch {
     return false;
   }
 }
 
-async function changedPathsSince(ref: string, cwd: string): Promise<string[]> {
+async function changedPathsBetween(
+  ref: string,
+  targetRef: string,
+  cwd: string
+): Promise<string[]> {
   const output = await git(
-    ["log", "--format=", "--name-only", "--no-renames", `${ref}..HEAD`],
+    ["log", "--format=", "--name-only", "--no-renames", `${ref}..${targetRef}`],
     cwd
   );
   return unique(output.split(/\r?\n/).map((value) => value.trim()).filter(Boolean));

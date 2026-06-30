@@ -1,6 +1,6 @@
 # Run State
 
-Status: Main state-sync record is current and pushed.
+Status: Branch state-sync record is current and pending push.
 
 Machine-authoritative claim:
 
@@ -17,19 +17,19 @@ Display and evidence surfaces:
 
 Branch:
 
-- `main`
+- `improve/state-sync-main-reanchor-runner`
 
 Current head:
 
-- `f04b369`
+- `c3368fb`
 
 Validated source commit:
 
-- `f04b369`
+- `c3368fb`
 
 Latest validated commit:
 
-- `f04b369`
+- `c3368fb`
 
 Upstream baseline:
 
@@ -37,19 +37,18 @@ Upstream baseline:
 
 Upstream divergence baseline:
 
-- `ahead 1 / behind 0`
+- `ahead 11 / behind 0`
 
 Transition:
 
-- `state_only_pushed`
+- `state_only_pending_push`
 
 Validation recorded for this source commit:
 
 - `git diff --check`: PASS
-- `npm run demo:runtime-governance`: PASS
-- `node --import tsx --test tests/runtime-governance-demo.test.ts
-  tests/host-client-example.test.ts tests/execution-observation.test.ts
-  tests/desktop-live-adapter-governance.test.ts`: PASS
+- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
+  tests/state-sync-reanchor-helper.test.ts tests/state-sync-display-sync.test.ts
+  tests/canary-evidence.test.ts`: PASS
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -58,11 +57,11 @@ Validation recorded for this source commit:
 
 State-sync audit expectation:
 
-- structured claim: `main` / `state_only_pushed` against
+- structured claim: `improve/state-sync-main-reanchor-runner` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `f04b369`
-- latest validated commit: `f04b369`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- validated source commit: `c3368fb`
+- latest validated commit: `c3368fb`
+- recorded divergence baseline: `ahead 11 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -77,14 +76,15 @@ Boundary:
 - no manual CI rerun
 - no real provider execution
 - no real Codex CLI execution
+- no direct push to `main` was executed by this branch record
 
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `improve/state-sync-main-reanchor-runner`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `f04b369`
-- latest validated commit: `f04b369`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `c3368fb`
+- latest validated commit: `c3368fb`
+- recorded divergence baseline: `ahead 11 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->

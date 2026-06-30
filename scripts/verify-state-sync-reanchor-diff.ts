@@ -40,7 +40,7 @@ export const STATE_SYNC_REANCHOR_STALE_PHRASES = [
 
 export interface StateSyncReanchorDiffVerificationResult {
   status: "passed" | "blocked";
-  mode: "worktree" | "cached";
+  mode: "worktree" | "cached" | "range";
   changedPaths: string[];
   disallowedPaths: string[];
   stalePhraseHits: Array<{
@@ -54,6 +54,23 @@ export async function verifyStateSyncReanchorDiff(
   mode: "worktree" | "cached" = "worktree"
 ): Promise<StateSyncReanchorDiffVerificationResult> {
   const changedPaths = await changedPathsForMode(cwd, mode);
+  return verifyStateSyncReanchorPaths(cwd, mode, changedPaths);
+}
+
+export async function verifyStateSyncReanchorRange(
+  cwd: string,
+  baseRef: string,
+  headRef = "HEAD"
+): Promise<StateSyncReanchorDiffVerificationResult> {
+  const changedPaths = await changedPathsForRange(cwd, baseRef, headRef);
+  return verifyStateSyncReanchorPaths(cwd, "range", changedPaths);
+}
+
+async function verifyStateSyncReanchorPaths(
+  cwd: string,
+  mode: StateSyncReanchorDiffVerificationResult["mode"],
+  changedPaths: string[]
+): Promise<StateSyncReanchorDiffVerificationResult> {
   const disallowedPaths = changedPaths.filter(
     (filePath) => !STATE_SYNC_REANCHOR_ALLOWED_PATH_SET.has(filePath)
   );
@@ -76,22 +93,59 @@ async function changedPathsForMode(
   mode: "worktree" | "cached"
 ): Promise<string[]> {
   const args = mode === "cached"
-    ? ["diff", "--cached", "--name-only"]
-    : ["diff", "--name-only"];
+    ? ["diff", "--cached", "--name-status", "-z", "--no-renames"]
+    : ["diff", "--name-status", "-z", "--no-renames"];
   const output = await git(args, cwd);
-  const changed = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const changed = pathsFromNameStatusZ(output);
   if (mode === "cached") {
     return changed;
   }
 
   const untracked = await git(
-    ["ls-files", "--others", "--exclude-standard"],
+    ["ls-files", "-z", "--others", "--exclude-standard"],
     cwd
   );
   return unique([
     ...changed,
-    ...untracked.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    ...pathsFromNulOutput(untracked)
   ]);
+}
+
+async function changedPathsForRange(
+  cwd: string,
+  baseRef: string,
+  headRef: string
+): Promise<string[]> {
+  const output = await git(
+    ["diff", "--name-status", "-z", "--no-renames", baseRef, headRef],
+    cwd
+  );
+  return pathsFromNameStatusZ(output);
+}
+
+function pathsFromNameStatusZ(output: string): string[] {
+  const fields = pathsFromNulOutput(output);
+  const paths: string[] = [];
+  for (let index = 0; index < fields.length;) {
+    const status = fields[index++];
+    if (status === undefined) {
+      break;
+    }
+
+    const pathCount = status.startsWith("R") || status.startsWith("C") ? 2 : 1;
+    for (let offset = 0; offset < pathCount; offset += 1) {
+      const filePath = fields[index++];
+      if (filePath !== undefined) {
+        paths.push(filePath);
+      }
+    }
+  }
+
+  return unique(paths);
+}
+
+function pathsFromNulOutput(output: string): string[] {
+  return output.split("\0").filter((field) => field !== "");
 }
 
 async function collectStalePhraseHits(cwd: string): Promise<Array<{
@@ -128,11 +182,36 @@ function modeFromArgs(args: string[]): "worktree" | "cached" {
   return args.includes("--cached") ? "cached" : "worktree";
 }
 
+function rangeRefsFromArgs(args: string[]): [string, string] {
+  const index = args.indexOf("--range");
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error("Missing value for --range");
+  }
+
+  const separator = value.indexOf("..");
+  if (separator >= 0) {
+    const baseRef = value.slice(0, separator);
+    const headRef = value.slice(separator + 2);
+    if (baseRef === "" || headRef === "") {
+      throw new Error("Invalid --range value");
+    }
+    return [baseRef, headRef];
+  }
+
+  const headRef = args[index + 2];
+  if (headRef !== undefined && !headRef.startsWith("--")) {
+    return [value, headRef];
+  }
+
+  return [value, "HEAD"];
+}
+
 async function main(): Promise<void> {
-  const result = await verifyStateSyncReanchorDiff(
-    process.cwd(),
-    modeFromArgs(process.argv.slice(2))
-  );
+  const args = process.argv.slice(2);
+  const result = args.includes("--range")
+    ? await verifyStateSyncReanchorRange(process.cwd(), ...rangeRefsFromArgs(args))
+    : await verifyStateSyncReanchorDiff(process.cwd(), modeFromArgs(args));
   console.log(JSON.stringify(result, null, 2));
   if (result.status !== "passed") {
     process.exitCode = 1;

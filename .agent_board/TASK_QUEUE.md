@@ -2,8 +2,8 @@
 
 Current task:
 
-- Keep state-sync structured record automation current; no post-merge
-  reanchor is pending.
+- Open a focused PR for the guarded local `main` state-sync reanchor runner
+  after final branch validation.
 Done:
 
 - committed `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
@@ -89,14 +89,21 @@ Done:
   through an observation store
 - added malformed-ref fail-closed coverage
 - recorded the no-observationBus compatibility path as no consumable evidence
+- added `scripts/run-state-sync-main-reanchor.ts`
+- added `npm run state-sync:reanchor-main`
+- covered no-op, non-main branch rejection, bounded local commit/push, and stale
+  remote push blocking with tests
+- fixed the reviewed P1 by proving state-sync audit is not invoked until after
+  the direct-push runner has pushed the reanchor commit
+- documented the operator-authorized direct-push runner while preserving the
+  conservative `state-sync/reanchor-main` PR fallback
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `npm run demo:runtime-governance`: PASS
-- `node --import tsx --test tests/runtime-governance-demo.test.ts
-  tests/host-client-example.test.ts tests/execution-observation.test.ts
-  tests/desktop-live-adapter-governance.test.ts`: PASS
+- `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
+  tests/state-sync-reanchor-helper.test.ts tests/state-sync-display-sync.test.ts
+  tests/canary-evidence.test.ts`: PASS
 - `npm test`: PASS
 - `npm run typecheck`: PASS
 - `npm run build`: PASS
@@ -122,10 +129,10 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- branch: `improve/state-sync-main-reanchor-runner`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `f04b369`
-- latest validated commit: `f04b369`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `c3368fb`
+- latest validated commit: `c3368fb`
+- recorded divergence baseline: `ahead 11 / behind 0`
+- transition: `state_only_pending_push`
 <!-- state-sync-display:end -->
