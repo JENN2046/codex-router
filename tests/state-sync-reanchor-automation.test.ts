@@ -205,6 +205,18 @@ test("state-sync main reanchor runner refuses non-main branches", async () => {
   );
 });
 
+test("state-sync main reanchor runner refuses non-origin remotes", async () => {
+  const fixture = await createAlreadyReanchoredMainFixture();
+
+  await assert.rejects(
+    () => runStateSyncMainReanchor(fixture.cwd, {
+      remote: "upstream",
+      validate: false
+    }),
+    /state_sync_main_reanchor_requires_origin_remote:upstream/
+  );
+});
+
 test("state-sync main reanchor runner commits and pushes a bounded reanchor", async () => {
   const fixture = await createSquashMainReanchorFixture();
 
@@ -279,6 +291,46 @@ test("state-sync main reanchor runner blocks contaminated commit-only resumes", 
       validate: false
     }),
     /state_sync_main_reanchor_resume_diff_verification_failed/
+  );
+});
+
+test("state-sync main reanchor runner blocks empty commit-only resumes", async () => {
+  const fixture = await createAlreadyReanchoredMainFixture();
+
+  await git(fixture.cwd, [
+    "commit",
+    "--allow-empty",
+    "-m",
+    "docs(state): reanchor main state-sync record"
+  ]);
+
+  await assert.rejects(
+    () => runStateSyncMainReanchor(fixture.cwd, {
+      push: true,
+      validate: false
+    }),
+    /state_sync_main_reanchor_resume_requires_reanchor_delta/
+  );
+});
+
+test("state-sync main reanchor runner blocks note-only commit resumes", async () => {
+  const fixture = await createAlreadyReanchoredMainFixture();
+
+  await mkdir(join(fixture.cwd, ".agent_board"), { recursive: true });
+  await writeFile(
+    join(fixture.cwd, ".agent_board", "TASK_QUEUE.md"),
+    "Status: local note only.\n",
+    "utf8"
+  );
+  await git(fixture.cwd, ["add", ".agent_board/TASK_QUEUE.md"]);
+  await git(fixture.cwd, ["commit", "-m", "docs(state): local note"]);
+
+  await assert.rejects(
+    () => runStateSyncMainReanchor(fixture.cwd, {
+      push: true,
+      validate: false
+    }),
+    /state_sync_main_reanchor_resume_requires_reanchor_delta/
   );
 });
 

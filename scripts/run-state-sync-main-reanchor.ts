@@ -3,6 +3,10 @@
 import { execFile } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import {
+  parseStateSyncClaim,
+  type StateSyncClaim
+} from "../packages/state-sync-audit/src/index.js";
 import { prepareStateSyncReanchor } from "./prepare-state-sync-reanchor.js";
 import { resolveStateSyncReanchorPrGate } from "./resolve-state-sync-reanchor-pr-gate.js";
 import {
@@ -12,6 +16,7 @@ import {
 } from "./verify-state-sync-reanchor-diff.js";
 
 const execFileAsync = promisify(execFile);
+const STATE_SYNC_RECORD_DOC = "docs/current/state-sync-record.json";
 
 export interface RunStateSyncMainReanchorOptions {
   write?: boolean;
@@ -49,6 +54,10 @@ export async function runStateSyncMainReanchor(
   options: RunStateSyncMainReanchorOptions = {}
 ): Promise<RunStateSyncMainReanchorResult> {
   const remote = options.remote ?? "origin";
+  if (remote !== "origin") {
+    throw new Error(`state_sync_main_reanchor_requires_origin_remote:${remote}`);
+  }
+
   const validate = options.validate ?? true;
   const write = options.write === true || options.commit === true || options.push === true;
   const commit = options.commit === true || options.push === true;
@@ -271,6 +280,17 @@ async function resumeCommittedMainReanchor(
   if (rangeVerification.status !== "passed") {
     throw new Error("state_sync_main_reanchor_resume_diff_verification_failed");
   }
+  if (!hasExpectedReanchorDelta(rangeVerification.changedPaths)) {
+    throw new Error("state_sync_main_reanchor_resume_requires_reanchor_delta");
+  }
+  const parentClaim = await claimAtRef(cwd, input.remoteHeadBefore);
+  if (claimIsMainPushed(parentClaim)) {
+    throw new Error("state_sync_main_reanchor_resume_requires_reanchor_delta");
+  }
+  const headClaim = await claimAtRef(cwd, "HEAD");
+  if (!claimIsMainPushed(headClaim)) {
+    throw new Error("state_sync_main_reanchor_resume_requires_reanchored_claim");
+  }
 
   if (input.validate) {
     await runValidation(
@@ -343,6 +363,33 @@ async function resumeCommittedMainReanchor(
     changedPaths: rangeVerification.changedPaths,
     validations: input.validations
   };
+}
+
+async function claimAtRef(cwd: string, ref: string): Promise<StateSyncClaim> {
+  const text = await git(["show", `${ref}:${STATE_SYNC_RECORD_DOC}`], cwd);
+  const parsed = parseStateSyncClaim(text);
+  if (parsed.status !== "valid") {
+    throw new Error(
+      `state_sync_main_reanchor_resume_invalid_claim:${ref}:${parsed.status}`
+    );
+  }
+
+  return parsed.claim;
+}
+
+function claimIsMainPushed(claim: StateSyncClaim): boolean {
+  return claim.subject.branch === "main"
+    && claim.subject.upstream === "refs/remotes/origin/main"
+    && claim.transition.kind === "state_only_pushed";
+}
+
+function hasExpectedReanchorDelta(changedPaths: string[]): boolean {
+  if (changedPaths.length !== STATE_SYNC_REANCHOR_ALLOWED_PATHS.length) {
+    return false;
+  }
+
+  const changed = new Set(changedPaths);
+  return STATE_SYNC_REANCHOR_ALLOWED_PATHS.every((filePath) => changed.has(filePath));
 }
 
 async function currentBranch(cwd: string): Promise<string> {
