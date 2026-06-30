@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "improve/state-sync-main-reanchor-runner",
+    "branch": "main",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "c3368fb",
-    "latestValidatedCommit": "c3368fb",
+    "validatedSourceCommit": "44addd6",
+    "latestValidatedCommit": "44addd6",
     "recordedDivergence": {
-      "ahead": 11,
+      "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
@@ -27,7 +27,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pending_push",
+    "kind": "state_only_pushed",
     "allowedStatePaths": [
       "docs/current/CURRENT_STATE.md",
       "docs/current/state-sync-record.json",
