@@ -17,11 +17,11 @@ divergence, transition kind, or allowed state-only paths.
 | --- | --- |
 | Workspace | `codex-router/repo` |
 | Current branch | `improve/state-sync-main-reanchor-runner` |
-| Current head | `16f23e9` |
-| Validated source commit | `16f23e9` |
+| Current head | `f4e6ff3` |
+| Validated source commit | `f4e6ff3` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 3 / behind 0` |
-| Latest validated commit | `16f23e9` |
+| Upstream divergence | `ahead 5 / behind 0` |
+| Latest validated commit | `f4e6ff3` |
 | State record mode | `state-only descendant allowed` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
@@ -37,12 +37,12 @@ The structured claim records:
 - schema version: `1`
 - policy version: `state-sync-policy.v1`
 - transition kind: `state_only_pending_push`
-- validated source commit: `16f23e9`
-- latest validated commit: `16f23e9`
+- validated source commit: `f4e6ff3`
+- latest validated commit: `f4e6ff3`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - source tree digest: `git-ls-tree-sha256`
-  `1ad96bd59da044e667cc14401057137c2a495c1d4f93892ed37f48539ff9a8a2`
+  `20fd24eb33222ac512d11aea5e36ed7a3c2b10666f68e451304481c9dd9f60e1`
 
 Strict state record paths:
 
@@ -71,7 +71,8 @@ This state record commit records the source commit that:
 - keeps the default runner mode read-only and requires explicit write / commit /
   push flags for state changes;
 - refuses to operate outside `main` and requires local `HEAD` to match
-  `refs/remotes/origin/main` before writing;
+  `refs/remotes/origin/main` before writing, except for the strict `--push`
+  resume path for a clean single commit-only reanchor;
 - validates strict state/docs paths and generated display sync before
   committing when validation is enabled;
 - delays the full state-sync audit until after a successful direct push, because
@@ -81,7 +82,8 @@ This state record commit records the source commit that:
 - documents that the existing `state-sync/reanchor-main` PR workflow remains the
   conservative fallback when direct `main` push is not authorized; and
 - records regression coverage for no-op, non-main branch rejection, bounded
-  commit/push, stale remote push blocking, and after-push audit ordering.
+  commit/push, commit-only resume, contaminated resume blocking, stale remote
+  push blocking, and after-push audit ordering.
 
 This work does not run real provider execution, does not run the real Codex CLI,
 and does not push to `main`. Push behavior is covered with temporary local Git
@@ -89,7 +91,7 @@ remotes in tests.
 
 ## Validation Baseline
 
-Validation recorded for source commit `16f23e9`:
+Validation recorded for source commit `f4e6ff3`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/state-sync-reanchor-automation.test.ts
@@ -112,9 +114,9 @@ Current structured state-sync audit status:
 
 - structured claim: `improve/state-sync-main-reanchor-runner` / `state_only_pending_push` against
   `refs/remotes/origin/main`
-- validated source commit: `16f23e9`
-- latest validated commit: `16f23e9`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `f4e6ff3`
+- latest validated commit: `f4e6ff3`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
@@ -178,13 +180,13 @@ The structured claim records:
 
 - branch: `improve/state-sync-main-reanchor-runner`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `16f23e9`
-- recorded divergence baseline: `ahead 3 / behind 0`
+- validated source commit: `f4e6ff3`
+- recorded divergence baseline: `ahead 5 / behind 0`
 - transition: `state_only_pending_push`
 
 For this `state_only_pending_push` record on branch `improve/state-sync-main-reanchor-runner`,
 Git observation should compute the validated source divergence as
-`ahead 3 / behind 0` against `refs/remotes/origin/main` before the state-only
+`ahead 5 / behind 0` against `refs/remotes/origin/main` before the state-only
 record is pushed.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
