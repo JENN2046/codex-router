@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "codex/state-sync-record-only-authority",
+    "branch": "main",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "57dfb2e",
-    "latestValidatedCommit": "57dfb2e",
+    "validatedSourceCommit": "b0d5a45",
+    "latestValidatedCommit": "b0d5a45",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
@@ -21,7 +21,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pending_push",
+    "kind": "state_only_pushed",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]
