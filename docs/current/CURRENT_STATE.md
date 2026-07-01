@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `78f5292b5a848f21ecac964283a570e0721c3ac171a81b2cc1bcedce08ead8a4`
+  `29dfb0227b30c37b2e5ada40c60cd892998de56eff7551cd71d20923eb6a0096`
 
 Source digest excluded paths:
 
@@ -184,8 +184,9 @@ Current state line:
 - Phase 2 missing-claim gate and Markdown authority removal: implemented and
   tested.
 - Phase 3 display-sync script: implemented and tested.
-- Phase 4 state-sync audit on `push` to `main`: implemented and gated on a
-  committed `main` / `state_only_pushed` record.
+- Phase 4 state-sync audit on `push` to `main`: implemented. The main path is
+  now a policy v2 content attestation; committed `main` / `state_only_pushed`
+  records remain a legacy v1 fallback.
 - Bounded source tree digest verification for squash-only state records:
   implemented and tested.
 - Markdown and `.agent_board/*` display drift blocking: retired from the
@@ -200,5 +201,5 @@ Current state line:
 - State-sync reanchor preparation helper: merged through PR #54.
 - P1 squash fallback digest hardening: merged through PR #54.
 - Post-PR #54 `main` reanchor: pushed and validated.
-- Conservative post-merge reanchor PR automation: implemented on
-  `automate/state-sync-reanchor-pr`.
+- Conservative post-merge reanchor PR automation: retained as a legacy v1
+  fallback on `automate/state-sync-reanchor-pr`.
