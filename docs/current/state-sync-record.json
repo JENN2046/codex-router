@@ -2,26 +2,26 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "codex/state-sync-display-handoff-downgrade",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "8430021",
-    "latestValidatedCommit": "8430021",
+    "validatedSourceCommit": "fddc7ed",
+    "latestValidatedCommit": "fddc7ed",
     "recordedDivergence": {
-      "ahead": 1,
-      "behind": 0
+      "ahead": 3,
+      "behind": 3
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "e41d28ec91340c6967dc6b74483ee937b438fdaac038fcd3efe82cac319abc61",
+      "value": "e31471037f452782637f90f2ba36fc2743361dd53a312d916f804326bfa38453",
       "excludedPaths": [
         "docs/current/state-sync-record.json"
       ]
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]
