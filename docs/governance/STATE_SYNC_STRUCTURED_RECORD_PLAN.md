@@ -778,6 +778,252 @@ Implemented Phase 4 adjustment:
   `main` claim; this is the expected fail-closed flow, not an instruction to
   weaken checkout or divergence verification.
 
+### Phase 5 Design: Content Attestation Policy v2
+
+Phase 5 is a proposed policy-version change, not an extension of the Phase 1
+claim semantics.
+
+The motivation is the remaining governance friction after squash merge. In
+Phase 1, a pull request branch records `state_only_pending_push` state. After a
+squash merge, GitHub creates a new `main` commit that did not exist when the
+pull request branch record was written. Phase 1 therefore needs a follow-up
+`main` / `state_only_pushed` reanchor record. That flow is safe, but it keeps a
+governance-only post-merge step in the normal development path.
+
+Phase 5 should remove that post-merge reanchor only by changing the authority
+model. It must not make Phase 1 looser.
+
+#### Authority Shift
+
+Phase 5 changes the core authority from final commit identity to source content
+identity:
+
+```text
+filtered source tree digest + observed Git / CI context + policy verification
+-> PASS / BLOCK
+```
+
+The structured record may claim the source content digest. It must not claim
+that the current checkout, branch, workflow run, or validation result is true.
+Those facts belong to audit-time observation.
+
+Phase 5 should introduce:
+
+```text
+schemaVersion = 2
+policyVersion = state-sync-policy.v2
+```
+
+Version 2 must not silently reinterpret version 1 records. Unknown versions
+continue to block.
+
+#### Version 2 Candidate Shape
+
+The version 2 record should be smaller than the version 1 record:
+
+```json
+{
+  "schemaVersion": 2,
+  "policyVersion": "state-sync-policy.v2",
+  "repository": {
+    "fullName": "JENN2046/codex-router"
+  },
+  "source": {
+    "sourceTreeDigest": {
+      "algorithm": "git-ls-tree-sha256",
+      "value": "64 lowercase hex characters",
+      "excludedPaths": [
+        "docs/current/state-sync-record.json"
+      ]
+    }
+  },
+  "allowedContexts": [
+    {
+      "event": "pull_request",
+      "targetRef": "refs/heads/main"
+    },
+    {
+      "event": "push",
+      "targetRef": "refs/heads/main"
+    }
+  ]
+}
+```
+
+This shape is intentionally not final implementation schema. It records the
+intended authority split:
+
+- `source.sourceTreeDigest` is the content claim.
+- `repository` and `allowedContexts` are bounded policy selectors.
+- live `HEAD`, current branch, upstream, divergence, workflow status, and
+  validation result are observations, not claim fields.
+- `validation.requiredCommands` should not be carried forward as an authority
+  field. If retained for operator display, it remains non-authoritative policy
+  metadata.
+
+Phase 5 should not carry these Phase 1 fields as authority:
+
+```text
+subject.branch
+subject.upstream
+source.validatedSourceCommit
+source.latestValidatedCommit
+source.recordedDivergence
+transition.kind
+transition.allowedStatePaths
+```
+
+If they remain during migration, they are provenance or legacy display only.
+They must not participate in version 2 PASS/BLOCK decisions.
+
+#### Version 2 Main Push Formula
+
+A `push` audit for `main` may pass only when every condition below is true:
+
+```text
+claim.schemaVersion == 2
+claim.policyVersion == "state-sync-policy.v2"
+claim.repository.fullName == observed.repository.fullName
+observed.eventName == "push"
+observed.ref == "refs/heads/main"
+observed.branch == "main"
+observed.upstream == "refs/remotes/origin/main"
+observed.headFull == observed.githubSha
+observed.originMainFull == observed.githubSha
+observed.currentAhead == 0
+observed.currentBehind == 0
+observed.worktreeIsClean == true
+claim.source.sourceTreeDigest.algorithm == "git-ls-tree-sha256"
+claim.source.sourceTreeDigest.excludedPaths == ["docs/current/state-sync-record.json"]
+digest(observed.headFull excluding claim.source.sourceTreeDigest.excludedPaths)
+  == claim.source.sourceTreeDigest.value
+claim.allowedContexts contains:
+  event == "push"
+  targetRef == "refs/heads/main"
+audit read-only writes == 0
+audit remote writes == 0
+```
+
+The formula intentionally binds the audit to the actual workflow checkout. It is
+not enough for local `HEAD...origin/main` to be `0/0` if the workflow checked out
+a moving branch name after another push. The audited `HEAD`, the fetched
+`origin/main`, and `github.sha` must all refer to the same commit.
+
+#### Version 2 Pull Request Formula
+
+A pull request audit may pass only when every condition below is true:
+
+```text
+claim.schemaVersion == 2
+claim.policyVersion == "state-sync-policy.v2"
+claim.repository.fullName == observed.repository.fullName
+observed.eventName == "pull_request"
+observed.baseRef == "refs/heads/main"
+claim.allowedContexts contains:
+  event == "pull_request"
+  targetRef == "refs/heads/main"
+observed.worktreeIsClean == true
+claim.source.sourceTreeDigest.algorithm == "git-ls-tree-sha256"
+claim.source.sourceTreeDigest.excludedPaths == ["docs/current/state-sync-record.json"]
+digest(observed.headFull excluding claim.source.sourceTreeDigest.excludedPaths)
+  == claim.source.sourceTreeDigest.value
+audit read-only writes == 0
+audit remote writes == 0
+```
+
+The first implementation should choose one pull request checkout subject and
+document it explicitly:
+
+- PR head checkout: digest is computed from the pull request branch head.
+- PR merge checkout: digest is computed from the synthetic merge result.
+
+The verifier must not guess between them. If GitHub Actions checks out a
+detached pull request merge ref, the observation model must record that fact.
+If it checks out the branch head, the observation model must record that fact.
+
+#### Required Observation Inputs
+
+Phase 5 needs explicit observation fields instead of deriving all context from
+Git branch names:
+
+```text
+observed.eventName
+observed.repository.fullName
+observed.repository.id, when available
+observed.ref
+observed.baseRef, for pull_request
+observed.headRef, for pull_request
+observed.githubSha
+observed.headFull
+observed.originMainFull
+observed.branch
+observed.upstream
+observed.currentAhead
+observed.currentBehind
+observed.headSourceTreeDigest
+observed.gitStatusShort
+```
+
+In GitHub Actions, these should come from bounded environment variables and Git
+commands, not from printing or trusting the whole `github` context. Sensitive
+contexts must not be logged.
+
+The workflow checkout should be pinned so the observation cannot drift while the
+workflow is queued:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+    ref: ${{ github.sha }}
+```
+
+For main push audits, the workflow must fetch and verify
+`refs/remotes/origin/main` after checkout, then require:
+
+```text
+git rev-parse HEAD == github.sha
+git rev-parse refs/remotes/origin/main == github.sha
+```
+
+#### Security Boundaries
+
+Phase 5 must preserve these fail-closed boundaries:
+
+- The source digest is not a standalone pass token. It is valid only with a
+  matching observed repository, event, target ref, clean worktree, and read-only
+  audit.
+- `allowedContexts` in the committed record is not sufficient by itself. It must
+  be constrained by verifier code and matched against observation.
+- The digest exclusion set remains exactly
+  `["docs/current/state-sync-record.json"]` in the first version. No glob,
+  directory, `.agent_board`, Markdown display, workflow, script, source, test,
+  package, or dependency file may be excluded.
+- Unknown fields fail closed.
+- Missing, malformed, or unsupported digest algorithms fail closed.
+- `validation` fields inside the record do not prove execution. CI job status
+  and local command output remain the only validation results.
+- Version 2 must not bypass output sanitization, audit read-only checks, dirty
+  worktree checks, or repository identity checks.
+
+#### Migration Plan
+
+Phase 5 should be split into separate pull requests:
+
+1. Add the version 2 schema and parser behind fail-closed tests. Version 1
+   behavior remains unchanged.
+2. Add explicit CI / Git observation fields to the audit input and text/JSON
+   output. Version 1 still uses its existing transition policy.
+3. Add version 2 policy verification for pull request and main push contexts,
+   with tests for digest match, digest drift, wrong repository, wrong event,
+   wrong ref, dirty worktree, moving checkout, and unknown fields.
+4. Switch the committed record to version 2 after the verifier is live.
+5. Retire `state-sync/reanchor-main` automation only after version 2 has passed
+   real pull request and main push CI.
+
+Until step 5 is complete, the existing Phase 1 reanchor flow remains the safe
+fallback.
+
 ## Non-Goals For The First Implementation
 
 - no Sigstore or Rekor integration;
