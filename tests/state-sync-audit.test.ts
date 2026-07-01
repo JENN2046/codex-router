@@ -2191,7 +2191,7 @@ test("state sync audit collector does not use Markdown anchor when claim is miss
   assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
-test("state sync audit blocks machine absolute paths in state surfaces", async () => {
+test("state sync audit ignores machine absolute paths in display surfaces", async () => {
   const input = await createInputFromWorkspace();
   for (const machinePath of [
     "A:\\AGENTS_OS_Workspace\\governance\\codex-router\\repo",
@@ -2215,15 +2215,17 @@ test("state sync audit blocks machine absolute paths in state surfaces", async (
       currentStateText: input.currentStateText.replace(
         /\| Workspace \| `[^`]+` \|/,
         `| Workspace | \`${machinePath}\` |`
-      )
+      ),
+      agentBoardText: [
+        input.agentBoardText,
+        `Operator handoff path: \`${machinePath}\``
+      ].join("\n")
     });
 
-    assert.equal(review.status, "blocked", machinePath);
-    assert.ok(review.reasons.includes("state_sync_outputSanitized"), machinePath);
-    assert.ok(
-      review.issues.some((issue) => issue.risk === "machine_path_disclosure"),
-      machinePath
-    );
+    assert.equal(review.status, "passed", machinePath);
+    assert.deepEqual(review.reasons, [], machinePath);
+    assert.equal(review.checks.outputSanitized, true, machinePath);
+    assert.deepEqual(review.issues, [], machinePath);
   }
 });
 
@@ -2252,15 +2254,21 @@ test("state sync audit allows governance markers, urls, and repository-relative 
   assert.equal(review.checks.outputSanitized, true);
 });
 
-test("state sync audit reports machine paths without echoing sentinel paths", async () => {
+test("state sync audit sanitizes structured record issues without echoing sentinel paths", async () => {
   const input = await createInputFromWorkspace();
   const sentinelPath = "A:\\PRIVATE_SENTINEL\\user\\secret-repo";
+  const claim = JSON.parse(input.stateSyncClaimText ?? "{}") as {
+    validation?: { requiredCommands?: string[] };
+  };
+  claim.validation = {
+    requiredCommands: [
+      `node scripts/check.js --workspace ${sentinelPath}`,
+      "echo OPENAI_API_KEY"
+    ]
+  };
   const review = reviewStateSyncAudit({
     ...input,
-    currentStateText: input.currentStateText.replace(
-      /\| Workspace \| `[^`]+` \|/,
-      `| Workspace | \`${sentinelPath}\` |`
-    )
+    stateSyncClaimText: JSON.stringify(claim, null, 2)
   });
   const text = formatStateSyncAuditResult(review);
   const json = formatStateSyncAuditResult(review, "json");
@@ -2269,7 +2277,12 @@ test("state sync audit reports machine paths without echoing sentinel paths", as
   assert.ok(review.reasons.includes("state_sync_outputSanitized"));
   assert.ok(review.issues.some((issue) => (
     issue.code === "state_document_windows_drive_path"
-    && issue.path === "docs/current/CURRENT_STATE.md"
+    && issue.path === "docs/current/state-sync-record.json"
+    && issue.line > 0
+  )));
+  assert.ok(review.issues.some((issue) => (
+    issue.code === "state_document_secret_marker"
+    && issue.path === "docs/current/state-sync-record.json"
     && issue.line > 0
   )));
   assert.equal(text.includes("PRIVATE_SENTINEL"), false);

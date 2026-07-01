@@ -2,26 +2,26 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "codex/state-sync-display-sanitization-downgrade",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "1ee0f2d",
-    "latestValidatedCommit": "1ee0f2d",
+    "validatedSourceCommit": "cd010f1",
+    "latestValidatedCommit": "cd010f1",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "e31471037f452782637f90f2ba36fc2743361dd53a312d916f804326bfa38453",
+      "value": "4a3fbf8bc2e8b03a4e45103e5eab6214648ff85a93d0170150b5164c3478fb4b",
       "excludedPaths": [
         "docs/current/state-sync-record.json"
       ]
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]
