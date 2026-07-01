@@ -1328,8 +1328,10 @@ function stateSyncPolicyV2TransitionIsAllowed(
     claim.repository.fullName === (input.repositoryFullName ?? "")
     && (
       claim.repository.id === undefined
-      || repositoryId === ""
-      || claim.repository.id === repositoryId
+      || (
+        repositoryId !== ""
+        && claim.repository.id === repositoryId
+      )
     )
     && claim.source.sourceTreeDigest.algorithm === ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM
     && sameStringSet(
@@ -1355,9 +1357,16 @@ function stateSyncPolicyV2TransitionIsAllowed(
   }
 
   if (eventName === "pull_request") {
+    const originMainObserved =
+      remoteTrackingRef === MAIN_UPSTREAM_REF
+      && isFullGitSha(input.originMainFull ?? "")
+      && currentAhead >= 0
+      && currentBehind >= 0;
+
     if (
       targetRef !== ACCEPTED_POLICY_V2_TARGET_REF
       || input.baseRef !== ACCEPTED_POLICY_V2_TARGET_REF
+      || !originMainObserved
       || (
         input.checkoutSubject !== "pull_request_head"
         && input.checkoutSubject !== "pull_request_merge"

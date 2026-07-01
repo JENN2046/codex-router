@@ -42,7 +42,7 @@ type StateSyncClaimTextOverrides = {
   allowedStatePaths?: string[];
 };
 type StateSyncPolicyV2ClaimTextOverrides = {
-  repositoryId?: string;
+  repositoryId?: string | null;
   repositoryFullName?: string;
   sourceTreeDigest?: string;
   sourceTreeDigestExcludedPaths?: string[];
@@ -634,6 +634,16 @@ test("state sync audit blocks policy v2 wrong repository observations", async ()
   assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
 });
 
+test("state sync audit blocks policy v2 missing observed repository ids", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PushInput({
+    repositoryId: ""
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
 test("state sync audit blocks policy v2 wrong event observations", async () => {
   const review = reviewStateSyncAudit(await createPolicyV2PushInput({
     eventName: "workflow_dispatch"
@@ -648,6 +658,38 @@ test("state sync audit blocks policy v2 wrong target refs", async () => {
   const review = reviewStateSyncAudit(await createPolicyV2PushInput({
     ref: "refs/heads/release",
     targetRef: "refs/heads/release"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 pull requests without origin main refs", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PullRequestInput({
+    remoteTrackingRef: "",
+    upstream: "",
+    aheadBehind: "unknown\tunknown"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 pull requests without origin main sha evidence", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PullRequestInput({
+    originMainFull: ""
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 pull requests with unknown main divergence", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PullRequestInput({
+    aheadBehind: "unknown\tunknown"
   }));
 
   assert.equal(review.status, "blocked");
@@ -3252,6 +3294,8 @@ async function createPolicyV2PullRequestInput(
 ): Promise<StateSyncAuditInput> {
   const headFull =
     overrides.headFull ?? "0123456789abcdef0123456789abcdef01234567";
+  const originMainFull =
+    overrides.originMainFull ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
   return createInputFromWorkspace({
     gitStatusShort: "",
@@ -3270,6 +3314,7 @@ async function createPolicyV2PullRequestInput(
     headRef: "refs/heads/state-sync-policy-v2-verifier",
     githubSha: "ffffffffffffffffffffffffffffffffffffffff",
     pullRequestHeadSha: headFull,
+    originMainFull,
     checkoutSubject: "pull_request_head",
     headSourceTreeDigest: TEST_SOURCE_TREE_DIGEST,
     stateSyncClaimText: stateSyncPolicyV2ClaimText(),
@@ -3280,13 +3325,17 @@ async function createPolicyV2PullRequestInput(
 function stateSyncPolicyV2ClaimText(
   overrides: StateSyncPolicyV2ClaimTextOverrides = {}
 ): string {
+  const repository: Record<string, string> = {
+    fullName: overrides.repositoryFullName ?? "JENN2046/codex-router"
+  };
+  if (overrides.repositoryId !== null) {
+    repository.id = overrides.repositoryId ?? "123456";
+  }
+
   return JSON.stringify({
     schemaVersion: 2,
     policyVersion: "state-sync-policy.v2",
-    repository: {
-      id: overrides.repositoryId ?? "123456",
-      fullName: overrides.repositoryFullName ?? "JENN2046/codex-router"
-    },
+    repository,
     source: {
       sourceTreeDigest: {
         algorithm: "git-ls-tree-sha256",
