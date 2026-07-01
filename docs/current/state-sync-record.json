@@ -10,7 +10,7 @@
     "latestValidatedCommit": "fddc7ed",
     "recordedDivergence": {
       "ahead": 3,
-      "behind": 0
+      "behind": 3
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
