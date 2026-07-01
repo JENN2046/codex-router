@@ -25,6 +25,7 @@ export async function collectStateSyncAuditInput(
     branch,
     head,
     headFull,
+    originMainFull,
     parentHead,
     mergeParentHead,
     mergeParentParentHead,
@@ -38,6 +39,7 @@ export async function collectStateSyncAuditInput(
       git(["branch", "--show-current"], cwd),
       git(["rev-parse", "--short", "HEAD"], cwd),
       git(["rev-parse", "HEAD"], cwd),
+      git(["rev-parse", "refs/remotes/origin/main"], cwd).catch(() => ""),
       git(["rev-parse", "--short", "HEAD^"], cwd).catch(() => ""),
       git(["rev-parse", "--short", "HEAD^2"], cwd).catch(() => ""),
       git(["rev-parse", "--short", "HEAD^2^"], cwd).catch(() => ""),
@@ -55,6 +57,12 @@ export async function collectStateSyncAuditInput(
     cwd
   );
   const aheadBehind = await gitAheadBehindFromRef("HEAD", observedUpstream, cwd);
+  const observation = await collectStateSyncObservation({
+    branch: branch.trim(),
+    headFull: headFull.trim(),
+    observedUpstream,
+    originMainFull: originMainFull.trim()
+  });
   const claimSourceTreeDigestExcludedPaths =
     parsedClaim.status === "valid"
       ? parsedClaim.claim.source.sourceTreeDigest.excludedPaths
@@ -62,6 +70,7 @@ export async function collectStateSyncAuditInput(
 
   const input: StateSyncAuditInput = {
     gitStatusShort,
+    ...observation,
     branch: branch.trim(),
     head: head.trim(),
     headFull: headFull.trim(),
@@ -145,6 +154,122 @@ export async function collectStateSyncAuditInput(
   }
 
   return input;
+}
+
+async function collectStateSyncObservation(input: {
+  branch: string;
+  headFull: string;
+  observedUpstream: string;
+  originMainFull: string;
+}): Promise<Partial<StateSyncAuditInput>> {
+  const eventName = envValue("GITHUB_EVENT_NAME");
+  const repositoryFullName = envValue("GITHUB_REPOSITORY");
+  const repositoryId = envValue("GITHUB_REPOSITORY_ID");
+  const ref = envValue("GITHUB_REF");
+  const baseRef = normalizeGitHubBranchRef(envValue("GITHUB_BASE_REF"));
+  const headRef = normalizeGitHubBranchRef(envValue("GITHUB_HEAD_REF"));
+  const githubSha = envValue("GITHUB_SHA");
+  const pullRequestHeadSha =
+    await readPullRequestHeadShaFromEvent(envValue("GITHUB_EVENT_PATH"));
+  const targetRef = eventName === "pull_request" ? baseRef : ref;
+  const checkoutSubject = resolveCheckoutSubject({
+    eventName,
+    branch: input.branch,
+    headFull: input.headFull,
+    githubSha,
+    pullRequestHeadSha
+  });
+
+  return {
+    eventName,
+    repositoryFullName,
+    repositoryId,
+    ref,
+    targetRef,
+    remoteTrackingRef: input.observedUpstream,
+    baseRef,
+    headRef,
+    githubSha,
+    pullRequestHeadSha,
+    checkoutSubject,
+    originMainFull: input.originMainFull
+  };
+}
+
+function envValue(name: string): string {
+  return process.env[name]?.trim() ?? "";
+}
+
+function normalizeGitHubBranchRef(value: string): string {
+  if (value === "" || value.startsWith("refs/")) {
+    return value;
+  }
+
+  return `refs/heads/${value}`;
+}
+
+async function readPullRequestHeadShaFromEvent(
+  eventPath: string
+): Promise<string> {
+  if (eventPath === "") {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(await readFile(eventPath, "utf8")) as unknown;
+    if (!isRecord(parsed)) {
+      return "";
+    }
+
+    const pullRequest = parsed.pull_request;
+    if (!isRecord(pullRequest)) {
+      return "";
+    }
+
+    const head = pullRequest.head;
+    if (!isRecord(head)) {
+      return "";
+    }
+
+    const sha = head.sha;
+    return typeof sha === "string" && isFullGitSha(sha) ? sha : "";
+  } catch {
+    return "";
+  }
+}
+
+function resolveCheckoutSubject(input: {
+  eventName: string;
+  branch: string;
+  headFull: string;
+  githubSha: string;
+  pullRequestHeadSha: string;
+}): NonNullable<StateSyncAuditInput["checkoutSubject"]> {
+  if (input.eventName !== "pull_request") {
+    return input.branch === "" ? "detached" : "branch";
+  }
+
+  if (sameGitSha(input.headFull, input.pullRequestHeadSha)) {
+    return "pull_request_head";
+  }
+
+  if (sameGitSha(input.headFull, input.githubSha)) {
+    return "pull_request_merge";
+  }
+
+  return "unknown";
+}
+
+function sameGitSha(left: string, right: string): boolean {
+  return left !== "" && right !== "" && left.toLowerCase() === right.toLowerCase();
+}
+
+function isFullGitSha(value: string): boolean {
+  return /^[0-9a-f]{40}$/i.test(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function resolveObservedUpstream(
