@@ -135,6 +135,40 @@ test("state-sync display sync preserves pending-push divergence baseline", async
   assert.deepEqual(clean.changedPaths, []);
 });
 
+test("state-sync display sync renders policy v2 content attestations", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-v2-"));
+  await writePolicyV2DisplayFixture(cwd);
+
+  await syncStateSyncDisplay(cwd, { write: true });
+
+  const currentState = await readFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    "utf8"
+  );
+  assert.match(currentState, /- policy version: `state-sync-policy\.v2`/);
+  assert.match(currentState, /\| Current branch \| `content-attestation` \|/);
+  assert.match(currentState, /\| Current head \| `observed at audit time` \|/);
+  assert.match(currentState, /- transition kind: `content_attestation`/);
+  assert.match(
+    currentState,
+    /Policy v2 records bind the filtered source tree digest to explicit\s+local, pull_request, and push contexts/
+  );
+  assert.match(
+    currentState,
+    /- structured claim: `state-sync-policy\.v2` content attestation/
+  );
+
+  const checkpoint = await readFile(
+    join(cwd, ".agent_board", "CHECKPOINT.md"),
+    "utf8"
+  );
+  assert.match(checkpoint, /- policy version: `state-sync-policy\.v2`/);
+  assert.match(checkpoint, /- transition: `content_attestation`/);
+
+  const clean = await syncStateSyncDisplay(cwd);
+  assert.deepEqual(clean.changedPaths, []);
+});
+
 test("state-sync display sync cleans volatile main pushed prose", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-volatile-"));
   await writeDisplayFixture(cwd, "state_only_pushed", "main");
@@ -312,6 +346,67 @@ async function writeDisplayFixture(
       ["Upstream divergence baseline:", "ahead 999 / behind 999"]
     ], "State-sync audit observation:", "Execution boundary:")
   );
+}
+
+async function writePolicyV2DisplayFixture(cwd: string): Promise<void> {
+  await mkdir(join(cwd, "docs", "current"), { recursive: true });
+  await mkdir(join(cwd, ".agent_board"), { recursive: true });
+  await writeFile(
+    join(cwd, "docs", "current", "state-sync-record.json"),
+    JSON.stringify({
+      schemaVersion: 2,
+      policyVersion: "state-sync-policy.v2",
+      repository: {
+        fullName: "JENN2046/codex-router"
+      },
+      source: {
+        sourceTreeDigest: {
+          algorithm: "git-ls-tree-sha256",
+          value: CLAIM_DIGEST,
+          excludedPaths: strictStateRecordPaths()
+        }
+      },
+      allowedContexts: [
+        {
+          event: "local",
+          targetRef: "refs/heads/main"
+        },
+        {
+          event: "pull_request",
+          targetRef: "refs/heads/main"
+        },
+        {
+          event: "push",
+          targetRef: "refs/heads/main"
+        }
+      ]
+    }, null, 2)
+  );
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    staleCurrentState()
+  );
+
+  for (const filePath of [
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/TASK_QUEUE.md",
+    ".agent_board/VALIDATION_LOG.md"
+  ]) {
+    await writeFile(
+      join(cwd, filePath),
+      staleAgentBoard([
+        ["Branch:", "stale-branch"],
+        ["Current head:", "1111111"],
+        ["Validated source commit:", "1111111"],
+        ["Latest validated commit:", "1111111"],
+        ["Upstream baseline:", "origin/stale"],
+        ["Upstream divergence baseline:", "ahead 999 / behind 999"],
+        ["Transition:", "source_exact"]
+      ])
+    );
+  }
 }
 
 function staleCurrentState(): string {

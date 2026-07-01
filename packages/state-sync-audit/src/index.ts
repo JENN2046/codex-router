@@ -18,6 +18,7 @@ const ACCEPTED_POLICY_V2_CLAIM_SCHEMA_VERSION = 2;
 const ACCEPTED_POLICY_V2_CLAIM_POLICY_VERSION = "state-sync-policy.v2";
 const ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM = "git-ls-tree-sha256";
 const ACCEPTED_POLICY_V2_ALLOWED_CONTEXT_EVENTS = new Set([
+  "local",
   "pull_request",
   "push"
 ]);
@@ -122,6 +123,7 @@ export type StateSyncClaimParseResult =
   | { status: "invalid"; reason: string };
 
 export type StateSyncPolicyV2AllowedContextEvent =
+  | "local"
   | "pull_request"
   | "push";
 
@@ -1352,6 +1354,16 @@ function stateSyncPolicyV2TransitionIsAllowed(
       && remoteTrackingRef === MAIN_UPSTREAM_REF
       && sameFullGitSha(input.headFull, input.githubSha)
       && sameFullGitSha(input.originMainFull, input.githubSha)
+      && currentAhead === 0
+      && currentBehind === 0;
+  }
+
+  if (eventName === "local") {
+    return targetRef === ACCEPTED_POLICY_V2_TARGET_REF
+      && input.branch === MAIN_BRANCH
+      && remoteTrackingRef === MAIN_UPSTREAM_REF
+      && input.checkoutSubject === "branch"
+      && sameFullGitSha(input.headFull, input.originMainFull)
       && currentAhead === 0
       && currentBehind === 0;
   }

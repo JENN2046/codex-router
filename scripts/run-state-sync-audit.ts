@@ -62,6 +62,7 @@ export async function collectStateSyncAuditInput(
   );
   const aheadBehind = await gitAheadBehindFromRef("HEAD", observedUpstream, cwd);
   const observation = await collectStateSyncObservation({
+    cwd,
     branch: branch.trim(),
     headFull: headFull.trim(),
     observedUpstream,
@@ -159,13 +160,19 @@ export async function collectStateSyncAuditInput(
 }
 
 async function collectStateSyncObservation(input: {
+  cwd: string;
   branch: string;
   headFull: string;
   observedUpstream: string;
   originMainFull: string;
 }): Promise<Partial<StateSyncAuditInput>> {
-  const eventName = githubEventNameEnv();
-  const repositoryFullName = githubRepositoryFullNameEnv();
+  const rawGithubEventName = envValue("GITHUB_EVENT_NAME");
+  const githubEventName = githubEventNameEnv();
+  const eventName =
+    rawGithubEventName === "" && input.branch !== "" ? "local" : githubEventName;
+  const repositoryFullName =
+    githubRepositoryFullNameEnv()
+    || await localRepositoryFullName(input.cwd);
   const repositoryId = githubRepositoryIdEnv();
   const ref = githubRefEnv("GITHUB_REF");
   const baseRef = githubBranchRefEnv("GITHUB_BASE_REF");
@@ -173,7 +180,11 @@ async function collectStateSyncObservation(input: {
   const githubSha = githubShaEnv("GITHUB_SHA");
   const pullRequestHeadSha =
     await readPullRequestHeadShaFromEvent(eventName, envValue("GITHUB_EVENT_PATH"));
-  const targetRef = eventName === "pull_request" ? baseRef : ref;
+  const targetRef = eventName === "pull_request"
+    ? baseRef
+    : eventName === "local"
+      ? normalizeGitHubBranchRef(input.branch)
+      : ref;
   const checkoutSubject = resolveCheckoutSubject({
     eventName,
     branch: input.branch,
@@ -238,6 +249,35 @@ function normalizeGitHubBranchRef(value: string): string {
   }
 
   return `refs/heads/${value}`;
+}
+
+async function localRepositoryFullName(cwd: string): Promise<string> {
+  const remoteUrl = (
+    await git(["config", "--get", "remote.origin.url"], cwd).catch(() => "")
+  ).trim();
+  return repositoryFullNameFromGitHubRemote(remoteUrl);
+}
+
+function repositoryFullNameFromGitHubRemote(value: string): string {
+  const patterns = [
+    /^git@github\.com:([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i,
+    /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i,
+    /^ssh:\/\/git@github\.com\/([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = pattern.exec(value);
+    const owner = match?.[1];
+    const repo = match?.[2];
+    if (owner !== undefined && repo !== undefined) {
+      const fullName = `${owner}/${repo}`;
+      return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(fullName)
+        ? fullName
+        : "";
+    }
+  }
+
+  return "";
 }
 
 async function readPullRequestHeadShaFromEvent(
