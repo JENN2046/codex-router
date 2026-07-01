@@ -1,39 +1,30 @@
 {
-  "schemaVersion": 1,
-  "policyVersion": "state-sync-policy.v1",
-  "subject": {
-    "branch": "main",
-    "upstream": "refs/remotes/origin/main"
+  "schemaVersion": 2,
+  "policyVersion": "state-sync-policy.v2",
+  "repository": {
+    "fullName": "JENN2046/codex-router"
   },
   "source": {
-    "validatedSourceCommit": "4f0a1f1",
-    "latestValidatedCommit": "4f0a1f1",
-    "recordedDivergence": {
-      "ahead": 1,
-      "behind": 0
-    },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "1bede872ac0002d2738b68cc9ac8b89d6202ef3c16e33e662b3db5532dcfb552",
+      "value": "df27a443229b2ee9f86a6bc8130495f562d44303b3fb404ef3b03e7d24e43d08",
       "excludedPaths": [
         "docs/current/state-sync-record.json"
       ]
     }
   },
-  "transition": {
-    "kind": "state_only_pushed",
-    "allowedStatePaths": [
-      "docs/current/state-sync-record.json"
-    ]
-  },
-  "validation": {
-    "requiredCommands": [
-      "git diff --check",
-      "node --import tsx --test tests/state-sync-audit.test.ts tests/state-sync-display-sync.test.ts tests/state-sync-reanchor-helper.test.ts tests/state-sync-reanchor-automation.test.ts",
-      "npm test",
-      "npm run typecheck",
-      "npm run build",
-      "node --import tsx scripts/run-state-sync-audit.ts --json"
-    ]
-  }
+  "allowedContexts": [
+    {
+      "event": "local",
+      "targetRef": "refs/heads/main"
+    },
+    {
+      "event": "pull_request",
+      "targetRef": "refs/heads/main"
+    },
+    {
+      "event": "push",
+      "targetRef": "refs/heads/main"
+    }
+  ]
 }
