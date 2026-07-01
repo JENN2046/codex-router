@@ -31,9 +31,21 @@ const ACCEPTED_TRANSITION_KINDS = new Set([
 
 export interface StateSyncAuditInput {
   gitStatusShort: string;
+  eventName?: string;
+  repositoryFullName?: string;
+  repositoryId?: string;
+  ref?: string;
+  targetRef?: string;
+  remoteTrackingRef?: string;
+  baseRef?: string;
+  headRef?: string;
+  githubSha?: string;
+  pullRequestHeadSha?: string;
+  checkoutSubject?: StateSyncAuditCheckoutSubject;
   branch: string;
   head: string;
   headFull?: string;
+  originMainFull?: string;
   parentHead?: string;
   allowedStateCommits?: string[];
   committedPathsSinceValidatedSource?: string[];
@@ -61,6 +73,13 @@ export type StateSyncClaimSource =
   | "structured"
   | "missing_structured"
   | "invalid_structured";
+
+export type StateSyncAuditCheckoutSubject =
+  | "branch"
+  | "detached"
+  | "pull_request_head"
+  | "pull_request_merge"
+  | "unknown";
 
 export type StateSyncTransitionKind =
   | "source_exact"
@@ -201,6 +220,26 @@ export interface StateSyncAuditResult {
     staleMarkerHitCount: number;
     stateWritesDuringAudit: 0;
     remoteWritesDuringAudit: 0;
+    observation: {
+      eventName: string;
+      repositoryFullName: string;
+      repositoryId: string;
+      ref: string;
+      targetRef: string;
+      remoteTrackingRef: string;
+      baseRef: string;
+      headRef: string;
+      githubSha: string;
+      pullRequestHeadSha: string;
+      checkoutSubject: StateSyncAuditCheckoutSubject | "";
+      headFull: string;
+      originMainFull: string;
+      branch: string;
+      currentAhead: number;
+      currentBehind: number;
+      worktreeIsClean: boolean;
+      headSourceTreeDigest: string;
+    };
   };
   reasons: string[];
   issues: StateSyncAuditIssue[];
@@ -757,7 +796,27 @@ export function reviewStateSyncAudit(
       requiredBoundaryMarkerCount: 0,
       staleMarkerHitCount: 0,
       stateWritesDuringAudit: 0,
-      remoteWritesDuringAudit: 0
+      remoteWritesDuringAudit: 0,
+      observation: {
+        eventName: input.eventName ?? "",
+        repositoryFullName: input.repositoryFullName ?? "",
+        repositoryId: input.repositoryId ?? "",
+        ref: input.ref ?? "",
+        targetRef: input.targetRef ?? "",
+        remoteTrackingRef: input.remoteTrackingRef ?? input.upstream,
+        baseRef: input.baseRef ?? "",
+        headRef: input.headRef ?? "",
+        githubSha: input.githubSha ?? "",
+        pullRequestHeadSha: input.pullRequestHeadSha ?? "",
+        checkoutSubject: input.checkoutSubject ?? "",
+        headFull: input.headFull ?? "",
+        originMainFull: input.originMainFull ?? "",
+        branch: input.branch,
+        currentAhead: ahead,
+        currentBehind: behind,
+        worktreeIsClean: countStatusEntries(input.gitStatusShort) === 0,
+        headSourceTreeDigest: input.headSourceTreeDigest ?? ""
+      }
     },
     reasons,
     issues: sanitization.issues
@@ -800,6 +859,14 @@ export function formatStateSyncAuditResult(
     `validated source behind: ${review.summary.validatedSourceBehind}`,
     `source tree digest: ${sourceTreeDigest}`,
     `state-only paths: ${stateOnlyPaths}`,
+    `observed event: ${review.summary.observation.eventName || "unknown"}`,
+    `observed ref: ${review.summary.observation.ref || "unknown"}`,
+    `observed target ref: ${review.summary.observation.targetRef || "unknown"}`,
+    `observed checkout subject: ${
+      review.summary.observation.checkoutSubject || "unknown"
+    }`,
+    `observed github sha: ${review.summary.observation.githubSha || "unknown"}`,
+    `observed origin main: ${review.summary.observation.originMainFull || "unknown"}`,
     `authority checks: ${
       failedAuthorityChecks.length === 0 ? "all passed" : failedAuthorityChecks.join(",")
     }`,

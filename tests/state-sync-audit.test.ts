@@ -1576,6 +1576,40 @@ test("state sync audit output stays summarized", async () => {
   }
 });
 
+test("state sync audit exposes explicit observation fields without changing authority", async () => {
+  const input = await createInputFromWorkspace({
+    eventName: "push",
+    repositoryFullName: "JENN2046/codex-router",
+    repositoryId: "123456",
+    ref: "refs/heads/main",
+    targetRef: "refs/heads/main",
+    remoteTrackingRef: "refs/remotes/origin/main",
+    githubSha: "0123456789abcdef0123456789abcdef01234567",
+    checkoutSubject: "detached",
+    headFull: "0123456789abcdef0123456789abcdef01234567",
+    originMainFull: "0123456789abcdef0123456789abcdef01234567"
+  });
+  const review = reviewStateSyncAudit(input);
+  const text = formatStateSyncAuditResult(review);
+  const json = formatStateSyncAuditResult(review, "json");
+  const parsed = JSON.parse(json) as typeof review;
+
+  assert.equal(review.status, "passed");
+  assert.equal(review.reasons.length, 0);
+  assert.deepEqual(parsed.checkCategories.authority, [...STATE_SYNC_AUTHORITY_CHECKS]);
+  assert.equal(parsed.summary.observation.eventName, "push");
+  assert.equal(parsed.summary.observation.repositoryFullName, "JENN2046/codex-router");
+  assert.equal(parsed.summary.observation.ref, "refs/heads/main");
+  assert.equal(parsed.summary.observation.targetRef, "refs/heads/main");
+  assert.equal(parsed.summary.observation.remoteTrackingRef, "refs/remotes/origin/main");
+  assert.equal(parsed.summary.observation.githubSha, "0123456789abcdef0123456789abcdef01234567");
+  assert.equal(parsed.summary.observation.checkoutSubject, "detached");
+  assert.equal(parsed.summary.observation.worktreeIsClean, true);
+  assert.match(text, /observed event: push/);
+  assert.match(text, /observed ref: refs\/heads\/main/);
+  assert.match(text, /observed checkout subject: detached/);
+});
+
 test("state sync audit categorizes retired checks as legacy compatibility", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace());
   const authority = new Set(review.checkCategories.authority);
@@ -1723,6 +1757,145 @@ test("state sync audit collector uses structured claim for validated source anch
   assert.equal(input.stateSyncClaimText !== undefined, true);
   assert.equal(input.validatedSourceAncestorOfHead, true);
   assert.deepEqual(input.committedPathsSinceValidatedSource, []);
+});
+
+test("state sync audit collector captures bounded GitHub pull request observations", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-github-observation-"));
+  await git(cwd, ["init"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+  await git(cwd, ["checkout", "-b", "feature"]);
+
+  await writeMinimalWorkspace(cwd, "feature", "0000000");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "source"]);
+  const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
+
+  await writeMinimalWorkspace(cwd, "feature", sourceCommit);
+  await writeStateSyncClaim(cwd, {
+    branch: "feature",
+    upstream: "",
+    validatedSourceCommit: sourceCommit,
+    latestValidatedCommit: sourceCommit,
+    recordedAhead: 0,
+    recordedBehind: 0
+  });
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "state record"]);
+  const headFull = (await git(cwd, ["rev-parse", "HEAD"])).trim();
+  const eventDir = await mkdtemp(join(tmpdir(), "state-sync-github-event-"));
+  const eventPath = join(eventDir, "event.json");
+  await writeFile(
+    eventPath,
+    JSON.stringify({
+      pull_request: {
+        head: {
+          sha: headFull
+        }
+      }
+    })
+  );
+
+  const restoredEnv = restoreEnvAfterTest([
+    "GITHUB_EVENT_NAME",
+    "GITHUB_REPOSITORY",
+    "GITHUB_REPOSITORY_ID",
+    "GITHUB_REF",
+    "GITHUB_BASE_REF",
+    "GITHUB_HEAD_REF",
+    "GITHUB_SHA",
+    "GITHUB_EVENT_PATH",
+    "GITHUB_ACTIONS"
+  ]);
+  try {
+    process.env.GITHUB_EVENT_NAME = "pull_request";
+    process.env.GITHUB_REPOSITORY = "JENN2046/codex-router";
+    process.env.GITHUB_REPOSITORY_ID = "123456";
+    process.env.GITHUB_REF = "refs/pull/88/merge";
+    process.env.GITHUB_BASE_REF = "main";
+    process.env.GITHUB_HEAD_REF = "feature";
+    process.env.GITHUB_SHA = "ffffffffffffffffffffffffffffffffffffffff";
+    process.env.GITHUB_EVENT_PATH = eventPath;
+    process.env.GITHUB_ACTIONS = "true";
+
+    const input = await collectStateSyncAuditInput(cwd);
+    const review = reviewStateSyncAudit(input);
+
+    assert.equal(input.eventName, "pull_request");
+    assert.equal(input.repositoryFullName, "JENN2046/codex-router");
+    assert.equal(input.repositoryId, "123456");
+    assert.equal(input.ref, "refs/pull/88/merge");
+    assert.equal(input.baseRef, "refs/heads/main");
+    assert.equal(input.headRef, "refs/heads/feature");
+    assert.equal(input.targetRef, "refs/heads/main");
+    assert.equal(input.pullRequestHeadSha, headFull);
+    assert.equal(input.githubSha, "ffffffffffffffffffffffffffffffffffffffff");
+    assert.equal(input.checkoutSubject, "pull_request_head");
+    assert.equal(review.summary.observation.checkoutSubject, "pull_request_head");
+    assert.equal(review.summary.observation.worktreeIsClean, true);
+  } finally {
+    restoredEnv();
+  }
+});
+
+test("state sync audit collector drops malformed GitHub observation env values", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-github-observation-safe-"));
+  await git(cwd, ["init"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+  await git(cwd, ["checkout", "-b", "feature"]);
+
+  await writeMinimalWorkspace(cwd, "feature", "0000000");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "source"]);
+  const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
+  await writeStateSyncClaim(cwd, {
+    branch: "feature",
+    upstream: "",
+    validatedSourceCommit: sourceCommit,
+    latestValidatedCommit: sourceCommit,
+    recordedAhead: 0,
+    recordedBehind: 0
+  });
+
+  const restoredEnv = restoreEnvAfterTest([
+    "GITHUB_EVENT_NAME",
+    "GITHUB_REPOSITORY",
+    "GITHUB_REPOSITORY_ID",
+    "GITHUB_REF",
+    "GITHUB_BASE_REF",
+    "GITHUB_HEAD_REF",
+    "GITHUB_SHA",
+    "GITHUB_EVENT_PATH",
+    "GITHUB_ACTIONS"
+  ]);
+  try {
+    process.env.GITHUB_EVENT_NAME = "workflow_dispatch";
+    process.env.GITHUB_REPOSITORY = "not a repo token";
+    process.env.GITHUB_REPOSITORY_ID = "many";
+    process.env.GITHUB_REF = "refs/heads/main;echo secret";
+    process.env.GITHUB_BASE_REF = "../main";
+    process.env.GITHUB_HEAD_REF = "feature lock.lock";
+    process.env.GITHUB_SHA = "not-a-sha";
+    process.env.GITHUB_EVENT_PATH = "/tmp/private.json";
+    process.env.GITHUB_ACTIONS = "false";
+
+    const input = await collectStateSyncAuditInput(cwd);
+    const review = reviewStateSyncAudit(input);
+
+    assert.equal(input.eventName, "");
+    assert.equal(input.repositoryFullName, "");
+    assert.equal(input.repositoryId, "");
+    assert.equal(input.ref, "");
+    assert.equal(input.baseRef, "");
+    assert.equal(input.headRef, "");
+    assert.equal(input.targetRef, "");
+    assert.equal(input.githubSha, "");
+    assert.equal(input.pullRequestHeadSha, "");
+    assert.equal(review.summary.observation.repositoryFullName, "");
+  } finally {
+    restoredEnv();
+  }
 });
 
 test("state sync audit collector does not require display or handoff surfaces", async () => {
@@ -3012,6 +3185,22 @@ function strictStateRecordPaths(): string[] {
   return [
     "docs/current/state-sync-record.json"
   ];
+}
+
+function restoreEnvAfterTest(names: string[]): () => void {
+  const previous = new Map<string, string | undefined>(
+    names.map((name) => [name, process.env[name]])
+  );
+
+  return () => {
+    for (const [name, value] of previous) {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    }
+  };
 }
 
 function asCleanSyntheticReviewInput(
