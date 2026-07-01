@@ -107,37 +107,53 @@ export interface StateSyncAuditIssue {
   risk: "secret_marker" | "machine_path_disclosure";
 }
 
+export interface StateSyncAuditChecks {
+  packageScriptPresent: boolean;
+  currentStateRecorded: boolean;
+  currentBranchMatches: boolean;
+  validatedSourceHeadRecorded: boolean;
+  validatedSourceCommitRecorded: boolean;
+  upstreamRecorded: boolean;
+  validatedSourceDivergenceRecorded: boolean;
+  latestValidatedCommitRecorded: boolean;
+  dirtyWorktreeStateOnly: boolean;
+  staleAfterCommitRecorded: boolean;
+  validationBaselineRecorded: boolean;
+  executionBoundaryRecorded: boolean;
+  agentBoardAligned: boolean;
+  staleMarkersAbsent: boolean;
+  structuredClaimValid: boolean;
+  evidenceDriftAbsent: boolean;
+  structuredTransitionAllowed: boolean;
+  outputSanitized: boolean;
+  auditReadOnly: boolean;
+}
+
+export type StateSyncAuditCheckName = keyof StateSyncAuditChecks;
+
+export interface StateSyncAuditCheckCategories {
+  authority: StateSyncAuditCheckName[];
+  legacyCompatibility: StateSyncAuditCheckName[];
+}
+
 export interface StateSyncAuditResult {
   status: "passed" | "blocked";
-  checks: {
-    packageScriptPresent: boolean;
-    currentStateRecorded: boolean;
-    currentBranchMatches: boolean;
-    validatedSourceHeadRecorded: boolean;
-    validatedSourceCommitRecorded: boolean;
-    upstreamRecorded: boolean;
-    validatedSourceDivergenceRecorded: boolean;
-    latestValidatedCommitRecorded: boolean;
-    dirtyWorktreeStateOnly: boolean;
-    staleAfterCommitRecorded: boolean;
-    validationBaselineRecorded: boolean;
-    executionBoundaryRecorded: boolean;
-    agentBoardAligned: boolean;
-    staleMarkersAbsent: boolean;
-    structuredClaimValid: boolean;
-    evidenceDriftAbsent: boolean;
-    structuredTransitionAllowed: boolean;
-    outputSanitized: boolean;
-    auditReadOnly: boolean;
-  };
+  checks: StateSyncAuditChecks;
+  checkCategories: StateSyncAuditCheckCategories;
   summary: {
     branch: string;
     head: string;
     upstream: string;
     ahead: number;
     behind: number;
+    validatedSourceCommit: string;
+    latestValidatedCommit: string;
     validatedSourceAhead: number;
     validatedSourceBehind: number;
+    transitionKind: StateSyncTransitionKind | "";
+    sourceTreeDigestAlgorithm: string;
+    sourceTreeDigest: string;
+    stateOnlyPaths: string[];
     gitStatusEntryCount: number;
     packageScriptTargetCount: number;
     packageScriptMismatchCount: number;
@@ -151,6 +167,32 @@ export interface StateSyncAuditResult {
   reasons: string[];
   issues: StateSyncAuditIssue[];
 }
+
+export const STATE_SYNC_AUTHORITY_CHECKS: readonly StateSyncAuditCheckName[] = [
+  "packageScriptPresent",
+  "currentBranchMatches",
+  "validatedSourceHeadRecorded",
+  "validatedSourceCommitRecorded",
+  "upstreamRecorded",
+  "validatedSourceDivergenceRecorded",
+  "latestValidatedCommitRecorded",
+  "dirtyWorktreeStateOnly",
+  "structuredClaimValid",
+  "structuredTransitionAllowed",
+  "outputSanitized",
+  "auditReadOnly"
+];
+
+export const STATE_SYNC_LEGACY_COMPATIBILITY_CHECKS:
+  readonly StateSyncAuditCheckName[] = [
+    "currentStateRecorded",
+    "staleAfterCommitRecorded",
+    "validationBaselineRecorded",
+    "executionBoundaryRecorded",
+    "agentBoardAligned",
+    "staleMarkersAbsent",
+    "evidenceDriftAbsent"
+  ];
 
 export type StateSyncAuditOutputFormat = "text" | "json";
 
@@ -442,7 +484,7 @@ export function reviewStateSyncAudit(
     && sourceTreeDigestCompatibleWithHead;
   const stateSyncReanchorPrCandidate =
     stateSyncReanchorPrCandidateCheckout(resolvedClaim, input);
-  const checks = {
+  const checks: StateSyncAuditChecks = {
     packageScriptPresent: packageScriptReview.mismatchCount === 0,
     currentStateRecorded: true,
     currentBranchMatches:
@@ -537,19 +579,26 @@ export function reviewStateSyncAudit(
     outputSanitized: sanitization.issues.length === 0,
     auditReadOnly: true
   };
-  const reasons = collectReasons(checks);
+  const reasons = collectStateSyncBlockingReasons(checks);
 
   return {
     status: reasons.length === 0 ? "passed" : "blocked",
     checks,
+    checkCategories: stateSyncAuditCheckCategories(),
     summary: {
       branch: input.branch,
       head: input.head,
       upstream: input.upstream,
       ahead,
       behind,
+      validatedSourceCommit: validatedSourceCommit ?? "",
+      latestValidatedCommit: latestValidatedCommit ?? "",
       validatedSourceAhead,
       validatedSourceBehind,
+      transitionKind: resolvedClaim.transitionKind ?? "",
+      sourceTreeDigestAlgorithm: resolvedClaim.sourceTreeDigest?.algorithm ?? "",
+      sourceTreeDigest: resolvedClaim.sourceTreeDigest?.value ?? "",
+      stateOnlyPaths: resolvedClaim.allowedStatePaths ?? [],
       gitStatusEntryCount: countStatusEntries(input.gitStatusShort),
       packageScriptTargetCount: packageScriptReview.targetCount,
       packageScriptMismatchCount: packageScriptReview.mismatchCount,
@@ -573,6 +622,18 @@ export function formatStateSyncAuditResult(
     return JSON.stringify(review, null, 2);
   }
 
+  const failedAuthorityChecks = review.checkCategories.authority
+    .filter((name) => !review.checks[name]);
+  const transitionKind = review.summary.transitionKind === ""
+    ? "unknown"
+    : review.summary.transitionKind;
+  const sourceTreeDigest = review.summary.sourceTreeDigest === ""
+    ? "unknown"
+    : `${review.summary.sourceTreeDigestAlgorithm}:${review.summary.sourceTreeDigest}`;
+  const stateOnlyPaths = review.summary.stateOnlyPaths.length === 0
+    ? "none"
+    : review.summary.stateOnlyPaths.join(",");
+
   return [
     "State sync audit",
     `status: ${review.status}`,
@@ -581,15 +642,20 @@ export function formatStateSyncAuditResult(
     `upstream: ${review.summary.upstream}`,
     `ahead: ${review.summary.ahead}`,
     `behind: ${review.summary.behind}`,
+    `claim source: ${review.summary.claimSource}`,
+    `claim transition: ${transitionKind}`,
+    `validated source commit: ${review.summary.validatedSourceCommit || "unknown"}`,
+    `latest validated commit: ${review.summary.latestValidatedCommit || "unknown"}`,
     `validated source ahead: ${review.summary.validatedSourceAhead}`,
     `validated source behind: ${review.summary.validatedSourceBehind}`,
+    `source tree digest: ${sourceTreeDigest}`,
+    `state-only paths: ${stateOnlyPaths}`,
+    `authority checks: ${
+      failedAuthorityChecks.length === 0 ? "all passed" : failedAuthorityChecks.join(",")
+    }`,
     `git status entries: ${review.summary.gitStatusEntryCount}`,
     `package script targets: ${review.summary.packageScriptTargetCount}`,
     `package script mismatches: ${review.summary.packageScriptMismatchCount}`,
-    `claim source: ${review.summary.claimSource}`,
-    `validation commands: ${review.summary.requiredValidationCommandCount}`,
-    `boundary markers: ${review.summary.requiredBoundaryMarkerCount}`,
-    `stale marker hits: ${review.summary.staleMarkerHitCount}`,
     `state writes during audit: ${review.summary.stateWritesDuringAudit}`,
     `remote writes during audit: ${review.summary.remoteWritesDuringAudit}`,
     ...(review.reasons.length > 0 ? [`reasons: ${review.reasons.join(",")}`] : []),
@@ -1546,10 +1612,26 @@ function containsUncMachinePath(text: string): boolean {
     || /(?:^|[^\w])\/\/(?!\?\/)(?:[^/\s`|]+\/){2,}[^/\s`|]*/.test(text);
 }
 
-function collectReasons(checks: Record<string, boolean>): string[] {
-  return Object.entries(checks)
-    .filter(([, ok]) => !ok)
-    .map(([name]) => `state_sync_${name}`);
+export function collectStateSyncBlockingReasons(
+  checks: StateSyncAuditChecks
+): string[] {
+  return collectReasons(checks, STATE_SYNC_AUTHORITY_CHECKS);
+}
+
+function stateSyncAuditCheckCategories(): StateSyncAuditCheckCategories {
+  return {
+    authority: [...STATE_SYNC_AUTHORITY_CHECKS],
+    legacyCompatibility: [...STATE_SYNC_LEGACY_COMPATIBILITY_CHECKS]
+  };
+}
+
+function collectReasons(
+  checks: StateSyncAuditChecks,
+  checkNames: readonly StateSyncAuditCheckName[]
+): string[] {
+  return checkNames
+    .filter((name) => !checks[name])
+    .map((name) => `state_sync_${name}`);
 }
 
 function parseAheadBehind(value: string): { ahead: number; behind: number } {
