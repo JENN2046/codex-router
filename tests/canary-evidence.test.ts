@@ -164,7 +164,12 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
   assert.ok(gateStep?.run?.includes(
     'claim?.transition?.kind === "state_only_pushed"'
   ));
-  assert.ok(gateStep?.run?.includes("main/state_only_pushed record exists"));
+  assert.ok(gateStep?.run?.includes("const v2StateSyncRecord"));
+  assert.ok(gateStep?.run?.includes("claim?.schemaVersion === 2"));
+  assert.ok(gateStep?.run?.includes(
+    'claim?.policyVersion === "state-sync-policy.v2"'
+  ));
+  assert.ok(gateStep?.run?.includes("v2 state-sync-policy record exists"));
   assert.equal(npmCiStep?.if, "steps.state-sync-gate.outputs.run_audit == 'true'");
   assert.equal(auditStep?.if, "steps.state-sync-gate.outputs.run_audit == 'true'");
   assert.ok(auditStep);
