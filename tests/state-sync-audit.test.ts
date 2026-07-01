@@ -8,6 +8,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import {
   collectStateSyncBlockingReasons,
   formatStateSyncAuditResult,
+  parseStateSyncPolicyV2Claim,
   reviewStateSyncAudit,
   STATE_SYNC_AUTHORITY_CHECKS,
   STATE_SYNC_LEGACY_COMPATIBILITY_CHECKS,
@@ -449,6 +450,125 @@ test("state sync audit fails closed on unknown structured claim policy", async (
   assert.equal(review.status, "blocked");
   assert.equal(review.summary.claimSource, "invalid_structured");
   assert.equal(review.checks.structuredClaimValid, false);
+});
+
+test("state sync policy v2 parser accepts content attestation records", () => {
+  const result = parseStateSyncPolicyV2Claim(stateSyncPolicyV2ClaimText());
+
+  assert.equal(result.status, "valid");
+  if (result.status !== "valid") {
+    return;
+  }
+
+  assert.equal(result.claim.schemaVersion, 2);
+  assert.equal(result.claim.policyVersion, "state-sync-policy.v2");
+  assert.deepEqual(result.claim.repository, {
+    id: "123456",
+    fullName: "JENN2046/codex-router"
+  });
+  assert.deepEqual(result.claim.source.sourceTreeDigest, {
+    algorithm: "git-ls-tree-sha256",
+    value: TEST_SOURCE_TREE_DIGEST,
+    excludedPaths: strictStateRecordPaths()
+  });
+  assert.deepEqual(result.claim.allowedContexts, [
+    {
+      event: "pull_request",
+      targetRef: "refs/heads/main"
+    },
+    {
+      event: "push",
+      targetRef: "refs/heads/main"
+    }
+  ]);
+});
+
+test("state sync policy v2 parser fails closed on malformed records", async (t) => {
+  const cases: Array<[
+    string,
+    (claim: Record<string, unknown>) => void,
+    string
+  ]> = [
+    ["top-level unknown field", (claim) => {
+      claim.extra = true;
+    }, "unknown_claim_field"],
+    ["unsupported schema", (claim) => {
+      claim.schemaVersion = 1;
+    }, "unsupported_schema_version"],
+    ["unsupported policy", (claim) => {
+      claim.policyVersion = "state-sync-policy.v1";
+    }, "unsupported_policy_version"],
+    ["repository unknown field", (claim) => {
+      (claim.repository as Record<string, unknown>).extra = true;
+    }, "repository_unknown_field"],
+    ["repository malformed", (claim) => {
+      (claim.repository as Record<string, unknown>).fullName = "codex-router";
+    }, "repository_malformed"],
+    ["source unknown field", (claim) => {
+      (claim.source as Record<string, unknown>).extra = true;
+    }, "source_unknown_field"],
+    ["source tree digest unknown field", (claim) => {
+      const source = claim.source as Record<string, unknown>;
+      (source.sourceTreeDigest as Record<string, unknown>).extra = true;
+    }, "source_tree_digest_unknown_field"],
+    ["source tree digest unsupported path", (claim) => {
+      const source = claim.source as Record<string, unknown>;
+      const digest = source.sourceTreeDigest as Record<string, unknown>;
+      digest.excludedPaths = [
+        ...strictStateRecordPaths(),
+        ".agent_board/CHECKPOINT.md"
+      ];
+    }, "source_tree_digest_malformed"],
+    ["source tree digest malformed value", (claim) => {
+      const source = claim.source as Record<string, unknown>;
+      const digest = source.sourceTreeDigest as Record<string, unknown>;
+      digest.value = "A".repeat(64);
+    }, "source_tree_digest_malformed"],
+    ["allowed contexts empty", (claim) => {
+      claim.allowedContexts = [];
+    }, "allowed_contexts_malformed"],
+    ["allowed context unknown field", (claim) => {
+      const [context] = claim.allowedContexts as Array<Record<string, unknown>>;
+      context!.extra = true;
+    }, "allowed_contexts_malformed"],
+    ["allowed context unsupported event", (claim) => {
+      const [context] = claim.allowedContexts as Array<Record<string, unknown>>;
+      context!.event = "workflow_dispatch";
+    }, "allowed_contexts_malformed"],
+    ["allowed context unsupported target", (claim) => {
+      const [context] = claim.allowedContexts as Array<Record<string, unknown>>;
+      context!.targetRef = "refs/heads/release";
+    }, "allowed_contexts_malformed"],
+    ["allowed context duplicate", (claim) => {
+      const contexts = claim.allowedContexts as Array<Record<string, unknown>>;
+      claim.allowedContexts = [contexts[0]!, { ...contexts[0]! }];
+    }, "allowed_contexts_malformed"]
+  ];
+
+  for (const [name, mutate, reason] of cases) {
+    await t.test(name, () => {
+      const claim = JSON.parse(stateSyncPolicyV2ClaimText()) as Record<string, unknown>;
+      mutate(claim);
+
+      assert.deepEqual(parseStateSyncPolicyV2Claim(JSON.stringify(claim)), {
+        status: "invalid",
+        reason
+      });
+    });
+  }
+});
+
+test("state sync audit still fails closed on policy v2 records until v2 policy is wired", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewStateSyncAudit({
+    ...input,
+    stateSyncClaimText: stateSyncPolicyV2ClaimText()
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.summary.claimSource, "invalid_structured");
+  assert.equal(review.checks.structuredClaimValid, false);
+  assert.ok(review.reasons.includes("state_sync_structuredClaimValid"));
 });
 
 test("state sync audit fails closed on invalid structured claim transition", async () => {
@@ -2746,6 +2866,34 @@ function stateSyncClaimTextFromInput(
         "node --import tsx scripts/run-state-sync-audit.ts --json"
       ]
     }
+  }, null, 2);
+}
+
+function stateSyncPolicyV2ClaimText(): string {
+  return JSON.stringify({
+    schemaVersion: 2,
+    policyVersion: "state-sync-policy.v2",
+    repository: {
+      id: "123456",
+      fullName: "JENN2046/codex-router"
+    },
+    source: {
+      sourceTreeDigest: {
+        algorithm: "git-ls-tree-sha256",
+        value: TEST_SOURCE_TREE_DIGEST,
+        excludedPaths: strictStateRecordPaths()
+      }
+    },
+    allowedContexts: [
+      {
+        event: "pull_request",
+        targetRef: "refs/heads/main"
+      },
+      {
+        event: "push",
+        targetRef: "refs/heads/main"
+      }
+    ]
   }, null, 2);
 }
 

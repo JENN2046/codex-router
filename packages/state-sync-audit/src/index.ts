@@ -14,7 +14,14 @@ const MAIN_UPSTREAM_REF = "refs/remotes/origin/main";
 
 const ACCEPTED_CLAIM_SCHEMA_VERSION = 1;
 const ACCEPTED_CLAIM_POLICY_VERSION = "state-sync-policy.v1";
+const ACCEPTED_POLICY_V2_CLAIM_SCHEMA_VERSION = 2;
+const ACCEPTED_POLICY_V2_CLAIM_POLICY_VERSION = "state-sync-policy.v2";
 const ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM = "git-ls-tree-sha256";
+const ACCEPTED_POLICY_V2_ALLOWED_CONTEXT_EVENTS = new Set([
+  "pull_request",
+  "push"
+]);
+const ACCEPTED_POLICY_V2_TARGET_REF = "refs/heads/main";
 const ACCEPTED_TRANSITION_KINDS = new Set([
   "source_exact",
   "state_only_pending_push",
@@ -93,6 +100,37 @@ export interface StateSyncClaim {
 export type StateSyncClaimParseResult =
   | { status: "absent" }
   | { status: "valid"; claim: StateSyncClaim }
+  | { status: "invalid"; reason: string };
+
+export type StateSyncPolicyV2AllowedContextEvent =
+  | "pull_request"
+  | "push";
+
+export interface StateSyncPolicyV2AllowedContext {
+  event: StateSyncPolicyV2AllowedContextEvent;
+  targetRef: "refs/heads/main";
+}
+
+export interface StateSyncPolicyV2Claim {
+  schemaVersion: 2;
+  policyVersion: "state-sync-policy.v2";
+  repository: {
+    id?: string;
+    fullName: string;
+  };
+  source: {
+    sourceTreeDigest: {
+      algorithm: "git-ls-tree-sha256";
+      value: string;
+      excludedPaths: string[];
+    };
+  };
+  allowedContexts: StateSyncPolicyV2AllowedContext[];
+}
+
+export type StateSyncPolicyV2ClaimParseResult =
+  | { status: "absent" }
+  | { status: "valid"; claim: StateSyncPolicyV2Claim }
   | { status: "invalid"; reason: string };
 
 export interface StateSyncAuditIssue {
@@ -375,6 +413,118 @@ export function parseStateSyncClaim(
 
   if (validation !== undefined) {
     claim.validation = validation;
+  }
+
+  return {
+    status: "valid",
+    claim
+  };
+}
+
+export function parseStateSyncPolicyV2Claim(
+  rawText: string | undefined
+): StateSyncPolicyV2ClaimParseResult {
+  if (rawText === undefined) {
+    return { status: "absent" };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch {
+    return { status: "invalid", reason: "invalid_json" };
+  }
+
+  if (!isRecord(parsed)) {
+    return { status: "invalid", reason: "claim_not_object" };
+  }
+
+  if (!hasOnlyKeys(
+    parsed,
+    ["schemaVersion", "policyVersion", "repository", "source", "allowedContexts"]
+  )) {
+    return { status: "invalid", reason: "unknown_claim_field" };
+  }
+
+  if (parsed.schemaVersion !== ACCEPTED_POLICY_V2_CLAIM_SCHEMA_VERSION) {
+    return { status: "invalid", reason: "unsupported_schema_version" };
+  }
+
+  if (parsed.policyVersion !== ACCEPTED_POLICY_V2_CLAIM_POLICY_VERSION) {
+    return { status: "invalid", reason: "unsupported_policy_version" };
+  }
+
+  const repository = parsed.repository;
+  if (!isRecord(repository)) {
+    return { status: "invalid", reason: "repository_missing" };
+  }
+  if (!hasOnlyKeys(repository, ["id", "fullName"])) {
+    return { status: "invalid", reason: "repository_unknown_field" };
+  }
+
+  const repositoryFullName = stringField(repository, "fullName");
+  const repositoryId = stringField(repository, "id");
+  if (
+    repositoryFullName === undefined
+    || !isRepositoryFullName(repositoryFullName)
+    || (repository.id !== undefined && !isNonEmptyTrimmedString(repositoryId))
+  ) {
+    return { status: "invalid", reason: "repository_malformed" };
+  }
+
+  const source = parsed.source;
+  if (!isRecord(source)) {
+    return { status: "invalid", reason: "source_missing" };
+  }
+  if (!hasOnlyKeys(source, ["sourceTreeDigest"])) {
+    return { status: "invalid", reason: "source_unknown_field" };
+  }
+
+  const sourceTreeDigest = source.sourceTreeDigest;
+  if (!isRecord(sourceTreeDigest)) {
+    return { status: "invalid", reason: "source_tree_digest_missing" };
+  }
+  if (!hasOnlyKeys(sourceTreeDigest, ["algorithm", "value", "excludedPaths"])) {
+    return { status: "invalid", reason: "source_tree_digest_unknown_field" };
+  }
+
+  const sourceTreeDigestAlgorithm = stringField(sourceTreeDigest, "algorithm");
+  const sourceTreeDigestValue = stringField(sourceTreeDigest, "value");
+  const sourceTreeDigestExcludedPaths =
+    stringArrayField(sourceTreeDigest, "excludedPaths");
+  if (
+    sourceTreeDigestAlgorithm !== ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM
+    || sourceTreeDigestValue === undefined
+    || !isSha256Hex(sourceTreeDigestValue)
+    || sourceTreeDigestExcludedPaths === undefined
+    || !sameStringSet(sourceTreeDigestExcludedPaths, strictStateRecordPaths())
+  ) {
+    return { status: "invalid", reason: "source_tree_digest_malformed" };
+  }
+
+  const allowedContexts = allowedContextsField(parsed, "allowedContexts");
+  if (allowedContexts === undefined) {
+    return { status: "invalid", reason: "allowed_contexts_malformed" };
+  }
+
+  const claim: StateSyncPolicyV2Claim = {
+    schemaVersion: ACCEPTED_POLICY_V2_CLAIM_SCHEMA_VERSION,
+    policyVersion: ACCEPTED_POLICY_V2_CLAIM_POLICY_VERSION,
+    repository: {
+      fullName: repositoryFullName
+    },
+    source: {
+      sourceTreeDigest: {
+        algorithm: ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM,
+        value: sourceTreeDigestValue,
+        excludedPaths: sourceTreeDigestExcludedPaths
+      }
+    },
+    allowedContexts
+  };
+
+  if (repositoryId !== undefined) {
+    claim.repository.id = repositoryId;
   }
 
   return {
@@ -701,6 +851,58 @@ function stringArrayField(
   return value;
 }
 
+function allowedContextsField(
+  record: Record<string, unknown>,
+  key: string
+): StateSyncPolicyV2AllowedContext[] | undefined {
+  const value = record[key];
+  if (!Array.isArray(value) || value.length === 0) {
+    return undefined;
+  }
+
+  const contexts: StateSyncPolicyV2AllowedContext[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (!isRecord(item) || !hasOnlyKeys(item, ["event", "targetRef"])) {
+      return undefined;
+    }
+
+    const event = policyV2AllowedContextEventField(item, "event");
+    const targetRef = stringField(item, "targetRef");
+    if (event === undefined || targetRef !== ACCEPTED_POLICY_V2_TARGET_REF) {
+      return undefined;
+    }
+
+    const key = `${event}:${targetRef}`;
+    if (seen.has(key)) {
+      return undefined;
+    }
+    seen.add(key);
+
+    contexts.push({
+      event,
+      targetRef: ACCEPTED_POLICY_V2_TARGET_REF
+    });
+  }
+
+  return contexts;
+}
+
+function policyV2AllowedContextEventField(
+  record: Record<string, unknown>,
+  key: string
+): StateSyncPolicyV2AllowedContextEvent | undefined {
+  const value = stringField(record, key);
+  if (
+    value === undefined
+    || !ACCEPTED_POLICY_V2_ALLOWED_CONTEXT_EVENTS.has(value)
+  ) {
+    return undefined;
+  }
+
+  return value as StateSyncPolicyV2AllowedContextEvent;
+}
+
 function commitField(
   record: Record<string, unknown>,
   key: string
@@ -715,6 +917,18 @@ function commitField(
 
 function isSha256Hex(value: string): boolean {
   return /^[0-9a-f]{64}$/.test(value);
+}
+
+function strictStateRecordPaths(): string[] {
+  return [...STRICT_STATE_RECORD_PATHS];
+}
+
+function isNonEmptyTrimmedString(value: string | undefined): value is string {
+  return value !== undefined && value.trim() !== "";
+}
+
+function isRepositoryFullName(value: string): boolean {
+  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
 }
 
 function sameStringSet(left: string[], right: string[]): boolean {
