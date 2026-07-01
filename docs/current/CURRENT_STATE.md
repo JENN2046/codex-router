@@ -42,11 +42,17 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `df27a443229b2ee9f86a6bc8130495f562d44303b3fb404ef3b03e7d24e43d08`
+  `e5ca3b77812a5f8a0e5b193fa6289c2cde44f55e9c1238b6c1b8c73e4c0a52b9`
 
-Strict state record paths:
+Source digest excluded paths:
 
 - `docs/current/state-sync-record.json`
+- `docs/current/CURRENT_STATE.md`
+- `.agent_board/CHECKPOINT.md`
+- `.agent_board/HANDOFF.md`
+- `.agent_board/RUN_STATE.md`
+- `.agent_board/TASK_QUEUE.md`
+- `.agent_board/VALIDATION_LOG.md`
 
 ## Current Entrypoints
 
