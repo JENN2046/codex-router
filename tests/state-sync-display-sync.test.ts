@@ -65,7 +65,7 @@ test("state-sync display sync reports optional display drift, writes fields, the
   );
   assert.match(
     currentState,
-    /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
+    /- compatibility path: legacy v1 state-only record\s+- legacy structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
   );
   assert.match(
     currentState,
@@ -75,7 +75,7 @@ test("state-sync display sync reports optional display drift, writes fields, the
   assert.doesNotMatch(currentState, /stale-branch` \/ `state_only_pending_push/);
   assert.match(
     currentState,
-    /For this `state_only_pushed` state-only record, Git observation should\s+compute the validated source divergence as `ahead 0 \/ behind 2` against\s+`refs\/remotes\/origin\/main` after the state-only record is on upstream\./
+    /For this legacy v1 `state_only_pushed` state-only compatibility record, Git\s+observation should\s+compute the validated source divergence as `ahead 0 \/ behind 2` against\s+`refs\/remotes\/origin\/main` after the state-only record is on upstream\. Policy v2\s+content attestations are the main path and do not require this reanchor\s+prose\./
   );
 
   const taskQueue = await readFile(
@@ -90,7 +90,7 @@ test("state-sync display sync reports optional display drift, writes fields, the
   assert.match(checkpoint, /State-sync observation:/);
   assert.match(
     checkpoint,
-    /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
+    /- compatibility path: legacy v1 state-only record\s+- legacy structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
   );
   assert.match(checkpoint, /Boundary:\s+- stale boundary text/);
   assert.match(checkpoint, /<!-- state-sync-display:start -->/);
@@ -105,7 +105,7 @@ test("state-sync display sync reports optional display drift, writes fields, the
   assert.match(taskQueue, /- transition: `state_only_pushed`/);
   assert.match(
     runState,
-    /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
+    /- compatibility path: legacy v1 state-only record\s+- legacy structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
   );
   assert.doesNotMatch(runState, /stale-branch` \/ `state_only_pending_push/);
 
@@ -127,7 +127,7 @@ test("state-sync display sync preserves pending-push divergence baseline", async
   assert.match(currentState, /- transition: `state_only_pending_push`/);
   assert.match(
     currentState,
-    /For this `state_only_pending_push` record on branch `docs\/state-sync-display`,\s+Git observation should compute the validated source divergence as\s+`ahead 2 \/ behind 0` against `refs\/remotes\/origin\/main` before the state-only\s+record is pushed\./
+    /For this legacy v1 `state_only_pending_push` compatibility record on branch `docs\/state-sync-display`,\s+Git observation should compute the validated source divergence as\s+`ahead 2 \/ behind 0` against `refs\/remotes\/origin\/main` before the state-only\s+record is pushed\. Policy v2 content attestations are the main path and do\s+not require this pending-push narrative\./
   );
   assert.doesNotMatch(currentState, /pushed `main` state-only record/);
 

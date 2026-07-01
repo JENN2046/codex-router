@@ -439,24 +439,26 @@ Display drift contract:
   handoff surfaces belongs to explicit tooling or human review, not the
   branch-head state-sync PASS/BLOCK path.
 
-### Main Reanchor Operation
+### Legacy v1 Main Reanchor Fallback
 
-Post-merge main reanchors should be a guarded operation, not a repeated manual
-checklist.
+For schema v1 state-only records, post-merge main reanchors should be a guarded
+operation, not a repeated manual checklist. Policy v2 content attestations are
+the main path and normally do not require this post-squash reanchor.
 
-The conservative path remains:
+The conservative legacy v1 path remains:
 
 ```text
 main push -> state-sync/reanchor-main PR -> review / CI -> merge
 ```
 
-That PR path is still useful where direct `main` pushes are not authorized or
-where repository branch protection should require review for every state/docs
-record. Because the PR is created or updated with `GITHUB_TOKEN`, approval
-required workflow runs are an expected GitHub authorization behavior and should
-not be mistaken for proof that CI failed to trigger.
+That PR path is still useful for compatibility where direct `main` pushes are
+not authorized or where repository branch protection should require review for
+every v1 state/docs record. Because the PR is created or updated with
+`GITHUB_TOKEN`, approval-required workflow runs are an expected GitHub
+authorization behavior and should not be mistaken for proof that CI failed to
+trigger.
 
-For operator-authorized direct reanchor pushes, the local runner is:
+For operator-authorized direct legacy v1 reanchor pushes, the local runner is:
 
 ```bash
 npm run state-sync:reanchor-main
@@ -745,16 +747,16 @@ node --import tsx scripts/prepare-state-sync-reanchor.ts --write
 node --import tsx scripts/prepare-state-sync-reanchor.ts --write --source <sha>
 ```
 
-The helper prepares the structured record and generated display surfaces for a
-post-merge `main` / `state_only_pushed` state record. It does not commit or
-push, and write mode requires a clean worktree before it updates local files. By
-default it infers a new source when `HEAD` contains non-state changes since the
-previous recorded source, or when the previous branch source is unavailable or
-not an ancestor after a squash merge. Squash fallback is allowed only when
-`HEAD`'s filtered source tree digest still matches the recorded validated source
-digest; digest drift requires explicit revalidation or an explicit `--source`.
-If `HEAD` already appears to be a state-only descendant, the helper fails closed
-unless an explicit `--source` is supplied.
+The helper prepares the structured record and generated display surfaces for the
+legacy v1 post-merge `main` / `state_only_pushed` fallback path. It does not
+commit or push, and write mode requires a clean worktree before it updates local
+files. By default it infers a new source when `HEAD` contains non-state changes
+since the previous recorded source, or when the previous branch source is
+unavailable or not an ancestor after a squash merge. Squash fallback is allowed
+only when `HEAD`'s filtered source tree digest still matches the recorded
+validated source digest; digest drift requires explicit revalidation or an
+explicit `--source`. If `HEAD` already appears to be a state-only descendant, the
+helper fails closed unless an explicit `--source` is supplied.
 
 ### Phase 4: CI Coverage Adjustment
 
@@ -768,15 +770,18 @@ Implemented Phase 4 adjustment:
 - keep the workflow top-level triggers on `pull_request` to `main` and `push` to
   `main`;
 - remove the State Sync Audit job's PR-only event gate so pull requests still run
-  the audit and `push` events can run it after a committed
-  `main`/`state_only_pushed` structured record exists;
+  the audit and `push` events can run it after either a policy v2 content
+  attestation record exists or a legacy v1 `main`/`state_only_pushed` structured
+  record exists;
 - keep the state-sync job behind `test` and before evidence collection.
-- on `push` events, gate the audit on the committed structured record having
-  `subject.branch == "main"` and `transition.kind == "state_only_pushed"`.
-  A squash merge that still carries a PR-branch `state_only_pending_push` claim
-  does not run the push audit until a follow-up state/docs reanchor records the
-  `main` claim; this is the expected fail-closed flow, not an instruction to
-  weaken checkout or divergence verification.
+- on `push` events, prefer policy v2 `state-sync-policy.v2` records as the main
+  path. The v1 `subject.branch == "main"` and
+  `transition.kind == "state_only_pushed"` gate is retained only as compatibility
+  fallback. A squash merge that still carries a PR-branch
+  `state_only_pending_push` v1 claim does not run the push audit until a
+  follow-up state/docs reanchor records the `main` claim; this is the expected
+  fail-closed legacy flow, not an instruction to weaken checkout or divergence
+  verification.
 
 ### Phase 5 Design: Content Attestation Policy v2
 
@@ -1052,11 +1057,12 @@ Phase 5 should be split into separate pull requests:
    with tests for digest match, digest drift, wrong repository, wrong event,
    wrong ref, dirty worktree, moving checkout, and unknown fields.
 4. Switch the committed record to version 2 after the verifier is live.
-5. Retire `state-sync/reanchor-main` automation only after version 2 has passed
-   real pull request and main push CI.
+5. Retire or disable `state-sync/reanchor-main` automation from the normal path
+   only after version 2 has passed real pull request and main push CI.
 
-Until step 5 is complete, the existing Phase 1 reanchor flow remains the safe
-fallback.
+Version 2 has now passed real pull request and main push CI. The existing Phase 1
+reanchor flow remains available as a legacy compatibility fallback until it is
+separately retired or disabled.
 
 ## Non-Goals For The First Implementation
 
@@ -1173,8 +1179,9 @@ state-only process.
 ## Resolved Decisions
 
 - Push-to-main State Sync Audit is implemented. Pull requests and pushes to
-  `main` both run the audit, with main-push audit gated on a committed
-  `main` / `state_only_pushed` structured record.
+  `main` both run the audit. Policy v2 content attestation is the main path;
+  committed `main` / `state_only_pushed` structured records remain a legacy v1
+  fallback.
 - Strict state record path convergence is implemented. Broad `.agent_board/*`
   state-path allowance has been removed from state-sync path checks.
 - Machine-mirrored Markdown display drift blocking has been retired. The

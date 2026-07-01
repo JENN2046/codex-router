@@ -98,7 +98,7 @@ jobs:
 
           if (!runAudit) {
             console.log(
-              "State Sync Audit is gated on push until a v1 main/state_only_pushed or v2 state-sync-policy record exists."
+              "State Sync Audit is gated on push until a v2 state-sync-policy record or legacy v1 main/state_only_pushed fallback record exists."
             );
           }
           NODE
