@@ -558,11 +558,7 @@ function replaceValidatedSourceDivergenceExpectation(
   text: string,
   value: string
 ): string {
-  if (text.includes(value)) {
-    return text;
-  }
-
-  const pattern = /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute|Git observation should compute)[\s\S]*?source divergence as\s*`[^`\r\n]+`\s*against\s*`[^`\r\n]*`[\s\S]*?\./;
+  const pattern = /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute|Git observation should compute|Policy v2 records bind)[\s\S]*?(?=\r?\n\r?\n|$)/;
   return replaceInSection(
     text,
     "## State Sync Expectations",
