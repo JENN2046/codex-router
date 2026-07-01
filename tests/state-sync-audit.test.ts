@@ -6,8 +6,12 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import {
+  collectStateSyncBlockingReasons,
   formatStateSyncAuditResult,
   reviewStateSyncAudit,
+  STATE_SYNC_AUTHORITY_CHECKS,
+  STATE_SYNC_LEGACY_COMPATIBILITY_CHECKS,
+  type StateSyncAuditChecks,
   type StateSyncAuditInput
 } from "../packages/state-sync-audit/src/index.js";
 import {
@@ -1425,14 +1429,82 @@ test("state sync audit output stays summarized", async () => {
 
   assert.match(text, /status: passed/);
   assert.match(text, /claim source: structured/);
+  assert.match(text, /claim transition: [a-z_]+/);
+  assert.match(text, /validated source commit: [0-9a-f]{7,40}/);
+  assert.match(text, /latest validated commit: [0-9a-f]{7,40}/);
+  assert.match(text, /source tree digest: git-ls-tree-sha256:[0-9a-f]{64}/);
+  assert.match(text, /state-only paths: docs\/current\/state-sync-record\.json/);
+  assert.match(text, /authority checks: all passed/);
   assert.match(text, /remote writes during audit: 0/);
+  assert.doesNotMatch(text, /validation commands:/);
+  assert.doesNotMatch(text, /boundary markers:/);
+  assert.doesNotMatch(text, /stale marker hits:/);
+  assert.doesNotMatch(text, /agentBoardAligned/);
+  assert.doesNotMatch(text, /currentStateRecorded/);
+  assert.doesNotMatch(text, /evidenceDriftAbsent/);
   assert.equal(parsed.status, "passed");
   assert.equal(parsed.summary.claimSource, "structured");
+  assert.deepEqual(parsed.checkCategories.authority, [...STATE_SYNC_AUTHORITY_CHECKS]);
+  assert.deepEqual(
+    parsed.checkCategories.legacyCompatibility,
+    [...STATE_SYNC_LEGACY_COMPATIBILITY_CHECKS]
+  );
 
   for (const marker of ["OPENAI_API_KEY", "sk-", "Bearer ", "raw token"]) {
     assert.equal(text.includes(marker), false, `text output must omit ${marker}`);
     assert.equal(json.includes(marker), false, `json output must omit ${marker}`);
   }
+});
+
+test("state sync audit categorizes retired checks as legacy compatibility", async () => {
+  const review = reviewStateSyncAudit(await createInputFromWorkspace());
+  const authority = new Set(review.checkCategories.authority);
+  const legacy = new Set(review.checkCategories.legacyCompatibility);
+  const categorized = new Set([
+    ...review.checkCategories.authority,
+    ...review.checkCategories.legacyCompatibility
+  ]);
+
+  for (const name of Object.keys(review.checks)) {
+    assert.equal(categorized.has(name as keyof StateSyncAuditChecks), true, name);
+  }
+  for (const name of review.checkCategories.authority) {
+    assert.equal(legacy.has(name), false, name);
+  }
+  for (const name of review.checkCategories.legacyCompatibility) {
+    assert.equal(authority.has(name), false, name);
+  }
+  for (const name of [
+    "currentStateRecorded",
+    "staleAfterCommitRecorded",
+    "validationBaselineRecorded",
+    "executionBoundaryRecorded",
+    "agentBoardAligned",
+    "staleMarkersAbsent",
+    "evidenceDriftAbsent"
+  ] as const) {
+    assert.equal(legacy.has(name), true, name);
+  }
+});
+
+test("state sync audit blocking reasons ignore legacy compatibility checks", async () => {
+  const review = reviewStateSyncAudit(await createInputFromWorkspace());
+  const checks: StateSyncAuditChecks = {
+    ...review.checks,
+    currentStateRecorded: false,
+    staleAfterCommitRecorded: false,
+    validationBaselineRecorded: false,
+    executionBoundaryRecorded: false,
+    agentBoardAligned: false,
+    staleMarkersAbsent: false,
+    evidenceDriftAbsent: false
+  };
+
+  assert.deepEqual(collectStateSyncBlockingReasons(checks), []);
+  assert.deepEqual(collectStateSyncBlockingReasons({
+    ...checks,
+    structuredClaimValid: false
+  }), ["state_sync_structuredClaimValid"]);
 });
 
 test("state sync audit blocked output never emits a PASS badge", async () => {

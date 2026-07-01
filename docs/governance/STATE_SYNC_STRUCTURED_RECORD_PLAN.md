@@ -416,6 +416,9 @@ Display drift contract:
   `StateSyncAuditIssue` values and do not block branch-head audit.
 - `state_sync_evidenceDriftAbsent` is retained only as a compatibility output;
   it must not be treated as proof that display mirrors are current.
+- Retired display/checklist fields are grouped as legacy compatibility checks in
+  JSON output. They remain available to old consumers, but branch-head
+  PASS/BLOCK reasons are collected only from authority checks.
 - `scripts/sync-state-sync-display.ts --check` may report optional display
   freshness through `changedPaths`, `authority: "display_only"`, and
   `requiredForAudit: false`.
@@ -903,5 +906,10 @@ state-only process.
   and stale phrase scans no longer decide state-sync PASS/BLOCK.
 - Branch-head audit collection no longer requires `CURRENT_STATE.md` or
   `.agent_board/*`; those files remain optional display / handoff surfaces.
+- Human-readable state-sync audit output now focuses on the authority path:
+  structured claim source, transition, validated source anchors, source-tree
+  digest, strict state-only paths, dirty-state status, and read-only audit
+  evidence. Retired display/checklist fields remain in JSON compatibility
+  metadata instead of the core PASS/BLOCK narrative.
 - Unknown structured claim fields fail closed in schema v1. They are not warning
   fields and are not ignored.
