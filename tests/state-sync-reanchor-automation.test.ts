@@ -34,6 +34,18 @@ test("state-sync reanchor PR gate noops after main is reanchored", async () => {
   assert.equal(result.reason, "already_reanchored");
 });
 
+test("state-sync reanchor PR gate noops for policy v2 records", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-reanchor-gate-v2-"));
+  await writePolicyV2Claim(cwd);
+
+  const result = await resolveStateSyncReanchorPrGate(cwd);
+
+  assert.equal(result.runReanchor, false);
+  assert.equal(result.reason, "policy_v2_no_reanchor");
+  assert.equal(result.branch, "content-attestation");
+  assert.equal(result.transition, "state-sync-policy.v2");
+});
+
 test("state-sync reanchor PR gate runs for non-main pushed claims", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-reanchor-gate-run-"));
   await writeClaim(cwd, {
@@ -519,6 +531,42 @@ async function writeClaim(
   );
 }
 
+async function writePolicyV2Claim(cwd: string): Promise<void> {
+  await mkdir(join(cwd, "docs", "current"), { recursive: true });
+  await writeFile(
+    join(cwd, "docs", "current", "state-sync-record.json"),
+    `${JSON.stringify({
+      schemaVersion: 2,
+      policyVersion: "state-sync-policy.v2",
+      repository: {
+        fullName: "JENN2046/codex-router"
+      },
+      source: {
+        sourceTreeDigest: {
+          algorithm: "git-ls-tree-sha256",
+          value: "0".repeat(64),
+          excludedPaths: policyV2SourceTreeDigestExcludedPaths()
+        }
+      },
+      allowedContexts: [
+        {
+          event: "local",
+          targetRef: "refs/heads/main"
+        },
+        {
+          event: "pull_request",
+          targetRef: "refs/heads/main"
+        },
+        {
+          event: "push",
+          targetRef: "refs/heads/main"
+        }
+      ]
+    }, null, 2)}\n`,
+    "utf8"
+  );
+}
+
 async function createAlreadyReanchoredMainFixture(): Promise<{
   cwd: string;
   remote: string;
@@ -833,6 +881,18 @@ async function createGitFixture(): Promise<string> {
 function strictStateRecordPaths(): string[] {
   return [
     "docs/current/state-sync-record.json"
+  ];
+}
+
+function policyV2SourceTreeDigestExcludedPaths(): string[] {
+  return [
+    "docs/current/state-sync-record.json",
+    "docs/current/CURRENT_STATE.md",
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/TASK_QUEUE.md",
+    ".agent_board/VALIDATION_LOG.md"
   ];
 }
 

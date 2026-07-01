@@ -1,4 +1,12 @@
+const CURRENT_STATE_DOC = "docs/current/CURRENT_STATE.md";
 const STATE_SYNC_RECORD_DOC = "docs/current/state-sync-record.json";
+const AGENT_BOARD_STATE_FILES = [
+  ".agent_board/CHECKPOINT.md",
+  ".agent_board/HANDOFF.md",
+  ".agent_board/RUN_STATE.md",
+  ".agent_board/TASK_QUEUE.md",
+  ".agent_board/VALIDATION_LOG.md"
+] as const;
 
 const REQUIRED_PACKAGE_SCRIPTS = {
   governance: "tsx scripts/run-governance-check.ts"
@@ -6,6 +14,11 @@ const REQUIRED_PACKAGE_SCRIPTS = {
 
 const STRICT_STATE_RECORD_PATHS = new Set([
   STATE_SYNC_RECORD_DOC
+]);
+const POLICY_V2_SOURCE_TREE_DIGEST_EXCLUDED_PATHS = new Set([
+  STATE_SYNC_RECORD_DOC,
+  CURRENT_STATE_DOC,
+  ...AGENT_BOARD_STATE_FILES
 ]);
 
 const STATE_SYNC_REANCHOR_PR_BRANCH = "state-sync/reanchor-main";
@@ -18,6 +31,7 @@ const ACCEPTED_POLICY_V2_CLAIM_SCHEMA_VERSION = 2;
 const ACCEPTED_POLICY_V2_CLAIM_POLICY_VERSION = "state-sync-policy.v2";
 const ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM = "git-ls-tree-sha256";
 const ACCEPTED_POLICY_V2_ALLOWED_CONTEXT_EVENTS = new Set([
+  "local",
   "pull_request",
   "push"
 ]);
@@ -122,6 +136,7 @@ export type StateSyncClaimParseResult =
   | { status: "invalid"; reason: string };
 
 export type StateSyncPolicyV2AllowedContextEvent =
+  | "local"
   | "pull_request"
   | "push";
 
@@ -544,7 +559,10 @@ export function parseStateSyncPolicyV2Claim(
     || sourceTreeDigestValue === undefined
     || !isSha256Hex(sourceTreeDigestValue)
     || sourceTreeDigestExcludedPaths === undefined
-    || !sameStringSet(sourceTreeDigestExcludedPaths, strictStateRecordPaths())
+    || !sameStringSet(
+      sourceTreeDigestExcludedPaths,
+      policyV2SourceTreeDigestExcludedPaths()
+    )
   ) {
     return { status: "invalid", reason: "source_tree_digest_malformed" };
   }
@@ -1050,6 +1068,10 @@ function strictStateRecordPaths(): string[] {
   return [...STRICT_STATE_RECORD_PATHS];
 }
 
+function policyV2SourceTreeDigestExcludedPaths(): string[] {
+  return [...POLICY_V2_SOURCE_TREE_DIGEST_EXCLUDED_PATHS];
+}
+
 function isNonEmptyTrimmedString(value: string | undefined): value is string {
   return value !== undefined && value.trim() !== "";
 }
@@ -1063,7 +1085,12 @@ function sameStringSet(left: string[], right: string[]): boolean {
     return false;
   }
 
+  const leftSet = new Set(left);
   const rightSet = new Set(right);
+  if (leftSet.size !== left.length || rightSet.size !== right.length) {
+    return false;
+  }
+
   return left.every((value) => rightSet.has(value));
 }
 
@@ -1336,7 +1363,7 @@ function stateSyncPolicyV2TransitionIsAllowed(
     && claim.source.sourceTreeDigest.algorithm === ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM
     && sameStringSet(
       claim.source.sourceTreeDigest.excludedPaths,
-      strictStateRecordPaths()
+      policyV2SourceTreeDigestExcludedPaths()
     )
     && input.headSourceTreeDigest === claim.source.sourceTreeDigest.value
     && countStatusEntries(input.gitStatusShort) === 0
@@ -1352,6 +1379,16 @@ function stateSyncPolicyV2TransitionIsAllowed(
       && remoteTrackingRef === MAIN_UPSTREAM_REF
       && sameFullGitSha(input.headFull, input.githubSha)
       && sameFullGitSha(input.originMainFull, input.githubSha)
+      && currentAhead === 0
+      && currentBehind === 0;
+  }
+
+  if (eventName === "local") {
+    return targetRef === ACCEPTED_POLICY_V2_TARGET_REF
+      && input.branch === MAIN_BRANCH
+      && remoteTrackingRef === MAIN_UPSTREAM_REF
+      && input.checkoutSubject === "branch"
+      && sameFullGitSha(input.headFull, input.originMainFull)
       && currentAhead === 0
       && currentBehind === 0;
   }

@@ -16,13 +16,13 @@ divergence, transition kind, or allowed state-only paths.
 | Field | Value |
 | --- | --- |
 | Workspace | `codex-router/repo` |
-| Current branch | `main` |
-| Current head | `b0d5a45` |
-| Validated source commit | `b0d5a45` |
+| Current branch | `content-attestation` |
+| Current head | `observed at audit time` |
+| Validated source commit | `content digest only` |
 | Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `ahead 1 / behind 0` |
-| Latest validated commit | `b0d5a45` |
-| State record mode | `state-only descendant allowed` |
+| Upstream divergence | `observed at audit time` |
+| Latest validated commit | `content digest only` |
+| State record mode | `content attestation` |
 | Stale after commit | `true` |
 | Synthetic review checkout | `allowed` |
 
@@ -34,19 +34,25 @@ this source commit without making Markdown the source of truth again.
 
 The structured claim records:
 
-- schema version: `1`
-- policy version: `state-sync-policy.v1`
-- transition kind: `state_only_pushed`
-- validated source commit: `b0d5a45`
-- latest validated commit: `b0d5a45`
+- schema version: `2`
+- policy version: `state-sync-policy.v2`
+- transition kind: `content_attestation`
+- validated source commit: `content digest only`
+- latest validated commit: `content digest only`
 - upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `dabc59c330baf0e4ed01a31f60bf7dd13c5672cfc240dffb44171ea7dc0577d9`
+  `78f5292b5a848f21ecac964283a570e0721c3ac171a81b2cc1bcedce08ead8a4`
 
-Strict state record paths:
+Source digest excluded paths:
 
 - `docs/current/state-sync-record.json`
+- `docs/current/CURRENT_STATE.md`
+- `.agent_board/CHECKPOINT.md`
+- `.agent_board/HANDOFF.md`
+- `.agent_board/RUN_STATE.md`
+- `.agent_board/TASK_QUEUE.md`
+- `.agent_board/VALIDATION_LOG.md`
 
 ## Current Entrypoints
 
@@ -77,7 +83,7 @@ and does not push to `main`.
 
 ## Validation Baseline
 
-Validation recorded for source commit `b0d5a45`:
+Validation recorded for source commit `content digest only`:
 
 - `git diff --check`: PASS.
 - `node --import tsx --test tests/runtime-control.test.ts`: PASS.
@@ -95,15 +101,14 @@ State-sync required validation command literals retained in this state surface:
 
 Current structured state-sync audit status:
 
-- structured claim: `main` / `state_only_pushed` against
-  `refs/remotes/origin/main`
-- validated source commit: `b0d5a45`
-- latest validated commit: `b0d5a45`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- structured claim: `state-sync-policy.v2` content attestation
+- upstream target: `refs/remotes/origin/main`
+- source identity: filtered tree digest, not a recorded commit SHA
+- branch, commit, and divergence are observed by the audit at runtime
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
-- Git ancestry, divergence, source-tree digest, and strict state path
+- Source-tree digest, allowed context, clean worktree, and read-only
   checks remain enforced by the state-sync audit.
 - Generated display, Markdown mirrors, and `.agent_board/*` mirrors are
   optional operator-facing views derived from `docs/current/state-sync-record.json`.
@@ -159,15 +164,13 @@ not state-only authority.
 
 The structured claim records:
 
-- branch: `main`
+- branch: `content-attestation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b0d5a45`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `content digest only`
+- recorded divergence baseline: `observed at audit time`
+- transition: `content_attestation`
 
-For this `state_only_pushed` state-only record, Git observation should
-compute the validated source divergence as `ahead 0 / behind 1` against
-`refs/remotes/origin/main` after the state-only record is on upstream.
+Policy v2 records bind the filtered source tree digest to explicit local, pull_request, and push contexts; branch identity, commit identity, and divergence are audit-time observations.
 
 The collector uses the structured claim's `refs/remotes/origin/main` value as
 the bounded upstream baseline ref. It must resolve that ref locally and then

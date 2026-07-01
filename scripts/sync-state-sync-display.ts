@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   parseStateSyncClaim,
+  parseStateSyncPolicyV2Claim,
+  type StateSyncPolicyV2Claim,
   type StateSyncClaim
 } from "../packages/state-sync-audit/src/index.js";
 
@@ -35,6 +37,8 @@ export interface StateSyncDisplaySyncResult {
 }
 
 interface DisplayFields {
+  schemaVersion: string;
+  policyVersion: string;
   branch: string;
   upstream: string;
   currentHead: string;
@@ -45,6 +49,7 @@ interface DisplayFields {
   stateRecordMode: string;
   sourceTreeDigestAlgorithm: string;
   sourceTreeDigestValue: string;
+  statePathListHeading: string;
   strictStatePaths: string[];
   validatedSourceDivergenceExpectation: string;
 }
@@ -55,11 +60,21 @@ export async function syncStateSyncDisplay(
 ): Promise<StateSyncDisplaySyncResult> {
   const claimText = await read(cwd, STATE_SYNC_RECORD_DOC);
   const parsedClaim = parseStateSyncClaim(claimText);
+  const parsedPolicyV2Claim = parseStateSyncPolicyV2Claim(claimText);
   if (parsedClaim.status !== "valid") {
-    throw new Error(`Cannot sync state-sync display from ${parsedClaim.status} claim`);
+    if (parsedPolicyV2Claim.status !== "valid") {
+      throw new Error(`Cannot sync state-sync display from ${parsedClaim.status} claim`);
+    }
   }
 
-  const display = displayFieldsFromClaim(parsedClaim.claim);
+  const display = parsedClaim.status === "valid"
+    ? displayFieldsFromClaim(parsedClaim.claim)
+    : parsedPolicyV2Claim.status === "valid"
+      ? displayFieldsFromPolicyV2Claim(parsedPolicyV2Claim.claim)
+      : undefined;
+  if (display === undefined) {
+    throw new Error(`Cannot sync state-sync display from ${parsedClaim.status} claim`);
+  }
   const checkedPaths = [CURRENT_STATE_DOC, ...AGENT_BOARD_FILES];
   const changedPaths: string[] = [];
 
@@ -88,6 +103,8 @@ function displayFieldsFromClaim(claim: StateSyncClaim): DisplayFields {
   const recordedDivergence = formatDivergence(claim.source.recordedDivergence);
 
   return {
+    schemaVersion: String(claim.schemaVersion),
+    policyVersion: claim.policyVersion,
     branch: claim.subject.branch,
     upstream: normalizeClaimUpstreamRef(claim.subject.upstream),
     currentHead: claim.source.validatedSourceCommit,
@@ -98,9 +115,33 @@ function displayFieldsFromClaim(claim: StateSyncClaim): DisplayFields {
     stateRecordMode: stateRecordModeForTransition(claim.transition.kind),
     sourceTreeDigestAlgorithm: claim.source.sourceTreeDigest.algorithm,
     sourceTreeDigestValue: claim.source.sourceTreeDigest.value,
+    statePathListHeading: "Strict state record paths:",
     strictStatePaths: claim.transition.allowedStatePaths,
     validatedSourceDivergenceExpectation:
       validatedSourceDivergenceExpectation(claim, recordedDivergence)
+  };
+}
+
+function displayFieldsFromPolicyV2Claim(claim: StateSyncPolicyV2Claim): DisplayFields {
+  return {
+    schemaVersion: String(claim.schemaVersion),
+    policyVersion: claim.policyVersion,
+    branch: "content-attestation",
+    upstream: "refs/remotes/origin/main",
+    currentHead: "observed at audit time",
+    validatedSourceCommit: "content digest only",
+    latestValidatedCommit: "content digest only",
+    recordedDivergence: "observed at audit time",
+    transitionKind: "content_attestation",
+    stateRecordMode: "content attestation",
+    sourceTreeDigestAlgorithm: claim.source.sourceTreeDigest.algorithm,
+    sourceTreeDigestValue: claim.source.sourceTreeDigest.value,
+    statePathListHeading: "Source digest excluded paths:",
+    strictStatePaths: claim.source.sourceTreeDigest.excludedPaths,
+    validatedSourceDivergenceExpectation:
+      "Policy v2 records bind the filtered source tree digest to explicit "
+      + "local, pull_request, and push contexts; branch identity, commit "
+      + "identity, and divergence are audit-time observations."
   };
 }
 
@@ -148,8 +189,8 @@ function updateCurrentState(text: string, display: DisplayFields): string {
     "State record mode",
     display.stateRecordMode
   );
-  updated = replaceBulletCode(updated, "schema version", "1");
-  updated = replaceBulletCode(updated, "policy version", "state-sync-policy.v1");
+  updated = replaceBulletCode(updated, "schema version", display.schemaVersion);
+  updated = replaceBulletCode(updated, "policy version", display.policyVersion);
   updated = replaceBulletCode(
     updated,
     "transition kind",
@@ -172,7 +213,7 @@ function updateCurrentState(text: string, display: DisplayFields): string {
     display.recordedDivergence
   );
   updated = replaceSourceTreeDigest(updated, display);
-  updated = replaceStrictStatePathList(updated, display.strictStatePaths);
+  updated = replaceStrictStatePathList(updated, display);
   updated = replaceValidationSourceCommit(updated, display.validatedSourceCommit);
   updated = replaceStateSyncExpectation(updated, "branch", display.branch);
   updated = replaceStateSyncExpectation(
@@ -387,6 +428,20 @@ function renderAgentBoardAuditStatus(
 }
 
 function renderStateSyncStatusBullets(display: DisplayFields): string[] {
+  if (display.policyVersion === "state-sync-policy.v2") {
+    return [
+      `- structured claim: \`${display.policyVersion}\` content attestation`,
+      `- upstream target: \`${display.upstream}\``,
+      "- source identity: filtered tree digest, not a recorded commit SHA",
+      "- branch, commit, and divergence are observed by the audit at runtime",
+      "- branch-head audit command:",
+      "  `node --import tsx scripts/run-state-sync-audit.ts --json`",
+      "- expected audit source: `claimSource: structured`",
+      "- Source-tree digest, allowed context, clean worktree, and read-only",
+      "  checks remain enforced by the state-sync audit."
+    ];
+  }
+
   return [
     `- structured claim: \`${display.branch}\` / \`${display.transitionKind}\` against`,
     `  \`${display.upstream}\``,
@@ -421,6 +476,8 @@ function renderGeneratedDisplayBlock(display: DisplayFields): string {
     DISPLAY_START,
     "Optional display generated from `docs/current/state-sync-record.json`.",
     "",
+    `- schema version: \`${display.schemaVersion}\``,
+    `- policy version: \`${display.policyVersion}\``,
     `- branch: \`${display.branch}\``,
     `- upstream: \`${display.upstream}\``,
     `- validated source commit: \`${display.validatedSourceCommit}\``,
@@ -461,10 +518,13 @@ function replaceSourceTreeDigest(
   );
 }
 
-function replaceStrictStatePathList(text: string, paths: string[]): string {
-  const pattern = /(Strict state record paths:\r?\n\r?\n)(?:- `[^`\r\n]+`\r?\n)+/;
-  return replaceRequired(text, pattern, "$strict-state-paths", (_match, start) =>
-    `${start}${paths.map((path) => `- \`${path}\``).join("\n")}\n`
+function replaceStrictStatePathList(text: string, display: DisplayFields): string {
+  const pattern =
+    /((?:Strict state record paths|Source digest excluded paths):\r?\n\r?\n)(?:- `[^`\r\n]+`\r?\n)+/;
+  return replaceRequired(text, pattern, "$state-path-list", () =>
+    `${display.statePathListHeading}\n\n${
+      display.strictStatePaths.map((path) => `- \`${path}\``).join("\n")
+    }\n`
   );
 }
 
@@ -497,6 +557,10 @@ function replaceValidatedSourceDivergenceExpectation(
   text: string,
   value: string
 ): string {
+  if (text.includes(value)) {
+    return text;
+  }
+
   const pattern = /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute|Git observation should compute)[\s\S]*?source divergence as\s*`[^`\r\n]+`\s*against\s*`[^`\r\n]*`[\s\S]*?\./;
   return replaceInSection(
     text,

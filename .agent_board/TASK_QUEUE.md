@@ -121,10 +121,12 @@ Blocked until separately authorized:
 <!-- state-sync-display:start -->
 Optional display generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- schema version: `2`
+- policy version: `state-sync-policy.v2`
+- branch: `content-attestation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b0d5a45`
-- latest validated commit: `b0d5a45`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `content digest only`
+- latest validated commit: `content digest only`
+- recorded divergence baseline: `observed at audit time`
+- transition: `content_attestation`
 <!-- state-sync-display:end -->
