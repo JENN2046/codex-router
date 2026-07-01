@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "docs/state-sync-policy-v2-content-attestation-design",
+    "branch": "main",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "28c516a",
-    "latestValidatedCommit": "28c516a",
+    "validatedSourceCommit": "bdcb0c5",
+    "latestValidatedCommit": "bdcb0c5",
     "recordedDivergence": {
-      "ahead": 5,
+      "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
@@ -21,7 +21,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pending_push",
+    "kind": "state_only_pushed",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]
