@@ -2,26 +2,26 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "codex/state-sync-legacy-checks-compat-output",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "8db978d",
-    "latestValidatedCommit": "8db978d",
+    "validatedSourceCommit": "81a9924",
+    "latestValidatedCommit": "81a9924",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "4a3fbf8bc2e8b03a4e45103e5eab6214648ff85a93d0170150b5164c3478fb4b",
+      "value": "57ad2f0b1c88e527c8a2554f145a98a06dcff082eb76145735522a67c7f30ded",
       "excludedPaths": [
         "docs/current/state-sync-record.json"
       ]
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]
