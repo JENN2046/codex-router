@@ -894,8 +894,8 @@ claim.repository.fullName == observed.repository.fullName
 claim.repository.id == observed.repository.id, when both are available
 observed.eventName == "push"
 observed.ref == "refs/heads/main"
-observed.branch == "main"
-observed.upstream == "refs/remotes/origin/main"
+observed.targetRef == "refs/heads/main"
+observed.remoteTrackingRef == "refs/remotes/origin/main"
 observed.headFull == observed.githubSha
 observed.originMainFull == observed.githubSha
 observed.currentAhead == 0
@@ -917,6 +917,12 @@ not enough for local `HEAD...origin/main` to be `0/0` if the workflow checked ou
 a moving branch name after another push. The audited `HEAD`, the fetched
 `origin/main`, and `github.sha` must all refer to the same commit.
 
+The main push formula must not require `git branch --show-current` to return
+`main`. A checkout pinned to `${{ github.sha }}` is normally detached. The
+target branch identity comes from bounded event observation such as
+`github.ref == "refs/heads/main"` and the fetched
+`refs/remotes/origin/main`, not from the local checkout branch name.
+
 #### Version 2 Pull Request Formula
 
 A pull request audit may pass only when every condition below is true:
@@ -932,6 +938,13 @@ claim.repository.fullName == observed.repository.fullName
 claim.repository.id == observed.repository.id, when both are available
 observed.eventName == "pull_request"
 observed.baseRef == "refs/heads/main"
+observed.checkoutSubject is one of:
+  "pull_request_head"
+  "pull_request_merge"
+if observed.checkoutSubject == "pull_request_head":
+  observed.headFull == observed.pullRequestHeadSha
+if observed.checkoutSubject == "pull_request_merge":
+  observed.headFull == observed.githubSha
 claim.allowedContexts contains:
   event == "pull_request"
   targetRef == "refs/heads/main"
@@ -953,6 +966,10 @@ document it explicitly:
 The verifier must not guess between them. If GitHub Actions checks out a
 detached pull request merge ref, the observation model must record that fact.
 If it checks out the branch head, the observation model must record that fact.
+The selected checkout subject must be bound to the triggering event SHA:
+`pull_request.head.sha` for head checkouts, or `github.sha` for merge checkouts.
+This prevents a queued workflow from passing against a different PR branch tip
+than the event that triggered the run.
 
 #### Required Observation Inputs
 
@@ -964,13 +981,16 @@ observed.eventName
 observed.repository.fullName
 observed.repository.id, when available
 observed.ref
+observed.targetRef
+observed.remoteTrackingRef
 observed.baseRef, for pull_request
 observed.headRef, for pull_request
 observed.githubSha
+observed.pullRequestHeadSha, for pull_request
+observed.checkoutSubject, for pull_request
 observed.headFull
 observed.originMainFull
-observed.branch
-observed.upstream
+observed.branch, local checkout branch when available
 observed.currentAhead
 observed.currentBehind
 observed.headSourceTreeDigest
