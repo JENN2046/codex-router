@@ -144,6 +144,9 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
   };
 
   const stateSyncJob = workflow.jobs["state-sync"];
+  const checkoutStep = stateSyncJob.steps.find((step) =>
+    step.uses === "actions/checkout@v4"
+  );
   const gateStep = stateSyncJob.steps.find((step) =>
     step.id === "state-sync-gate"
   );
@@ -156,6 +159,8 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
   assert.deepEqual(workflow.on.pull_request.branches, ["main"]);
   assert.equal(stateSyncJob.needs, "test");
   assert.equal(stateSyncJob.if, undefined);
+  assert.equal(checkoutStep?.with?.["fetch-depth"], 0);
+  assert.equal(checkoutStep?.with?.ref, "${{ github.sha }}");
   assert.ok(gateStep?.run?.includes('${{ github.event_name }}'));
   assert.ok(gateStep?.run?.includes('claim?.subject?.branch === "main"'));
   assert.ok(gateStep?.run?.includes(
