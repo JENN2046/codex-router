@@ -41,6 +41,16 @@ type StateSyncClaimTextOverrides = {
   transitionKind?: string;
   allowedStatePaths?: string[];
 };
+type StateSyncPolicyV2ClaimTextOverrides = {
+  repositoryId?: string | null;
+  repositoryFullName?: string;
+  sourceTreeDigest?: string;
+  sourceTreeDigestExcludedPaths?: string[];
+  allowedContexts?: Array<{
+    event: string;
+    targetRef: string;
+  }>;
+};
 
 test("state sync audit passes when clean HEAD matches a structured source claim", async () => {
   const review = reviewStateSyncAudit(await createInputFromWorkspace());
@@ -558,12 +568,163 @@ test("state sync policy v2 parser fails closed on malformed records", async (t) 
   }
 });
 
-test("state sync audit still fails closed on policy v2 records until v2 policy is wired", async () => {
-  const input = await createInputFromWorkspace();
-  const review = reviewStateSyncAudit({
-    ...input,
-    stateSyncClaimText: stateSyncPolicyV2ClaimText()
-  });
+test("state sync audit accepts policy v2 main push content attestations", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PushInput());
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.summary.claimSource, "structured");
+  assert.equal(review.summary.transitionKind, "");
+  assert.equal(review.summary.sourceTreeDigest, TEST_SOURCE_TREE_DIGEST);
+  assert.equal(review.checks.currentBranchMatches, true);
+  assert.equal(review.checks.validatedSourceHeadRecorded, true);
+  assert.equal(review.checks.validatedSourceCommitRecorded, true);
+  assert.equal(review.checks.upstreamRecorded, true);
+  assert.equal(review.checks.validatedSourceDivergenceRecorded, true);
+  assert.equal(review.checks.latestValidatedCommitRecorded, true);
+  assert.equal(review.checks.dirtyWorktreeStateOnly, true);
+  assert.equal(review.checks.structuredClaimValid, true);
+  assert.equal(review.checks.structuredTransitionAllowed, true);
+});
+
+test("state sync audit accepts policy v2 pull request head attestations", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PullRequestInput());
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.summary.claimSource, "structured");
+  assert.equal(review.checks.structuredTransitionAllowed, true);
+  assert.equal(review.summary.observation.checkoutSubject, "pull_request_head");
+});
+
+test("state sync audit accepts policy v2 pull request merge attestations", async () => {
+  const mergeSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const review = reviewStateSyncAudit(await createPolicyV2PullRequestInput({
+    head: mergeSha.slice(0, 7),
+    headFull: mergeSha,
+    githubSha: mergeSha,
+    checkoutSubject: "pull_request_merge"
+  }));
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.checks.structuredTransitionAllowed, true);
+  assert.equal(review.summary.observation.checkoutSubject, "pull_request_merge");
+});
+
+test("state sync audit blocks policy v2 source digest drift", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PushInput({
+    headSourceTreeDigest:
+      "1111111111111111111111111111111111111111111111111111111111111111"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredClaimValid, true);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 wrong repository observations", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PushInput({
+    repositoryFullName: "JENN2046/other-router"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 missing observed repository ids", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PushInput({
+    repositoryId: ""
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 wrong event observations", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PushInput({
+    eventName: "workflow_dispatch"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 wrong target refs", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PushInput({
+    ref: "refs/heads/release",
+    targetRef: "refs/heads/release"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 pull requests without origin main refs", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PullRequestInput({
+    remoteTrackingRef: "",
+    upstream: "",
+    aheadBehind: "unknown\tunknown"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 pull requests without origin main sha evidence", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PullRequestInput({
+    originMainFull: ""
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 pull requests with unknown main divergence", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PullRequestInput({
+    aheadBehind: "unknown\tunknown"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 dirty worktrees", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PushInput({
+    gitStatusShort: " M docs/current/state-sync-record.json"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.dirtyWorktreeStateOnly, false);
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_dirtyWorktreeStateOnly"));
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 moving main checkouts", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2PushInput({
+    originMainFull: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }));
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.structuredTransitionAllowed, false);
+  assert.ok(review.reasons.includes("state_sync_structuredTransitionAllowed"));
+});
+
+test("state sync audit blocks policy v2 unknown fields", async () => {
+  const claim = JSON.parse(stateSyncPolicyV2ClaimText()) as Record<string, unknown>;
+  claim.extra = true;
+  const review = reviewStateSyncAudit(await createPolicyV2PushInput({
+    stateSyncClaimText: JSON.stringify(claim)
+  }));
 
   assert.equal(review.status, "blocked");
   assert.equal(review.summary.claimSource, "invalid_structured");
@@ -1838,6 +1999,64 @@ test("state sync audit collector captures bounded GitHub pull request observatio
   }
 });
 
+test("state sync audit collector computes policy v2 head digests", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-v2-collector-"));
+  await git(cwd, ["init"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+  await git(cwd, ["checkout", "-b", "main"]);
+
+  await writeMinimalWorkspace(cwd, "main", "0000000");
+  await mkdir(join(cwd, "packages"), { recursive: true });
+  await writeFile(join(cwd, "packages", "source.ts"), "export const source = true;\n");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "source"]);
+  const sourceDigest = await gitFilteredTreeDigest(
+    "HEAD",
+    strictStateRecordPaths(),
+    cwd
+  );
+  assert.ok(sourceDigest !== undefined);
+
+  await writeStateSyncRecordText(cwd, stateSyncPolicyV2ClaimText({
+    sourceTreeDigest: sourceDigest
+  }));
+  await git(cwd, ["add", "docs/current/state-sync-record.json"]);
+  await git(cwd, ["commit", "-m", "policy v2 state record"]);
+  await git(cwd, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+  const headFull = (await git(cwd, ["rev-parse", "HEAD"])).trim();
+
+  const restoredEnv = restoreEnvAfterTest([
+    "GITHUB_EVENT_NAME",
+    "GITHUB_REPOSITORY",
+    "GITHUB_REPOSITORY_ID",
+    "GITHUB_REF",
+    "GITHUB_SHA"
+  ]);
+  try {
+    process.env.GITHUB_EVENT_NAME = "push";
+    process.env.GITHUB_REPOSITORY = "JENN2046/codex-router";
+    process.env.GITHUB_REPOSITORY_ID = "123456";
+    process.env.GITHUB_REF = "refs/heads/main";
+    process.env.GITHUB_SHA = headFull;
+
+    const input = await collectStateSyncAuditInput(cwd);
+    const review = reviewStateSyncAudit(input);
+
+    assert.equal(input.upstream, "refs/remotes/origin/main");
+    assert.equal(input.remoteTrackingRef, "refs/remotes/origin/main");
+    assert.equal(input.headSourceTreeDigest, sourceDigest);
+    assert.equal(input.validatedSourceCommitAvailable, undefined);
+    assert.equal(input.originMainFull, headFull);
+    assert.equal(review.status, "passed");
+    assert.deepEqual(review.reasons, []);
+    assert.equal(review.summary.claimSource, "structured");
+    assert.equal(review.checks.structuredTransitionAllowed, true);
+  } finally {
+    restoredEnv();
+  }
+});
+
 test("state sync audit collector drops malformed GitHub observation env values", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-github-observation-safe-"));
   await git(cwd, ["init"]);
@@ -3042,22 +3261,90 @@ function stateSyncClaimTextFromInput(
   }, null, 2);
 }
 
-function stateSyncPolicyV2ClaimText(): string {
+async function createPolicyV2PushInput(
+  overrides: StateSyncAuditInputOverrides = {}
+): Promise<StateSyncAuditInput> {
+  const headFull =
+    overrides.headFull ?? "0123456789abcdef0123456789abcdef01234567";
+
+  return createInputFromWorkspace({
+    gitStatusShort: "",
+    branch: "",
+    head: overrides.head ?? headFull.slice(0, 7),
+    headFull,
+    upstream: "refs/remotes/origin/main",
+    aheadBehind: "0\t0",
+    eventName: "push",
+    repositoryFullName: "JENN2046/codex-router",
+    repositoryId: "123456",
+    ref: "refs/heads/main",
+    targetRef: "refs/heads/main",
+    remoteTrackingRef: "refs/remotes/origin/main",
+    githubSha: headFull,
+    originMainFull: headFull,
+    checkoutSubject: "detached",
+    headSourceTreeDigest: TEST_SOURCE_TREE_DIGEST,
+    stateSyncClaimText: stateSyncPolicyV2ClaimText(),
+    ...overrides
+  });
+}
+
+async function createPolicyV2PullRequestInput(
+  overrides: StateSyncAuditInputOverrides = {}
+): Promise<StateSyncAuditInput> {
+  const headFull =
+    overrides.headFull ?? "0123456789abcdef0123456789abcdef01234567";
+  const originMainFull =
+    overrides.originMainFull ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  return createInputFromWorkspace({
+    gitStatusShort: "",
+    branch: "",
+    head: overrides.head ?? headFull.slice(0, 7),
+    headFull,
+    upstream: "refs/remotes/origin/main",
+    aheadBehind: "1\t0",
+    eventName: "pull_request",
+    repositoryFullName: "JENN2046/codex-router",
+    repositoryId: "123456",
+    ref: "refs/pull/90/merge",
+    targetRef: "refs/heads/main",
+    remoteTrackingRef: "refs/remotes/origin/main",
+    baseRef: "refs/heads/main",
+    headRef: "refs/heads/state-sync-policy-v2-verifier",
+    githubSha: "ffffffffffffffffffffffffffffffffffffffff",
+    pullRequestHeadSha: headFull,
+    originMainFull,
+    checkoutSubject: "pull_request_head",
+    headSourceTreeDigest: TEST_SOURCE_TREE_DIGEST,
+    stateSyncClaimText: stateSyncPolicyV2ClaimText(),
+    ...overrides
+  });
+}
+
+function stateSyncPolicyV2ClaimText(
+  overrides: StateSyncPolicyV2ClaimTextOverrides = {}
+): string {
+  const repository: Record<string, string> = {
+    fullName: overrides.repositoryFullName ?? "JENN2046/codex-router"
+  };
+  if (overrides.repositoryId !== null) {
+    repository.id = overrides.repositoryId ?? "123456";
+  }
+
   return JSON.stringify({
     schemaVersion: 2,
     policyVersion: "state-sync-policy.v2",
-    repository: {
-      id: "123456",
-      fullName: "JENN2046/codex-router"
-    },
+    repository,
     source: {
       sourceTreeDigest: {
         algorithm: "git-ls-tree-sha256",
-        value: TEST_SOURCE_TREE_DIGEST,
-        excludedPaths: strictStateRecordPaths()
+        value: overrides.sourceTreeDigest ?? TEST_SOURCE_TREE_DIGEST,
+        excludedPaths:
+          overrides.sourceTreeDigestExcludedPaths ?? strictStateRecordPaths()
       }
     },
-    allowedContexts: [
+    allowedContexts: overrides.allowedContexts ?? [
       {
         event: "pull_request",
         targetRef: "refs/heads/main"

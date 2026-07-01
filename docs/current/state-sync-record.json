@@ -2,26 +2,26 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "state-sync-policy-v2-verifier",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "9d87ce8",
-    "latestValidatedCommit": "9d87ce8",
+    "validatedSourceCommit": "816aae0",
+    "latestValidatedCommit": "816aae0",
     "recordedDivergence": {
-      "ahead": 1,
+      "ahead": 7,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "c8f785fb9a590c2f4a28adab2cf700637a464d0a52aa47e0dbfa494bbe6f3783",
+      "value": "1bede872ac0002d2738b68cc9ac8b89d6202ef3c16e33e662b3db5532dcfb552",
       "excludedPaths": [
         "docs/current/state-sync-record.json"
       ]
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]

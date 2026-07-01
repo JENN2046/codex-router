@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.head_ref || github.ref_name }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -82,10 +82,14 @@ jobs:
           const claim = JSON.parse(
             readFileSync("docs/current/state-sync-record.json", "utf8")
           );
-          const runAudit =
+          const v1MainPushed =
             claim?.subject?.branch === "main"
             && claim?.subject?.upstream === "refs/remotes/origin/main"
             && claim?.transition?.kind === "state_only_pushed";
+          const v2StateSyncRecord =
+            claim?.schemaVersion === 2
+            || claim?.policyVersion === "state-sync-policy.v2";
+          const runAudit = v1MainPushed || v2StateSyncRecord;
 
           appendFileSync(
             process.env.GITHUB_OUTPUT,
@@ -94,7 +98,7 @@ jobs:
 
           if (!runAudit) {
             console.log(
-              "State Sync Audit is gated on push until a main/state_only_pushed record exists."
+              "State Sync Audit is gated on push until a v1 main/state_only_pushed or v2 state-sync-policy record exists."
             );
           }
           NODE
