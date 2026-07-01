@@ -1804,7 +1804,8 @@ test("state sync audit collector captures bounded GitHub pull request observatio
     "GITHUB_BASE_REF",
     "GITHUB_HEAD_REF",
     "GITHUB_SHA",
-    "GITHUB_EVENT_PATH"
+    "GITHUB_EVENT_PATH",
+    "GITHUB_ACTIONS"
   ]);
   try {
     process.env.GITHUB_EVENT_NAME = "pull_request";
@@ -1815,6 +1816,7 @@ test("state sync audit collector captures bounded GitHub pull request observatio
     process.env.GITHUB_HEAD_REF = "feature";
     process.env.GITHUB_SHA = "ffffffffffffffffffffffffffffffffffffffff";
     process.env.GITHUB_EVENT_PATH = eventPath;
+    process.env.GITHUB_ACTIONS = "true";
 
     const input = await collectStateSyncAuditInput(cwd);
     const review = reviewStateSyncAudit(input);
@@ -1831,6 +1833,66 @@ test("state sync audit collector captures bounded GitHub pull request observatio
     assert.equal(input.checkoutSubject, "pull_request_head");
     assert.equal(review.summary.observation.checkoutSubject, "pull_request_head");
     assert.equal(review.summary.observation.worktreeIsClean, true);
+  } finally {
+    restoredEnv();
+  }
+});
+
+test("state sync audit collector drops malformed GitHub observation env values", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-github-observation-safe-"));
+  await git(cwd, ["init"]);
+  await git(cwd, ["config", "user.email", "state-sync@example.invalid"]);
+  await git(cwd, ["config", "user.name", "State Sync Test"]);
+  await git(cwd, ["checkout", "-b", "feature"]);
+
+  await writeMinimalWorkspace(cwd, "feature", "0000000");
+  await git(cwd, ["add", "."]);
+  await git(cwd, ["commit", "-m", "source"]);
+  const sourceCommit = (await git(cwd, ["rev-parse", "--short", "HEAD"])).trim();
+  await writeStateSyncClaim(cwd, {
+    branch: "feature",
+    upstream: "",
+    validatedSourceCommit: sourceCommit,
+    latestValidatedCommit: sourceCommit,
+    recordedAhead: 0,
+    recordedBehind: 0
+  });
+
+  const restoredEnv = restoreEnvAfterTest([
+    "GITHUB_EVENT_NAME",
+    "GITHUB_REPOSITORY",
+    "GITHUB_REPOSITORY_ID",
+    "GITHUB_REF",
+    "GITHUB_BASE_REF",
+    "GITHUB_HEAD_REF",
+    "GITHUB_SHA",
+    "GITHUB_EVENT_PATH",
+    "GITHUB_ACTIONS"
+  ]);
+  try {
+    process.env.GITHUB_EVENT_NAME = "workflow_dispatch";
+    process.env.GITHUB_REPOSITORY = "not a repo token";
+    process.env.GITHUB_REPOSITORY_ID = "many";
+    process.env.GITHUB_REF = "refs/heads/main;echo secret";
+    process.env.GITHUB_BASE_REF = "../main";
+    process.env.GITHUB_HEAD_REF = "feature lock.lock";
+    process.env.GITHUB_SHA = "not-a-sha";
+    process.env.GITHUB_EVENT_PATH = "/tmp/private.json";
+    process.env.GITHUB_ACTIONS = "false";
+
+    const input = await collectStateSyncAuditInput(cwd);
+    const review = reviewStateSyncAudit(input);
+
+    assert.equal(input.eventName, "");
+    assert.equal(input.repositoryFullName, "");
+    assert.equal(input.repositoryId, "");
+    assert.equal(input.ref, "");
+    assert.equal(input.baseRef, "");
+    assert.equal(input.headRef, "");
+    assert.equal(input.targetRef, "");
+    assert.equal(input.githubSha, "");
+    assert.equal(input.pullRequestHeadSha, "");
+    assert.equal(review.summary.observation.repositoryFullName, "");
   } finally {
     restoredEnv();
   }

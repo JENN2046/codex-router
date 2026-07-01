@@ -162,15 +162,15 @@ async function collectStateSyncObservation(input: {
   observedUpstream: string;
   originMainFull: string;
 }): Promise<Partial<StateSyncAuditInput>> {
-  const eventName = envValue("GITHUB_EVENT_NAME");
-  const repositoryFullName = envValue("GITHUB_REPOSITORY");
-  const repositoryId = envValue("GITHUB_REPOSITORY_ID");
-  const ref = envValue("GITHUB_REF");
-  const baseRef = normalizeGitHubBranchRef(envValue("GITHUB_BASE_REF"));
-  const headRef = normalizeGitHubBranchRef(envValue("GITHUB_HEAD_REF"));
-  const githubSha = envValue("GITHUB_SHA");
+  const eventName = githubEventNameEnv();
+  const repositoryFullName = githubRepositoryFullNameEnv();
+  const repositoryId = githubRepositoryIdEnv();
+  const ref = githubRefEnv("GITHUB_REF");
+  const baseRef = githubBranchRefEnv("GITHUB_BASE_REF");
+  const headRef = githubBranchRefEnv("GITHUB_HEAD_REF");
+  const githubSha = githubShaEnv("GITHUB_SHA");
   const pullRequestHeadSha =
-    await readPullRequestHeadShaFromEvent(envValue("GITHUB_EVENT_PATH"));
+    await readPullRequestHeadShaFromEvent(eventName, envValue("GITHUB_EVENT_PATH"));
   const targetRef = eventName === "pull_request" ? baseRef : ref;
   const checkoutSubject = resolveCheckoutSubject({
     eventName,
@@ -200,6 +200,36 @@ function envValue(name: string): string {
   return process.env[name]?.trim() ?? "";
 }
 
+function githubEventNameEnv(): string {
+  const value = envValue("GITHUB_EVENT_NAME");
+  return value === "push" || value === "pull_request" ? value : "";
+}
+
+function githubRepositoryFullNameEnv(): string {
+  const value = envValue("GITHUB_REPOSITORY");
+  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value) ? value : "";
+}
+
+function githubRepositoryIdEnv(): string {
+  const value = envValue("GITHUB_REPOSITORY_ID");
+  return /^\d+$/.test(value) ? value : "";
+}
+
+function githubShaEnv(name: string): string {
+  const value = envValue(name);
+  return isFullGitSha(value) ? value : "";
+}
+
+function githubRefEnv(name: string): string {
+  const value = envValue(name);
+  return isSafeGitRef(value) ? value : "";
+}
+
+function githubBranchRefEnv(name: string): string {
+  const normalized = normalizeGitHubBranchRef(envValue(name));
+  return isSafeGitRef(normalized) ? normalized : "";
+}
+
 function normalizeGitHubBranchRef(value: string): string {
   if (value === "" || value.startsWith("refs/")) {
     return value;
@@ -209,9 +239,15 @@ function normalizeGitHubBranchRef(value: string): string {
 }
 
 async function readPullRequestHeadShaFromEvent(
+  eventName: string,
   eventPath: string
 ): Promise<string> {
-  if (eventPath === "") {
+  if (
+    eventName !== "pull_request"
+    || process.env.GITHUB_ACTIONS !== "true"
+    || eventPath === ""
+    || !isGitHubEventPath(eventPath)
+  ) {
     return "";
   }
 
@@ -236,6 +272,10 @@ async function readPullRequestHeadShaFromEvent(
   } catch {
     return "";
   }
+}
+
+function isGitHubEventPath(value: string): boolean {
+  return value.endsWith("/event.json") || value.endsWith("\\event.json");
 }
 
 function resolveCheckoutSubject(input: {
@@ -266,6 +306,26 @@ function sameGitSha(left: string, right: string): boolean {
 
 function isFullGitSha(value: string): boolean {
   return /^[0-9a-f]{40}$/i.test(value);
+}
+
+function isSafeGitRef(value: string): boolean {
+  if (value === "") {
+    return true;
+  }
+
+  return /^refs\/[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value)
+    && !value.split("/").some((part) => (
+      part === ""
+      || part === "."
+      || part === ".."
+      || part.endsWith(".lock")
+      || part.includes("@{")
+      || part.includes("..")
+      || part.includes("^")
+      || part.includes("~")
+      || part.includes(":")
+      || part.includes("\\")
+    ));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
