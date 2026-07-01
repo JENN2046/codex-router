@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "codex/state-sync-legacy-checks-compat-output",
+    "branch": "main",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "81a9924",
-    "latestValidatedCommit": "81a9924",
+    "validatedSourceCommit": "152e8f9",
+    "latestValidatedCommit": "152e8f9",
     "recordedDivergence": {
       "ahead": 1,
       "behind": 0
@@ -21,7 +21,7 @@
     }
   },
   "transition": {
-    "kind": "state_only_pending_push",
+    "kind": "state_only_pushed",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]
