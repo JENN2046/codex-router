@@ -7,11 +7,11 @@ Goal:
 
 Current branch:
 
-- `main`
+- `content-attestation`
 
 Current validated source:
 
-- `b0d5a45`
+- `content digest only`
 
 Current structured claim:
 
@@ -19,7 +19,7 @@ Current structured claim:
 
 Current transition:
 
-- `state_only_pushed`
+- `content_attestation`
 
 Upstream baseline:
 
@@ -27,7 +27,7 @@ Upstream baseline:
 
 Recorded divergence baseline:
 
-- `ahead 1 / behind 0`
+- `observed at audit time`
 
 Completed:
 
@@ -128,15 +128,14 @@ Validation completed:
 
 State-sync status:
 
-- structured claim: `main` / `state_only_pushed` against
-  `refs/remotes/origin/main`
-- validated source commit: `b0d5a45`
-- latest validated commit: `b0d5a45`
-- recorded divergence baseline: `ahead 1 / behind 0`
+- structured claim: `state-sync-policy.v2` content attestation
+- upstream target: `refs/remotes/origin/main`
+- source identity: filtered tree digest, not a recorded commit SHA
+- branch, commit, and divergence are observed by the audit at runtime
 - branch-head audit command:
   `node --import tsx scripts/run-state-sync-audit.ts --json`
 - expected audit source: `claimSource: structured`
-- Git ancestry, divergence, source-tree digest, and strict state path
+- Source-tree digest, allowed context, clean worktree, and read-only
   checks remain enforced by the state-sync audit.
 Not authorized:
 
@@ -153,10 +152,12 @@ Not authorized:
 <!-- state-sync-display:start -->
 Optional display generated from `docs/current/state-sync-record.json`.
 
-- branch: `main`
+- schema version: `2`
+- policy version: `state-sync-policy.v2`
+- branch: `content-attestation`
 - upstream: `refs/remotes/origin/main`
-- validated source commit: `b0d5a45`
-- latest validated commit: `b0d5a45`
-- recorded divergence baseline: `ahead 1 / behind 0`
-- transition: `state_only_pushed`
+- validated source commit: `content digest only`
+- latest validated commit: `content digest only`
+- recorded divergence baseline: `observed at audit time`
+- transition: `content_attestation`
 <!-- state-sync-display:end -->
