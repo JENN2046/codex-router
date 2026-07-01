@@ -399,7 +399,8 @@ but their role changes:
 
 - they may display facts derived from `StateSyncClaim`;
 - they may record validation summaries and handoff notes;
-- they are checked for secret or machine-path leakage;
+- they may be checked for secret or machine-path leakage by optional tools or
+  explicit audit callers;
 - optional freshness tools may flag obvious stale phrases;
 - conflicts between Markdown and `StateSyncClaim` are display drift, not
   branch-head audit authority.
