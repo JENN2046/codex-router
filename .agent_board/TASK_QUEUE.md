@@ -2,8 +2,9 @@
 
 Current task:
 
-- Keep state-sync structured record automation current; no post-merge
-  reanchor is pending.
+- Keep policy v2 state-sync content attestation as the main path; no
+  post-merge reanchor is pending. Legacy v1 reanchor automation remains
+  compatibility fallback only.
 Done:
 
 - committed `docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md`
@@ -31,7 +32,8 @@ Done:
 - added `scripts/sync-state-sync-display.ts` for generated display surfaces
 - added display-sync regression tests
 - removed the State Sync Audit job's PR-only event gate locally
-- gated main-push audit on a committed `main` / `state_only_pushed` record
+- made policy v2 content attestations the main path for main-push audit while
+  retaining committed `main` / `state_only_pushed` records as legacy v1 fallback
 - updated workflow structure regression coverage
 - recorded the Phase 4 main reanchor expectation after squash merge
 - completed the post-PR #50 state/docs reanchor on `main`
@@ -54,8 +56,8 @@ Done:
 - added reanchor helper regression tests
 - hardened squash fallback reanchors to verify `HEAD` against the recorded
   filtered source tree digest before inferring it as source
-- implemented `State Sync Reanchor PR` workflow for post-merge reanchor PR
-  creation
+- implemented `State Sync Reanchor PR` workflow for legacy v1 post-merge
+  reanchor PR creation
 - added reanchor PR gate, diff verifier, and PR create/update helper scripts
 - added bounded state-sync audit compatibility for the fixed
   `state-sync/reanchor-main` PR branch
@@ -87,8 +89,8 @@ Done:
   remote push blocking with tests
 - fixed the reviewed P1 by proving state-sync audit is not invoked until after
   the direct-push runner has pushed the reanchor commit
-- documented the operator-authorized direct-push runner while preserving the
-  conservative `state-sync/reanchor-main` PR fallback
+- documented the legacy v1 operator-authorized direct-push runner while
+  preserving the conservative `state-sync/reanchor-main` PR fallback
 - added `createRuntimeSignalFromGovernanceState()` in `runtime-control`
 - added regression coverage for runtime-control no-op, escalation, open-circuit,
   and governance-state signal derivation

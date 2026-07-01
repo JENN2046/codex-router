@@ -174,7 +174,9 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
   assert.ok(gateStep?.run?.includes(
     'claim?.policyVersion === "state-sync-policy.v2"'
   ));
-  assert.ok(gateStep?.run?.includes("v2 state-sync-policy record exists"));
+  assert.ok(gateStep?.run?.includes(
+    "v2 state-sync-policy record or legacy v1 main/state_only_pushed fallback record exists"
+  ));
   assert.equal(npmCiStep?.if, "steps.state-sync-gate.outputs.run_audit == 'true'");
   assert.equal(auditStep?.if, "steps.state-sync-gate.outputs.run_audit == 'true'");
   assert.ok(auditStep);
@@ -188,6 +190,7 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
       "utf-8"
     )
   ) as {
+    name: string;
     on: { push: { branches: string[] } };
     permissions: {
       contents: string;
@@ -199,6 +202,7 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
     };
     jobs: {
       "reanchor-pr": {
+        name: string;
         steps: WorkflowStep[];
       };
     };
@@ -214,6 +218,11 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
     step.name === "Create or update state-sync reanchor PR"
   );
 
+  assert.equal(workflow.name, "State Sync Reanchor PR (Legacy v1 Fallback)");
+  assert.equal(
+    workflow.jobs["reanchor-pr"].name,
+    "Prepare State Sync Reanchor PR (Legacy v1 Fallback)"
+  );
   assert.deepEqual(workflow.on.push.branches, ["main"]);
   assert.equal(workflow.permissions.contents, "write");
   assert.equal(workflow.permissions["pull-requests"], "write");

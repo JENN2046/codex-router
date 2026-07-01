@@ -65,7 +65,7 @@ test("state-sync display sync reports optional display drift, writes fields, the
   );
   assert.match(
     currentState,
-    /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
+    /- compatibility path: legacy v1 state-only record\s+- legacy structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
   );
   assert.match(
     currentState,
@@ -75,7 +75,7 @@ test("state-sync display sync reports optional display drift, writes fields, the
   assert.doesNotMatch(currentState, /stale-branch` \/ `state_only_pending_push/);
   assert.match(
     currentState,
-    /For this `state_only_pushed` state-only record, Git observation should\s+compute the validated source divergence as `ahead 0 \/ behind 2` against\s+`refs\/remotes\/origin\/main` after the state-only record is on upstream\./
+    /For this legacy v1 `state_only_pushed` state-only compatibility record, Git\s+observation should\s+compute the validated source divergence as `ahead 0 \/ behind 2` against\s+`refs\/remotes\/origin\/main` after the state-only record is on upstream\. Policy v2\s+content attestations are the main path and do not require this reanchor\s+prose\./
   );
 
   const taskQueue = await readFile(
@@ -90,7 +90,7 @@ test("state-sync display sync reports optional display drift, writes fields, the
   assert.match(checkpoint, /State-sync observation:/);
   assert.match(
     checkpoint,
-    /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
+    /- compatibility path: legacy v1 state-only record\s+- legacy structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
   );
   assert.match(checkpoint, /Boundary:\s+- stale boundary text/);
   assert.match(checkpoint, /<!-- state-sync-display:start -->/);
@@ -105,7 +105,7 @@ test("state-sync display sync reports optional display drift, writes fields, the
   assert.match(taskQueue, /- transition: `state_only_pushed`/);
   assert.match(
     runState,
-    /- structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
+    /- compatibility path: legacy v1 state-only record\s+- legacy structured claim: `docs\/state-sync-display` \/ `state_only_pushed` against\s+`refs\/remotes\/origin\/main`/
   );
   assert.doesNotMatch(runState, /stale-branch` \/ `state_only_pending_push/);
 
@@ -127,9 +127,52 @@ test("state-sync display sync preserves pending-push divergence baseline", async
   assert.match(currentState, /- transition: `state_only_pending_push`/);
   assert.match(
     currentState,
-    /For this `state_only_pending_push` record on branch `docs\/state-sync-display`,\s+Git observation should compute the validated source divergence as\s+`ahead 2 \/ behind 0` against `refs\/remotes\/origin\/main` before the state-only\s+record is pushed\./
+    /For this legacy v1 `state_only_pending_push` compatibility record on branch `docs\/state-sync-display`,\s+Git observation should compute the validated source divergence as\s+`ahead 2 \/ behind 0` against `refs\/remotes\/origin\/main` before the state-only\s+record is pushed\. Policy v2 content attestations are the main path and do\s+not require this pending-push narrative\./
   );
   assert.doesNotMatch(currentState, /pushed `main` state-only record/);
+
+  const clean = await syncStateSyncDisplay(cwd);
+  assert.deepEqual(clean.changedPaths, []);
+});
+
+test("state-sync display sync replaces full legacy pushed prose when switching transition", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-switch-v1-"));
+  await writeDisplayFixture(cwd, "state_only_pushed");
+  await syncStateSyncDisplay(cwd, { write: true });
+
+  await writeDisplayClaim(cwd, "state_only_pending_push");
+  const written = await syncStateSyncDisplay(cwd, { write: true });
+  assert.ok(written.changedPaths.includes("docs/current/CURRENT_STATE.md"));
+
+  const currentState = await readFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    "utf8"
+  );
+  assert.match(
+    currentState,
+    /For this legacy v1 `state_only_pending_push` compatibility record/
+  );
+  assert.doesNotMatch(currentState, /do not require this reanchor\s+prose/);
+
+  const clean = await syncStateSyncDisplay(cwd);
+  assert.deepEqual(clean.changedPaths, []);
+});
+
+test("state-sync display sync removes legacy pushed prose when switching to policy v2", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-switch-v2-"));
+  await writeDisplayFixture(cwd, "state_only_pushed");
+  await syncStateSyncDisplay(cwd, { write: true });
+
+  await writePolicyV2Claim(cwd);
+  const written = await syncStateSyncDisplay(cwd, { write: true });
+  assert.ok(written.changedPaths.includes("docs/current/CURRENT_STATE.md"));
+
+  const currentState = await readFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    "utf8"
+  );
+  assert.match(currentState, /Policy v2 records bind the filtered source tree digest/);
+  assert.doesNotMatch(currentState, /do not require this reanchor\s+prose/);
 
   const clean = await syncStateSyncDisplay(cwd);
   assert.deepEqual(clean.changedPaths, []);
@@ -269,34 +312,7 @@ async function writeDisplayFixture(
 ): Promise<void> {
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
   await mkdir(join(cwd, ".agent_board"), { recursive: true });
-  await writeFile(
-    join(cwd, "docs", "current", "state-sync-record.json"),
-    JSON.stringify({
-      schemaVersion: 1,
-      policyVersion: "state-sync-policy.v1",
-      subject: {
-        branch,
-        upstream: CLAIM_UPSTREAM
-      },
-      source: {
-        validatedSourceCommit: CLAIM_SOURCE_COMMIT,
-        latestValidatedCommit: CLAIM_SOURCE_COMMIT,
-        recordedDivergence: {
-          ahead: 2,
-          behind: 0
-        },
-        sourceTreeDigest: {
-          algorithm: "git-ls-tree-sha256",
-          value: CLAIM_DIGEST,
-          excludedPaths: strictStateRecordPaths()
-        }
-      },
-      transition: {
-        kind: transitionKind,
-        allowedStatePaths: strictStateRecordPaths()
-      }
-    }, null, 2)
-  );
+  await writeDisplayClaim(cwd, transitionKind, branch);
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
     staleCurrentState()
@@ -350,9 +366,73 @@ async function writeDisplayFixture(
   );
 }
 
+async function writeDisplayClaim(
+  cwd: string,
+  transitionKind: "state_only_pending_push" | "state_only_pushed",
+  branch = CLAIM_BRANCH
+): Promise<void> {
+  await writeFile(
+    join(cwd, "docs", "current", "state-sync-record.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      policyVersion: "state-sync-policy.v1",
+      subject: {
+        branch,
+        upstream: CLAIM_UPSTREAM
+      },
+      source: {
+        validatedSourceCommit: CLAIM_SOURCE_COMMIT,
+        latestValidatedCommit: CLAIM_SOURCE_COMMIT,
+        recordedDivergence: {
+          ahead: 2,
+          behind: 0
+        },
+        sourceTreeDigest: {
+          algorithm: "git-ls-tree-sha256",
+          value: CLAIM_DIGEST,
+          excludedPaths: strictStateRecordPaths()
+        }
+      },
+      transition: {
+        kind: transitionKind,
+        allowedStatePaths: strictStateRecordPaths()
+      }
+    }, null, 2)
+  );
+}
+
 async function writePolicyV2DisplayFixture(cwd: string): Promise<void> {
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
   await mkdir(join(cwd, ".agent_board"), { recursive: true });
+  await writePolicyV2Claim(cwd);
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    staleCurrentState()
+  );
+
+  for (const filePath of [
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/TASK_QUEUE.md",
+    ".agent_board/VALIDATION_LOG.md"
+  ]) {
+    await writeFile(
+      join(cwd, filePath),
+      staleAgentBoard([
+        ["Branch:", "stale-branch"],
+        ["Current head:", "1111111"],
+        ["Validated source commit:", "1111111"],
+        ["Latest validated commit:", "1111111"],
+        ["Upstream baseline:", "origin/stale"],
+        ["Upstream divergence baseline:", "ahead 999 / behind 999"],
+        ["Transition:", "source_exact"]
+      ])
+    );
+  }
+}
+
+async function writePolicyV2Claim(cwd: string): Promise<void> {
   await writeFile(
     join(cwd, "docs", "current", "state-sync-record.json"),
     JSON.stringify({
@@ -384,31 +464,6 @@ async function writePolicyV2DisplayFixture(cwd: string): Promise<void> {
       ]
     }, null, 2)
   );
-  await writeFile(
-    join(cwd, "docs", "current", "CURRENT_STATE.md"),
-    staleCurrentState()
-  );
-
-  for (const filePath of [
-    ".agent_board/CHECKPOINT.md",
-    ".agent_board/HANDOFF.md",
-    ".agent_board/RUN_STATE.md",
-    ".agent_board/TASK_QUEUE.md",
-    ".agent_board/VALIDATION_LOG.md"
-  ]) {
-    await writeFile(
-      join(cwd, filePath),
-      staleAgentBoard([
-        ["Branch:", "stale-branch"],
-        ["Current head:", "1111111"],
-        ["Validated source commit:", "1111111"],
-        ["Latest validated commit:", "1111111"],
-        ["Upstream baseline:", "origin/stale"],
-        ["Upstream divergence baseline:", "ahead 999 / behind 999"],
-        ["Transition:", "source_exact"]
-      ])
-    );
-  }
 }
 
 function staleCurrentState(): string {

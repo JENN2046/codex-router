@@ -443,7 +443,8 @@ function renderStateSyncStatusBullets(display: DisplayFields): string[] {
   }
 
   return [
-    `- structured claim: \`${display.branch}\` / \`${display.transitionKind}\` against`,
+    "- compatibility path: legacy v1 state-only record",
+    `- legacy structured claim: \`${display.branch}\` / \`${display.transitionKind}\` against`,
     `  \`${display.upstream}\``,
     `- validated source commit: \`${display.validatedSourceCommit}\``,
     `- latest validated commit: \`${display.latestValidatedCommit}\``,
@@ -557,11 +558,7 @@ function replaceValidatedSourceDivergenceExpectation(
   text: string,
   value: string
 ): string {
-  if (text.includes(value)) {
-    return text;
-  }
-
-  const pattern = /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute|Git observation should compute)[\s\S]*?source divergence as\s*`[^`\r\n]+`\s*against\s*`[^`\r\n]*`[\s\S]*?\./;
+  const pattern = /(?:For this|When this PR branch state record is committed and pushed, Git observation should|After the state record is pushed, Git observation should compute|Git observation should compute|Policy v2 records bind)[\s\S]*?(?=\r?\n\r?\n|$)/;
   return replaceInSection(
     text,
     "## State Sync Expectations",
@@ -705,18 +702,22 @@ function validatedSourceDivergenceExpectation(
       behind: claim.source.recordedDivergence.ahead
     });
     return [
-      "For this `state_only_pushed` state-only record, Git observation should",
+      "For this legacy v1 `state_only_pushed` state-only compatibility record, Git",
+      "observation should",
       `compute the validated source divergence as \`${pushedDivergence}\` against`,
-      `\`${upstream}\` after the state-only record is on upstream.`
+      `\`${upstream}\` after the state-only record is on upstream. Policy v2`,
+      "content attestations are the main path and do not require this reanchor",
+      "prose."
     ].join("\n");
   }
 
   if (claim.transition.kind === "state_only_pending_push") {
     return [
-      `For this \`state_only_pending_push\` record on branch \`${claim.subject.branch}\`,`,
+      `For this legacy v1 \`state_only_pending_push\` compatibility record on branch \`${claim.subject.branch}\`,`,
       "Git observation should compute the validated source divergence as",
       `\`${recordedDivergence}\` against \`${upstream}\` before the state-only`,
-      "record is pushed."
+      "record is pushed. Policy v2 content attestations are the main path and do",
+      "not require this pending-push narrative."
     ].join("\n");
   }
 

@@ -1,4 +1,4 @@
-name: State Sync Reanchor PR
+name: State Sync Reanchor PR (Legacy v1 Fallback)
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   reanchor-pr:
-    name: Prepare State Sync Reanchor PR
+    name: Prepare State Sync Reanchor PR (Legacy v1 Fallback)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -36,8 +36,9 @@ Checkpoint facts:
 - Phase 2 blocks missing structured claims instead of falling back to Markdown.
 - Phase 3 provides `scripts/sync-state-sync-display.ts` to update display
   surfaces from the structured claim.
-- Phase 4 removes the State Sync Audit job's PR-only event gate and gates
-  `push` audits on a committed `main` / `state_only_pushed` record.
+- Phase 4 removes the State Sync Audit job's PR-only event gate. Push audits now
+  use policy v2 content attestations as the main path, with committed `main` /
+  `state_only_pushed` records retained only as a legacy v1 fallback.
 - The collector uses the structured claim upstream ref as the bounded baseline
   even when local feature-branch tracking exists, then computes divergence from
   Git.
@@ -59,9 +60,9 @@ Checkpoint facts:
 - The reanchor preparation helper is merged through PR #54, remains
   non-committing and non-pushing, and verifies squash fallback `HEAD` against
   the recorded filtered source tree digest before reanchoring to it.
-- Conservative post-merge reanchor PR automation is implemented on
-  `automate/state-sync-reanchor-pr`; it creates or updates only the fixed
-  `state-sync/reanchor-main` PR branch and never pushes directly to `main`.
+- Conservative post-merge reanchor PR automation is retained as a legacy v1
+  fallback on `automate/state-sync-reanchor-pr`; it creates or updates only the
+  fixed `state-sync/reanchor-main` PR branch and never pushes directly to `main`.
 - The workflow fetches the fixed reanchor branch before push and uses an
   explicit `--force-with-lease` expected SHA or empty create-only expectation.
 - The generated reanchor PR body records that `GITHUB_TOKEN`-created or updated
@@ -86,17 +87,17 @@ Checkpoint facts:
   to emitted observations.
 - Malformed execution-observation refs fail closed, and recovery without an
   observation bus remains compatible with no consumable evidence refs.
-- Guarded local `main` state-sync reanchor runner is implemented as
-  `npm run state-sync:reanchor-main`.
+- Guarded local `main` state-sync reanchor runner remains available as a legacy
+  v1 compatibility tool: `npm run state-sync:reanchor-main`.
 - The runner defaults to read-only, rejects non-`main` branches, requires local
   `HEAD` to match `refs/remotes/origin/main`, verifies strict state/docs diffs,
   and blocks stale pushes when `origin/main` moves before push.
 - Full state-sync audit in the direct-push runner now runs only after a
   successful push, because `state_only_pushed` is not valid in the pre-push
   local commit state.
-- README and the structured record plan now document the local runner as an
-  operator-authorized direct-push path while preserving the conservative
-  `state-sync/reanchor-main` PR workflow fallback.
+- README and the structured record plan document the legacy v1 local runner as
+  an operator-authorized direct-push compatibility path while preserving the
+  conservative `state-sync/reanchor-main` PR workflow fallback.
 - `runtime-control` now exposes
   `createRuntimeSignalFromGovernanceState()` for converting governance state
   into escalation-ready runtime signals.

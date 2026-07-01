@@ -36,8 +36,9 @@ Completed:
 - Phase 2 missing structured claim gate implemented
 - Phase 3 display-sync script implemented
 - Phase 4 state-sync CI push-to-main coverage landed on `main` through the
-  PR #50 squash merge, with main-push audit gated on a committed `main` /
-  `state_only_pushed` record
+  PR #50 squash merge. Main-push audit now uses policy v2 content attestations
+  as the main path; committed `main` / `state_only_pushed` records remain a
+  legacy v1 fallback.
 - PR #51 strict state record path convergence was squash-merged into `main`
 - post-PR #51 `main` state/docs reanchor was pushed and passed state-sync audit
   and main-push CI
@@ -67,8 +68,8 @@ Completed:
   reanchors without committing or pushing
 - squash fallback reanchors now verify `HEAD` against the recorded filtered
   source tree digest before inferring it as source
-- conservative post-merge reanchor PR automation is implemented on
-  `automate/state-sync-reanchor-pr`
+- conservative post-merge reanchor PR automation is retained as a legacy v1
+  fallback on `automate/state-sync-reanchor-pr`
 - the automation uses the fixed `state-sync/reanchor-main` branch, verifies
   strict state/docs diffs, and creates or updates a PR instead of pushing
   directly to `main`
@@ -99,17 +100,17 @@ Completed:
 - malformed execution-observation refs fail closed
 - no-observationBus recovery remains compatible and records no consumable
   evidence refs
-- guarded local `main` state-sync reanchor runner is implemented as
-  `npm run state-sync:reanchor-main`
+- guarded local `main` state-sync reanchor runner remains available as a legacy
+  v1 compatibility tool: `npm run state-sync:reanchor-main`
 - the runner defaults to read-only, rejects non-`main` branches, requires local
   `HEAD` to match `refs/remotes/origin/main`, verifies strict state/docs diffs,
   and blocks stale pushes when `origin/main` moves before push
 - the runner now delays full state-sync audit until after successful direct
   push, so default validation does not fail on the unavoidable pre-push
   `state_only_pushed` intermediate state
-- README and the structured record plan document the runner as an
-  operator-authorized direct-push path while preserving the conservative
-  `state-sync/reanchor-main` PR workflow fallback
+- README and the structured record plan document the legacy v1 runner as an
+  operator-authorized direct-push compatibility path while preserving the
+  conservative `state-sync/reanchor-main` PR workflow fallback
 - `runtime-control` now exports `createRuntimeSignalFromGovernanceState()`
 - runtime signal derivation counts `execution_failure` anomalies, preserves
   context pressure, and maps high/critical governance risk to `risk_detected`
