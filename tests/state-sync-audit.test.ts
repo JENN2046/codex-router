@@ -533,6 +533,16 @@ test("state sync policy v2 parser fails closed on malformed records", async (t) 
         "docs/current/OTHER.md"
       ];
     }, "source_tree_digest_malformed"],
+    ["source tree digest duplicate path missing required exclusion", (claim) => {
+      const source = claim.source as Record<string, unknown>;
+      const digest = source.sourceTreeDigest as Record<string, unknown>;
+      digest.excludedPaths = [
+        ...policyV2SourceTreeDigestExcludedPaths().filter(
+          (path) => path !== ".agent_board/VALIDATION_LOG.md"
+        ),
+        "docs/current/state-sync-record.json"
+      ];
+    }, "source_tree_digest_malformed"],
     ["source tree digest malformed value", (claim) => {
       const source = claim.source as Record<string, unknown>;
       const digest = source.sourceTreeDigest as Record<string, unknown>;

@@ -1085,7 +1085,12 @@ function sameStringSet(left: string[], right: string[]): boolean {
     return false;
   }
 
+  const leftSet = new Set(left);
   const rightSet = new Set(right);
+  if (leftSet.size !== left.length || rightSet.size !== right.length) {
+    return false;
+  }
+
   return left.every((value) => rightSet.has(value));
 }
 
