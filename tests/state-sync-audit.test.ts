@@ -479,7 +479,7 @@ test("state sync policy v2 parser accepts content attestation records", () => {
   assert.deepEqual(result.claim.source.sourceTreeDigest, {
     algorithm: "git-ls-tree-sha256",
     value: TEST_SOURCE_TREE_DIGEST,
-    excludedPaths: strictStateRecordPaths()
+    excludedPaths: policyV2SourceTreeDigestExcludedPaths()
   });
   assert.deepEqual(result.claim.allowedContexts, [
     {
@@ -529,8 +529,8 @@ test("state sync policy v2 parser fails closed on malformed records", async (t) 
       const source = claim.source as Record<string, unknown>;
       const digest = source.sourceTreeDigest as Record<string, unknown>;
       digest.excludedPaths = [
-        ...strictStateRecordPaths(),
-        ".agent_board/CHECKPOINT.md"
+        ...policyV2SourceTreeDigestExcludedPaths(),
+        "docs/current/OTHER.md"
       ];
     }, "source_tree_digest_malformed"],
     ["source tree digest malformed value", (claim) => {
@@ -2039,7 +2039,7 @@ test("state sync audit collector computes policy v2 head digests", async () => {
   await git(cwd, ["commit", "-m", "source"]);
   const sourceDigest = await gitFilteredTreeDigest(
     "HEAD",
-    strictStateRecordPaths(),
+    policyV2SourceTreeDigestExcludedPaths(),
     cwd
   );
   assert.ok(sourceDigest !== undefined);
@@ -2103,7 +2103,7 @@ test("state sync audit collector observes local policy v2 main context", async (
   await git(cwd, ["commit", "-m", "source"]);
   const sourceDigest = await gitFilteredTreeDigest(
     "HEAD",
-    strictStateRecordPaths(),
+    policyV2SourceTreeDigestExcludedPaths(),
     cwd
   );
   assert.ok(sourceDigest !== undefined);
@@ -2967,17 +2967,34 @@ test("state sync audit sanitizes structured record issues without echoing sentin
 async function createInputFromWorkspace(
   overrides: StateSyncAuditInputOverrides = {}
 ): Promise<StateSyncAuditInput> {
-  const currentStateText = await readFile("docs/current/CURRENT_STATE.md", "utf8");
-  const agentBoardFiles = await Promise.all([
+  const defaultBranch = "state-sync-audit-test";
+  const defaultHead = "0123456";
+  const defaultUpstream = "refs/remotes/origin/main";
+  const currentStateText = minimalCurrentState(defaultBranch, defaultHead, {
+    upstream: defaultUpstream,
+    upstreamDivergence: "ahead 0 / behind 0",
+    sourceTreeDigest: TEST_SOURCE_TREE_DIGEST,
+    strictStatePaths: strictStateRecordPaths()
+  });
+  const agentBoardTextFixture = minimalAgentBoardText({
+    branch: defaultBranch,
+    upstream: defaultUpstream,
+    validatedSourceCommit: defaultHead,
+    latestValidatedCommit: defaultHead,
+    recordedAhead: 0,
+    recordedBehind: 0,
+    transitionKind: "source_exact"
+  });
+  const agentBoardFiles = [
     ".agent_board/RUN_STATE.md",
     ".agent_board/TASK_QUEUE.md",
     ".agent_board/CHECKPOINT.md",
     ".agent_board/HANDOFF.md",
     ".agent_board/VALIDATION_LOG.md"
-  ].map(async (path) => ({
+  ].map((path) => ({
     path,
-    text: await readFile(path, "utf8")
-  })));
+    text: agentBoardTextFixture
+  }));
   const agentBoardText = agentBoardFiles.map((file) => file.text).join("\n");
   const recordedHead = extractStateField(currentStateText, "Current head")
     ?? "UNKNOWN_HEAD";
@@ -3458,7 +3475,8 @@ function stateSyncPolicyV2ClaimText(
         algorithm: "git-ls-tree-sha256",
         value: overrides.sourceTreeDigest ?? TEST_SOURCE_TREE_DIGEST,
         excludedPaths:
-          overrides.sourceTreeDigestExcludedPaths ?? strictStateRecordPaths()
+          overrides.sourceTreeDigestExcludedPaths
+          ?? policyV2SourceTreeDigestExcludedPaths()
       }
     },
     allowedContexts: overrides.allowedContexts ?? [
@@ -3592,6 +3610,18 @@ function escapeTestRegExp(value: string): string {
 function strictStateRecordPaths(): string[] {
   return [
     "docs/current/state-sync-record.json"
+  ];
+}
+
+function policyV2SourceTreeDigestExcludedPaths(): string[] {
+  return [
+    "docs/current/state-sync-record.json",
+    "docs/current/CURRENT_STATE.md",
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/TASK_QUEUE.md",
+    ".agent_board/VALIDATION_LOG.md"
   ];
 }
 

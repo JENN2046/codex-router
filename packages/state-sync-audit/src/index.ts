@@ -1,4 +1,12 @@
+const CURRENT_STATE_DOC = "docs/current/CURRENT_STATE.md";
 const STATE_SYNC_RECORD_DOC = "docs/current/state-sync-record.json";
+const AGENT_BOARD_STATE_FILES = [
+  ".agent_board/CHECKPOINT.md",
+  ".agent_board/HANDOFF.md",
+  ".agent_board/RUN_STATE.md",
+  ".agent_board/TASK_QUEUE.md",
+  ".agent_board/VALIDATION_LOG.md"
+] as const;
 
 const REQUIRED_PACKAGE_SCRIPTS = {
   governance: "tsx scripts/run-governance-check.ts"
@@ -6,6 +14,11 @@ const REQUIRED_PACKAGE_SCRIPTS = {
 
 const STRICT_STATE_RECORD_PATHS = new Set([
   STATE_SYNC_RECORD_DOC
+]);
+const POLICY_V2_SOURCE_TREE_DIGEST_EXCLUDED_PATHS = new Set([
+  STATE_SYNC_RECORD_DOC,
+  CURRENT_STATE_DOC,
+  ...AGENT_BOARD_STATE_FILES
 ]);
 
 const STATE_SYNC_REANCHOR_PR_BRANCH = "state-sync/reanchor-main";
@@ -546,7 +559,10 @@ export function parseStateSyncPolicyV2Claim(
     || sourceTreeDigestValue === undefined
     || !isSha256Hex(sourceTreeDigestValue)
     || sourceTreeDigestExcludedPaths === undefined
-    || !sameStringSet(sourceTreeDigestExcludedPaths, strictStateRecordPaths())
+    || !sameStringSet(
+      sourceTreeDigestExcludedPaths,
+      policyV2SourceTreeDigestExcludedPaths()
+    )
   ) {
     return { status: "invalid", reason: "source_tree_digest_malformed" };
   }
@@ -1052,6 +1068,10 @@ function strictStateRecordPaths(): string[] {
   return [...STRICT_STATE_RECORD_PATHS];
 }
 
+function policyV2SourceTreeDigestExcludedPaths(): string[] {
+  return [...POLICY_V2_SOURCE_TREE_DIGEST_EXCLUDED_PATHS];
+}
+
 function isNonEmptyTrimmedString(value: string | undefined): value is string {
   return value !== undefined && value.trim() !== "";
 }
@@ -1338,7 +1358,7 @@ function stateSyncPolicyV2TransitionIsAllowed(
     && claim.source.sourceTreeDigest.algorithm === ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM
     && sameStringSet(
       claim.source.sourceTreeDigest.excludedPaths,
-      strictStateRecordPaths()
+      policyV2SourceTreeDigestExcludedPaths()
     )
     && input.headSourceTreeDigest === claim.source.sourceTreeDigest.value
     && countStatusEntries(input.gitStatusShort) === 0

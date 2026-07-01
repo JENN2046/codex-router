@@ -149,6 +149,8 @@ test("state-sync display sync renders policy v2 content attestations", async () 
   assert.match(currentState, /\| Current branch \| `content-attestation` \|/);
   assert.match(currentState, /\| Current head \| `observed at audit time` \|/);
   assert.match(currentState, /- transition kind: `content_attestation`/);
+  assert.match(currentState, /Source digest excluded paths:/);
+  assert.doesNotMatch(currentState, /Strict state record paths:/);
   assert.match(
     currentState,
     /Policy v2 records bind the filtered source tree digest to explicit\s+local, pull_request, and push contexts/
@@ -363,7 +365,7 @@ async function writePolicyV2DisplayFixture(cwd: string): Promise<void> {
         sourceTreeDigest: {
           algorithm: "git-ls-tree-sha256",
           value: CLAIM_DIGEST,
-          excludedPaths: strictStateRecordPaths()
+          excludedPaths: policyV2SourceTreeDigestExcludedPaths()
         }
       },
       allowedContexts: [
@@ -514,5 +516,17 @@ function staleAgentBoard(
 function strictStateRecordPaths(): string[] {
   return [
     "docs/current/state-sync-record.json"
+  ];
+}
+
+function policyV2SourceTreeDigestExcludedPaths(): string[] {
+  return [
+    "docs/current/state-sync-record.json",
+    "docs/current/CURRENT_STATE.md",
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/TASK_QUEUE.md",
+    ".agent_board/VALIDATION_LOG.md"
   ];
 }

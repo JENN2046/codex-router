@@ -49,6 +49,7 @@ interface DisplayFields {
   stateRecordMode: string;
   sourceTreeDigestAlgorithm: string;
   sourceTreeDigestValue: string;
+  statePathListHeading: string;
   strictStatePaths: string[];
   validatedSourceDivergenceExpectation: string;
 }
@@ -114,6 +115,7 @@ function displayFieldsFromClaim(claim: StateSyncClaim): DisplayFields {
     stateRecordMode: stateRecordModeForTransition(claim.transition.kind),
     sourceTreeDigestAlgorithm: claim.source.sourceTreeDigest.algorithm,
     sourceTreeDigestValue: claim.source.sourceTreeDigest.value,
+    statePathListHeading: "Strict state record paths:",
     strictStatePaths: claim.transition.allowedStatePaths,
     validatedSourceDivergenceExpectation:
       validatedSourceDivergenceExpectation(claim, recordedDivergence)
@@ -134,6 +136,7 @@ function displayFieldsFromPolicyV2Claim(claim: StateSyncPolicyV2Claim): DisplayF
     stateRecordMode: "content attestation",
     sourceTreeDigestAlgorithm: claim.source.sourceTreeDigest.algorithm,
     sourceTreeDigestValue: claim.source.sourceTreeDigest.value,
+    statePathListHeading: "Source digest excluded paths:",
     strictStatePaths: claim.source.sourceTreeDigest.excludedPaths,
     validatedSourceDivergenceExpectation:
       "Policy v2 records bind the filtered source tree digest to explicit "
@@ -210,7 +213,7 @@ function updateCurrentState(text: string, display: DisplayFields): string {
     display.recordedDivergence
   );
   updated = replaceSourceTreeDigest(updated, display);
-  updated = replaceStrictStatePathList(updated, display.strictStatePaths);
+  updated = replaceStrictStatePathList(updated, display);
   updated = replaceValidationSourceCommit(updated, display.validatedSourceCommit);
   updated = replaceStateSyncExpectation(updated, "branch", display.branch);
   updated = replaceStateSyncExpectation(
@@ -515,10 +518,13 @@ function replaceSourceTreeDigest(
   );
 }
 
-function replaceStrictStatePathList(text: string, paths: string[]): string {
-  const pattern = /(Strict state record paths:\r?\n\r?\n)(?:- `[^`\r\n]+`\r?\n)+/;
-  return replaceRequired(text, pattern, "$strict-state-paths", (_match, start) =>
-    `${start}${paths.map((path) => `- \`${path}\``).join("\n")}\n`
+function replaceStrictStatePathList(text: string, display: DisplayFields): string {
+  const pattern =
+    /((?:Strict state record paths|Source digest excluded paths):\r?\n\r?\n)(?:- `[^`\r\n]+`\r?\n)+/;
+  return replaceRequired(text, pattern, "$state-path-list", () =>
+    `${display.statePathListHeading}\n\n${
+      display.strictStatePaths.map((path) => `- \`${path}\``).join("\n")
+    }\n`
   );
 }
 

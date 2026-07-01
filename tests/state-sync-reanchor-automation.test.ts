@@ -545,7 +545,7 @@ async function writePolicyV2Claim(cwd: string): Promise<void> {
         sourceTreeDigest: {
           algorithm: "git-ls-tree-sha256",
           value: "0".repeat(64),
-          excludedPaths: ["docs/current/state-sync-record.json"]
+          excludedPaths: policyV2SourceTreeDigestExcludedPaths()
         }
       },
       allowedContexts: [
@@ -881,6 +881,18 @@ async function createGitFixture(): Promise<string> {
 function strictStateRecordPaths(): string[] {
   return [
     "docs/current/state-sync-record.json"
+  ];
+}
+
+function policyV2SourceTreeDigestExcludedPaths(): string[] {
+  return [
+    "docs/current/state-sync-record.json",
+    "docs/current/CURRENT_STATE.md",
+    ".agent_board/CHECKPOINT.md",
+    ".agent_board/HANDOFF.md",
+    ".agent_board/RUN_STATE.md",
+    ".agent_board/TASK_QUEUE.md",
+    ".agent_board/VALIDATION_LOG.md"
   ];
 }
 
