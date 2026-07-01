@@ -1,4 +1,3 @@
-const CURRENT_STATE_DOC = "docs/current/CURRENT_STATE.md";
 const STATE_SYNC_RECORD_DOC = "docs/current/state-sync-record.json";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
@@ -413,23 +412,15 @@ export function reviewStateSyncAudit(
   const validatedSourceCommit = resolvedClaim.validatedSourceCommit;
   const latestValidatedCommit = resolvedClaim.latestValidatedCommit;
   const upstreamDivergence = resolvedClaim.upstreamDivergence;
-  const stateSurfaces = [
-    {
-      path: CURRENT_STATE_DOC,
-      text: input.currentStateText
-    },
-    {
-      path: ".agent_board/*",
-      text: input.agentBoardText
-    }
-  ];
+  // Markdown and agent-board surfaces are display/handoff evidence, not audit authority.
+  const authoritySurfaces: Array<{ path: string; text: string }> = [];
   if (input.stateSyncClaimText !== undefined) {
-    stateSurfaces.push({
+    authoritySurfaces.push({
       path: STATE_SYNC_RECORD_DOC,
       text: input.stateSyncClaimText
     });
   }
-  const sanitization = inspectStateSyncSanitization(stateSurfaces);
+  const sanitization = inspectStateSyncSanitization(authoritySurfaces);
   const syntheticReviewState = syntheticReviewStateAllowed(
     input,
     resolvedClaim,

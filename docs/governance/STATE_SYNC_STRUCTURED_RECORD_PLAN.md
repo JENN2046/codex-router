@@ -350,13 +350,13 @@ validated source evidence, when present, must still be honored
 synthetic fallback must not allow a stale or unreachable anchor when validated
 source evidence exists
 Markdown and agent board evidence must not become core anchor authority
-output sanitization still passes
+structured-claim sanitization still passes
 audit remains read-only
 ```
 
 This transition may satisfy only the divergence compatibility portion of the
-audit. It must not bypass source reachability, output sanitization, dirty
-worktree checks, or synthetic anchor hardening.
+audit. It must not bypass source reachability, structured-claim sanitization,
+dirty worktree checks, or synthetic anchor hardening.
 
 `merge_ref_checkout` is not accepted as a structured claim transition in Phase 1.
 Detached pull request merge refs may still pass an existing branch-head
@@ -429,12 +429,12 @@ Display drift contract:
 - Free-form Markdown prose and handoff notes remain evidence/display surfaces;
   they do not become governance authority unless represented by a structured
   check.
-- Sanitization issues still identify the surface and line, but must not echo
-  secrets or machine-local absolute paths.
+- Structured-claim sanitization issues still identify the surface and line, but
+  must not echo secrets or machine-local absolute paths.
 - The default branch-head state-sync audit no longer needs to read
-  `CURRENT_STATE.md` or `.agent_board/*`. Callers may pass those texts
-  explicitly for optional sanitization, but missing display or handoff files are
-  not a state-sync audit failure.
+  `CURRENT_STATE.md` or `.agent_board/*`. Sanitizing those optional display and
+  handoff surfaces belongs to explicit tooling or human review, not the
+  branch-head state-sync PASS/BLOCK path.
 
 ### Main Reanchor Operation
 
@@ -697,9 +697,8 @@ Phase 2-B keeps Markdown and `.agent_board/*` as display/evidence surfaces:
 Checks should include:
 
 - required structured claim file exists;
-- no secret markers in surfaces explicitly supplied for sanitization;
-- no machine-local absolute paths in surfaces explicitly supplied for
-  sanitization;
+- no secret markers in the structured claim surface;
+- no machine-local absolute paths in the structured claim surface;
 - current structured claim/source anchors are valid and reachable through JSON
   claim semantics.
 
