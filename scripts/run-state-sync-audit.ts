@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import {
   formatStateSyncAuditResult,
   parseStateSyncClaim,
+  parseStateSyncPolicyV2Claim,
   reviewStateSyncAudit,
   type StateSyncAuditInput
 } from "../packages/state-sync-audit/src/index.js";
@@ -16,6 +17,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 const STATE_SYNC_RECORD_DOC = "docs/current/state-sync-record.json";
+const MAIN_UPSTREAM_REF = "refs/remotes/origin/main";
 
 export async function collectStateSyncAuditInput(
   cwd = process.cwd()
@@ -51,9 +53,11 @@ export async function collectStateSyncAuditInput(
     ]);
 
   const parsedClaim = parseStateSyncClaim(stateSyncClaimText);
+  const parsedPolicyV2Claim = parseStateSyncPolicyV2Claim(stateSyncClaimText);
   const observedUpstream = await resolveObservedUpstream(
     localUpstream.trim(),
     parsedClaim,
+    parsedPolicyV2Claim,
     cwd
   );
   const aheadBehind = await gitAheadBehindFromRef("HEAD", observedUpstream, cwd);
@@ -64,9 +68,7 @@ export async function collectStateSyncAuditInput(
     originMainFull: originMainFull.trim()
   });
   const claimSourceTreeDigestExcludedPaths =
-    parsedClaim.status === "valid"
-      ? parsedClaim.claim.source.sourceTreeDigest.excludedPaths
-      : undefined;
+    sourceTreeDigestExcludedPathsFromClaim(parsedClaim, parsedPolicyV2Claim);
 
   const input: StateSyncAuditInput = {
     gitStatusShort,
@@ -335,9 +337,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function resolveObservedUpstream(
   localUpstream: string,
   parsedClaim: ReturnType<typeof parseStateSyncClaim>,
+  parsedPolicyV2Claim: ReturnType<typeof parseStateSyncPolicyV2Claim>,
   cwd: string
 ): Promise<string> {
   if (parsedClaim.status !== "valid") {
+    if (
+      parsedPolicyV2Claim.status === "valid"
+      && await gitRefExists(MAIN_UPSTREAM_REF, cwd)
+    ) {
+      return MAIN_UPSTREAM_REF;
+    }
+
     return localUpstream;
   }
 
@@ -352,6 +362,21 @@ async function resolveObservedUpstream(
 
   const normalizedUpstream = normalizeClaimUpstreamRef(claimedUpstream);
   return await gitRefExists(normalizedUpstream, cwd) ? normalizedUpstream : "";
+}
+
+function sourceTreeDigestExcludedPathsFromClaim(
+  parsedClaim: ReturnType<typeof parseStateSyncClaim>,
+  parsedPolicyV2Claim: ReturnType<typeof parseStateSyncPolicyV2Claim>
+): string[] | undefined {
+  if (parsedClaim.status === "valid") {
+    return parsedClaim.claim.source.sourceTreeDigest.excludedPaths;
+  }
+
+  if (parsedPolicyV2Claim.status === "valid") {
+    return parsedPolicyV2Claim.claim.source.sourceTreeDigest.excludedPaths;
+  }
+
+  return undefined;
 }
 
 function validatedSourceAnchorFromClaimOrLegacy(

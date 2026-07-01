@@ -276,13 +276,21 @@ export type StateSyncAuditOutputFormat = "text" | "json";
 interface ResolvedStateSyncClaim {
   claimSource: StateSyncClaimSource;
   structuredClaimValid: boolean;
+  policyVersion:
+    | StateSyncClaim["policyVersion"]
+    | StateSyncPolicyV2Claim["policyVersion"]
+    | undefined;
+  policyV2Claim: StateSyncPolicyV2Claim | undefined;
   currentHead: string | undefined;
   branch: string | undefined;
   upstream: string | undefined;
   validatedSourceCommit: string | undefined;
   latestValidatedCommit: string | undefined;
   upstreamDivergence: string | undefined;
-  sourceTreeDigest: StateSyncClaim["source"]["sourceTreeDigest"] | undefined;
+  sourceTreeDigest:
+    | StateSyncClaim["source"]["sourceTreeDigest"]
+    | StateSyncPolicyV2Claim["source"]["sourceTreeDigest"]
+    | undefined;
   transitionKind: StateSyncTransitionKind | undefined;
   allowedStatePaths: string[] | undefined;
 }
@@ -578,9 +586,30 @@ export function resolveStateSyncClaim(
   const parsed = parseStateSyncClaim(input.stateSyncClaimText);
 
   if (parsed.status === "invalid") {
+    const policyV2Parsed = parseStateSyncPolicyV2Claim(input.stateSyncClaimText);
+    if (policyV2Parsed.status === "valid") {
+      return {
+        claimSource: "structured",
+        structuredClaimValid: true,
+        policyVersion: policyV2Parsed.claim.policyVersion,
+        policyV2Claim: policyV2Parsed.claim,
+        currentHead: undefined,
+        branch: undefined,
+        upstream: undefined,
+        validatedSourceCommit: undefined,
+        latestValidatedCommit: undefined,
+        upstreamDivergence: undefined,
+        sourceTreeDigest: policyV2Parsed.claim.source.sourceTreeDigest,
+        transitionKind: undefined,
+        allowedStatePaths: strictStateRecordPaths()
+      };
+    }
+
     return {
       claimSource: "invalid_structured",
       structuredClaimValid: false,
+      policyVersion: undefined,
+      policyV2Claim: undefined,
       currentHead: undefined,
       branch: undefined,
       upstream: undefined,
@@ -601,6 +630,8 @@ export function resolveStateSyncClaim(
     return {
       claimSource: "structured",
       structuredClaimValid: true,
+      policyVersion: parsed.claim.policyVersion,
+      policyV2Claim: undefined,
       currentHead: parsed.claim.source.validatedSourceCommit,
       branch: parsed.claim.subject.branch,
       upstream: normalizeClaimUpstreamRef(parsed.claim.subject.upstream),
@@ -616,6 +647,8 @@ export function resolveStateSyncClaim(
   return {
     claimSource: "missing_structured",
     structuredClaimValid: false,
+    policyVersion: undefined,
+    policyV2Claim: undefined,
     currentHead: undefined,
     branch: undefined,
     upstream: undefined,
@@ -673,64 +706,29 @@ export function reviewStateSyncAudit(
     && sourceTreeDigestCompatibleWithHead;
   const stateSyncReanchorPrCandidate =
     stateSyncReanchorPrCandidateCheckout(resolvedClaim, input);
+  const policyV2Claim = resolvedClaim.policyV2Claim;
+  const policyV2ClaimActive = policyV2Claim !== undefined;
+  const policyV2TransitionAllowed = policyV2Claim === undefined
+    ? false
+    : stateSyncPolicyV2TransitionIsAllowed(
+        policyV2Claim,
+        input,
+        ahead,
+        behind
+      );
   const checks: StateSyncAuditChecks = {
     packageScriptPresent: packageScriptReview.mismatchCount === 0,
     currentStateRecorded: true,
     currentBranchMatches:
-      detachedSyntheticReviewCheckout
+      policyV2ClaimActive
+      || detachedSyntheticReviewCheckout
       || stateSyncReanchorPrCandidate
       || resolvedBranchMatchesInput(resolvedClaim, input),
-    validatedSourceHeadRecorded: stateCommitMatchesValidatedSource(
-      currentHead,
-      validatedSourceCommit,
-      latestValidatedCommit,
-      input.head,
-      input.parentHead,
-      input.committedPathsSinceValidatedSource,
-      input.validatedSourceTreeDiffPaths,
-      input.validatedSourceAncestorOfHead,
-      sourceTreeDigestOnlyCompatibility,
-      input.allowedStateCommits,
-      syntheticReviewState,
-      resolvedClaim.allowedStatePaths
-    ),
-    validatedSourceCommitRecorded: stateCommitMatchesValidatedSource(
-      validatedSourceCommit,
-      validatedSourceCommit,
-      latestValidatedCommit,
-      input.head,
-      input.parentHead,
-      input.committedPathsSinceValidatedSource,
-      input.validatedSourceTreeDiffPaths,
-      input.validatedSourceAncestorOfHead,
-      sourceTreeDigestOnlyCompatibility,
-      input.allowedStateCommits,
-      syntheticReviewState,
-      resolvedClaim.allowedStatePaths
-    ),
-    upstreamRecorded:
-      resolvedClaim.claimSource === "structured"
-        ? resolvedClaim.upstream === input.upstream
-        : input.upstream === "" || resolvedClaim.upstream === input.upstream,
-    validatedSourceDivergenceRecorded:
-      validatedSourceDivergenceIsRecorded(
-        detachedSyntheticReviewCheckout,
-        upstreamDivergence,
-        stateOnlyDivergenceSnapshotAllowed(resolvedClaim),
-        input.committedPathsSinceValidatedSource,
-        input.validatedSourceAncestorOfHead,
-        ahead,
-        behind,
-        validatedSourceAhead,
-        validatedSourceBehind,
-        resolvedClaim.allowedStatePaths,
-        sourceTreeDigestOnlyCompatibility,
-        stateSyncReanchorPrCandidate
-      ),
-    latestValidatedCommitRecorded:
-      latestValidatedCommit !== undefined
-      && latestValidatedCommit === validatedSourceCommit
-      && stateCommitMatchesHead(
+    validatedSourceHeadRecorded:
+      policyV2ClaimActive
+      || stateCommitMatchesValidatedSource(
+        currentHead,
+        validatedSourceCommit,
         latestValidatedCommit,
         input.head,
         input.parentHead,
@@ -742,10 +740,69 @@ export function reviewStateSyncAudit(
         syntheticReviewState,
         resolvedClaim.allowedStatePaths
       ),
-    dirtyWorktreeStateOnly: dirtyStatusEntriesAreAllowedStatePaths(
-      input.gitStatusShort,
-      resolvedClaim.allowedStatePaths
-    ),
+    validatedSourceCommitRecorded:
+      policyV2ClaimActive
+      || stateCommitMatchesValidatedSource(
+        validatedSourceCommit,
+        validatedSourceCommit,
+        latestValidatedCommit,
+        input.head,
+        input.parentHead,
+        input.committedPathsSinceValidatedSource,
+        input.validatedSourceTreeDiffPaths,
+        input.validatedSourceAncestorOfHead,
+        sourceTreeDigestOnlyCompatibility,
+        input.allowedStateCommits,
+        syntheticReviewState,
+        resolvedClaim.allowedStatePaths
+      ),
+    upstreamRecorded:
+      policyV2ClaimActive
+        ? true
+        : resolvedClaim.claimSource === "structured"
+          ? resolvedClaim.upstream === input.upstream
+          : input.upstream === "" || resolvedClaim.upstream === input.upstream,
+    validatedSourceDivergenceRecorded:
+      policyV2ClaimActive
+      || validatedSourceDivergenceIsRecorded(
+          detachedSyntheticReviewCheckout,
+          upstreamDivergence,
+          stateOnlyDivergenceSnapshotAllowed(resolvedClaim),
+          input.committedPathsSinceValidatedSource,
+          input.validatedSourceAncestorOfHead,
+          ahead,
+          behind,
+          validatedSourceAhead,
+          validatedSourceBehind,
+          resolvedClaim.allowedStatePaths,
+          sourceTreeDigestOnlyCompatibility,
+          stateSyncReanchorPrCandidate
+        ),
+    latestValidatedCommitRecorded:
+      policyV2ClaimActive
+      || (
+        latestValidatedCommit !== undefined
+        && latestValidatedCommit === validatedSourceCommit
+        && stateCommitMatchesHead(
+          latestValidatedCommit,
+          input.head,
+          input.parentHead,
+          input.committedPathsSinceValidatedSource,
+          input.validatedSourceTreeDiffPaths,
+          input.validatedSourceAncestorOfHead,
+          sourceTreeDigestOnlyCompatibility,
+          input.allowedStateCommits,
+          syntheticReviewState,
+          resolvedClaim.allowedStatePaths
+        )
+      ),
+    dirtyWorktreeStateOnly:
+      policyV2ClaimActive
+        ? countStatusEntries(input.gitStatusShort) === 0
+        : dirtyStatusEntriesAreAllowedStatePaths(
+          input.gitStatusShort,
+          resolvedClaim.allowedStatePaths
+        ),
     staleAfterCommitRecorded: true,
     validationBaselineRecorded: true,
     executionBoundaryRecorded: true,
@@ -753,18 +810,21 @@ export function reviewStateSyncAudit(
     staleMarkersAbsent: true,
     structuredClaimValid: resolvedClaim.structuredClaimValid,
     evidenceDriftAbsent: true,
-    structuredTransitionAllowed: structuredTransitionIsAllowed(
-      resolvedClaim,
-      input,
-      ahead,
-      behind,
-      validatedSourceAhead,
-      validatedSourceBehind,
-      detachedSyntheticReviewCheckout,
-      sourceTreeDigestCommitBindingValid,
-      sourceTreeDigestOnlyCompatibility,
-      stateSyncReanchorPrCandidate
-    ),
+    structuredTransitionAllowed:
+      policyV2ClaimActive
+        ? policyV2TransitionAllowed
+        : structuredTransitionIsAllowed(
+          resolvedClaim,
+          input,
+          ahead,
+          behind,
+          validatedSourceAhead,
+          validatedSourceBehind,
+          detachedSyntheticReviewCheckout,
+          sourceTreeDigestCommitBindingValid,
+          sourceTreeDigestOnlyCompatibility,
+          stateSyncReanchorPrCandidate
+        ),
     outputSanitized: sanitization.issues.length === 0,
     auditReadOnly: true
   };
@@ -1251,6 +1311,94 @@ function structuredTransitionIsAllowed(
     && validatedSourceBehind === -1
     && countStatusEntries(input.gitStatusShort) === 0
     && resolvedClaim.validatedSourceCommit === resolvedClaim.latestValidatedCommit;
+}
+
+function stateSyncPolicyV2TransitionIsAllowed(
+  claim: StateSyncPolicyV2Claim,
+  input: StateSyncAuditInput,
+  currentAhead: number,
+  currentBehind: number
+): boolean {
+  const eventName = input.eventName ?? "";
+  const targetRef = input.targetRef ?? "";
+  const remoteTrackingRef = input.remoteTrackingRef ?? input.upstream;
+  const repositoryId = input.repositoryId ?? "";
+
+  const commonAllowed =
+    claim.repository.fullName === (input.repositoryFullName ?? "")
+    && (
+      claim.repository.id === undefined
+      || repositoryId === ""
+      || claim.repository.id === repositoryId
+    )
+    && claim.source.sourceTreeDigest.algorithm === ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM
+    && sameStringSet(
+      claim.source.sourceTreeDigest.excludedPaths,
+      strictStateRecordPaths()
+    )
+    && input.headSourceTreeDigest === claim.source.sourceTreeDigest.value
+    && countStatusEntries(input.gitStatusShort) === 0
+    && policyV2ContextAllowed(claim, eventName, targetRef);
+
+  if (!commonAllowed) {
+    return false;
+  }
+
+  if (eventName === "push") {
+    return targetRef === ACCEPTED_POLICY_V2_TARGET_REF
+      && input.ref === ACCEPTED_POLICY_V2_TARGET_REF
+      && remoteTrackingRef === MAIN_UPSTREAM_REF
+      && sameFullGitSha(input.headFull, input.githubSha)
+      && sameFullGitSha(input.originMainFull, input.githubSha)
+      && currentAhead === 0
+      && currentBehind === 0;
+  }
+
+  if (eventName === "pull_request") {
+    if (
+      targetRef !== ACCEPTED_POLICY_V2_TARGET_REF
+      || input.baseRef !== ACCEPTED_POLICY_V2_TARGET_REF
+      || (
+        input.checkoutSubject !== "pull_request_head"
+        && input.checkoutSubject !== "pull_request_merge"
+      )
+    ) {
+      return false;
+    }
+
+    if (input.checkoutSubject === "pull_request_head") {
+      return sameFullGitSha(input.headFull, input.pullRequestHeadSha);
+    }
+
+    return sameFullGitSha(input.headFull, input.githubSha);
+  }
+
+  return false;
+}
+
+function policyV2ContextAllowed(
+  claim: StateSyncPolicyV2Claim,
+  event: string,
+  targetRef: string
+): boolean {
+  return claim.allowedContexts.some((context) => (
+    context.event === event && context.targetRef === targetRef
+  ));
+}
+
+function sameFullGitSha(
+  left: string | undefined,
+  right: string | undefined
+): boolean {
+  return left !== undefined
+    && right !== undefined
+    && isFullGitSha(left)
+    && isFullGitSha(right)
+    && left.toLowerCase() === right.toLowerCase();
+}
+
+function isFullGitSha(value: string): boolean {
+  return /^[0-9a-f]{40}$/i.test(value);
 }
 
 function divergenceMatches(
