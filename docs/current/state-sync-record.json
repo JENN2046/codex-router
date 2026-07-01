@@ -6,10 +6,10 @@
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "d2fefd5",
-    "latestValidatedCommit": "d2fefd5",
+    "validatedSourceCommit": "8430021",
+    "latestValidatedCommit": "8430021",
     "recordedDivergence": {
-      "ahead": 2,
+      "ahead": 1,
       "behind": 0
     },
     "sourceTreeDigest": {
