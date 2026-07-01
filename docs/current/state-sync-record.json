@@ -2,26 +2,26 @@
   "schemaVersion": 1,
   "policyVersion": "state-sync-policy.v1",
   "subject": {
-    "branch": "main",
+    "branch": "docs/state-sync-policy-v2-content-attestation-design",
     "upstream": "refs/remotes/origin/main"
   },
   "source": {
-    "validatedSourceCommit": "152e8f9",
-    "latestValidatedCommit": "152e8f9",
+    "validatedSourceCommit": "28c516a",
+    "latestValidatedCommit": "28c516a",
     "recordedDivergence": {
-      "ahead": 1,
+      "ahead": 5,
       "behind": 0
     },
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "57ad2f0b1c88e527c8a2554f145a98a06dcff082eb76145735522a67c7f30ded",
+      "value": "e5912c6e9ac2fe640fca44e639514cee4bfeba9c77b3fda34f5a82ed9f2f94d0",
       "excludedPaths": [
         "docs/current/state-sync-record.json"
       ]
     }
   },
   "transition": {
-    "kind": "state_only_pushed",
+    "kind": "state_only_pending_push",
     "allowedStatePaths": [
       "docs/current/state-sync-record.json"
     ]
