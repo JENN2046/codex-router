@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `6952e94c5949cf67dffcf5bc1fa5d7053a82b2964a7e2e4e34b2e151ded3533d`
+  `9804b674b3ebbc1da28efaeb285ab635994b299bb42bdb024d4450448ce59627`
 
 Source digest excluded paths:
 
@@ -201,5 +201,5 @@ Current state line:
 - State-sync reanchor preparation helper: merged through PR #54.
 - P1 squash fallback digest hardening: merged through PR #54.
 - Post-PR #54 `main` reanchor: pushed and validated.
-- Conservative post-merge reanchor PR automation: retained as a legacy v1
-  fallback on `automate/state-sync-reanchor-pr`.
+- Legacy v1 post-merge reanchor PR workflow: retained as a manual compatibility
+  fallback; policy v2 content attestation is the default main path.

@@ -445,15 +445,17 @@ For schema v1 state-only records, post-merge main reanchors should be a guarded
 operation, not a repeated manual checklist. Policy v2 content attestations are
 the main path and normally do not require this post-squash reanchor.
 
-The conservative legacy v1 path remains:
+The conservative legacy v1 GitHub fallback is manual, not a normal `main` push
+reaction:
 
 ```text
-main push -> state-sync/reanchor-main PR -> review / CI -> merge
+workflow_dispatch -> state-sync/reanchor-main PR -> review / CI -> merge
 ```
 
-That PR path is still useful for compatibility where direct `main` pushes are
-not authorized or where repository branch protection should require review for
-every v1 state/docs record. Because the PR is created or updated with
+That PR path is still useful for compatibility when an operator intentionally
+needs a legacy v1 state/docs record reviewed through branch protection. It is
+not part of the default policy v2 content-attestation flow. Because the PR is
+created or updated with
 `GITHUB_TOKEN`, approval-required workflow runs are an expected GitHub
 authorization behavior and should not be mistaken for proof that CI failed to
 trigger.
@@ -778,10 +780,10 @@ Implemented Phase 4 adjustment:
   path. The v1 `subject.branch == "main"` and
   `transition.kind == "state_only_pushed"` gate is retained only as compatibility
   fallback. A squash merge that still carries a PR-branch
-  `state_only_pending_push` v1 claim does not run the push audit until a
-  follow-up state/docs reanchor records the `main` claim; this is the expected
-  fail-closed legacy flow, not an instruction to weaken checkout or divergence
-  verification.
+  `state_only_pending_push` v1 claim does not run the push audit until an
+  explicit legacy reanchor records the `main` claim. Policy v2 records avoid
+  that follow-up reanchor by attesting the source content instead of the final
+  squash commit identity.
 
 ### Phase 5 Design: Content Attestation Policy v2
 

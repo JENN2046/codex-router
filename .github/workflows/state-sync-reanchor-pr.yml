@@ -1,8 +1,7 @@
-name: State Sync Reanchor PR (Legacy v1 Fallback)
+name: State Sync Reanchor PR (Legacy v1 Manual Fallback)
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,7 +13,7 @@ concurrency:
 
 jobs:
   reanchor-pr:
-    name: Prepare State Sync Reanchor PR (Legacy v1 Fallback)
+    name: Prepare State Sync Reanchor PR (Legacy v1 Manual Fallback)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
