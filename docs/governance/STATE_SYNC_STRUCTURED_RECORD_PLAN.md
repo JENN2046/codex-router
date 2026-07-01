@@ -826,6 +826,7 @@ The version 2 record should be smaller than the version 1 record:
   "schemaVersion": 2,
   "policyVersion": "state-sync-policy.v2",
   "repository": {
+    "id": "GitHub repository id when available",
     "fullName": "JENN2046/codex-router"
   },
   "source": {
@@ -854,7 +855,9 @@ This shape is intentionally not final implementation schema. It records the
 intended authority split:
 
 - `source.sourceTreeDigest` is the content claim.
-- `repository` and `allowedContexts` are bounded policy selectors.
+- `repository` and `allowedContexts` are bounded policy selectors. They are
+  checked only after the verifier's own policy allows the same context; they do
+  not grant authority by themselves.
 - live `HEAD`, current branch, upstream, divergence, workflow status, and
   validation result are observations, not claim fields.
 - `validation.requiredCommands` should not be carried forward as an authority
@@ -883,7 +886,12 @@ A `push` audit for `main` may pass only when every condition below is true:
 ```text
 claim.schemaVersion == 2
 claim.policyVersion == "state-sync-policy.v2"
+verifier policy accepts "state-sync-policy.v2"
+verifier policy allows:
+  event == "push"
+  targetRef == "refs/heads/main"
 claim.repository.fullName == observed.repository.fullName
+claim.repository.id == observed.repository.id, when both are available
 observed.eventName == "push"
 observed.ref == "refs/heads/main"
 observed.branch == "main"
@@ -916,7 +924,12 @@ A pull request audit may pass only when every condition below is true:
 ```text
 claim.schemaVersion == 2
 claim.policyVersion == "state-sync-policy.v2"
+verifier policy accepts "state-sync-policy.v2"
+verifier policy allows:
+  event == "pull_request"
+  targetRef == "refs/heads/main"
 claim.repository.fullName == observed.repository.fullName
+claim.repository.id == observed.repository.id, when both are available
 observed.eventName == "pull_request"
 observed.baseRef == "refs/heads/main"
 claim.allowedContexts contains:
@@ -993,8 +1006,9 @@ Phase 5 must preserve these fail-closed boundaries:
 - The source digest is not a standalone pass token. It is valid only with a
   matching observed repository, event, target ref, clean worktree, and read-only
   audit.
-- `allowedContexts` in the committed record is not sufficient by itself. It must
-  be constrained by verifier code and matched against observation.
+- `allowedContexts` in the committed record is not sufficient by itself. The
+  verifier must first allow the same event/ref context in code, then match the
+  committed selector against observation.
 - The digest exclusion set remains exactly
   `["docs/current/state-sync-record.json"]` in the first version. No glob,
   directory, `.agent_board`, Markdown display, workflow, script, source, test,
