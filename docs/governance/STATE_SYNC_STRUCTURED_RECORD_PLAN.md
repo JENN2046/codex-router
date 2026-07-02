@@ -1,5 +1,7 @@
 # State Sync Structured Record Plan
 
+Completed design record; not the normal operator runbook.
+
 ## Purpose
 
 This plan records the proposed restructuring of the outer `state-sync` self-audit
