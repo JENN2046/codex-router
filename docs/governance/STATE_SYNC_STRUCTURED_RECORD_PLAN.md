@@ -463,14 +463,15 @@ trigger.
 For operator-authorized direct legacy v1 reanchor pushes, the local runner is:
 
 ```bash
-npm run state-sync:reanchor-main
-npm run state-sync:reanchor-main -- --write
-npm run state-sync:reanchor-main -- --write --commit
-npm run state-sync:reanchor-main -- --write --commit --push
+node --import tsx scripts/run-state-sync-main-reanchor.ts
+node --import tsx scripts/run-state-sync-main-reanchor.ts --write
+node --import tsx scripts/run-state-sync-main-reanchor.ts --write --commit
+node --import tsx scripts/run-state-sync-main-reanchor.ts --write --commit --push
 ```
 
-The default command is read-only. Write, commit, and push are opt-in. The runner
-keeps the operation bounded by checking that:
+The runner is intentionally not exposed as a package script. The default command
+is read-only. Write, commit, and push are opt-in. The runner keeps the operation
+bounded by checking that:
 
 - the current branch is exactly `main`;
 - the selected remote is exactly `origin`, matching the Phase 1 structured
@@ -493,10 +494,12 @@ keeps the operation bounded by checking that:
   `refs/remotes/origin/main` before push.
 
 Commit-only reanchors are intentionally resumable through the same guarded
-runner. After `npm run state-sync:reanchor-main -- --write --commit`, the local
-claim is already `main` / `state_only_pushed`, but upstream does not contain the
-commit yet, so the full state-sync audit is expected to fail until the push
-lands. A later `npm run state-sync:reanchor-main -- --push` may continue only
+runner. After
+`node --import tsx scripts/run-state-sync-main-reanchor.ts --write --commit`,
+the local claim is already `main` / `state_only_pushed`, but upstream does not
+contain the commit yet, so the full state-sync audit is expected to fail until
+the push lands. A later
+`node --import tsx scripts/run-state-sync-main-reanchor.ts --push` may continue only
 when the worktree is clean, local `main` is exactly one commit ahead of
 `origin/main`, that commit's parent is the observed remote head, the parent
 claim is not already `main` / `state_only_pushed`, the structured gate reports
@@ -1061,10 +1064,13 @@ Phase 5 was split into separate pull requests:
 4. Switch the committed record to version 2 after the verifier is live.
 5. Disable `state-sync/reanchor-main` automation from the normal path after
    version 2 has passed real pull request and main push CI.
+6. Remove the legacy reanchor runner from default package scripts while keeping
+   the low-level script available for explicit compatibility repair.
 
-Version 2 has passed real pull request and main push CI, and the legacy v1
-reanchor workflow is now manual-only. The existing Phase 1 reanchor flow remains
-available as a legacy compatibility fallback until it is separately retired.
+Version 2 has passed real pull request and main push CI. The legacy v1 reanchor
+workflow is now manual-only, and the local runner is no longer exposed as a
+default package script. The existing Phase 1 reanchor flow remains available as
+a low-level legacy compatibility fallback until it is separately retired.
 
 ## Non-Goals For The First Implementation
 

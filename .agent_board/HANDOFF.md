@@ -100,16 +100,17 @@ Completed:
 - malformed execution-observation refs fail closed
 - no-observationBus recovery remains compatible and records no consumable
   evidence refs
-- guarded local `main` state-sync reanchor runner remains available as a legacy
-  v1 compatibility tool: `npm run state-sync:reanchor-main`
+- guarded local `main` state-sync reanchor runner remains available as a
+  low-level legacy v1 compatibility tool:
+  `node --import tsx scripts/run-state-sync-main-reanchor.ts`
 - the runner defaults to read-only, rejects non-`main` branches, requires local
   `HEAD` to match `refs/remotes/origin/main`, verifies strict state/docs diffs,
   and blocks stale pushes when `origin/main` moves before push
 - the runner now delays full state-sync audit until after successful direct
   push, so default validation does not fail on the unavoidable pre-push
   `state_only_pushed` intermediate state
-- README and the structured record plan document the legacy v1 runner as an
-  operator-authorized compatibility path while preserving the manual
+- README and the structured record plan document the legacy v1 runner as a
+  low-level operator-authorized compatibility path while preserving the manual
   `state-sync/reanchor-main` PR workflow fallback
 - `runtime-control` now exports `createRuntimeSignalFromGovernanceState()`
 - runtime signal derivation counts `execution_failure` anomalies, preserves

@@ -391,12 +391,13 @@ Policy v2 content attestations are the normal state-sync path and do not need a
 post-merge `main` reanchor.
 
 Legacy v1 compatibility still has a guarded local runner for operator-authorized
-repair or migration work:
+repair or migration work. It is intentionally not exposed as an npm script; use
+the low-level command directly only when working on legacy v1 state records:
 
 ```bash
-npm run state-sync:reanchor-main
-npm run state-sync:reanchor-main -- --write --commit
-npm run state-sync:reanchor-main -- --write --commit --push
+node --import tsx scripts/run-state-sync-main-reanchor.ts
+node --import tsx scripts/run-state-sync-main-reanchor.ts --write --commit
+node --import tsx scripts/run-state-sync-main-reanchor.ts --write --commit --push
 ```
 
 The first form is read-only. The commit form creates a local reanchor commit

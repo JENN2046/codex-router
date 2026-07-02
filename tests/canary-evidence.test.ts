@@ -38,6 +38,19 @@ test("canary evidence paths are risk-specific while preserving latest alias", ()
   ]);
 });
 
+test("legacy state-sync reanchor runner is not a default package script", async () => {
+  const packageJson = JSON.parse(
+    await readFile(new URL("../package.json", import.meta.url), "utf-8")
+  ) as { scripts?: Record<string, string> };
+  const runner = await readFile(
+    new URL("../scripts/run-state-sync-main-reanchor.ts", import.meta.url),
+    "utf-8"
+  );
+
+  assert.equal(packageJson.scripts?.["state-sync:reanchor-main"], undefined);
+  assert.match(runner, /export async function runStateSyncMainReanchor/);
+});
+
 test("release canary evidence preserves low and medium results", async () => {
   const evidenceDir = await mkdtemp(join(tmpdir(), "codex-router-canary-evidence-"));
 
