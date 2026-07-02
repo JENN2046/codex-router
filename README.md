@@ -388,30 +388,9 @@ npm run governance -- operator readonly
 ```
 
 Policy v2 content attestations are the normal state-sync path and do not need a
-post-merge `main` reanchor.
-
-Legacy v1 compatibility still has a guarded local runner for operator-authorized
-repair or migration work. It is intentionally not exposed as an npm script; use
-the low-level command directly only when working on legacy v1 state records:
-
-```bash
-node --import tsx scripts/run-state-sync-main-reanchor.ts
-node --import tsx scripts/run-state-sync-main-reanchor.ts --write --commit
-node --import tsx scripts/run-state-sync-main-reanchor.ts --write --commit --push
-```
-
-The first form is read-only. The commit form creates a local reanchor commit
-without running the full state-sync audit because `state_only_pushed` becomes
-valid only after upstream contains that commit. A later `--push` run can resume
-that exact commit-only state when local `main` is clean, exactly `ahead 1 /
-behind 0`, the parent claim still needs a reanchor, and the local commit
-contains the full generated state-sync reanchor delta across strict state/docs
-paths. Resume also verifies rename sources and compares the local claim against
-the claim regenerated from the parent state before pushing. The runner is
-intentionally bound to `origin/main`, matching the structured claim policy. The
-push form runs the full state-sync audit after the successful push and refuses
-to push if `origin/main` moved while the local reanchor was being prepared. The
-manual reanchor PR workflow remains the compatibility fallback when direct
-`main` push is not authorized.
+post-merge `main` reanchor. Legacy v1 repair remains an advanced compatibility
+path; see the completed design record's
+[legacy v1 fallback](docs/governance/STATE_SYNC_STRUCTURED_RECORD_PLAN.md#legacy-v1-main-reanchor-fallback)
+section when explicitly working on old v1 state-only records.
 
 The old per-check package script aliases have been removed; use `npm run governance -- audit|acceptance|operator ...` instead.
