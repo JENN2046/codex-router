@@ -53,19 +53,36 @@ test("release validation tier avoids external and real host smoke by default", (
   assert.equal(commandIds.includes("smoke:workspace-write:telemetry"), false);
 });
 
-test("governance check runner lists audit acceptance and operator checks", () => {
+test("governance check runner default list shows current checks only", () => {
   const checks = listGovernanceChecks();
 
   assert.ok(checks.audit.includes("state-sync"));
+  assert.ok(checks.audit.includes("readonly-productization"));
+  assert.ok(checks.audit.includes("controlled-provider-execution-taskbook-review"));
   assert.ok(checks.acceptance.includes("readonly-chain"));
+  assert.ok(checks.operator.includes("readonly"));
+  assert.equal(checks.audit.includes("future-codex-cli-canary-execution-gate"), false);
+  assert.equal(checks.acceptance.includes("workspace-write-real-canary-auth"), false);
+  assert.equal(checks.operator.includes("telemetry"), false);
+});
+
+test("governance check runner all list keeps archived checks discoverable", () => {
+  const checks = listGovernanceChecks({ includeArchived: true });
+
+  assert.ok(checks.audit.includes("state-sync"));
+  assert.ok(checks.audit.includes("future-codex-cli-canary-execution-gate"));
+  assert.ok(checks.acceptance.includes("readonly-chain"));
+  assert.ok(checks.acceptance.includes("workspace-write-real-canary-auth"));
   assert.ok(checks.operator.includes("default"));
   assert.ok(checks.operator.includes("readonly"));
+  assert.ok(checks.operator.includes("telemetry"));
 });
 
 test("governance check runner resolves registered checks with passthrough args", () => {
   const audit = resolveGovernanceCheck("audit", "state-sync", ["--json"]);
   const acceptance = resolveGovernanceCheck("acceptance", "readonly-chain");
   const operator = resolveGovernanceCheck("operator", "readonly");
+  const archived = resolveGovernanceCheck("audit", "future-codex-cli-canary-execution-gate");
 
   assert.deepEqual(
     audit.args,
@@ -78,6 +95,10 @@ test("governance check runner resolves registered checks with passthrough args",
   assert.deepEqual(
     operator.args,
     expectedTsxArgs(["scripts/run-codex-cli-operator-acceptance-readonly.ts"])
+  );
+  assert.deepEqual(
+    archived.args,
+    expectedTsxArgs(["scripts/run-future-codex-cli-canary-execution-gate-audit.ts"])
   );
 });
 
