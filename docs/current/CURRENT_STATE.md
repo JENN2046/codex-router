@@ -115,6 +115,10 @@ baseline remains documented at
 `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`, with the
 current audit entry point `npm run governance -- audit controlled-provider-execution-taskbook-review`.
 
+Boundary audit marker:
+
+- `PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED`
+
 Blocked capabilities:
 
 - `general_workspace_write`
