@@ -43,14 +43,11 @@ Transition:
 
 - `content_attestation`
 
-Validation recorded for this source commit:
+Recent display-only validation:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/runtime-control.test.ts`: PASS
-- `npm test`: PASS
-- `npm run typecheck`: PASS
-- `npm run build`: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
+- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS
+- simulated PR state-sync audit: PASS
 
 State-sync audit expectation:
 
@@ -63,16 +60,14 @@ State-sync audit expectation:
 - expected audit source: `claimSource: structured`
 - Source-tree digest, allowed context, clean worktree, and read-only
   checks remain enforced by the state-sync audit.
-Boundary:
+Current safety boundary:
 
-- this state record commit intentionally changes only state/docs display and
-  handoff surfaces
-- no package, dependency, provider, env, secret, user config, or system config
-  change is part of this state record
-- no manual CI rerun
-- no real provider execution
-- no real Codex CLI execution
-- no direct push to `main` was executed by this branch record
+- state-sync authority remains `docs/current/state-sync-record.json`
+- display and handoff surfaces may be pruned without changing audit semantics
+- package, dependency, workflow, runtime, provider, env, secret, user config, and
+  system config changes are outside this pruning lane
+- real provider execution and real Codex CLI execution are not part of this lane
+- direct push to `main` requires separate explicit authorization
 
 <!-- state-sync-display:start -->
 Optional display generated from `docs/current/state-sync-record.json`.
