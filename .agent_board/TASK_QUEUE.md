@@ -84,13 +84,14 @@ Done:
 - added malformed-ref fail-closed coverage
 - recorded the no-observationBus compatibility path as no consumable evidence
 - added `scripts/run-state-sync-main-reanchor.ts`
-- added `npm run state-sync:reanchor-main`
+- removed the legacy reanchor runner from default package scripts while keeping
+  the low-level script available for explicit compatibility repair
 - covered no-op, non-main branch rejection, bounded local commit/push, and stale
   remote push blocking with tests
 - fixed the reviewed P1 by proving state-sync audit is not invoked until after
   the direct-push runner has pushed the reanchor commit
-- documented the legacy v1 operator-authorized direct-push runner while
-  preserving the conservative `state-sync/reanchor-main` PR fallback
+- documented the legacy v1 operator-authorized compatibility runner while
+  preserving the manual `state-sync/reanchor-main` PR fallback
 - added `createRuntimeSignalFromGovernanceState()` in `runtime-control`
 - added regression coverage for runtime-control no-op, escalation, open-circuit,
   and governance-state signal derivation
