@@ -35,16 +35,11 @@ Completed:
 - Phase 1 structured claim parser and resolver implemented
 - Phase 2 missing structured claim gate implemented
 - Phase 3 display-sync script implemented
-- Phase 4 state-sync CI push-to-main coverage landed on `main` through the
-  PR #50 squash merge. Main-push audit now uses policy v2 content attestations
-  as the main path; committed `main` / `state_only_pushed` records remain a
-  legacy v1 fallback.
-- PR #51 strict state record path convergence was squash-merged into `main`
-- post-PR #51 `main` state/docs reanchor was pushed and passed state-sync audit
-  and main-push CI
-- PR #52 state/docs cleanup was squash-merged into `main`
-- PR #53 evidence drift and unknown structured claim field hardening was
-  squash-merged into `main`
+- State-sync policy v2 content attestation is the main path for local,
+  pull_request, and main-push audit; committed v1 `main` /
+  `state_only_pushed` records remain a legacy fallback only.
+- Earlier state-sync pruning and hardening work is merged; old post-merge
+  reanchor events are history, not current operator steps.
 - collector reads `docs/current/state-sync-record.json`
 - collector uses the structured claim upstream ref as the bounded baseline even
   when local feature-branch tracking exists, then computes divergence from Git
@@ -64,20 +59,9 @@ Completed:
 - unknown structured claim fields fail closed in schema v1
 - transition formulas are enforced for structured claims
 - strict state-only path set includes `docs/current/state-sync-record.json`
-- `scripts/prepare-state-sync-reanchor.ts` prepares post-merge state-sync
-  reanchors without committing or pushing
-- squash fallback reanchors now verify `HEAD` against the recorded filtered
-  source tree digest before inferring it as source
-- legacy v1 reanchor PR workflow is retained only as a manual compatibility
-  fallback via `workflow_dispatch`
-- the manual fallback uses the fixed `state-sync/reanchor-main` branch, verifies
-  strict state/docs diffs, and creates or updates a PR instead of pushing
-  directly to `main`
-- the manual fallback fetches the fixed reanchor branch before push and binds
-  `--force-with-lease` to an explicit expected SHA or empty create-only
-  expectation
-- the generated PR body records that `GITHUB_TOKEN`-created or updated PR
-  workflow runs may require write-permission approval before CI proceeds
+- legacy v1 reanchor helper scripts, local runner, and manual PR workflow remain
+  available only as explicit compatibility fallback for old v1 state-only
+  records
 - `## State Sync Expectations` divergence prose is generated from the
   structured transition, preventing pending-push records from retaining
   pushed-main wording
@@ -100,18 +84,9 @@ Completed:
 - malformed execution-observation refs fail closed
 - no-observationBus recovery remains compatible and records no consumable
   evidence refs
-- guarded local `main` state-sync reanchor runner remains available as a
-  low-level legacy v1 compatibility tool:
-  `node --import tsx scripts/run-state-sync-main-reanchor.ts`
-- the runner defaults to read-only, rejects non-`main` branches, requires local
-  `HEAD` to match `refs/remotes/origin/main`, verifies strict state/docs diffs,
-  and blocks stale pushes when `origin/main` moves before push
-- the runner now delays full state-sync audit until after successful direct
-  push, so default validation does not fail on the unavoidable pre-push
-  `state_only_pushed` intermediate state
-- README and the structured record plan document the legacy v1 runner as a
-  low-level operator-authorized compatibility path while preserving the manual
-  `state-sync/reanchor-main` PR workflow fallback
+- README and the structured record plan contain the low-level legacy v1
+  reanchor details; this handoff surface keeps only the current main-path
+  status
 - `runtime-control` now exports `createRuntimeSignalFromGovernanceState()`
 - runtime signal derivation counts `execution_failure` anomalies, preserves
   context pressure, and maps high/critical governance risk to `risk_detected`

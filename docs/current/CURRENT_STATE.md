@@ -179,27 +179,12 @@ checks remain blocked.
 
 Current state line:
 
-- Structured state-sync plan: recorded.
-- Phase 1 structured claim verifier: implemented and tested.
-- Phase 2 missing-claim gate and Markdown authority removal: implemented and
-  tested.
-- Phase 3 display-sync script: implemented and tested.
-- Phase 4 state-sync audit on `push` to `main`: implemented. The main path is
-  now a policy v2 content attestation; committed `main` / `state_only_pushed`
-  records remain a legacy v1 fallback.
-- Bounded source tree digest verification for squash-only state records:
-  implemented and tested.
-- Markdown and `.agent_board/*` display drift blocking: retired from the
-  branch-head state-sync audit; display sync is now an optional freshness tool.
-- Unknown structured claim field fail-closed behavior: implemented and tested.
-- Machine-authoritative claim file: introduced.
-- Markdown and agent board: evidence/display surfaces.
-- Strict state record path convergence: implemented, merged through PR #51, and
-  reanchored on `main`.
-- State/docs cleanup: merged through PR #52 and reanchored on `main`.
-- Post-PR #53 `main` reanchor and state/docs cleanup: recorded.
-- State-sync reanchor preparation helper: merged through PR #54.
-- P1 squash fallback digest hardening: merged through PR #54.
-- Post-PR #54 `main` reanchor: pushed and validated.
-- Legacy v1 post-merge reanchor PR workflow: retained as a manual compatibility
-  fallback; policy v2 content attestation is the default main path.
+- State-sync authority: `docs/current/state-sync-record.json` using
+  `state-sync-policy.v2` content attestation.
+- Main path: local, pull_request, and main-push audits verify the filtered
+  source tree digest; squash merges do not require routine post-merge
+  reanchors.
+- Markdown and `.agent_board/*`: evidence/display surfaces only; display sync is
+  an optional freshness helper, not a governance authority.
+- Legacy v1 reanchor tooling and workflow: retained only as explicit
+  compatibility fallback for old v1 state-only records.

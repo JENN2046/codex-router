@@ -57,16 +57,8 @@ Checkpoint facts:
 - `scripts/sync-state-sync-display.ts` remains available as an optional display
   freshness helper.
 - Unknown structured claim fields fail closed in schema v1.
-- The reanchor preparation helper is merged through PR #54, remains
-  non-committing and non-pushing, and verifies squash fallback `HEAD` against
-  the recorded filtered source tree digest before reanchoring to it.
-- Legacy v1 reanchor PR workflow is retained only as a manual compatibility
-  fallback via `workflow_dispatch`; it creates or updates the fixed
-  `state-sync/reanchor-main` PR branch and never pushes directly to `main`.
-- The manual fallback fetches the fixed reanchor branch before push and uses an
-  explicit `--force-with-lease` expected SHA or empty create-only expectation.
-- The generated reanchor PR body records that `GITHUB_TOKEN`-created or updated
-  PR workflow runs may require write-permission approval before CI proceeds.
+- Legacy v1 reanchor helpers, local runner, and manual PR workflow are retained
+  only as explicit compatibility fallback for old v1 state-only records.
 - `## State Sync Expectations` divergence prose is generated from the
   structured transition, so pending-push records cannot retain pushed-main
   operator wording.
@@ -87,18 +79,8 @@ Checkpoint facts:
   to emitted observations.
 - Malformed execution-observation refs fail closed, and recovery without an
   observation bus remains compatible with no consumable evidence refs.
-- Guarded local `main` state-sync reanchor runner remains available as a
-  low-level legacy v1 compatibility tool:
-  `node --import tsx scripts/run-state-sync-main-reanchor.ts`.
-- The runner defaults to read-only, rejects non-`main` branches, requires local
-  `HEAD` to match `refs/remotes/origin/main`, verifies strict state/docs diffs,
-  and blocks stale pushes when `origin/main` moves before push.
-- Full state-sync audit in the direct-push runner now runs only after a
-  successful push, because `state_only_pushed` is not valid in the pre-push
-  local commit state.
-- README and the structured record plan document the legacy v1 local runner as
-  a low-level operator-authorized compatibility path while preserving the manual
-  `state-sync/reanchor-main` PR workflow fallback.
+- Legacy v1 direct reanchor details live in README and the structured record
+  plan; they are not part of the normal operator handoff path.
 - `runtime-control` now exposes
   `createRuntimeSignalFromGovernanceState()` for converting governance state
   into escalation-ready runtime signals.
