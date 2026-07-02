@@ -2,9 +2,8 @@
 
 Current task:
 
-- Keep policy v2 state-sync content attestation as the main path; no
-  post-merge reanchor is pending. Legacy v1 reanchor remains an explicit
-  compatibility fallback only.
+- Prune current-task drift from state and handoff displays so they describe
+  current repository governance status, not old implementation PRs.
 Done:
 
 - state-sync authority moved to `docs/current/state-sync-record.json`
@@ -16,39 +15,25 @@ Done:
   as explicit compatibility fallback for old v1 state-only records
 - prior post-merge reanchor events are complete history, not current operator
   steps
-- routed `codex-cli` host-dispatch failures through the shared runtime
-  governance failure reducer when a governance state is supplied
-- added regression coverage for host-dispatch observation emission,
-  `onGovernanceUpdate`, recovery routing, and successful dispatch no-op behavior
-- normalized opaque Codex CLI spawn and host-dispatch errors to
-  `unknown_execution_error` before governance error class construction
-- hardened display sync heading replacement for `## State Sync Expectations`
-- added canonical execution-observation evidence ref helpers
-- made `desktop-live-adapter` use the shared ref helper for runtime governance
-  failure evidence
-- added regression coverage for resolving recovery packet `rawEvidenceRefs`
-  through an observation store
-- added malformed-ref fail-closed coverage
-- recorded the no-observationBus compatibility path as no consumable evidence
+- runtime governance observation, recovery, and host-dispatch hardening are
+  merged capabilities, not current task steps
+- display sync heading replacement and execution-observation ref helpers are
+  merged support capabilities, not current task steps
 - legacy v1 direct reanchor safeguards are implemented and tested, but remain
   outside the normal operator task flow
-- added `createRuntimeSignalFromGovernanceState()` in `runtime-control`
-- added regression coverage for runtime-control no-op, escalation, open-circuit,
-  and governance-state signal derivation
+- runtime-control signal derivation is a merged capability, not the active
+  handoff goal
 
 Validation completed:
 
 - `git diff --check`: PASS
-- `node --import tsx --test tests/runtime-control.test.ts`: PASS
-- `npm test`: PASS
-- `npm run typecheck`: PASS
-- `npm run build`: PASS
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS
+- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS
+- simulated PR state-sync audit: PASS
 
 Todo:
 
-- use focused PRs for the next governance semantic changes unless separately
-  authorized
+- keep future governance changes in focused PRs unless separately authorized
+
 Blocked until separately authorized:
 
 - direct pushes to `main` for source, workflow, dependency, runtime, provider,

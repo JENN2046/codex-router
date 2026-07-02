@@ -64,40 +64,33 @@ Source digest excluded paths:
 
 ## Current Scope
 
-This state record commit records the source commit that:
+Current repository governance status:
 
-- adds `createRuntimeSignalFromGovernanceState()` to `runtime-control`;
-- derives runtime failure count from `execution_failure` governance anomalies;
-- maps high and critical governance risk to sticky `risk_detected` runtime
-  signals;
-- carries governance context pressure into the runtime signal consumed by
-  `evaluateRuntimeSignals()`;
-- preserves caller-provided runtime event overrides for validation and scope
-  signals; and
-- expands `tests/runtime-control.test.ts` to cover no-op, failure-threshold
-  escalation, scope expansion, validation failure, context pressure, high-risk
-  open-circuit, and governance-state signal derivation.
-
-This work does not run real provider execution, does not run the real Codex CLI,
-and does not push to `main`.
+- State-sync authority is the policy v2 content-attestation record at
+  `docs/current/state-sync-record.json`.
+- Markdown and `.agent_board/*` are current-state display and handoff surfaces,
+  not machine authority.
+- Legacy v1 reanchor tools remain available only as explicit compatibility
+  fallback for old state-only records.
+- Runtime governance hardening and operator-action work is merged; this state
+  surface should describe current repository status rather than any old PR as
+  the active task.
+- Real provider execution, real Codex CLI execution, secret changes, dependency
+  changes, workflow changes, and direct `main` pushes remain outside normal
+  display-only pruning work.
 
 ## Validation Baseline
 
 Validation recorded for source commit `content digest only`:
 
-- `git diff --check`: PASS.
-- `node --import tsx --test tests/runtime-control.test.ts`: PASS.
-- `npm test`: PASS.
-- `npm run typecheck`: PASS.
-- `npm run build`: PASS.
-- `node --import tsx scripts/run-state-sync-audit.ts --json`: PASS.
+Current validation posture:
 
-State-sync required validation command literals retained in this state surface:
-
-- `npx tsx --test tests\codex-cli-host.test.ts`
-- `npm run typecheck`
-- `npm test`
-- `npm run build`
+- routine PR validation remains `npm run validate:pr`;
+- display-only state pruning should at minimum run `git diff --check`,
+  `node --import tsx scripts/sync-state-sync-display.ts --check`, and a PR
+  context state-sync audit simulation;
+- runtime, package, workflow, dependency, or provider changes require their
+  own targeted tests and broader validation.
 
 Current structured state-sync audit status:
 
