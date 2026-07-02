@@ -3,7 +3,7 @@
 Current task:
 
 - Keep policy v2 state-sync content attestation as the main path; no
-  post-merge reanchor is pending. Legacy v1 reanchor automation remains
+  post-merge reanchor is pending. Legacy v1 reanchor remains an explicit
   compatibility fallback only.
 Done:
 
