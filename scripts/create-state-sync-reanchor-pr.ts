@@ -101,9 +101,10 @@ export function stateSyncReanchorPrBody(input: {
   return [
     "## Summary",
     "",
-    "Automated legacy v1 post-merge state-sync reanchor PR.",
+    "Manual legacy v1 compatibility state-sync reanchor PR.",
     "",
     "- Compatibility fallback for schema v1 state-only records.",
+    "- Created only from the manual `workflow_dispatch` fallback, not from the normal `main` push path.",
     "- Policy v2 content attestations are the main path and do not require this post-squash reanchor.",
     "- Records `main` as the legacy structured state-sync subject.",
     "- Records `state_only_pushed` as the legacy transition.",

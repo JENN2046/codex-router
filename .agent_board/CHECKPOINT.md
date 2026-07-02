@@ -60,10 +60,10 @@ Checkpoint facts:
 - The reanchor preparation helper is merged through PR #54, remains
   non-committing and non-pushing, and verifies squash fallback `HEAD` against
   the recorded filtered source tree digest before reanchoring to it.
-- Conservative post-merge reanchor PR automation is retained as a legacy v1
-  fallback on `automate/state-sync-reanchor-pr`; it creates or updates only the
-  fixed `state-sync/reanchor-main` PR branch and never pushes directly to `main`.
-- The workflow fetches the fixed reanchor branch before push and uses an
+- Legacy v1 reanchor PR workflow is retained only as a manual compatibility
+  fallback via `workflow_dispatch`; it creates or updates the fixed
+  `state-sync/reanchor-main` PR branch and never pushes directly to `main`.
+- The manual fallback fetches the fixed reanchor branch before push and uses an
   explicit `--force-with-lease` expected SHA or empty create-only expectation.
 - The generated reanchor PR body records that `GITHUB_TOKEN`-created or updated
   PR workflow runs may require write-permission approval before CI proceeds.
@@ -96,8 +96,8 @@ Checkpoint facts:
   successful push, because `state_only_pushed` is not valid in the pre-push
   local commit state.
 - README and the structured record plan document the legacy v1 local runner as
-  an operator-authorized direct-push compatibility path while preserving the
-  conservative `state-sync/reanchor-main` PR workflow fallback.
+  an operator-authorized compatibility path while preserving the manual
+  `state-sync/reanchor-main` PR workflow fallback.
 - `runtime-control` now exposes
   `createRuntimeSignalFromGovernanceState()` for converting governance state
   into escalation-ready runtime signals.

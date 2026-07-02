@@ -68,12 +68,12 @@ Completed:
   reanchors without committing or pushing
 - squash fallback reanchors now verify `HEAD` against the recorded filtered
   source tree digest before inferring it as source
-- conservative post-merge reanchor PR automation is retained as a legacy v1
-  fallback on `automate/state-sync-reanchor-pr`
-- the automation uses the fixed `state-sync/reanchor-main` branch, verifies
+- legacy v1 reanchor PR workflow is retained only as a manual compatibility
+  fallback via `workflow_dispatch`
+- the manual fallback uses the fixed `state-sync/reanchor-main` branch, verifies
   strict state/docs diffs, and creates or updates a PR instead of pushing
   directly to `main`
-- the workflow fetches the fixed reanchor branch before push and binds
+- the manual fallback fetches the fixed reanchor branch before push and binds
   `--force-with-lease` to an explicit expected SHA or empty create-only
   expectation
 - the generated PR body records that `GITHUB_TOKEN`-created or updated PR
@@ -109,8 +109,8 @@ Completed:
   push, so default validation does not fail on the unavoidable pre-push
   `state_only_pushed` intermediate state
 - README and the structured record plan document the legacy v1 runner as an
-  operator-authorized direct-push compatibility path while preserving the
-  conservative `state-sync/reanchor-main` PR workflow fallback
+  operator-authorized compatibility path while preserving the manual
+  `state-sync/reanchor-main` PR workflow fallback
 - `runtime-control` now exports `createRuntimeSignalFromGovernanceState()`
 - runtime signal derivation counts `execution_failure` anomalies, preserves
   context pressure, and maps high/critical governance risk to `risk_detected`
