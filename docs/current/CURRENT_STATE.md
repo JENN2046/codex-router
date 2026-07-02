@@ -109,19 +109,11 @@ Current structured state-sync audit status:
   record directly and does not require display sync.
 ## Execution Boundary
 
-PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED
-
-The controlled provider execution taskbook review audit remains part of the
-current safety baseline:
-
-- `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
-- `controlled-provider-execution-taskbook-review`
-- `general_provider_execution` remains closed by default
-- `general_workspace_write` remains closed by default
-- `secret_or_credential_change` remains closed by default
-
-Current allowed-by-default behavior remains local and non-executing unless a
-specific task and approval gate says otherwise.
+Current allowed-by-default behavior is local and non-executing unless a specific
+task and approval gate says otherwise. The controlled provider execution
+baseline remains documented at
+`docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`, with the
+current audit entry point `npm run governance -- audit controlled-provider-execution-taskbook-review`.
 
 Blocked capabilities:
 
@@ -133,16 +125,15 @@ Blocked capabilities:
 - `secret_or_credential_change`
 - `external_service_write`
 
-Boundary facts for this state alignment:
+Boundary facts for display/handoff-only pruning:
 
-- No package, dependency, workflow, provider, env, secret, user config, or system
-  config file is changed by this state record.
-- No real provider execution has occurred.
-- No real Codex CLI execution has occurred.
-- This state record commit intentionally changes only state/docs display and
-  handoff surfaces.
-- No release, deploy, provider execution, or environment/configuration change is
-  part of this record.
+- display and handoff surfaces do not authorize execution;
+- package, dependency, workflow, provider, env, secret, user config, and system
+  config changes remain outside display-only pruning;
+- real provider execution and real Codex CLI execution remain closed without a
+  separate explicit task and approval gate;
+- release, deploy, provider execution, and environment/configuration changes
+  remain out of scope.
 
 ## Current State-Only Record
 

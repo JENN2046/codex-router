@@ -2,9 +2,9 @@
 
 Current task:
 
-- Prune current-task drift from state and handoff displays so they describe
-  current repository governance status, not old implementation PRs.
-Done:
+- No active repository task; current surface records status only.
+
+Current status:
 
 - state-sync authority moved to `docs/current/state-sync-record.json`
 - policy v2 content attestation is the main path for local, pull_request, and
@@ -24,15 +24,12 @@ Done:
 - runtime-control signal derivation is a merged capability, not the active
   handoff goal
 
-Validation completed:
+Current validation posture:
 
-- `git diff --check`: PASS
-- `node --import tsx scripts/sync-state-sync-display.ts --check`: PASS
-- simulated PR state-sync audit: PASS
-
-Todo:
-
-- keep future governance changes in focused PRs unless separately authorized
+- use focused PRs for future governance changes unless separately authorized
+- display-only pruning should run `git diff --check`,
+  `node --import tsx scripts/sync-state-sync-display.ts --check`, and a PR
+  context state-sync audit simulation
 
 Blocked until separately authorized:
 
