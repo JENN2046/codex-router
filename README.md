@@ -387,8 +387,11 @@ npm run governance -- acceptance readonly-chain
 npm run governance -- operator readonly
 ```
 
-Post-merge `main` state-sync reanchors have a guarded local runner for
-operator-authorized direct pushes:
+Policy v2 content attestations are the normal state-sync path and do not need a
+post-merge `main` reanchor.
+
+Legacy v1 compatibility still has a guarded local runner for operator-authorized
+repair or migration work:
 
 ```bash
 npm run state-sync:reanchor-main
@@ -407,7 +410,7 @@ the claim regenerated from the parent state before pushing. The runner is
 intentionally bound to `origin/main`, matching the structured claim policy. The
 push form runs the full state-sync audit after the successful push and refuses
 to push if `origin/main` moved while the local reanchor was being prepared. The
-existing reanchor PR workflow remains the conservative fallback when direct
+manual reanchor PR workflow remains the compatibility fallback when direct
 `main` push is not authorized.
 
 The old per-check package script aliases have been removed; use `npm run governance -- audit|acceptance|operator ...` instead.

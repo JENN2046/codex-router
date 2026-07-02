@@ -167,8 +167,10 @@ test("state-sync reanchor PR body records validation and boundaries", () => {
     workflowRunUrl: "https://github.example/actions/runs/1"
   });
 
-  assert.match(body, /Automated legacy v1 post-merge state-sync reanchor PR/);
+  assert.match(body, /Manual legacy v1 compatibility state-sync reanchor PR/);
   assert.match(body, /Compatibility fallback for schema v1 state-only records/);
+  assert.match(body, /manual `workflow_dispatch` fallback/);
+  assert.match(body, /not from the normal `main` push path/);
   assert.match(
     body,
     /Policy v2 content attestations are the main path and do not require this post-squash reanchor/

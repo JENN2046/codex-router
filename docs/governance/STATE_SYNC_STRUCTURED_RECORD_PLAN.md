@@ -785,20 +785,20 @@ Implemented Phase 4 adjustment:
   that follow-up reanchor by attesting the source content instead of the final
   squash commit identity.
 
-### Phase 5 Design: Content Attestation Policy v2
+### Phase 5: Content Attestation Policy v2
 
-Phase 5 is a proposed policy-version change, not an extension of the Phase 1
+Phase 5 is an implemented policy-version change, not an extension of the Phase 1
 claim semantics.
 
-The motivation is the remaining governance friction after squash merge. In
+The motivation was the remaining governance friction after squash merge. In
 Phase 1, a pull request branch records `state_only_pending_push` state. After a
 squash merge, GitHub creates a new `main` commit that did not exist when the
 pull request branch record was written. Phase 1 therefore needs a follow-up
 `main` / `state_only_pushed` reanchor record. That flow is safe, but it keeps a
 governance-only post-merge step in the normal development path.
 
-Phase 5 should remove that post-merge reanchor only by changing the authority
-model. It must not make Phase 1 looser.
+Phase 5 removes that post-merge reanchor from the normal path by changing the
+authority model. It does not make Phase 1 looser.
 
 #### Authority Shift
 
@@ -1049,7 +1049,7 @@ Phase 5 must preserve these fail-closed boundaries:
 
 #### Migration Plan
 
-Phase 5 should be split into separate pull requests:
+Phase 5 was split into separate pull requests:
 
 1. Add the version 2 schema and parser behind fail-closed tests. Version 1
    behavior remains unchanged.
@@ -1059,12 +1059,12 @@ Phase 5 should be split into separate pull requests:
    with tests for digest match, digest drift, wrong repository, wrong event,
    wrong ref, dirty worktree, moving checkout, and unknown fields.
 4. Switch the committed record to version 2 after the verifier is live.
-5. Retire or disable `state-sync/reanchor-main` automation from the normal path
-   only after version 2 has passed real pull request and main push CI.
+5. Disable `state-sync/reanchor-main` automation from the normal path after
+   version 2 has passed real pull request and main push CI.
 
-Version 2 has now passed real pull request and main push CI. The existing Phase 1
-reanchor flow remains available as a legacy compatibility fallback until it is
-separately retired or disabled.
+Version 2 has passed real pull request and main push CI, and the legacy v1
+reanchor workflow is now manual-only. The existing Phase 1 reanchor flow remains
+available as a legacy compatibility fallback until it is separately retired.
 
 ## Non-Goals For The First Implementation
 
