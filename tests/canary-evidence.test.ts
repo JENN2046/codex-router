@@ -183,7 +183,7 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
   assert.ok(workflow.jobs.evidence.needs.includes("state-sync"));
 });
 
-test("state-sync reanchor workflow opens a bounded PR instead of pushing main", async () => {
+test("state-sync reanchor workflow is a manual legacy fallback", async () => {
   const workflow = parse(
     await readFile(
       new URL("../.github/workflows/state-sync-reanchor-pr.yml", import.meta.url),
@@ -191,7 +191,10 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
     )
   ) as {
     name: string;
-    on: { push: { branches: string[] } };
+    on: {
+      push?: { branches: string[] };
+      workflow_dispatch?: Record<string, never> | null;
+    };
     permissions: {
       contents: string;
       "pull-requests": string;
@@ -218,12 +221,13 @@ test("state-sync reanchor workflow opens a bounded PR instead of pushing main", 
     step.name === "Create or update state-sync reanchor PR"
   );
 
-  assert.equal(workflow.name, "State Sync Reanchor PR (Legacy v1 Fallback)");
+  assert.equal(workflow.name, "State Sync Reanchor PR (Legacy v1 Manual Fallback)");
   assert.equal(
     workflow.jobs["reanchor-pr"].name,
-    "Prepare State Sync Reanchor PR (Legacy v1 Fallback)"
+    "Prepare State Sync Reanchor PR (Legacy v1 Manual Fallback)"
   );
-  assert.deepEqual(workflow.on.push.branches, ["main"]);
+  assert.ok(workflow.on.workflow_dispatch !== undefined);
+  assert.equal(workflow.on.push, undefined);
   assert.equal(workflow.permissions.contents, "write");
   assert.equal(workflow.permissions["pull-requests"], "write");
   assert.equal(workflow.concurrency.group, "state-sync-reanchor-main");
