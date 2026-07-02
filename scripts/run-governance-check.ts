@@ -17,10 +17,15 @@ export interface ValidationTierOptions {
   targetedTests?: readonly string[];
 }
 
+export interface GovernanceCheckListOptions {
+  includeArchived?: boolean;
+}
+
 interface GovernanceCheckDefinition {
   category: GovernanceCheckCategory;
   name: string;
   scriptPath: string;
+  listSurface?: "current" | "archive";
 }
 
 const VALIDATION_TIERS: readonly ValidationTier[] = ["daily", "pr", "release"];
@@ -30,57 +35,58 @@ const GOVERNANCE_CHECK_CATEGORIES: readonly GovernanceCheckCategory[] = [
   "operator"
 ];
 const TSX_CLI_PATH = "node_modules/tsx/dist/cli.mjs";
+const DEFAULT_LIST_SURFACE = "current";
 
 const GOVERNANCE_CHECKS: readonly GovernanceCheckDefinition[] = [
-  operatorCheck("default", "scripts/run-codex-cli-operator-acceptance.ts"),
+  operatorCheck("default", "scripts/run-codex-cli-operator-acceptance.ts", "archive"),
   operatorCheck("readonly", "scripts/run-codex-cli-operator-acceptance-readonly.ts"),
-  operatorCheck("release", "scripts/run-codex-cli-operator-acceptance-release.ts"),
-  operatorCheck("telemetry", "scripts/run-codex-cli-operator-acceptance-telemetry.ts"),
+  operatorCheck("release", "scripts/run-codex-cli-operator-acceptance-release.ts", "archive"),
+  operatorCheck("telemetry", "scripts/run-codex-cli-operator-acceptance-telemetry.ts", "archive"),
   acceptanceCheck("readonly-chain", "scripts/run-readonly-control-chain-acceptance.ts"),
-  acceptanceCheck("provider-registry", "scripts/run-provider-registry-selection-acceptance.ts"),
-  acceptanceCheck("policy-registry-selection", "scripts/run-policy-registry-selection-acceptance.ts"),
-  acceptanceCheck("real-readonly-dispatch", "scripts/run-real-readonly-dispatch-acceptance.ts"),
-  acceptanceCheck("formal-readonly-integration", "scripts/run-formal-readonly-cli-integration-readiness.ts"),
-  acceptanceCheck("formal-readonly-integration-auth", "scripts/run-formal-readonly-cli-integration-authorization-acceptance.ts"),
-  acceptanceCheck("formal-readonly-provider-integration-taskbook", "scripts/run-formal-readonly-provider-integration-taskbook-acceptance.ts"),
-  acceptanceCheck("formal-readonly-provider-integration", "scripts/run-formal-readonly-provider-integration-acceptance.ts"),
-  acceptanceCheck("formal-readonly-dispatch-boundary", "scripts/run-formal-readonly-dispatch-boundary-acceptance.ts"),
-  acceptanceCheck("real-readonly-smoke-auth", "scripts/run-real-readonly-smoke-authorization-acceptance.ts"),
-  acceptanceCheck("formal-real-readonly-smoke-taskbook", "scripts/run-formal-real-readonly-smoke-taskbook-acceptance.ts"),
-  acceptanceCheck("formal-real-readonly-smoke-pre-execution", "scripts/run-formal-real-readonly-smoke-pre-execution-acceptance.ts"),
-  acceptanceCheck("formal-real-readonly-smoke-execution-auth", "scripts/run-formal-real-readonly-smoke-execution-authorization-acceptance.ts"),
-  acceptanceCheck("formal-real-readonly-smoke-final-preflight", "scripts/run-formal-real-readonly-smoke-final-preflight-acceptance.ts"),
-  acceptanceCheck("workspace-write-governance", "scripts/run-workspace-write-governance-acceptance.ts"),
-  acceptanceCheck("workspace-write-fake-canary", "scripts/run-workspace-write-fake-canary-acceptance.ts"),
-  acceptanceCheck("workspace-write-real-canary-auth", "scripts/run-workspace-write-real-canary-authorization-acceptance.ts"),
-  acceptanceCheck("workspace-write-real-canary-pre-execution", "scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts"),
-  acceptanceCheck("controlled-readonly-provider-execution", "scripts/run-controlled-readonly-provider-execution-acceptance.ts"),
-  auditCheck("real-readonly-smoke-local", "scripts/run-real-readonly-smoke-local-closeout-audit.ts"),
-  auditCheck("formal-readonly-integration-local", "scripts/run-formal-readonly-cli-integration-local-closeout-audit.ts"),
-  auditCheck("formal-readonly-provider-integration-local", "scripts/run-formal-readonly-provider-integration-local-closeout-audit.ts"),
-  auditCheck("formal-readonly-dispatch-boundary-local", "scripts/run-formal-readonly-dispatch-boundary-local-closeout-audit.ts"),
-  auditCheck("formal-real-readonly-smoke-local", "scripts/run-formal-real-readonly-smoke-local-closeout-audit.ts"),
-  auditCheck("formal-real-readonly-smoke-execution-local", "scripts/run-formal-real-readonly-smoke-execution-local-closeout-audit.ts"),
-  auditCheck("formal-real-readonly-smoke-receipt-local", "scripts/run-formal-real-readonly-smoke-receipt-local-audit.ts"),
-  auditCheck("formal-real-readonly-smoke-local-rc", "scripts/run-formal-real-readonly-smoke-local-rc-review.ts"),
-  auditCheck("formal-real-readonly-smoke-rc-local-closeout", "scripts/run-formal-real-readonly-smoke-rc-local-closeout-audit.ts"),
-  auditCheck("readonly-real-smoke-chain-index", "scripts/run-readonly-real-smoke-chain-index-audit.ts"),
-  auditCheck("readonly-real-smoke-chain-candidate", "scripts/run-readonly-real-smoke-chain-local-candidate-consistency.ts"),
-  auditCheck("readonly-real-smoke-chain-local-closeout", "scripts/run-readonly-real-smoke-chain-local-closeout-audit.ts"),
-  auditCheck("readonly-formal-integration-matrix", "scripts/run-readonly-formal-integration-readiness-matrix-audit.ts"),
+  acceptanceCheck("provider-registry", "scripts/run-provider-registry-selection-acceptance.ts", "archive"),
+  acceptanceCheck("policy-registry-selection", "scripts/run-policy-registry-selection-acceptance.ts", "archive"),
+  acceptanceCheck("real-readonly-dispatch", "scripts/run-real-readonly-dispatch-acceptance.ts", "archive"),
+  acceptanceCheck("formal-readonly-integration", "scripts/run-formal-readonly-cli-integration-readiness.ts", "archive"),
+  acceptanceCheck("formal-readonly-integration-auth", "scripts/run-formal-readonly-cli-integration-authorization-acceptance.ts", "archive"),
+  acceptanceCheck("formal-readonly-provider-integration-taskbook", "scripts/run-formal-readonly-provider-integration-taskbook-acceptance.ts", "archive"),
+  acceptanceCheck("formal-readonly-provider-integration", "scripts/run-formal-readonly-provider-integration-acceptance.ts", "archive"),
+  acceptanceCheck("formal-readonly-dispatch-boundary", "scripts/run-formal-readonly-dispatch-boundary-acceptance.ts", "archive"),
+  acceptanceCheck("real-readonly-smoke-auth", "scripts/run-real-readonly-smoke-authorization-acceptance.ts", "archive"),
+  acceptanceCheck("formal-real-readonly-smoke-taskbook", "scripts/run-formal-real-readonly-smoke-taskbook-acceptance.ts", "archive"),
+  acceptanceCheck("formal-real-readonly-smoke-pre-execution", "scripts/run-formal-real-readonly-smoke-pre-execution-acceptance.ts", "archive"),
+  acceptanceCheck("formal-real-readonly-smoke-execution-auth", "scripts/run-formal-real-readonly-smoke-execution-authorization-acceptance.ts", "archive"),
+  acceptanceCheck("formal-real-readonly-smoke-final-preflight", "scripts/run-formal-real-readonly-smoke-final-preflight-acceptance.ts", "archive"),
+  acceptanceCheck("workspace-write-governance", "scripts/run-workspace-write-governance-acceptance.ts", "archive"),
+  acceptanceCheck("workspace-write-fake-canary", "scripts/run-workspace-write-fake-canary-acceptance.ts", "archive"),
+  acceptanceCheck("workspace-write-real-canary-auth", "scripts/run-workspace-write-real-canary-authorization-acceptance.ts", "archive"),
+  acceptanceCheck("workspace-write-real-canary-pre-execution", "scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts", "archive"),
+  acceptanceCheck("controlled-readonly-provider-execution", "scripts/run-controlled-readonly-provider-execution-acceptance.ts", "archive"),
+  auditCheck("real-readonly-smoke-local", "scripts/run-real-readonly-smoke-local-closeout-audit.ts", "archive"),
+  auditCheck("formal-readonly-integration-local", "scripts/run-formal-readonly-cli-integration-local-closeout-audit.ts", "archive"),
+  auditCheck("formal-readonly-provider-integration-local", "scripts/run-formal-readonly-provider-integration-local-closeout-audit.ts", "archive"),
+  auditCheck("formal-readonly-dispatch-boundary-local", "scripts/run-formal-readonly-dispatch-boundary-local-closeout-audit.ts", "archive"),
+  auditCheck("formal-real-readonly-smoke-local", "scripts/run-formal-real-readonly-smoke-local-closeout-audit.ts", "archive"),
+  auditCheck("formal-real-readonly-smoke-execution-local", "scripts/run-formal-real-readonly-smoke-execution-local-closeout-audit.ts", "archive"),
+  auditCheck("formal-real-readonly-smoke-receipt-local", "scripts/run-formal-real-readonly-smoke-receipt-local-audit.ts", "archive"),
+  auditCheck("formal-real-readonly-smoke-local-rc", "scripts/run-formal-real-readonly-smoke-local-rc-review.ts", "archive"),
+  auditCheck("formal-real-readonly-smoke-rc-local-closeout", "scripts/run-formal-real-readonly-smoke-rc-local-closeout-audit.ts", "archive"),
+  auditCheck("readonly-real-smoke-chain-index", "scripts/run-readonly-real-smoke-chain-index-audit.ts", "archive"),
+  auditCheck("readonly-real-smoke-chain-candidate", "scripts/run-readonly-real-smoke-chain-local-candidate-consistency.ts", "archive"),
+  auditCheck("readonly-real-smoke-chain-local-closeout", "scripts/run-readonly-real-smoke-chain-local-closeout-audit.ts", "archive"),
+  auditCheck("readonly-formal-integration-matrix", "scripts/run-readonly-formal-integration-readiness-matrix-audit.ts", "archive"),
   auditCheck("readonly-productization", "scripts/run-readonly-productization-acceptance.ts"),
   auditCheck("approval-consumption-dispatch-matrix", "scripts/run-approval-consumption-dispatch-matrix-audit.ts"),
-  auditCheck("controlled-execution-gate-design", "scripts/run-controlled-execution-gate-design-audit.ts"),
-  auditCheck("future-codex-cli-canary-packet-checklist", "scripts/run-future-codex-cli-canary-packet-checklist-audit.ts"),
-  auditCheck("future-codex-cli-canary-authorization-packet", "scripts/run-future-codex-cli-canary-authorization-packet-audit.ts"),
-  auditCheck("future-codex-cli-canary-execution-gate", "scripts/run-future-codex-cli-canary-execution-gate-audit.ts"),
-  auditCheck("future-codex-cli-canary-pre-execution-review", "scripts/run-future-codex-cli-canary-pre-execution-review-audit.ts"),
-  auditCheck("post-canary-receipt-rollback-gate", "scripts/run-post-canary-receipt-rollback-verification-gate-audit.ts"),
+  auditCheck("controlled-execution-gate-design", "scripts/run-controlled-execution-gate-design-audit.ts", "archive"),
+  auditCheck("future-codex-cli-canary-packet-checklist", "scripts/run-future-codex-cli-canary-packet-checklist-audit.ts", "archive"),
+  auditCheck("future-codex-cli-canary-authorization-packet", "scripts/run-future-codex-cli-canary-authorization-packet-audit.ts", "archive"),
+  auditCheck("future-codex-cli-canary-execution-gate", "scripts/run-future-codex-cli-canary-execution-gate-audit.ts", "archive"),
+  auditCheck("future-codex-cli-canary-pre-execution-review", "scripts/run-future-codex-cli-canary-pre-execution-review-audit.ts", "archive"),
+  auditCheck("post-canary-receipt-rollback-gate", "scripts/run-post-canary-receipt-rollback-verification-gate-audit.ts", "archive"),
   auditCheck("capability-taxonomy-escalation-policy", "scripts/run-capability-taxonomy-escalation-policy-audit.ts"),
   auditCheck("controlled-provider-execution-taskbook-review", "scripts/run-controlled-provider-execution-taskbook-review-audit.ts"),
-  auditCheck("workspace-write-real-canary-candidate", "scripts/run-workspace-write-real-canary-local-candidate-consistency.ts"),
-  auditCheck("workspace-write-real-canary-sensitive-scan", "scripts/run-workspace-write-real-canary-sensitive-scan.ts"),
-  auditCheck("workspace-write-real-canary-final-local", "scripts/run-workspace-write-real-canary-final-local-audit.ts"),
+  auditCheck("workspace-write-real-canary-candidate", "scripts/run-workspace-write-real-canary-local-candidate-consistency.ts", "archive"),
+  auditCheck("workspace-write-real-canary-sensitive-scan", "scripts/run-workspace-write-real-canary-sensitive-scan.ts", "archive"),
+  auditCheck("workspace-write-real-canary-final-local", "scripts/run-workspace-write-real-canary-final-local-audit.ts", "archive"),
   auditCheck("source-release-package-boundary", "scripts/run-source-release-package-boundary-audit.ts"),
   auditCheck("state-sync", "scripts/run-state-sync-audit.ts")
 ];
@@ -126,7 +132,10 @@ export function getValidationTierPlan(
   ];
 }
 
-export function listGovernanceChecks(): Record<GovernanceCheckCategory, string[]> {
+export function listGovernanceChecks(
+  options: GovernanceCheckListOptions = {}
+): Record<GovernanceCheckCategory, string[]> {
+  const includeArchived = options.includeArchived === true;
   const checks: Record<GovernanceCheckCategory, string[]> = {
     audit: [],
     acceptance: [],
@@ -134,6 +143,9 @@ export function listGovernanceChecks(): Record<GovernanceCheckCategory, string[]
   };
 
   for (const check of GOVERNANCE_CHECKS) {
+    if (!includeArchived && (check.listSurface ?? DEFAULT_LIST_SURFACE) !== "current") {
+      continue;
+    }
     checks[check.category].push(check.name);
   }
 
@@ -236,16 +248,28 @@ function tsxCommand(
   };
 }
 
-function operatorCheck(name: string, scriptPath: string): GovernanceCheckDefinition {
-  return { category: "operator", name, scriptPath };
+function operatorCheck(
+  name: string,
+  scriptPath: string,
+  listSurface: GovernanceCheckDefinition["listSurface"] = DEFAULT_LIST_SURFACE
+): GovernanceCheckDefinition {
+  return { category: "operator", name, scriptPath, listSurface };
 }
 
-function acceptanceCheck(name: string, scriptPath: string): GovernanceCheckDefinition {
-  return { category: "acceptance", name, scriptPath };
+function acceptanceCheck(
+  name: string,
+  scriptPath: string,
+  listSurface: GovernanceCheckDefinition["listSurface"] = DEFAULT_LIST_SURFACE
+): GovernanceCheckDefinition {
+  return { category: "acceptance", name, scriptPath, listSurface };
 }
 
-function auditCheck(name: string, scriptPath: string): GovernanceCheckDefinition {
-  return { category: "audit", name, scriptPath };
+function auditCheck(
+  name: string,
+  scriptPath: string,
+  listSurface: GovernanceCheckDefinition["listSurface"] = DEFAULT_LIST_SURFACE
+): GovernanceCheckDefinition {
+  return { category: "audit", name, scriptPath, listSurface };
 }
 
 function normalizeExtraArgs(args: readonly string[]): string[] {
@@ -347,7 +371,7 @@ function printHelp(): void {
   console.log(`Codex Router governance check runner
 
 Usage:
-  npm run governance -- list
+  npm run governance -- list [--all]
   npm run governance -- tier <daily|pr|release> [--test tests/file.test.ts]
   npm run governance -- audit <name> [args...]
   npm run governance -- acceptance <name> [args...]
@@ -360,17 +384,23 @@ Shortcuts:
 `);
 }
 
-function printList(): void {
-  const checks = listGovernanceChecks();
+function printList(options: GovernanceCheckListOptions = {}): void {
+  const includeArchived = options.includeArchived === true;
+  const checks = listGovernanceChecks(options);
 
   console.log("Validation tiers:");
   console.log("  daily   typecheck plus optional targeted tests");
   console.log("  pr      typecheck, full tests, build, state-sync audit");
   console.log("  release pr tier plus deterministic canary, contract smoke, evidence collection");
   console.log("");
-  console.log("Governance checks:");
+  console.log(includeArchived ? "Governance checks (all registered):" : "Governance checks (current surface):");
   for (const category of GOVERNANCE_CHECK_CATEGORIES) {
     console.log(`  ${category}: ${checks[category].join(", ") || "(none)"}`);
+  }
+  if (!includeArchived) {
+    console.log("");
+    console.log("Archived one-off checks are still registered and executable.");
+    console.log("Use `npm run governance -- list --all` to show the full historical registry.");
   }
 }
 
@@ -383,7 +413,12 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
   }
 
   if (command === "list") {
-    printList();
+    const includeArchived = rest.includes("--all") || rest.includes("--archive");
+    const unknownArgs = rest.filter((arg) => arg !== "--all" && arg !== "--archive");
+    if (unknownArgs.length > 0) {
+      throw new Error(`Unknown list option '${unknownArgs[0]}'`);
+    }
+    printList({ includeArchived });
     return;
   }
 

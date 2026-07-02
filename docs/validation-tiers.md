@@ -56,9 +56,14 @@ operator checks without scanning the full `package.json` script list.
 
 ```bash
 npm run governance -- list
+npm run governance -- list --all
 npm run governance -- audit state-sync
 npm run governance -- acceptance readonly-chain
 npm run governance -- operator readonly
 ```
+
+The default `list` output is the current operating surface. Historical one-off
+checks remain registered and executable; use `npm run governance -- list --all`
+when intentionally looking for archived audit or acceptance commands.
 
 Legacy per-check package script aliases have been removed. Use the consolidated `governance` runner instead.

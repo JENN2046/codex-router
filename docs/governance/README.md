@@ -27,11 +27,15 @@ Use the consolidated runner instead of per-check package scripts:
 
 ```bash
 npm run governance -- list
+npm run governance -- list --all
 npm run governance -- audit state-sync
 npm run governance -- audit controlled-provider-execution-taskbook-review
 npm run governance -- acceptance readonly-chain
 npm run governance -- operator readonly
 ```
+
+Default `list` output stays focused on current/core checks. Use `--all` only
+when deliberately browsing archived one-off audit and acceptance commands.
 
 ## Historical Evidence
 
