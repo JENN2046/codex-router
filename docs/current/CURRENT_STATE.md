@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `f9bb48a647e7548b435393aad272a3fb2bd8edfe2bb1507c0288e6a074519892`
+  `a99cc0eded2657101ba2e204c6824da2997c5f2ba0a7e981d14ecbb46cd85947`
 
 Source digest excluded paths:
 
@@ -152,6 +152,11 @@ The PR-23D workspace-write permit v2 line is recorded at
 `docs/governance/PR_23D_WORKSPACE_WRITE_PERMIT_V2.md`; it adds schema,
 validator, rollback-binding, and single-use consumption readiness without
 authorizing real workspace-write.
+The PR-23E workspace-write fake canary v2 line is recorded at
+`docs/governance/PR_23E_WORKSPACE_WRITE_FAKE_CANARY_V2.md`; it wires the fake
+canary to permit v2, patch guard, rollback evidence, and replay blocking while
+still proving zero real workspace-write, zero real Codex CLI, and zero external
+writes.
 
 Boundary audit marker:
 

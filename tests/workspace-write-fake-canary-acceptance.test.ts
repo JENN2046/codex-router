@@ -39,7 +39,9 @@ test("workspace-write fake canary acceptance proves fixed target without executi
   assert.equal(evidence.taskId, "workspace-write-fake-canary-acceptance");
   assert.deepEqual(evidence.checks, {
     fixedCanaryTarget: true,
-    approvedPermitCreated: true,
+    approvedPermitV2Created: true,
+    permitV2ConsumedOnce: true,
+    permitV2ReplayBlocked: true,
     nonCanaryTargetRejected: true,
     patchGuardPassedForCanaryDiff: true,
     patchGuardBlocksNonCanaryDiff: true,
@@ -54,6 +56,8 @@ test("workspace-write fake canary acceptance proves fixed target without executi
   });
   assert.equal(evidence.summary.providerId, "codex-cli");
   assert.match(evidence.summary.manifestHash, /^[a-f0-9]{64}$/);
+  assert.equal(evidence.summary.permitSchemaVersion, "provider-workspace-write-execution-permit.v2");
+  assert.match(evidence.summary.permitConsumptionKey, /^[a-f0-9]{64}$/);
   assert.equal(evidence.summary.targetFile, "tmp/codex-cli-write-canary.txt");
   assert.equal(evidence.summary.sideEffectClass, "workspace_write");
   assert.equal(evidence.summary.sandbox, "workspace-write");
@@ -71,6 +75,9 @@ test("workspace-write fake canary acceptance proves fixed target without executi
     canaryFileWrites: 0
   });
   assert.ok(evidence.blockingReasons.includes("workspace_write_fake_canary_target_mismatch"));
+  assert.ok(evidence.blockingReasons.includes(
+    "workspace_write_provider_execution_permit_v2_already_consumed_by_store"
+  ));
   assert.ok(evidence.blockingReasons.includes(
     "workspace_write_patch_guard_changed_file_not_permitted:tmp/not-the-canary.txt"
   ));
@@ -94,6 +101,9 @@ test("workspace-write fake canary acceptance writer persists safe json", async (
 
   assert.equal(parsed.schemaVersion, "workspace-write-fake-canary-acceptance.v1");
   assert.equal(parsed.checks.fixedCanaryTarget, true);
+  assert.equal(parsed.checks.approvedPermitV2Created, true);
+  assert.equal(parsed.checks.permitV2ConsumedOnce, true);
+  assert.equal(parsed.checks.permitV2ReplayBlocked, true);
   assert.equal(parsed.checks.canaryReadinessBlocksWithoutOperatorGate, true);
   assert.equal(parsed.checks.canaryReadinessReadyWithFakeGate, true);
   assert.equal(parsed.checks.noWorkspaceWriteExecute, true);

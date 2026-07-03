@@ -6,8 +6,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { SandboxProfileSchema, type SandboxProfile } from "../packages/kernel-contracts/src/index.js";
 import {
-  createApprovedWorkspaceWriteProviderExecutionPermit,
-  createBlockedWorkspaceWriteProviderExecutionPermit,
+  InMemoryProviderExecutionPermitConsumptionStore,
+  consumeWorkspaceWriteProviderExecutionPermitV2ForPlan,
+  createApprovedWorkspaceWriteProviderExecutionPermitV2,
+  createBlockedWorkspaceWriteProviderExecutionPermitV2,
+  createWorkspaceWriteProviderExecutionPermitV2ConsumptionKey,
   ExecutorExecutionPlanSchema,
   hashProviderManifest,
   ProviderManifestSchema,
@@ -39,7 +42,9 @@ export interface WorkspaceWriteFakeCanaryAcceptanceEvidence {
   taskId: string;
   checks: {
     fixedCanaryTarget: boolean;
-    approvedPermitCreated: boolean;
+    approvedPermitV2Created: boolean;
+    permitV2ConsumedOnce: boolean;
+    permitV2ReplayBlocked: boolean;
     nonCanaryTargetRejected: boolean;
     patchGuardPassedForCanaryDiff: boolean;
     patchGuardBlocksNonCanaryDiff: boolean;
@@ -57,6 +62,8 @@ export interface WorkspaceWriteFakeCanaryAcceptanceEvidence {
     manifestHash: string;
     planId: string;
     permitId: string;
+    permitSchemaVersion: "provider-workspace-write-execution-permit.v2";
+    permitConsumptionKey: string;
     targetFile: string;
     sideEffectClass: "workspace_write";
     sandbox: "workspace-write";
@@ -86,9 +93,9 @@ export async function runWorkspaceWriteFakeCanaryAcceptance(
 ): Promise<WorkspaceWriteFakeCanaryAcceptanceEvidence> {
   const generatedAt = options.generatedAt ?? DEFAULT_GENERATED_AT;
   const manifest = createProviderManifest();
-  const plan = createWorkspaceWriteCanaryPlan();
+  const plan = createWorkspaceWriteCanaryPlan(manifest);
   const canaryFileExistsBefore = existsSync(CANARY_TARGET_FILE);
-  const approvedPermit = createApprovedWorkspaceWriteProviderExecutionPermit({
+  const approvedPermit = createApprovedWorkspaceWriteProviderExecutionPermitV2({
     plan,
     manifest,
     approvalStatus: "approved",
@@ -97,6 +104,9 @@ export async function runWorkspaceWriteFakeCanaryAcceptance(
     maxChangedFiles: 1,
     maxDiffLines: 2,
     rollbackRequired: true,
+    rollback: {
+      beforeCommit: "abc123def456"
+    },
     protectedBranchForbidden: true,
     dirtyWorktreeForbidden: true,
     repositoryState: {
@@ -107,7 +117,29 @@ export async function runWorkspaceWriteFakeCanaryAcceptance(
     },
     issuedAt: generatedAt
   });
-  const blockedPermit = createBlockedWorkspaceWriteProviderExecutionPermit({
+  const permitStore = new InMemoryProviderExecutionPermitConsumptionStore();
+  const permitConsumptionKey = createWorkspaceWriteProviderExecutionPermitV2ConsumptionKey(approvedPermit);
+  const permitConsumptionReasons = consumeWorkspaceWriteProviderExecutionPermitV2ForPlan(
+    approvedPermit,
+    plan,
+    manifest,
+    permitStore,
+    {
+      now: generatedAt,
+      consumedAt: "2026-06-14T00:01:00.000Z"
+    }
+  );
+  const replayConsumptionReasons = consumeWorkspaceWriteProviderExecutionPermitV2ForPlan(
+    approvedPermit,
+    plan,
+    manifest,
+    permitStore,
+    {
+      now: generatedAt,
+      consumedAt: "2026-06-14T00:02:00.000Z"
+    }
+  );
+  const blockedPermit = createBlockedWorkspaceWriteProviderExecutionPermitV2({
     plan,
     manifest,
     approvalStatus: "approved",
@@ -116,6 +148,9 @@ export async function runWorkspaceWriteFakeCanaryAcceptance(
     maxChangedFiles: 1,
     maxDiffLines: 2,
     rollbackRequired: true,
+    rollback: {
+      beforeCommit: "abc123def456"
+    },
     protectedBranchForbidden: true,
     dirtyWorktreeForbidden: true,
     repositoryState: {
@@ -164,6 +199,8 @@ export async function runWorkspaceWriteFakeCanaryAcceptance(
   const canaryFileExistsAfter = existsSync(CANARY_TARGET_FILE);
   const blockingReasons = uniqueStrings([
     ...blockedPermit.reasons,
+    ...permitConsumptionReasons,
+    ...replayConsumptionReasons,
     ...nonCanaryGuard.reasons,
     ...rollbackReady.blockingReasons
   ]);
@@ -180,7 +217,13 @@ export async function runWorkspaceWriteFakeCanaryAcceptance(
     checks: {
       fixedCanaryTarget: approvedPermit.targetFiles.length === 1
         && approvedPermit.targetFiles[0] === CANARY_TARGET_FILE,
-      approvedPermitCreated: approvedPermit.status === "approved",
+      approvedPermitV2Created: approvedPermit.status === "approved"
+        && approvedPermit.schemaVersion === "provider-workspace-write-execution-permit.v2",
+      permitV2ConsumedOnce: permitConsumptionReasons.length === 0
+        && permitStore.get(permitConsumptionKey)?.permitId === approvedPermit.permitId,
+      permitV2ReplayBlocked: replayConsumptionReasons.includes(
+        "workspace_write_provider_execution_permit_v2_already_consumed_by_store"
+      ),
       nonCanaryTargetRejected: blockedPermit.status === "blocked"
         && blockedPermit.reasons.includes("workspace_write_fake_canary_target_mismatch"),
       patchGuardPassedForCanaryDiff: canaryGuard.ok === true
@@ -211,6 +254,8 @@ export async function runWorkspaceWriteFakeCanaryAcceptance(
       manifestHash: hashProviderManifest(manifest),
       planId: plan.planId,
       permitId: approvedPermit.permitId,
+      permitSchemaVersion: approvedPermit.schemaVersion,
+      permitConsumptionKey,
       targetFile: CANARY_TARGET_FILE,
       sideEffectClass: "workspace_write",
       sandbox: "workspace-write",
@@ -280,7 +325,7 @@ function createProviderManifest(): ProviderManifest {
   });
 }
 
-function createWorkspaceWriteCanaryPlan(): ExecutorExecutionPlan {
+function createWorkspaceWriteCanaryPlan(manifest: ProviderManifest): ExecutorExecutionPlan {
   return ExecutorExecutionPlanSchema.parse({
     schemaVersion: "executor-execution-plan.v1",
     kind: "executor",
@@ -289,7 +334,11 @@ function createWorkspaceWriteCanaryPlan(): ExecutorExecutionPlan {
     taskId: "workspace-write-fake-canary-acceptance",
     providerId: "codex-cli",
     inputHash: "a".repeat(64),
+    providerExecutionPlanHash: "c".repeat(64),
+    providerManifestHash: hashProviderManifest(manifest),
     policyDecisionHash: "policy_hash_workspace_write_fake_canary_acceptance",
+    principalId: "principal_workspace_write_fake_canary_acceptance",
+    principalHash: "d".repeat(64),
     requiredCapabilities: [`fs.write:${CANARY_TARGET_FILE}`],
     approvalRequired: true,
     sandboxProfile: createSandboxProfile("workspace-write"),

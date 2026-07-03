@@ -55,6 +55,9 @@ as historical evidence unless a current authority document links them.
 - [PR-23D workspace-write permit v2](PR_23D_WORKSPACE_WRITE_PERMIT_V2.md):
   current permit v2 schema and validator line for workspace-write readiness;
   this is not workspace-write execution authorization.
+- [PR-23E workspace-write fake canary v2](PR_23E_WORKSPACE_WRITE_FAKE_CANARY_V2.md):
+  current fake-canary line using permit v2, patch guard, rollback evidence, and
+  replay blocking without real workspace-write execution.
 
 ## Runner Entry Points
 
