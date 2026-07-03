@@ -74,9 +74,10 @@ import {
   createSafeAuditDetails,
   redactText
 } from "../../redaction/src/index.js";
-import type {
-  AnomalyRecord,
-  GovernanceState
+import {
+  parseGovernanceState,
+  type AnomalyRecord,
+  type GovernanceState
 } from "../../state-manager/src/index.js";
 import type {
   StrategyDecisionV2
@@ -501,6 +502,9 @@ export async function runProviderExecutionPlanControlledReadOnly(
     task,
     policyDecision
   });
+  const governanceResultFields = createControlledReadOnlyGovernanceResultFields(
+    governanceBridge
+  );
   const createdAt = input.now();
   const eventIds: string[] = [];
   const artifactIds: string[] = [];
@@ -604,9 +608,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
-      ...(governanceBridge.taskEnvelope !== undefined
-        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
-        : {})
+      ...governanceResultFields
     });
   }
 
@@ -636,9 +638,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
-      ...(governanceBridge.taskEnvelope !== undefined
-        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
-        : {}),
+      ...governanceResultFields,
       executorPlan,
       validation
     });
@@ -665,9 +665,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
-      ...(governanceBridge.taskEnvelope !== undefined
-        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
-        : {}),
+      ...governanceResultFields,
       executorPlan,
       validation
     });
@@ -695,9 +693,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
-      ...(governanceBridge.taskEnvelope !== undefined
-        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
-        : {}),
+      ...governanceResultFields,
       executorPlan,
       validation
     });
@@ -721,9 +717,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
-      ...(governanceBridge.taskEnvelope !== undefined
-        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
-        : {}),
+      ...governanceResultFields,
       executorPlan,
       validation,
       failureClass: "provider_execute_threw"
@@ -746,9 +740,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
-      ...(governanceBridge.taskEnvelope !== undefined
-        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
-        : {}),
+      ...governanceResultFields,
       executorPlan,
       validation,
       providerResultSummary,
@@ -778,6 +770,7 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
   policyDecision: PolicyDecision;
 }): {
   reasons: string[];
+  governanceState?: GovernanceState;
   taskEnvelope?: TaskEnvelope;
 } {
   if (
@@ -788,10 +781,17 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
   }
 
   const reasons: string[] = [];
+  let governanceState: GovernanceState | undefined = undefined;
   let taskEnvelope: TaskEnvelope | undefined = undefined;
 
   if (input.input.governanceState === undefined) {
     reasons.push("controlled_readonly_provider_governance_state_required");
+  } else {
+    try {
+      governanceState = parseGovernanceState(input.input.governanceState);
+    } catch {
+      reasons.push("controlled_readonly_provider_governance_state_invalid");
+    }
   }
 
   if (input.input.taskEnvelope === undefined) {
@@ -805,11 +805,11 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
   }
 
   if (
-    input.input.governanceState !== undefined &&
-    input.input.governanceState.taskId !== input.task.taskId
+    governanceState !== undefined &&
+    governanceState.taskId !== input.task.taskId
   ) {
     reasons.push(
-      `controlled_readonly_provider_governance_state_task_mismatch:${input.input.governanceState.taskId}:${input.task.taskId}`
+      `controlled_readonly_provider_governance_state_task_mismatch:${governanceState.taskId}:${input.task.taskId}`
     );
   }
 
@@ -835,18 +835,37 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
   }
 
   if (
-    input.input.governanceState !== undefined &&
+    governanceState !== undefined &&
     taskEnvelope !== undefined &&
-    input.input.governanceState.taskId !== taskEnvelope.taskId
+    governanceState.taskId !== taskEnvelope.taskId
   ) {
     reasons.push(
-      `controlled_readonly_provider_governance_state_envelope_mismatch:${input.input.governanceState.taskId}:${taskEnvelope.taskId}`
+      `controlled_readonly_provider_governance_state_envelope_mismatch:${governanceState.taskId}:${taskEnvelope.taskId}`
     );
   }
 
-  return reasons.length === 0 && taskEnvelope !== undefined
-    ? { reasons, taskEnvelope }
+  return reasons.length === 0 &&
+    governanceState !== undefined &&
+    taskEnvelope !== undefined
+    ? { reasons, governanceState, taskEnvelope }
     : { reasons };
+}
+
+function createControlledReadOnlyGovernanceResultFields(input: {
+  governanceState?: GovernanceState;
+  taskEnvelope?: TaskEnvelope;
+}): {
+  governanceState?: GovernanceState;
+  governanceTaskEnvelope?: TaskEnvelope;
+} {
+  if (input.governanceState === undefined || input.taskEnvelope === undefined) {
+    return {};
+  }
+
+  return {
+    governanceState: input.governanceState,
+    governanceTaskEnvelope: input.taskEnvelope
+  };
 }
 
 function createControlledReadOnlyGovernanceTaskEnvelope(
@@ -942,6 +961,7 @@ async function createControlledReadOnlyProviderExecutionGovernance(input: {
   reasons: string[];
   completedAt: string;
   reportArtifact: StoredArtifact;
+  governanceState?: GovernanceState;
   taskEnvelope?: TaskEnvelope;
   failureClass?: string;
 }): Promise<ControlledReadOnlyProviderExecutionGovernance | undefined> {
@@ -949,7 +969,7 @@ async function createControlledReadOnlyProviderExecutionGovernance(input: {
     return undefined;
   }
   if (
-    input.input.governanceState === undefined ||
+    input.governanceState === undefined ||
     input.taskEnvelope === undefined
   ) {
     return undefined;
@@ -977,7 +997,7 @@ async function createControlledReadOnlyProviderExecutionGovernance(input: {
   });
 
   const failureResult = applyExecutionFailureToGovernanceState({
-    state: input.input.governanceState,
+    state: input.governanceState,
     task: input.taskEnvelope,
     primitiveId,
     errorClass,
@@ -1527,6 +1547,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
   artifactIds: string[];
   createdAt: string;
   providerAttestation?: ProviderAttestation;
+  governanceState?: GovernanceState;
   governanceTaskEnvelope?: TaskEnvelope;
   executorPlan?: ExecutorExecutionPlan;
   validation?: ExecutionValidationResult;
@@ -1599,6 +1620,9 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     reasons,
     completedAt,
     reportArtifact,
+    ...(input.governanceState !== undefined
+      ? { governanceState: input.governanceState }
+      : {}),
     ...(input.governanceTaskEnvelope !== undefined
       ? { taskEnvelope: input.governanceTaskEnvelope }
       : {}),
