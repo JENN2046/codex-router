@@ -92,7 +92,7 @@ Phase 1 should not:
 
 ## Validation Baseline
 
-Phase 0 is docs-only. Recommended validation for this PR:
+Phase 0 is docs-only. Recommended validation for this non-`main` PR branch:
 
 ```bash
 git diff --check
@@ -127,11 +127,19 @@ The bare local state-sync command is still valid after the PR lands on local
 node --import tsx scripts/run-state-sync-audit.ts --json
 ```
 
-Full PR validation can still use typecheck, tests, and build from:
+For full local PR validation on a non-`main` branch, run the non-state-sync
+parts explicitly:
 
 ```bash
-npm run validate:pr
+npm run typecheck
+npm test
+npm run build
 ```
+
+Do not use `npm run validate:pr` as a bare non-`main` branch command unless the
+state-sync audit is running with an explicit `pull_request` event context. That
+shortcut still includes the local state-sync audit tier, which policy v2 only
+accepts on local `main`.
 
 ## Final Phase 0 Statement
 
