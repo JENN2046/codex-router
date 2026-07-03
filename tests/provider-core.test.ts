@@ -27,8 +27,7 @@ import {
   validateWorkspaceWriteProviderExecutionPermitForPlan,
   validateWorkspaceWriteProviderExecutionPermitV2ForPlan,
   type ExecutorExecutionPlan,
-  type ProviderManifest,
-  type WorkspaceWriteProviderExecutionPermitV2
+  type ProviderManifest
 } from "../packages/provider-core/src/index.js";
 import {
   SandboxProfileSchema,
