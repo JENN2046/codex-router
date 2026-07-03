@@ -34,6 +34,9 @@ This threat model names the current governance risks and required controls.
 | Protected remote action | Separate authorization for push, tag, deploy, publish, release. | Blocked by default. |
 | Dirty worktree risk | Worktree cleanliness checks before closeout or write-sensitive runs. | Block. |
 | Protected branch risk | PR path for normal work; release-specific authorization for branch movement. | Block direct mutation by default. |
+| Workspace-write permit replay | Permit v2 nonce, expiration, consumption record, and hash bindings. | Block until permit v2 exists and is consumed once. |
+| Workspace-write rollback failure | `beforeCommit`, rollback command identity, and rollback verification. | Block real canary promotion. |
+| Workspace-write evidence leak | Patch digest and sanitized summaries instead of raw patch/stdout/stderr. | Block unsafe evidence. |
 | Evidence drift | Structured state-sync claim and display drift checks. | Audit blocks authority drift; display drift is informational unless gated. |
 | Opaque runtime failure | Unknown thrown values normalized before governance records them. | Use stable fallback error class. |
 
@@ -72,3 +75,19 @@ Stop a PR or run when:
 - state-sync authority fails;
 - a threat listed here has no test, runbook, or explicit manual gate.
 
+## Workspace-write Specific Stops
+
+Stop any real workspace-write path when:
+
+- permit v2 is absent or lacks expiration, nonce, consumption record, or hash
+  bindings;
+- policy, manifest, principal, or provider execution plan hash does not match;
+- target allowlist, max changed files, or max diff lines are missing;
+- current branch is protected;
+- worktree is dirty before execution review;
+- `beforeCommit` or rollback command is missing;
+- patch guard or secret-like patch blocker fails;
+- evidence would require raw patch, raw stdout/stderr, raw prompt, provider
+  payload, env, token, cookie, or credential storage;
+- the same action bundles push, release, tag, deployment, package publish,
+  external write, or secret mutation.

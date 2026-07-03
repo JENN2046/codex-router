@@ -31,6 +31,7 @@ authority is expressed by:
 - [Glossary](GLOSSARY.md);
 - [Threat Model](THREAT_MODEL.md);
 - [Change Control](CHANGE_CONTROL.md);
+- [Workspace-write Release Gate](WORKSPACE_WRITE_RELEASE_GATE.md);
 - executable checks exposed through `npm run governance -- list`;
 - the structured state-sync claim at `docs/current/state-sync-record.json`.
 
@@ -46,6 +47,7 @@ authority is expressed by:
 | `EVIDENCE_POLICY.md` | Evidence storage boundary | Current human authority. |
 | `THREAT_MODEL.md` | Current risk and control map | Current human authority. |
 | `CHANGE_CONTROL.md` | Required docs/tests for governance changes | Current human authority. |
+| `WORKSPACE_WRITE_RELEASE_GATE.md` | Workspace-write promotion and block rules | Current human authority for workspace-write readiness. |
 | `PR_*`, `FUTURE_*`, closeouts, packets | Historical evidence | Evidence only unless linked by a current authority document. |
 
 ## Capability Status
@@ -57,7 +59,7 @@ authority is expressed by:
 | Runtime governance observation | active | No by itself | May record sanitized observations, refs, anomalies, and operator actions. |
 | Controlled read-only real execution | guarded | Yes, narrow | Requires [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md), explicit host injection, permit/preflight metadata, stable evidence, and no hidden provider path. |
 | Workspace-write fake canary | guarded | No | May validate control flow without real host writes. |
-| Workspace-write real canary | experimental / blocked by default | No by default | Requires [workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md), a fresh explicit authorization packet for the named canary, and rollback evidence. |
+| Workspace-write real canary | experimental / blocked by default | No by default | Requires [workspace-write release gate](WORKSPACE_WRITE_RELEASE_GATE.md), [workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md), a fresh explicit authorization packet for the named canary, permit v2 controls, and rollback evidence. |
 | General workspace write | blocked | No | A bounded canary does not promote this class. |
 | General provider execution | blocked | No | Requires a separate gate and explicit authorization. |
 | External write | blocked | No | Includes comments, issues, remote service writes, database writes, publishing, and deployment. |
@@ -87,6 +89,7 @@ Use these first:
 | Evidence safety boundary | `EVIDENCE_POLICY.md` |
 | Threat and control map | `THREAT_MODEL.md` |
 | Change impact rules | `CHANGE_CONTROL.md` |
+| Workspace-write promotion/block rules | `WORKSPACE_WRITE_RELEASE_GATE.md` |
 | Term definitions | `GLOSSARY.md` |
 | Read-only controlled execution procedure | `runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md` |
 | Workspace-write canary procedure | `runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md` |
