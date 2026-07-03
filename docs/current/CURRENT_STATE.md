@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `1288da2614d6ff188455c7f61345a6368b3ea9191c87f3c6e32d6e483e57ffb4`
+  `f9bb48a647e7548b435393aad272a3fb2bd8edfe2bb1507c0288e6a074519892`
 
 Source digest excluded paths:
 
@@ -87,6 +87,10 @@ Current repository governance status:
   `docs/governance/PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md`;
   the current controlled read-only acceptance covers expiration, nonce, replay,
   and permit store-failure behavior.
+- Workspace-write permit v2 schema, validators, rollback binding, and
+  single-use consumption helper are recorded in
+  `docs/governance/PR_23D_WORKSPACE_WRITE_PERMIT_V2.md`; this is readiness
+  infrastructure only, not workspace-write execution authorization.
 - Real provider execution, real Codex CLI execution, secret changes, dependency
   changes, workflow changes, and direct `main` pushes remain outside normal
   display-only pruning work.
@@ -144,6 +148,10 @@ The Phase 6 read-only provider permit lifecycle line is recorded at
 `docs/governance/PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md`;
 it keeps the same acceptance entry point while adding expiration, nonce, replay,
 and store-failure coverage.
+The PR-23D workspace-write permit v2 line is recorded at
+`docs/governance/PR_23D_WORKSPACE_WRITE_PERMIT_V2.md`; it adds schema,
+validator, rollback-binding, and single-use consumption readiness without
+authorizing real workspace-write.
 
 Boundary audit marker:
 

@@ -52,6 +52,9 @@ as historical evidence unless a current authority document links them.
 - [Phase 6 read-only provider permit lifecycle hardening](PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md):
   current lifecycle closeout for expiration, nonce, replay, and store-failure
   checks in the controlled read-only acceptance line.
+- [PR-23D workspace-write permit v2](PR_23D_WORKSPACE_WRITE_PERMIT_V2.md):
+  current permit v2 schema and validator line for workspace-write readiness;
+  this is not workspace-write execution authorization.
 
 ## Runner Entry Points
 

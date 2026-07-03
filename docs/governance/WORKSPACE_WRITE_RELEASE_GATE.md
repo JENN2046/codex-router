@@ -24,6 +24,7 @@ Current posture:
 
 | Capability | Status |
 | --- | --- |
+| Workspace-write permit v2 | Schema, validators, rollback binding, and single-use consumption helper implemented; not execution authorization. |
 | Workspace-write fake canary | Guarded, no real host write. |
 | Workspace-write real canary | Experimental and blocked by default. |
 | General workspace-write | Blocked. |
@@ -34,7 +35,7 @@ Current posture:
 Workspace-write real canary may move from blocked-by-default to guarded only
 when all of these controls exist and pass:
 
-- workspace-write permit v2;
+- workspace-write permit v2 integrated into the canary path;
 - permit expiration;
 - permit nonce;
 - permit consumption store;

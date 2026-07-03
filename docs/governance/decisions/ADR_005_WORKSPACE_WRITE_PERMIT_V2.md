@@ -70,14 +70,16 @@ broadened, revoked, expired, or already consumed.
 
 ## Consequences
 
-- Workspace-write real canary remains blocked until permit v2 and its
-  consumption semantics exist.
+- Workspace-write permit v2 schema, validation, rollback binding, and
+  consumption helpers now exist in provider-core.
+- Workspace-write real canary remains blocked until permit v2 is integrated
+  into the canary path and a fresh exact-target authorization is reviewed.
 - General workspace-write remains blocked even after a bounded canary passes.
 - Runtime and release reviews must check rollback, patch guards, secret-like
   patch blockers, and sanitized evidence.
-- Future implementation PRs must add regression tests for replay, stale permit,
-  hash mismatch, broad target, dirty worktree, protected branch, and rollback
-  failure cases.
+- Future implementation PRs must keep regression coverage for replay, stale
+  permit, hash mismatch, broad target, dirty worktree, protected branch, and
+  rollback failure cases.
 
 ## Verification
 
