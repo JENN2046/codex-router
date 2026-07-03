@@ -2,12 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createApprovedWorkspaceWriteProviderExecutionPermit,
+  createApprovedWorkspaceWriteProviderExecutionPermitV2,
   createBlockedWorkspaceWriteProviderExecutionPermit,
   ExecutorExecutionPlanSchema,
+  hashProviderManifest,
   ProviderManifestSchema,
   type ExecutorExecutionPlan,
   type ProviderManifest,
-  type WorkspaceWriteProviderExecutionPermit
+  type WorkspaceWriteProviderExecutionPermit,
+  type WorkspaceWriteProviderExecutionPermitV2
 } from "../packages/provider-core/src/index.js";
 import { SandboxProfileSchema, type SandboxProfile } from "../packages/kernel-contracts/src/index.js";
 import {
@@ -348,6 +351,64 @@ test("workspace-write canary readiness can become ready for a fixed fake target"
   assert.equal(readiness.summary.workspaceWriteExecuteCalls, 0);
   assert.equal(readiness.summary.canaryFileWrites, 0);
   assert.equal(serialized.includes("canary=ready"), false);
+});
+
+test("workspace-write canary readiness accepts permit v2 without execution", () => {
+  const permit = createWorkspaceWritePermitV2({
+    targetFiles: [DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE],
+    maxChangedFiles: 1,
+    maxDiffLines: 2
+  });
+  const guardResult = evaluateWorkspaceWritePatchGuard({
+    permit,
+    unifiedDiff: createCanaryDiff()
+  });
+  const rollbackEvidence = createWorkspaceWriteRollbackPlanEvidence({
+    permit,
+    guardResult,
+    beforeCommit: "abc123def456",
+    generatedAt: "2026-06-14T00:00:00.000Z"
+  });
+  const readiness = evaluateWorkspaceWriteCanaryReadiness({
+    permit,
+    guardResult,
+    rollbackEvidence,
+    targetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+    operatorGateEnabled: true
+  });
+  const unsafeGuard = evaluateWorkspaceWritePatchGuard({
+    permit,
+    unifiedDiff: [
+      `diff --git a/${DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE} b/${DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE}`,
+      `--- a/${DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE}`,
+      `+++ b/${DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE}`,
+      "@@",
+      "+canary=ready",
+      "diff --git a/../outside.txt b/../outside.txt",
+      "--- a/../outside.txt",
+      "+++ b/../outside.txt",
+      "@@",
+      "+const secret = \"sk-proj-123456789\";"
+    ].join("\n")
+  });
+  const serializedUnsafeGuard = JSON.stringify(unsafeGuard);
+
+  assert.equal(guardResult.ok, true);
+  assert.equal(rollbackEvidence.status, "ready");
+  assert.equal(rollbackEvidence.permit.schemaVersion, "provider-workspace-write-execution-permit.v2");
+  assert.equal(readiness.ok, true);
+  assert.equal(readiness.summary.permitSchemaVersion, "provider-workspace-write-execution-permit.v2");
+  assert.equal(readiness.summary.providerExecuteCalls, 0);
+  assert.equal(readiness.summary.realCodexCliCalls, 0);
+  assert.equal(readiness.summary.workspaceWriteExecuteCalls, 0);
+  assert.equal(readiness.summary.canaryFileWrites, 0);
+  assert.equal(unsafeGuard.ok, false);
+  assert.ok(unsafeGuard.reasons.includes("workspace_write_patch_guard_changed_files_exceed_max"));
+  assert.ok(unsafeGuard.reasons.includes("workspace_write_patch_guard_changed_file_out_of_bounds"));
+  assert.ok(unsafeGuard.reasons.includes("workspace_write_patch_guard_changed_file_not_permitted:../outside.txt"));
+  assert.ok(unsafeGuard.reasons.includes("workspace_write_patch_guard_secret_like_content"));
+  assert.equal(serializedUnsafeGuard.includes("sk-proj-123456789"), false);
+  assert.equal(serializedUnsafeGuard.includes("const secret"), false);
 });
 
 test("workspace-write canary readiness blocks non-canary targets and broad caps", () => {
@@ -769,6 +830,46 @@ function createWorkspaceWritePermit(options: {
   return options.approved === false
     ? createBlockedWorkspaceWriteProviderExecutionPermit(input)
     : createApprovedWorkspaceWriteProviderExecutionPermit(input);
+}
+
+function createWorkspaceWritePermitV2(options: {
+  targetFiles: string[];
+  maxChangedFiles: number;
+  maxDiffLines: number;
+}): WorkspaceWriteProviderExecutionPermitV2 {
+  const manifest = createProviderManifest();
+  const plan = createExecutorPlan({
+    approvalRequired: true,
+    sandboxProfile: createSandboxProfile("workspace-write"),
+    sideEffectClass: "workspace_write",
+    providerExecutionPlanHash: "c".repeat(64),
+    providerManifestHash: hashProviderManifest(manifest),
+    principalId: "principal_workspace_write_guard_001",
+    principalHash: "d".repeat(64)
+  });
+
+  return createApprovedWorkspaceWriteProviderExecutionPermitV2({
+    plan,
+    manifest,
+    approvalStatus: "approved",
+    operatorAuthorizationId: "operator_auth_workspace_write_guard_v2_001",
+    targetFiles: options.targetFiles,
+    maxChangedFiles: options.maxChangedFiles,
+    maxDiffLines: options.maxDiffLines,
+    rollbackRequired: true,
+    rollback: {
+      beforeCommit: "abc123def456"
+    },
+    protectedBranchForbidden: true,
+    dirtyWorktreeForbidden: true,
+    repositoryState: {
+      branch: "codex/workspace-write-governance",
+      protectedBranch: false,
+      worktreeClean: true,
+      headCommit: "abc123def456"
+    },
+    issuedAt: "2026-06-14T00:00:00.000Z"
+  });
 }
 
 function createProviderManifest(): ProviderManifest {

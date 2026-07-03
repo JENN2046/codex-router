@@ -3,7 +3,9 @@ import { z } from "zod";
 import { redactText } from "../../redaction/src/index.js";
 import {
   WorkspaceWriteProviderExecutionPermitSchema,
-  type WorkspaceWriteProviderExecutionPermit
+  WorkspaceWriteProviderExecutionPermitV2Schema,
+  type WorkspaceWriteProviderExecutionPermit,
+  type WorkspaceWriteProviderExecutionPermitV2
 } from "../../provider-core/src/index.js";
 
 export const DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE = "tmp/codex-cli-write-canary.txt";
@@ -64,6 +66,7 @@ export const WorkspaceWriteRollbackPlanEvidenceSchema = z.object({
   generatedAt: z.string().min(1),
   status: z.enum(["ready", "blocked"]),
   permit: z.object({
+    schemaVersion: z.string().min(1).optional(),
     permitId: z.string().min(1),
     providerId: z.string().min(1),
     taskId: z.string().min(1),
@@ -104,6 +107,7 @@ export const WorkspaceWriteCanaryReadinessResultSchema = z.object({
     allowedTargetFile: z.string().min(1),
     providerId: z.string().min(1),
     permitId: z.string().min(1),
+    permitSchemaVersion: z.string().min(1).optional(),
     planId: z.string().min(1).optional(),
     sideEffectClass: z.literal("workspace_write"),
     sandboxMode: z.literal("workspace-write"),
@@ -180,20 +184,29 @@ export type WorkspaceWriteRealCanaryPreExecutionGateResult = z.infer<
   typeof WorkspaceWriteRealCanaryPreExecutionGateResultSchema
 >;
 
+export type WorkspaceWriteGuardPermit =
+  | WorkspaceWriteProviderExecutionPermit
+  | WorkspaceWriteProviderExecutionPermitV2;
+
+const WorkspaceWriteGuardPermitSchema = z.union([
+  WorkspaceWriteProviderExecutionPermitSchema,
+  WorkspaceWriteProviderExecutionPermitV2Schema
+]);
+
 export type WorkspaceWritePatchGuardInput = {
-  permit: WorkspaceWriteProviderExecutionPermit;
+  permit: WorkspaceWriteGuardPermit;
   unifiedDiff: string;
 };
 
 export type WorkspaceWriteRollbackPlanEvidenceInput = {
-  permit: WorkspaceWriteProviderExecutionPermit;
+  permit: WorkspaceWriteGuardPermit;
   guardResult: WorkspaceWritePatchGuardResult;
   beforeCommit?: string;
   generatedAt: string;
 };
 
 export type WorkspaceWriteCanaryReadinessInput = {
-  permit: WorkspaceWriteProviderExecutionPermit;
+  permit: WorkspaceWriteGuardPermit;
   guardResult: WorkspaceWritePatchGuardResult;
   rollbackEvidence: WorkspaceWriteRollbackPlanEvidence;
   targetFile: string;
@@ -283,7 +296,7 @@ export function inspectWorkspaceWriteUnifiedDiff(unifiedDiff: string): Workspace
 export function evaluateWorkspaceWritePatchGuard(
   input: WorkspaceWritePatchGuardInput
 ): WorkspaceWritePatchGuardResult {
-  const permit = WorkspaceWriteProviderExecutionPermitSchema.parse(input.permit);
+  const permit = WorkspaceWriteGuardPermitSchema.parse(input.permit);
   const inspection = inspectWorkspaceWriteUnifiedDiff(input.unifiedDiff);
   const reasons: string[] = [];
   const permittedTargets = new Set(permit.targetFiles);
@@ -340,7 +353,7 @@ export function evaluateWorkspaceWritePatchGuard(
 export function createWorkspaceWriteRollbackPlanEvidence(
   input: WorkspaceWriteRollbackPlanEvidenceInput
 ): WorkspaceWriteRollbackPlanEvidence {
-  const permit = WorkspaceWriteProviderExecutionPermitSchema.parse(input.permit);
+  const permit = WorkspaceWriteGuardPermitSchema.parse(input.permit);
   const guardResult = WorkspaceWritePatchGuardResultSchema.parse(input.guardResult);
   const beforeCommit = normalizeOptionalString(input.beforeCommit);
   const changedFiles = guardResult.summary.changedFiles;
@@ -375,6 +388,7 @@ export function createWorkspaceWriteRollbackPlanEvidence(
     generatedAt: input.generatedAt,
     status: uniqueReasons.length === 0 ? "ready" : "blocked",
     permit: {
+      schemaVersion: permit.schemaVersion,
       permitId: permit.permitId,
       providerId: permit.providerId,
       taskId: permit.taskId,
@@ -410,7 +424,7 @@ export function createWorkspaceWriteRollbackPlanEvidence(
 export function evaluateWorkspaceWriteCanaryReadiness(
   input: WorkspaceWriteCanaryReadinessInput
 ): WorkspaceWriteCanaryReadinessResult {
-  const permit = WorkspaceWriteProviderExecutionPermitSchema.parse(input.permit);
+  const permit = WorkspaceWriteGuardPermitSchema.parse(input.permit);
   const guardResult = WorkspaceWritePatchGuardResultSchema.parse(input.guardResult);
   const rollbackEvidence = WorkspaceWriteRollbackPlanEvidenceSchema.parse(input.rollbackEvidence);
   const allowedTargetFile = input.allowedTargetFile ?? DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE;
@@ -468,6 +482,7 @@ export function evaluateWorkspaceWriteCanaryReadiness(
       allowedTargetFile,
       providerId: permit.providerId,
       permitId: permit.permitId,
+      permitSchemaVersion: permit.schemaVersion,
       ...(permit.planId !== undefined ? { planId: permit.planId } : {}),
       sideEffectClass: permit.sideEffectClass,
       sandboxMode: permit.sandboxMode,
