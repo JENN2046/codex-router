@@ -79,8 +79,9 @@ import {
   type AnomalyRecord,
   type GovernanceState
 } from "../../state-manager/src/index.js";
-import type {
-  StrategyDecisionV2
+import {
+  routeStrategyV2,
+  type StrategyDecisionV2
 } from "../../strategy-router/src/index.js";
 
 export const ProviderExecutionRunnerStatusSchema = z.enum([
@@ -811,6 +812,13 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
     );
   }
 
+  if (governanceState !== undefined) {
+    reasons.push(...collectGovernanceStatePreExecutionBlockReasons({
+      governanceState,
+      now: input.input.now
+    }));
+  }
+
   if (taskEnvelope !== undefined && taskEnvelope.taskId !== input.task.taskId) {
     reasons.push(
       `controlled_readonly_provider_governance_task_envelope_mismatch:${taskEnvelope.taskId}:${input.task.taskId}`
@@ -846,6 +854,36 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
     taskEnvelope !== undefined
     ? { reasons, governanceState, taskEnvelope }
     : { reasons };
+}
+
+function collectGovernanceStatePreExecutionBlockReasons(input: {
+  governanceState: GovernanceState;
+  now: () => string;
+}): string[] {
+  if (
+    input.governanceState.phase === "recovery" ||
+    input.governanceState.phase === "closed"
+  ) {
+    return [
+      `controlled_readonly_provider_governance_state_phase_blocked:${input.governanceState.phase}`
+    ];
+  }
+
+  const strategyDecision = routeStrategyV2({
+    state: input.governanceState,
+    now: input.now
+  });
+
+  if (
+    strategyDecision.actionFamily === "step_back" ||
+    strategyDecision.actionFamily === "abort"
+  ) {
+    return [
+      `controlled_readonly_provider_governance_state_strategy_blocked:${strategyDecision.actionFamily}`
+    ];
+  }
+
+  return [];
 }
 
 function createControlledReadOnlyGovernanceResultFields(input: {

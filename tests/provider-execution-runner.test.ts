@@ -1798,6 +1798,133 @@ test("provider execution runner blocks invalid governance state before provider 
   });
 });
 
+test("provider execution runner blocks governance states requiring step-back before provider hooks", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      calls.execute += 1;
+      return { ok: true };
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createRecoveryRequiredGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.governance, undefined);
+  assert.ok(result.reasons.includes(
+    "controlled_readonly_provider_governance_state_strategy_blocked:step_back"
+  ));
+  assert.deepEqual(calls, {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  });
+});
+
+test("provider execution runner blocks recovery-phase governance states before provider hooks", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      calls.execute += 1;
+      return { ok: true };
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: {
+      ...createLowRiskGovernanceState(fixture.task.taskId),
+      phase: "recovery"
+    },
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.governance, undefined);
+  assert.ok(result.reasons.includes(
+    "controlled_readonly_provider_governance_state_phase_blocked:recovery"
+  ));
+  assert.deepEqual(calls, {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  });
+});
+
 test("provider execution runner blocks stale governance task envelopes before provider hooks", async () => {
   const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
     stdout: "",
@@ -2323,6 +2450,26 @@ function createHighRiskGovernanceStateWithTwoExecutionFailures(taskId: string): 
         strikeNumber: 2,
         createdAt: "2026-06-10T00:20:00.000Z",
         evidenceRefs: []
+      }
+    ]
+  };
+}
+
+function createRecoveryRequiredGovernanceState(taskId: string): GovernanceState {
+  const state = createHighRiskGovernanceStateWithTwoExecutionFailures(taskId);
+
+  return {
+    ...state,
+    anomalies: [
+      ...state.anomalies,
+      {
+        anomalyId: "anomaly:provider-runner:pre3",
+        taskId,
+        kind: "execution_failure",
+        message: "third controlled provider failure",
+        strikeNumber: 3,
+        createdAt: "2026-06-10T00:30:00.000Z",
+        evidenceRefs: ["artifact:provider-runner-third-failure-report"]
       }
     ]
   };
