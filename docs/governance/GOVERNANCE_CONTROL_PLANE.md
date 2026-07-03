@@ -34,6 +34,7 @@ authority is expressed by:
 - [Workspace-write Release Gate](WORKSPACE_WRITE_RELEASE_GATE.md);
 - [Governance Docs Automation Spec](DOCS_AUTOMATION_SPEC.md);
 - [Phase 6 Controlled Execution Runtime Hardening Baseline](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md);
+- [Phase 6 Controlled Execution Runtime Hardening Closeout](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_CLOSEOUT.md);
 - [PR-23B Controlled Read-only Provider Execution Minimal Slice](PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md);
 - [PR-23C Execution Evidence Binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md);
 - [PR-23D Workspace-write Permit V2](PR_23D_WORKSPACE_WRITE_PERMIT_V2.md);
@@ -56,6 +57,7 @@ authority is expressed by:
 | `WORKSPACE_WRITE_RELEASE_GATE.md` | Workspace-write promotion and block rules | Current human authority for workspace-write readiness. |
 | `DOCS_AUTOMATION_SPEC.md` | Lightweight docs governance check contract | Current human authority for docs check scope. |
 | `PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md` | Runtime-hardening stage baseline | Current human authority for Phase 6 sequencing; not execution authorization. |
+| `PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_CLOSEOUT.md` | Runtime-hardening stage closeout | Current human authority for Phase 6 completed capability status; not new execution authorization. |
 | `PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md` | Controlled read-only provider execution acceptance | Current human authority for the PR-23B minimal slice; not real Codex CLI authorization. |
 | `PR_23C_EXECUTION_EVIDENCE_BINDING.md` | Controlled read-only execution evidence binding | Current human authority for PR-23C refs/hash evidence; not new execution authorization. |
 | `PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md` | Read-only provider permit lifecycle hardening | Current human authority for expiration, nonce, replay, and store-failure acceptance coverage; not workspace-write authorization. |
@@ -108,6 +110,7 @@ Use these first:
 | Read-only controlled execution procedure | `runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md` |
 | Workspace-write canary procedure | `runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md` |
 | Phase 6 runtime hardening baseline | `PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md` |
+| Phase 6 runtime hardening closeout | `PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_CLOSEOUT.md` |
 | Controlled read-only execution evidence binding | `PR_23C_EXECUTION_EVIDENCE_BINDING.md` |
 | Read-only provider permit lifecycle hardening | `PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md` |
 | Workspace-write permit v2 schema and validators | `PR_23D_WORKSPACE_WRITE_PERMIT_V2.md` |
