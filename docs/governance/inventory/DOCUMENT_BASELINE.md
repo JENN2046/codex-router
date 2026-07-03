@@ -120,12 +120,9 @@ GITHUB_REPOSITORY=JENN2046/codex-router \
 node --import tsx scripts/run-state-sync-audit.ts --json
 ```
 
-The bare local state-sync command is still valid after the PR lands on local
-`main`:
-
-```bash
-node --import tsx scripts/run-state-sync-audit.ts --json
-```
+Post-merge state-sync closeout is separate from PR branch validation. Run the
+main-local state-sync audit only after the PR lands and the local checkout has
+been switched to `main`.
 
 For full local PR validation on a non-`main` branch, run the non-state-sync
 parts explicitly:
