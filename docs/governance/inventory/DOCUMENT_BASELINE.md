@@ -81,6 +81,10 @@ Phase 1 should not:
 
 ## Open Baseline Gaps
 
+This table records gaps observed during Phase 0. Later phases may close these
+items; use the current control-plane and validation-tier documents for current
+operator status.
+
 | Gap | Impact | Recommended phase |
 |---|---|---|
 | No single control-plane document yet | Operators still need README plus governance index plus current state. | Phase 1 |
