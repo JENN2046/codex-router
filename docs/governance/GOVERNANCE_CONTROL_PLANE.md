@@ -51,9 +51,9 @@ authority is expressed by:
 | Protocol V1 contracts | active | N/A | Stable package surface; keep changes tested and reviewable. |
 | Read-only dry run | active | No | Safe default for local inspection, demos, and deterministic tests. |
 | Runtime governance observation | active | No by itself | May record sanitized observations, refs, anomalies, and operator actions. |
-| Controlled read-only real execution | guarded | Yes, narrow | Requires explicit host injection, permit/preflight metadata, stable evidence, and no hidden provider path. |
+| Controlled read-only real execution | guarded | Yes, narrow | Requires [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md), explicit host injection, permit/preflight metadata, stable evidence, and no hidden provider path. |
 | Workspace-write fake canary | guarded | No | May validate control flow without real host writes. |
-| Workspace-write real canary | experimental / blocked by default | No by default | Requires a fresh explicit authorization packet for the named canary and rollback evidence. |
+| Workspace-write real canary | experimental / blocked by default | No by default | Requires [workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md), a fresh explicit authorization packet for the named canary, and rollback evidence. |
 | General workspace write | blocked | No | A bounded canary does not promote this class. |
 | General provider execution | blocked | No | Requires a separate gate and explicit authorization. |
 | External write | blocked | No | Includes comments, issues, remote service writes, database writes, publishing, and deployment. |
@@ -82,6 +82,8 @@ Use these first:
 | PR/release validation policy | `RELEASE_GATE_MATRIX.md` |
 | Evidence safety boundary | `EVIDENCE_POLICY.md` |
 | Term definitions | `GLOSSARY.md` |
+| Read-only controlled execution procedure | `runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md` |
+| Workspace-write canary procedure | `runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md` |
 | Available current checks | `npm run governance -- list` |
 | Archived checks | `npm run governance -- list --all` |
 
@@ -109,4 +111,3 @@ tokens, cookies, and credentials are not acceptable evidence surfaces. See
   summaries or refs.
 - If a capability status is not listed here, treat it as blocked until a current
   authority document names it.
-
