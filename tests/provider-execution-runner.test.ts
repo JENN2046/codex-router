@@ -1644,15 +1644,31 @@ test("provider execution runner exposes operator action on third controlled read
   });
 
   assert.equal(result.status, "execution_failed");
+  assert.ok(result.reportArtifact);
   assert.ok(result.governance);
+  const artifactEvidenceRef = `artifact:${result.reportArtifact.artifactId}`;
+  assert.deepEqual(result.governance.evidenceRefs, [artifactEvidenceRef]);
+  assert.deepEqual(result.governance.anomaly.evidenceRefs, [artifactEvidenceRef]);
+  assert.deepEqual(result.governance.arbitrationPacket.rawEvidenceRefs, [
+    artifactEvidenceRef
+  ]);
   assert.equal(result.governance.anomaly.strikeNumber, 3);
   assert.equal(result.governance.recoveryRequired, true);
   assert.equal(result.governance.lockdown, true);
+  assert.ok(result.governance.recoveryRecommendation);
+  assert.equal(result.governance.recoveryRecommendation.evidenceStatus, "referenced");
+  assert.deepEqual(result.governance.recoveryRecommendation.evidenceRefs, [
+    artifactEvidenceRef
+  ]);
   assert.ok(result.governance.operatorAction);
   assert.equal(result.governance.operatorAction.trigger, "third_anomaly");
   assert.equal(result.governance.operatorAction.lockdown, true);
   assert.equal(result.governance.operatorAction.requiresHumanApproval, true);
   assert.equal(result.governance.operatorAction.recommendedAction, "rollback");
+  assert.equal(result.governance.operatorAction.evidenceStatus, "referenced");
+  assert.deepEqual(result.governance.operatorAction.evidenceRefs, [
+    artifactEvidenceRef
+  ]);
 });
 
 test("provider execution runner blocks mismatched governance state before provider hooks", async () => {

@@ -1056,7 +1056,7 @@ async function emitControlledReadOnlyProviderFailureObservationRefs(input: {
   createdAt: string;
 }): Promise<string[]> {
   if (input.observationBus === undefined) {
-    return [];
+    return [`artifact:${input.reportArtifactId}`];
   }
 
   const observationId = createObservationId({
