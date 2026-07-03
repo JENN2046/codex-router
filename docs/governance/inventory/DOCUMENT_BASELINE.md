@@ -98,10 +98,36 @@ Phase 0 is docs-only. Recommended validation for this PR:
 git diff --check
 npm run validate:daily
 npm run governance -- list
+node --import tsx scripts/sync-state-sync-display.ts --check
+```
+
+For a non-`main` PR branch, validate state-sync through GitHub CI's
+`pull_request` State Sync Audit job, or with an explicit local pull-request
+context simulation. Do not use the bare local state-sync command as the PR
+branch check, because policy v2 only accepts bare `local` audits on `main`.
+
+```bash
+tmpdir=$(mktemp -d)
+event="$tmpdir/event.json"
+printf '{"pull_request":{"head":{"sha":"%s"}}}\n' "$(git rev-parse HEAD)" > "$event"
+GITHUB_ACTIONS=true \
+GITHUB_EVENT_NAME=pull_request \
+GITHUB_EVENT_PATH="$event" \
+GITHUB_BASE_REF=main \
+GITHUB_HEAD_REF="$(git branch --show-current)" \
+GITHUB_SHA="$(git rev-parse origin/main)" \
+GITHUB_REPOSITORY=JENN2046/codex-router \
 node --import tsx scripts/run-state-sync-audit.ts --json
 ```
 
-Full PR validation can still use:
+The bare local state-sync command is still valid after the PR lands on local
+`main`:
+
+```bash
+node --import tsx scripts/run-state-sync-audit.ts --json
+```
+
+Full PR validation can still use typecheck, tests, and build from:
 
 ```bash
 npm run validate:pr
@@ -113,4 +139,3 @@ The current governance document baseline is established. Phase 1 can start by
 creating current control-plane documents. Historical documents remain preserved
 in place and are not current authority unless a current index or audit script
 explicitly names them.
-
