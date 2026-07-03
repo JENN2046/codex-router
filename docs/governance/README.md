@@ -46,6 +46,9 @@ as historical evidence unless a current authority document links them.
   current acceptance line for the explicit controlled read-only provider
   execution path; this uses injected fake-spawner validation and is not real
   Codex CLI authorization.
+- [PR-23C execution evidence binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md):
+  current evidence-binding line for controlled read-only provider execution;
+  this strengthens refs and hashes without broadening execution authorization.
 
 ## Runner Entry Points
 

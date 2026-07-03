@@ -35,6 +35,7 @@ authority is expressed by:
 - [Governance Docs Automation Spec](DOCS_AUTOMATION_SPEC.md);
 - [Phase 6 Controlled Execution Runtime Hardening Baseline](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md);
 - [PR-23B Controlled Read-only Provider Execution Minimal Slice](PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md);
+- [PR-23C Execution Evidence Binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md);
 - executable checks exposed through `npm run governance -- list`;
 - the structured state-sync claim at `docs/current/state-sync-record.json`.
 
@@ -54,6 +55,7 @@ authority is expressed by:
 | `DOCS_AUTOMATION_SPEC.md` | Lightweight docs governance check contract | Current human authority for docs check scope. |
 | `PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md` | Runtime-hardening stage baseline | Current human authority for Phase 6 sequencing; not execution authorization. |
 | `PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md` | Controlled read-only provider execution acceptance | Current human authority for the PR-23B minimal slice; not real Codex CLI authorization. |
+| `PR_23C_EXECUTION_EVIDENCE_BINDING.md` | Controlled read-only execution evidence binding | Current human authority for PR-23C refs/hash evidence; not new execution authorization. |
 | `PR_*`, `FUTURE_*`, closeouts, packets | Historical evidence | Evidence only unless linked by a current authority document. |
 
 ## Capability Status
@@ -63,7 +65,7 @@ authority is expressed by:
 | Protocol V1 contracts | active | N/A | Stable package surface; keep changes tested and reviewable. |
 | Read-only dry run | active | No | Safe default for local inspection, demos, and deterministic tests. |
 | Runtime governance observation | active | No by itself | May record sanitized observations, refs, anomalies, and operator actions. |
-| Controlled read-only real execution | guarded / productized | Yes, narrow | Requires [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md), [PR-23B minimal slice](PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md), explicit controlled mode, injected execution dependency, permit/preflight metadata, stable evidence, and no hidden provider path. |
+| Controlled read-only real execution | guarded / productized | Yes, narrow | Requires [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md), [PR-23B minimal slice](PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md), [PR-23C evidence binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md), explicit controlled mode, injected execution dependency, permit/preflight metadata, stable evidence refs/hashes, and no hidden provider path. |
 | Workspace-write fake canary | guarded | No | May validate control flow without real host writes. |
 | Workspace-write real canary | experimental / blocked by default | No by default | Requires [workspace-write release gate](WORKSPACE_WRITE_RELEASE_GATE.md), [workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md), a fresh explicit authorization packet for the named canary, permit v2 controls, and rollback evidence. |
 | General workspace write | blocked | No | A bounded canary does not promote this class. |
@@ -101,6 +103,7 @@ Use these first:
 | Read-only controlled execution procedure | `runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md` |
 | Workspace-write canary procedure | `runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md` |
 | Phase 6 runtime hardening baseline | `PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md` |
+| Controlled read-only execution evidence binding | `PR_23C_EXECUTION_EVIDENCE_BINDING.md` |
 | Controlled read-only provider execution acceptance | `npm run governance -- acceptance controlled-readonly-provider-execution` |
 | Available current checks | `npm run governance -- list` |
 | Governance docs structure check | `npm run docs:governance` |

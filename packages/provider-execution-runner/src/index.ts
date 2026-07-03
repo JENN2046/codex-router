@@ -32,6 +32,8 @@ import type {
 import {
   createProviderAttestation,
   ExecutorExecutionPlanSchema,
+  createProviderExecutionPermitConsumptionKey,
+  hashExecutorExecutionPlan,
   hashProviderManifest,
   validateProviderExecutionPermitForPlan,
   type ExecutionValidationResult,
@@ -70,6 +72,120 @@ export const ControlledReadOnlyProviderExecutionRunnerStatusSchema = z.enum([
 
 export type ControlledReadOnlyProviderExecutionRunnerStatus =
   z.infer<typeof ControlledReadOnlyProviderExecutionRunnerStatusSchema>;
+
+const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
+const NullableSha256Schema = z.union([Sha256Schema, z.null()]);
+const NullableStringSchema = z.union([z.string().min(1), z.null()]);
+const NullableBooleanSchema = z.union([z.boolean(), z.null()]);
+
+export const ControlledReadOnlyExecutionEvidenceSchema = z.object({
+  schemaVersion: z.literal("provider-execution-controlled-readonly-evidence.v2"),
+  control: z.object({
+    mode: z.literal("controlled-read-only"),
+    dryRun: z.literal(false),
+    status: ControlledReadOnlyProviderExecutionRunnerStatusSchema,
+    providerExecuteInvoked: z.boolean(),
+    providerExecuteAuthorized: z.boolean(),
+    canWriteWorkspace: z.literal(false),
+    workspaceWriteScope: z.literal("none"),
+    generalWorkspaceWriteAuthorized: z.literal(false),
+    localCommandAuthorized: z.literal(false),
+    protectedRemoteAuthorized: z.literal(false),
+    externalWriteAuthorized: z.literal(false),
+    sandboxMode: z.string().min(1),
+    approvalPolicy: z.literal("never")
+  }),
+  bindings: z.object({
+    task: z.object({
+      taskId: z.string().min(1),
+      taskHash: NullableSha256Schema
+    }),
+    run: z.object({
+      runId: z.string().min(1)
+    }),
+    principal: z.object({
+      principalId: NullableStringSchema,
+      principalHash: NullableSha256Schema
+    }),
+    policy: z.object({
+      decisionId: z.string().min(1),
+      policyDecisionHash: Sha256Schema
+    }),
+    providerExecutionPlan: z.object({
+      planId: z.string().min(1),
+      providerExecutionPlanHash: Sha256Schema,
+      providerId: z.string().min(1),
+      providerManifestHash: NullableSha256Schema,
+      sideEffectClass: z.string().min(1),
+      sandboxProfileId: z.string().min(1)
+    }),
+    executorPlan: z.object({
+      present: z.boolean(),
+      planId: NullableStringSchema,
+      executorPlanHash: NullableSha256Schema,
+      providerExecutionPlanHash: NullableSha256Schema,
+      providerManifestHash: NullableSha256Schema
+    }),
+    providerRegistrySelection: z.object({
+      present: z.boolean(),
+      selected: NullableBooleanSchema,
+      providerId: NullableStringSchema,
+      manifestHash: NullableSha256Schema,
+      kind: NullableStringSchema,
+      enabled: NullableBooleanSchema,
+      selectionHash: NullableSha256Schema
+    }),
+    environmentPreflight: z.object({
+      present: z.boolean(),
+      status: NullableStringSchema,
+      artifactRef: NullableStringSchema,
+      artifactHash: NullableSha256Schema,
+      checksHash: NullableSha256Schema,
+      blockingReasonCount: z.number().int().nonnegative()
+    }),
+    permit: z.object({
+      present: z.boolean(),
+      permitId: NullableStringSchema,
+      planId: NullableStringSchema,
+      planHash: NullableSha256Schema,
+      providerExecutionPlanHash: NullableSha256Schema,
+      providerManifestHash: NullableSha256Schema,
+      policyDecisionHash: NullableSha256Schema,
+      principalId: NullableStringSchema,
+      principalHash: NullableSha256Schema,
+      consumptionKey: NullableSha256Schema,
+      nonceHash: NullableSha256Schema,
+      consumedAtPresent: z.boolean(),
+      consumptionStatus: z.enum([
+        "missing",
+        "input_unconsumed",
+        "input_already_consumed"
+      ])
+    }),
+    report: z.object({
+      artifactId: z.string().min(1)
+    })
+  }),
+  execution: z.object({
+    executorPlanPresent: z.boolean(),
+    executorPlanId: NullableStringSchema,
+    executorPlanApprovalRequired: NullableBooleanSchema,
+    providerResultOk: z.union([z.boolean(), z.null()]),
+    failureClass: NullableStringSchema
+  }),
+  evidencePolicy: z.object({
+    inputMaterialStored: z.literal(false),
+    argvStored: z.literal(false),
+    processOutputStored: z.literal(false),
+    diagnosticOutputStored: z.literal(false),
+    environmentValuesStored: z.literal(false),
+    patchBodyStored: z.literal(false)
+  }),
+  reasons: z.array(z.string().min(1))
+});
+
+export type ControlledReadOnlyExecutionEvidence =
+  z.infer<typeof ControlledReadOnlyExecutionEvidenceSchema>;
 
 export type RunProviderExecutionPlanDryRunInput = {
   providerExecutionPlan: ProviderExecutionPlan;
@@ -144,7 +260,7 @@ export type ControlledReadOnlyProviderExecutionRunnerResult = {
   validation?: ExecutionValidationResult;
   providerResultSummary?: Record<string, unknown>;
   failureClass?: string;
-  executionEvidence?: Record<string, unknown>;
+  executionEvidence?: ControlledReadOnlyExecutionEvidence;
   reportArtifact?: StoredArtifact;
   kernelArtifact?: Artifact;
 };
@@ -995,12 +1111,18 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
   const providerResultSummary = input.providerResultSummary === undefined
     ? undefined
     : sanitizeSafeRecord(input.providerResultSummary);
+  const reportArtifactId = createArtifactId(
+    input.providerExecutionPlan.planId,
+    input.status,
+    completedAt
+  );
   const executionEvidence = createControlledReadOnlyExecutionEvidence({
     input: input.input,
     providerExecutionPlan: input.providerExecutionPlan,
     executeInvoked: input.executeInvoked,
     status: input.status,
     reasons,
+    reportArtifactId,
     ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
     ...(providerResultSummary !== undefined
       ? { providerResultSummary }
@@ -1016,6 +1138,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     eventIds: input.eventIds,
     createdAt: input.createdAt,
     completedAt,
+    artifactId: reportArtifactId,
     executionEvidence,
     ...(input.providerAttestation !== undefined ? { providerAttestation: input.providerAttestation } : {}),
     ...(executorPlanSummary !== undefined ? { executorPlan: executorPlanSummary } : {}),
@@ -1059,6 +1182,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       ...(providerResultSummary !== undefined
         ? { providerResultSummary }
         : {}),
+      executionEvidence: summarizeControlledReadOnlyExecutionEvidence(executionEvidence),
       ...(failureClass !== undefined ? { failureClass } : {})
     }
   });
@@ -1161,21 +1285,16 @@ async function writeControlledReadOnlyRunnerReportArtifact(input: {
   eventIds: string[];
   createdAt: string;
   completedAt: string;
-  executionEvidence: Record<string, unknown>;
+  artifactId: string;
+  executionEvidence: ControlledReadOnlyExecutionEvidence;
   providerAttestation?: ProviderAttestation;
   executorPlan?: Record<string, unknown>;
   validation?: ExecutionValidationResult;
   providerResultSummary?: Record<string, unknown>;
   failureClass?: string;
 }): Promise<StoredArtifact> {
-  const artifactId = createArtifactId(
-    input.providerExecutionPlan.planId,
-    input.status,
-    input.completedAt
-  );
-
   return input.input.artifactStore.putArtifact({
-    artifactId,
+    artifactId: input.artifactId,
     taskId: input.providerExecutionPlan.taskId,
     runId: input.providerExecutionPlan.runId,
     type: "report",
@@ -1392,12 +1511,17 @@ function createControlledReadOnlyExecutionEvidence(input: {
   status: ControlledReadOnlyProviderExecutionRunnerStatus;
   executeInvoked: boolean;
   reasons: string[];
+  reportArtifactId: string;
   executorPlan?: ExecutorExecutionPlan;
   providerResultSummary?: Record<string, unknown>;
   failureClass?: string;
-}): Record<string, unknown> {
-  return {
-    schemaVersion: "provider-execution-controlled-readonly-evidence.v1",
+}): ControlledReadOnlyExecutionEvidence {
+  const selection = readProviderRegistrySelection(input.input.executionMetadata);
+  const environmentPreflight = readEnvironmentPreflight(input.input.executionMetadata);
+  const permit = input.input.permit;
+
+  return ControlledReadOnlyExecutionEvidenceSchema.parse({
+    schemaVersion: "provider-execution-controlled-readonly-evidence.v2",
     control: {
       mode: "controlled-read-only",
       dryRun: false,
@@ -1413,20 +1537,90 @@ function createControlledReadOnlyExecutionEvidence(input: {
       sandboxMode: input.providerExecutionPlan.sandboxProfile.mode,
       approvalPolicy: "never"
     },
-    approval: {
-      authorizerKind: "provider-execution-permit",
-      permitPresent: input.input.permit !== undefined,
-      permitId: input.input.permit?.permitId ?? null,
-      providerId: input.providerExecutionPlan.providerId,
-      planId: input.providerExecutionPlan.planId,
-      taskId: input.providerExecutionPlan.taskId,
-      runId: input.providerExecutionPlan.runId,
-      policyDecisionHash: input.providerExecutionPlan.policyDecisionHash,
-      providerManifestHash: input.providerExecutionPlan.providerManifestHash ?? null,
-      sideEffectClass: input.providerExecutionPlan.sideEffectClass,
-      sandboxProfileId: input.providerExecutionPlan.sandboxProfile.sandboxId,
-      requiredCapabilities: [...input.providerExecutionPlan.requiredCapabilities],
-      requiredApprovals: [...input.providerExecutionPlan.requiredApprovals]
+    bindings: {
+      task: {
+        taskId: input.providerExecutionPlan.taskId,
+        taskHash: input.providerExecutionPlan.taskHash ?? null
+      },
+      run: {
+        runId: input.providerExecutionPlan.runId
+      },
+      principal: {
+        principalId: input.providerExecutionPlan.principalId ?? null,
+        principalHash: input.providerExecutionPlan.principalHash ?? null
+      },
+      policy: {
+        decisionId: input.input.policyDecision.decisionId,
+        policyDecisionHash: input.providerExecutionPlan.policyDecisionHash
+      },
+      providerExecutionPlan: {
+        planId: input.providerExecutionPlan.planId,
+        providerExecutionPlanHash: hashProviderExecutionPlannerObject(input.providerExecutionPlan),
+        providerId: input.providerExecutionPlan.providerId,
+        providerManifestHash: input.providerExecutionPlan.providerManifestHash ?? null,
+        sideEffectClass: input.providerExecutionPlan.sideEffectClass,
+        sandboxProfileId: input.providerExecutionPlan.sandboxProfile.sandboxId
+      },
+      executorPlan: {
+        present: input.executorPlan !== undefined,
+        planId: input.executorPlan?.planId ?? null,
+        executorPlanHash: input.executorPlan === undefined
+          ? null
+          : hashExecutorExecutionPlan(input.executorPlan),
+        providerExecutionPlanHash: input.executorPlan?.providerExecutionPlanHash ?? null,
+        providerManifestHash: input.executorPlan?.providerManifestHash ?? null
+      },
+      providerRegistrySelection: {
+        present: selection !== undefined,
+        selected: readBooleanField(selection, "selected"),
+        providerId: readStringField(selection, "providerId"),
+        manifestHash: readSha256Field(selection, "manifestHash"),
+        kind: readStringField(selection, "kind"),
+        enabled: readBooleanField(selection, "enabled"),
+        selectionHash: selection === undefined ? null : hashProviderExecutionPlannerObject({
+          selected: readBooleanField(selection, "selected"),
+          providerId: readStringField(selection, "providerId"),
+          manifestHash: readSha256Field(selection, "manifestHash"),
+          kind: readStringField(selection, "kind"),
+          enabled: readBooleanField(selection, "enabled")
+        })
+      },
+      environmentPreflight: {
+        present: environmentPreflight !== undefined,
+        status: readStringField(environmentPreflight, "status"),
+        artifactRef: readStringField(environmentPreflight, "artifactRef"),
+        artifactHash: readSha256Field(environmentPreflight, "artifactHash"),
+        checksHash: environmentPreflight === undefined
+          ? null
+          : hashProviderExecutionPlannerObject(readEnvironmentPreflightChecks(environmentPreflight)),
+        blockingReasonCount: readStringArrayField(environmentPreflight, "blockingReasons").length
+      },
+      permit: {
+        present: permit !== undefined,
+        permitId: permit?.permitId ?? null,
+        planId: permit?.planId ?? null,
+        planHash: toNullableSha256(permit?.planHash),
+        providerExecutionPlanHash: toNullableSha256(permit?.providerExecutionPlanHash),
+        providerManifestHash: toNullableSha256(permit?.providerManifestHash),
+        policyDecisionHash: toNullableSha256(permit?.policyDecisionHash),
+        principalId: permit?.principalId ?? null,
+        principalHash: toNullableSha256(permit?.principalHash),
+        consumptionKey: permit === undefined
+          ? null
+          : createProviderExecutionPermitConsumptionKey(permit),
+        nonceHash: permit === undefined
+          ? null
+          : hashProviderExecutionPlannerObject({ nonce: permit.nonce }),
+        consumedAtPresent: permit?.consumedAt !== undefined,
+        consumptionStatus: permit === undefined
+          ? "missing"
+          : permit.consumedAt === undefined
+            ? "input_unconsumed"
+            : "input_already_consumed"
+      },
+      report: {
+        artifactId: input.reportArtifactId
+      }
     },
     execution: {
       executorPlanPresent: input.executorPlan !== undefined,
@@ -1444,7 +1638,153 @@ function createControlledReadOnlyExecutionEvidence(input: {
       patchBodyStored: false
     },
     reasons: uniqueStrings(input.reasons)
+  });
+}
+
+function summarizeControlledReadOnlyExecutionEvidence(
+  evidence: ControlledReadOnlyExecutionEvidence
+): Record<string, unknown> {
+  return {
+    schemaVersion: "provider-execution-controlled-readonly-evidence-summary.v1",
+    status: evidence.control.status,
+    providerExecuteInvoked: evidence.control.providerExecuteInvoked,
+    reportArtifactId: evidence.bindings.report.artifactId,
+    providerId: evidence.bindings.providerExecutionPlan.providerId,
+    providerExecutionPlanHash: evidence.bindings.providerExecutionPlan.providerExecutionPlanHash,
+    executorPlanHash: evidence.bindings.executorPlan.executorPlanHash,
+    providerManifestHash: evidence.bindings.providerExecutionPlan.providerManifestHash,
+    policyDecisionHash: evidence.bindings.policy.policyDecisionHash,
+    principalHash: evidence.bindings.principal.principalHash,
+    permitId: evidence.bindings.permit.permitId,
+    permitConsumptionStatus: evidence.bindings.permit.consumptionStatus,
+    providerRegistrySelectionHash: evidence.bindings.providerRegistrySelection.selectionHash,
+    environmentPreflightArtifactRef: evidence.bindings.environmentPreflight.artifactRef,
+    environmentPreflightArtifactHash: evidence.bindings.environmentPreflight.artifactHash,
+    evidencePolicy: evidence.evidencePolicy
   };
+}
+
+function readProviderRegistrySelection(
+  metadata: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const guard = readControlledReadOnlyGuard(metadata);
+  const selection = guard?.providerRegistrySelection;
+  return isRecord(selection) ? selection : undefined;
+}
+
+function readEnvironmentPreflight(
+  metadata: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const guard = readControlledReadOnlyGuard(metadata);
+  const preflight = guard?.environmentPreflight;
+  return isRecord(preflight) ? preflight : undefined;
+}
+
+function readControlledReadOnlyGuard(
+  metadata: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!isRecord(metadata)) {
+    return undefined;
+  }
+
+  const guard = metadata.codexCliProviderRealExecutionGuard;
+  return isRecord(guard) ? guard : undefined;
+}
+
+function readEnvironmentPreflightChecks(
+  preflight: Record<string, unknown>
+): Record<string, unknown> {
+  const checks = preflight.checks;
+  if (!isRecord(checks)) {
+    return {};
+  }
+
+  return {
+    injectedSpawner: readBooleanField(checks, "injectedSpawner"),
+    realCliAllowed: readBooleanField(checks, "realCliAllowed"),
+    versionProbe: readStringField(checks, "versionProbe"),
+    noTaskEnvelope: readBooleanField(checks, "noTaskEnvelope"),
+    noPromptSent: readBooleanField(checks, "noPromptSent"),
+    noWorkspaceWrite: readBooleanField(checks, "noWorkspaceWrite"),
+    noRealCliFallback: readBooleanField(checks, "noRealCliFallback")
+  };
+}
+
+function createControlledReadOnlyPreflightArtifactRef(
+  selection: Record<string, unknown>
+): string | undefined {
+  const providerId = readStringField(selection, "providerId");
+  return providerId === null
+    ? undefined
+    : `artifact://controlled-readonly-provider-execution/preflight/${providerId}`;
+}
+
+function createControlledReadOnlyPreflightArtifactHash(
+  selection: Record<string, unknown>,
+  preflight: Record<string, unknown>
+): string | undefined {
+  const providerId = readStringField(selection, "providerId");
+  const manifestHash = readSha256Field(selection, "manifestHash");
+  const status = readStringField(preflight, "status");
+  if (providerId === null || manifestHash === null || status === null) {
+    return undefined;
+  }
+
+  return hashProviderExecutionPlannerObject({
+    schemaVersion: "controlled-readonly-provider-execution-preflight.v1",
+    providerRegistrySelection: {
+      selected: readBooleanField(selection, "selected"),
+      providerId,
+      manifestHash,
+      kind: readStringField(selection, "kind"),
+      enabled: readBooleanField(selection, "enabled")
+    },
+    environmentPreflight: {
+      status,
+      checks: readEnvironmentPreflightChecks(preflight),
+      blockingReasonCount: readStringArrayField(preflight, "blockingReasons").length
+    }
+  });
+}
+
+function readStringField(
+  record: Record<string, unknown> | undefined,
+  key: string
+): string | null {
+  const value = record?.[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function readSha256Field(
+  record: Record<string, unknown> | undefined,
+  key: string
+): string | null {
+  const value = readStringField(record, key);
+  return value !== null && /^[a-f0-9]{64}$/.test(value) ? value : null;
+}
+
+function toNullableSha256(value: string | undefined): string | null {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value)
+    ? value
+    : null;
+}
+
+function readBooleanField(
+  record: Record<string, unknown> | undefined,
+  key: string
+): boolean | null {
+  const value = record?.[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+function readStringArrayField(
+  record: Record<string, unknown> | undefined,
+  key: string
+): string[] {
+  const value = record?.[key];
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : [];
 }
 
 function eventStatusSuffix(
@@ -1591,6 +1931,30 @@ function collectControlledReadOnlyExecutionMetadataReasons(input: {
 
   if (preflight.blockingReasons.length > 0) {
     reasons.push("controlled_readonly_environment_preflight_blocked");
+  }
+
+  const preflightArtifactRef = readStringField(preflight, "artifactRef");
+  const expectedPreflightArtifactRef =
+    createControlledReadOnlyPreflightArtifactRef(selection);
+  if (preflightArtifactRef === null) {
+    reasons.push("controlled_readonly_environment_preflight_artifact_ref_required");
+  } else if (
+    expectedPreflightArtifactRef !== undefined
+    && preflightArtifactRef !== expectedPreflightArtifactRef
+  ) {
+    reasons.push("controlled_readonly_environment_preflight_artifact_ref_mismatch");
+  }
+
+  const preflightArtifactHash = readSha256Field(preflight, "artifactHash");
+  const expectedPreflightArtifactHash =
+    createControlledReadOnlyPreflightArtifactHash(selection, preflight);
+  if (preflightArtifactHash === null) {
+    reasons.push("controlled_readonly_environment_preflight_artifact_hash_required");
+  } else if (
+    expectedPreflightArtifactHash !== undefined
+    && preflightArtifactHash !== expectedPreflightArtifactHash
+  ) {
+    reasons.push("controlled_readonly_environment_preflight_artifact_hash_mismatch");
   }
 
   if (checks.injectedSpawner !== true) {

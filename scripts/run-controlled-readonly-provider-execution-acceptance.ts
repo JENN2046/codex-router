@@ -68,6 +68,7 @@ export interface ControlledReadonlyProviderExecutionAcceptanceEvidence {
     noRealCodexCli: boolean;
     noWorkspaceWriteExecute: boolean;
     noExternalWrite: boolean;
+    preflightEvidenceBound: boolean;
     evidenceSanitized: boolean;
   };
   summary: {
@@ -218,7 +219,11 @@ export async function runControlledReadonlyProviderExecutionAcceptance(
         ),
       noRealCodexCli: true,
       noWorkspaceWriteExecute: workspaceWriteSpawnCalls === 0,
-      noExternalWrite: true
+      noExternalWrite: true,
+      preflightEvidenceBound: success.executionEvidence?.bindings.environmentPreflight.artifactHash
+        === createProviderExecutionPreflightArtifactHash(successFixture.provider.manifest)
+        && success.executionEvidence?.bindings.providerRegistrySelection.manifestHash
+          === hashProviderManifest(successFixture.provider.manifest)
     },
     summary: {
       providerId: "codex-cli",
@@ -420,6 +425,8 @@ function createProviderExecutionMetadata(manifest: ProviderManifest): Record<str
       },
       environmentPreflight: {
         status: "ready",
+        artifactRef: createProviderExecutionPreflightArtifactRef(manifest),
+        artifactHash: createProviderExecutionPreflightArtifactHash(manifest),
         checks: {
           injectedSpawner: true,
           realCliAllowed: true,
@@ -433,6 +440,36 @@ function createProviderExecutionMetadata(manifest: ProviderManifest): Record<str
       }
     }
   };
+}
+
+function createProviderExecutionPreflightArtifactRef(manifest: ProviderManifest): string {
+  return `artifact://controlled-readonly-provider-execution/preflight/${manifest.providerId}`;
+}
+
+function createProviderExecutionPreflightArtifactHash(manifest: ProviderManifest): string {
+  return hashProviderExecutionPlannerObject({
+    schemaVersion: "controlled-readonly-provider-execution-preflight.v1",
+    providerRegistrySelection: {
+      selected: true,
+      providerId: manifest.providerId,
+      manifestHash: hashProviderManifest(manifest),
+      kind: manifest.kind,
+      enabled: manifest.enabled
+    },
+    environmentPreflight: {
+      status: "ready",
+      checks: {
+        injectedSpawner: true,
+        realCliAllowed: true,
+        versionProbe: "passed",
+        noTaskEnvelope: true,
+        noPromptSent: true,
+        noWorkspaceWrite: true,
+        noRealCliFallback: true
+      },
+      blockingReasonCount: 0
+    }
+  });
 }
 
 function requirePermit(fixture: ControlledReadonlyFixture): ProviderExecutionPermit {

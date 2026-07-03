@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `23adf373127635c6c29b800c5dff7f3c6df0cef1e8fe7323397951efdfc7ac70`
+  `475884d176e1be40ce1bd1d1cdbbcd4ed3805ba2757c145a9fdf2ec1d017d9be`
 
 Source digest excluded paths:
 
@@ -80,6 +80,9 @@ Current repository governance status:
   `docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md`.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line `npm run governance -- acceptance controlled-readonly-provider-execution`.
+- Controlled read-only execution evidence binding is recorded in
+  `docs/governance/PR_23C_EXECUTION_EVIDENCE_BINDING.md`; it strengthens
+  sanitized refs and hashes without authorizing broader execution.
 - Real provider execution, real Codex CLI execution, secret changes, dependency
   changes, workflow changes, and direct `main` pushes remain outside normal
   display-only pruning work.
@@ -129,6 +132,10 @@ real Codex CLI, or real workspace-write execution.
 The PR-23B controlled read-only minimal slice is recorded at
 `docs/governance/PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md`
 and exposed through `npm run governance -- acceptance controlled-readonly-provider-execution`.
+The PR-23C evidence-binding line is recorded at
+`docs/governance/PR_23C_EXECUTION_EVIDENCE_BINDING.md`; it binds controlled
+read-only evidence to preflight, registry, permit, plan, policy, principal, and
+report refs/hashes.
 
 Boundary audit marker:
 
