@@ -8,6 +8,7 @@ import {
 } from "../packages/codex-cli-host/src/index.js";
 import {
   parseTaskEnvelope,
+  type TaskClass,
   type TaskEnvelope
 } from "../packages/contracts/src/index.js";
 import {
@@ -1869,6 +1870,85 @@ test("provider execution runner preserves governance task envelope provenance be
   assert.equal(result.governance.anomaly.message, "provider_execute_threw");
 });
 
+test("provider execution runner preserves task hint when policy classification differs before hashing", async () => {
+  const task = TaskSchema.parse({
+    ...createTask(),
+    hints: {
+      taskClass: "engineering",
+      riskHints: ["runtime_governance"],
+      tags: ["provider-execution-runner"],
+      provenance: [
+        {
+          field: "taskClass",
+          value: "engineering",
+          source: "agent",
+          reason: "task envelope should preserve task-owned hint",
+          createdAt: now
+        }
+      ]
+    }
+  });
+  const policyDecision = createPolicyDecision({
+    taskId: task.taskId,
+    classification: {
+      taskClass: "read_only",
+      riskLevel: "low",
+      ambiguityScore: 0,
+      clarificationRequired: false,
+      riskFactors: []
+    }
+  });
+  const fixture = createControlledReadOnlyCodexFixture(
+    () => createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    }),
+    { task, policyDecision }
+  );
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("provider failure after task-hint-preserving envelope match");
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "execution_failed");
+  assert.ok(!result.reasons.some((reason) =>
+    reason.startsWith("controlled_readonly_provider_governance_task_envelope_hash_mismatch:")
+  ));
+  assert.ok(result.governance);
+  assert.equal(result.governance.anomaly.message, "provider_execute_threw");
+});
+
 test("provider execution runner records provider attestation in dry-run evidence", async () => {
   const provider = createFakeExecutorProvider();
   const registry = createRegistry(provider);
@@ -1971,6 +2051,8 @@ function createTask(): Task {
 }
 
 function createTaskEnvelopeForProviderTask(task: Task): TaskEnvelope {
+  const taskClassHint = toTaskEnvelopeTaskClassHint(task.hints.taskClass);
+
   return parseTaskEnvelope({
     taskId: task.taskId,
     source: task.source,
@@ -2003,7 +2085,7 @@ function createTaskEnvelopeForProviderTask(task: Task): TaskEnvelope {
         : {})
     },
     hints: {
-      taskClassHint: "read_only",
+      ...(taskClassHint !== undefined ? { taskClassHint } : {}),
       riskHints: task.hints.riskHints,
       tags: task.hints.tags,
       provenance: task.hints.provenance.map((entry) => ({
@@ -2012,6 +2094,24 @@ function createTaskEnvelopeForProviderTask(task: Task): TaskEnvelope {
       }))
     }
   });
+}
+
+const TaskEnvelopeTaskClassHints = new Set<TaskClass>([
+  "read_only",
+  "small_edit",
+  "engineering",
+  "high_risk",
+  "release_external_action"
+]);
+
+function toTaskEnvelopeTaskClassHint(
+  value: string | undefined
+): TaskClass | undefined {
+  if (value === undefined || !TaskEnvelopeTaskClassHints.has(value as TaskClass)) {
+    return undefined;
+  }
+
+  return value as TaskClass;
 }
 
 function createLowRiskGovernanceState(taskId: string): GovernanceState {
@@ -2096,6 +2196,7 @@ function createPolicyDecision(overrides: Partial<{
   taskId: string;
   sandboxProfile: SandboxProfile;
   capabilities: CapabilityScope[];
+  classification: PolicyDecision["classification"];
 }> = {}): PolicyDecision {
   const sandboxProfile = overrides.sandboxProfile ?? createSandboxProfile();
   const taskId = overrides.taskId ?? "task_provider_execution_runner_001";
@@ -2104,6 +2205,9 @@ function createPolicyDecision(overrides: Partial<{
     ...validPolicyDecision,
     decisionId: "decision_provider_execution_runner_001",
     taskId,
+    ...(overrides.classification !== undefined
+      ? { classification: overrides.classification }
+      : {}),
     risk: {
       level: "low",
       factors: [],
@@ -2295,6 +2399,7 @@ function createControlledReadOnlyCodexFixture(
   spawn: CodexCliProcessSpawner,
   options: {
     task?: Task;
+    policyDecision?: PolicyDecision;
   } = {}
 ): ControlledReadOnlyCodexFixture {
   const provider = new CodexCliExecutorProvider({
@@ -2307,7 +2412,9 @@ function createControlledReadOnlyCodexFixture(
   });
   const registry = createRegistry(provider);
   const task = options.task ?? createTask();
-  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const policyDecision = options.policyDecision ?? createPolicyDecision({
+    taskId: task.taskId
+  });
   const run = createRun(task, policyDecision, "running");
   const providerExecutionPlan = planProviderExecution(createPlannerInput({
     task,

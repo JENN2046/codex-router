@@ -920,9 +920,9 @@ function resolveGovernanceTaskClassHint(
   task: Task,
   policyDecision: PolicyDecision
 ): TaskClass | undefined {
-  return policyDecision.classification?.taskClass ??
-    toGovernanceTaskClassHint(policyDecision.legacy.taskClass) ??
-    toGovernanceTaskClassHint(task.hints.taskClass);
+  return toGovernanceTaskClassHint(task.hints.taskClass) ??
+    policyDecision.classification?.taskClass ??
+    toGovernanceTaskClassHint(policyDecision.legacy.taskClass);
 }
 
 function toGovernanceTaskClassHint(
