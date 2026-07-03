@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `2e82e444cca5aebd39cb39a4330853b346a754f869e42780ba19fba41985482d`
+  `6ac37ea0614c1fbedf37f0508c565cbe318fc644f22d09776f3958006ea9f333`
 
 Source digest excluded paths:
 
@@ -85,10 +85,13 @@ Validation recorded for source commit `content digest only`:
 
 Current validation posture:
 
-- routine PR validation remains `npm run validate:pr`;
-- display-only state pruning should at minimum run `git diff --check`,
-  `node --import tsx scripts/sync-state-sync-display.ts --check`, and a PR
-  context state-sync audit simulation;
+- non-`main` PR branch validation should use `npm run validate:daily`,
+  targeted `npm test` / `npm run build` when warranted, display sync checks,
+  and GitHub CI's `pull_request` State Sync Audit or an explicit local
+  pull-request context simulation;
+- bare `npm run validate:pr` includes the local state-sync audit tier and is
+  only appropriate on local `main` or when the state-sync audit has an explicit
+  PR event context;
 - runtime, package, workflow, dependency, or provider changes require their
   own targeted tests and broader validation.
 
