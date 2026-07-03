@@ -1592,6 +1592,84 @@ test("provider execution runner blocks mismatched governance state before provid
   });
 });
 
+test("provider execution runner blocks stale governance task envelopes before provider hooks", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      calls.execute += 1;
+      return { ok: true };
+    }
+  };
+  const staleEnvelope = parseTaskEnvelope({
+    ...createTaskEnvelopeForProviderTask(fixture.task),
+    repoContext: {
+      ...createTaskEnvelopeForProviderTask(fixture.task).repoContext,
+      protectedBranch: true
+    },
+    target: {
+      branches: ["stale-target-branch"],
+      files: ["packages/provider-execution-runner/src/index.ts"],
+      modules: ["provider-execution-runner"]
+    },
+    constraints: {
+      requiresNetwork: true,
+      explicitOwnership: true
+    }
+  });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: staleEnvelope,
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.governance, undefined);
+  assert.ok(result.reasons.some((reason) =>
+    reason.startsWith("controlled_readonly_provider_governance_task_envelope_hash_mismatch:")
+  ));
+  assert.deepEqual(calls, {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  });
+});
+
 test("provider execution runner records provider attestation in dry-run evidence", async () => {
   const provider = createFakeExecutorProvider();
   const registry = createRegistry(provider);
@@ -1714,7 +1792,17 @@ function createTaskEnvelopeForProviderTask(task: Task): TaskEnvelope {
         : {})
     },
     target: task.target,
-    constraints: {},
+    constraints: {
+      ...(typeof task.constraints.requiresNetwork === "boolean"
+        ? { requiresNetwork: task.constraints.requiresNetwork }
+        : {}),
+      ...(typeof task.constraints.explicitOwnership === "boolean"
+        ? { explicitOwnership: task.constraints.explicitOwnership }
+        : {}),
+      ...(typeof task.constraints.allowBackgroundAutomation === "boolean"
+        ? { allowBackgroundAutomation: task.constraints.allowBackgroundAutomation }
+        : {})
+    },
     hints: {
       taskClassHint: "read_only",
       riskHints: task.hints.riskHints,

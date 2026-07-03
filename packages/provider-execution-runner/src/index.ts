@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
   parseTaskEnvelope,
+  type TaskClass,
   type TaskEnvelope,
   type TaskEnvelopeInput
 } from "../../contracts/src/index.js";
@@ -105,6 +106,13 @@ const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 const NullableSha256Schema = z.union([Sha256Schema, z.null()]);
 const NullableStringSchema = z.union([z.string().min(1), z.null()]);
 const NullableBooleanSchema = z.union([z.boolean(), z.null()]);
+const GovernanceTaskClassHints = new Set<TaskClass>([
+  "read_only",
+  "small_edit",
+  "engineering",
+  "high_risk",
+  "release_external_action"
+]);
 
 export const ControlledReadOnlyExecutionEvidenceSchema = z.object({
   schemaVersion: z.literal("provider-execution-controlled-readonly-evidence.v2"),
@@ -489,7 +497,8 @@ export async function runProviderExecutionPlanControlledReadOnly(
   const policyDecision = PolicyDecisionSchema.parse(input.policyDecision);
   const governanceBridge = prepareControlledReadOnlyGovernanceBridge({
     input,
-    task
+    task,
+    policyDecision
   });
   const createdAt = input.now();
   const eventIds: string[] = [];
@@ -765,6 +774,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
 function prepareControlledReadOnlyGovernanceBridge(input: {
   input: RunProviderExecutionPlanControlledReadOnlyInput;
   task: Task;
+  policyDecision: PolicyDecision;
 }): {
   reasons: string[];
   taskEnvelope?: TaskEnvelope;
@@ -808,6 +818,21 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
     );
   }
 
+  if (taskEnvelope !== undefined) {
+    const expectedTaskEnvelope = createControlledReadOnlyGovernanceTaskEnvelope(
+      input.task,
+      input.policyDecision
+    );
+    const actualTaskEnvelopeHash = hashProviderExecutionPlannerObject(taskEnvelope);
+    const expectedTaskEnvelopeHash = hashProviderExecutionPlannerObject(expectedTaskEnvelope);
+
+    if (actualTaskEnvelopeHash !== expectedTaskEnvelopeHash) {
+      reasons.push(
+        `controlled_readonly_provider_governance_task_envelope_hash_mismatch:${actualTaskEnvelopeHash}:${expectedTaskEnvelopeHash}`
+      );
+    }
+  }
+
   if (
     input.input.governanceState !== undefined &&
     taskEnvelope !== undefined &&
@@ -821,6 +846,82 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
   return reasons.length === 0 && taskEnvelope !== undefined
     ? { reasons, taskEnvelope }
     : { reasons };
+}
+
+function createControlledReadOnlyGovernanceTaskEnvelope(
+  task: Task,
+  policyDecision: PolicyDecision
+): TaskEnvelope {
+  const repoContext = task.workspace ?? task.repo;
+  const taskClassHint = resolveGovernanceTaskClassHint(task, policyDecision);
+
+  return parseTaskEnvelope({
+    schemaVersion: "task-envelope.v1",
+    taskId: task.taskId,
+    source: task.source,
+    intent: task.intent ?? {
+      summary: task.title,
+      requestedAction: task.requestedAction,
+      successCriteria: [...task.successCriteria],
+      outOfScope: [...task.outOfScope]
+    },
+    repoContext: {
+      ...(repoContext.root !== undefined ? { repoRoot: repoContext.root } : {}),
+      ...(repoContext.branch !== undefined ? { branch: repoContext.branch } : {}),
+      ...(repoContext.worktreeClean !== undefined
+        ? { worktreeClean: repoContext.worktreeClean }
+        : {}),
+      ...(repoContext.protectedBranch !== undefined
+        ? { protectedBranch: repoContext.protectedBranch }
+        : {})
+    },
+    target: {
+      branches: [...task.target.branches],
+      files: [...task.target.files],
+      modules: [...task.target.modules]
+    },
+    constraints: createGovernanceTaskEnvelopeConstraints(task),
+    hints: {
+      ...(taskClassHint !== undefined ? { taskClassHint } : {}),
+      riskHints: [...task.hints.riskHints],
+      tags: [...task.hints.tags]
+    }
+  });
+}
+
+function createGovernanceTaskEnvelopeConstraints(
+  task: Task
+): TaskEnvelopeInput["constraints"] {
+  return {
+    ...(typeof task.constraints.requiresNetwork === "boolean"
+      ? { requiresNetwork: task.constraints.requiresNetwork }
+      : {}),
+    ...(typeof task.constraints.explicitOwnership === "boolean"
+      ? { explicitOwnership: task.constraints.explicitOwnership }
+      : {}),
+    ...(typeof task.constraints.allowBackgroundAutomation === "boolean"
+      ? { allowBackgroundAutomation: task.constraints.allowBackgroundAutomation }
+      : {})
+  };
+}
+
+function resolveGovernanceTaskClassHint(
+  task: Task,
+  policyDecision: PolicyDecision
+): TaskClass | undefined {
+  return policyDecision.classification?.taskClass ??
+    toGovernanceTaskClassHint(policyDecision.legacy.taskClass) ??
+    toGovernanceTaskClassHint(task.hints.taskClass);
+}
+
+function toGovernanceTaskClassHint(
+  value: string | undefined
+): TaskClass | undefined {
+  if (value === undefined || !GovernanceTaskClassHints.has(value as TaskClass)) {
+    return undefined;
+  }
+
+  return value as TaskClass;
 }
 
 async function createControlledReadOnlyProviderExecutionGovernance(input: {
