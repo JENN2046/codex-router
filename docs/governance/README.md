@@ -15,6 +15,8 @@ as historical evidence unless a current authority document links them.
 - [threat model](THREAT_MODEL.md): current governance threats and controls.
 - [change control](CHANGE_CONTROL.md): required docs/tests for governance
   boundary changes.
+- [workspace-write release gate](WORKSPACE_WRITE_RELEASE_GATE.md):
+  workspace-write promotion and block rules.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md):
   guarded read-only host execution procedure.
@@ -76,3 +78,4 @@ single historical slice changes, update the specific PR document only.
 - [ADR 002: Provider grant and permit model](decisions/ADR_002_PROVIDER_GRANT_AND_PERMIT_MODEL.md)
 - [ADR 003: Codex CLI real execution gates](decisions/ADR_003_CODEX_CLI_REAL_EXECUTION_GATES.md)
 - [ADR 004: Evidence and redaction policy](decisions/ADR_004_EVIDENCE_AND_REDACTION_POLICY.md)
+- [ADR 005: Workspace-write permit v2](decisions/ADR_005_WORKSPACE_WRITE_PERMIT_V2.md)

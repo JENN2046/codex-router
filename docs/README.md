@@ -18,6 +18,8 @@ need the audit trail behind a decision.
   controls.
 - [change control](governance/CHANGE_CONTROL.md): required docs/tests for
   governance boundary changes.
+- [workspace-write release gate](governance/WORKSPACE_WRITE_RELEASE_GATE.md):
+  workspace-write promotion and block rules.
 - [read-only controlled execution runbook](governance/runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md):
   current guarded read-only procedure.
 - [workspace-write canary runbook](governance/runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md):

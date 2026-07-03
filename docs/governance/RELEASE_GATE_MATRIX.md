@@ -35,6 +35,7 @@ simulation.
 | Build | `npm run build` | Production TypeScript build. | PR readiness and release readiness. |
 | PR state-sync | GitHub `pull_request` State Sync Audit or explicit simulation | Verifies structured state-sync claim for PR context. | PR merge and state authority. |
 | Main state-sync | `node --import tsx scripts/run-state-sync-audit.ts --json` on local `main` | Post-merge/main closeout. | Main state authority when it fails. |
+| Workspace-write release gate | [Workspace-write Release Gate](WORKSPACE_WRITE_RELEASE_GATE.md) | Any PR that can broaden real workspace-write or canary execution. | Real workspace-write readiness. |
 | Release tier | `npm run validate:release` | Deterministic release-sensitive local validation. | Release/tag/deploy/package publish. |
 | Current governance list | `npm run governance -- list` | Shows current operating checks. | Documentation claims about available current checks. |
 | Archived governance list | `npm run governance -- list --all` | Historical inspection only. | Nothing by itself. |
@@ -88,6 +89,10 @@ Real Codex CLI smoke, provider execution, external canaries, and production
 deployment checks are not part of routine release validation. They require
 explicit target-specific authorization.
 
+Workspace-write real canary is also not part of routine release validation. It
+remains blocked unless the [Workspace-write Release Gate](WORKSPACE_WRITE_RELEASE_GATE.md)
+passes for the exact target and authorization packet.
+
 ## Failure Policy
 
 | Failure | Effect |
@@ -99,7 +104,7 @@ explicit target-specific authorization.
 | PR state-sync fails | Do not merge; structured claim or event context is invalid. |
 | Main state-sync fails | Treat current state authority as invalid until fixed. |
 | Release tier fails | Do not release, tag, deploy, publish, or promote. |
+| Workspace-write release gate fails | Do not run real workspace-write; use fake/dry-run validation only. |
 | Evidence collection fails | Do not claim release evidence completeness. |
 | Source/release boundary audit fails | Do not package or publish artifacts. |
 | Real host smoke cannot run | State that it was not run; do not imply provider safety. |
-

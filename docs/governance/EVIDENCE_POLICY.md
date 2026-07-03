@@ -72,6 +72,38 @@ Examples:
 Refs must be resolvable within their declared scope. If a ref cannot be
 resolved, fail closed for claims that depend on it.
 
+## Workspace-write Evidence Boundary
+
+Workspace-write evidence must prove scope without storing raw write material.
+
+Allowed workspace-write evidence:
+
+- authorization id;
+- permit id and consumption status;
+- policy, manifest, principal, and execution-plan hashes;
+- `beforeCommit`;
+- target path;
+- patch digest;
+- changed file count and diff line count;
+- guard status;
+- post-run diff inspection status;
+- rollback command identity and rollback result;
+- sanitized reason codes and summaries.
+
+Forbidden workspace-write evidence:
+
+- raw patch body;
+- raw diff body when it may contain secret-like or private material;
+- raw stdout/stderr transcript;
+- raw prompt;
+- provider raw response;
+- env values;
+- tokens, cookies, credentials, API keys, or auth headers.
+
+If a reviewer needs more detail than these fields provide, keep the decision
+blocked or require a separate sanitized evidence artifact. Do not promote raw
+write material into repository docs or PR bodies.
+
 ## Storage Surfaces
 
 | Surface | Evidence role |
@@ -104,4 +136,3 @@ context to reconstruct it.
   the reason and require human review.
 - If an execution path cannot produce consumable evidence refs, do not claim
   that operator recovery evidence is available.
-

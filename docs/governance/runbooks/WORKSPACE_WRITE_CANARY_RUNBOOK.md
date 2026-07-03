@@ -24,17 +24,29 @@ Workspace-write real canary remains experimental and blocked unless a fresh,
 exact authorization packet names the canary target, rollback plan, and evidence
 requirements.
 
+This runbook is not a permit. It describes the procedure that may be used only
+after the [Workspace-write Release Gate](../WORKSPACE_WRITE_RELEASE_GATE.md)
+passes for the exact canary.
+
 ## Preconditions
 
 All of these must be true before a real workspace-write canary can run:
 
 - explicit authorization for the exact canary run;
+- operator authorization id;
+- workspace-write permit v2 with expiration, nonce, and consumption record;
+- policy hash binding;
+- manifest hash binding;
+- principal hash binding;
+- provider execution plan hash binding;
 - exact target allowlist;
+- max changed files and max diff lines;
 - clean worktree before execution review;
 - known `beforeCommit`;
-- rollback plan;
+- rollback command and rollback plan;
 - patch guard;
 - sensitive-value scan;
+- protected branch check;
 - no bundled push, release, tag, deployment, package publish, external write, or
   secret mutation;
 - post-run evidence plan that does not store raw sensitive material.
@@ -68,12 +80,20 @@ not by itself authorize a real Codex CLI workspace-write execution.
    workspace-write.
 2. If the request is broader than a bounded canary, stop.
 3. Verify the exact authorization packet before real execution.
-4. Verify clean worktree and record `beforeCommit`.
-5. Verify target allowlist and rollback plan.
-6. Run patch guard and sensitive-value scan.
-7. Execute only the authorized canary step.
-8. Verify rollback and absence of the canary artifact when rollback is required.
-9. Record sanitized evidence refs, hashes, statuses, and summaries.
+4. Verify permit v2 bindings: expiration, nonce, consumption record, policy
+   hash, manifest hash, principal hash, provider execution plan hash, target
+   allowlist, and operator authorization id.
+5. Verify clean worktree, protected-branch block, and record `beforeCommit`.
+6. Verify max changed files, max diff lines, target allowlist, and rollback
+   command.
+7. Run patch guard and sensitive-value scan before storing any evidence.
+8. Execute only the authorized canary step.
+9. Inspect the post-run diff and verify it stays inside the bounded target and
+   size limits.
+10. Verify rollback and absence of the canary artifact when rollback is
+    required.
+11. Consume or record the permit consumption result.
+12. Record sanitized evidence refs, hashes, statuses, and summaries.
 
 ## Expected Result
 
@@ -87,8 +107,13 @@ not by itself authorize a real Codex CLI workspace-write execution.
 Stop when any of these are true:
 
 - authorization is missing, stale, or broader than the canary;
+- permit is missing, expired, revoked, replayed, already consumed, or missing a
+  required hash binding;
+- operator authorization id is missing;
 - target allowlist is missing or broad;
+- changed file or diff line limits are missing;
 - worktree is dirty before execution review;
+- current branch is protected;
 - `beforeCommit` is unknown;
 - rollback plan is missing;
 - patch guard or sensitive scan is missing or failed;
@@ -102,9 +127,14 @@ Stop when any of these are true:
 Allowed evidence:
 
 - `beforeCommit`;
+- operator authorization id;
+- permit id and consumption status;
+- policy, manifest, principal, and execution-plan hashes;
 - target path;
 - patch digest;
+- changed file count and diff line count;
 - guard status;
+- post-run diff inspection status;
 - rollback status;
 - canary status;
 - sanitized reason codes and summaries.
@@ -117,6 +147,9 @@ credentials, provider payloads, or env values.
 Rollback must restore the workspace to the recorded `beforeCommit` content state
 for the canary target. If rollback cannot be verified, the canary is failed and
 general workspace-write remains blocked.
+
+Rollback evidence must identify the rollback command or mechanism without
+storing raw patch contents.
 
 ## Incident Handling
 
@@ -132,8 +165,9 @@ Record:
 
 - whether the run was fake or real;
 - authorization packet reference for real runs;
+- permit id and consumption status;
 - target path and patch digest;
+- changed file count and diff line count;
 - rollback result;
 - evidence refs or sanitized artifact paths;
 - remaining risk and follow-up work.
-
