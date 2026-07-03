@@ -1072,7 +1072,7 @@ function createControlledReadOnlyProviderGovernanceErrorClass(input: {
   failureClass?: string;
 }): string {
   return sanitizeProviderFailureClass(
-    input.failureClass ?? input.reasons[0],
+    input.failureClass,
     `controlled_readonly_provider_${input.status}`
   );
 }

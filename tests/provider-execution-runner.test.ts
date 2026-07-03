@@ -1471,6 +1471,130 @@ test("provider execution runner bridges controlled read-only execution failures 
   assert.equal(serialized.includes("argv should be redacted"), false);
 });
 
+test("provider execution runner uses stable governance error classes for provider plan failures", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      throw new Error("planner failed at /tmp/runtime-1760000000");
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("provider_execute_should_not_be_called");
+    }
+  };
+  const observationStore = createRecordingExecutionObservationStore();
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    observationBus: observationStore,
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "provider_plan_failed");
+  assert.ok(result.reasons.includes("provider_plan_failed:planner failed at /tmp/runtime-1760000000"));
+  assert.ok(result.governance);
+  assert.equal(
+    result.governance.anomaly.message,
+    "controlled_readonly_provider_provider_plan_failed"
+  );
+  assert.equal(result.governance.evidenceRefs.length, 1);
+
+  const resolvedObservation = await resolveExecutionObservationRef(
+    observationStore,
+    fixture.task.taskId,
+    result.governance.evidenceRefs[0]!
+  );
+  assert.ok(resolvedObservation);
+  assert.equal(
+    resolvedObservation.signals.errorClass,
+    "controlled_readonly_provider_provider_plan_failed"
+  );
+});
+
+test("provider execution runner uses stable governance error classes for validation failures", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      throw new Error("validation failed at /tmp/runtime-1760000001");
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("provider_execute_should_not_be_called");
+    }
+  };
+  const observationStore = createRecordingExecutionObservationStore();
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    observationBus: observationStore,
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "validation_failed");
+  assert.ok(result.reasons.includes("provider_validation_failed"));
+  assert.ok(result.governance);
+  assert.equal(
+    result.governance.anomaly.message,
+    "controlled_readonly_provider_validation_failed"
+  );
+  assert.equal(result.governance.evidenceRefs.length, 1);
+
+  const resolvedObservation = await resolveExecutionObservationRef(
+    observationStore,
+    fixture.task.taskId,
+    result.governance.evidenceRefs[0]!
+  );
+  assert.ok(resolvedObservation);
+  assert.equal(
+    resolvedObservation.signals.errorClass,
+    "controlled_readonly_provider_validation_failed"
+  );
+});
+
 test("provider execution runner exposes operator action on third controlled read-only failure", async () => {
   const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
     stdout: "",
