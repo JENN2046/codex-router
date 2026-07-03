@@ -20,6 +20,8 @@ need the audit trail behind a decision.
   governance boundary changes.
 - [workspace-write release gate](governance/WORKSPACE_WRITE_RELEASE_GATE.md):
   workspace-write promotion and block rules.
+- [governance docs automation spec](governance/DOCS_AUTOMATION_SPEC.md):
+  lightweight documentation check scope.
 - [read-only controlled execution runbook](governance/runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md):
   current guarded read-only procedure.
 - [workspace-write canary runbook](governance/runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md):

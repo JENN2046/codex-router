@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "governance": "tsx scripts/run-governance-check.ts",
+    "docs:governance": "tsx scripts/check-governance-docs.ts",
     "validate:daily": "tsx scripts/run-governance-check.ts tier daily",
     "validate:pr": "tsx scripts/run-governance-check.ts tier pr",
     "validate:release": "tsx scripts/run-governance-check.ts tier release",
