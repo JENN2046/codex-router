@@ -39,6 +39,9 @@ as historical evidence unless a current authority document links them.
 - [PR-22A controlled provider execution taskbook](PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md):
   local-only planning line for the next controlled provider execution slice;
   this is not execution authorization.
+- [Phase 6 controlled execution runtime hardening baseline](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md):
+  current baseline for PR-23A through PR-23F; this records the next runtime
+  hardening sequence and is not workspace-write authorization.
 
 ## Runner Entry Points
 

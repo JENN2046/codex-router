@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `eef213f22f80690d66de5fb179e536c82b60b7e285f303039f7d3937bf30caac`
+  `305fcaaccb8d7930abd8e331a72a933816d4d1b5194c165cdc3abac5b385d8da`
 
 Source digest excluded paths:
 
@@ -75,6 +75,9 @@ Current repository governance status:
 - Runtime governance hardening and operator-action work is merged; this state
   surface should describe current repository status rather than any old PR as
   the active task.
+- Phase 6 controlled execution runtime hardening is the next staged runtime
+  line. Its baseline is recorded in
+  `docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md`.
 - Real provider execution, real Codex CLI execution, secret changes, dependency
   changes, workflow changes, and direct `main` pushes remain outside normal
   display-only pruning work.
@@ -117,6 +120,10 @@ task and approval gate says otherwise. The controlled provider execution
 baseline remains documented at
 `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`, with the
 current audit entry point `npm run governance -- audit controlled-provider-execution-taskbook-review`.
+Phase 6 now records the PR-23A runtime-hardening baseline at
+`docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md`;
+that baseline sequences future work but does not authorize real provider,
+real Codex CLI, or real workspace-write execution.
 
 Boundary audit marker:
 
