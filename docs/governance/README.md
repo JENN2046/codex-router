@@ -13,6 +13,10 @@ as historical evidence unless a current authority document links them.
 - [evidence policy](EVIDENCE_POLICY.md): allowed evidence fields, forbidden raw
   material, and evidence ref rules.
 - [glossary](GLOSSARY.md): shared governance terminology.
+- [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md):
+  guarded read-only host execution procedure.
+- [workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md):
+  blocked-by-default workspace-write canary procedure.
 - [current state](../current/CURRENT_STATE.md): current branch, validation,
   execution boundary, and next safe action.
 - [validation tiers](../validation-tiers.md): recommended local validation
@@ -56,3 +60,8 @@ when deliberately browsing archived one-off audit and acceptance commands.
 
 When a boundary changes, update this index and the current state surface. When a
 single historical slice changes, update the specific PR document only.
+
+## Templates
+
+- [closeout template](templates/CLOSEOUT_TEMPLATE.md)
+- [runbook template](templates/RUNBOOK_TEMPLATE.md)
