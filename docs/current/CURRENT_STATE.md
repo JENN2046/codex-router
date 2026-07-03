@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `305fcaaccb8d7930abd8e331a72a933816d4d1b5194c165cdc3abac5b385d8da`
+  `23adf373127635c6c29b800c5dff7f3c6df0cef1e8fe7323397951efdfc7ac70`
 
 Source digest excluded paths:
 
@@ -78,6 +78,8 @@ Current repository governance status:
 - Phase 6 controlled execution runtime hardening is the next staged runtime
   line. Its baseline is recorded in
   `docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md`.
+- Controlled read-only provider execution is now exposed as the current
+  acceptance line `npm run governance -- acceptance controlled-readonly-provider-execution`.
 - Real provider execution, real Codex CLI execution, secret changes, dependency
   changes, workflow changes, and direct `main` pushes remain outside normal
   display-only pruning work.
@@ -124,6 +126,9 @@ Phase 6 now records the PR-23A runtime-hardening baseline at
 `docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md`;
 that baseline sequences future work but does not authorize real provider,
 real Codex CLI, or real workspace-write execution.
+The PR-23B controlled read-only minimal slice is recorded at
+`docs/governance/PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md`
+and exposed through `npm run governance -- acceptance controlled-readonly-provider-execution`.
 
 Boundary audit marker:
 

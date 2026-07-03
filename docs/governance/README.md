@@ -42,6 +42,10 @@ as historical evidence unless a current authority document links them.
 - [Phase 6 controlled execution runtime hardening baseline](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md):
   current baseline for PR-23A through PR-23F; this records the next runtime
   hardening sequence and is not workspace-write authorization.
+- [PR-23B controlled read-only provider execution minimal slice](PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md):
+  current acceptance line for the explicit controlled read-only provider
+  execution path; this uses injected fake-spawner validation and is not real
+  Codex CLI authorization.
 
 ## Runner Entry Points
 
@@ -54,6 +58,7 @@ npm run docs:governance
 npm run governance -- audit state-sync
 npm run governance -- audit controlled-provider-execution-taskbook-review
 npm run governance -- acceptance readonly-chain
+npm run governance -- acceptance controlled-readonly-provider-execution
 npm run governance -- operator readonly
 ```
 

@@ -70,7 +70,7 @@ Current authority documents already agree on these boundaries:
 | PR | Purpose | Runtime execution authorization |
 | --- | --- | --- |
 | PR-23A | Baseline runtime-governance readiness | None |
-| PR-23B | Controlled read-only provider execution minimal slice | Only if the exact gate and tests prove explicit controlled read-only execution |
+| PR-23B | Controlled read-only provider execution minimal slice | Current fake-spawner acceptance line; no default real Codex CLI authorization |
 | PR-23C | Execution evidence binding | None beyond the PR-23B controlled read-only boundary |
 | PR-23D | Workspace-write permit v2 schema and validators | None |
 | PR-23E | Workspace-write fake canary v2 | No real workspace-write |
@@ -189,8 +189,7 @@ Stop the stage if a PR introduces:
 
 ## Next Safe Action
 
-After PR-23A is merged, the next narrow PR is PR-23B: controlled read-only
-provider execution minimal slice. That PR must use injected fake or stub
-execution dependencies in tests and must prove that provider execute calls,
-real Codex CLI calls, workspace-write calls, and external write calls remain
-zero unless an explicit controlled read-only gate is satisfied.
+After PR-23B, the next narrow PR is PR-23C: execution evidence binding. That PR
+must bind preflight, provider-registry selection, permit identity, plan hash,
+policy hash, principal hash, and final report artifacts without storing raw
+execution material.
