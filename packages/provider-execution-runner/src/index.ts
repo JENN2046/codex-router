@@ -876,7 +876,9 @@ function collectGovernanceStatePreExecutionBlockReasons(input: {
 
   if (
     strategyDecision.actionFamily === "step_back" ||
-    strategyDecision.actionFamily === "abort"
+    strategyDecision.actionFamily === "abort" ||
+    strategyDecision.actionFamily === "simulate" ||
+    strategyDecision.agentBudget.executor === 0
   ) {
     return [
       `controlled_readonly_provider_governance_state_strategy_blocked:${strategyDecision.actionFamily}`
