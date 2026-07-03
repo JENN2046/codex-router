@@ -1,10 +1,18 @@
 # Governance Docs
 
-This directory is evidence-heavy by design. Treat it as an archive plus a small
-current map, not as the primary operating surface.
+This directory is evidence-heavy by design. Use the current control-plane
+documents first; treat PR-specific taskbooks, packets, closeouts, and receipts
+as historical evidence unless a current authority document links them.
 
 ## Current Surface
 
+- [governance control plane](GOVERNANCE_CONTROL_PLANE.md): current capability
+  status, authority model, and default runtime posture.
+- [release gate matrix](RELEASE_GATE_MATRIX.md): PR, main, and release gate
+  policy plus failure consequences.
+- [evidence policy](EVIDENCE_POLICY.md): allowed evidence fields, forbidden raw
+  material, and evidence ref rules.
+- [glossary](GLOSSARY.md): shared governance terminology.
 - [current state](../current/CURRENT_STATE.md): current branch, validation,
   execution boundary, and next safe action.
 - [validation tiers](../validation-tiers.md): recommended local validation

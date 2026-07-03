@@ -8,6 +8,12 @@ need the audit trail behind a decision.
 
 - [current state](current/CURRENT_STATE.md): branch, validation baseline,
   execution boundary, and next safe action.
+- [governance control plane](governance/GOVERNANCE_CONTROL_PLANE.md): current
+  capability status and authority model.
+- [release gate matrix](governance/RELEASE_GATE_MATRIX.md): PR, main, and
+  release gate policy.
+- [evidence policy](governance/EVIDENCE_POLICY.md): what evidence may be
+  stored and what must stay out of docs and PRs.
 - [validation tiers](validation-tiers.md): daily, PR, release, and explicit
   local smoke boundaries.
 - [governance docs](governance/README.md): compact map for audit, acceptance,
@@ -21,8 +27,12 @@ need the audit trail behind a decision.
 
 ## Navigation Rules
 
-- Put current operational facts in `docs/current/CURRENT_STATE.md`.
-- Put validation command policy in `docs/validation-tiers.md`.
+- Put machine state facts in `docs/current/state-sync-record.json`.
+- Put operator state display in `docs/current/CURRENT_STATE.md`.
+- Put current governance capability facts in
+  `docs/governance/GOVERNANCE_CONTROL_PLANE.md`.
+- Put validation command policy in `docs/governance/RELEASE_GATE_MATRIX.md` and
+  `docs/validation-tiers.md`.
 - Put governance evidence pointers in `docs/governance/README.md`.
 - Keep historical closeouts and packets in place; do not make them current
   entry points unless the boundary is still active.

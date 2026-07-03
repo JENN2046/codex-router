@@ -20,15 +20,37 @@ caller names them with `--test`, `--targeted-test`, or a bare test path.
 Use before opening or updating a normal pull request.
 
 ```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+State-sync for non-`main` PR branches should run through GitHub CI's
+`pull_request` State Sync Audit or an explicit local pull-request context
+simulation.
+
+When the checkout has a valid local state-sync context, this shortcut runs the
+same code checks plus local state-sync:
+
+```bash
 npm run validate:pr
 ```
 
-PR validation runs:
+`validate:pr` runs:
 
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
 - `npm run governance -- audit state-sync`
+
+`validate:pr` includes the local state-sync audit. On an ordinary non-`main` PR
+branch, run typecheck/tests/build locally and let GitHub CI run the
+`pull_request` State Sync Audit, or run an explicit local pull-request context
+simulation. Do not treat a bare local state-sync audit on a non-`main` branch as
+the PR state-sync gate.
+
+See [Release Gate Matrix](governance/RELEASE_GATE_MATRIX.md) for the current
+branch/main/release split.
 
 ## Release
 
