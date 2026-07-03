@@ -149,6 +149,57 @@ export const WorkspaceWriteProviderExecutionPermitSchema = z.object({
   issuedAt: z.string().min(1)
 });
 
+export const WorkspaceWritePermitV2RollbackCommandIdentitySchema = z.object({
+  kind: z.literal("git_restore_from_commit"),
+  commandHash: z.string().regex(/^[a-f0-9]{64}$/),
+  affectedFiles: z.array(z.string().min(1)).default([])
+});
+
+export const WorkspaceWriteProviderExecutionPermitV2Schema = z.object({
+  schemaVersion: z.literal("provider-workspace-write-execution-permit.v2").default(
+    "provider-workspace-write-execution-permit.v2"
+  ),
+  permitId: z.string().min(1),
+  taskId: z.string().min(1),
+  taskHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  runId: z.string().min(1),
+  planId: z.string().min(1),
+  planHash: z.string().regex(/^[a-f0-9]{64}$/),
+  providerExecutionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+  providerId: z.string().min(1),
+  providerManifestHash: z.string().regex(/^[a-f0-9]{64}$/),
+  policyDecisionHash: z.string().min(1),
+  principalId: z.string().min(1).optional(),
+  principalHash: z.string().regex(/^[a-f0-9]{64}$/),
+  sideEffectClass: z.literal("workspace_write"),
+  sandboxProfileId: z.string().min(1),
+  sandboxMode: z.literal("workspace-write"),
+  status: z.enum(["candidate", "approved", "blocked"]),
+  approvalStatus: z.enum(["approved", "pending", "rejected", "expired"]),
+  operatorAuthorizationId: z.string().min(1).optional(),
+  targetFiles: z.array(z.string().min(1)).default([]),
+  maxChangedFiles: z.number().int().positive(),
+  maxDiffLines: z.number().int().positive(),
+  rollbackRequired: z.boolean(),
+  rollback: z.object({
+    beforeCommit: z.string().min(1),
+    commandIdentity: WorkspaceWritePermitV2RollbackCommandIdentitySchema
+  }),
+  protectedBranchForbidden: z.boolean(),
+  dirtyWorktreeForbidden: z.boolean(),
+  repositoryState: z.object({
+    branch: z.string().min(1),
+    protectedBranch: z.boolean(),
+    worktreeClean: z.boolean(),
+    headCommit: z.string().min(1).optional()
+  }),
+  reasons: z.array(z.string()).default([]),
+  issuedAt: z.string().min(1),
+  expiresAt: z.string().min(1),
+  nonce: z.string().min(1),
+  consumedAt: z.string().min(1).optional()
+});
+
 export const ProviderPlanBaseSchema = z.object({
   planId: z.string().min(1),
   runId: z.string().min(1),
@@ -193,6 +244,12 @@ export type ProviderExecutionPermit = z.infer<typeof ProviderExecutionPermitSche
 export type WorkspaceWriteProviderExecutionPermit = z.infer<
   typeof WorkspaceWriteProviderExecutionPermitSchema
 >;
+export type WorkspaceWritePermitV2RollbackCommandIdentity = z.infer<
+  typeof WorkspaceWritePermitV2RollbackCommandIdentitySchema
+>;
+export type WorkspaceWriteProviderExecutionPermitV2 = z.infer<
+  typeof WorkspaceWriteProviderExecutionPermitV2Schema
+>;
 export type ProviderExecutionPermitApprovalStatus = NonNullable<
   ProviderExecutionPermit["approvalStatus"]
 >;
@@ -225,6 +282,28 @@ export type WorkspaceWriteProviderExecutionPermitIssueInput = {
   repositoryState: WorkspaceWriteProviderExecutionPermit["repositoryState"];
   reasons?: string[];
   issuedAt: string;
+};
+
+export type WorkspaceWriteProviderExecutionPermitV2IssueInput = {
+  plan: ExecutorExecutionPlan;
+  manifest: ProviderManifest;
+  permitId?: string;
+  approvalStatus?: WorkspaceWriteProviderExecutionPermitV2["approvalStatus"];
+  operatorAuthorizationId?: string;
+  targetFiles: string[];
+  maxChangedFiles: number;
+  maxDiffLines: number;
+  rollbackRequired: boolean;
+  rollback: {
+    beforeCommit: string;
+    affectedFiles?: string[];
+  };
+  protectedBranchForbidden: boolean;
+  dirtyWorktreeForbidden: boolean;
+  repositoryState: WorkspaceWriteProviderExecutionPermitV2["repositoryState"];
+  reasons?: string[];
+  issuedAt: string;
+  expiresAt?: string;
 };
 
 export type ProviderExecutionPermitValidationOptions = {
@@ -446,6 +525,12 @@ export function parseWorkspaceWriteProviderExecutionPermit(
   return WorkspaceWriteProviderExecutionPermitSchema.parse(input);
 }
 
+export function parseWorkspaceWriteProviderExecutionPermitV2(
+  input: z.input<typeof WorkspaceWriteProviderExecutionPermitV2Schema>
+): WorkspaceWriteProviderExecutionPermitV2 {
+  return WorkspaceWriteProviderExecutionPermitV2Schema.parse(input);
+}
+
 export function createProviderAttestation(
   manifest: ProviderManifest,
   attestedAt: string
@@ -523,6 +608,36 @@ export function createBlockedWorkspaceWriteProviderExecutionPermit(
   );
 
   return createWorkspaceWriteProviderExecutionPermit(input, "blocked", reasons);
+}
+
+export function createApprovedWorkspaceWriteProviderExecutionPermitV2(
+  input: WorkspaceWriteProviderExecutionPermitV2IssueInput
+): WorkspaceWriteProviderExecutionPermitV2 {
+  const plan = ExecutorExecutionPlanSchema.parse(input.plan);
+  const reasons = getWorkspaceWriteProviderExecutionPermitV2IssuanceBlockers(
+    plan,
+    ProviderManifestSchema.parse(input.manifest),
+    input
+  );
+
+  if (reasons.length > 0) {
+    throw new Error(`workspace_write_provider_execution_permit_v2_not_approvable:${reasons.join(",")}`);
+  }
+
+  return createWorkspaceWriteProviderExecutionPermitV2(input, "approved", []);
+}
+
+export function createBlockedWorkspaceWriteProviderExecutionPermitV2(
+  input: WorkspaceWriteProviderExecutionPermitV2IssueInput
+): WorkspaceWriteProviderExecutionPermitV2 {
+  const plan = ExecutorExecutionPlanSchema.parse(input.plan);
+  const reasons = input.reasons ?? getWorkspaceWriteProviderExecutionPermitV2IssuanceBlockers(
+    plan,
+    ProviderManifestSchema.parse(input.manifest),
+    input
+  );
+
+  return createWorkspaceWriteProviderExecutionPermitV2(input, "blocked", reasons);
 }
 
 export function validateProviderExecutionPermitForPlan(
@@ -806,6 +921,226 @@ export function validateWorkspaceWriteProviderExecutionPermitForPlan(
   return uniqueProviderCoreStrings(reasons);
 }
 
+export function validateWorkspaceWriteProviderExecutionPermitV2ForPlan(
+  permitInput: WorkspaceWriteProviderExecutionPermitV2,
+  planInput: ExecutorExecutionPlan,
+  manifestInput: ProviderManifest,
+  options: ProviderExecutionPermitValidationOptions = {}
+): string[] {
+  const parsedPermit = WorkspaceWriteProviderExecutionPermitV2Schema.safeParse(permitInput);
+  const prefix = options.reasonPrefix ?? "workspace_write_provider_execution_permit_v2";
+
+  if (!parsedPermit.success) {
+    return [`${prefix}_invalid:${normalizeProviderCoreError(parsedPermit.error)}`];
+  }
+
+  const permit = parsedPermit.data;
+  const plan = ExecutorExecutionPlanSchema.parse(planInput);
+  const manifest = ProviderManifestSchema.parse(manifestInput);
+  const reasons: string[] = [];
+
+  if (permit.status !== "approved") {
+    reasons.push(`${prefix}_not_approved:${permit.status}`);
+  }
+
+  if (permit.approvalStatus !== "approved") {
+    reasons.push(`${prefix}_approval_required:${permit.approvalStatus}`);
+  }
+
+  if (permit.consumedAt !== undefined) {
+    reasons.push(`${prefix}_already_consumed`);
+  }
+
+  if (permit.providerId !== plan.providerId) {
+    reasons.push(`${prefix}_provider_mismatch:${permit.providerId}:${plan.providerId}`);
+  }
+
+  if (permit.taskId !== plan.taskId) {
+    reasons.push(`${prefix}_task_mismatch:${permit.taskId}:${plan.taskId}`);
+  }
+
+  if (permit.taskHash !== undefined && plan.taskHash !== undefined && permit.taskHash !== plan.taskHash) {
+    reasons.push(`${prefix}_task_hash_mismatch`);
+  }
+
+  if (plan.taskHash !== undefined && permit.taskHash === undefined) {
+    reasons.push(`${prefix}_task_hash_required`);
+  }
+
+  if (permit.runId !== plan.runId) {
+    reasons.push(`${prefix}_run_mismatch:${permit.runId}:${plan.runId}`);
+  }
+
+  if (permit.planId !== plan.planId) {
+    reasons.push(`${prefix}_plan_mismatch:${permit.planId}:${plan.planId}`);
+  }
+
+  const expectedPlanHash = hashExecutorExecutionPlan(plan);
+  if (permit.planHash !== expectedPlanHash) {
+    reasons.push(`${prefix}_plan_hash_mismatch`);
+  }
+
+  if (plan.providerExecutionPlanHash === undefined) {
+    reasons.push(`${prefix}_provider_plan_hash_required`);
+  } else if (permit.providerExecutionPlanHash !== plan.providerExecutionPlanHash) {
+    reasons.push(`${prefix}_provider_plan_hash_mismatch`);
+  }
+
+  if (permit.providerManifestHash !== hashProviderManifest(manifest)) {
+    reasons.push(`${prefix}_manifest_mismatch`);
+  }
+
+  if (plan.providerManifestHash !== undefined && permit.providerManifestHash !== plan.providerManifestHash) {
+    reasons.push(`${prefix}_plan_manifest_hash_mismatch`);
+  }
+
+  if (plan.policyDecisionHash === undefined) {
+    reasons.push(`${prefix}_policy_hash_required`);
+  } else if (permit.policyDecisionHash !== plan.policyDecisionHash) {
+    reasons.push(`${prefix}_policy_mismatch`);
+  }
+
+  if (permit.principalId !== undefined && plan.principalId !== undefined && permit.principalId !== plan.principalId) {
+    reasons.push(`${prefix}_principal_mismatch:${permit.principalId}:${plan.principalId}`);
+  }
+
+  if (plan.principalId !== undefined && permit.principalId === undefined) {
+    reasons.push(`${prefix}_principal_required`);
+  }
+
+  if (plan.principalHash === undefined) {
+    reasons.push(`${prefix}_principal_hash_required`);
+  } else if (permit.principalHash !== plan.principalHash) {
+    reasons.push(`${prefix}_principal_hash_mismatch`);
+  }
+
+  if (permit.sideEffectClass !== plan.sideEffectClass) {
+    reasons.push(`${prefix}_side_effect_mismatch:${permit.sideEffectClass}:${plan.sideEffectClass}`);
+  }
+
+  if (plan.sideEffectClass !== "workspace_write") {
+    reasons.push(`${prefix}_requires_workspace_write_side_effect`);
+  }
+
+  if (permit.sandboxProfileId !== plan.sandboxProfile.sandboxId) {
+    reasons.push(`${prefix}_sandbox_mismatch:${permit.sandboxProfileId}:${plan.sandboxProfile.sandboxId}`);
+  }
+
+  if (plan.sandboxProfile.mode !== "workspace-write") {
+    reasons.push(`${prefix}_requires_workspace_write_sandbox`);
+  }
+
+  if (!providerSupportsSideEffectClass(manifest, "workspace_write")) {
+    reasons.push(`${prefix}_manifest_side_effect_unsupported`);
+  }
+
+  if (!providerSupportsSandboxProfile(manifest, plan.sandboxProfile)) {
+    reasons.push(`${prefix}_manifest_sandbox_unsupported`);
+  }
+
+  if (permit.operatorAuthorizationId === undefined || permit.operatorAuthorizationId.length === 0) {
+    reasons.push(`${prefix}_operator_authorization_required`);
+  }
+
+  reasons.push(...getWorkspaceWriteProviderExecutionPermitGovernanceBlockers(permit, prefix));
+  reasons.push(...getWorkspaceWriteProviderExecutionPermitV2RollbackBlockers(permit, prefix));
+
+  const expectedNonce = createWorkspaceWriteProviderPermitV2Nonce(permit, expectedPlanHash);
+  if (permit.nonce !== expectedNonce) {
+    reasons.push(`${prefix}_nonce_mismatch`);
+  }
+
+  reasons.push(...validateProviderExecutionPermitTimestamps(permit, prefix, options.now));
+
+  return uniqueProviderCoreStrings(reasons);
+}
+
+export function createWorkspaceWriteProviderExecutionPermitV2ConsumptionKey(
+  permitInput: WorkspaceWriteProviderExecutionPermitV2
+): string {
+  const permit = WorkspaceWriteProviderExecutionPermitV2Schema.parse(permitInput);
+
+  return createHash("sha256")
+    .update(stableStringifyProviderObject({
+      schemaVersion: "workspace-write-provider-execution-permit-consumption-key.v2",
+      taskId: permit.taskId,
+      taskHash: permit.taskHash,
+      runId: permit.runId,
+      planId: permit.planId,
+      planHash: permit.planHash,
+      providerExecutionPlanHash: permit.providerExecutionPlanHash,
+      providerId: permit.providerId,
+      providerManifestHash: permit.providerManifestHash,
+      policyDecisionHash: permit.policyDecisionHash,
+      principalId: permit.principalId,
+      principalHash: permit.principalHash,
+      sideEffectClass: permit.sideEffectClass,
+      sandboxProfileId: permit.sandboxProfileId,
+      operatorAuthorizationId: permit.operatorAuthorizationId,
+      targetFiles: normalizeWorkspaceWritePermitPathList(permit.targetFiles),
+      rollback: permit.rollback
+    }))
+    .digest("hex");
+}
+
+export function consumeWorkspaceWriteProviderExecutionPermitV2ForPlan(
+  permitInput: WorkspaceWriteProviderExecutionPermitV2,
+  planInput: ExecutorExecutionPlan,
+  manifestInput: ProviderManifest,
+  store: ProviderExecutionPermitConsumptionStore,
+  options: ProviderExecutionPermitConsumptionOptions = {}
+): string[] {
+  const prefix = options.reasonPrefix ?? "workspace_write_provider_execution_permit_v2";
+  const validationReasons = validateWorkspaceWriteProviderExecutionPermitV2ForPlan(
+    permitInput,
+    planInput,
+    manifestInput,
+    options
+  );
+
+  if (validationReasons.length > 0) {
+    return validationReasons;
+  }
+
+  const permit = WorkspaceWriteProviderExecutionPermitV2Schema.parse(permitInput);
+  const consumedAt = options.consumedAt ?? new Date().toISOString();
+  if (!Number.isFinite(Date.parse(consumedAt))) {
+    return [`${prefix}_consumed_at_invalid`];
+  }
+
+  let result: ProviderExecutionPermitConsumptionResult;
+  try {
+    result = store.consumeIfUnused({
+      schemaVersion: "provider-execution-permit-consumption.v1",
+      consumptionKey: createWorkspaceWriteProviderExecutionPermitV2ConsumptionKey(permit),
+      permitId: permit.permitId,
+      nonce: permit.nonce,
+      taskId: permit.taskId,
+      ...(permit.taskHash !== undefined ? { taskHash: permit.taskHash } : {}),
+      runId: permit.runId,
+      planId: permit.planId,
+      planHash: permit.planHash,
+      providerExecutionPlanHash: permit.providerExecutionPlanHash,
+      providerId: permit.providerId,
+      providerManifestHash: permit.providerManifestHash,
+      policyDecisionHash: permit.policyDecisionHash,
+      ...(permit.principalId !== undefined ? { principalId: permit.principalId } : {}),
+      principalHash: permit.principalHash,
+      sideEffectClass: permit.sideEffectClass,
+      sandboxProfileId: permit.sandboxProfileId,
+      issuedAt: permit.issuedAt,
+      expiresAt: permit.expiresAt,
+      consumedAt
+    });
+  } catch {
+    return [`${prefix}_consumption_store_failed`];
+  }
+
+  return result === "consumed"
+    ? []
+    : [`${prefix}_already_consumed_by_store`];
+}
+
 export function hashProviderManifest(manifest: ProviderManifest): string {
   return createHash("sha256")
     .update(stableStringifyProviderObject(ProviderManifestSchema.parse(manifest)))
@@ -999,6 +1334,64 @@ function createWorkspaceWriteProviderExecutionPermit(
   });
 }
 
+function createWorkspaceWriteProviderExecutionPermitV2(
+  input: WorkspaceWriteProviderExecutionPermitV2IssueInput,
+  status: "approved" | "blocked",
+  reasons: string[]
+): WorkspaceWriteProviderExecutionPermitV2 {
+  const plan = ExecutorExecutionPlanSchema.parse(input.plan);
+  const manifest = ProviderManifestSchema.parse(input.manifest);
+  const targetFiles = normalizeWorkspaceWritePermitPathList(input.targetFiles);
+  const rollbackAffectedFiles = normalizeWorkspaceWritePermitPathList(
+    input.rollback.affectedFiles ?? targetFiles
+  );
+  const rollback = createWorkspaceWriteProviderPermitV2RollbackBinding(
+    input.rollback.beforeCommit,
+    rollbackAffectedFiles
+  );
+  const expiresAt = input.expiresAt ?? createDefaultProviderPermitExpiresAt(input.issuedAt);
+  const planHash = hashExecutorExecutionPlan(plan);
+  const draftPermit = {
+    schemaVersion: "provider-workspace-write-execution-permit.v2" as const,
+    permitId: input.permitId ?? `workspace_write_permit_v2_${plan.planId}`,
+    taskId: plan.taskId,
+    ...(plan.taskHash !== undefined ? { taskHash: plan.taskHash } : {}),
+    runId: plan.runId,
+    planId: plan.planId,
+    planHash,
+    providerExecutionPlanHash: plan.providerExecutionPlanHash ?? "0".repeat(64),
+    providerId: plan.providerId,
+    providerManifestHash: hashProviderManifest(manifest),
+    policyDecisionHash: plan.policyDecisionHash ?? "missing_policy_decision_hash",
+    ...(plan.principalId !== undefined ? { principalId: plan.principalId } : {}),
+    principalHash: plan.principalHash ?? "0".repeat(64),
+    sideEffectClass: "workspace_write" as const,
+    sandboxProfileId: plan.sandboxProfile.sandboxId,
+    sandboxMode: "workspace-write" as const,
+    status,
+    approvalStatus: input.approvalStatus ?? "pending",
+    ...(input.operatorAuthorizationId !== undefined
+      ? { operatorAuthorizationId: input.operatorAuthorizationId }
+      : {}),
+    targetFiles,
+    maxChangedFiles: input.maxChangedFiles,
+    maxDiffLines: input.maxDiffLines,
+    rollbackRequired: input.rollbackRequired,
+    rollback,
+    protectedBranchForbidden: input.protectedBranchForbidden,
+    dirtyWorktreeForbidden: input.dirtyWorktreeForbidden,
+    repositoryState: input.repositoryState,
+    reasons,
+    issuedAt: input.issuedAt,
+    expiresAt
+  };
+
+  return WorkspaceWriteProviderExecutionPermitV2Schema.parse({
+    ...draftPermit,
+    nonce: createWorkspaceWriteProviderPermitV2Nonce(draftPermit, planHash)
+  });
+}
+
 function getReadOnlyProviderExecutionPermitIssuanceBlockers(
   plan: ExecutorExecutionPlan,
   approvalStatus: ProviderExecutionPermitApprovalStatus | undefined
@@ -1025,7 +1418,7 @@ function getReadOnlyProviderExecutionPermitIssuanceBlockers(
 }
 
 function validateProviderExecutionPermitTimestamps(
-  permit: ProviderExecutionPermit,
+  permit: Pick<ProviderExecutionPermit, "issuedAt" | "expiresAt">,
   prefix: string,
   now?: string
 ): string[] {
@@ -1090,6 +1483,87 @@ function createProviderPermitNonce(
     .slice(0, 24);
 }
 
+function createWorkspaceWriteProviderPermitV2Nonce(
+  permit: Pick<
+    WorkspaceWriteProviderExecutionPermitV2,
+    | "permitId"
+    | "taskId"
+    | "taskHash"
+    | "runId"
+    | "planId"
+    | "providerExecutionPlanHash"
+    | "providerId"
+    | "providerManifestHash"
+    | "policyDecisionHash"
+    | "principalId"
+    | "principalHash"
+    | "sandboxProfileId"
+    | "operatorAuthorizationId"
+    | "targetFiles"
+    | "rollback"
+    | "issuedAt"
+    | "expiresAt"
+  >,
+  planHash: string
+): string {
+  return createHash("sha256")
+    .update(stableStringifyProviderObject({
+      schemaVersion: "workspace-write-provider-execution-permit-nonce.v2",
+      permitId: permit.permitId,
+      taskId: permit.taskId,
+      taskHash: permit.taskHash,
+      runId: permit.runId,
+      planId: permit.planId,
+      planHash,
+      providerExecutionPlanHash: permit.providerExecutionPlanHash,
+      providerId: permit.providerId,
+      providerManifestHash: permit.providerManifestHash,
+      policyDecisionHash: permit.policyDecisionHash,
+      principalId: permit.principalId,
+      principalHash: permit.principalHash,
+      sandboxProfileId: permit.sandboxProfileId,
+      operatorAuthorizationId: permit.operatorAuthorizationId,
+      targetFiles: normalizeWorkspaceWritePermitPathList(permit.targetFiles),
+      rollback: permit.rollback,
+      issuedAt: permit.issuedAt,
+      expiresAt: permit.expiresAt
+    }))
+    .digest("hex")
+    .slice(0, 32);
+}
+
+function createWorkspaceWriteProviderPermitV2RollbackBinding(
+  beforeCommit: string,
+  affectedFiles: string[]
+): WorkspaceWriteProviderExecutionPermitV2["rollback"] {
+  const normalizedAffectedFiles = normalizeWorkspaceWritePermitPathList(affectedFiles);
+  return {
+    beforeCommit,
+    commandIdentity: {
+      kind: "git_restore_from_commit",
+      commandHash: createWorkspaceWriteProviderPermitV2RollbackCommandHash(
+        beforeCommit,
+        normalizedAffectedFiles
+      ),
+      affectedFiles: normalizedAffectedFiles
+    }
+  };
+}
+
+function createWorkspaceWriteProviderPermitV2RollbackCommandHash(
+  beforeCommit: string,
+  affectedFiles: string[]
+): string {
+  return createHash("sha256")
+    .update(stableStringifyProviderObject({
+      schemaVersion: "workspace-write-rollback-command-identity.v2",
+      kind: "git_restore_from_commit",
+      beforeCommit,
+      affectedFiles: normalizeWorkspaceWritePermitPathList(affectedFiles)
+    }))
+    .digest("hex");
+}
+
 function getWorkspaceWriteProviderExecutionPermitIssuanceBlockers(
   plan: ExecutorExecutionPlan,
   manifest: ProviderManifest,
@@ -1133,6 +1607,84 @@ function getWorkspaceWriteProviderExecutionPermitIssuanceBlockers(
   return uniqueProviderCoreStrings(reasons);
 }
 
+function getWorkspaceWriteProviderExecutionPermitV2IssuanceBlockers(
+  plan: ExecutorExecutionPlan,
+  manifest: ProviderManifest,
+  input: WorkspaceWriteProviderExecutionPermitV2IssueInput
+): string[] {
+  const prefix = "workspace_write_provider_execution_permit_v2";
+  const reasons: string[] = [];
+
+  if (plan.sideEffectClass !== "workspace_write") {
+    reasons.push(`${prefix}_requires_workspace_write_side_effect`);
+  }
+
+  if (plan.sandboxProfile.mode !== "workspace-write") {
+    reasons.push(`${prefix}_requires_workspace_write_sandbox`);
+  }
+
+  if (!providerSupportsSideEffectClass(manifest, "workspace_write")) {
+    reasons.push(`${prefix}_manifest_side_effect_unsupported`);
+  }
+
+  if (!providerSupportsSandboxProfile(manifest, plan.sandboxProfile)) {
+    reasons.push(`${prefix}_manifest_sandbox_unsupported`);
+  }
+
+  if (input.approvalStatus !== "approved") {
+    reasons.push(`${prefix}_approval_required`);
+  }
+
+  if (input.operatorAuthorizationId === undefined || input.operatorAuthorizationId.length === 0) {
+    reasons.push(`${prefix}_operator_authorization_required`);
+  }
+
+  if (plan.providerExecutionPlanHash === undefined) {
+    reasons.push(`${prefix}_provider_plan_hash_required`);
+  }
+
+  if (plan.providerManifestHash !== undefined && plan.providerManifestHash !== hashProviderManifest(manifest)) {
+    reasons.push(`${prefix}_plan_manifest_hash_mismatch`);
+  }
+
+  if (plan.policyDecisionHash === undefined) {
+    reasons.push(`${prefix}_policy_hash_required`);
+  }
+
+  if (plan.principalHash === undefined) {
+    reasons.push(`${prefix}_principal_hash_required`);
+  }
+
+  if (input.repositoryState.headCommit === undefined || input.repositoryState.headCommit.length === 0) {
+    reasons.push(`${prefix}_before_commit_required`);
+  } else if (input.rollback.beforeCommit !== input.repositoryState.headCommit) {
+    reasons.push(`${prefix}_rollback_before_commit_mismatch`);
+  }
+
+  const targetFiles = normalizeWorkspaceWritePermitPathList(input.targetFiles);
+  const rollbackAffectedFiles = normalizeWorkspaceWritePermitPathList(
+    input.rollback.affectedFiles ?? targetFiles
+  );
+  if (!sameProviderCoreStringSet(targetFiles, rollbackAffectedFiles)) {
+    reasons.push(`${prefix}_rollback_affected_files_mismatch`);
+  }
+
+  if (rollbackAffectedFiles.some((affectedFile) => !isSafeWorkspaceRelativeFilePath(affectedFile))) {
+    reasons.push(`${prefix}_rollback_affected_file_out_of_bounds`);
+  }
+
+  reasons.push(...getWorkspaceWriteProviderExecutionPermitGovernanceBlockers({
+    targetFiles: input.targetFiles,
+    maxChangedFiles: input.maxChangedFiles,
+    rollbackRequired: input.rollbackRequired,
+    protectedBranchForbidden: input.protectedBranchForbidden,
+    dirtyWorktreeForbidden: input.dirtyWorktreeForbidden,
+    repositoryState: input.repositoryState
+  }, prefix));
+
+  return uniqueProviderCoreStrings(reasons);
+}
+
 function getWorkspaceWriteProviderExecutionPermitGovernanceBlockers(
   input: Pick<
     WorkspaceWriteProviderExecutionPermit,
@@ -1142,33 +1694,67 @@ function getWorkspaceWriteProviderExecutionPermitGovernanceBlockers(
     | "protectedBranchForbidden"
     | "dirtyWorktreeForbidden"
     | "repositoryState"
-  >
+  >,
+  prefix = "workspace_write_provider_execution_permit"
 ): string[] {
   const reasons: string[] = [];
   const targetFiles = uniqueProviderCoreStrings(input.targetFiles);
 
   if (targetFiles.length === 0) {
-    reasons.push("workspace_write_provider_execution_permit_target_files_required");
+    reasons.push(`${prefix}_target_files_required`);
   }
 
   if (targetFiles.length > input.maxChangedFiles) {
-    reasons.push("workspace_write_provider_execution_permit_target_file_count_exceeds_max");
+    reasons.push(`${prefix}_target_file_count_exceeds_max`);
   }
 
   if (targetFiles.some((targetFile) => !isSafeWorkspaceRelativeFilePath(targetFile))) {
-    reasons.push("workspace_write_provider_execution_permit_target_file_out_of_bounds");
+    reasons.push(`${prefix}_target_file_out_of_bounds`);
   }
 
   if (!input.rollbackRequired) {
-    reasons.push("workspace_write_provider_execution_permit_rollback_required");
+    reasons.push(`${prefix}_rollback_required`);
   }
 
   if (!input.protectedBranchForbidden || input.repositoryState.protectedBranch) {
-    reasons.push("workspace_write_provider_execution_permit_protected_branch_forbidden");
+    reasons.push(`${prefix}_protected_branch_forbidden`);
   }
 
   if (!input.dirtyWorktreeForbidden || !input.repositoryState.worktreeClean) {
-    reasons.push("workspace_write_provider_execution_permit_dirty_worktree_forbidden");
+    reasons.push(`${prefix}_dirty_worktree_forbidden`);
+  }
+
+  return uniqueProviderCoreStrings(reasons);
+}
+
+function getWorkspaceWriteProviderExecutionPermitV2RollbackBlockers(
+  permit: WorkspaceWriteProviderExecutionPermitV2,
+  prefix: string
+): string[] {
+  const reasons: string[] = [];
+  const targetFiles = normalizeWorkspaceWritePermitPathList(permit.targetFiles);
+  const affectedFiles = normalizeWorkspaceWritePermitPathList(permit.rollback.commandIdentity.affectedFiles);
+
+  if (permit.repositoryState.headCommit === undefined || permit.repositoryState.headCommit.length === 0) {
+    reasons.push(`${prefix}_before_commit_required`);
+  } else if (permit.rollback.beforeCommit !== permit.repositoryState.headCommit) {
+    reasons.push(`${prefix}_rollback_before_commit_mismatch`);
+  }
+
+  if (!sameProviderCoreStringSet(targetFiles, affectedFiles)) {
+    reasons.push(`${prefix}_rollback_affected_files_mismatch`);
+  }
+
+  if (affectedFiles.some((affectedFile) => !isSafeWorkspaceRelativeFilePath(affectedFile))) {
+    reasons.push(`${prefix}_rollback_affected_file_out_of_bounds`);
+  }
+
+  const expectedRollbackHash = createWorkspaceWriteProviderPermitV2RollbackCommandHash(
+    permit.rollback.beforeCommit,
+    affectedFiles
+  );
+  if (permit.rollback.commandIdentity.commandHash !== expectedRollbackHash) {
+    reasons.push(`${prefix}_rollback_command_hash_mismatch`);
   }
 
   return uniqueProviderCoreStrings(reasons);
@@ -1188,6 +1774,18 @@ function isSafeWorkspaceRelativeFilePath(targetFile: string): boolean {
 
   const parts = slashPath.split("/");
   return parts.every((part) => part.length > 0 && part !== "." && part !== "..");
+}
+
+function normalizeWorkspaceWritePermitPathList(paths: string[]): string[] {
+  return uniqueProviderCoreStrings(paths.map((path) => path.replace(/\\/g, "/")))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function sameProviderCoreStringSet(left: string[], right: string[]): boolean {
+  const normalizedLeft = normalizeWorkspaceWritePermitPathList(left);
+  const normalizedRight = normalizeWorkspaceWritePermitPathList(right);
+  return normalizedLeft.length === normalizedRight.length
+    && normalizedLeft.every((value, index) => value === normalizedRight[index]);
 }
 
 function uniqueProviderCoreStrings(values: string[]): string[] {

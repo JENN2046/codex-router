@@ -73,7 +73,7 @@ Current authority documents already agree on these boundaries:
 | PR-23B | Controlled read-only provider execution minimal slice | Current fake-spawner acceptance line; no default real Codex CLI authorization |
 | PR-23C | Execution evidence binding | Evidence refs/hashes for PR-23B boundary; no broader execution authorization |
 | Phase 6.3 | Read-only provider permit lifecycle hardening | Current acceptance line covers expiration, nonce, replay, and store failure; no broader execution authorization |
-| PR-23D | Workspace-write permit v2 schema and validators | None |
+| PR-23D | Workspace-write permit v2 schema and validators | Permit v2 schema, validator, rollback binding, and consumption helper; no workspace-write execution authorization |
 | PR-23E | Workspace-write fake canary v2 | No real workspace-write |
 | PR-23F | Runtime-governance closeout and release gates | No new execution authorization by itself |
 
@@ -190,7 +190,7 @@ Stop the stage if a PR introduces:
 
 ## Next Safe Action
 
-After the read-only permit lifecycle closeout, the next narrow
-runtime-governance work should continue with workspace-write permit v2 schema
-and validators. It must not promote real workspace-write or default provider
-execution.
+After PR-23D, the next narrow runtime-governance work should update the
+workspace-write fake canary to use permit v2 and rollback evidence while still
+proving zero real workspace-write, zero real Codex CLI, and zero external
+writes.
