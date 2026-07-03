@@ -75,7 +75,7 @@ Current authority documents already agree on these boundaries:
 | Phase 6.3 | Read-only provider permit lifecycle hardening | Current acceptance line covers expiration, nonce, replay, and store failure; no broader execution authorization |
 | PR-23D | Workspace-write permit v2 schema and validators | Permit v2 schema, validator, rollback binding, and consumption helper; no workspace-write execution authorization |
 | PR-23E | Workspace-write fake canary v2 | Permit v2, patch guard, rollback evidence, and replay blocking; no real workspace-write |
-| PR-23F | Runtime-governance closeout and release gates | No new execution authorization by itself |
+| PR-23F | Runtime-governance closeout and release gates | Completed closeout and gate alignment; no new execution authorization by itself |
 
 PR-23B must preserve the PR-22A non-authorization boundary unless a reviewed
 authority document and PR explicitly activate the exact controlled read-only
@@ -190,7 +190,6 @@ Stop the stage if a PR introduces:
 
 ## Next Safe Action
 
-After PR-23E, the next narrow runtime-governance work should close out Phase 6
-release-gate alignment. That slice should update capability status and
-validation gates while still proving zero default real workspace-write, zero
-default real Codex CLI, and zero external writes.
+After PR-23F, Phase 6 is closed. The next work should begin with a fresh
+read-only runtime-governance review to identify the next narrow core capability.
+It should not promote real workspace-write by default.

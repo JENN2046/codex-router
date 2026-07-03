@@ -36,6 +36,7 @@ simulation.
 | Governance docs check | `npm run docs:governance` | Lightweight current documentation structure check. | PR readiness when governance docs drift structurally. |
 | PR state-sync | GitHub `pull_request` State Sync Audit or explicit simulation | Verifies structured state-sync claim for PR context. | PR merge and state authority. |
 | Main state-sync | `node --import tsx scripts/run-state-sync-audit.ts --json` on local `main` | Post-merge/main closeout. | Main state authority when it fails. |
+| Phase 6 closeout | [Phase 6 Controlled Execution Runtime Hardening Closeout](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_CLOSEOUT.md) | Runtime-governance capability status review. | Claims that Phase 6 broadened default execution. |
 | Workspace-write release gate | [Workspace-write Release Gate](WORKSPACE_WRITE_RELEASE_GATE.md) | Any PR that can broaden real workspace-write or canary execution. | Real workspace-write readiness. |
 | Release tier | `npm run validate:release` | Deterministic release-sensitive local validation. | Release/tag/deploy/package publish. |
 | Current governance list | `npm run governance -- list` | Shows current operating checks. | Documentation claims about available current checks. |
@@ -95,6 +96,11 @@ Workspace-write real canary is also not part of routine release validation. It
 remains blocked unless the [Workspace-write Release Gate](WORKSPACE_WRITE_RELEASE_GATE.md)
 passes for the exact target and authorization packet.
 
+Phase 6 closeout records the controlled read-only and fake workspace-write
+readiness status. It does not authorize real workspace-write, external writes,
+protected remote actions, release, publish, deploy, tag, or default real Codex
+CLI execution.
+
 ## Failure Policy
 
 | Failure | Effect |
@@ -106,6 +112,7 @@ passes for the exact target and authorization packet.
 | Governance docs check fails | Fix current docs structure, links, or package-script references before review. |
 | PR state-sync fails | Do not merge; structured claim or event context is invalid. |
 | Main state-sync fails | Treat current state authority as invalid until fixed. |
+| Phase 6 closeout contradicts a gate | Treat the stricter gate as authoritative until the contradiction is reviewed. |
 | Release tier fails | Do not release, tag, deploy, publish, or promote. |
 | Workspace-write release gate fails | Do not run real workspace-write; use fake/dry-run validation only. |
 | Evidence collection fails | Do not claim release evidence completeness. |

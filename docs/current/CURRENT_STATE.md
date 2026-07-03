@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `a99cc0eded2657101ba2e204c6824da2997c5f2ba0a7e981d14ecbb46cd85947`
+  `57ec5ceff4846b7a2848175c563a7488c88d44f5c943b616d6f2be78867e45cf`
 
 Source digest excluded paths:
 
@@ -157,6 +157,10 @@ The PR-23E workspace-write fake canary v2 line is recorded at
 canary to permit v2, patch guard, rollback evidence, and replay blocking while
 still proving zero real workspace-write, zero real Codex CLI, and zero external
 writes.
+The Phase 6 controlled execution runtime hardening closeout is recorded at
+`docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_CLOSEOUT.md`;
+it closes the PR-23A through PR-23F runtime-hardening stage without authorizing
+real workspace-write by default.
 
 Boundary audit marker:
 
