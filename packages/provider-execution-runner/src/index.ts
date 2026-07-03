@@ -4,7 +4,8 @@ import {
   parseTaskEnvelope,
   type TaskClass,
   type TaskEnvelope,
-  type TaskEnvelopeInput
+  type TaskEnvelopeInput,
+  type TaskHintProvenance as TaskEnvelopeHintProvenance
 } from "../../contracts/src/index.js";
 import type {
   ArtifactStore,
@@ -884,9 +885,19 @@ function createControlledReadOnlyGovernanceTaskEnvelope(
     hints: {
       ...(taskClassHint !== undefined ? { taskClassHint } : {}),
       riskHints: [...task.hints.riskHints],
-      tags: [...task.hints.tags]
+      tags: [...task.hints.tags],
+      provenance: createGovernanceTaskEnvelopeProvenance(task)
     }
   });
+}
+
+function createGovernanceTaskEnvelopeProvenance(
+  task: Task
+): TaskEnvelopeHintProvenance[] {
+  return task.hints.provenance.map((entry) => ({
+    ...entry,
+    field: entry.field === "taskClass" ? "taskClassHint" : entry.field
+  }));
 }
 
 function createGovernanceTaskEnvelopeConstraints(
