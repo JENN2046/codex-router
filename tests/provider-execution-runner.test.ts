@@ -701,6 +701,50 @@ test("provider execution runner blocks controlled read-only execution without a 
   assert.ok(result.reasons.includes("controlled_readonly_provider_execution_permit_required"));
 });
 
+test("provider execution runner preserves validation failures for legacy permit policy hashes", async () => {
+  let spawnCalls = 0;
+  const fixture = createControlledReadOnlyCodexFixture(() => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    });
+  });
+  const legacyPermit: ProviderExecutionPermit = {
+    ...fixture.permit,
+    policyDecisionHash: "policy_hash_other"
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: fixture.registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: legacyPermit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(fixture.provider.manifest)
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+  const evidence = ControlledReadOnlyExecutionEvidenceSchema.parse(result.executionEvidence);
+
+  assert.equal(result.status, "validation_failed");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(spawnCalls, 0);
+  assert.ok(result.reasons.includes("provider_execution_permit_invalid"));
+  assert.ok(result.reasons.includes("controlled_readonly_provider_execution_permit_policy_mismatch"));
+  assert.equal(evidence.bindings.permit.permitId, legacyPermit.permitId);
+  assert.equal(evidence.bindings.permit.policyDecisionHash, null);
+  assert.equal(evidence.bindings.permit.planHash, legacyPermit.planHash);
+  assert.equal(evidence.bindings.permit.consumptionStatus, "input_unconsumed");
+});
+
 test("provider execution runner blocks controlled read-only execution without preflight artifact binding", async () => {
   let spawnCalls = 0;
   const fixture = createControlledReadOnlyCodexFixture(() => {

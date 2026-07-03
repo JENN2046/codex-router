@@ -1599,12 +1599,12 @@ function createControlledReadOnlyExecutionEvidence(input: {
         present: permit !== undefined,
         permitId: permit?.permitId ?? null,
         planId: permit?.planId ?? null,
-        planHash: permit?.planHash ?? null,
-        providerExecutionPlanHash: permit?.providerExecutionPlanHash ?? null,
-        providerManifestHash: permit?.providerManifestHash ?? null,
-        policyDecisionHash: permit?.policyDecisionHash ?? null,
+        planHash: toNullableSha256(permit?.planHash),
+        providerExecutionPlanHash: toNullableSha256(permit?.providerExecutionPlanHash),
+        providerManifestHash: toNullableSha256(permit?.providerManifestHash),
+        policyDecisionHash: toNullableSha256(permit?.policyDecisionHash),
         principalId: permit?.principalId ?? null,
-        principalHash: permit?.principalHash ?? null,
+        principalHash: toNullableSha256(permit?.principalHash),
         consumptionKey: permit === undefined
           ? null
           : createProviderExecutionPermitConsumptionKey(permit),
@@ -1761,6 +1761,12 @@ function readSha256Field(
 ): string | null {
   const value = readStringField(record, key);
   return value !== null && /^[a-f0-9]{64}$/.test(value) ? value : null;
+}
+
+function toNullableSha256(value: string | undefined): string | null {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value)
+    ? value
+    : null;
 }
 
 function readBooleanField(
