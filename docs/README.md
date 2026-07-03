@@ -14,6 +14,10 @@ need the audit trail behind a decision.
   release gate policy.
 - [evidence policy](governance/EVIDENCE_POLICY.md): what evidence may be
   stored and what must stay out of docs and PRs.
+- [threat model](governance/THREAT_MODEL.md): current governance threats and
+  controls.
+- [change control](governance/CHANGE_CONTROL.md): required docs/tests for
+  governance boundary changes.
 - [read-only controlled execution runbook](governance/runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md):
   current guarded read-only procedure.
 - [workspace-write canary runbook](governance/runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md):

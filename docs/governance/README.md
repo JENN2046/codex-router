@@ -12,6 +12,9 @@ as historical evidence unless a current authority document links them.
   policy plus failure consequences.
 - [evidence policy](EVIDENCE_POLICY.md): allowed evidence fields, forbidden raw
   material, and evidence ref rules.
+- [threat model](THREAT_MODEL.md): current governance threats and controls.
+- [change control](CHANGE_CONTROL.md): required docs/tests for governance
+  boundary changes.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md):
   guarded read-only host execution procedure.
@@ -65,3 +68,11 @@ single historical slice changes, update the specific PR document only.
 
 - [closeout template](templates/CLOSEOUT_TEMPLATE.md)
 - [runbook template](templates/RUNBOOK_TEMPLATE.md)
+- [ADR template](templates/ADR_TEMPLATE.md)
+
+## Decisions
+
+- [ADR 001: Protocol V1 stable contract surface](decisions/ADR_001_PROTOCOL_V1.md)
+- [ADR 002: Provider grant and permit model](decisions/ADR_002_PROVIDER_GRANT_AND_PERMIT_MODEL.md)
+- [ADR 003: Codex CLI real execution gates](decisions/ADR_003_CODEX_CLI_REAL_EXECUTION_GATES.md)
+- [ADR 004: Evidence and redaction policy](decisions/ADR_004_EVIDENCE_AND_REDACTION_POLICY.md)
