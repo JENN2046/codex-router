@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `475884d176e1be40ce1bd1d1cdbbcd4ed3805ba2757c145a9fdf2ec1d017d9be`
+  `1288da2614d6ff188455c7f61345a6368b3ea9191c87f3c6e32d6e483e57ffb4`
 
 Source digest excluded paths:
 
@@ -83,6 +83,10 @@ Current repository governance status:
 - Controlled read-only execution evidence binding is recorded in
   `docs/governance/PR_23C_EXECUTION_EVIDENCE_BINDING.md`; it strengthens
   sanitized refs and hashes without authorizing broader execution.
+- Phase 6 read-only provider permit lifecycle hardening is recorded in
+  `docs/governance/PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md`;
+  the current controlled read-only acceptance covers expiration, nonce, replay,
+  and permit store-failure behavior.
 - Real provider execution, real Codex CLI execution, secret changes, dependency
   changes, workflow changes, and direct `main` pushes remain outside normal
   display-only pruning work.
@@ -136,6 +140,10 @@ The PR-23C evidence-binding line is recorded at
 `docs/governance/PR_23C_EXECUTION_EVIDENCE_BINDING.md`; it binds controlled
 read-only evidence to preflight, registry, permit, plan, policy, principal, and
 report refs/hashes.
+The Phase 6 read-only provider permit lifecycle line is recorded at
+`docs/governance/PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md`;
+it keeps the same acceptance entry point while adding expiration, nonce, replay,
+and store-failure coverage.
 
 Boundary audit marker:
 

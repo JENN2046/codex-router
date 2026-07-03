@@ -28,8 +28,10 @@ import { InMemoryKernelStore } from "../packages/kernel-store/src/index.js";
 import {
   createApprovedProviderExecutionPermit,
   hashProviderManifest,
+  InMemoryProviderExecutionPermitConsumptionStore,
   type ExecutorExecutionPlan,
   type ProviderExecutionPermit,
+  type ProviderExecutionPermitConsumptionStore,
   type ProviderManifest
 } from "../packages/provider-core/src/index.js";
 import {
@@ -69,6 +71,10 @@ export interface ControlledReadonlyProviderExecutionAcceptanceEvidence {
     noWorkspaceWriteExecute: boolean;
     noExternalWrite: boolean;
     preflightEvidenceBound: boolean;
+    expiredPermitBlocked: boolean;
+    nonceMismatchBlocked: boolean;
+    permitReplayBlocked: boolean;
+    permitStoreFailureBlocked: boolean;
     evidenceSanitized: boolean;
   };
   summary: {
@@ -88,6 +94,10 @@ export interface ControlledReadonlyProviderExecutionAcceptanceEvidence {
     missingPermitSpawnCalls: number;
     missingMetadataSpawnCalls: number;
     workspaceWriteSpawnCalls: number;
+    expiredPermitSpawnCalls: number;
+    nonceMismatchSpawnCalls: number;
+    replaySpawnCalls: number;
+    permitStoreFailureSpawnCalls: number;
     realCodexCliCalls: 0;
     workspaceWriteExecuteCalls: 0;
     externalWriteCalls: 0;
@@ -168,6 +178,92 @@ export async function runControlledReadonlyProviderExecutionAcceptance(
     executionMetadata: createProviderExecutionMetadata(workspaceWriteFixture.provider.manifest)
   });
 
+  let expiredPermitSpawnCalls = 0;
+  const expiredPermitFixture = createControlledReadonlyFixture({
+    generatedAt,
+    spawn: () => {
+      expiredPermitSpawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const expiredPermit = createApprovedProviderExecutionPermit({
+    plan: expiredPermitFixture.executorPlan,
+    manifest: expiredPermitFixture.provider.manifest,
+    permitId: `permit-${expiredPermitFixture.executorPlan.planId}-expired`,
+    issuedAt: "2026-06-21T23:50:00.000Z"
+  });
+  const expiredPermitResult = await runControlledReadOnlyFixture(expiredPermitFixture, {
+    permit: expiredPermit,
+    executionMetadata: createProviderExecutionMetadata(expiredPermitFixture.provider.manifest)
+  });
+
+  let nonceMismatchSpawnCalls = 0;
+  const nonceMismatchFixture = createControlledReadonlyFixture({
+    generatedAt,
+    spawn: () => {
+      nonceMismatchSpawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const nonceMismatchPermit = {
+    ...requirePermit(nonceMismatchFixture),
+    nonce: "caller_supplied_nonce"
+  };
+  const nonceMismatchResult = await runControlledReadOnlyFixture(nonceMismatchFixture, {
+    permit: nonceMismatchPermit,
+    executionMetadata: createProviderExecutionMetadata(nonceMismatchFixture.provider.manifest)
+  });
+
+  let replaySpawnCalls = 0;
+  const replayFixture = createControlledReadonlyFixture({
+    generatedAt,
+    spawn: () => {
+      replaySpawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "{\"type\":\"agent_message\",\"message\":\"CONTROLLED_READONLY_REPLAY_OK\"}\n",
+        exitCode: 0
+      });
+    }
+  });
+  const replayPermit = requirePermit(replayFixture);
+  await runControlledReadOnlyFixture(replayFixture, {
+    permit: replayPermit,
+    executionMetadata: createProviderExecutionMetadata(replayFixture.provider.manifest)
+  });
+  const replayResult = await runControlledReadOnlyFixture(replayFixture, {
+    permit: replayPermit,
+    executionMetadata: createProviderExecutionMetadata(replayFixture.provider.manifest)
+  });
+
+  let permitStoreFailureSpawnCalls = 0;
+  const throwingPermitStore: ProviderExecutionPermitConsumptionStore = {
+    consumeIfUnused: () => {
+      throw new Error("controlled readonly permit store unavailable");
+    },
+    get: () => undefined
+  };
+  const permitStoreFailureFixture = createControlledReadonlyFixture({
+    generatedAt,
+    permitConsumptionStore: throwingPermitStore,
+    spawn: () => {
+      permitStoreFailureSpawnCalls += 1;
+      return createFakeCodexCliChild({
+        stdout: "",
+        exitCode: 0
+      });
+    }
+  });
+  const permitStoreFailureResult = await runControlledReadOnlyFixture(permitStoreFailureFixture, {
+    permit: requirePermit(permitStoreFailureFixture),
+    executionMetadata: createProviderExecutionMetadata(permitStoreFailureFixture.provider.manifest)
+  });
+
   const providerSummary = readProviderExecutionSummary(success);
   const evidenceWithoutSanitizedCheck: Omit<
     ControlledReadonlyProviderExecutionAcceptanceEvidence,
@@ -223,7 +319,35 @@ export async function runControlledReadonlyProviderExecutionAcceptance(
       preflightEvidenceBound: success.executionEvidence?.bindings.environmentPreflight.artifactHash
         === createProviderExecutionPreflightArtifactHash(successFixture.provider.manifest)
         && success.executionEvidence?.bindings.providerRegistrySelection.manifestHash
-          === hashProviderManifest(successFixture.provider.manifest)
+          === hashProviderManifest(successFixture.provider.manifest),
+      expiredPermitBlocked: expiredPermitResult.status === "validation_failed"
+        && expiredPermitResult.executeInvoked === false
+        && expiredPermitSpawnCalls === 0
+        && expiredPermitResult.reasons.includes(
+          "controlled_readonly_provider_execution_permit_expired"
+        ),
+      nonceMismatchBlocked: nonceMismatchResult.status === "validation_failed"
+        && nonceMismatchResult.executeInvoked === false
+        && nonceMismatchSpawnCalls === 0
+        && nonceMismatchResult.reasons.includes(
+          "controlled_readonly_provider_execution_permit_nonce_mismatch"
+        ),
+      permitReplayBlocked: replayResult.status === "execution_failed"
+        && replaySpawnCalls === 1
+        && replayResult.reasons.includes(
+          "codex_cli_provider_execution_permit_replay_rejected"
+        )
+        && replayResult.reasons.includes(
+          "codex_cli_provider_execution_permit_already_consumed_by_store"
+        ),
+      permitStoreFailureBlocked: permitStoreFailureResult.status === "execution_failed"
+        && permitStoreFailureSpawnCalls === 0
+        && permitStoreFailureResult.reasons.includes(
+          "codex_cli_provider_execution_permit_replay_rejected"
+        )
+        && permitStoreFailureResult.reasons.includes(
+          "codex_cli_provider_execution_permit_consumption_store_failed"
+        )
     },
     summary: {
       providerId: "codex-cli",
@@ -242,6 +366,10 @@ export async function runControlledReadonlyProviderExecutionAcceptance(
       missingPermitSpawnCalls,
       missingMetadataSpawnCalls,
       workspaceWriteSpawnCalls,
+      expiredPermitSpawnCalls,
+      nonceMismatchSpawnCalls,
+      replaySpawnCalls,
+      permitStoreFailureSpawnCalls,
       realCodexCliCalls: 0,
       workspaceWriteExecuteCalls: 0,
       externalWriteCalls: 0
@@ -249,7 +377,11 @@ export async function runControlledReadonlyProviderExecutionAcceptance(
     blockingReasons: uniqueStrings([
       ...missingPermit.reasons,
       ...missingMetadata.reasons,
-      ...workspaceWrite.reasons
+      ...workspaceWrite.reasons,
+      ...expiredPermitResult.reasons,
+      ...nonceMismatchResult.reasons,
+      ...replayResult.reasons,
+      ...permitStoreFailureResult.reasons
     ])
   };
 
@@ -293,6 +425,7 @@ function createControlledReadonlyFixture(input: {
   generatedAt: string;
   spawn: CodexCliProcessSpawner;
   sandboxMode?: "read-only" | "workspace-write";
+  permitConsumptionStore?: ProviderExecutionPermitConsumptionStore;
 }): ControlledReadonlyFixture {
   const sandboxMode = input.sandboxMode ?? "read-only";
   const provider = new CodexCliExecutorProvider({
@@ -301,6 +434,8 @@ function createControlledReadonlyFixture(input: {
     realExecutionAllowed: true,
     nowMs: () => Date.parse(input.generatedAt),
     timeoutMs: 1_000,
+    permitConsumptionStore: input.permitConsumptionStore
+      ?? new InMemoryProviderExecutionPermitConsumptionStore(),
     spawn: input.spawn
   });
   const providerRegistry = new ProviderRegistry();

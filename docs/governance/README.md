@@ -49,6 +49,9 @@ as historical evidence unless a current authority document links them.
 - [PR-23C execution evidence binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md):
   current evidence-binding line for controlled read-only provider execution;
   this strengthens refs and hashes without broadening execution authorization.
+- [Phase 6 read-only provider permit lifecycle hardening](PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md):
+  current lifecycle closeout for expiration, nonce, replay, and store-failure
+  checks in the controlled read-only acceptance line.
 
 ## Runner Entry Points
 
