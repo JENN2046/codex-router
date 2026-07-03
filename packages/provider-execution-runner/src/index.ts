@@ -64,6 +64,7 @@ import type {
   ProviderRegistry
 } from "../../provider-registry/src/index.js";
 import {
+  createArbitrationPacket,
   createRecoveryOperatorAction,
   shouldLockdown,
   type ArbitrationPacket,
@@ -307,6 +308,7 @@ export type ControlledReadOnlyProviderExecutionRunnerResult = {
   providerResultSummary?: Record<string, unknown>;
   failureClass?: string;
   executionEvidence?: ControlledReadOnlyExecutionEvidence;
+  preflightGovernance?: ControlledReadOnlyProviderPreflightGovernance;
   governance?: ControlledReadOnlyProviderExecutionGovernance;
   reportArtifact?: StoredArtifact;
   kernelArtifact?: Artifact;
@@ -321,6 +323,20 @@ export type ControlledReadOnlyProviderExecutionGovernance = {
   evidenceRefs: string[];
   recoveryRequired: boolean;
   lockdown: boolean;
+  recoveryRecommendation?: RecoveryRecommendation;
+  operatorAction?: RecoveryOperatorAction;
+};
+
+export type ControlledReadOnlyProviderPreflightGovernance = {
+  schemaVersion: "provider-execution-controlled-readonly-preflight-governance.v1";
+  state: GovernanceState;
+  phase: GovernanceState["phase"];
+  strategyDecision: StrategyDecisionV2;
+  blockingReasons: string[];
+  executionAllowed: false;
+  recoveryRequired: boolean;
+  lockdown: boolean;
+  arbitrationPacket?: ArbitrationPacket;
   recoveryRecommendation?: RecoveryRecommendation;
   operatorAction?: RecoveryOperatorAction;
 };
@@ -540,7 +556,10 @@ export async function runProviderExecutionPlanControlledReadOnly(
       eventIds,
       artifactIds,
       createdAt,
-      ...(providerAttestation !== undefined ? { providerAttestation } : {})
+      ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+      ...(governanceBridge.preflightGovernance !== undefined
+        ? { preflightGovernance: governanceBridge.preflightGovernance }
+        : {})
     });
   }
 
@@ -771,6 +790,7 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
   reasons: string[];
   governanceState?: GovernanceState;
   taskEnvelope?: TaskEnvelope;
+  preflightGovernance?: ControlledReadOnlyProviderPreflightGovernance;
 } {
   if (
     input.input.governanceState === undefined &&
@@ -782,6 +802,7 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
   const reasons: string[] = [];
   let governanceState: GovernanceState | undefined = undefined;
   let taskEnvelope: TaskEnvelope | undefined = undefined;
+  let preflightGovernance: ControlledReadOnlyProviderPreflightGovernance | undefined = undefined;
 
   if (input.input.governanceState === undefined) {
     reasons.push("controlled_readonly_provider_governance_state_required");
@@ -810,13 +831,6 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
     reasons.push(
       `controlled_readonly_provider_governance_state_task_mismatch:${governanceState.taskId}:${input.task.taskId}`
     );
-  }
-
-  if (governanceState !== undefined) {
-    reasons.push(...collectGovernanceStatePreExecutionBlockReasons({
-      governanceState,
-      now: input.input.now
-    }));
   }
 
   if (taskEnvelope !== undefined && taskEnvelope.taskId !== input.task.taskId) {
@@ -849,30 +863,50 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
     );
   }
 
+  if (
+    reasons.length === 0 &&
+    governanceState !== undefined &&
+    taskEnvelope !== undefined
+  ) {
+    const preflightBlock = createControlledReadOnlyProviderPreflightGovernance({
+      governanceState,
+      now: input.input.now
+    });
+    reasons.push(...preflightBlock.reasons);
+    preflightGovernance = preflightBlock.preflightGovernance;
+  }
+
   return reasons.length === 0 &&
     governanceState !== undefined &&
     taskEnvelope !== undefined
     ? { reasons, governanceState, taskEnvelope }
-    : { reasons };
+    : {
+        reasons,
+        ...(preflightGovernance !== undefined ? { preflightGovernance } : {})
+      };
 }
 
-function collectGovernanceStatePreExecutionBlockReasons(input: {
+function createControlledReadOnlyProviderPreflightGovernance(input: {
   governanceState: GovernanceState;
   now: () => string;
-}): string[] {
-  if (
-    input.governanceState.phase === "recovery" ||
-    input.governanceState.phase === "closed"
-  ) {
-    return [
-      `controlled_readonly_provider_governance_state_phase_blocked:${input.governanceState.phase}`
-    ];
-  }
-
+}): {
+  reasons: string[];
+  preflightGovernance?: ControlledReadOnlyProviderPreflightGovernance;
+} {
+  const reasons: string[] = [];
   const strategyDecision = routeStrategyV2({
     state: input.governanceState,
     now: input.now
   });
+
+  if (
+    input.governanceState.phase === "recovery" ||
+    input.governanceState.phase === "closed"
+  ) {
+    reasons.push(
+      `controlled_readonly_provider_governance_state_phase_blocked:${input.governanceState.phase}`
+    );
+  }
 
   if (
     strategyDecision.actionFamily === "step_back" ||
@@ -880,12 +914,62 @@ function collectGovernanceStatePreExecutionBlockReasons(input: {
     strategyDecision.actionFamily === "simulate" ||
     strategyDecision.agentBudget.executor === 0
   ) {
-    return [
+    reasons.push(
       `controlled_readonly_provider_governance_state_strategy_blocked:${strategyDecision.actionFamily}`
-    ];
+    );
   }
 
-  return [];
+  if (reasons.length === 0) {
+    return { reasons };
+  }
+
+  const recoveryRequired =
+    input.governanceState.phase === "recovery" ||
+    input.governanceState.phase === "closed" ||
+    strategyDecision.actionFamily === "step_back" ||
+    strategyDecision.actionFamily === "abort";
+  const arbitrationPacket =
+    strategyDecision.actionFamily === "step_back" ||
+    strategyDecision.actionFamily === "abort"
+      ? createArbitrationPacket({
+          state: input.governanceState,
+          now: input.now
+        })
+      : undefined;
+  const lockdown =
+    input.governanceState.phase === "closed" ||
+    strategyDecision.actionFamily === "abort" ||
+    (
+      arbitrationPacket !== undefined &&
+      shouldLockdown(arbitrationPacket)
+    );
+  const recoveryRecommendation = arbitrationPacket?.recoveryRecommendation;
+  const operatorAction =
+    arbitrationPacket === undefined || recoveryRecommendation === undefined
+      ? undefined
+      : createRecoveryOperatorAction({
+          arbitrationPacket,
+          recoveryRecommendation,
+          lockdown,
+          blockingReasons: reasons
+        });
+
+  return {
+    reasons,
+    preflightGovernance: {
+      schemaVersion: "provider-execution-controlled-readonly-preflight-governance.v1",
+      state: input.governanceState,
+      phase: input.governanceState.phase,
+      strategyDecision,
+      blockingReasons: reasons,
+      executionAllowed: false,
+      recoveryRequired,
+      lockdown,
+      ...(arbitrationPacket !== undefined ? { arbitrationPacket } : {}),
+      ...(recoveryRecommendation !== undefined ? { recoveryRecommendation } : {}),
+      ...(operatorAction !== undefined ? { operatorAction } : {})
+    }
+  };
 }
 
 function createControlledReadOnlyGovernanceResultFields(input: {
@@ -1162,6 +1246,36 @@ function summarizeControlledReadOnlyProviderExecutionGovernance(
     evidenceRefCount: governance.evidenceRefs.length,
     recoveryRequired: governance.recoveryRequired,
     lockdown: governance.lockdown,
+    ...(governance.operatorAction !== undefined
+      ? {
+          operatorAction: {
+            status: governance.operatorAction.status,
+            trigger: governance.operatorAction.trigger,
+            recommendedAction: governance.operatorAction.recommendedAction,
+            requiresHumanApproval: governance.operatorAction.requiresHumanApproval,
+            lockdown: governance.operatorAction.lockdown
+          }
+        }
+      : {})
+  };
+}
+
+function summarizeControlledReadOnlyProviderPreflightGovernance(
+  governance: ControlledReadOnlyProviderPreflightGovernance
+): Record<string, unknown> {
+  return {
+    schemaVersion: governance.schemaVersion,
+    taskId: governance.state.taskId,
+    phase: governance.phase,
+    actionFamily: governance.strategyDecision.actionFamily,
+    executorBudget: governance.strategyDecision.agentBudget.executor,
+    blockingReasons: governance.blockingReasons,
+    executionAllowed: governance.executionAllowed,
+    recoveryRequired: governance.recoveryRequired,
+    lockdown: governance.lockdown,
+    ...(governance.arbitrationPacket !== undefined
+      ? { arbitrationTrigger: governance.arbitrationPacket.trigger }
+      : {}),
     ...(governance.operatorAction !== undefined
       ? {
           operatorAction: {
@@ -1580,6 +1694,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
   artifactIds: string[];
   createdAt: string;
   providerAttestation?: ProviderAttestation;
+  preflightGovernance?: ControlledReadOnlyProviderPreflightGovernance;
   governanceState?: GovernanceState;
   governanceTaskEnvelope?: TaskEnvelope;
   executorPlan?: ExecutorExecutionPlan;
@@ -1601,6 +1716,9 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
   const providerResultSummary = input.providerResultSummary === undefined
     ? undefined
     : sanitizeSafeRecord(input.providerResultSummary);
+  const preflightGovernanceSummary = input.preflightGovernance === undefined
+    ? undefined
+    : summarizeControlledReadOnlyProviderPreflightGovernance(input.preflightGovernance);
   const reportArtifactId = createArtifactId(
     input.providerExecutionPlan.planId,
     input.status,
@@ -1631,6 +1749,9 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     artifactId: reportArtifactId,
     executionEvidence,
     ...(input.providerAttestation !== undefined ? { providerAttestation: input.providerAttestation } : {}),
+    ...(preflightGovernanceSummary !== undefined
+      ? { preflightGovernance: preflightGovernanceSummary }
+      : {}),
     ...(executorPlanSummary !== undefined ? { executorPlan: executorPlanSummary } : {}),
     ...(validation !== undefined ? { validation } : {}),
     ...(providerResultSummary !== undefined
@@ -1688,6 +1809,9 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
         ? { providerResultSummary }
         : {}),
       executionEvidence: summarizeControlledReadOnlyExecutionEvidence(executionEvidence),
+      ...(preflightGovernanceSummary !== undefined
+        ? { preflightGovernance: preflightGovernanceSummary }
+        : {}),
       ...(governance !== undefined
         ? { governance: summarizeControlledReadOnlyProviderExecutionGovernance(governance) }
         : {}),
@@ -1712,6 +1836,9 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     createdAt: input.createdAt,
     completedAt,
     executionEvidence,
+    ...(input.preflightGovernance !== undefined
+      ? { preflightGovernance: input.preflightGovernance }
+      : {}),
     ...(governance !== undefined ? { governance } : {}),
     reportArtifact,
     kernelArtifact,
@@ -1797,6 +1924,7 @@ async function writeControlledReadOnlyRunnerReportArtifact(input: {
   artifactId: string;
   executionEvidence: ControlledReadOnlyExecutionEvidence;
   providerAttestation?: ProviderAttestation;
+  preflightGovernance?: Record<string, unknown>;
   executorPlan?: Record<string, unknown>;
   validation?: ExecutionValidationResult;
   providerResultSummary?: Record<string, unknown>;
@@ -1818,6 +1946,9 @@ async function writeControlledReadOnlyRunnerReportArtifact(input: {
       executionEvidence: input.executionEvidence,
       ...(input.providerAttestation !== undefined
         ? { providerAttestation: summarizeProviderAttestation(input.providerAttestation) }
+        : {}),
+      ...(input.preflightGovernance !== undefined
+        ? { preflightGovernance: input.preflightGovernance }
         : {}),
       ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
       ...(input.validation !== undefined ? { validation: input.validation } : {}),
