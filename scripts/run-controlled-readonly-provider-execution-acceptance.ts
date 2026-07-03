@@ -449,12 +449,26 @@ function createProviderExecutionPreflightArtifactRef(manifest: ProviderManifest)
 function createProviderExecutionPreflightArtifactHash(manifest: ProviderManifest): string {
   return hashProviderExecutionPlannerObject({
     schemaVersion: "controlled-readonly-provider-execution-preflight.v1",
-    providerId: manifest.providerId,
-    manifestHash: hashProviderManifest(manifest),
-    injectedDependency: "fake-spawner",
-    workspaceWriteAllowed: false,
-    rawPromptSent: false,
-    rawTaskEnvelopeSent: false
+    providerRegistrySelection: {
+      selected: true,
+      providerId: manifest.providerId,
+      manifestHash: hashProviderManifest(manifest),
+      kind: manifest.kind,
+      enabled: manifest.enabled
+    },
+    environmentPreflight: {
+      status: "ready",
+      checks: {
+        injectedSpawner: true,
+        realCliAllowed: true,
+        versionProbe: "passed",
+        noTaskEnvelope: true,
+        noPromptSent: true,
+        noWorkspaceWrite: true,
+        noRealCliFallback: true
+      },
+      blockingReasonCount: 0
+    }
   });
 }
 

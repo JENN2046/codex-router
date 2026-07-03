@@ -742,6 +742,52 @@ test("provider execution runner blocks controlled read-only execution without pr
   assert.equal(evidence.bindings.environmentPreflight.artifactHash, null);
 });
 
+test("provider execution runner blocks controlled read-only execution with preflight artifact drift", async () => {
+  let spawnCalls = 0;
+  const fixture = createControlledReadOnlyCodexFixture(() => {
+    spawnCalls += 1;
+    return createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    });
+  });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: fixture.registry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(
+        fixture.provider.manifest,
+        {
+          preflightArtifactRef: "artifact://controlled-readonly-provider-execution/preflight/other",
+          preflightArtifactHash: "0".repeat(64)
+        }
+      )
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+  const evidence = ControlledReadOnlyExecutionEvidenceSchema.parse(result.executionEvidence);
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(spawnCalls, 0);
+  assert.ok(result.reasons.includes("controlled_readonly_environment_preflight_artifact_ref_mismatch"));
+  assert.ok(result.reasons.includes("controlled_readonly_environment_preflight_artifact_hash_mismatch"));
+  assert.equal(
+    evidence.bindings.environmentPreflight.artifactHash,
+    "0".repeat(64)
+  );
+});
+
 test("provider execution runner rejects controlled read-only executor plan metadata tampering", async () => {
   let spawnCalls = 0;
   const fixture = createControlledReadOnlyCodexFixture(() => {
@@ -1658,13 +1704,17 @@ function createControlledReadOnlyCodexFixture(
 
 function createRunnerRealExecutionGuard(
   manifest: ProviderManifest,
-  options: { omitPreflightArtifactBinding?: boolean } = {}
+  options: {
+    omitPreflightArtifactBinding?: boolean;
+    preflightArtifactRef?: string;
+    preflightArtifactHash?: string;
+  } = {}
 ): Record<string, unknown> {
   const artifactBinding = options.omitPreflightArtifactBinding
     ? {}
     : {
-        artifactRef: createRunnerPreflightArtifactRef(manifest),
-        artifactHash: createRunnerPreflightArtifactHash(manifest)
+        artifactRef: options.preflightArtifactRef ?? createRunnerPreflightArtifactRef(manifest),
+        artifactHash: options.preflightArtifactHash ?? createRunnerPreflightArtifactHash(manifest)
       };
 
   return {
@@ -1701,12 +1751,26 @@ function createRunnerPreflightArtifactRef(manifest: ProviderManifest): string {
 function createRunnerPreflightArtifactHash(manifest: ProviderManifest): string {
   return hashProviderExecutionPlannerObject({
     schemaVersion: "controlled-readonly-provider-execution-preflight.v1",
-    providerId: manifest.providerId,
-    manifestHash: hashProviderManifest(manifest),
-    injectedDependency: "fake-spawner",
-    workspaceWriteAllowed: false,
-    rawPromptSent: false,
-    rawTaskEnvelopeSent: false
+    providerRegistrySelection: {
+      selected: true,
+      providerId: manifest.providerId,
+      manifestHash: hashProviderManifest(manifest),
+      kind: manifest.kind,
+      enabled: manifest.enabled
+    },
+    environmentPreflight: {
+      status: "ready",
+      checks: {
+        injectedSpawner: true,
+        realCliAllowed: true,
+        versionProbe: "passed",
+        noTaskEnvelope: true,
+        noPromptSent: true,
+        noWorkspaceWrite: true,
+        noRealCliFallback: true
+      },
+      blockingReasonCount: 0
+    }
   });
 }
 

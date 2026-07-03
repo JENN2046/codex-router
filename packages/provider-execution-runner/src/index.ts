@@ -1710,6 +1710,43 @@ function readEnvironmentPreflightChecks(
   };
 }
 
+function createControlledReadOnlyPreflightArtifactRef(
+  selection: Record<string, unknown>
+): string | undefined {
+  const providerId = readStringField(selection, "providerId");
+  return providerId === null
+    ? undefined
+    : `artifact://controlled-readonly-provider-execution/preflight/${providerId}`;
+}
+
+function createControlledReadOnlyPreflightArtifactHash(
+  selection: Record<string, unknown>,
+  preflight: Record<string, unknown>
+): string | undefined {
+  const providerId = readStringField(selection, "providerId");
+  const manifestHash = readSha256Field(selection, "manifestHash");
+  const status = readStringField(preflight, "status");
+  if (providerId === null || manifestHash === null || status === null) {
+    return undefined;
+  }
+
+  return hashProviderExecutionPlannerObject({
+    schemaVersion: "controlled-readonly-provider-execution-preflight.v1",
+    providerRegistrySelection: {
+      selected: readBooleanField(selection, "selected"),
+      providerId,
+      manifestHash,
+      kind: readStringField(selection, "kind"),
+      enabled: readBooleanField(selection, "enabled")
+    },
+    environmentPreflight: {
+      status,
+      checks: readEnvironmentPreflightChecks(preflight),
+      blockingReasonCount: readStringArrayField(preflight, "blockingReasons").length
+    }
+  });
+}
+
 function readStringField(
   record: Record<string, unknown> | undefined,
   key: string
@@ -1890,12 +1927,28 @@ function collectControlledReadOnlyExecutionMetadataReasons(input: {
     reasons.push("controlled_readonly_environment_preflight_blocked");
   }
 
-  if (readStringField(preflight, "artifactRef") === null) {
+  const preflightArtifactRef = readStringField(preflight, "artifactRef");
+  const expectedPreflightArtifactRef =
+    createControlledReadOnlyPreflightArtifactRef(selection);
+  if (preflightArtifactRef === null) {
     reasons.push("controlled_readonly_environment_preflight_artifact_ref_required");
+  } else if (
+    expectedPreflightArtifactRef !== undefined
+    && preflightArtifactRef !== expectedPreflightArtifactRef
+  ) {
+    reasons.push("controlled_readonly_environment_preflight_artifact_ref_mismatch");
   }
 
-  if (readSha256Field(preflight, "artifactHash") === null) {
+  const preflightArtifactHash = readSha256Field(preflight, "artifactHash");
+  const expectedPreflightArtifactHash =
+    createControlledReadOnlyPreflightArtifactHash(selection, preflight);
+  if (preflightArtifactHash === null) {
     reasons.push("controlled_readonly_environment_preflight_artifact_hash_required");
+  } else if (
+    expectedPreflightArtifactHash !== undefined
+    && preflightArtifactHash !== expectedPreflightArtifactHash
+  ) {
+    reasons.push("controlled_readonly_environment_preflight_artifact_hash_mismatch");
   }
 
   if (checks.injectedSpawner !== true) {
