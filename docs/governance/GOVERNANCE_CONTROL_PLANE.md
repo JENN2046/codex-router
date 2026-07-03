@@ -56,6 +56,7 @@ authority is expressed by:
 | `PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md` | Runtime-hardening stage baseline | Current human authority for Phase 6 sequencing; not execution authorization. |
 | `PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md` | Controlled read-only provider execution acceptance | Current human authority for the PR-23B minimal slice; not real Codex CLI authorization. |
 | `PR_23C_EXECUTION_EVIDENCE_BINDING.md` | Controlled read-only execution evidence binding | Current human authority for PR-23C refs/hash evidence; not new execution authorization. |
+| `PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md` | Read-only provider permit lifecycle hardening | Current human authority for expiration, nonce, replay, and store-failure acceptance coverage; not workspace-write authorization. |
 | `PR_*`, `FUTURE_*`, closeouts, packets | Historical evidence | Evidence only unless linked by a current authority document. |
 
 ## Capability Status
@@ -104,6 +105,7 @@ Use these first:
 | Workspace-write canary procedure | `runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md` |
 | Phase 6 runtime hardening baseline | `PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md` |
 | Controlled read-only execution evidence binding | `PR_23C_EXECUTION_EVIDENCE_BINDING.md` |
+| Read-only provider permit lifecycle hardening | `PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md` |
 | Controlled read-only provider execution acceptance | `npm run governance -- acceptance controlled-readonly-provider-execution` |
 | Available current checks | `npm run governance -- list` |
 | Governance docs structure check | `npm run docs:governance` |
