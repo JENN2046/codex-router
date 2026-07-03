@@ -348,7 +348,10 @@ Current docs:
 
 - [current state](docs/current/CURRENT_STATE.md)
 - [validation tiers](docs/validation-tiers.md)
-- [governance docs](docs/governance/README.md)
+- [governance control plane](docs/governance/GOVERNANCE_CONTROL_PLANE.md)
+- [release gate matrix](docs/governance/RELEASE_GATE_MATRIX.md)
+- [evidence policy](docs/governance/EVIDENCE_POLICY.md)
+- [governance docs index](docs/governance/README.md)
 - [Codex CLI host](docs/codex-cli-host.md)
 - [Desktop live host](docs/codex-desktop-live-host.md)
 - [host-client example](docs/end-to-end-host-client-example.md)
@@ -359,7 +362,6 @@ Current docs:
 npm install
 npm run demo:runtime-governance
 npm run validate:daily
-npm run validate:pr
 npm run governance -- list
 ```
 
@@ -376,7 +378,11 @@ to `codex-cli`.
 Validation is tiered to keep routine checks lightweight:
 
 - `npm run validate:daily`: typecheck plus optional targeted tests, for example `npm run validate:daily -- --test tests/desktop-live-adapter.test.ts`.
-- `npm run validate:pr`: typecheck, full tests, build, and `npm run governance -- audit state-sync`.
+- non-`main` PR branches: run typecheck/tests/build locally and use the GitHub
+  `pull_request` State Sync Audit or an explicit pull-request simulation; see
+  [release gate matrix](docs/governance/RELEASE_GATE_MATRIX.md).
+- `npm run validate:pr`: typecheck, full tests, build, and local state-sync
+  audit when the checkout has a valid state-sync context.
 - `npm run validate:release`: PR tier plus deterministic canary, contract smoke, and evidence collection. Real Codex CLI smoke and external canary checks stay explicitly local and are not included by default.
 
 Audit and acceptance checks are available through the consolidated runner:
