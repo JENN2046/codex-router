@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `479cf5592e15eeb09d22ec090acfcbdf244a1d03d01be98ec27ca3a4e2c4b1cd`
+  `d9e3a6626a6f2d0f85271de8517fe8a8cde9fa7e00edeb567c8fa4b14b0be5d5`
 
 Source digest excluded paths:
 

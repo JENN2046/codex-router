@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { readdir, readFile, stat } from "node:fs/promises";
-import { dirname, extname, join, normalize, resolve } from "node:path";
+import { dirname, extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export type GovernanceDocsCheckStatus = "passed" | "failed";
@@ -239,7 +239,7 @@ async function checkMarkdownLinks(
         continue;
       }
       const absoluteTarget = resolve(cwd, dirname(filePath), target);
-      if (!absoluteTarget.startsWith(resolve(cwd))) {
+      if (isOutsideDirectory(resolve(cwd), absoluteTarget)) {
         issues.push(issue("markdown_link_outside_repo", filePath, `Link escapes repository: ${link}`));
         continue;
       }
@@ -314,6 +314,14 @@ function shouldCheckRelativeMarkdownLink(link: string): boolean {
     return false;
   }
   return extname(link) === ".md";
+}
+
+function isOutsideDirectory(parent: string, candidate: string): boolean {
+  const relativePath = relative(parent, candidate);
+  return relativePath === ".."
+    || relativePath.startsWith(`..${"/"}`)
+    || relativePath.startsWith(`..${"\\"}`)
+    || isAbsolute(relativePath);
 }
 
 async function listMarkdownFiles(cwd: string, dirPath: string): Promise<string[]> {
