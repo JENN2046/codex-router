@@ -17,14 +17,26 @@ caller names them with `--test`, `--targeted-test`, or a bare test path.
 
 ## PR
 
-Use before opening or updating a normal pull request, with the state-sync
-context caveat below.
+Use before opening or updating a normal pull request.
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+State-sync for non-`main` PR branches should run through GitHub CI's
+`pull_request` State Sync Audit or an explicit local pull-request context
+simulation.
+
+When the checkout has a valid local state-sync context, this shortcut runs the
+same code checks plus local state-sync:
 
 ```bash
 npm run validate:pr
 ```
 
-When the checkout has a valid local state-sync context, `validate:pr` runs:
+`validate:pr` runs:
 
 - `npm run typecheck`
 - `npm test`
