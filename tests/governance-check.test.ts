@@ -61,6 +61,7 @@ test("governance check runner default list shows current checks only", () => {
   assert.ok(checks.audit.includes("readonly-productization"));
   assert.ok(checks.audit.includes("controlled-provider-execution-taskbook-review"));
   assert.ok(checks.acceptance.includes("readonly-chain"));
+  assert.ok(checks.acceptance.includes("controlled-readonly-provider-execution"));
   assert.ok(checks.operator.includes("readonly"));
   assert.equal(checks.audit.includes("future-codex-cli-canary-execution-gate"), false);
   assert.equal(checks.acceptance.includes("workspace-write-real-canary-auth"), false);
