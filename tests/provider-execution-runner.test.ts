@@ -2014,6 +2014,77 @@ test("provider execution runner preserves task hint when policy classification d
   assert.equal(result.governance.anomaly.message, "provider_execute_threw");
 });
 
+test("provider execution runner does not synthesize policy-only task hints before hashing", async () => {
+  const task = TaskSchema.parse({
+    ...createTask(),
+    hints: {
+      riskHints: ["runtime_governance"],
+      tags: ["provider-execution-runner"]
+    }
+  });
+  const policyDecision = createPolicyDecision({
+    taskId: task.taskId,
+    classification: {
+      taskClass: "read_only",
+      riskLevel: "low",
+      ambiguityScore: 0,
+      clarificationRequired: false,
+      riskFactors: []
+    }
+  });
+  const fixture = createControlledReadOnlyCodexFixture(
+    () => createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    }),
+    { task, policyDecision }
+  );
+  const taskEnvelope = createTaskEnvelopeForProviderTask(fixture.task);
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("provider failure after policy-only hint omission");
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope,
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(taskEnvelope.hints.taskClassHint, undefined);
+  assert.equal(result.status, "execution_failed");
+  assert.ok(!result.reasons.some((reason) =>
+    reason.startsWith("controlled_readonly_provider_governance_task_envelope_hash_mismatch:")
+  ));
+  assert.ok(result.governance);
+  assert.equal(result.governance.anomaly.message, "provider_execute_threw");
+});
+
 test("provider execution runner records provider attestation in dry-run evidence", async () => {
   const provider = createFakeExecutorProvider();
   const registry = createRegistry(provider);

@@ -499,8 +499,7 @@ export async function runProviderExecutionPlanControlledReadOnly(
   const policyDecision = PolicyDecisionSchema.parse(input.policyDecision);
   const governanceBridge = prepareControlledReadOnlyGovernanceBridge({
     input,
-    task,
-    policyDecision
+    task
   });
   const governanceResultFields = createControlledReadOnlyGovernanceResultFields(
     governanceBridge
@@ -767,7 +766,6 @@ export async function runProviderExecutionPlanControlledReadOnly(
 function prepareControlledReadOnlyGovernanceBridge(input: {
   input: RunProviderExecutionPlanControlledReadOnlyInput;
   task: Task;
-  policyDecision: PolicyDecision;
 }): {
   reasons: string[];
   governanceState?: GovernanceState;
@@ -821,8 +819,7 @@ function prepareControlledReadOnlyGovernanceBridge(input: {
 
   if (taskEnvelope !== undefined) {
     const expectedTaskEnvelope = createControlledReadOnlyGovernanceTaskEnvelope(
-      input.task,
-      input.policyDecision
+      input.task
     );
     const actualTaskEnvelopeHash = hashProviderExecutionPlannerObject(taskEnvelope);
     const expectedTaskEnvelopeHash = hashProviderExecutionPlannerObject(expectedTaskEnvelope);
@@ -869,11 +866,10 @@ function createControlledReadOnlyGovernanceResultFields(input: {
 }
 
 function createControlledReadOnlyGovernanceTaskEnvelope(
-  task: Task,
-  policyDecision: PolicyDecision
+  task: Task
 ): TaskEnvelope {
   const repoContext = task.workspace ?? task.repo;
-  const taskClassHint = resolveGovernanceTaskClassHint(task, policyDecision);
+  const taskClassHint = resolveGovernanceTaskClassHint(task);
 
   return parseTaskEnvelope({
     schemaVersion: "task-envelope.v1",
@@ -936,12 +932,9 @@ function createGovernanceTaskEnvelopeConstraints(
 }
 
 function resolveGovernanceTaskClassHint(
-  task: Task,
-  policyDecision: PolicyDecision
+  task: Task
 ): TaskClass | undefined {
-  return toGovernanceTaskClassHint(task.hints.taskClass) ??
-    policyDecision.classification?.taskClass ??
-    toGovernanceTaskClassHint(policyDecision.legacy.taskClass);
+  return toGovernanceTaskClassHint(task.hints.taskClass);
 }
 
 function toGovernanceTaskClassHint(
