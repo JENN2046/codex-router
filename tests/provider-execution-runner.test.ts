@@ -7,6 +7,15 @@ import {
   type CodexCliProcessSpawner
 } from "../packages/codex-cli-host/src/index.js";
 import {
+  parseTaskEnvelope,
+  type TaskClass,
+  type TaskEnvelope
+} from "../packages/contracts/src/index.js";
+import {
+  createRecordingExecutionObservationStore,
+  resolveExecutionObservationRef
+} from "../packages/execution-observation/src/index.js";
+import {
   hashProviderExecutionPlannerObject,
   planProviderExecution,
   ProviderExecutionPlanSchema,
@@ -50,6 +59,8 @@ import {
 } from "../packages/provider-execution-runner/src/index.js";
 import { ProviderRegistry } from "../packages/provider-registry/src/index.js";
 import { CodexCliExecutorProvider } from "../packages/providers/codex-cli/src/index.js";
+import type { GovernanceState } from "../packages/state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../packages/strategy-router/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
 import { validRun } from "../packages/kernel-contracts/test-fixtures/valid-run.js";
@@ -1374,6 +1385,911 @@ test("provider execution runner sanitizes controlled read-only thrown execution 
   assert.equal(serialized.includes("\"args\" were exposed"), false);
 });
 
+test("provider execution runner bridges controlled read-only execution failures into governance", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("raw env OPENAI_API_KEY and argv should be redacted");
+    }
+  };
+  const observationStore = createRecordingExecutionObservationStore();
+  const governanceUpdates: Array<{
+    state: GovernanceState;
+    strategy: StrategyDecisionV2;
+  }> = [];
+  const kernelStore = new InMemoryKernelStore();
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore,
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    observationBus: observationStore,
+    onGovernanceUpdate: async (state, strategy) => {
+      governanceUpdates.push({ state, strategy });
+    },
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "execution_failed");
+  assert.equal(result.failureClass, "provider_execute_threw");
+  assert.ok(result.governance);
+  assert.equal(result.governance.state.anomalies.length, 1);
+  assert.equal(result.governance.anomaly.message, "provider_execute_threw");
+  assert.deepEqual(result.governance.evidenceRefs, result.governance.anomaly.evidenceRefs);
+  assert.equal(result.governance.evidenceRefs.length, 1);
+  assert.equal(governanceUpdates.length, 1);
+  assert.equal(governanceUpdates[0]!.state.anomalies.length, 1);
+
+  const resolvedObservation = await resolveExecutionObservationRef(
+    observationStore,
+    fixture.task.taskId,
+    result.governance.evidenceRefs[0]!
+  );
+  assert.ok(resolvedObservation);
+  assert.equal(
+    resolvedObservation.primitiveId,
+    `controlled_readonly_provider:${fixture.provider.manifest.providerId}:${fixture.providerExecutionPlan.planId}`
+  );
+  assert.equal(resolvedObservation.signals.errorClass, "provider_execute_threw");
+
+  const completedEventPayload = kernelStore.listEvents({ runId: fixture.run.runId }).at(-1)?.payload as {
+    governance?: {
+      anomalyCount?: number;
+      evidenceRefCount?: number;
+    };
+  };
+  assert.equal(completedEventPayload.governance?.anomalyCount, 1);
+  assert.equal(completedEventPayload.governance?.evidenceRefCount, 1);
+
+  const serialized = JSON.stringify(result);
+  assert.equal(serialized.includes("OPENAI_API_KEY"), false);
+  assert.equal(serialized.includes("argv should be redacted"), false);
+});
+
+test("provider execution runner uses stable governance error classes for provider plan failures", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      throw new Error("planner failed at /tmp/runtime-1760000000");
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("provider_execute_should_not_be_called");
+    }
+  };
+  const observationStore = createRecordingExecutionObservationStore();
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    observationBus: observationStore,
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "provider_plan_failed");
+  assert.ok(result.reasons.includes("provider_plan_failed:planner failed at /tmp/runtime-1760000000"));
+  assert.ok(result.governance);
+  assert.equal(
+    result.governance.anomaly.message,
+    "controlled_readonly_provider_provider_plan_failed"
+  );
+  assert.equal(result.governance.evidenceRefs.length, 1);
+
+  const resolvedObservation = await resolveExecutionObservationRef(
+    observationStore,
+    fixture.task.taskId,
+    result.governance.evidenceRefs[0]!
+  );
+  assert.ok(resolvedObservation);
+  assert.equal(
+    resolvedObservation.signals.errorClass,
+    "controlled_readonly_provider_provider_plan_failed"
+  );
+});
+
+test("provider execution runner uses stable governance error classes for validation failures", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      throw new Error("validation failed at /tmp/runtime-1760000001");
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("provider_execute_should_not_be_called");
+    }
+  };
+  const observationStore = createRecordingExecutionObservationStore();
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    observationBus: observationStore,
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "validation_failed");
+  assert.ok(result.reasons.includes("provider_validation_failed"));
+  assert.ok(result.governance);
+  assert.equal(
+    result.governance.anomaly.message,
+    "controlled_readonly_provider_validation_failed"
+  );
+  assert.equal(result.governance.evidenceRefs.length, 1);
+
+  const resolvedObservation = await resolveExecutionObservationRef(
+    observationStore,
+    fixture.task.taskId,
+    result.governance.evidenceRefs[0]!
+  );
+  assert.ok(resolvedObservation);
+  assert.equal(
+    resolvedObservation.signals.errorClass,
+    "controlled_readonly_provider_validation_failed"
+  );
+});
+
+test("provider execution runner exposes operator action on third controlled read-only failure", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      return {
+        ok: false,
+        error: {
+          code: "codex_cli_exit_nonzero",
+          reasons: ["codex_cli_exit_nonzero"]
+        }
+      };
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createHighRiskGovernanceStateWithTwoExecutionFailures(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "execution_failed");
+  assert.ok(result.reportArtifact);
+  assert.ok(result.governance);
+  const artifactEvidenceRef = `artifact:${result.reportArtifact.artifactId}`;
+  assert.deepEqual(result.governance.evidenceRefs, [artifactEvidenceRef]);
+  assert.deepEqual(result.governance.anomaly.evidenceRefs, [artifactEvidenceRef]);
+  assert.deepEqual(result.governance.arbitrationPacket.rawEvidenceRefs, [
+    artifactEvidenceRef
+  ]);
+  assert.equal(result.governance.anomaly.strikeNumber, 3);
+  assert.equal(result.governance.recoveryRequired, true);
+  assert.equal(result.governance.lockdown, true);
+  assert.ok(result.governance.recoveryRecommendation);
+  assert.equal(result.governance.recoveryRecommendation.evidenceStatus, "referenced");
+  assert.deepEqual(result.governance.recoveryRecommendation.evidenceRefs, [
+    artifactEvidenceRef
+  ]);
+  assert.ok(result.governance.operatorAction);
+  assert.equal(result.governance.operatorAction.trigger, "third_anomaly");
+  assert.equal(result.governance.operatorAction.lockdown, true);
+  assert.equal(result.governance.operatorAction.requiresHumanApproval, true);
+  assert.equal(result.governance.operatorAction.recommendedAction, "rollback");
+  assert.equal(result.governance.operatorAction.evidenceStatus, "referenced");
+  assert.deepEqual(result.governance.operatorAction.evidenceRefs, [
+    artifactEvidenceRef
+  ]);
+});
+
+test("provider execution runner blocks mismatched governance state before provider hooks", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      calls.execute += 1;
+      return { ok: true };
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState("stale-provider-governance-task"),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.governance, undefined);
+  assert.ok(result.reasons.some((reason) =>
+    reason.startsWith("controlled_readonly_provider_governance_state_task_mismatch:")
+  ));
+  assert.deepEqual(calls, {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  });
+});
+
+test("provider execution runner blocks invalid governance state before provider hooks", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      calls.execute += 1;
+      return { ok: true };
+    }
+  };
+  const invalidGovernanceState = {
+    taskId: fixture.task.taskId
+  } as unknown as GovernanceState;
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: invalidGovernanceState,
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.governance, undefined);
+  assert.ok(result.reasons.includes(
+    "controlled_readonly_provider_governance_state_invalid"
+  ));
+  assert.deepEqual(calls, {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  });
+});
+
+test("provider execution runner blocks governance states requiring step-back before provider hooks", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      calls.execute += 1;
+      return { ok: true };
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createRecoveryRequiredGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.governance, undefined);
+  assert.ok(result.reasons.includes(
+    "controlled_readonly_provider_governance_state_strategy_blocked:step_back"
+  ));
+  assert.deepEqual(calls, {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  });
+});
+
+test("provider execution runner blocks simulate-only governance states before provider hooks", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      calls.execute += 1;
+      return { ok: true };
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createCriticalRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.governance, undefined);
+  assert.ok(result.reasons.includes(
+    "controlled_readonly_provider_governance_state_strategy_blocked:simulate"
+  ));
+  assert.deepEqual(calls, {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  });
+});
+
+test("provider execution runner blocks recovery-phase governance states before provider hooks", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      calls.execute += 1;
+      return { ok: true };
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: {
+      ...createLowRiskGovernanceState(fixture.task.taskId),
+      phase: "recovery"
+    },
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.governance, undefined);
+  assert.ok(result.reasons.includes(
+    "controlled_readonly_provider_governance_state_phase_blocked:recovery"
+  ));
+  assert.deepEqual(calls, {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  });
+});
+
+test("provider execution runner blocks stale governance task envelopes before provider hooks", async () => {
+  const fixture = createControlledReadOnlyCodexFixture(() => createFakeCodexCliChild({
+    stdout: "",
+    exitCode: 0
+  }));
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      calls.execute += 1;
+      return { ok: true };
+    }
+  };
+  const staleEnvelope = parseTaskEnvelope({
+    ...createTaskEnvelopeForProviderTask(fixture.task),
+    repoContext: {
+      ...createTaskEnvelopeForProviderTask(fixture.task).repoContext,
+      protectedBranch: true
+    },
+    target: {
+      branches: ["stale-target-branch"],
+      files: ["packages/provider-execution-runner/src/index.ts"],
+      modules: ["provider-execution-runner"]
+    },
+    constraints: {
+      requiresNetwork: true,
+      explicitOwnership: true
+    }
+  });
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: staleEnvelope,
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.governance, undefined);
+  assert.ok(result.reasons.some((reason) =>
+    reason.startsWith("controlled_readonly_provider_governance_task_envelope_hash_mismatch:")
+  ));
+  assert.deepEqual(calls, {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  });
+});
+
+test("provider execution runner preserves governance task envelope provenance before hashing", async () => {
+  const task = TaskSchema.parse({
+    ...createTask(),
+    hints: {
+      taskClass: "read_only",
+      riskHints: ["runtime_governance"],
+      tags: ["provider-execution-runner"],
+      provenance: [
+        {
+          field: "taskClass",
+          value: "read_only",
+          source: "policy",
+          reason: "legacy envelope carried taskClassHint provenance",
+          createdAt: now
+        },
+        {
+          field: "riskHints",
+          value: "runtime_governance",
+          source: "agent",
+          createdAt: now
+        }
+      ]
+    }
+  });
+  const fixture = createControlledReadOnlyCodexFixture(
+    () => createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    }),
+    { task }
+  );
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("provider failure after provenance-preserving envelope match");
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "execution_failed");
+  assert.ok(!result.reasons.some((reason) =>
+    reason.startsWith("controlled_readonly_provider_governance_task_envelope_hash_mismatch:")
+  ));
+  assert.ok(result.governance);
+  assert.equal(result.governance.anomaly.message, "provider_execute_threw");
+});
+
+test("provider execution runner preserves task hint when policy classification differs before hashing", async () => {
+  const task = TaskSchema.parse({
+    ...createTask(),
+    hints: {
+      taskClass: "engineering",
+      riskHints: ["runtime_governance"],
+      tags: ["provider-execution-runner"],
+      provenance: [
+        {
+          field: "taskClass",
+          value: "engineering",
+          source: "agent",
+          reason: "task envelope should preserve task-owned hint",
+          createdAt: now
+        }
+      ]
+    }
+  });
+  const policyDecision = createPolicyDecision({
+    taskId: task.taskId,
+    classification: {
+      taskClass: "read_only",
+      riskLevel: "low",
+      ambiguityScore: 0,
+      clarificationRequired: false,
+      riskFactors: []
+    }
+  });
+  const fixture = createControlledReadOnlyCodexFixture(
+    () => createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    }),
+    { task, policyDecision }
+  );
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("provider failure after task-hint-preserving envelope match");
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope: createTaskEnvelopeForProviderTask(fixture.task),
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(result.status, "execution_failed");
+  assert.ok(!result.reasons.some((reason) =>
+    reason.startsWith("controlled_readonly_provider_governance_task_envelope_hash_mismatch:")
+  ));
+  assert.ok(result.governance);
+  assert.equal(result.governance.anomaly.message, "provider_execute_threw");
+});
+
+test("provider execution runner does not synthesize policy-only task hints before hashing", async () => {
+  const task = TaskSchema.parse({
+    ...createTask(),
+    hints: {
+      riskHints: ["runtime_governance"],
+      tags: ["provider-execution-runner"]
+    }
+  });
+  const policyDecision = createPolicyDecision({
+    taskId: task.taskId,
+    classification: {
+      taskClass: "read_only",
+      riskLevel: "low",
+      ambiguityScore: 0,
+      clarificationRequired: false,
+      riskFactors: []
+    }
+  });
+  const fixture = createControlledReadOnlyCodexFixture(
+    () => createFakeCodexCliChild({
+      stdout: "",
+      exitCode: 0
+    }),
+    { task, policyDecision }
+  );
+  const taskEnvelope = createTaskEnvelopeForProviderTask(fixture.task);
+  const provider: ExecutorProvider = {
+    manifest: fixture.provider.manifest,
+    planExecution(): ExecutorExecutionPlan {
+      return fixture.executorPlan;
+    },
+    validateExecutionPlan(): ExecutionValidationResult {
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(): ProviderExecutionResult {
+      throw new Error("provider failure after policy-only hint omission");
+    }
+  };
+
+  const result = await runProviderExecutionPlanControlledReadOnly({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: createRegistry(provider),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    executorPlan: fixture.executorPlan,
+    permit: fixture.permit,
+    executionMetadata: {
+      codexCliProviderRealExecutionGuard: createRunnerRealExecutionGuard(provider.manifest)
+    },
+    governanceState: createLowRiskGovernanceState(fixture.task.taskId),
+    taskEnvelope,
+    now: createClock(),
+    mode: "controlled-read-only"
+  });
+
+  assert.equal(taskEnvelope.hints.taskClassHint, undefined);
+  assert.equal(result.status, "execution_failed");
+  assert.ok(!result.reasons.some((reason) =>
+    reason.startsWith("controlled_readonly_provider_governance_task_envelope_hash_mismatch:")
+  ));
+  assert.ok(result.governance);
+  assert.equal(result.governance.anomaly.message, "provider_execute_threw");
+});
+
 test("provider execution runner records provider attestation in dry-run evidence", async () => {
   const provider = createFakeExecutorProvider();
   const registry = createRegistry(provider);
@@ -1475,6 +2391,168 @@ function createTask(): Task {
   });
 }
 
+function createTaskEnvelopeForProviderTask(task: Task): TaskEnvelope {
+  const taskClassHint = toTaskEnvelopeTaskClassHint(task.hints.taskClass);
+
+  return parseTaskEnvelope({
+    taskId: task.taskId,
+    source: task.source,
+    intent: {
+      summary: task.intent?.summary ?? task.title,
+      requestedAction: task.intent?.requestedAction ?? task.requestedAction,
+      successCriteria: task.successCriteria,
+      outOfScope: task.outOfScope
+    },
+    repoContext: {
+      ...(task.repo.root !== undefined ? { repoRoot: task.repo.root } : {}),
+      ...(task.repo.branch !== undefined ? { branch: task.repo.branch } : {}),
+      ...(task.repo.worktreeClean !== undefined
+        ? { worktreeClean: task.repo.worktreeClean }
+        : {}),
+      ...(task.repo.protectedBranch !== undefined
+        ? { protectedBranch: task.repo.protectedBranch }
+        : {})
+    },
+    target: task.target,
+    constraints: {
+      ...(typeof task.constraints.requiresNetwork === "boolean"
+        ? { requiresNetwork: task.constraints.requiresNetwork }
+        : {}),
+      ...(typeof task.constraints.explicitOwnership === "boolean"
+        ? { explicitOwnership: task.constraints.explicitOwnership }
+        : {}),
+      ...(typeof task.constraints.allowBackgroundAutomation === "boolean"
+        ? { allowBackgroundAutomation: task.constraints.allowBackgroundAutomation }
+        : {})
+    },
+    hints: {
+      ...(taskClassHint !== undefined ? { taskClassHint } : {}),
+      riskHints: task.hints.riskHints,
+      tags: task.hints.tags,
+      provenance: task.hints.provenance.map((entry) => ({
+        ...entry,
+        field: entry.field === "taskClass" ? "taskClassHint" : entry.field
+      }))
+    }
+  });
+}
+
+const TaskEnvelopeTaskClassHints = new Set<TaskClass>([
+  "read_only",
+  "small_edit",
+  "engineering",
+  "high_risk",
+  "release_external_action"
+]);
+
+function toTaskEnvelopeTaskClassHint(
+  value: string | undefined
+): TaskClass | undefined {
+  if (value === undefined || !TaskEnvelopeTaskClassHints.has(value as TaskClass)) {
+    return undefined;
+  }
+
+  return value as TaskClass;
+}
+
+function createLowRiskGovernanceState(taskId: string): GovernanceState {
+  return {
+    schemaVersion: "governance-state.v1",
+    taskId,
+    branchId: "main",
+    phase: "execution",
+    trustBalance: { centralOrder: 0.5, distributedVitality: 0.5 },
+    risk: {
+      entanglement: 0.2,
+      entropy: 0.2,
+      failureCost: 0.2,
+      reversibility: 0.8,
+      contextPressure: 0.2,
+      historicalTrust: 0.5,
+      globalCoherence: 0.9,
+      finalRiskLevel: "low"
+    },
+    anomalies: [],
+    approvals: [],
+    taskGraphRef: `task-graph:${taskId}`,
+    createdAt: "2026-06-10T00:00:00.000Z",
+    updatedAt: "2026-06-10T00:00:00.000Z"
+  };
+}
+
+function createHighRiskGovernanceStateWithTwoExecutionFailures(taskId: string): GovernanceState {
+  return {
+    ...createLowRiskGovernanceState(taskId),
+    risk: {
+      entanglement: 0.6,
+      entropy: 0.7,
+      failureCost: 0.8,
+      reversibility: 0.3,
+      contextPressure: 0.5,
+      historicalTrust: 0.4,
+      globalCoherence: 0.6,
+      finalRiskLevel: "high"
+    },
+    latestCheckpointId: "checkpoint:provider-runner-before-third-failure",
+    anomalies: [
+      {
+        anomalyId: "anomaly:provider-runner:pre1",
+        taskId,
+        kind: "execution_failure",
+        message: "first controlled provider failure",
+        strikeNumber: 1,
+        createdAt: "2026-06-10T00:10:00.000Z",
+        evidenceRefs: []
+      },
+      {
+        anomalyId: "anomaly:provider-runner:pre2",
+        taskId,
+        kind: "execution_failure",
+        message: "second controlled provider failure",
+        strikeNumber: 2,
+        createdAt: "2026-06-10T00:20:00.000Z",
+        evidenceRefs: []
+      }
+    ]
+  };
+}
+
+function createRecoveryRequiredGovernanceState(taskId: string): GovernanceState {
+  const state = createHighRiskGovernanceStateWithTwoExecutionFailures(taskId);
+
+  return {
+    ...state,
+    anomalies: [
+      ...state.anomalies,
+      {
+        anomalyId: "anomaly:provider-runner:pre3",
+        taskId,
+        kind: "execution_failure",
+        message: "third controlled provider failure",
+        strikeNumber: 3,
+        createdAt: "2026-06-10T00:30:00.000Z",
+        evidenceRefs: ["artifact:provider-runner-third-failure-report"]
+      }
+    ]
+  };
+}
+
+function createCriticalRiskGovernanceState(taskId: string): GovernanceState {
+  return {
+    ...createLowRiskGovernanceState(taskId),
+    risk: {
+      entanglement: 0.8,
+      entropy: 0.8,
+      failureCost: 0.9,
+      reversibility: 0.1,
+      contextPressure: 0.8,
+      historicalTrust: 0.2,
+      globalCoherence: 0.4,
+      finalRiskLevel: "critical"
+    }
+  };
+}
+
 function createRun(
   task: Task,
   policyDecision: PolicyDecision,
@@ -1495,6 +2573,7 @@ function createPolicyDecision(overrides: Partial<{
   taskId: string;
   sandboxProfile: SandboxProfile;
   capabilities: CapabilityScope[];
+  classification: PolicyDecision["classification"];
 }> = {}): PolicyDecision {
   const sandboxProfile = overrides.sandboxProfile ?? createSandboxProfile();
   const taskId = overrides.taskId ?? "task_provider_execution_runner_001";
@@ -1503,6 +2582,9 @@ function createPolicyDecision(overrides: Partial<{
     ...validPolicyDecision,
     decisionId: "decision_provider_execution_runner_001",
     taskId,
+    ...(overrides.classification !== undefined
+      ? { classification: overrides.classification }
+      : {}),
     risk: {
       level: "low",
       factors: [],
@@ -1691,7 +2773,11 @@ type ControlledReadOnlyCodexFixture = {
 };
 
 function createControlledReadOnlyCodexFixture(
-  spawn: CodexCliProcessSpawner
+  spawn: CodexCliProcessSpawner,
+  options: {
+    task?: Task;
+    policyDecision?: PolicyDecision;
+  } = {}
 ): ControlledReadOnlyCodexFixture {
   const provider = new CodexCliExecutorProvider({
     executionEnabled: true,
@@ -1702,8 +2788,10 @@ function createControlledReadOnlyCodexFixture(
     spawn
   });
   const registry = createRegistry(provider);
-  const task = createTask();
-  const policyDecision = createPolicyDecision({ taskId: task.taskId });
+  const task = options.task ?? createTask();
+  const policyDecision = options.policyDecision ?? createPolicyDecision({
+    taskId: task.taskId
+  });
   const run = createRun(task, policyDecision, "running");
   const providerExecutionPlan = planProviderExecution(createPlannerInput({
     task,
