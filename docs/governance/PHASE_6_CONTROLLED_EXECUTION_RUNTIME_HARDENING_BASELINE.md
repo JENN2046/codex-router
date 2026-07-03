@@ -71,7 +71,7 @@ Current authority documents already agree on these boundaries:
 | --- | --- | --- |
 | PR-23A | Baseline runtime-governance readiness | None |
 | PR-23B | Controlled read-only provider execution minimal slice | Current fake-spawner acceptance line; no default real Codex CLI authorization |
-| PR-23C | Execution evidence binding | None beyond the PR-23B controlled read-only boundary |
+| PR-23C | Execution evidence binding | Evidence refs/hashes for PR-23B boundary; no broader execution authorization |
 | PR-23D | Workspace-write permit v2 schema and validators | None |
 | PR-23E | Workspace-write fake canary v2 | No real workspace-write |
 | PR-23F | Runtime-governance closeout and release gates | No new execution authorization by itself |
@@ -189,7 +189,6 @@ Stop the stage if a PR introduces:
 
 ## Next Safe Action
 
-After PR-23B, the next narrow PR is PR-23C: execution evidence binding. That PR
-must bind preflight, provider-registry selection, permit identity, plan hash,
-policy hash, principal hash, and final report artifacts without storing raw
-execution material.
+After PR-23C, the next narrow runtime-governance work should continue with
+permit lifecycle hardening and workspace-write permit v2 preparation. It must
+not promote real workspace-write or default provider execution.
