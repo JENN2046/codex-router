@@ -17,6 +17,8 @@ as historical evidence unless a current authority document links them.
   boundary changes.
 - [workspace-write release gate](WORKSPACE_WRITE_RELEASE_GATE.md):
   workspace-write promotion and block rules.
+- [governance docs automation spec](DOCS_AUTOMATION_SPEC.md):
+  lightweight documentation check scope.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md):
   guarded read-only host execution procedure.
@@ -45,6 +47,7 @@ Use the consolidated runner instead of per-check package scripts:
 ```bash
 npm run governance -- list
 npm run governance -- list --all
+npm run docs:governance
 npm run governance -- audit state-sync
 npm run governance -- audit controlled-provider-execution-taskbook-review
 npm run governance -- acceptance readonly-chain

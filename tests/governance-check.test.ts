@@ -26,10 +26,10 @@ test("pr validation tier defines the normal pull request gate", () => {
 
   assert.deepEqual(
     plan.map((command) => command.id),
-    ["typecheck", "test", "build", "governance-audit-state-sync"]
+    ["typecheck", "test", "build", "docs:governance", "governance-audit-state-sync"]
   );
   assert.deepEqual(
-    plan[3]?.args,
+    plan[4]?.args,
     expectedTsxArgs(["scripts/run-state-sync-audit.ts"])
   );
 });
@@ -42,6 +42,7 @@ test("release validation tier avoids external and real host smoke by default", (
     "typecheck",
     "test",
     "build",
+    "docs:governance",
     "governance-audit-state-sync",
     "canary",
     "canary:write",
@@ -123,7 +124,8 @@ test("governance check runner avoids Windows command shims for tsx", () => {
     assert.equal(pr[0]?.command, expectedNpmCommand);
     assert.equal(pr[1]?.command, expectedNpmCommand);
     assert.equal(pr[2]?.command, expectedNpmCommand);
-    assert.equal(pr[3]?.command, process.execPath);
+    assert.equal(pr[3]?.command, expectedNpmCommand);
+    assert.equal(pr[4]?.command, process.execPath);
     assert.equal(audit.command, process.execPath);
     assert.deepEqual(audit.args, [
       "node_modules/tsx/dist/cli.mjs",

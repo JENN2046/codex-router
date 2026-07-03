@@ -33,6 +33,7 @@ simulation.
 | TypeScript check | `npm run typecheck` | Explicit type validation. | PR readiness when it fails. |
 | Test suite | `npm test` | Unit/integration regression coverage. | PR readiness when it fails. |
 | Build | `npm run build` | Production TypeScript build. | PR readiness and release readiness. |
+| Governance docs check | `npm run docs:governance` | Lightweight current documentation structure check. | PR readiness when governance docs drift structurally. |
 | PR state-sync | GitHub `pull_request` State Sync Audit or explicit simulation | Verifies structured state-sync claim for PR context. | PR merge and state authority. |
 | Main state-sync | `node --import tsx scripts/run-state-sync-audit.ts --json` on local `main` | Post-merge/main closeout. | Main state authority when it fails. |
 | Workspace-write release gate | [Workspace-write Release Gate](WORKSPACE_WRITE_RELEASE_GATE.md) | Any PR that can broaden real workspace-write or canary execution. | Real workspace-write readiness. |
@@ -49,6 +50,7 @@ git diff --check
 npm run validate:daily
 npm test
 npm run build
+npm run docs:governance
 node --import tsx scripts/sync-state-sync-display.ts --check
 ```
 
@@ -101,6 +103,7 @@ passes for the exact target and authorization packet.
 | Typecheck fails | Do not mark PR ready. |
 | Tests fail | Do not merge until regression is fixed or explicitly scoped out. |
 | Build fails | Do not release or merge broad code changes. |
+| Governance docs check fails | Fix current docs structure, links, or package-script references before review. |
 | PR state-sync fails | Do not merge; structured claim or event context is invalid. |
 | Main state-sync fails | Treat current state authority as invalid until fixed. |
 | Release tier fails | Do not release, tag, deploy, publish, or promote. |

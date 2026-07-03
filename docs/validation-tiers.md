@@ -23,6 +23,7 @@ Use before opening or updating a normal pull request.
 npm run typecheck
 npm test
 npm run build
+npm run docs:governance
 ```
 
 State-sync for non-`main` PR branches should run through GitHub CI's
@@ -41,6 +42,7 @@ npm run validate:pr
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
+- `npm run docs:governance`
 - `npm run governance -- audit state-sync`
 
 `validate:pr` includes the local state-sync audit. On an ordinary non-`main` PR

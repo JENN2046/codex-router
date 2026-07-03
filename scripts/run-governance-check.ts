@@ -116,6 +116,7 @@ export function getValidationTierPlan(
     npmScript("typecheck", "typecheck", "TypeScript no-emit check"),
     npmScript("test", "test", "Full unit and integration test suite"),
     npmScript("build", "build", "Production TypeScript build"),
+    npmScript("docs:governance", "docs:governance", "Governance documentation structure check"),
     resolveGovernanceCheck("audit", "state-sync")
   ];
 
