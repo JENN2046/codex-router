@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import {
+  parseTaskEnvelope,
+  type TaskEnvelope,
+  type TaskEnvelopeInput
+} from "../../contracts/src/index.js";
 import type {
   ArtifactStore,
   StoredArtifact
@@ -12,6 +17,15 @@ import {
   ProviderExecutionPlanSchema,
   type ProviderExecutionPlan
 } from "../../execution-planner/src/index.js";
+import {
+  applyExecutionFailureToGovernanceState
+} from "../../governance-failure-reducer/src/index.js";
+import {
+  createExecutionObservationRef,
+  createObservationId,
+  parseExecutionObservation,
+  type ExecutionObservationBus
+} from "../../execution-observation/src/index.js";
 import {
   ArtifactSchema,
   EventSchema,
@@ -48,9 +62,23 @@ import type {
   ProviderRegistry
 } from "../../provider-registry/src/index.js";
 import {
+  createRecoveryOperatorAction,
+  shouldLockdown,
+  type ArbitrationPacket,
+  type RecoveryOperatorAction,
+  type RecoveryRecommendation
+} from "../../recovery-control/src/index.js";
+import {
   createSafeAuditDetails,
   redactText
 } from "../../redaction/src/index.js";
+import type {
+  AnomalyRecord,
+  GovernanceState
+} from "../../state-manager/src/index.js";
+import type {
+  StrategyDecisionV2
+} from "../../strategy-router/src/index.js";
 
 export const ProviderExecutionRunnerStatusSchema = z.enum([
   "dry_run_succeeded",
@@ -214,6 +242,13 @@ export type RunProviderExecutionPlanControlledReadOnlyInput = {
   executorPlan?: ExecutorExecutionPlan;
   proposedInput?: unknown;
   executionMetadata?: Record<string, unknown>;
+  governanceState?: GovernanceState;
+  taskEnvelope?: TaskEnvelopeInput;
+  observationBus?: ExecutionObservationBus;
+  onGovernanceUpdate?: (
+    state: GovernanceState,
+    strategy: StrategyDecisionV2
+  ) => Promise<void>;
   now: () => string;
   mode: "controlled-read-only";
 };
@@ -261,8 +296,22 @@ export type ControlledReadOnlyProviderExecutionRunnerResult = {
   providerResultSummary?: Record<string, unknown>;
   failureClass?: string;
   executionEvidence?: ControlledReadOnlyExecutionEvidence;
+  governance?: ControlledReadOnlyProviderExecutionGovernance;
   reportArtifact?: StoredArtifact;
   kernelArtifact?: Artifact;
+};
+
+export type ControlledReadOnlyProviderExecutionGovernance = {
+  schemaVersion: "provider-execution-controlled-readonly-governance.v1";
+  state: GovernanceState;
+  strategyDecision: StrategyDecisionV2;
+  arbitrationPacket: ArbitrationPacket;
+  anomaly: AnomalyRecord;
+  evidenceRefs: string[];
+  recoveryRequired: boolean;
+  lockdown: boolean;
+  recoveryRecommendation?: RecoveryRecommendation;
+  operatorAction?: RecoveryOperatorAction;
 };
 
 export async function runProviderExecutionPlanDryRun(
@@ -438,6 +487,10 @@ export async function runProviderExecutionPlanControlledReadOnly(
   const run = RunSchema.parse(input.run);
   const principal = PrincipalSchema.parse(input.principal);
   const policyDecision = PolicyDecisionSchema.parse(input.policyDecision);
+  const governanceBridge = prepareControlledReadOnlyGovernanceBridge({
+    input,
+    task
+  });
   const createdAt = input.now();
   const eventIds: string[] = [];
   const artifactIds: string[] = [];
@@ -446,19 +499,22 @@ export async function runProviderExecutionPlanControlledReadOnly(
   const providerAttestation = providerEntry === undefined
     ? undefined
     : createProviderAttestation(providerEntry.manifest, createdAt);
-  const preflightReasons = collectControlledReadOnlyPreflightReasons({
-    mode,
-    providerExecutionPlan,
-    task,
-    run,
-    principal,
-    policyDecision,
-    providerRegistry: input.providerRegistry,
-    ...(input.permit !== undefined ? { permit: input.permit } : {}),
-    ...(input.executionMetadata !== undefined
-      ? { executionMetadata: input.executionMetadata }
-      : {})
-  });
+  const preflightReasons = uniqueStrings([
+    ...governanceBridge.reasons,
+    ...collectControlledReadOnlyPreflightReasons({
+      mode,
+      providerExecutionPlan,
+      task,
+      run,
+      principal,
+      policyDecision,
+      providerRegistry: input.providerRegistry,
+      ...(input.permit !== undefined ? { permit: input.permit } : {}),
+      ...(input.executionMetadata !== undefined
+        ? { executionMetadata: input.executionMetadata }
+        : {})
+    })
+  ]);
 
   if (preflightReasons.length > 0) {
     return finalizeControlledReadOnlyRunnerResult({
@@ -537,7 +593,10 @@ export async function runProviderExecutionPlanControlledReadOnly(
       eventIds,
       artifactIds,
       createdAt,
-      ...(providerAttestation !== undefined ? { providerAttestation } : {})
+      ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+      ...(governanceBridge.taskEnvelope !== undefined
+        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
+        : {})
     });
   }
 
@@ -567,6 +626,9 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+      ...(governanceBridge.taskEnvelope !== undefined
+        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
+        : {}),
       executorPlan,
       validation
     });
@@ -593,6 +655,9 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+      ...(governanceBridge.taskEnvelope !== undefined
+        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
+        : {}),
       executorPlan,
       validation
     });
@@ -620,6 +685,9 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+      ...(governanceBridge.taskEnvelope !== undefined
+        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
+        : {}),
       executorPlan,
       validation
     });
@@ -643,6 +711,9 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+      ...(governanceBridge.taskEnvelope !== undefined
+        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
+        : {}),
       executorPlan,
       validation,
       failureClass: "provider_execute_threw"
@@ -665,6 +736,9 @@ export async function runProviderExecutionPlanControlledReadOnly(
       artifactIds,
       createdAt,
       ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+      ...(governanceBridge.taskEnvelope !== undefined
+        ? { governanceTaskEnvelope: governanceBridge.taskEnvelope }
+        : {}),
       executorPlan,
       validation,
       providerResultSummary,
@@ -686,6 +760,255 @@ export async function runProviderExecutionPlanControlledReadOnly(
     validation,
     providerResultSummary
   });
+}
+
+function prepareControlledReadOnlyGovernanceBridge(input: {
+  input: RunProviderExecutionPlanControlledReadOnlyInput;
+  task: Task;
+}): {
+  reasons: string[];
+  taskEnvelope?: TaskEnvelope;
+} {
+  if (
+    input.input.governanceState === undefined &&
+    input.input.taskEnvelope === undefined
+  ) {
+    return { reasons: [] };
+  }
+
+  const reasons: string[] = [];
+  let taskEnvelope: TaskEnvelope | undefined = undefined;
+
+  if (input.input.governanceState === undefined) {
+    reasons.push("controlled_readonly_provider_governance_state_required");
+  }
+
+  if (input.input.taskEnvelope === undefined) {
+    reasons.push("controlled_readonly_provider_governance_task_envelope_required");
+  } else {
+    try {
+      taskEnvelope = parseTaskEnvelope(input.input.taskEnvelope);
+    } catch {
+      reasons.push("controlled_readonly_provider_governance_task_envelope_invalid");
+    }
+  }
+
+  if (
+    input.input.governanceState !== undefined &&
+    input.input.governanceState.taskId !== input.task.taskId
+  ) {
+    reasons.push(
+      `controlled_readonly_provider_governance_state_task_mismatch:${input.input.governanceState.taskId}:${input.task.taskId}`
+    );
+  }
+
+  if (taskEnvelope !== undefined && taskEnvelope.taskId !== input.task.taskId) {
+    reasons.push(
+      `controlled_readonly_provider_governance_task_envelope_mismatch:${taskEnvelope.taskId}:${input.task.taskId}`
+    );
+  }
+
+  if (
+    input.input.governanceState !== undefined &&
+    taskEnvelope !== undefined &&
+    input.input.governanceState.taskId !== taskEnvelope.taskId
+  ) {
+    reasons.push(
+      `controlled_readonly_provider_governance_state_envelope_mismatch:${input.input.governanceState.taskId}:${taskEnvelope.taskId}`
+    );
+  }
+
+  return reasons.length === 0 && taskEnvelope !== undefined
+    ? { reasons, taskEnvelope }
+    : { reasons };
+}
+
+async function createControlledReadOnlyProviderExecutionGovernance(input: {
+  input: RunProviderExecutionPlanControlledReadOnlyInput;
+  providerExecutionPlan: ProviderExecutionPlan;
+  status: ControlledReadOnlyProviderExecutionRunnerStatus;
+  reasons: string[];
+  completedAt: string;
+  reportArtifact: StoredArtifact;
+  taskEnvelope?: TaskEnvelope;
+  failureClass?: string;
+}): Promise<ControlledReadOnlyProviderExecutionGovernance | undefined> {
+  if (!controlledReadOnlyStatusUpdatesGovernance(input.status)) {
+    return undefined;
+  }
+  if (
+    input.input.governanceState === undefined ||
+    input.taskEnvelope === undefined
+  ) {
+    return undefined;
+  }
+
+  const primitiveId = [
+    "controlled_readonly_provider",
+    input.providerExecutionPlan.providerId,
+    input.providerExecutionPlan.planId
+  ].join(":");
+  const errorClass = createControlledReadOnlyProviderGovernanceErrorClass({
+    status: input.status,
+    reasons: input.reasons,
+    ...(input.failureClass !== undefined ? { failureClass: input.failureClass } : {})
+  });
+  const evidenceRefs = await emitControlledReadOnlyProviderFailureObservationRefs({
+    ...(input.input.observationBus !== undefined
+      ? { observationBus: input.input.observationBus }
+      : {}),
+    taskId: input.taskEnvelope.taskId,
+    primitiveId,
+    errorClass,
+    reportArtifactId: input.reportArtifact.artifactId,
+    createdAt: input.completedAt
+  });
+
+  const failureResult = applyExecutionFailureToGovernanceState({
+    state: input.input.governanceState,
+    task: input.taskEnvelope,
+    primitiveId,
+    errorClass,
+    evidenceRefs,
+    stepIndex: 0,
+    now: () => input.completedAt
+  });
+
+  if (input.input.onGovernanceUpdate !== undefined) {
+    await input.input.onGovernanceUpdate(
+      failureResult.state,
+      failureResult.strategyDecision
+    );
+  }
+
+  const recoveryRequired =
+    failureResult.strategyDecision.actionFamily === "step_back" ||
+    failureResult.strategyDecision.actionFamily === "abort";
+  const lockdown = shouldLockdown(failureResult.arbitrationPacket) ||
+    failureResult.strategyDecision.actionFamily === "abort";
+  const recoveryRecommendation = recoveryRequired
+    ? failureResult.arbitrationPacket.recoveryRecommendation
+    : undefined;
+  const operatorAction = recoveryRecommendation === undefined
+    ? undefined
+    : createRecoveryOperatorAction({
+        arbitrationPacket: failureResult.arbitrationPacket,
+        recoveryRecommendation,
+        lockdown,
+        blockingReasons: createControlledReadOnlyProviderGovernanceBlockingReasons(
+          failureResult.strategyDecision
+        )
+      });
+
+  return {
+    schemaVersion: "provider-execution-controlled-readonly-governance.v1",
+    state: failureResult.state,
+    strategyDecision: failureResult.strategyDecision,
+    arbitrationPacket: failureResult.arbitrationPacket,
+    anomaly: failureResult.anomaly,
+    evidenceRefs,
+    recoveryRequired,
+    lockdown,
+    ...(recoveryRecommendation !== undefined ? { recoveryRecommendation } : {}),
+    ...(operatorAction !== undefined ? { operatorAction } : {})
+  };
+}
+
+function controlledReadOnlyStatusUpdatesGovernance(
+  status: ControlledReadOnlyProviderExecutionRunnerStatus
+): boolean {
+  return status === "provider_plan_failed" ||
+    status === "validation_failed" ||
+    status === "execution_failed";
+}
+
+async function emitControlledReadOnlyProviderFailureObservationRefs(input: {
+  observationBus?: ExecutionObservationBus;
+  taskId: string;
+  primitiveId: string;
+  errorClass: string;
+  reportArtifactId: string;
+  createdAt: string;
+}): Promise<string[]> {
+  if (input.observationBus === undefined) {
+    return [];
+  }
+
+  const observationId = createObservationId({
+    taskId: input.taskId,
+    primitiveId: input.primitiveId,
+    status: "failed",
+    createdAt: input.createdAt
+  });
+  await input.observationBus.emit(parseExecutionObservation({
+    observationId,
+    taskId: input.taskId,
+    primitiveId: input.primitiveId,
+    stage: "controlled_readonly_provider_execution",
+    status: "failed",
+    signals: { errorClass: input.errorClass },
+    evidenceRef: `artifact:${input.reportArtifactId}`,
+    createdAt: input.createdAt
+  }));
+
+  return [createExecutionObservationRef(observationId)];
+}
+
+function createControlledReadOnlyProviderGovernanceErrorClass(input: {
+  status: ControlledReadOnlyProviderExecutionRunnerStatus;
+  reasons: string[];
+  failureClass?: string;
+}): string {
+  return sanitizeProviderFailureClass(
+    input.failureClass ?? input.reasons[0],
+    `controlled_readonly_provider_${input.status}`
+  );
+}
+
+function createControlledReadOnlyProviderGovernanceBlockingReasons(
+  strategyDecision: StrategyDecisionV2
+): string[] {
+  if (
+    strategyDecision.actionFamily !== "step_back" &&
+    strategyDecision.actionFamily !== "abort"
+  ) {
+    return [];
+  }
+
+  return [
+    strategyDecision.actionFamily === "abort"
+      ? "governance_abort_triggered"
+      : "governance_step_back_triggered",
+    "arbitration_required"
+  ];
+}
+
+function summarizeControlledReadOnlyProviderExecutionGovernance(
+  governance: ControlledReadOnlyProviderExecutionGovernance
+): Record<string, unknown> {
+  return {
+    schemaVersion: governance.schemaVersion,
+    taskId: governance.state.taskId,
+    anomalyId: governance.anomaly.anomalyId,
+    anomalyCount: governance.state.anomalies.length,
+    latestStrikeNumber: governance.anomaly.strikeNumber,
+    actionFamily: governance.strategyDecision.actionFamily,
+    arbitrationTrigger: governance.arbitrationPacket.trigger,
+    evidenceRefCount: governance.evidenceRefs.length,
+    recoveryRequired: governance.recoveryRequired,
+    lockdown: governance.lockdown,
+    ...(governance.operatorAction !== undefined
+      ? {
+          operatorAction: {
+            status: governance.operatorAction.status,
+            trigger: governance.operatorAction.trigger,
+            recommendedAction: governance.operatorAction.recommendedAction,
+            requiresHumanApproval: governance.operatorAction.requiresHumanApproval,
+            lockdown: governance.operatorAction.lockdown
+          }
+        }
+      : {})
+  };
 }
 
 function collectRunnerPreflightReasons(input: {
@@ -1092,6 +1415,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
   artifactIds: string[];
   createdAt: string;
   providerAttestation?: ProviderAttestation;
+  governanceTaskEnvelope?: TaskEnvelope;
   executorPlan?: ExecutorExecutionPlan;
   validation?: ExecutionValidationResult;
   providerResultSummary?: Record<string, unknown>;
@@ -1156,6 +1480,18 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     reportArtifact,
     dryRun: false
   });
+  const governance = await createControlledReadOnlyProviderExecutionGovernance({
+    input: input.input,
+    providerExecutionPlan: input.providerExecutionPlan,
+    status: input.status,
+    reasons,
+    completedAt,
+    reportArtifact,
+    ...(input.governanceTaskEnvelope !== undefined
+      ? { taskEnvelope: input.governanceTaskEnvelope }
+      : {}),
+    ...(failureClass !== undefined ? { failureClass } : {})
+  });
 
   const completedEvent = appendRunnerEvent(input.input.kernelStore, {
     providerExecutionPlan: input.providerExecutionPlan,
@@ -1183,6 +1519,9 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
         ? { providerResultSummary }
         : {}),
       executionEvidence: summarizeControlledReadOnlyExecutionEvidence(executionEvidence),
+      ...(governance !== undefined
+        ? { governance: summarizeControlledReadOnlyProviderExecutionGovernance(governance) }
+        : {}),
       ...(failureClass !== undefined ? { failureClass } : {})
     }
   });
@@ -1204,6 +1543,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
     createdAt: input.createdAt,
     completedAt,
     executionEvidence,
+    ...(governance !== undefined ? { governance } : {}),
     reportArtifact,
     kernelArtifact,
     ...(input.providerAttestation !== undefined
