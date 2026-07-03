@@ -381,8 +381,8 @@ Validation is tiered to keep routine checks lightweight:
 - non-`main` PR branches: run typecheck/tests/build locally and use the GitHub
   `pull_request` State Sync Audit or an explicit pull-request simulation; see
   [release gate matrix](docs/governance/RELEASE_GATE_MATRIX.md).
-- `npm run validate:pr`: typecheck, full tests, build, and local state-sync
-  audit when the checkout has a valid state-sync context.
+- `npm run validate:pr`: typecheck, full tests, build, docs governance check,
+  and local state-sync audit when the checkout has a valid state-sync context.
 - `npm run validate:release`: PR tier plus deterministic canary, contract smoke, and evidence collection. Real Codex CLI smoke and external canary checks stay explicitly local and are not included by default.
 
 Audit and acceptance checks are available through the consolidated runner:

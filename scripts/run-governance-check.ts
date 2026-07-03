@@ -391,7 +391,7 @@ function printList(options: GovernanceCheckListOptions = {}): void {
 
   console.log("Validation tiers:");
   console.log("  daily   typecheck plus optional targeted tests");
-  console.log("  pr      typecheck, full tests, build, state-sync audit");
+  console.log("  pr      typecheck, full tests, build, docs governance, state-sync audit");
   console.log("  release pr tier plus deterministic canary, contract smoke, evidence collection");
   console.log("");
   console.log(includeArchived ? "Governance checks (all registered):" : "Governance checks (current surface):");
