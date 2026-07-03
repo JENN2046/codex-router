@@ -33,6 +33,7 @@ authority is expressed by:
 - [Change Control](CHANGE_CONTROL.md);
 - [Workspace-write Release Gate](WORKSPACE_WRITE_RELEASE_GATE.md);
 - [Governance Docs Automation Spec](DOCS_AUTOMATION_SPEC.md);
+- [Phase 6 Controlled Execution Runtime Hardening Baseline](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md);
 - executable checks exposed through `npm run governance -- list`;
 - the structured state-sync claim at `docs/current/state-sync-record.json`.
 
@@ -50,6 +51,7 @@ authority is expressed by:
 | `CHANGE_CONTROL.md` | Required docs/tests for governance changes | Current human authority. |
 | `WORKSPACE_WRITE_RELEASE_GATE.md` | Workspace-write promotion and block rules | Current human authority for workspace-write readiness. |
 | `DOCS_AUTOMATION_SPEC.md` | Lightweight docs governance check contract | Current human authority for docs check scope. |
+| `PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md` | Runtime-hardening stage baseline | Current human authority for Phase 6 sequencing; not execution authorization. |
 | `PR_*`, `FUTURE_*`, closeouts, packets | Historical evidence | Evidence only unless linked by a current authority document. |
 
 ## Capability Status
@@ -96,6 +98,7 @@ Use these first:
 | Term definitions | `GLOSSARY.md` |
 | Read-only controlled execution procedure | `runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md` |
 | Workspace-write canary procedure | `runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md` |
+| Phase 6 runtime hardening baseline | `PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md` |
 | Available current checks | `npm run governance -- list` |
 | Governance docs structure check | `npm run docs:governance` |
 | Archived checks | `npm run governance -- list --all` |
