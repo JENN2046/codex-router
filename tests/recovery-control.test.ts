@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   createArbitrationPacket,
   createGovernanceOperatorActionEnvelope,
+  GovernanceOperatorEvidenceResolutionEntrySchema,
   GovernanceOperatorActionEnvelopeSchema,
+  resolveGovernanceOperatorActionEvidence,
   GovernanceOperatorActionSummarySchema,
   RecoveryOperatorActionSchema,
   parseArbitrationPacket,
@@ -11,6 +13,11 @@ import {
   summarizeGovernanceOperatorActionEnvelope
 } from "../packages/recovery-control/src/index.js";
 import type { GovernanceState } from "../packages/state-manager/src/index.js";
+import { InMemoryArtifactStore } from "../packages/artifact-store/src/index.js";
+import {
+  createExecutionObservationRef,
+  createRecordingExecutionObservationStore
+} from "../packages/execution-observation/src/index.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -419,6 +426,224 @@ test("recovery control creates host-consumable operator action envelopes", () =>
   });
 });
 
+test("recovery control resolves operator action evidence refs without raw payloads", async () => {
+  const observationStore = createRecordingExecutionObservationStore();
+  const artifactStore = new InMemoryArtifactStore({
+    now: () => "2026-04-27T00:05:00.000Z"
+  });
+  const observationRef = createExecutionObservationRef("observation-1");
+
+  await observationStore.emit({
+    observationId: "observation-1",
+    taskId: "recovery-task",
+    primitiveId: "provider-plan",
+    stage: "execution",
+    status: "failed",
+    signals: {
+      errorClass: "controlled_readonly_provider_failed",
+      permissionBlocked: true
+    },
+    evidenceRef: "artifact:report-1",
+    createdAt: "2026-04-27T00:04:00.000Z"
+  });
+  const artifact = await artifactStore.putArtifact({
+    artifactId: "report-1",
+    taskId: "recovery-task",
+    runId: "run-1",
+    type: "report",
+    payload: {
+      status: "failed",
+      detail: "redacted"
+    },
+    metadata: {
+      reportKind: "controlled-readonly-failure"
+    },
+    provenance: {
+      source: "provider-execution-runner"
+    }
+  });
+
+  const action = RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+    evidenceRefs: [observationRef, `artifact:${artifact.artifactId}`]
+  }));
+  const envelope = createGovernanceOperatorActionEnvelope({
+    source: "execution_governance",
+    operatorAction: action
+  });
+
+  assert.ok(envelope);
+  const resolution = await resolveGovernanceOperatorActionEvidence({
+    envelope,
+    observationStore,
+    artifactStore
+  });
+
+  assert.equal(resolution.schemaVersion, "governance-operator-evidence-resolution.v1");
+  assert.equal(resolution.taskId, "recovery-task");
+  assert.equal(resolution.resolvedCount, 2);
+  assert.equal(resolution.unresolvedCount, 0);
+  assert.deepEqual(
+    resolution.refs.map((entry) => [entry.kind, entry.status]),
+    [
+      ["execution_observation", "resolved"],
+      ["artifact", "resolved"]
+    ]
+  );
+  assert.deepEqual(resolution.refs[0]?.observation, {
+    observationId: "observation-1",
+    taskId: "recovery-task",
+    primitiveId: "provider-plan",
+    stage: "execution",
+    status: "failed",
+    signalKeys: ["errorClass", "permissionBlocked"],
+    evidenceRef: "artifact:report-1",
+    createdAt: "2026-04-27T00:04:00.000Z"
+  });
+  assert.deepEqual(resolution.refs[1]?.artifact, {
+    artifactId: "report-1",
+    taskId: "recovery-task",
+    runId: "run-1",
+    type: "report",
+    uri: "artifact://report-1/payload",
+    sha256: artifact.sha256,
+    sizeBytes: artifact.sizeBytes,
+    createdAt: "2026-04-27T00:05:00.000Z",
+    metadataKeys: ["reportKind"],
+    provenanceKeys: ["source"],
+    verification: {
+      ok: true
+    }
+  });
+  assert.equal("payload" in (resolution.refs[1]?.artifact ?? {}), false);
+});
+
+test("recovery control marks operator action evidence unresolved without stores", async () => {
+  const envelope = GovernanceOperatorActionEnvelopeSchema.parse({
+    source: "execution_governance",
+    taskId: "recovery-task",
+    status: "requires_arbitration",
+    trigger: "third_anomaly",
+    recommendedAction: "fork",
+    requiresHumanApproval: true,
+    lockdown: true,
+    blockingReasons: [],
+    evidenceRefs: [
+      "execution-observation:observation-1",
+      "artifact:report-1"
+    ],
+    artifactRefs: ["artifact:report-1"]
+  });
+
+  const resolution = await resolveGovernanceOperatorActionEvidence({ envelope });
+
+  assert.equal(resolution.resolvedCount, 0);
+  assert.equal(resolution.unresolvedCount, 2);
+  assert.deepEqual(
+    resolution.refs.map((entry) => [entry.kind, entry.status, entry.reason]),
+    [
+      [
+        "execution_observation",
+        "store_unavailable",
+        "execution_observation_store_unavailable"
+      ],
+      ["artifact", "store_unavailable", "artifact_store_unavailable"]
+    ]
+  );
+});
+
+test("recovery control fails closed when operator action evidence refs are malformed", async () => {
+  const envelope = GovernanceOperatorActionEnvelopeSchema.parse({
+    source: "execution_governance",
+    taskId: "recovery-task",
+    status: "requires_arbitration",
+    trigger: "third_anomaly",
+    recommendedAction: "fork",
+    requiresHumanApproval: true,
+    lockdown: true,
+    blockingReasons: [],
+    evidenceRefs: [
+      "execution-observation:",
+      "artifact:../secret",
+      "note:manual"
+    ],
+    artifactRefs: []
+  });
+
+  const resolution = await resolveGovernanceOperatorActionEvidence({ envelope });
+
+  assert.equal(resolution.resolvedCount, 0);
+  assert.equal(resolution.unresolvedCount, 3);
+  assert.deepEqual(
+    resolution.refs.map((entry) => [entry.kind, entry.status, entry.reason]),
+    [
+      [
+        "execution_observation",
+        "malformed",
+        "execution_observation_ref_malformed"
+      ],
+      ["artifact", "malformed", "artifact_ref_malformed"],
+      ["unsupported", "unsupported", "unsupported_evidence_ref"]
+    ]
+  );
+});
+
+test("recovery control rejects inconsistent evidence resolution entries", () => {
+  assert.throws(
+    () => GovernanceOperatorEvidenceResolutionEntrySchema.parse({
+      ref: "note:manual",
+      kind: "unsupported",
+      status: "resolved"
+    }),
+    /operator_evidence_resolution_unsupported_requires_unsupported_status/
+  );
+  assert.throws(
+    () => GovernanceOperatorEvidenceResolutionEntrySchema.parse({
+      ref: "execution-observation:o1",
+      kind: "execution_observation",
+      status: "task_mismatch"
+    }),
+    /operator_evidence_resolution_task_mismatch_requires_artifact/
+  );
+});
+
+test("recovery control does not expose cross-task artifact evidence", async () => {
+  const artifactStore = new InMemoryArtifactStore({
+    now: () => "2026-04-27T00:05:00.000Z"
+  });
+  await artifactStore.putArtifact({
+    artifactId: "foreign-report",
+    taskId: "other-task",
+    type: "report",
+    payload: {
+      status: "failed"
+    }
+  });
+  const envelope = GovernanceOperatorActionEnvelopeSchema.parse({
+    source: "execution_governance",
+    taskId: "recovery-task",
+    status: "requires_arbitration",
+    trigger: "third_anomaly",
+    recommendedAction: "fork",
+    requiresHumanApproval: true,
+    lockdown: true,
+    blockingReasons: [],
+    evidenceRefs: ["artifact:foreign-report"],
+    artifactRefs: ["artifact:foreign-report"]
+  });
+
+  const resolution = await resolveGovernanceOperatorActionEvidence({
+    envelope,
+    artifactStore
+  });
+
+  assert.equal(resolution.resolvedCount, 0);
+  assert.equal(resolution.unresolvedCount, 1);
+  assert.equal(resolution.refs[0]?.kind, "artifact");
+  assert.equal(resolution.refs[0]?.status, "task_mismatch");
+  assert.equal(resolution.refs[0]?.reason, "artifact_task_mismatch");
+  assert.equal(resolution.refs[0]?.artifact, undefined);
+});
+
 test("recovery control summarizes missing operator action as absent", () => {
   assert.deepEqual(summarizeGovernanceOperatorActionEnvelope(undefined), {
     schemaVersion: "governance-operator-action-summary.v1",
@@ -475,6 +700,25 @@ test("recovery control rejects operator envelope artifact refs outside evidence 
       blockingReasons: [],
       evidenceRefs: ["execution-observation:o1"],
       artifactRefs: ["artifact:missing-report"]
+    }),
+    /operator_action_envelope_artifact_refs_must_be_evidence_refs/
+  );
+});
+
+test("recovery control rejects unsafe operator envelope artifact refs", () => {
+  assert.throws(
+    () => GovernanceOperatorActionEnvelopeSchema.parse({
+      schemaVersion: "governance-operator-action-envelope.v1",
+      source: "execution_governance",
+      taskId: "recovery-task",
+      status: "requires_arbitration",
+      trigger: "third_anomaly",
+      recommendedAction: "fork",
+      requiresHumanApproval: true,
+      lockdown: true,
+      blockingReasons: [],
+      evidenceRefs: ["artifact:../secret"],
+      artifactRefs: ["artifact:../secret"]
     }),
     /operator_action_envelope_artifact_refs_must_be_evidence_refs/
   );
