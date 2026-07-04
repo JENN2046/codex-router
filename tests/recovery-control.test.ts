@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createArbitrationPacket,
   createGovernanceOperatorActionEnvelope,
+  GovernanceOperatorEvidenceResolutionEntrySchema,
   GovernanceOperatorActionEnvelopeSchema,
   resolveGovernanceOperatorActionEvidence,
   GovernanceOperatorActionSummarySchema,
@@ -583,6 +584,25 @@ test("recovery control fails closed when operator action evidence refs are malfo
       ["artifact", "malformed", "artifact_ref_malformed"],
       ["unsupported", "unsupported", "unsupported_evidence_ref"]
     ]
+  );
+});
+
+test("recovery control rejects inconsistent evidence resolution entries", () => {
+  assert.throws(
+    () => GovernanceOperatorEvidenceResolutionEntrySchema.parse({
+      ref: "note:manual",
+      kind: "unsupported",
+      status: "resolved"
+    }),
+    /operator_evidence_resolution_unsupported_requires_unsupported_status/
+  );
+  assert.throws(
+    () => GovernanceOperatorEvidenceResolutionEntrySchema.parse({
+      ref: "execution-observation:o1",
+      kind: "execution_observation",
+      status: "task_mismatch"
+    }),
+    /operator_evidence_resolution_task_mismatch_requires_artifact/
   );
 });
 

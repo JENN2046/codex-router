@@ -374,6 +374,30 @@ export const GovernanceOperatorEvidenceResolutionEntrySchema = z.object({
     });
   }
 
+  if (value.kind === "unsupported" && value.status !== "unsupported") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["status"],
+      message: "operator_evidence_resolution_unsupported_requires_unsupported_status"
+    });
+  }
+
+  if (value.status === "unsupported" && value.kind !== "unsupported") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["kind"],
+      message: "operator_evidence_resolution_unsupported_status_kind_mismatch"
+    });
+  }
+
+  if (value.status === "task_mismatch" && value.kind !== "artifact") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["status"],
+      message: "operator_evidence_resolution_task_mismatch_requires_artifact"
+    });
+  }
+
   if (
     value.status !== "resolved" &&
     value.status !== "integrity_failed" &&
