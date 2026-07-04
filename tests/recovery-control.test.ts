@@ -685,6 +685,25 @@ test("recovery control rejects operator envelope artifact refs outside evidence 
   );
 });
 
+test("recovery control rejects unsafe operator envelope artifact refs", () => {
+  assert.throws(
+    () => GovernanceOperatorActionEnvelopeSchema.parse({
+      schemaVersion: "governance-operator-action-envelope.v1",
+      source: "execution_governance",
+      taskId: "recovery-task",
+      status: "requires_arbitration",
+      trigger: "third_anomaly",
+      recommendedAction: "fork",
+      requiresHumanApproval: true,
+      lockdown: true,
+      blockingReasons: [],
+      evidenceRefs: ["artifact:../secret"],
+      artifactRefs: ["artifact:../secret"]
+    }),
+    /operator_action_envelope_artifact_refs_must_be_evidence_refs/
+  );
+});
+
 test("recovery control rejects operator action reason/action mismatch", () => {
   assert.throws(
     () => RecoveryOperatorActionSchema.parse(createOperatorActionInput({

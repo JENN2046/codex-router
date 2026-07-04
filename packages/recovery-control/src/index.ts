@@ -870,7 +870,7 @@ function collectEvidenceRefs(state: GovernanceState): string[] {
 }
 
 function isArtifactEvidenceRef(ref: string): boolean {
-  return ref.startsWith("artifact:") && ref.length > "artifact:".length;
+  return parseArtifactEvidenceRef(ref) !== undefined;
 }
 
 function parseArtifactEvidenceRef(
