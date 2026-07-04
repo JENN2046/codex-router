@@ -1699,6 +1699,7 @@ test("provider execution runner blocks mismatched governance state before provid
       return { ok: true };
     }
   };
+  const kernelStore = new InMemoryKernelStore();
 
   const result = await runProviderExecutionPlanControlledReadOnly({
     providerExecutionPlan: fixture.providerExecutionPlan,
@@ -1707,7 +1708,7 @@ test("provider execution runner blocks mismatched governance state before provid
     principal: validPrincipal,
     policyDecision: fixture.policyDecision,
     providerRegistry: createRegistry(provider),
-    kernelStore: new InMemoryKernelStore(),
+    kernelStore,
     artifactStore: new InMemoryArtifactStore({ now: createClock() }),
     executorPlan: fixture.executorPlan,
     permit: fixture.permit,
@@ -1826,6 +1827,7 @@ test("provider execution runner blocks governance states requiring step-back bef
       return { ok: true };
     }
   };
+  const kernelStore = new InMemoryKernelStore();
 
   const result = await runProviderExecutionPlanControlledReadOnly({
     providerExecutionPlan: fixture.providerExecutionPlan,
@@ -1834,7 +1836,7 @@ test("provider execution runner blocks governance states requiring step-back bef
     principal: validPrincipal,
     policyDecision: fixture.policyDecision,
     providerRegistry: createRegistry(provider),
-    kernelStore: new InMemoryKernelStore(),
+    kernelStore,
     artifactStore: new InMemoryArtifactStore({ now: createClock() }),
     executorPlan: fixture.executorPlan,
     permit: fixture.permit,
@@ -1850,9 +1852,31 @@ test("provider execution runner blocks governance states requiring step-back bef
   assert.equal(result.status, "blocked");
   assert.equal(result.executeInvoked, false);
   assert.equal(result.governance, undefined);
+  assert.ok(result.preflightGovernance);
+  assert.equal(result.preflightGovernance.phase, "execution");
+  assert.equal(result.preflightGovernance.strategyDecision.actionFamily, "step_back");
+  assert.equal(result.preflightGovernance.executionAllowed, false);
+  assert.equal(result.preflightGovernance.recoveryRequired, true);
+  assert.equal(result.preflightGovernance.lockdown, true);
+  assert.equal(result.preflightGovernance.arbitrationPacket?.trigger, "third_anomaly");
+  assert.equal(result.preflightGovernance.operatorAction?.recommendedAction, "rollback");
+  assert.deepEqual(result.preflightGovernance.operatorAction?.blockingReasons, [
+    "controlled_readonly_provider_governance_state_strategy_blocked:step_back"
+  ]);
   assert.ok(result.reasons.includes(
     "controlled_readonly_provider_governance_state_strategy_blocked:step_back"
   ));
+  const completedEventPayload = kernelStore.listEvents({ runId: fixture.run.runId }).at(-1)?.payload as {
+    preflightGovernance?: {
+      actionFamily?: string;
+      operatorAction?: { recommendedAction?: string };
+    };
+  };
+  assert.equal(completedEventPayload.preflightGovernance?.actionFamily, "step_back");
+  assert.equal(
+    completedEventPayload.preflightGovernance?.operatorAction?.recommendedAction,
+    "rollback"
+  );
   assert.deepEqual(calls, {
     planExecution: 0,
     validateExecutionPlan: 0,
@@ -1888,6 +1912,7 @@ test("provider execution runner blocks simulate-only governance states before pr
       return { ok: true };
     }
   };
+  const kernelStore = new InMemoryKernelStore();
 
   const result = await runProviderExecutionPlanControlledReadOnly({
     providerExecutionPlan: fixture.providerExecutionPlan,
@@ -1896,7 +1921,7 @@ test("provider execution runner blocks simulate-only governance states before pr
     principal: validPrincipal,
     policyDecision: fixture.policyDecision,
     providerRegistry: createRegistry(provider),
-    kernelStore: new InMemoryKernelStore(),
+    kernelStore,
     artifactStore: new InMemoryArtifactStore({ now: createClock() }),
     executorPlan: fixture.executorPlan,
     permit: fixture.permit,
@@ -1912,9 +1937,27 @@ test("provider execution runner blocks simulate-only governance states before pr
   assert.equal(result.status, "blocked");
   assert.equal(result.executeInvoked, false);
   assert.equal(result.governance, undefined);
+  assert.ok(result.preflightGovernance);
+  assert.equal(result.preflightGovernance.phase, "execution");
+  assert.equal(result.preflightGovernance.strategyDecision.actionFamily, "simulate");
+  assert.equal(result.preflightGovernance.strategyDecision.agentBudget.executor, 0);
+  assert.equal(result.preflightGovernance.executionAllowed, false);
+  assert.equal(result.preflightGovernance.recoveryRequired, false);
+  assert.equal(result.preflightGovernance.lockdown, false);
+  assert.equal(result.preflightGovernance.operatorAction, undefined);
   assert.ok(result.reasons.includes(
     "controlled_readonly_provider_governance_state_strategy_blocked:simulate"
   ));
+  const completedEventPayload = kernelStore.listEvents({ runId: fixture.run.runId }).at(-1)?.payload as {
+    preflightGovernance?: {
+      actionFamily?: string;
+      executorBudget?: number;
+      operatorAction?: unknown;
+    };
+  };
+  assert.equal(completedEventPayload.preflightGovernance?.actionFamily, "simulate");
+  assert.equal(completedEventPayload.preflightGovernance?.executorBudget, 0);
+  assert.equal(completedEventPayload.preflightGovernance?.operatorAction, undefined);
   assert.deepEqual(calls, {
     planExecution: 0,
     validateExecutionPlan: 0,
@@ -1950,6 +1993,7 @@ test("provider execution runner blocks recovery-phase governance states before p
       return { ok: true };
     }
   };
+  const kernelStore = new InMemoryKernelStore();
 
   const result = await runProviderExecutionPlanControlledReadOnly({
     providerExecutionPlan: fixture.providerExecutionPlan,
@@ -1958,7 +2002,7 @@ test("provider execution runner blocks recovery-phase governance states before p
     principal: validPrincipal,
     policyDecision: fixture.policyDecision,
     providerRegistry: createRegistry(provider),
-    kernelStore: new InMemoryKernelStore(),
+    kernelStore,
     artifactStore: new InMemoryArtifactStore({ now: createClock() }),
     executorPlan: fixture.executorPlan,
     permit: fixture.permit,
@@ -1977,9 +2021,26 @@ test("provider execution runner blocks recovery-phase governance states before p
   assert.equal(result.status, "blocked");
   assert.equal(result.executeInvoked, false);
   assert.equal(result.governance, undefined);
+  assert.ok(result.preflightGovernance);
+  assert.equal(result.preflightGovernance.phase, "recovery");
+  assert.equal(result.preflightGovernance.strategyDecision.actionFamily, "execute");
+  assert.equal(result.preflightGovernance.executionAllowed, false);
+  assert.equal(result.preflightGovernance.recoveryRequired, true);
+  assert.equal(result.preflightGovernance.lockdown, false);
+  assert.equal(result.preflightGovernance.operatorAction, undefined);
   assert.ok(result.reasons.includes(
     "controlled_readonly_provider_governance_state_phase_blocked:recovery"
   ));
+  const completedEventPayload = kernelStore.listEvents({ runId: fixture.run.runId }).at(-1)?.payload as {
+    preflightGovernance?: {
+      phase?: string;
+      actionFamily?: string;
+      recoveryRequired?: boolean;
+    };
+  };
+  assert.equal(completedEventPayload.preflightGovernance?.phase, "recovery");
+  assert.equal(completedEventPayload.preflightGovernance?.actionFamily, "execute");
+  assert.equal(completedEventPayload.preflightGovernance?.recoveryRequired, true);
   assert.deepEqual(calls, {
     planExecution: 0,
     validateExecutionPlan: 0,
