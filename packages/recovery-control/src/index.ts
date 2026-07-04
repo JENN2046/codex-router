@@ -817,6 +817,14 @@ export function validateGovernanceOperatorActionReceipt(input: {
     reasons.push("operator_action_receipt_created_at_after_now");
   }
 
+  if (
+    Number.isFinite(createdAtMs) &&
+    Number.isFinite(actionIssuedAtMs) &&
+    createdAtMs < actionIssuedAtMs
+  ) {
+    reasons.push("operator_action_receipt_created_at_before_action_issued_at");
+  }
+
   if (Number.isFinite(actionIssuedAtMs) && Number.isFinite(nowMs)) {
     if (actionIssuedAtMs > nowMs) {
       reasons.push("operator_action_receipt_action_issued_at_after_now");

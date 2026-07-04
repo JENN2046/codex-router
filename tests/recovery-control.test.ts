@@ -536,6 +536,26 @@ test("recovery control blocks fresh receipts for stale operator actions", () => 
   assert.ok(validation.reasons.includes("operator_action_receipt_action_expired"));
 });
 
+test("recovery control blocks receipts dated before the operator action", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const validation = validateGovernanceOperatorActionReceipt({
+    envelope,
+    receipt: createTestOperatorActionReceipt(envelope, {
+      actionIssuedAt,
+      createdAt: "2026-04-27T00:04:44.999Z"
+    }),
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(validation.status, "blocked");
+  assert.ok(validation.reasons.includes(
+    "operator_action_receipt_created_at_before_action_issued_at"
+  ));
+});
+
 test("recovery control blocks replayed operator action receipts", () => {
   const envelope = createTestOperatorActionEnvelope();
   const actionIssuedAt = "2026-04-27T00:04:45.000Z";
