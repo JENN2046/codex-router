@@ -2,6 +2,20 @@ import { z } from "zod";
 import type { GovernanceState } from "../../state-manager/src/index.js";
 import type { DelegationLevel } from "../../delegation-policy/src/index.js";
 import { filterRecoveryActions } from "../../delegation-policy/src/index.js";
+import type {
+  ArtifactStore,
+  ArtifactVerificationResult,
+  StoredArtifact
+} from "../../artifact-store/src/index.js";
+import type {
+  ExecutionObservation,
+  ExecutionObservationStore
+} from "../../execution-observation/src/index.js";
+import {
+  EXECUTION_OBSERVATION_REF_PREFIX,
+  parseExecutionObservationRef,
+  resolveExecutionObservationRef
+} from "../../execution-observation/src/index.js";
 
 // ── Recovery action ─────────────────────────────────────────────────────────
 
@@ -254,6 +268,153 @@ export const GovernanceOperatorActionSummarySchema = z.object({
   }
 });
 
+// ── Host-consumable operator evidence resolution ───────────────────────────
+
+export const GovernanceOperatorEvidenceResolutionKindSchema = z.enum([
+  "execution_observation",
+  "artifact",
+  "unsupported"
+]);
+
+export const GovernanceOperatorEvidenceResolutionStatusSchema = z.enum([
+  "resolved",
+  "missing",
+  "malformed",
+  "task_mismatch",
+  "store_unavailable",
+  "integrity_failed",
+  "unsupported"
+]);
+
+export const GovernanceOperatorObservationEvidenceSummarySchema = z.object({
+  observationId: z.string().min(1),
+  taskId: z.string().min(1),
+  primitiveId: z.string().min(1),
+  stage: z.string().min(1),
+  status: z.string().min(1),
+  signalKeys: z.array(z.string()).default([]),
+  evidenceRef: z.string().min(1).optional(),
+  createdAt: z.string().min(1)
+});
+
+export const GovernanceOperatorArtifactEvidenceSummarySchema = z.object({
+  artifactId: z.string().min(1),
+  taskId: z.string().min(1),
+  runId: z.string().min(1).optional(),
+  type: z.string().min(1),
+  uri: z.string().min(1),
+  sha256: z.string().min(1),
+  sizeBytes: z.number().int().nonnegative(),
+  createdAt: z.string().min(1),
+  contentType: z.string().min(1).optional(),
+  fileName: z.string().min(1).optional(),
+  metadataKeys: z.array(z.string()).default([]),
+  provenanceKeys: z.array(z.string()).default([]),
+  verification: z.object({
+    ok: z.boolean(),
+    reason: z.string().min(1).optional()
+  }).optional()
+});
+
+export const GovernanceOperatorEvidenceResolutionEntrySchema = z.object({
+  schemaVersion: z.literal("governance-operator-evidence-resolution-entry.v1")
+    .default("governance-operator-evidence-resolution-entry.v1"),
+  ref: z.string(),
+  kind: GovernanceOperatorEvidenceResolutionKindSchema,
+  status: GovernanceOperatorEvidenceResolutionStatusSchema,
+  reason: z.string().min(1).optional(),
+  observation: GovernanceOperatorObservationEvidenceSummarySchema.optional(),
+  artifact: GovernanceOperatorArtifactEvidenceSummarySchema.optional()
+}).superRefine((value, ctx) => {
+  if (value.kind !== "execution_observation" && value.observation !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["observation"],
+      message: "operator_evidence_resolution_observation_kind_mismatch"
+    });
+  }
+
+  if (value.kind !== "artifact" && value.artifact !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["artifact"],
+      message: "operator_evidence_resolution_artifact_kind_mismatch"
+    });
+  }
+
+  if (
+    value.status === "resolved" &&
+    value.kind === "execution_observation" &&
+    value.observation === undefined
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["observation"],
+      message: "operator_evidence_resolution_observation_required"
+    });
+  }
+
+  if (
+    (value.status === "resolved" || value.status === "integrity_failed") &&
+    value.kind === "artifact" &&
+    value.artifact === undefined
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["artifact"],
+      message: "operator_evidence_resolution_artifact_required"
+    });
+  }
+
+  if (value.status === "integrity_failed" && value.kind !== "artifact") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["status"],
+      message: "operator_evidence_resolution_integrity_requires_artifact"
+    });
+  }
+
+  if (
+    value.status !== "resolved" &&
+    value.status !== "integrity_failed" &&
+    (value.observation !== undefined || value.artifact !== undefined)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["status"],
+      message: "operator_evidence_resolution_unresolved_forbids_summary"
+    });
+  }
+});
+
+export const GovernanceOperatorEvidenceResolutionSchema = z.object({
+  schemaVersion: z.literal("governance-operator-evidence-resolution.v1")
+    .default("governance-operator-evidence-resolution.v1"),
+  taskId: z.string().min(1),
+  source: GovernanceOperatorActionEnvelopeSourceSchema,
+  refs: z.array(GovernanceOperatorEvidenceResolutionEntrySchema),
+  resolvedCount: z.number().int().nonnegative(),
+  unresolvedCount: z.number().int().nonnegative()
+}).superRefine((value, ctx) => {
+  const resolvedCount = value.refs.filter((entry) => entry.status === "resolved").length;
+  if (value.resolvedCount !== resolvedCount) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["resolvedCount"],
+      message: "operator_evidence_resolution_count_mismatch"
+    });
+  }
+
+  const unresolvedCount = value.refs.length - resolvedCount;
+  if (value.unresolvedCount !== unresolvedCount) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["unresolvedCount"],
+      message: "operator_evidence_resolution_count_mismatch"
+    });
+  }
+});
+
 // ── Arbitration packet ─────────────────────────────────────────────────────
 
 export const ArbitrationPacketSchema = z.object({
@@ -318,6 +479,14 @@ export type GovernanceOperatorActionEnvelopeInput = z.input<typeof GovernanceOpe
 export type GovernanceOperatorActionEnvelope = z.infer<typeof GovernanceOperatorActionEnvelopeSchema>;
 export type GovernanceOperatorActionSummaryInput = z.input<typeof GovernanceOperatorActionSummarySchema>;
 export type GovernanceOperatorActionSummary = z.infer<typeof GovernanceOperatorActionSummarySchema>;
+export type GovernanceOperatorEvidenceResolutionKind = z.infer<typeof GovernanceOperatorEvidenceResolutionKindSchema>;
+export type GovernanceOperatorEvidenceResolutionStatus = z.infer<typeof GovernanceOperatorEvidenceResolutionStatusSchema>;
+export type GovernanceOperatorObservationEvidenceSummary = z.infer<typeof GovernanceOperatorObservationEvidenceSummarySchema>;
+export type GovernanceOperatorArtifactEvidenceSummary = z.infer<typeof GovernanceOperatorArtifactEvidenceSummarySchema>;
+export type GovernanceOperatorEvidenceResolutionEntryInput = z.input<typeof GovernanceOperatorEvidenceResolutionEntrySchema>;
+export type GovernanceOperatorEvidenceResolutionEntry = z.infer<typeof GovernanceOperatorEvidenceResolutionEntrySchema>;
+export type GovernanceOperatorEvidenceResolutionInput = z.input<typeof GovernanceOperatorEvidenceResolutionSchema>;
+export type GovernanceOperatorEvidenceResolution = z.infer<typeof GovernanceOperatorEvidenceResolutionSchema>;
 export type ArbitrationTrigger = z.infer<typeof ArbitrationTriggerSchema>;
 export type ArbitrationPacketInput = z.input<typeof ArbitrationPacketSchema>;
 export type ArbitrationPacket = z.infer<typeof ArbitrationPacketSchema>;
@@ -412,6 +581,33 @@ export function summarizeGovernanceOperatorActionEnvelope(
     blockingReasons: [...envelope.blockingReasons],
     evidenceRefs: [...envelope.evidenceRefs],
     artifactRefs: [...envelope.artifactRefs]
+  });
+}
+
+export async function resolveGovernanceOperatorActionEvidence(input: {
+  envelope: GovernanceOperatorActionEnvelopeInput;
+  observationStore?: ExecutionObservationStore | undefined;
+  artifactStore?: ArtifactStore | undefined;
+}): Promise<GovernanceOperatorEvidenceResolution> {
+  const envelope = GovernanceOperatorActionEnvelopeSchema.parse(input.envelope);
+  const refs = [...new Set(envelope.evidenceRefs)];
+  const entries: GovernanceOperatorEvidenceResolutionEntry[] = [];
+
+  for (const ref of refs) {
+    entries.push(await resolveGovernanceOperatorEvidenceRef({
+      ref,
+      taskId: envelope.taskId,
+      observationStore: input.observationStore,
+      artifactStore: input.artifactStore
+    }));
+  }
+
+  return GovernanceOperatorEvidenceResolutionSchema.parse({
+    taskId: envelope.taskId,
+    source: envelope.source,
+    refs: entries,
+    resolvedCount: entries.filter((entry) => entry.status === "resolved").length,
+    unresolvedCount: entries.filter((entry) => entry.status !== "resolved").length
   });
 }
 
@@ -675,4 +871,223 @@ function collectEvidenceRefs(state: GovernanceState): string[] {
 
 function isArtifactEvidenceRef(ref: string): boolean {
   return ref.startsWith("artifact:") && ref.length > "artifact:".length;
+}
+
+function parseArtifactEvidenceRef(
+  ref: string
+): { kind: "artifact"; artifactId: string; ref: string } | undefined {
+  if (!ref.startsWith("artifact:")) {
+    return undefined;
+  }
+
+  const artifactId = ref.slice("artifact:".length);
+  if (!isSafeArtifactId(artifactId)) {
+    return undefined;
+  }
+
+  return {
+    kind: "artifact",
+    artifactId,
+    ref
+  };
+}
+
+async function resolveGovernanceOperatorEvidenceRef(input: {
+  ref: string;
+  taskId: string;
+  observationStore?: ExecutionObservationStore | undefined;
+  artifactStore?: ArtifactStore | undefined;
+}): Promise<GovernanceOperatorEvidenceResolutionEntry> {
+  if (input.ref.startsWith(EXECUTION_OBSERVATION_REF_PREFIX)) {
+    return resolveGovernanceOperatorObservationRef(input);
+  }
+
+  if (input.ref.startsWith("artifact:")) {
+    return resolveGovernanceOperatorArtifactRef(input);
+  }
+
+  return evidenceResolutionEntry({
+    ref: input.ref,
+    kind: "unsupported",
+    status: "unsupported",
+    reason: "unsupported_evidence_ref"
+  });
+}
+
+async function resolveGovernanceOperatorObservationRef(input: {
+  ref: string;
+  taskId: string;
+  observationStore?: ExecutionObservationStore | undefined;
+}): Promise<GovernanceOperatorEvidenceResolutionEntry> {
+  const parsedRef = parseExecutionObservationRef(input.ref);
+  if (parsedRef === undefined) {
+    return evidenceResolutionEntry({
+      ref: input.ref,
+      kind: "execution_observation",
+      status: "malformed",
+      reason: "execution_observation_ref_malformed"
+    });
+  }
+
+  if (input.observationStore === undefined) {
+    return evidenceResolutionEntry({
+      ref: input.ref,
+      kind: "execution_observation",
+      status: "store_unavailable",
+      reason: "execution_observation_store_unavailable"
+    });
+  }
+
+  try {
+    const observation = await resolveExecutionObservationRef(
+      input.observationStore,
+      input.taskId,
+      input.ref
+    );
+    if (observation === undefined) {
+      return evidenceResolutionEntry({
+        ref: input.ref,
+        kind: "execution_observation",
+        status: "missing",
+        reason: "execution_observation_not_found"
+      });
+    }
+
+    return evidenceResolutionEntry({
+      ref: input.ref,
+      kind: "execution_observation",
+      status: "resolved",
+      observation: summarizeExecutionObservationEvidence(observation)
+    });
+  } catch {
+    return evidenceResolutionEntry({
+      ref: input.ref,
+      kind: "execution_observation",
+      status: "store_unavailable",
+      reason: "execution_observation_store_unavailable"
+    });
+  }
+}
+
+async function resolveGovernanceOperatorArtifactRef(input: {
+  ref: string;
+  taskId: string;
+  artifactStore?: ArtifactStore | undefined;
+}): Promise<GovernanceOperatorEvidenceResolutionEntry> {
+  const parsedRef = parseArtifactEvidenceRef(input.ref);
+  if (parsedRef === undefined) {
+    return evidenceResolutionEntry({
+      ref: input.ref,
+      kind: "artifact",
+      status: "malformed",
+      reason: "artifact_ref_malformed"
+    });
+  }
+
+  if (input.artifactStore === undefined) {
+    return evidenceResolutionEntry({
+      ref: input.ref,
+      kind: "artifact",
+      status: "store_unavailable",
+      reason: "artifact_store_unavailable"
+    });
+  }
+
+  try {
+    const artifact = await input.artifactStore.getArtifact(parsedRef.artifactId);
+    if (artifact === undefined) {
+      return evidenceResolutionEntry({
+        ref: input.ref,
+        kind: "artifact",
+        status: "missing",
+        reason: "artifact_not_found"
+      });
+    }
+
+    if (artifact.taskId !== input.taskId) {
+      return evidenceResolutionEntry({
+        ref: input.ref,
+        kind: "artifact",
+        status: "task_mismatch",
+        reason: "artifact_task_mismatch"
+      });
+    }
+
+    const verification = await input.artifactStore.verifyArtifact(parsedRef.artifactId);
+    if (!verification.ok) {
+      return evidenceResolutionEntry({
+        ref: input.ref,
+        kind: "artifact",
+        status: "integrity_failed",
+        reason: verification.reason ?? "artifact_integrity_failed",
+        artifact: summarizeArtifactEvidence(artifact, verification)
+      });
+    }
+
+    return evidenceResolutionEntry({
+      ref: input.ref,
+      kind: "artifact",
+      status: "resolved",
+      artifact: summarizeArtifactEvidence(artifact, verification)
+    });
+  } catch {
+    return evidenceResolutionEntry({
+      ref: input.ref,
+      kind: "artifact",
+      status: "store_unavailable",
+      reason: "artifact_store_unavailable"
+    });
+  }
+}
+
+function evidenceResolutionEntry(
+  input: GovernanceOperatorEvidenceResolutionEntryInput
+): GovernanceOperatorEvidenceResolutionEntry {
+  return GovernanceOperatorEvidenceResolutionEntrySchema.parse(input);
+}
+
+function summarizeExecutionObservationEvidence(
+  observation: ExecutionObservation
+): GovernanceOperatorObservationEvidenceSummary {
+  return GovernanceOperatorObservationEvidenceSummarySchema.parse({
+    observationId: observation.observationId,
+    taskId: observation.taskId,
+    primitiveId: observation.primitiveId,
+    stage: observation.stage,
+    status: observation.status,
+    signalKeys: Object.keys(observation.signals).sort(),
+    ...(observation.evidenceRef !== undefined ? { evidenceRef: observation.evidenceRef } : {}),
+    createdAt: observation.createdAt
+  });
+}
+
+function summarizeArtifactEvidence(
+  artifact: StoredArtifact,
+  verification: ArtifactVerificationResult
+): GovernanceOperatorArtifactEvidenceSummary {
+  return GovernanceOperatorArtifactEvidenceSummarySchema.parse({
+    artifactId: artifact.artifactId,
+    taskId: artifact.taskId,
+    ...(artifact.runId !== undefined ? { runId: artifact.runId } : {}),
+    type: artifact.type,
+    uri: artifact.uri,
+    sha256: artifact.sha256,
+    sizeBytes: artifact.sizeBytes,
+    createdAt: artifact.createdAt,
+    ...(artifact.contentType !== undefined ? { contentType: artifact.contentType } : {}),
+    ...(artifact.fileName !== undefined ? { fileName: artifact.fileName } : {}),
+    metadataKeys: Object.keys(artifact.metadata).sort(),
+    provenanceKeys: Object.keys(artifact.provenance).sort(),
+    verification: {
+      ok: verification.ok,
+      ...(verification.reason !== undefined ? { reason: verification.reason } : {})
+    }
+  });
+}
+
+function isSafeArtifactId(artifactId: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(artifactId)
+    && !artifactId.includes("..")
+    && !artifactId.includes("/")
+    && !artifactId.includes("\\");
 }
