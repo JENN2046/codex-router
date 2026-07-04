@@ -6,14 +6,9 @@ created: 2026-07-04
 last_verified: 2026-07-04
 verified_by:
   - git diff --check
-  - node --import tsx --test tests/recovery-control.test.ts
-  - node --import tsx --test tests/provider-execution-runner.test.ts
-  - node --import tsx --test tests/desktop-live-adapter-governance.test.ts
-  - node --import tsx --test tests/desktop-host-client.test.ts
-  - node --import tsx --test tests/host-client-example.test.ts
+  - node --import tsx scripts/sync-state-sync-display.ts --check
   - npm run typecheck
   - npm run build
-  - npm test
   - npm run validate:daily
   - npm run docs:governance
   - pull_request-context state-sync audit
@@ -98,4 +93,3 @@ For controlled read-only runtime-governance results:
    or artifact stores are available.
 4. Treat unresolved evidence as unresolved; do not infer success from missing
    stores or unsupported refs.
-
