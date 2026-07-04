@@ -39,6 +39,7 @@ authority is expressed by:
 - [PR-23C Execution Evidence Binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md);
 - [PR-23D Workspace-write Permit V2](PR_23D_WORKSPACE_WRITE_PERMIT_V2.md);
 - [PR-23E Workspace-write Fake Canary V2](PR_23E_WORKSPACE_WRITE_FAKE_CANARY_V2.md);
+- [Phase 7 Runtime Operator Actionability Closeout](PHASE_7_RUNTIME_OPERATOR_ACTIONABILITY_CLOSEOUT.md);
 - executable checks exposed through `npm run governance -- list`;
 - the structured state-sync claim at `docs/current/state-sync-record.json`.
 
@@ -63,6 +64,7 @@ authority is expressed by:
 | `PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md` | Read-only provider permit lifecycle hardening | Current human authority for expiration, nonce, replay, and store-failure acceptance coverage; not workspace-write authorization. |
 | `PR_23D_WORKSPACE_WRITE_PERMIT_V2.md` | Workspace-write permit v2 schema and validators | Current human authority for permit v2 shape, validation, and consumption; not workspace-write execution authorization. |
 | `PR_23E_WORKSPACE_WRITE_FAKE_CANARY_V2.md` | Workspace-write fake canary v2 | Current human authority for permit v2 fake-canary validation; not real workspace-write authorization. |
+| `PHASE_7_RUNTIME_OPERATOR_ACTIONABILITY_CLOSEOUT.md` | Runtime operator actionability closeout | Current human authority for preflight governance, operator action envelopes, summaries, host-client surfaces, and evidence resolution; not execution authorization. |
 | `PR_*`, `FUTURE_*`, closeouts, packets | Historical evidence | Evidence only unless linked by a current authority document. |
 
 ## Capability Status
@@ -72,6 +74,7 @@ authority is expressed by:
 | Protocol V1 contracts | active | N/A | Stable package surface; keep changes tested and reviewable. |
 | Read-only dry run | active | No | Safe default for local inspection, demos, and deterministic tests. |
 | Runtime governance observation | active | No by itself | May record sanitized observations, refs, anomalies, and operator actions. |
+| Runtime operator actionability | active | No by itself | Preflight blocks, runtime failures, desktop live results, and host clients expose stable operator action envelopes/summaries and sanitized evidence-resolution summaries. |
 | Controlled read-only real execution | guarded / productized | Yes, narrow | Requires [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md), [PR-23B minimal slice](PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md), [PR-23C evidence binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md), explicit controlled mode, injected execution dependency, permit/preflight metadata, stable evidence refs/hashes, and no hidden provider path. |
 | Workspace-write fake canary | guarded | No | Validates permit v2, patch guard, rollback evidence, and replay blocking without real host writes. |
 | Workspace-write real canary | experimental / blocked by default | No by default | Requires [workspace-write release gate](WORKSPACE_WRITE_RELEASE_GATE.md), [workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md), a fresh explicit authorization packet for the named canary, permit v2 controls, fake-canary v2 validation, and rollback evidence. |
@@ -115,6 +118,7 @@ Use these first:
 | Read-only provider permit lifecycle hardening | `PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md` |
 | Workspace-write permit v2 schema and validators | `PR_23D_WORKSPACE_WRITE_PERMIT_V2.md` |
 | Workspace-write fake canary v2 | `PR_23E_WORKSPACE_WRITE_FAKE_CANARY_V2.md` |
+| Runtime operator actionability closeout | `PHASE_7_RUNTIME_OPERATOR_ACTIONABILITY_CLOSEOUT.md` |
 | Controlled read-only provider execution acceptance | `npm run governance -- acceptance controlled-readonly-provider-execution` |
 | Available current checks | `npm run governance -- list` |
 | Governance docs structure check | `npm run docs:governance` |
