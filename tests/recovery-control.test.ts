@@ -468,6 +468,38 @@ test("recovery control validates operator action receipts against the action ref
   assert.equal(validation.envelopeHash, envelopeHash);
 });
 
+test("recovery control normalizes default receipt evidence refs before hashing", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const envelopeHash = hashGovernanceOperatorActionEnvelope(envelope);
+  const receiptWithoutEvidenceRefs = {
+    taskId: envelope.taskId,
+    actionRef: createGovernanceOperatorActionRef(envelope, { actionIssuedAt }),
+    envelopeHash,
+    actionIssuedAt,
+    decision: "consumed" as const,
+    operatorIdHash: "a".repeat(64),
+    createdAt: "2026-04-27T00:05:00.000Z"
+  };
+  const receipt = GovernanceOperatorActionReceiptSchema.parse({
+    receiptId: createGovernanceOperatorActionReceiptId(receiptWithoutEvidenceRefs),
+    ...receiptWithoutEvidenceRefs
+  });
+
+  assert.deepEqual(receipt.evidenceRefs, []);
+
+  const validation = validateGovernanceOperatorActionReceipt({
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(validation.status, "passed");
+  assert.deepEqual(validation.reasons, []);
+});
+
 test("recovery control blocks operator action receipts for the wrong task", () => {
   const envelope = createTestOperatorActionEnvelope();
   const actionIssuedAt = "2026-04-27T00:04:45.000Z";

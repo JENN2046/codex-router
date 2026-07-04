@@ -297,6 +297,12 @@ export const GovernanceOperatorActionReceiptSchema = z.object({
   evidenceRefs: z.array(z.string()).default([])
 });
 
+const GovernanceOperatorActionReceiptIdPayloadSchema =
+  GovernanceOperatorActionReceiptSchema.omit({
+    receiptId: true,
+    schemaVersion: true
+  });
+
 export const GovernanceOperatorActionReceiptValidationStatusSchema = z.enum([
   "passed",
   "blocked"
@@ -701,7 +707,9 @@ export function createGovernanceOperatorActionRef(
 export function createGovernanceOperatorActionReceiptId(
   receipt: Omit<GovernanceOperatorActionReceiptInput, "receiptId" | "schemaVersion">
 ): string {
-  return `${GOVERNANCE_OPERATOR_ACTION_RECEIPT_ID_PREFIX}${stableSha256(receipt)}`;
+  const canonicalReceipt =
+    GovernanceOperatorActionReceiptIdPayloadSchema.parse(receipt);
+  return `${GOVERNANCE_OPERATOR_ACTION_RECEIPT_ID_PREFIX}${stableSha256(canonicalReceipt)}`;
 }
 
 export function validateGovernanceOperatorActionReceipt(input: {
