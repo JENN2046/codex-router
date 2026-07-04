@@ -272,7 +272,9 @@ export const GovernanceOperatorActionSummarySchema = z.object({
 // ── Host-consumable operator action lifecycle ────────────────────────────────
 
 const GOVERNANCE_OPERATOR_ACTION_REF_PREFIX = "governance-operator-action:";
-const DEFAULT_OPERATOR_ACTION_RECEIPT_MAX_AGE_MS = 15 * 60 * 1000;
+const GOVERNANCE_OPERATOR_ACTION_RECEIPT_ID_PREFIX =
+  "governance-operator-action-receipt:";
+const DEFAULT_OPERATOR_ACTION_MAX_AGE_MS = 15 * 60 * 1000;
 
 export const GovernanceOperatorActionReceiptDecisionSchema = z.enum([
   "acknowledged",
@@ -284,9 +286,11 @@ export const GovernanceOperatorActionReceiptDecisionSchema = z.enum([
 export const GovernanceOperatorActionReceiptSchema = z.object({
   schemaVersion: z.literal("governance-operator-action-receipt.v1")
     .default("governance-operator-action-receipt.v1"),
+  receiptId: z.string().min(1),
   taskId: z.string().min(1),
   actionRef: z.string().min(1),
   envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  actionIssuedAt: z.string().min(1),
   decision: GovernanceOperatorActionReceiptDecisionSchema,
   operatorIdHash: z.string().regex(/^[a-f0-9]{64}$/),
   createdAt: z.string().min(1),
@@ -680,17 +684,34 @@ export function hashGovernanceOperatorActionEnvelope(
 }
 
 export function createGovernanceOperatorActionRef(
-  envelope: GovernanceOperatorActionEnvelopeInput
+  envelope: GovernanceOperatorActionEnvelopeInput,
+  options: { actionIssuedAt?: string } = {}
 ): string {
-  return `${GOVERNANCE_OPERATOR_ACTION_REF_PREFIX}${hashGovernanceOperatorActionEnvelope(envelope)}`;
+  const envelopeHash = hashGovernanceOperatorActionEnvelope(envelope);
+  if (options.actionIssuedAt === undefined) {
+    return `${GOVERNANCE_OPERATOR_ACTION_REF_PREFIX}${envelopeHash}`;
+  }
+
+  return `${GOVERNANCE_OPERATOR_ACTION_REF_PREFIX}${stableSha256({
+    envelopeHash,
+    actionIssuedAt: options.actionIssuedAt
+  })}`;
+}
+
+export function createGovernanceOperatorActionReceiptId(
+  receipt: Omit<GovernanceOperatorActionReceiptInput, "receiptId" | "schemaVersion">
+): string {
+  return `${GOVERNANCE_OPERATOR_ACTION_RECEIPT_ID_PREFIX}${stableSha256(receipt)}`;
 }
 
 export function validateGovernanceOperatorActionReceipt(input: {
   envelope: GovernanceOperatorActionEnvelopeInput;
   receipt: unknown;
+  actionIssuedAt?: string | (() => string);
   now: string | (() => string);
-  maxAgeMs?: number;
+  maxActionAgeMs?: number;
   consumedActionRefs?: string[];
+  consumedReceiptIds?: string[];
 }): GovernanceOperatorActionReceiptValidation {
   let envelope: GovernanceOperatorActionEnvelope;
   try {
@@ -703,7 +724,12 @@ export function validateGovernanceOperatorActionReceipt(input: {
   }
 
   const envelopeHash = hashGovernanceOperatorActionEnvelope(envelope);
-  const actionRef = `${GOVERNANCE_OPERATOR_ACTION_REF_PREFIX}${envelopeHash}`;
+  const actionIssuedAt = typeof input.actionIssuedAt === "function"
+    ? input.actionIssuedAt()
+    : input.actionIssuedAt;
+  const actionRef = actionIssuedAt === undefined
+    ? `${GOVERNANCE_OPERATOR_ACTION_REF_PREFIX}${envelopeHash}`
+    : createGovernanceOperatorActionRef(envelope, { actionIssuedAt });
   let receipt: GovernanceOperatorActionReceipt;
   try {
     receipt = GovernanceOperatorActionReceiptSchema.parse(input.receipt);
@@ -718,6 +744,10 @@ export function validateGovernanceOperatorActionReceipt(input: {
   }
 
   const reasons: string[] = [];
+
+  if (actionIssuedAt === undefined) {
+    reasons.push("operator_action_receipt_action_issued_at_required");
+  }
 
   if (receipt.taskId !== envelope.taskId) {
     reasons.push("operator_action_receipt_task_mismatch");
@@ -734,7 +764,32 @@ export function validateGovernanceOperatorActionReceipt(input: {
     reasons.push("operator_action_receipt_envelope_hash_mismatch");
   }
 
+  if (
+    actionIssuedAt !== undefined &&
+    receipt.actionIssuedAt !== actionIssuedAt
+  ) {
+    reasons.push("operator_action_receipt_action_issued_at_mismatch");
+  }
+
+  const expectedReceiptId = createGovernanceOperatorActionReceiptId({
+    taskId: receipt.taskId,
+    actionRef: receipt.actionRef,
+    ...(receipt.envelopeHash !== undefined ? { envelopeHash: receipt.envelopeHash } : {}),
+    actionIssuedAt: receipt.actionIssuedAt,
+    decision: receipt.decision,
+    operatorIdHash: receipt.operatorIdHash,
+    createdAt: receipt.createdAt,
+    evidenceRefs: receipt.evidenceRefs
+  });
+
+  if (receipt.receiptId !== expectedReceiptId) {
+    reasons.push("operator_action_receipt_id_mismatch");
+  }
+
   const createdAtMs = Date.parse(receipt.createdAt);
+  const actionIssuedAtMs = actionIssuedAt === undefined
+    ? Number.NaN
+    : Date.parse(actionIssuedAt);
   const nowValue = typeof input.now === "function" ? input.now() : input.now;
   const nowMs = Date.parse(nowValue);
 
@@ -746,23 +801,35 @@ export function validateGovernanceOperatorActionReceipt(input: {
     reasons.push("operator_action_receipt_now_invalid");
   }
 
-  if (Number.isFinite(createdAtMs) && Number.isFinite(nowMs)) {
-    if (createdAtMs > nowMs) {
-      reasons.push("operator_action_receipt_created_at_after_now");
+  if (actionIssuedAt !== undefined && !Number.isFinite(actionIssuedAtMs)) {
+    reasons.push("operator_action_receipt_action_issued_at_invalid");
+  }
+
+  if (Number.isFinite(createdAtMs) && Number.isFinite(nowMs) && createdAtMs > nowMs) {
+    reasons.push("operator_action_receipt_created_at_after_now");
+  }
+
+  if (Number.isFinite(actionIssuedAtMs) && Number.isFinite(nowMs)) {
+    if (actionIssuedAtMs > nowMs) {
+      reasons.push("operator_action_receipt_action_issued_at_after_now");
     }
 
-    const maxAgeMs =
-      input.maxAgeMs ?? DEFAULT_OPERATOR_ACTION_RECEIPT_MAX_AGE_MS;
-    if (nowMs - createdAtMs > maxAgeMs) {
-      reasons.push("operator_action_receipt_expired");
+    const maxActionAgeMs =
+      input.maxActionAgeMs ?? DEFAULT_OPERATOR_ACTION_MAX_AGE_MS;
+    if (nowMs - actionIssuedAtMs > maxActionAgeMs) {
+      reasons.push("operator_action_receipt_action_expired");
     }
   }
 
   const consumedActionRefs = input.consumedActionRefs ?? [];
+  const consumedReceiptIds = input.consumedReceiptIds ?? [];
   if (
     consumedActionRefs.includes(actionRef) ||
     consumedActionRefs.includes(receipt.actionRef)
   ) {
+    reasons.push("operator_action_receipt_replay");
+  }
+  if (consumedReceiptIds.includes(receipt.receiptId)) {
     reasons.push("operator_action_receipt_replay");
   }
 
@@ -1290,6 +1357,10 @@ function isSafeArtifactId(artifactId: string): boolean {
     && !artifactId.includes("..")
     && !artifactId.includes("/")
     && !artifactId.includes("\\");
+}
+
+function stableSha256(input: unknown): string {
+  return createHash("sha256").update(stableStringify(input)).digest("hex");
 }
 
 function stableStringify(input: unknown): string {

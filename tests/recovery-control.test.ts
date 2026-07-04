@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createArbitrationPacket,
   createGovernanceOperatorActionEnvelope,
+  createGovernanceOperatorActionReceiptId,
   createGovernanceOperatorActionRef,
   GovernanceOperatorEvidenceResolutionEntrySchema,
   GovernanceOperatorActionEnvelopeSchema,
@@ -434,23 +435,30 @@ test("recovery control creates host-consumable operator action envelopes", () =>
 
 test("recovery control validates operator action receipts against the action ref", () => {
   const envelope = createTestOperatorActionEnvelope();
-  const actionRef = createGovernanceOperatorActionRef(envelope);
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const actionRef = createGovernanceOperatorActionRef(envelope, { actionIssuedAt });
   const envelopeHash = hashGovernanceOperatorActionEnvelope(envelope);
-  const receipt = GovernanceOperatorActionReceiptSchema.parse({
+  const receiptWithoutId = {
     taskId: "recovery-task",
     actionRef,
     envelopeHash,
-    decision: "consumed",
+    actionIssuedAt,
+    decision: "consumed" as const,
     operatorIdHash: "a".repeat(64),
     createdAt: "2026-04-27T00:05:00.000Z",
     evidenceRefs: ["execution-observation:o1"]
+  };
+  const receipt = GovernanceOperatorActionReceiptSchema.parse({
+    receiptId: createGovernanceOperatorActionReceiptId(receiptWithoutId),
+    ...receiptWithoutId
   });
 
   const validation = validateGovernanceOperatorActionReceipt({
     envelope,
     receipt,
+    actionIssuedAt,
     now: "2026-04-27T00:05:30.000Z",
-    maxAgeMs: 60_000
+    maxActionAgeMs: 60_000
   });
 
   assert.equal(validation.status, "passed");
@@ -462,42 +470,50 @@ test("recovery control validates operator action receipts against the action ref
 
 test("recovery control blocks operator action receipts for the wrong task", () => {
   const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
   const validation = validateGovernanceOperatorActionReceipt({
     envelope,
     receipt: createTestOperatorActionReceipt(envelope, {
+      actionIssuedAt,
       taskId: "other-task"
     }),
+    actionIssuedAt,
     now: "2026-04-27T00:05:30.000Z",
-    maxAgeMs: 60_000
+    maxActionAgeMs: 60_000
   });
 
   assert.equal(validation.status, "blocked");
   assert.ok(validation.reasons.includes("operator_action_receipt_task_mismatch"));
 });
 
-test("recovery control blocks operator action receipts with stale timestamps", () => {
+test("recovery control blocks fresh receipts for stale operator actions", () => {
   const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:00:00.000Z";
   const validation = validateGovernanceOperatorActionReceipt({
     envelope,
     receipt: createTestOperatorActionReceipt(envelope, {
-      createdAt: "2026-04-27T00:00:00.000Z"
+      actionIssuedAt,
+      createdAt: "2026-04-27T00:05:00.000Z"
     }),
+    actionIssuedAt,
     now: "2026-04-27T00:05:30.000Z",
-    maxAgeMs: 60_000
+    maxActionAgeMs: 60_000
   });
 
   assert.equal(validation.status, "blocked");
-  assert.ok(validation.reasons.includes("operator_action_receipt_expired"));
+  assert.ok(validation.reasons.includes("operator_action_receipt_action_expired"));
 });
 
 test("recovery control blocks replayed operator action receipts", () => {
   const envelope = createTestOperatorActionEnvelope();
-  const actionRef = createGovernanceOperatorActionRef(envelope);
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const actionRef = createGovernanceOperatorActionRef(envelope, { actionIssuedAt });
   const validation = validateGovernanceOperatorActionReceipt({
     envelope,
-    receipt: createTestOperatorActionReceipt(envelope),
+    receipt: createTestOperatorActionReceipt(envelope, { actionIssuedAt }),
+    actionIssuedAt,
     now: "2026-04-27T00:05:30.000Z",
-    maxAgeMs: 60_000,
+    maxActionAgeMs: 60_000,
     consumedActionRefs: [actionRef]
   });
 
@@ -505,15 +521,51 @@ test("recovery control blocks replayed operator action receipts", () => {
   assert.ok(validation.reasons.includes("operator_action_receipt_replay"));
 });
 
+test("recovery control blocks replayed operator action receipt ids", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+  const validation = validateGovernanceOperatorActionReceipt({
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000,
+    consumedReceiptIds: [receipt.receiptId]
+  });
+
+  assert.equal(validation.status, "blocked");
+  assert.ok(validation.reasons.includes("operator_action_receipt_replay"));
+});
+
+test("recovery control requires trusted operator action issued-at for receipt validation", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const validation = validateGovernanceOperatorActionReceipt({
+    envelope,
+    receipt: createTestOperatorActionReceipt(envelope, { actionIssuedAt }),
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(validation.status, "blocked");
+  assert.ok(validation.reasons.includes(
+    "operator_action_receipt_action_issued_at_required"
+  ));
+});
+
 test("recovery control requires lockdown operator actions to be resolved explicitly", () => {
   const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
   const validation = validateGovernanceOperatorActionReceipt({
     envelope,
     receipt: createTestOperatorActionReceipt(envelope, {
+      actionIssuedAt,
       decision: "acknowledged"
     }),
+    actionIssuedAt,
     now: "2026-04-27T00:05:30.000Z",
-    maxAgeMs: 60_000
+    maxActionAgeMs: 60_000
   });
 
   assert.equal(validation.status, "blocked");
@@ -524,17 +576,19 @@ test("recovery control requires lockdown operator actions to be resolved explici
 
 test("recovery control fails closed for malformed operator action receipts", () => {
   const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
   const validation = validateGovernanceOperatorActionReceipt({
     envelope,
     receipt: {
       taskId: "recovery-task",
-      actionRef: createGovernanceOperatorActionRef(envelope),
+      actionRef: createGovernanceOperatorActionRef(envelope, { actionIssuedAt }),
       decision: "consumed",
       operatorIdHash: "not-a-hash",
       createdAt: "2026-04-27T00:05:00.000Z"
     },
+    actionIssuedAt,
     now: "2026-04-27T00:05:30.000Z",
-    maxAgeMs: 60_000
+    maxActionAgeMs: 60_000
   });
 
   assert.equal(validation.status, "blocked");
@@ -543,13 +597,16 @@ test("recovery control fails closed for malformed operator action receipts", () 
 
 test("recovery control blocks operator action receipts with mismatched action refs", () => {
   const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
   const validation = validateGovernanceOperatorActionReceipt({
     envelope,
     receipt: createTestOperatorActionReceipt(envelope, {
+      actionIssuedAt,
       actionRef: "governance-operator-action:".concat("b".repeat(64))
     }),
+    actionIssuedAt,
     now: "2026-04-27T00:05:30.000Z",
-    maxAgeMs: 60_000
+    maxActionAgeMs: 60_000
   });
 
   assert.equal(validation.status, "blocked");
@@ -951,15 +1008,24 @@ function createTestOperatorActionReceipt(
   envelope: GovernanceOperatorActionEnvelope,
   overrides: Partial<GovernanceOperatorActionReceiptInput> = {}
 ) {
-  return GovernanceOperatorActionReceiptSchema.parse({
+  const actionIssuedAt = typeof overrides.actionIssuedAt === "string"
+    ? overrides.actionIssuedAt
+    : "2026-04-27T00:04:45.000Z";
+  const receiptWithoutId = {
     taskId: envelope.taskId,
-    actionRef: createGovernanceOperatorActionRef(envelope),
+    actionRef: createGovernanceOperatorActionRef(envelope, { actionIssuedAt }),
     envelopeHash: hashGovernanceOperatorActionEnvelope(envelope),
-    decision: "consumed",
+    actionIssuedAt,
+    decision: "consumed" as const,
     operatorIdHash: "a".repeat(64),
     createdAt: "2026-04-27T00:05:00.000Z",
     evidenceRefs: [...envelope.evidenceRefs],
     ...overrides
+  };
+
+  return GovernanceOperatorActionReceiptSchema.parse({
+    receiptId: createGovernanceOperatorActionReceiptId(receiptWithoutId),
+    ...receiptWithoutId
   });
 }
 
