@@ -311,6 +311,7 @@ export type ControlledReadOnlyProviderExecutionRunnerResult = {
   preflightGovernance?: ControlledReadOnlyProviderPreflightGovernance;
   governance?: ControlledReadOnlyProviderExecutionGovernance;
   operatorActionEnvelope?: GovernanceOperatorActionEnvelope;
+  operatorActionSummary: GovernanceOperatorActionSummary;
   reportArtifact?: StoredArtifact;
   kernelArtifact?: Artifact;
 };
@@ -351,6 +352,21 @@ export type GovernanceOperatorActionEnvelope = {
   recommendedAction: RecoveryOperatorAction["recommendedAction"];
   requiresHumanApproval: boolean;
   lockdown: boolean;
+  blockingReasons: string[];
+  evidenceRefs: string[];
+  artifactRefs: string[];
+};
+
+export type GovernanceOperatorActionSummary = {
+  schemaVersion: "governance-operator-action-summary.v1";
+  present: boolean;
+  source?: GovernanceOperatorActionEnvelope["source"];
+  taskId?: string;
+  status?: RecoveryOperatorAction["status"];
+  trigger?: RecoveryOperatorAction["trigger"];
+  recommendedAction?: RecoveryOperatorAction["recommendedAction"];
+  requiresHumanApproval?: boolean;
+  lockdown?: boolean;
   blockingReasons: string[];
   evidenceRefs: string[];
   artifactRefs: string[];
@@ -1328,6 +1344,35 @@ function createGovernanceOperatorActionEnvelope(input: {
   };
 }
 
+export function summarizeGovernanceOperatorActionEnvelope(
+  envelope: GovernanceOperatorActionEnvelope | undefined
+): GovernanceOperatorActionSummary {
+  if (envelope === undefined) {
+    return {
+      schemaVersion: "governance-operator-action-summary.v1",
+      present: false,
+      blockingReasons: [],
+      evidenceRefs: [],
+      artifactRefs: []
+    };
+  }
+
+  return {
+    schemaVersion: "governance-operator-action-summary.v1",
+    present: true,
+    source: envelope.source,
+    taskId: envelope.taskId,
+    status: envelope.status,
+    trigger: envelope.trigger,
+    recommendedAction: envelope.recommendedAction,
+    requiresHumanApproval: envelope.requiresHumanApproval,
+    lockdown: envelope.lockdown,
+    blockingReasons: [...envelope.blockingReasons],
+    evidenceRefs: [...envelope.evidenceRefs],
+    artifactRefs: [...envelope.artifactRefs]
+  };
+}
+
 function isArtifactEvidenceRef(ref: string): boolean {
   return ref.startsWith("artifact:") && ref.length > "artifact:".length;
 }
@@ -1833,6 +1878,9 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       source: "execution_governance",
       operatorAction: governance?.operatorAction
     });
+  const operatorActionSummary = summarizeGovernanceOperatorActionEnvelope(
+    operatorActionEnvelope
+  );
 
   const completedEvent = appendRunnerEvent(input.input.kernelStore, {
     providerExecutionPlan: input.providerExecutionPlan,
@@ -1869,6 +1917,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       ...(operatorActionEnvelope !== undefined
         ? { operatorActionEnvelope }
         : {}),
+      operatorActionSummary,
       ...(failureClass !== undefined ? { failureClass } : {})
     }
   });
@@ -1895,6 +1944,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       : {}),
     ...(governance !== undefined ? { governance } : {}),
     ...(operatorActionEnvelope !== undefined ? { operatorActionEnvelope } : {}),
+    operatorActionSummary,
     reportArtifact,
     kernelArtifact,
     ...(input.providerAttestation !== undefined
