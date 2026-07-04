@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createArbitrationPacket,
+  createGovernanceOperatorActionEnvelope,
+  GovernanceOperatorActionSummarySchema,
   RecoveryOperatorActionSchema,
   parseArbitrationPacket,
-  shouldLockdown
+  shouldLockdown,
+  summarizeGovernanceOperatorActionEnvelope
 } from "../packages/recovery-control/src/index.js";
 import type { GovernanceState } from "../packages/state-manager/src/index.js";
 
@@ -360,6 +363,82 @@ test("recovery control accepts a valid operator action envelope", () => {
   assert.equal(action.recommendedAction, "fork");
   assert.equal(action.reasonCode, "third_anomaly_fork_for_investigation");
   assert.equal(action.requiresHumanApproval, true);
+});
+
+test("recovery control creates host-consumable operator action envelopes", () => {
+  const action = RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+    evidenceRefs: [
+      "execution-observation:o1",
+      "artifact:provider-runner-third-failure-report"
+    ]
+  }));
+  const envelope = createGovernanceOperatorActionEnvelope({
+    source: "desktop_live_governance",
+    operatorAction: action
+  });
+
+  assert.deepEqual(envelope, {
+    schemaVersion: "governance-operator-action-envelope.v1",
+    source: "desktop_live_governance",
+    taskId: "recovery-task",
+    status: "requires_arbitration",
+    trigger: "third_anomaly",
+    recommendedAction: "fork",
+    requiresHumanApproval: true,
+    lockdown: true,
+    blockingReasons: [
+      "governance_step_back_triggered",
+      "arbitration_required"
+    ],
+    evidenceRefs: [
+      "execution-observation:o1",
+      "artifact:provider-runner-third-failure-report"
+    ],
+    artifactRefs: ["artifact:provider-runner-third-failure-report"]
+  });
+  assert.deepEqual(summarizeGovernanceOperatorActionEnvelope(envelope), {
+    schemaVersion: "governance-operator-action-summary.v1",
+    present: true,
+    source: "desktop_live_governance",
+    taskId: "recovery-task",
+    status: "requires_arbitration",
+    trigger: "third_anomaly",
+    recommendedAction: "fork",
+    requiresHumanApproval: true,
+    lockdown: true,
+    blockingReasons: [
+      "governance_step_back_triggered",
+      "arbitration_required"
+    ],
+    evidenceRefs: [
+      "execution-observation:o1",
+      "artifact:provider-runner-third-failure-report"
+    ],
+    artifactRefs: ["artifact:provider-runner-third-failure-report"]
+  });
+});
+
+test("recovery control summarizes missing operator action as absent", () => {
+  assert.deepEqual(summarizeGovernanceOperatorActionEnvelope(undefined), {
+    schemaVersion: "governance-operator-action-summary.v1",
+    present: false,
+    blockingReasons: [],
+    evidenceRefs: [],
+    artifactRefs: []
+  });
+});
+
+test("recovery control rejects absent operator summaries with stale fields", () => {
+  assert.throws(
+    () => GovernanceOperatorActionSummarySchema.parse({
+      present: false,
+      source: "desktop_live_governance",
+      blockingReasons: [],
+      evidenceRefs: [],
+      artifactRefs: []
+    }),
+    /operator_action_summary_absent_forbids_field/
+  );
 });
 
 test("recovery control rejects operator action reason/action mismatch", () => {

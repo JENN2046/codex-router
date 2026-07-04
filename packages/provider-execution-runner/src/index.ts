@@ -65,9 +65,13 @@ import type {
 } from "../../provider-registry/src/index.js";
 import {
   createArbitrationPacket,
+  createGovernanceOperatorActionEnvelope,
   createRecoveryOperatorAction,
   shouldLockdown,
+  summarizeGovernanceOperatorActionEnvelope,
   type ArbitrationPacket,
+  type GovernanceOperatorActionEnvelope,
+  type GovernanceOperatorActionSummary,
   type RecoveryOperatorAction,
   type RecoveryRecommendation
 } from "../../recovery-control/src/index.js";
@@ -80,6 +84,14 @@ import {
   type AnomalyRecord,
   type GovernanceState
 } from "../../state-manager/src/index.js";
+
+export {
+  summarizeGovernanceOperatorActionEnvelope
+} from "../../recovery-control/src/index.js";
+export type {
+  GovernanceOperatorActionEnvelope,
+  GovernanceOperatorActionSummary
+} from "../../recovery-control/src/index.js";
 import {
   routeStrategyV2,
   type StrategyDecisionV2
@@ -341,35 +353,6 @@ export type ControlledReadOnlyProviderPreflightGovernance = {
   arbitrationPacket?: ArbitrationPacket;
   recoveryRecommendation?: RecoveryRecommendation;
   operatorAction?: RecoveryOperatorAction;
-};
-
-export type GovernanceOperatorActionEnvelope = {
-  schemaVersion: "governance-operator-action-envelope.v1";
-  source: "preflight_governance" | "execution_governance";
-  taskId: string;
-  status: RecoveryOperatorAction["status"];
-  trigger: RecoveryOperatorAction["trigger"];
-  recommendedAction: RecoveryOperatorAction["recommendedAction"];
-  requiresHumanApproval: boolean;
-  lockdown: boolean;
-  blockingReasons: string[];
-  evidenceRefs: string[];
-  artifactRefs: string[];
-};
-
-export type GovernanceOperatorActionSummary = {
-  schemaVersion: "governance-operator-action-summary.v1";
-  present: boolean;
-  source?: GovernanceOperatorActionEnvelope["source"];
-  taskId?: string;
-  status?: RecoveryOperatorAction["status"];
-  trigger?: RecoveryOperatorAction["trigger"];
-  recommendedAction?: RecoveryOperatorAction["recommendedAction"];
-  requiresHumanApproval?: boolean;
-  lockdown?: boolean;
-  blockingReasons: string[];
-  evidenceRefs: string[];
-  artifactRefs: string[];
 };
 
 export async function runProviderExecutionPlanDryRun(
@@ -1319,62 +1302,6 @@ function summarizeControlledReadOnlyProviderPreflightGovernance(
         }
       : {})
   };
-}
-
-function createGovernanceOperatorActionEnvelope(input: {
-  source: GovernanceOperatorActionEnvelope["source"];
-  operatorAction: RecoveryOperatorAction | undefined;
-}): GovernanceOperatorActionEnvelope | undefined {
-  if (input.operatorAction === undefined) {
-    return undefined;
-  }
-
-  return {
-    schemaVersion: "governance-operator-action-envelope.v1",
-    source: input.source,
-    taskId: input.operatorAction.taskId,
-    status: input.operatorAction.status,
-    trigger: input.operatorAction.trigger,
-    recommendedAction: input.operatorAction.recommendedAction,
-    requiresHumanApproval: input.operatorAction.requiresHumanApproval,
-    lockdown: input.operatorAction.lockdown,
-    blockingReasons: [...input.operatorAction.blockingReasons],
-    evidenceRefs: [...input.operatorAction.evidenceRefs],
-    artifactRefs: input.operatorAction.evidenceRefs.filter(isArtifactEvidenceRef)
-  };
-}
-
-export function summarizeGovernanceOperatorActionEnvelope(
-  envelope: GovernanceOperatorActionEnvelope | undefined
-): GovernanceOperatorActionSummary {
-  if (envelope === undefined) {
-    return {
-      schemaVersion: "governance-operator-action-summary.v1",
-      present: false,
-      blockingReasons: [],
-      evidenceRefs: [],
-      artifactRefs: []
-    };
-  }
-
-  return {
-    schemaVersion: "governance-operator-action-summary.v1",
-    present: true,
-    source: envelope.source,
-    taskId: envelope.taskId,
-    status: envelope.status,
-    trigger: envelope.trigger,
-    recommendedAction: envelope.recommendedAction,
-    requiresHumanApproval: envelope.requiresHumanApproval,
-    lockdown: envelope.lockdown,
-    blockingReasons: [...envelope.blockingReasons],
-    evidenceRefs: [...envelope.evidenceRefs],
-    artifactRefs: [...envelope.artifactRefs]
-  };
-}
-
-function isArtifactEvidenceRef(ref: string): boolean {
-  return ref.startsWith("artifact:") && ref.length > "artifact:".length;
 }
 
 function collectRunnerPreflightReasons(input: {

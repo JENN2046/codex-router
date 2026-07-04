@@ -131,6 +131,98 @@ export const RecoveryOperatorActionSchema = z.object({
   }
 });
 
+// ── Host-consumable operator action envelope ───────────────────────────────
+
+export const GovernanceOperatorActionEnvelopeSourceSchema = z.enum([
+  "preflight_governance",
+  "execution_governance",
+  "desktop_live_governance",
+  "host_dispatch_governance"
+]);
+
+export const GovernanceOperatorActionEnvelopeSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-envelope.v1")
+    .default("governance-operator-action-envelope.v1"),
+  source: GovernanceOperatorActionEnvelopeSourceSchema,
+  taskId: z.string().min(1),
+  status: RecoveryOperatorActionStatusSchema,
+  trigger: ArbitrationTriggerSchema,
+  recommendedAction: RecoveryActionSchema,
+  requiresHumanApproval: z.boolean(),
+  lockdown: z.boolean(),
+  blockingReasons: z.array(z.string()).default([]),
+  evidenceRefs: z.array(z.string()).default([]),
+  artifactRefs: z.array(z.string()).default([])
+});
+
+export const GovernanceOperatorActionSummarySchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-summary.v1")
+    .default("governance-operator-action-summary.v1"),
+  present: z.boolean(),
+  source: GovernanceOperatorActionEnvelopeSourceSchema.optional(),
+  taskId: z.string().min(1).optional(),
+  status: RecoveryOperatorActionStatusSchema.optional(),
+  trigger: ArbitrationTriggerSchema.optional(),
+  recommendedAction: RecoveryActionSchema.optional(),
+  requiresHumanApproval: z.boolean().optional(),
+  lockdown: z.boolean().optional(),
+  blockingReasons: z.array(z.string()).default([]),
+  evidenceRefs: z.array(z.string()).default([]),
+  artifactRefs: z.array(z.string()).default([])
+}).superRefine((value, ctx) => {
+  if (value.present) {
+    for (const field of [
+      "source",
+      "taskId",
+      "status",
+      "trigger",
+      "recommendedAction",
+      "requiresHumanApproval",
+      "lockdown"
+    ] as const) {
+      if (value[field] === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: "operator_action_summary_present_requires_field"
+        });
+      }
+    }
+    return;
+  }
+
+  const forbiddenPresentFields = [
+    "source",
+    "taskId",
+    "status",
+    "trigger",
+    "recommendedAction",
+    "requiresHumanApproval",
+    "lockdown"
+  ] as const;
+  for (const field of forbiddenPresentFields) {
+    if (value[field] !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [field],
+        message: "operator_action_summary_absent_forbids_field"
+      });
+    }
+  }
+
+  if (
+    value.blockingReasons.length > 0 ||
+    value.evidenceRefs.length > 0 ||
+    value.artifactRefs.length > 0
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["present"],
+      message: "operator_action_summary_absent_requires_empty_refs"
+    });
+  }
+});
+
 // ── Arbitration packet ─────────────────────────────────────────────────────
 
 export const ArbitrationPacketSchema = z.object({
@@ -190,6 +282,11 @@ export type RecoveryOperatorActionStatus = z.infer<typeof RecoveryOperatorAction
 export type RecoveryOperatorActionInput = z.input<typeof RecoveryOperatorActionSchema>;
 export type RecoveryOperatorAction = z.infer<typeof RecoveryOperatorActionSchema>;
 export type OperatorActionEnvelope = RecoveryOperatorAction;
+export type GovernanceOperatorActionEnvelopeSource = z.infer<typeof GovernanceOperatorActionEnvelopeSourceSchema>;
+export type GovernanceOperatorActionEnvelopeInput = z.input<typeof GovernanceOperatorActionEnvelopeSchema>;
+export type GovernanceOperatorActionEnvelope = z.infer<typeof GovernanceOperatorActionEnvelopeSchema>;
+export type GovernanceOperatorActionSummaryInput = z.input<typeof GovernanceOperatorActionSummarySchema>;
+export type GovernanceOperatorActionSummary = z.infer<typeof GovernanceOperatorActionSummarySchema>;
 export type ArbitrationTrigger = z.infer<typeof ArbitrationTriggerSchema>;
 export type ArbitrationPacketInput = z.input<typeof ArbitrationPacketSchema>;
 export type ArbitrationPacket = z.infer<typeof ArbitrationPacketSchema>;
@@ -235,6 +332,55 @@ export function createRecoveryOperatorAction(input: {
       : {}),
     availableActions: input.arbitrationPacket.availableActions,
     blockingReasons: input.blockingReasons ?? []
+  });
+}
+
+export function createGovernanceOperatorActionEnvelope(input: {
+  source: GovernanceOperatorActionEnvelopeSource;
+  operatorAction: RecoveryOperatorAction | undefined;
+}): GovernanceOperatorActionEnvelope | undefined {
+  if (input.operatorAction === undefined) {
+    return undefined;
+  }
+
+  return GovernanceOperatorActionEnvelopeSchema.parse({
+    source: input.source,
+    taskId: input.operatorAction.taskId,
+    status: input.operatorAction.status,
+    trigger: input.operatorAction.trigger,
+    recommendedAction: input.operatorAction.recommendedAction,
+    requiresHumanApproval: input.operatorAction.requiresHumanApproval,
+    lockdown: input.operatorAction.lockdown,
+    blockingReasons: [...input.operatorAction.blockingReasons],
+    evidenceRefs: [...input.operatorAction.evidenceRefs],
+    artifactRefs: input.operatorAction.evidenceRefs.filter(isArtifactEvidenceRef)
+  });
+}
+
+export function summarizeGovernanceOperatorActionEnvelope(
+  envelope: GovernanceOperatorActionEnvelope | undefined
+): GovernanceOperatorActionSummary {
+  if (envelope === undefined) {
+    return GovernanceOperatorActionSummarySchema.parse({
+      present: false,
+      blockingReasons: [],
+      evidenceRefs: [],
+      artifactRefs: []
+    });
+  }
+
+  return GovernanceOperatorActionSummarySchema.parse({
+    present: true,
+    source: envelope.source,
+    taskId: envelope.taskId,
+    status: envelope.status,
+    trigger: envelope.trigger,
+    recommendedAction: envelope.recommendedAction,
+    requiresHumanApproval: envelope.requiresHumanApproval,
+    lockdown: envelope.lockdown,
+    blockingReasons: [...envelope.blockingReasons],
+    evidenceRefs: [...envelope.evidenceRefs],
+    artifactRefs: [...envelope.artifactRefs]
   });
 }
 
@@ -494,4 +640,8 @@ function inferTrigger(state: GovernanceState): ArbitrationTrigger {
 
 function collectEvidenceRefs(state: GovernanceState): string[] {
   return [...new Set(state.anomalies.flatMap((item) => item.evidenceRefs))];
+}
+
+function isArtifactEvidenceRef(ref: string): boolean {
+  return ref.startsWith("artifact:") && ref.length > "artifact:".length;
 }

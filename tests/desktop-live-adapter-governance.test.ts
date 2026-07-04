@@ -1124,6 +1124,26 @@ test("governance: codex-cli host dispatch third failure triggers recovery result
   assert.equal(result.executionResult.governance?.arbitrationPacket.trigger, "third_anomaly");
   assert.equal(result.executionResult.governance?.operatorAction?.recommendedAction, "fork");
   assert.equal(result.executionResult.governance?.operatorAction?.lockdown, true);
+  assert.deepEqual(result.operatorActionEnvelope, {
+    schemaVersion: "governance-operator-action-envelope.v1",
+    source: "host_dispatch_governance",
+    taskId: task.taskId,
+    status: "requires_arbitration",
+    trigger: "third_anomaly",
+    recommendedAction: "fork",
+    requiresHumanApproval: true,
+    lockdown: true,
+    blockingReasons: [
+      "governance_step_back_triggered",
+      "arbitration_required"
+    ],
+    evidenceRefs: result.executionResult.governance?.operatorAction?.evidenceRefs ?? [],
+    artifactRefs: []
+  });
+  assert.equal(result.operatorActionSummary.present, true);
+  assert.equal(result.operatorActionSummary.source, "host_dispatch_governance");
+  assert.equal(result.operatorActionSummary.recommendedAction, "fork");
+  assert.equal(result.operatorActionSummary.lockdown, true);
   assert.equal(
     result.executionResult.governance?.state.anomalies.at(-1)?.message,
     "host_dispatch_failed:spawn sentinel"
@@ -1174,5 +1194,13 @@ test("governance: successful codex-cli host dispatch does not trigger governance
   assert.equal(result.executionResult.status, "completed");
   assert.deepEqual(result.executionResult.blockingReasons, []);
   assert.equal(result.executionResult.governance, undefined);
+  assert.equal(result.operatorActionEnvelope, undefined);
+  assert.deepEqual(result.operatorActionSummary, {
+    schemaVersion: "governance-operator-action-summary.v1",
+    present: false,
+    blockingReasons: [],
+    evidenceRefs: [],
+    artifactRefs: []
+  });
   assert.equal(govCalled, false);
 });
