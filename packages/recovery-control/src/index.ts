@@ -153,6 +153,37 @@ export const GovernanceOperatorActionEnvelopeSchema = z.object({
   blockingReasons: z.array(z.string()).default([]),
   evidenceRefs: z.array(z.string()).default([]),
   artifactRefs: z.array(z.string()).default([])
+}).superRefine((value, ctx) => {
+  if (value.trigger === "third_anomaly" && !value.lockdown) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["lockdown"],
+      message: "operator_action_envelope_lockdown_required"
+    });
+  }
+
+  if (
+    (value.trigger === "second_anomaly" ||
+      value.trigger === "third_anomaly" ||
+      value.trigger === "manual") &&
+    !value.requiresHumanApproval
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["requiresHumanApproval"],
+      message: "operator_action_envelope_approval_required"
+    });
+  }
+
+  for (const ref of value.artifactRefs) {
+    if (!isArtifactEvidenceRef(ref) || !value.evidenceRefs.includes(ref)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["artifactRefs"],
+        message: "operator_action_envelope_artifact_refs_must_be_evidence_refs"
+      });
+    }
+  }
 });
 
 export const GovernanceOperatorActionSummarySchema = z.object({

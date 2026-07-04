@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createArbitrationPacket,
   createGovernanceOperatorActionEnvelope,
+  GovernanceOperatorActionEnvelopeSchema,
   GovernanceOperatorActionSummarySchema,
   RecoveryOperatorActionSchema,
   parseArbitrationPacket,
@@ -438,6 +439,44 @@ test("recovery control rejects absent operator summaries with stale fields", () 
       artifactRefs: []
     }),
     /operator_action_summary_absent_forbids_field/
+  );
+});
+
+test("recovery control rejects third-anomaly operator envelopes without lockdown", () => {
+  assert.throws(
+    () => GovernanceOperatorActionEnvelopeSchema.parse({
+      schemaVersion: "governance-operator-action-envelope.v1",
+      source: "desktop_live_governance",
+      taskId: "recovery-task",
+      status: "requires_arbitration",
+      trigger: "third_anomaly",
+      recommendedAction: "fork",
+      requiresHumanApproval: true,
+      lockdown: false,
+      blockingReasons: [],
+      evidenceRefs: ["execution-observation:o1"],
+      artifactRefs: []
+    }),
+    /operator_action_envelope_lockdown_required/
+  );
+});
+
+test("recovery control rejects operator envelope artifact refs outside evidence refs", () => {
+  assert.throws(
+    () => GovernanceOperatorActionEnvelopeSchema.parse({
+      schemaVersion: "governance-operator-action-envelope.v1",
+      source: "execution_governance",
+      taskId: "recovery-task",
+      status: "requires_arbitration",
+      trigger: "first_anomaly",
+      recommendedAction: "resume",
+      requiresHumanApproval: false,
+      lockdown: false,
+      blockingReasons: [],
+      evidenceRefs: ["execution-observation:o1"],
+      artifactRefs: ["artifact:missing-report"]
+    }),
+    /operator_action_envelope_artifact_refs_must_be_evidence_refs/
   );
 });
 
