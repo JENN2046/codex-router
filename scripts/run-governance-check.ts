@@ -375,7 +375,7 @@ Usage:
   npm run governance -- list [--all]
   npm run governance -- tier <daily|pr|release> [--test tests/file.test.ts]
   npm run governance -- audit <name> [args...]
-  npm run governance -- acceptance <name> [args...]
+  npm run governance -- acceptance <name> [--check] [args...]
   npm run governance -- operator <default|readonly|release|telemetry> [args...]
 
 Shortcuts:
@@ -399,6 +399,9 @@ function printList(options: GovernanceCheckListOptions = {}): void {
     console.log(`  ${category}: ${checks[category].join(", ") || "(none)"}`);
   }
   if (!includeArchived) {
+    console.log("");
+    console.log("Current acceptance checks refresh evidence by default when they pass.");
+    console.log("Use `--check` for a no-write local review pass when the check supports it.");
     console.log("");
     console.log("Archived one-off checks are still registered and executable.");
     console.log("Use `npm run governance -- list --all` to show the full historical registry.");

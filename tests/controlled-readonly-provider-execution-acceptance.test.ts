@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { access, mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
+  runControlledReadonlyProviderExecutionAcceptanceCli,
   runControlledReadonlyProviderExecutionAcceptance
 } from "../scripts/run-controlled-readonly-provider-execution-acceptance.js";
 
@@ -34,4 +38,21 @@ test("controlled read-only provider execution acceptance covers permit lifecycle
   assert.ok(evidence.blockingReasons.includes(
     "codex_cli_provider_execution_permit_consumption_store_failed"
   ));
+});
+
+test("controlled read-only provider execution acceptance check mode does not write evidence", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "controlled-readonly-provider-check-"));
+  const evidencePath = join(dir, "evidence.json");
+
+  const result = await runControlledReadonlyProviderExecutionAcceptanceCli([
+    "--check",
+    "--output",
+    evidencePath
+  ]);
+
+  assert.equal(result.checkMode, true);
+  assert.equal(result.evidencePath, undefined);
+  assert.equal(result.evidence.checks.runnerStatusOk, true);
+  assert.equal(result.evidence.counters.realCodexCliCalls, 0);
+  await assert.rejects(access(evidencePath));
 });

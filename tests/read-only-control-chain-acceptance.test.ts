@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   runReadOnlyControlChainAcceptance,
+  runReadOnlyControlChainAcceptanceCli,
   writeReadOnlyControlChainAcceptanceEvidence,
   type ReadOnlyControlChainAcceptanceEvidence
 } from "../scripts/run-readonly-control-chain-acceptance.js";
@@ -72,6 +73,22 @@ test("read-only control chain acceptance writer persists safe json", async () =>
   assert.equal(parsed.checks.dispatchOk, true);
   assert.equal(parsed.checks.leakCheckPassed, true);
   assertSafeEvidence(parsed);
+});
+
+test("read-only control chain acceptance check mode does not write evidence", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "readonly-chain-check-"));
+  const evidencePath = join(dir, "evidence.json");
+
+  const result = await runReadOnlyControlChainAcceptanceCli([
+    "--check",
+    "--output",
+    evidencePath
+  ]);
+
+  assert.equal(result.checkMode, true);
+  assert.equal(result.evidencePath, undefined);
+  assert.equal(result.evidence.checks.dispatchOk, true);
+  await assert.rejects(access(evidencePath));
 });
 
 function assertSafeEvidence(evidence: ReadOnlyControlChainAcceptanceEvidence): void {

@@ -64,6 +64,12 @@ export interface ReadOnlyControlChainAcceptanceOptions {
   commit?: string;
 }
 
+export interface ReadOnlyControlChainAcceptanceCliResult {
+  evidence: ReadOnlyControlChainAcceptanceEvidence;
+  checkMode: boolean;
+  evidencePath?: string;
+}
+
 export async function runReadOnlyControlChainAcceptance(
   options: ReadOnlyControlChainAcceptanceOptions = {}
 ): Promise<ReadOnlyControlChainAcceptanceEvidence> {
@@ -245,6 +251,32 @@ export async function writeReadOnlyControlChainAcceptanceEvidence(
   };
 }
 
+export async function runReadOnlyControlChainAcceptanceCli(
+  args: readonly string[] = process.argv.slice(2)
+): Promise<ReadOnlyControlChainAcceptanceCliResult> {
+  const checkMode = args.includes("--check") || args.includes("--no-write");
+  const outputPath = optionValue(args, "--output") ?? DEFAULT_EVIDENCE_PATH;
+  const evidence = await runReadOnlyControlChainAcceptance();
+
+  if (checkMode) {
+    return {
+      evidence,
+      checkMode
+    };
+  }
+
+  const write = await writeReadOnlyControlChainAcceptanceEvidence(
+    evidence,
+    outputPath
+  );
+
+  return {
+    evidence,
+    checkMode,
+    evidencePath: write.path
+  };
+}
+
 function createReadOnlyAcceptanceTask() {
   return parseTaskEnvelope({
     taskId: "read-only-control-chain-acceptance",
@@ -290,22 +322,19 @@ function containsRawExecutionMarkers(value: unknown): boolean {
 }
 
 async function main(): Promise<void> {
-  const outputIdx = process.argv.indexOf("--output");
-  const outputPath = outputIdx >= 0
-    ? process.argv[outputIdx + 1]!
-    : DEFAULT_EVIDENCE_PATH;
-  const evidence = await runReadOnlyControlChainAcceptance();
-  const write = await writeReadOnlyControlChainAcceptanceEvidence(
-    evidence,
-    outputPath
-  );
+  const result = await runReadOnlyControlChainAcceptanceCli();
+  const { evidence } = result;
 
   console.log("Read-only control chain acceptance");
   console.log(`dispatch ok: ${evidence.checks.dispatchOk}`);
   console.log(`dry run no spawn: ${evidence.checks.dryRunNoSpawn}`);
   console.log(`workspace-write blocked: ${evidence.checks.workspaceWriteBlocked}`);
   console.log(`leak check: ${evidence.checks.leakCheckPassed}`);
-  console.log(`evidence: ${write.path}`);
+  console.log(
+    result.checkMode
+      ? "evidence: not written (--check)"
+      : `evidence: ${result.evidencePath}`
+  );
 
   if (!Object.values(evidence.checks).every(Boolean)) {
     process.exitCode = 1;
@@ -320,4 +349,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     );
     process.exitCode = 1;
   });
+}
+
+function optionValue(args: readonly string[], name: string): string | undefined {
+  const index = args.indexOf(name);
+  if (index < 0) {
+    return undefined;
+  }
+
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`${name} requires a value`);
+  }
+
+  return value;
 }
