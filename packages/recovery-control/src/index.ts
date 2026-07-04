@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { GovernanceState } from "../../state-manager/src/index.js";
 import type { DelegationLevel } from "../../delegation-policy/src/index.js";
@@ -268,6 +269,62 @@ export const GovernanceOperatorActionSummarySchema = z.object({
   }
 });
 
+// ── Host-consumable operator action lifecycle ────────────────────────────────
+
+const GOVERNANCE_OPERATOR_ACTION_REF_PREFIX = "governance-operator-action:";
+const DEFAULT_OPERATOR_ACTION_RECEIPT_MAX_AGE_MS = 15 * 60 * 1000;
+
+export const GovernanceOperatorActionReceiptDecisionSchema = z.enum([
+  "acknowledged",
+  "rejected",
+  "deferred",
+  "consumed"
+]);
+
+export const GovernanceOperatorActionReceiptSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-receipt.v1")
+    .default("governance-operator-action-receipt.v1"),
+  taskId: z.string().min(1),
+  actionRef: z.string().min(1),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  decision: GovernanceOperatorActionReceiptDecisionSchema,
+  operatorIdHash: z.string().regex(/^[a-f0-9]{64}$/),
+  createdAt: z.string().min(1),
+  evidenceRefs: z.array(z.string()).default([])
+});
+
+export const GovernanceOperatorActionReceiptValidationStatusSchema = z.enum([
+  "passed",
+  "blocked"
+]);
+
+export const GovernanceOperatorActionReceiptValidationSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-receipt-validation.v1")
+    .default("governance-operator-action-receipt-validation.v1"),
+  status: GovernanceOperatorActionReceiptValidationStatusSchema,
+  reasons: z.array(z.string()).default([]),
+  taskId: z.string().min(1).optional(),
+  actionRef: z.string().min(1).optional(),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  receipt: GovernanceOperatorActionReceiptSchema.optional()
+}).superRefine((value, ctx) => {
+  if (value.status === "passed" && value.reasons.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reasons"],
+      message: "operator_action_receipt_validation_pass_requires_no_reasons"
+    });
+  }
+
+  if (value.status === "blocked" && value.reasons.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reasons"],
+      message: "operator_action_receipt_validation_block_requires_reasons"
+    });
+  }
+});
+
 // ── Host-consumable operator evidence resolution ───────────────────────────
 
 export const GovernanceOperatorEvidenceResolutionKindSchema = z.enum([
@@ -503,6 +560,12 @@ export type GovernanceOperatorActionEnvelopeInput = z.input<typeof GovernanceOpe
 export type GovernanceOperatorActionEnvelope = z.infer<typeof GovernanceOperatorActionEnvelopeSchema>;
 export type GovernanceOperatorActionSummaryInput = z.input<typeof GovernanceOperatorActionSummarySchema>;
 export type GovernanceOperatorActionSummary = z.infer<typeof GovernanceOperatorActionSummarySchema>;
+export type GovernanceOperatorActionReceiptDecision = z.infer<typeof GovernanceOperatorActionReceiptDecisionSchema>;
+export type GovernanceOperatorActionReceiptInput = z.input<typeof GovernanceOperatorActionReceiptSchema>;
+export type GovernanceOperatorActionReceipt = z.infer<typeof GovernanceOperatorActionReceiptSchema>;
+export type GovernanceOperatorActionReceiptValidationStatus = z.infer<typeof GovernanceOperatorActionReceiptValidationStatusSchema>;
+export type GovernanceOperatorActionReceiptValidationInput = z.input<typeof GovernanceOperatorActionReceiptValidationSchema>;
+export type GovernanceOperatorActionReceiptValidation = z.infer<typeof GovernanceOperatorActionReceiptValidationSchema>;
 export type GovernanceOperatorEvidenceResolutionKind = z.infer<typeof GovernanceOperatorEvidenceResolutionKindSchema>;
 export type GovernanceOperatorEvidenceResolutionStatus = z.infer<typeof GovernanceOperatorEvidenceResolutionStatusSchema>;
 export type GovernanceOperatorObservationEvidenceSummary = z.infer<typeof GovernanceOperatorObservationEvidenceSummarySchema>;
@@ -605,6 +668,119 @@ export function summarizeGovernanceOperatorActionEnvelope(
     blockingReasons: [...envelope.blockingReasons],
     evidenceRefs: [...envelope.evidenceRefs],
     artifactRefs: [...envelope.artifactRefs]
+  });
+}
+
+export function hashGovernanceOperatorActionEnvelope(
+  envelope: GovernanceOperatorActionEnvelopeInput
+): string {
+  return createHash("sha256")
+    .update(stableStringify(GovernanceOperatorActionEnvelopeSchema.parse(envelope)))
+    .digest("hex");
+}
+
+export function createGovernanceOperatorActionRef(
+  envelope: GovernanceOperatorActionEnvelopeInput
+): string {
+  return `${GOVERNANCE_OPERATOR_ACTION_REF_PREFIX}${hashGovernanceOperatorActionEnvelope(envelope)}`;
+}
+
+export function validateGovernanceOperatorActionReceipt(input: {
+  envelope: GovernanceOperatorActionEnvelopeInput;
+  receipt: unknown;
+  now: string | (() => string);
+  maxAgeMs?: number;
+  consumedActionRefs?: string[];
+}): GovernanceOperatorActionReceiptValidation {
+  let envelope: GovernanceOperatorActionEnvelope;
+  try {
+    envelope = GovernanceOperatorActionEnvelopeSchema.parse(input.envelope);
+  } catch {
+    return GovernanceOperatorActionReceiptValidationSchema.parse({
+      status: "blocked",
+      reasons: ["operator_action_receipt_envelope_invalid"]
+    });
+  }
+
+  const envelopeHash = hashGovernanceOperatorActionEnvelope(envelope);
+  const actionRef = `${GOVERNANCE_OPERATOR_ACTION_REF_PREFIX}${envelopeHash}`;
+  let receipt: GovernanceOperatorActionReceipt;
+  try {
+    receipt = GovernanceOperatorActionReceiptSchema.parse(input.receipt);
+  } catch {
+    return GovernanceOperatorActionReceiptValidationSchema.parse({
+      status: "blocked",
+      reasons: ["operator_action_receipt_invalid"],
+      taskId: envelope.taskId,
+      actionRef,
+      envelopeHash
+    });
+  }
+
+  const reasons: string[] = [];
+
+  if (receipt.taskId !== envelope.taskId) {
+    reasons.push("operator_action_receipt_task_mismatch");
+  }
+
+  if (receipt.actionRef !== actionRef) {
+    reasons.push("operator_action_receipt_action_ref_mismatch");
+  }
+
+  if (
+    receipt.envelopeHash !== undefined &&
+    receipt.envelopeHash !== envelopeHash
+  ) {
+    reasons.push("operator_action_receipt_envelope_hash_mismatch");
+  }
+
+  const createdAtMs = Date.parse(receipt.createdAt);
+  const nowValue = typeof input.now === "function" ? input.now() : input.now;
+  const nowMs = Date.parse(nowValue);
+
+  if (!Number.isFinite(createdAtMs)) {
+    reasons.push("operator_action_receipt_created_at_invalid");
+  }
+
+  if (!Number.isFinite(nowMs)) {
+    reasons.push("operator_action_receipt_now_invalid");
+  }
+
+  if (Number.isFinite(createdAtMs) && Number.isFinite(nowMs)) {
+    if (createdAtMs > nowMs) {
+      reasons.push("operator_action_receipt_created_at_after_now");
+    }
+
+    const maxAgeMs =
+      input.maxAgeMs ?? DEFAULT_OPERATOR_ACTION_RECEIPT_MAX_AGE_MS;
+    if (nowMs - createdAtMs > maxAgeMs) {
+      reasons.push("operator_action_receipt_expired");
+    }
+  }
+
+  const consumedActionRefs = input.consumedActionRefs ?? [];
+  if (
+    consumedActionRefs.includes(actionRef) ||
+    consumedActionRefs.includes(receipt.actionRef)
+  ) {
+    reasons.push("operator_action_receipt_replay");
+  }
+
+  if (
+    envelope.lockdown &&
+    receipt.decision !== "consumed" &&
+    receipt.decision !== "rejected"
+  ) {
+    reasons.push("operator_action_receipt_lockdown_requires_resolution");
+  }
+
+  return GovernanceOperatorActionReceiptValidationSchema.parse({
+    status: reasons.length === 0 ? "passed" : "blocked",
+    reasons,
+    taskId: envelope.taskId,
+    actionRef,
+    envelopeHash,
+    receipt
   });
 }
 
@@ -1114,4 +1290,21 @@ function isSafeArtifactId(artifactId: string): boolean {
     && !artifactId.includes("..")
     && !artifactId.includes("/")
     && !artifactId.includes("\\");
+}
+
+function stableStringify(input: unknown): string {
+  if (input === null || typeof input !== "object") {
+    return JSON.stringify(input);
+  }
+
+  if (Array.isArray(input)) {
+    return `[${input.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  const record = input as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .filter((key) => record[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+    .join(",")}}`;
 }
