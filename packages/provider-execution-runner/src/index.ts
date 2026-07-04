@@ -310,6 +310,7 @@ export type ControlledReadOnlyProviderExecutionRunnerResult = {
   executionEvidence?: ControlledReadOnlyExecutionEvidence;
   preflightGovernance?: ControlledReadOnlyProviderPreflightGovernance;
   governance?: ControlledReadOnlyProviderExecutionGovernance;
+  operatorActionEnvelope?: GovernanceOperatorActionEnvelope;
   reportArtifact?: StoredArtifact;
   kernelArtifact?: Artifact;
 };
@@ -339,6 +340,20 @@ export type ControlledReadOnlyProviderPreflightGovernance = {
   arbitrationPacket?: ArbitrationPacket;
   recoveryRecommendation?: RecoveryRecommendation;
   operatorAction?: RecoveryOperatorAction;
+};
+
+export type GovernanceOperatorActionEnvelope = {
+  schemaVersion: "governance-operator-action-envelope.v1";
+  source: "preflight_governance" | "execution_governance";
+  taskId: string;
+  status: RecoveryOperatorAction["status"];
+  trigger: RecoveryOperatorAction["trigger"];
+  recommendedAction: RecoveryOperatorAction["recommendedAction"];
+  requiresHumanApproval: boolean;
+  lockdown: boolean;
+  blockingReasons: string[];
+  evidenceRefs: string[];
+  artifactRefs: string[];
 };
 
 export async function runProviderExecutionPlanDryRun(
@@ -1290,6 +1305,33 @@ function summarizeControlledReadOnlyProviderPreflightGovernance(
   };
 }
 
+function createGovernanceOperatorActionEnvelope(input: {
+  source: GovernanceOperatorActionEnvelope["source"];
+  operatorAction: RecoveryOperatorAction | undefined;
+}): GovernanceOperatorActionEnvelope | undefined {
+  if (input.operatorAction === undefined) {
+    return undefined;
+  }
+
+  return {
+    schemaVersion: "governance-operator-action-envelope.v1",
+    source: input.source,
+    taskId: input.operatorAction.taskId,
+    status: input.operatorAction.status,
+    trigger: input.operatorAction.trigger,
+    recommendedAction: input.operatorAction.recommendedAction,
+    requiresHumanApproval: input.operatorAction.requiresHumanApproval,
+    lockdown: input.operatorAction.lockdown,
+    blockingReasons: [...input.operatorAction.blockingReasons],
+    evidenceRefs: [...input.operatorAction.evidenceRefs],
+    artifactRefs: input.operatorAction.evidenceRefs.filter(isArtifactEvidenceRef)
+  };
+}
+
+function isArtifactEvidenceRef(ref: string): boolean {
+  return ref.startsWith("artifact:") && ref.length > "artifact:".length;
+}
+
 function collectRunnerPreflightReasons(input: {
   mode: unknown;
   providerExecutionPlan: ProviderExecutionPlan;
@@ -1782,6 +1824,15 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       : {}),
     ...(failureClass !== undefined ? { failureClass } : {})
   });
+  const operatorActionEnvelope =
+    createGovernanceOperatorActionEnvelope({
+      source: "preflight_governance",
+      operatorAction: input.preflightGovernance?.operatorAction
+    }) ??
+    createGovernanceOperatorActionEnvelope({
+      source: "execution_governance",
+      operatorAction: governance?.operatorAction
+    });
 
   const completedEvent = appendRunnerEvent(input.input.kernelStore, {
     providerExecutionPlan: input.providerExecutionPlan,
@@ -1815,6 +1866,9 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       ...(governance !== undefined
         ? { governance: summarizeControlledReadOnlyProviderExecutionGovernance(governance) }
         : {}),
+      ...(operatorActionEnvelope !== undefined
+        ? { operatorActionEnvelope }
+        : {}),
       ...(failureClass !== undefined ? { failureClass } : {})
     }
   });
@@ -1840,6 +1894,7 @@ async function finalizeControlledReadOnlyRunnerResult(input: {
       ? { preflightGovernance: input.preflightGovernance }
       : {}),
     ...(governance !== undefined ? { governance } : {}),
+    ...(operatorActionEnvelope !== undefined ? { operatorActionEnvelope } : {}),
     reportArtifact,
     kernelArtifact,
     ...(input.providerAttestation !== undefined

@@ -1669,6 +1669,22 @@ test("provider execution runner exposes operator action on third controlled read
   assert.deepEqual(result.governance.operatorAction.evidenceRefs, [
     artifactEvidenceRef
   ]);
+  assert.deepEqual(result.operatorActionEnvelope, {
+    schemaVersion: "governance-operator-action-envelope.v1",
+    source: "execution_governance",
+    taskId: fixture.task.taskId,
+    status: "requires_arbitration",
+    trigger: "third_anomaly",
+    recommendedAction: "rollback",
+    requiresHumanApproval: true,
+    lockdown: true,
+    blockingReasons: [
+      "governance_step_back_triggered",
+      "arbitration_required"
+    ],
+    evidenceRefs: [artifactEvidenceRef],
+    artifactRefs: [artifactEvidenceRef]
+  });
 });
 
 test("provider execution runner blocks mismatched governance state before provider hooks", async () => {
@@ -1724,6 +1740,7 @@ test("provider execution runner blocks mismatched governance state before provid
   assert.equal(result.status, "blocked");
   assert.equal(result.executeInvoked, false);
   assert.equal(result.governance, undefined);
+  assert.equal(result.operatorActionEnvelope, undefined);
   assert.ok(result.reasons.some((reason) =>
     reason.startsWith("controlled_readonly_provider_governance_state_task_mismatch:")
   ));
@@ -1789,6 +1806,7 @@ test("provider execution runner blocks invalid governance state before provider 
   assert.equal(result.status, "blocked");
   assert.equal(result.executeInvoked, false);
   assert.equal(result.governance, undefined);
+  assert.equal(result.operatorActionEnvelope, undefined);
   assert.ok(result.reasons.includes(
     "controlled_readonly_provider_governance_state_invalid"
   ));
@@ -1863,6 +1881,21 @@ test("provider execution runner blocks governance states requiring step-back bef
   assert.deepEqual(result.preflightGovernance.operatorAction?.blockingReasons, [
     "controlled_readonly_provider_governance_state_strategy_blocked:step_back"
   ]);
+  assert.deepEqual(result.operatorActionEnvelope, {
+    schemaVersion: "governance-operator-action-envelope.v1",
+    source: "preflight_governance",
+    taskId: fixture.task.taskId,
+    status: "requires_arbitration",
+    trigger: "third_anomaly",
+    recommendedAction: "rollback",
+    requiresHumanApproval: true,
+    lockdown: true,
+    blockingReasons: [
+      "controlled_readonly_provider_governance_state_strategy_blocked:step_back"
+    ],
+    evidenceRefs: ["artifact:provider-runner-third-failure-report"],
+    artifactRefs: ["artifact:provider-runner-third-failure-report"]
+  });
   assert.ok(result.reasons.includes(
     "controlled_readonly_provider_governance_state_strategy_blocked:step_back"
   ));
@@ -1871,10 +1904,16 @@ test("provider execution runner blocks governance states requiring step-back bef
       actionFamily?: string;
       operatorAction?: { recommendedAction?: string };
     };
+    operatorActionEnvelope?: { recommendedAction?: string; source?: string };
   };
   assert.equal(completedEventPayload.preflightGovernance?.actionFamily, "step_back");
   assert.equal(
     completedEventPayload.preflightGovernance?.operatorAction?.recommendedAction,
+    "rollback"
+  );
+  assert.equal(completedEventPayload.operatorActionEnvelope?.source, "preflight_governance");
+  assert.equal(
+    completedEventPayload.operatorActionEnvelope?.recommendedAction,
     "rollback"
   );
   assert.deepEqual(calls, {
@@ -1945,6 +1984,7 @@ test("provider execution runner blocks simulate-only governance states before pr
   assert.equal(result.preflightGovernance.recoveryRequired, false);
   assert.equal(result.preflightGovernance.lockdown, false);
   assert.equal(result.preflightGovernance.operatorAction, undefined);
+  assert.equal(result.operatorActionEnvelope, undefined);
   assert.ok(result.reasons.includes(
     "controlled_readonly_provider_governance_state_strategy_blocked:simulate"
   ));
@@ -1954,10 +1994,12 @@ test("provider execution runner blocks simulate-only governance states before pr
       executorBudget?: number;
       operatorAction?: unknown;
     };
+    operatorActionEnvelope?: unknown;
   };
   assert.equal(completedEventPayload.preflightGovernance?.actionFamily, "simulate");
   assert.equal(completedEventPayload.preflightGovernance?.executorBudget, 0);
   assert.equal(completedEventPayload.preflightGovernance?.operatorAction, undefined);
+  assert.equal(completedEventPayload.operatorActionEnvelope, undefined);
   assert.deepEqual(calls, {
     planExecution: 0,
     validateExecutionPlan: 0,
