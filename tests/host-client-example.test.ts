@@ -235,6 +235,16 @@ test("example host client exposes runtime governance operator action", async () 
   assert.equal(result.executionResult.governance?.operatorAction?.lockdown, true);
   assert.equal(result.executionResult.governance?.operatorAction?.evidenceStatus, "referenced");
   assert.ok(result.executionResult.governance?.operatorAction?.evidenceRefs.includes(ref));
+  assert.equal(result.operatorActionEnvelope?.source, "desktop_live_governance");
+  assert.equal(result.operatorActionEnvelope?.taskId, task.taskId);
+  assert.equal(result.operatorActionEnvelope?.recommendedAction, "fork");
+  assert.equal(result.operatorActionEnvelope?.lockdown, true);
+  assert.ok(result.operatorActionEnvelope?.evidenceRefs.includes(ref));
+  assert.equal(result.operatorActionSummary.present, true);
+  assert.equal(result.operatorActionSummary.source, "desktop_live_governance");
+  assert.equal(result.operatorActionSummary.recommendedAction, "fork");
+  assert.equal(result.operatorActionSummary.requiresHumanApproval, true);
+  assert.equal(result.operatorActionSummary.lockdown, true);
   assert.ok(governanceUpdates.some((update) => update.strategy.actionFamily === "step_back"));
 });
 

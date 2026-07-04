@@ -42,9 +42,13 @@ import {
 } from "../../state-manager/src/index.js";
 import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
 import {
+  createGovernanceOperatorActionEnvelope,
   createRecoveryOperatorAction,
   shouldLockdown,
+  summarizeGovernanceOperatorActionEnvelope,
   type ArbitrationPacket,
+  type GovernanceOperatorActionEnvelope,
+  type GovernanceOperatorActionSummary,
   type RecoveryOperatorAction,
   type RecoveryAction,
   type RecoveryRecommendation
@@ -177,6 +181,8 @@ export interface ResumeDesktopTaskInput extends DesktopDecisionResumeInput {
 export interface RunDesktopTaskResult {
   decisionResult: DesktopDecisionRunnerResult;
   executionResult: DesktopLiveExecutionResult;
+  operatorActionEnvelope?: GovernanceOperatorActionEnvelope;
+  operatorActionSummary: GovernanceOperatorActionSummary;
   hostDispatch?: HostDispatcherResult;
 }
 
@@ -257,10 +263,10 @@ async function executeDesktopTaskFromDecision(
 
   const telemetryGate = await gateTelemetry(decisionResult, executionCommonInput);
   if (telemetryGate) {
-    return {
+    return createRunDesktopTaskResult({
       decisionResult,
       executionResult: telemetryGate
-    };
+    });
   }
 
   if (decisionResult.status !== "ready") {
@@ -270,10 +276,10 @@ async function executeDesktopTaskFromDecision(
       ...(input.stopOnFailure !== undefined ? { stopOnFailure: input.stopOnFailure } : {})
     });
 
-    return {
+    return createRunDesktopTaskResult({
       decisionResult,
       executionResult
-    };
+    });
   }
 
   if (decisionResult.status === "ready" && decisionResult.decision.hostRoute === "codex-cli") {
@@ -293,11 +299,11 @@ async function executeDesktopTaskFromDecision(
       ...(input.onGovernanceUpdate !== undefined ? { onGovernanceUpdate: input.onGovernanceUpdate } : {})
     });
 
-    return {
+    return createRunDesktopTaskResult({
       decisionResult,
       executionResult,
       hostDispatch
-    };
+    });
   }
 
   const handlers = resolvePrimitiveHandlers(input.handlers, input.bridge);
@@ -317,9 +323,33 @@ async function executeDesktopTaskFromDecision(
 
   const executionResult = await executeDesktopPlan(adapterInput);
 
-  return {
+  return createRunDesktopTaskResult({
     decisionResult,
     executionResult
+  });
+}
+
+function createRunDesktopTaskResult(input: {
+  decisionResult: DesktopDecisionRunnerResult;
+  executionResult: DesktopLiveExecutionResult;
+  hostDispatch?: HostDispatcherResult;
+}): RunDesktopTaskResult {
+  const operatorActionEnvelope = createGovernanceOperatorActionEnvelope({
+    source: input.hostDispatch === undefined
+      ? "desktop_live_governance"
+      : "host_dispatch_governance",
+    operatorAction: input.executionResult.governance?.operatorAction
+  });
+  const operatorActionSummary = summarizeGovernanceOperatorActionEnvelope(
+    operatorActionEnvelope
+  );
+
+  return {
+    decisionResult: input.decisionResult,
+    executionResult: input.executionResult,
+    ...(operatorActionEnvelope !== undefined ? { operatorActionEnvelope } : {}),
+    operatorActionSummary,
+    ...(input.hostDispatch !== undefined ? { hostDispatch: input.hostDispatch } : {})
   };
 }
 
