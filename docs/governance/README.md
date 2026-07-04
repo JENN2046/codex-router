@@ -61,6 +61,10 @@ as historical evidence unless a current authority document links them.
 - [PR-23E workspace-write fake canary v2](PR_23E_WORKSPACE_WRITE_FAKE_CANARY_V2.md):
   current fake-canary line using permit v2, patch guard, rollback evidence, and
   replay blocking without real workspace-write execution.
+- [Phase 7 runtime operator actionability closeout](PHASE_7_RUNTIME_OPERATOR_ACTIONABILITY_CLOSEOUT.md):
+  current closeout for preflight governance blocks, operator action envelopes,
+  summaries, host-client surfaces, and sanitized evidence resolution; this is
+  not recovery-action execution authorization.
 
 ## Runner Entry Points
 
