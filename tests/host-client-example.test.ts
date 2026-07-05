@@ -29,6 +29,15 @@ import {
   createExampleDesktopHostClient,
   createFailingExampleHostBridge
 } from "../packages/host-client-example/src/index.js";
+import {
+  createGovernanceOperatorActionReceiptId,
+  createGovernanceOperatorActionRef,
+  createInMemoryGovernanceOperatorActionReceiptStore,
+  GovernanceOperatorActionReceiptSchema,
+  hashGovernanceOperatorActionEnvelope,
+  type GovernanceOperatorActionEnvelope,
+  type GovernanceOperatorActionReceiptInput
+} from "../packages/recovery-control/src/index.js";
 import type { GovernanceState } from "../packages/state-manager/src/index.js";
 import type { StrategyDecisionV2 } from "../packages/strategy-router/src/index.js";
 
@@ -148,6 +157,31 @@ function createHighRiskStateWithTwoExecutionFailures(taskId: string): Governance
   };
 }
 
+function createReceiptForEnvelope(
+  envelope: GovernanceOperatorActionEnvelope,
+  overrides: Partial<GovernanceOperatorActionReceiptInput> = {}
+) {
+  const actionIssuedAt = typeof overrides.actionIssuedAt === "string"
+    ? overrides.actionIssuedAt
+    : "2026-04-28T12:00:10.000Z";
+  const receiptWithoutId = {
+    taskId: envelope.taskId,
+    actionRef: createGovernanceOperatorActionRef(envelope, { actionIssuedAt }),
+    envelopeHash: hashGovernanceOperatorActionEnvelope(envelope),
+    actionIssuedAt,
+    decision: "consumed" as const,
+    operatorIdHash: "a".repeat(64),
+    createdAt: "2026-04-28T12:00:20.000Z",
+    evidenceRefs: [...envelope.evidenceRefs],
+    ...overrides
+  };
+
+  return GovernanceOperatorActionReceiptSchema.parse({
+    receiptId: createGovernanceOperatorActionReceiptId(receiptWithoutId),
+    ...receiptWithoutId
+  });
+}
+
 function anomalyCount(state: GovernanceState | undefined): number {
   assert.ok(state);
   return state.anomalies.length;
@@ -246,6 +280,59 @@ test("example host client exposes runtime governance operator action", async () 
   assert.equal(result.operatorActionSummary.requiresHumanApproval, true);
   assert.equal(result.operatorActionSummary.lockdown, true);
   assert.ok(governanceUpdates.some((update) => update.strategy.actionFamily === "step_back"));
+});
+
+test("example host client consumes operator action receipts through an injected store", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const task: TaskEnvelopeInput = {
+    taskId: "example-governance-receipt-consume",
+    source: "desktop-thread",
+    intent: {
+      summary: "implement host client recovery integration",
+      requestedAction: "add multi-file TypeScript host recovery integration changes",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: {
+      branches: [],
+      files: ["packages/host-client-example/src/index.ts"],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: []
+    }
+  };
+  const client = createExampleDesktopHostClient({
+    policy,
+    bridge: createFailingExampleHostBridge("send_input", "example_governance_receipt_failure"),
+    availableAgents: 3,
+    operatorActionReceiptStore: store,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  assert.ok(result.operatorActionEnvelope);
+  const actionIssuedAt = "2026-04-28T12:00:10.000Z";
+  const receipt = createReceiptForEnvelope(result.operatorActionEnvelope, {
+    actionIssuedAt
+  });
+
+  const consumed = await client.consumeOperatorActionReceipt({
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-28T12:00:30.000Z"
+  });
+  const stored = await store.findByActionRef(receipt.actionRef);
+
+  assert.equal(consumed.status, "passed");
+  assert.equal(consumed.durable, true);
+  assert.equal(stored[0]?.receiptId, receipt.receiptId);
 });
 
 test("example host client persists updated governance state between run and resume", async () => {

@@ -22,6 +22,16 @@ import {
 } from "../packages/execution-observation/src/index.js";
 import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
+import {
+  createGovernanceOperatorActionReceiptId,
+  createGovernanceOperatorActionRef,
+  createInMemoryGovernanceOperatorActionReceiptStore,
+  GovernanceOperatorActionReceiptSchema,
+  hashGovernanceOperatorActionEnvelope,
+  type GovernanceOperatorActionEnvelope,
+  type GovernanceOperatorActionReceiptInput,
+  type GovernanceOperatorActionReceiptStore
+} from "../packages/recovery-control/src/index.js";
 import type { GovernanceState } from "../packages/state-manager/src/index.js";
 import type { StrategyDecisionV2 } from "../packages/strategy-router/src/index.js";
 import type {
@@ -267,6 +277,31 @@ function createHighRiskStateWithTwoExecutionFailures(taskId: string): Governance
   };
 }
 
+function createReceiptForEnvelope(
+  envelope: GovernanceOperatorActionEnvelope,
+  overrides: Partial<GovernanceOperatorActionReceiptInput> = {}
+) {
+  const actionIssuedAt = typeof overrides.actionIssuedAt === "string"
+    ? overrides.actionIssuedAt
+    : "2026-04-28T12:00:10.000Z";
+  const receiptWithoutId = {
+    taskId: envelope.taskId,
+    actionRef: createGovernanceOperatorActionRef(envelope, { actionIssuedAt }),
+    envelopeHash: hashGovernanceOperatorActionEnvelope(envelope),
+    actionIssuedAt,
+    decision: "consumed" as const,
+    operatorIdHash: "a".repeat(64),
+    createdAt: "2026-04-28T12:00:20.000Z",
+    evidenceRefs: [...envelope.evidenceRefs],
+    ...overrides
+  };
+
+  return GovernanceOperatorActionReceiptSchema.parse({
+    receiptId: createGovernanceOperatorActionReceiptId(receiptWithoutId),
+    ...receiptWithoutId
+  });
+}
+
 function anomalyCount(state: GovernanceState | undefined): number {
   assert.ok(state);
   return state.anomalies.length;
@@ -434,6 +469,306 @@ test("desktop host client passes governance inputs and returns operator recovery
   assert.equal(result.operatorActionSummary.requiresHumanApproval, true);
   assert.equal(result.operatorActionSummary.lockdown, true);
   assert.ok(governanceUpdates.some((update) => update.strategy.actionFamily === "step_back"));
+});
+
+test("desktop host client durably consumes operator action receipts", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const task = createEngineeringTask("desktop-host-receipt-consume");
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: {
+      ...createHostBindings(),
+      read_thread_terminal() {
+        return createPrimitiveFailureEnvelope(
+          "read_thread_terminal",
+          "desktop_host_receipt_failure"
+        );
+      }
+    },
+    availableAgents: 2,
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
+    operatorActionReceiptStore: store,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  assert.ok(result.operatorActionEnvelope);
+  const actionIssuedAt = "2026-04-28T12:00:10.000Z";
+  const receipt = createReceiptForEnvelope(result.operatorActionEnvelope, {
+    actionIssuedAt
+  });
+
+  const consumed = await client.consumeOperatorActionReceipt({
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-28T12:00:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+  const storedByAction = await store.findByActionRef(receipt.actionRef);
+
+  assert.equal(consumed.status, "passed");
+  assert.equal(consumed.durable, true);
+  assert.deepEqual(consumed.reasons, []);
+  assert.equal(consumed.receipt?.receiptId, receipt.receiptId);
+  assert.equal(storedByAction[0]?.receiptId, receipt.receiptId);
+});
+
+test("desktop host client blocks replayed operator action receipts", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const task = createEngineeringTask("desktop-host-receipt-replay");
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: {
+      ...createHostBindings(),
+      read_thread_terminal() {
+        return createPrimitiveFailureEnvelope(
+          "read_thread_terminal",
+          "desktop_host_receipt_replay_failure"
+        );
+      }
+    },
+    availableAgents: 2,
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
+    operatorActionReceiptStore: store,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  assert.ok(result.operatorActionEnvelope);
+  const actionIssuedAt = "2026-04-28T12:00:10.000Z";
+  const receipt = createReceiptForEnvelope(result.operatorActionEnvelope, {
+    actionIssuedAt
+  });
+
+  await client.consumeOperatorActionReceipt({
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-28T12:00:30.000Z"
+  });
+  const replay = await client.consumeOperatorActionReceipt({
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-28T12:00:40.000Z"
+  });
+
+  assert.equal(replay.status, "blocked");
+  assert.equal(replay.durable, false);
+  assert.ok(replay.reasons.includes("operator_action_receipt_replay"));
+});
+
+test("desktop host client blocks task-mismatched operator action receipts", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const task = createEngineeringTask("desktop-host-receipt-task");
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: {
+      ...createHostBindings(),
+      read_thread_terminal() {
+        return createPrimitiveFailureEnvelope(
+          "read_thread_terminal",
+          "desktop_host_receipt_task_failure"
+        );
+      }
+    },
+    availableAgents: 2,
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
+    operatorActionReceiptStore: store,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  assert.ok(result.operatorActionEnvelope);
+  const actionIssuedAt = "2026-04-28T12:00:10.000Z";
+  const receipt = createReceiptForEnvelope(result.operatorActionEnvelope, {
+    actionIssuedAt,
+    taskId: "other-task"
+  });
+
+  const consumed = await client.consumeOperatorActionReceipt({
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-28T12:00:30.000Z"
+  });
+
+  assert.equal(consumed.status, "blocked");
+  assert.equal(consumed.durable, false);
+  assert.ok(consumed.reasons.includes("operator_action_receipt_task_mismatch"));
+});
+
+test("desktop host client fails closed when receipt stores fail", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const failingStore: GovernanceOperatorActionReceiptStore = {
+    async consume() {
+      throw new Error("receipt_store_unavailable");
+    },
+    async getReceipt() {
+      return undefined;
+    },
+    async findByTaskId() {
+      return [];
+    },
+    async findByActionRef() {
+      return [];
+    },
+    async loadAll() {
+      return [];
+    }
+  };
+  const task = createEngineeringTask("desktop-host-receipt-store-fail");
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: {
+      ...createHostBindings(),
+      read_thread_terminal() {
+        return createPrimitiveFailureEnvelope(
+          "read_thread_terminal",
+          "desktop_host_receipt_store_failure"
+        );
+      }
+    },
+    availableAgents: 2,
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
+    operatorActionReceiptStore: failingStore,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  assert.ok(result.operatorActionEnvelope);
+  const actionIssuedAt = "2026-04-28T12:00:10.000Z";
+  const receipt = createReceiptForEnvelope(result.operatorActionEnvelope, {
+    actionIssuedAt
+  });
+
+  const consumed = await client.consumeOperatorActionReceipt({
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-28T12:00:30.000Z"
+  });
+
+  assert.equal(consumed.status, "blocked");
+  assert.equal(consumed.durable, false);
+  assert.ok(consumed.reasons.includes("operator_action_receipt_store_failed"));
+});
+
+test("desktop host client reports valid receipts as not consumed without a store", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const task = createEngineeringTask("desktop-host-receipt-no-store");
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: {
+      ...createHostBindings(),
+      read_thread_terminal() {
+        return createPrimitiveFailureEnvelope(
+          "read_thread_terminal",
+          "desktop_host_receipt_no_store_failure"
+        );
+      }
+    },
+    availableAgents: 2,
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  assert.ok(result.operatorActionEnvelope);
+  const actionIssuedAt = "2026-04-28T12:00:10.000Z";
+  const receipt = createReceiptForEnvelope(result.operatorActionEnvelope, {
+    actionIssuedAt
+  });
+
+  const consumed = await client.consumeOperatorActionReceipt({
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-28T12:00:30.000Z"
+  });
+
+  assert.equal(consumed.status, "not_consumed");
+  assert.equal(consumed.durable, false);
+  assert.deepEqual(consumed.reasons, ["operator_action_receipt_store_missing"]);
+  assert.equal(consumed.validation.status, "passed");
 });
 
 test("desktop host client persists updated governance state between run and resume", async () => {

@@ -19,13 +19,21 @@ import type { TelemetrySink } from "../../observability/src/index.js";
 import type { PolicySnapshot } from "../../policy-config/src/index.js";
 import type { PreflightContext } from "../../preflight/src/index.js";
 import {
+  consumeDesktopOperatorActionReceipt,
   createHostBridgeFromBindings,
   resumeDesktopTask,
   runDesktopTask,
+  type DesktopOperatorActionReceiptConsumption,
   type DesktopHostBindings,
   type DesktopHostBridge,
+  type ConsumeDesktopOperatorActionReceiptInput,
   type RunDesktopTaskResult
 } from "../../desktop-live-adapter/src/index.js";
+import type {
+  GovernanceOperatorActionEnvelope,
+  GovernanceOperatorActionEnvelopeInput,
+  GovernanceOperatorActionReceiptStore
+} from "../../recovery-control/src/index.js";
 
 export interface DesktopHostClientPersistence {
   checkpointStore?: CheckpointStore & Partial<CheckpointLookup>;
@@ -46,6 +54,7 @@ export interface DesktopHostClientOptions {
   availableAgents?: number;
   stopOnFailure?: boolean;
   observationBus?: ExecutionObservationBus;
+  operatorActionReceiptStore?: GovernanceOperatorActionReceiptStore;
   governanceState?: GovernanceState;
   onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
   now?: () => string;
@@ -59,9 +68,18 @@ export interface DesktopHostResumeOptions {
   checkpointStore?: CheckpointLookup;
 }
 
+export interface DesktopHostOperatorActionReceiptInput {
+  envelope?: GovernanceOperatorActionEnvelopeInput;
+  receipt: unknown;
+  actionIssuedAt?: string | (() => string);
+  now?: string | (() => string);
+  maxActionAgeMs?: number;
+}
+
 export class DesktopHostClient {
   readonly bridge: DesktopHostBridge;
   private currentGovernanceState: GovernanceState | undefined;
+  private currentOperatorActionEnvelope: GovernanceOperatorActionEnvelope | undefined;
 
   constructor(private readonly options: DesktopHostClientOptions) {
     this.bridge = resolveHostBridge(options);
@@ -69,7 +87,7 @@ export class DesktopHostClient {
   }
 
   async run(task: TaskEnvelopeInput): Promise<RunDesktopTaskResult> {
-    return runDesktopTask({
+    const result = await runDesktopTask({
       task,
       policy: this.options.policy,
       preflight: this.options.preflight,
@@ -92,6 +110,9 @@ export class DesktopHostClient {
       ...this.buildGovernanceForwarding(),
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
     });
+
+    this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
+    return result;
   }
 
   async resume(
@@ -110,7 +131,7 @@ export class DesktopHostClient {
         : {})
     };
 
-    return resumeDesktopTask({
+    const result = await resumeDesktopTask({
       task,
       policy: this.options.policy,
       preflight: this.options.preflight,
@@ -134,6 +155,31 @@ export class DesktopHostClient {
       ...(hasResumeConfig(resume) ? { resume } : {}),
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
     });
+
+    this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
+    return result;
+  }
+
+  async consumeOperatorActionReceipt(
+    input: DesktopHostOperatorActionReceiptInput
+  ): Promise<DesktopOperatorActionReceiptConsumption> {
+    const envelope = input.envelope ?? this.currentOperatorActionEnvelope;
+    if (envelope === undefined) {
+      return createMissingOperatorActionEnvelopeConsumption();
+    }
+
+    const consumeInput: ConsumeDesktopOperatorActionReceiptInput = {
+      ...(this.options.operatorActionReceiptStore !== undefined
+        ? { store: this.options.operatorActionReceiptStore }
+        : {}),
+      envelope,
+      receipt: input.receipt,
+      ...(input.actionIssuedAt !== undefined ? { actionIssuedAt: input.actionIssuedAt } : {}),
+      now: input.now ?? this.options.now ?? (() => new Date().toISOString()),
+      ...(input.maxActionAgeMs !== undefined ? { maxActionAgeMs: input.maxActionAgeMs } : {})
+    };
+
+    return consumeDesktopOperatorActionReceipt(consumeInput);
   }
 
   private buildGovernanceForwarding(): {
@@ -159,6 +205,20 @@ export class DesktopHostClient {
       }
     };
   }
+}
+
+function createMissingOperatorActionEnvelopeConsumption(): DesktopOperatorActionReceiptConsumption {
+  return {
+    schemaVersion: "desktop-operator-action-receipt-consumption.v1",
+    status: "blocked",
+    durable: false,
+    reasons: ["operator_action_receipt_envelope_missing"],
+    validation: {
+      schemaVersion: "governance-operator-action-receipt-validation.v1",
+      status: "blocked",
+      reasons: ["operator_action_receipt_envelope_missing"]
+    }
+  };
 }
 
 export function createDesktopHostClient(
