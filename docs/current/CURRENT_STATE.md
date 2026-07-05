@@ -82,6 +82,8 @@ Current repository governance status:
 - Phase 8 operator action lifecycle receipt validation and receipt-store
   primitives are closed out in
   `docs/governance/PHASE_8_OPERATOR_ACTION_LIFECYCLE_CLOSEOUT.md`.
+- Phase 9 operator action host lifecycle integration is closed out in
+  `docs/governance/PHASE_9_OPERATOR_ACTION_HOST_LIFECYCLE_CLOSEOUT.md`.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -180,6 +182,10 @@ The Phase 8 operator action lifecycle closeout is recorded at
 operator action receipts, expiry, replay blocking, durable receipt-store
 primitives, and lockdown receipt policy without executing the recommended
 action.
+The Phase 9 operator action host lifecycle closeout is recorded at
+`docs/governance/PHASE_9_OPERATOR_ACTION_HOST_LIFECYCLE_CLOSEOUT.md`; it wires
+receipt consumption, receipt authoring, and current lifecycle state into host
+clients without authorizing recovery execution.
 
 Boundary audit marker:
 
