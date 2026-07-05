@@ -791,6 +791,33 @@ test("recovery control file receipt store serializes concurrent consume attempts
   );
 });
 
+test("recovery control file receipt store serializes concurrent consume attempts across instances", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-router-operator-receipts-cross-instance-"));
+  const stores = Array.from({ length: 8 }, () =>
+    createFileGovernanceOperatorActionReceiptStore({ basePath: dir })
+  );
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+
+  const results = await Promise.all(
+    stores.map((store) => store.consume(receipt))
+  );
+
+  assert.equal(
+    results.filter((result) => result.status === "stored").length,
+    1
+  );
+  assert.equal(
+    results.filter((result) => result.status === "replay").length,
+    stores.length - 1
+  );
+  assert.deepEqual(
+    (await stores[0]!.loadAll()).map((item) => item.receiptId),
+    [receipt.receiptId]
+  );
+});
+
 test("recovery control does not store invalid operator action receipts", async () => {
   const store = createInMemoryGovernanceOperatorActionReceiptStore();
   const envelope = createTestOperatorActionEnvelope();

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 import { z } from "zod";
 import type { GovernanceState } from "../../state-manager/src/index.js";
 import type { DelegationLevel } from "../../delegation-policy/src/index.js";
@@ -995,26 +995,47 @@ export interface FileGovernanceOperatorActionReceiptStoreOptions {
   basePath: string;
 }
 
+const fileReceiptConsumeQueues = new Map<string, Promise<void>>();
+
+async function withFileReceiptConsumeLock<T>(
+  lockKey: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const previous = fileReceiptConsumeQueues.get(lockKey) ?? Promise.resolve();
+  let release: () => void = () => undefined;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const next = previous.catch(() => undefined).then(() => current);
+  fileReceiptConsumeQueues.set(lockKey, next);
+
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (fileReceiptConsumeQueues.get(lockKey) === next) {
+      fileReceiptConsumeQueues.delete(lockKey);
+    }
+  }
+}
+
 export class FileGovernanceOperatorActionReceiptStore
   implements GovernanceOperatorActionReceiptStore {
   private readonly basePath: string;
-  private consumeQueue: Promise<void> = Promise.resolve();
+  private readonly lockKey: string;
 
   constructor(options: FileGovernanceOperatorActionReceiptStoreOptions) {
     this.basePath = options.basePath;
+    this.lockKey = resolvePath(options.basePath);
   }
 
   async consume(
     receiptInput: GovernanceOperatorActionReceiptInput
   ): Promise<GovernanceOperatorActionReceiptStoreConsumeResult> {
-    const consumeAttempt = this.consumeQueue.then(() =>
+    return withFileReceiptConsumeLock(this.lockKey, () =>
       this.consumeExclusive(receiptInput)
     );
-    this.consumeQueue = consumeAttempt.then(
-      () => undefined,
-      () => undefined
-    );
-    return consumeAttempt;
   }
 
   private async consumeExclusive(
