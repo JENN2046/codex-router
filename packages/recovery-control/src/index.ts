@@ -998,12 +998,26 @@ export interface FileGovernanceOperatorActionReceiptStoreOptions {
 export class FileGovernanceOperatorActionReceiptStore
   implements GovernanceOperatorActionReceiptStore {
   private readonly basePath: string;
+  private consumeQueue: Promise<void> = Promise.resolve();
 
   constructor(options: FileGovernanceOperatorActionReceiptStoreOptions) {
     this.basePath = options.basePath;
   }
 
   async consume(
+    receiptInput: GovernanceOperatorActionReceiptInput
+  ): Promise<GovernanceOperatorActionReceiptStoreConsumeResult> {
+    const consumeAttempt = this.consumeQueue.then(() =>
+      this.consumeExclusive(receiptInput)
+    );
+    this.consumeQueue = consumeAttempt.then(
+      () => undefined,
+      () => undefined
+    );
+    return consumeAttempt;
+  }
+
+  private async consumeExclusive(
     receiptInput: GovernanceOperatorActionReceiptInput
   ): Promise<GovernanceOperatorActionReceiptStoreConsumeResult> {
     const receipt = parseReceiptForStore(receiptInput);

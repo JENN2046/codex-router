@@ -769,6 +769,28 @@ test("recovery control file receipt store keeps sanitized task paths task-scoped
   );
 });
 
+test("recovery control file receipt store serializes concurrent consume attempts", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-router-operator-receipts-race-"));
+  const store = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+
+  const results = await Promise.all([
+    store.consume(receipt),
+    store.consume(receipt)
+  ]);
+
+  assert.deepEqual(
+    results.map((result) => result.status).sort(),
+    ["replay", "stored"]
+  );
+  assert.deepEqual(
+    (await store.loadAll()).map((item) => item.receiptId),
+    [receipt.receiptId]
+  );
+});
+
 test("recovery control does not store invalid operator action receipts", async () => {
   const store = createInMemoryGovernanceOperatorActionReceiptStore();
   const envelope = createTestOperatorActionEnvelope();
