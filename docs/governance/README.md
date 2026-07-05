@@ -100,6 +100,10 @@ as historical evidence unless a current authority document links them.
   current boundary for host-provided / agent-backed recovery executor semantics
   and the sandbox-only reference executor contract proof; this is not
   production recovery execution authorization.
+- [Phase 14 agent executor receipt contract](PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT.md):
+  current boundary for executor receipt status normalization across
+  `accepted`, `running`, `completed`, `failed`, `refused`, and `aborted`;
+  this is not real recovery-action execution authorization.
 
 ## Runner Entry Points
 

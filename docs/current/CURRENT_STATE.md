@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `11b7bcdd1883ec1820d2b06b36d17ff2cfa6531da308f9962ff786236814412d`
+  `4a10808f742318221d9ca12c095271c08de613b0db817d1121f75d514dae3b4d`
 
 Source digest excluded paths:
 
@@ -111,6 +111,11 @@ Current repository governance status:
   host-provided / agent-backed executor semantics and a sandbox-only reference
   executor contract proof exist, but production recovery execution remains
   outside this repository.
+- Phase 14 agent executor receipt contract is recorded in
+  `docs/governance/PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT.md`; injected
+  executor receipt statuses can now be normalized as `accepted`, `running`,
+  `completed`, `failed`, `refused`, or `aborted` without authorizing real
+  recovery execution.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -247,6 +252,11 @@ it defines host-provided / agent-backed executor semantics and a sandbox-only
 reference executor contract proof without adding production recovery logic,
 Codex CLI execution, provider execution, shell execution, external writes, or
 arbitrary workspace-write.
+The Phase 14 agent executor receipt contract is recorded at
+`docs/governance/PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT.md`; it normalizes
+injected executor receipt statuses and stable reason codes without adding a
+Codex CLI adapter, provider adapter, shell/process executor, external write,
+workspace-write, or production recovery execution.
 
 Boundary audit marker:
 
@@ -257,6 +267,7 @@ Boundary audit marker:
 - `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK_RECORDED`
 - `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT_RECORDED`
 - `PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY_RECORDED`
+- `PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT_RECORDED`
 
 Blocked capabilities:
 
