@@ -298,6 +298,12 @@ const GOVERNANCE_OPERATOR_ACTION_REF_PREFIX = "governance-operator-action:";
 const GOVERNANCE_OPERATOR_ACTION_RECEIPT_ID_PREFIX =
   "governance-operator-action-receipt:";
 const DEFAULT_OPERATOR_ACTION_MAX_AGE_MS = 15 * 60 * 1000;
+const GovernanceOperatorSanitizedRefSchema = z.string().min(1).max(256).refine(
+  (value) =>
+    !/[\r\n]/.test(value) &&
+    !/(?:-----BEGIN|PRIVATE KEY|secret|token|password|api[_-]?key)/i.test(value),
+  { message: "operator_action_ref_unsafe" }
+);
 
 export const GovernanceOperatorActionReceiptDecisionSchema = z.enum([
   "acknowledged",
@@ -591,6 +597,138 @@ export const GovernanceOperatorActionExecutionGateResultSchema = z.object({
   }
 });
 
+// ── Non-executing host executor authorization boundary ─────────────────────
+
+export const GovernanceOperatorActionHostExecutorDescriptorSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-host-executor-descriptor.v1")
+    .default("governance-operator-action-host-executor-descriptor.v1"),
+  descriptorId: z.string().min(1),
+  descriptorKind: z.literal("injected_host_executor").default("injected_host_executor"),
+  executionMode: z.literal("review_only").default("review_only"),
+  sideEffectBoundary: z.literal("recovery_action_review")
+    .default("recovery_action_review"),
+  dispatchSupported: z.literal(false).default(false),
+  supportedActions: z.array(RecoveryActionSchema).min(1),
+  evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+}).superRefine((value, ctx) => {
+  if (new Set(value.supportedActions).size !== value.supportedActions.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["supportedActions"],
+      message: "operator_action_host_executor_descriptor_duplicate_actions"
+    });
+  }
+});
+
+export const GovernanceOperatorActionHostExecutorAuthorizationPacketSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-host-executor-authorization-packet.v1")
+    .default("governance-operator-action-host-executor-authorization-packet.v1"),
+  taskId: z.string().min(1),
+  actionRef: z.string().min(1),
+  receiptId: z.string().min(1),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+  recommendedAction: RecoveryActionSchema,
+  executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+  checkpointRef: z.string().min(1).optional(),
+  hostExecutorDescriptorId: z.string().min(1),
+  hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+  authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+  evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+}).superRefine((value, ctx) => {
+  if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_host_executor_authorization_checkpoint_required"
+    });
+  }
+
+  if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_host_executor_authorization_checkpoint_not_allowed"
+    });
+  }
+});
+
+export const GovernanceOperatorActionHostExecutorAuthorizationResultSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-host-executor-authorization.v1")
+    .default("governance-operator-action-host-executor-authorization.v1"),
+  status: z.enum(["ready_for_host_executor_review", "blocked"]),
+  reasons: z.array(z.string()).default([]),
+  taskId: z.string().min(1).optional(),
+  actionRef: z.string().min(1).optional(),
+  receiptId: z.string().min(1).optional(),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  recommendedAction: RecoveryActionSchema.optional(),
+  executionMode: GovernanceOperatorActionExecutionModeSchema.optional(),
+  executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  checkpointRef: z.string().min(1).optional(),
+  hostExecutorDescriptorId: z.string().min(1).optional(),
+  hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+  operatorInstruction: z.string().min(1).optional()
+}).superRefine((value, ctx) => {
+  if (value.status === "ready_for_host_executor_review") {
+    if (value.reasons.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reasons"],
+        message: "operator_action_host_executor_ready_requires_no_reasons"
+      });
+    }
+
+    for (const field of [
+      "taskId",
+      "actionRef",
+      "receiptId",
+      "envelopeHash",
+      "recommendedAction",
+      "executionMode",
+      "executionPlanHash",
+      "hostExecutorDescriptorId",
+      "hostExecutorDescriptorHash",
+      "authorizationIdentityHash",
+      "operatorInstruction"
+    ] as const) {
+      if (value[field] === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: "operator_action_host_executor_ready_requires_field"
+        });
+      }
+    }
+
+    if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_host_executor_ready_checkpoint_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_host_executor_ready_checkpoint_not_allowed"
+      });
+    }
+    return;
+  }
+
+  if (value.reasons.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reasons"],
+      message: "operator_action_host_executor_block_requires_reasons"
+    });
+  }
+});
+
 // ── Host-consumable operator evidence resolution ───────────────────────────
 
 export const GovernanceOperatorEvidenceResolutionKindSchema = z.enum([
@@ -847,6 +985,12 @@ export type GovernanceOperatorActionExecutionPlanInput = z.input<typeof Governan
 export type GovernanceOperatorActionExecutionPlan = z.infer<typeof GovernanceOperatorActionExecutionPlanSchema>;
 export type GovernanceOperatorActionExecutionGateResultInput = z.input<typeof GovernanceOperatorActionExecutionGateResultSchema>;
 export type GovernanceOperatorActionExecutionGateResult = z.infer<typeof GovernanceOperatorActionExecutionGateResultSchema>;
+export type GovernanceOperatorActionHostExecutorDescriptorInput = z.input<typeof GovernanceOperatorActionHostExecutorDescriptorSchema>;
+export type GovernanceOperatorActionHostExecutorDescriptor = z.infer<typeof GovernanceOperatorActionHostExecutorDescriptorSchema>;
+export type GovernanceOperatorActionHostExecutorAuthorizationPacketInput = z.input<typeof GovernanceOperatorActionHostExecutorAuthorizationPacketSchema>;
+export type GovernanceOperatorActionHostExecutorAuthorizationPacket = z.infer<typeof GovernanceOperatorActionHostExecutorAuthorizationPacketSchema>;
+export type GovernanceOperatorActionHostExecutorAuthorizationResultInput = z.input<typeof GovernanceOperatorActionHostExecutorAuthorizationResultSchema>;
+export type GovernanceOperatorActionHostExecutorAuthorizationResult = z.infer<typeof GovernanceOperatorActionHostExecutorAuthorizationResultSchema>;
 export type GovernanceOperatorEvidenceResolutionKind = z.infer<typeof GovernanceOperatorEvidenceResolutionKindSchema>;
 export type GovernanceOperatorEvidenceResolutionStatus = z.infer<typeof GovernanceOperatorEvidenceResolutionStatusSchema>;
 export type GovernanceOperatorObservationEvidenceSummary = z.infer<typeof GovernanceOperatorObservationEvidenceSummarySchema>;
@@ -884,6 +1028,13 @@ export interface PlanGovernanceOperatorActionExecutionInput {
   lifecycleState?: unknown;
   allowedActions?: unknown;
   executionMode?: unknown;
+}
+
+export interface AuthorizeGovernanceOperatorActionHostExecutorReviewInput {
+  executionGate: unknown;
+  lifecycleState?: unknown;
+  authorizationPacket?: unknown;
+  hostExecutorDescriptor?: unknown;
 }
 
 export interface CreateArbitrationPacketInput {
@@ -1731,6 +1882,134 @@ export function planGovernanceOperatorActionExecution(
   });
 }
 
+export function hashGovernanceOperatorActionExecutionPlan(
+  plan: GovernanceOperatorActionExecutionPlanInput
+): string {
+  return stableSha256(GovernanceOperatorActionExecutionPlanSchema.parse(plan));
+}
+
+export function hashGovernanceOperatorActionHostExecutorDescriptor(
+  descriptor: GovernanceOperatorActionHostExecutorDescriptorInput
+): string {
+  return stableSha256(
+    GovernanceOperatorActionHostExecutorDescriptorSchema.parse(descriptor)
+  );
+}
+
+export function authorizeGovernanceOperatorActionHostExecutorReview(
+  input: AuthorizeGovernanceOperatorActionHostExecutorReviewInput
+): GovernanceOperatorActionHostExecutorAuthorizationResult {
+  let gate: GovernanceOperatorActionExecutionGateResult;
+  try {
+    gate = GovernanceOperatorActionExecutionGateResultSchema.parse(input.executionGate);
+  } catch {
+    return createBlockedOperatorActionHostExecutorAuthorizationResult([
+      "operator_action_host_executor_gate_invalid"
+    ]);
+  }
+
+  const reasons: string[] = [];
+  if (gate.status !== "planned") {
+    addUniqueReason(reasons, "operator_action_host_executor_gate_not_planned");
+  }
+
+  if (gate.executionMode !== "plan_only") {
+    addUniqueReason(reasons, "operator_action_host_executor_gate_not_plan_only");
+  }
+
+  const plan = gate.plan;
+  let executionPlanHash: string | undefined;
+  if (plan === undefined) {
+    addUniqueReason(reasons, "operator_action_host_executor_plan_required");
+  } else {
+    executionPlanHash = hashGovernanceOperatorActionExecutionPlan(plan);
+  }
+
+  addHostExecutorLifecycleReasons(reasons, {
+    lifecycleState: input.lifecycleState,
+    gate
+  });
+
+  let packet: GovernanceOperatorActionHostExecutorAuthorizationPacket | undefined;
+  if (input.authorizationPacket === undefined) {
+    addUniqueReason(reasons, "operator_action_host_executor_authorization_packet_required");
+  } else {
+    try {
+      packet = GovernanceOperatorActionHostExecutorAuthorizationPacketSchema.parse(
+        input.authorizationPacket
+      );
+    } catch {
+      addUniqueReason(reasons, "operator_action_host_executor_authorization_packet_invalid");
+    }
+  }
+
+  let descriptor: GovernanceOperatorActionHostExecutorDescriptor | undefined;
+  let descriptorHash: string | undefined;
+  if (input.hostExecutorDescriptor === undefined) {
+    addUniqueReason(reasons, "operator_action_host_executor_descriptor_required");
+  } else {
+    try {
+      descriptor = GovernanceOperatorActionHostExecutorDescriptorSchema.parse(
+        input.hostExecutorDescriptor
+      );
+      descriptorHash = hashGovernanceOperatorActionHostExecutorDescriptor(descriptor);
+      if (
+        gate.recommendedAction !== undefined &&
+        !descriptor.supportedActions.includes(gate.recommendedAction)
+      ) {
+        addUniqueReason(reasons, "operator_action_host_executor_action_not_supported");
+      }
+    } catch {
+      addUniqueReason(reasons, "operator_action_host_executor_descriptor_invalid");
+    }
+  }
+
+  if (packet !== undefined) {
+    addHostExecutorAuthorizationPacketReasons(reasons, {
+      packet,
+      gate,
+      ...(executionPlanHash !== undefined ? { executionPlanHash } : {}),
+      ...(descriptor !== undefined ? { descriptor } : {}),
+      ...(descriptorHash !== undefined ? { descriptorHash } : {})
+    });
+  }
+
+  if (
+    reasons.length > 0 ||
+    packet === undefined ||
+    descriptor === undefined ||
+    descriptorHash === undefined ||
+    executionPlanHash === undefined
+  ) {
+    return createBlockedOperatorActionHostExecutorAuthorizationResult(reasons, {
+      gate,
+      ...(packet !== undefined ? { packet } : {}),
+      ...(descriptor !== undefined ? { descriptor } : {}),
+      ...(descriptorHash !== undefined ? { descriptorHash } : {}),
+      ...(executionPlanHash !== undefined ? { executionPlanHash } : {})
+    });
+  }
+
+  return GovernanceOperatorActionHostExecutorAuthorizationResultSchema.parse({
+    status: "ready_for_host_executor_review",
+    reasons: [],
+    taskId: gate.taskId,
+    actionRef: gate.actionRef,
+    receiptId: gate.receiptId,
+    envelopeHash: gate.envelopeHash,
+    recommendedAction: gate.recommendedAction,
+    executionMode: "plan_only",
+    executionPlanHash,
+    ...(gate.checkpointRef !== undefined ? { checkpointRef: gate.checkpointRef } : {}),
+    hostExecutorDescriptorId: descriptor.descriptorId,
+    hostExecutorDescriptorHash: descriptorHash,
+    authorizationIdentityHash: packet.authorizationIdentityHash,
+    evidenceRefs: uniqueStrings([...packet.evidenceRefs, ...descriptor.evidenceRefs]),
+    operatorInstruction:
+      `Non-executing host executor review accepted ${gate.recommendedAction}; a separate explicit dispatch authorization is required for any side effect.`
+  });
+}
+
 export function preserveGovernanceOperatorActionReceiptConsumptionStoreProof<T extends object>(
   target: T,
   source: unknown
@@ -1881,6 +2160,292 @@ function createBlockedOperatorActionExecutionGateResult(
       ? { checkpointRef: context.envelope.checkpointRef }
       : {})
   });
+}
+
+function createBlockedOperatorActionHostExecutorAuthorizationResult(
+  reasons: string[],
+  context: {
+    gate?: GovernanceOperatorActionExecutionGateResult;
+    packet?: GovernanceOperatorActionHostExecutorAuthorizationPacket;
+    descriptor?: GovernanceOperatorActionHostExecutorDescriptor;
+    descriptorHash?: string;
+    executionPlanHash?: string;
+  } = {}
+): GovernanceOperatorActionHostExecutorAuthorizationResult {
+  return GovernanceOperatorActionHostExecutorAuthorizationResultSchema.parse({
+    status: "blocked",
+    reasons: reasons.length > 0
+      ? [...new Set(reasons)]
+      : ["operator_action_host_executor_blocked"],
+    ...(context.gate?.taskId !== undefined ? { taskId: context.gate.taskId } : {}),
+    ...(context.gate?.actionRef !== undefined ? { actionRef: context.gate.actionRef } : {}),
+    ...(context.gate?.receiptId !== undefined ? { receiptId: context.gate.receiptId } : {}),
+    ...(context.gate?.envelopeHash !== undefined
+      ? { envelopeHash: context.gate.envelopeHash }
+      : {}),
+    ...(context.gate?.recommendedAction !== undefined
+      ? { recommendedAction: context.gate.recommendedAction }
+      : {}),
+    ...(context.gate?.executionMode !== undefined
+      ? { executionMode: context.gate.executionMode }
+      : {}),
+    ...(context.executionPlanHash !== undefined
+      ? { executionPlanHash: context.executionPlanHash }
+      : {}),
+    ...(context.gate?.checkpointRef !== undefined
+      ? { checkpointRef: context.gate.checkpointRef }
+      : {}),
+    ...(context.descriptor !== undefined
+      ? { hostExecutorDescriptorId: context.descriptor.descriptorId }
+      : {}),
+    ...(context.descriptorHash !== undefined
+      ? { hostExecutorDescriptorHash: context.descriptorHash }
+      : {}),
+    ...(context.packet !== undefined
+      ? { authorizationIdentityHash: context.packet.authorizationIdentityHash }
+      : {}),
+    evidenceRefs: uniqueStrings([
+      ...(context.packet?.evidenceRefs ?? []),
+      ...(context.descriptor?.evidenceRefs ?? [])
+    ])
+  });
+}
+
+function addHostExecutorAuthorizationPacketReasons(
+  reasons: string[],
+  input: {
+    packet: GovernanceOperatorActionHostExecutorAuthorizationPacket;
+    gate: GovernanceOperatorActionExecutionGateResult;
+    executionPlanHash?: string;
+    descriptor?: GovernanceOperatorActionHostExecutorDescriptor;
+    descriptorHash?: string;
+  }
+): void {
+  const bindings = [
+    {
+      packetValue: input.packet.taskId,
+      expectedValue: input.gate.taskId,
+      reason: "operator_action_host_executor_packet_task_mismatch"
+    },
+    {
+      packetValue: input.packet.actionRef,
+      expectedValue: input.gate.actionRef,
+      reason: "operator_action_host_executor_packet_action_ref_mismatch"
+    },
+    {
+      packetValue: input.packet.receiptId,
+      expectedValue: input.gate.receiptId,
+      reason: "operator_action_host_executor_packet_receipt_mismatch"
+    },
+    {
+      packetValue: input.packet.envelopeHash,
+      expectedValue: input.gate.envelopeHash,
+      reason: "operator_action_host_executor_packet_envelope_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.recommendedAction,
+      expectedValue: input.gate.recommendedAction,
+      reason: "operator_action_host_executor_packet_recommended_action_mismatch"
+    },
+    {
+      packetValue: input.packet.executionPlanHash,
+      expectedValue: input.executionPlanHash,
+      reason: "operator_action_host_executor_packet_plan_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.checkpointRef,
+      expectedValue: input.gate.checkpointRef,
+      reason: "operator_action_host_executor_packet_checkpoint_mismatch"
+    },
+    {
+      packetValue: input.packet.hostExecutorDescriptorId,
+      expectedValue: input.descriptor?.descriptorId,
+      reason: "operator_action_host_executor_packet_descriptor_id_mismatch"
+    },
+    {
+      packetValue: input.packet.hostExecutorDescriptorHash,
+      expectedValue: input.descriptorHash,
+      reason: "operator_action_host_executor_packet_descriptor_hash_mismatch"
+    }
+  ];
+
+  for (const binding of bindings) {
+    if (binding.packetValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
+}
+
+function addHostExecutorLifecycleReasons(
+  reasons: string[],
+  input: {
+    lifecycleState: unknown;
+    gate: GovernanceOperatorActionExecutionGateResult;
+  }
+): void {
+  if (input.lifecycleState === undefined) {
+    addUniqueReason(reasons, "operator_action_host_executor_lifecycle_required");
+    return;
+  }
+
+  let lifecycle: GovernanceOperatorActionExecutorLifecycleState;
+  try {
+    lifecycle = GovernanceOperatorActionExecutorLifecycleStateSchema.parse(
+      input.lifecycleState
+    );
+  } catch {
+    addUniqueReason(reasons, "operator_action_host_executor_lifecycle_invalid");
+    return;
+  }
+
+  if (lifecycle.status !== "receipt_consumed") {
+    addUniqueReason(reasons, "operator_action_host_executor_lifecycle_not_consumed");
+  }
+
+  if (!lifecycle.operatorActionPresent) {
+    addUniqueReason(reasons, "operator_action_host_executor_lifecycle_action_missing");
+  }
+
+  if (lifecycle.envelope === undefined) {
+    addUniqueReason(reasons, "operator_action_host_executor_lifecycle_envelope_missing");
+  } else if (
+    input.gate.envelopeHash !== undefined &&
+    hashGovernanceOperatorActionEnvelope(lifecycle.envelope) !== input.gate.envelopeHash
+  ) {
+    addUniqueReason(reasons, "operator_action_host_executor_lifecycle_envelope_mismatch");
+  }
+
+  if (lifecycle.lastReceiptConsumption === undefined) {
+    addUniqueReason(reasons, "operator_action_host_executor_lifecycle_receipt_missing");
+    return;
+  }
+
+  const rawConsumption =
+    typeof input.lifecycleState === "object" && input.lifecycleState !== null
+      ? (input.lifecycleState as { lastReceiptConsumption?: unknown }).lastReceiptConsumption
+      : undefined;
+  const consumption = lifecycle.lastReceiptConsumption;
+
+  if (consumption.status === "blocked") {
+    if (
+      consumption.reasons.includes("operator_action_receipt_replay") ||
+      consumption.validation.reasons.includes("operator_action_receipt_replay")
+    ) {
+      addUniqueReason(reasons, "operator_action_host_executor_receipt_replay");
+    }
+    if (
+      consumption.reasons.includes("operator_action_receipt_action_expired") ||
+      consumption.validation.reasons.includes("operator_action_receipt_action_expired")
+    ) {
+      addUniqueReason(reasons, "operator_action_host_executor_receipt_expired");
+    }
+    addUniqueReason(reasons, "operator_action_host_executor_receipt_blocked");
+  }
+
+  if (consumption.status !== "passed") {
+    addUniqueReason(reasons, "operator_action_host_executor_receipt_not_consumed");
+  }
+
+  if (consumption.durable !== true) {
+    addUniqueReason(reasons, "operator_action_host_executor_receipt_not_durable");
+  }
+
+  if (consumption.validation.status !== "passed") {
+    addUniqueReason(reasons, "operator_action_host_executor_receipt_validation_blocked");
+  }
+
+  if (
+    consumption.status === "passed" &&
+    consumption.durable === true &&
+    !hasGovernanceOperatorActionReceiptConsumptionStoreProof(
+      rawConsumption,
+      consumption
+    )
+  ) {
+    addUniqueReason(
+      reasons,
+      "operator_action_host_executor_receipt_consumption_store_proof_missing"
+    );
+  }
+
+  const receipt = consumption.receipt;
+  if (receipt === undefined) {
+    addUniqueReason(reasons, "operator_action_host_executor_receipt_missing");
+    return;
+  }
+
+  if (receipt.decision !== "consumed") {
+    addUniqueReason(reasons, "operator_action_host_executor_receipt_decision_not_consumed");
+  }
+
+  const receiptBindings = [
+    {
+      receiptValue: receipt.taskId,
+      expectedValue: input.gate.taskId,
+      reason: "operator_action_host_executor_receipt_task_mismatch"
+    },
+    {
+      receiptValue: receipt.actionRef,
+      expectedValue: input.gate.actionRef,
+      reason: "operator_action_host_executor_receipt_action_ref_mismatch"
+    },
+    {
+      receiptValue: receipt.receiptId,
+      expectedValue: input.gate.receiptId,
+      reason: "operator_action_host_executor_receipt_id_mismatch"
+    },
+    {
+      receiptValue: receipt.envelopeHash,
+      expectedValue: input.gate.envelopeHash,
+      reason: "operator_action_host_executor_receipt_envelope_hash_mismatch"
+    },
+    {
+      receiptValue: consumption.taskId,
+      expectedValue: input.gate.taskId,
+      reason: "operator_action_host_executor_consumption_task_mismatch"
+    },
+    {
+      receiptValue: consumption.actionRef,
+      expectedValue: input.gate.actionRef,
+      reason: "operator_action_host_executor_consumption_action_ref_mismatch"
+    },
+    {
+      receiptValue: consumption.envelopeHash,
+      expectedValue: input.gate.envelopeHash,
+      reason: "operator_action_host_executor_consumption_envelope_hash_mismatch"
+    },
+    {
+      receiptValue: consumption.validation.taskId,
+      expectedValue: input.gate.taskId,
+      reason: "operator_action_host_executor_validation_task_mismatch"
+    },
+    {
+      receiptValue: consumption.validation.actionRef,
+      expectedValue: input.gate.actionRef,
+      reason: "operator_action_host_executor_validation_action_ref_mismatch"
+    },
+    {
+      receiptValue: consumption.validation.envelopeHash,
+      expectedValue: input.gate.envelopeHash,
+      reason: "operator_action_host_executor_validation_envelope_hash_mismatch"
+    }
+  ];
+
+  for (const binding of receiptBindings) {
+    if (binding.receiptValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
+
+  if (
+    lifecycle.actionIssuedAt !== undefined &&
+    lifecycle.actionIssuedAt !== receipt.actionIssuedAt
+  ) {
+    addUniqueReason(
+      reasons,
+      "operator_action_host_executor_lifecycle_action_issued_at_mismatch"
+    );
+  }
 }
 
 function addOperatorActionReceiptConsumptionReasons(

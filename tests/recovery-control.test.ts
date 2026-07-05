@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import {
+  authorizeGovernanceOperatorActionHostExecutorReview,
   createArbitrationPacket,
   createFileGovernanceOperatorActionReceiptStore,
   createGovernanceOperatorActionEnvelope,
@@ -18,6 +19,8 @@ import {
   GovernanceOperatorActionExecutionGateResultSchema,
   GovernanceOperatorActionReceiptSchema,
   hashGovernanceOperatorActionEnvelope,
+  hashGovernanceOperatorActionExecutionPlan,
+  hashGovernanceOperatorActionHostExecutorDescriptor,
   planGovernanceOperatorActionExecution,
   resolveGovernanceOperatorActionEvidence,
   GovernanceOperatorActionSummarySchema,
@@ -28,6 +31,8 @@ import {
   validateAndConsumeGovernanceOperatorActionReceipt,
   validateGovernanceOperatorActionReceipt,
   type GovernanceOperatorActionEnvelope,
+  type GovernanceOperatorActionExecutionGateResult,
+  type GovernanceOperatorActionHostExecutorDescriptorInput,
   type GovernanceOperatorActionReceiptInput,
   type GovernanceOperatorActionReceiptStore
 } from "../packages/recovery-control/src/index.js";
@@ -1761,6 +1766,189 @@ test("recovery control blocks operator action planning when lifecycle issuance t
   );
 });
 
+test("recovery control authorizes non-executing host executor review after planned gate binding", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+
+  assert.equal(authorization.status, "ready_for_host_executor_review");
+  assert.deepEqual(authorization.reasons, []);
+  assert.equal(authorization.executionMode, "plan_only");
+  assert.equal(authorization.taskId, gate.taskId);
+  assert.equal(authorization.actionRef, gate.actionRef);
+  assert.equal(authorization.receiptId, gate.receiptId);
+  assert.equal(authorization.executionPlanHash, packet.executionPlanHash);
+  assert.equal(authorization.hostExecutorDescriptorId, descriptor.descriptorId);
+  assert.equal(authorization.hostExecutorDescriptorHash, packet.hostExecutorDescriptorHash);
+  assert.match(authorization.operatorInstruction ?? "", /Non-executing host executor review/);
+});
+
+test("recovery control blocks host executor review when authorization packet bindings drift", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor, {
+    taskId: "other-task",
+    executionPlanHash: "0".repeat(64),
+    hostExecutorDescriptorHash: "1".repeat(64)
+  });
+
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+
+  assert.equal(authorization.status, "blocked");
+  assert.ok(authorization.reasons.includes(
+    "operator_action_host_executor_packet_task_mismatch"
+  ));
+  assert.ok(authorization.reasons.includes(
+    "operator_action_host_executor_packet_plan_hash_mismatch"
+  ));
+  assert.ok(authorization.reasons.includes(
+    "operator_action_host_executor_packet_descriptor_hash_mismatch"
+  ));
+});
+
+test("recovery control blocks host executor review for unsupported descriptor actions", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["resume"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+
+  assert.equal(authorization.status, "blocked");
+  assert.ok(authorization.reasons.includes(
+    "operator_action_host_executor_action_not_supported"
+  ));
+});
+
+test("recovery control blocks host executor review for forged lifecycle consumption", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const forgedLifecycleState = createTestOperatorActionLifecycle(
+    envelope,
+    JSON.parse(JSON.stringify(consumption)) as unknown,
+    { actionIssuedAt }
+  );
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState: forgedLifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+
+  assert.equal(authorization.status, "blocked");
+  assert.ok(authorization.reasons.includes(
+    "operator_action_host_executor_receipt_consumption_store_proof_missing"
+  ));
+});
+
+test("recovery control blocks host executor review with unsafe authorization evidence refs", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor, {
+    evidenceRefs: ["raw\nstdout"]
+  });
+
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+
+  assert.equal(authorization.status, "blocked");
+  assert.ok(authorization.reasons.includes(
+    "operator_action_host_executor_authorization_packet_invalid"
+  ));
+});
+
 test("recovery control resolves operator action evidence refs without raw payloads", async () => {
   const observationStore = createRecordingExecutionObservationStore();
   const artifactStore = new InMemoryArtifactStore({
@@ -2216,6 +2404,64 @@ function createTestOperatorActionLifecycle(
     envelope,
     lastReceiptConsumption: consumption
   };
+}
+
+function createTestHostExecutorDescriptor(
+  supportedActions: Array<"resume" | "rollback" | "abort" | "fork">
+): GovernanceOperatorActionHostExecutorDescriptorInput {
+  return {
+    schemaVersion: "governance-operator-action-host-executor-descriptor.v1",
+    descriptorId: "host-executor:review-only",
+    descriptorKind: "injected_host_executor",
+    executionMode: "review_only",
+    sideEffectBoundary: "recovery_action_review",
+    dispatchSupported: false,
+    supportedActions,
+    evidenceRefs: ["evidence:phase11-descriptor"]
+  };
+}
+
+function createTestHostExecutorAuthorizationPacket(
+  gate: GovernanceOperatorActionExecutionGateResult,
+  descriptor: GovernanceOperatorActionHostExecutorDescriptorInput,
+  overrides: Partial<{
+    taskId: string;
+    actionRef: string;
+    receiptId: string;
+    envelopeHash: string;
+    recommendedAction: "resume" | "rollback" | "abort" | "fork";
+    executionPlanHash: string;
+    checkpointRef: string;
+    hostExecutorDescriptorId: string;
+    hostExecutorDescriptorHash: string;
+    authorizationIdentityHash: string;
+    evidenceRefs: string[];
+  }> = {}
+) {
+  assert.ok(gate.plan);
+  assert.ok(gate.taskId);
+  assert.ok(gate.actionRef);
+  assert.ok(gate.receiptId);
+  assert.ok(gate.envelopeHash);
+  assert.ok(gate.recommendedAction);
+  const packet = {
+    schemaVersion: "governance-operator-action-host-executor-authorization-packet.v1",
+    taskId: gate.taskId,
+    actionRef: gate.actionRef,
+    receiptId: gate.receiptId,
+    envelopeHash: gate.envelopeHash,
+    recommendedAction: gate.recommendedAction,
+    executionPlanHash: hashGovernanceOperatorActionExecutionPlan(gate.plan),
+    ...(gate.checkpointRef !== undefined ? { checkpointRef: gate.checkpointRef } : {}),
+    hostExecutorDescriptorId: descriptor.descriptorId,
+    hostExecutorDescriptorHash:
+      hashGovernanceOperatorActionHostExecutorDescriptor(descriptor),
+    authorizationIdentityHash: "b".repeat(64),
+    evidenceRefs: ["evidence:phase11-authorization"],
+    ...overrides
+  };
+
+  return packet;
 }
 
 function createStandaloneOperatorActionReceipt(overrides: {
