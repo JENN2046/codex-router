@@ -50,6 +50,7 @@ authority is expressed by:
 - [Phase 12 Operator Action Host Client Review Surface Closeout](PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT.md);
 - [Phase 13 Operator Action Host Executor Dispatch Taskbook](PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md);
 - [Phase 13 Operator Action Host Executor Dispatch Closeout](PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT.md);
+- [Phase 13 Agent-Backed Recovery Executor Boundary](PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY.md);
 - executable checks exposed through `npm run governance -- list`;
 - the structured state-sync claim at `docs/current/state-sync-record.json`.
 
@@ -83,6 +84,7 @@ authority is expressed by:
 | `PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT.md` | Operator action host client review surface closeout | Current human authority for exposing the Phase 11 non-executing review result through `DesktopHostClient` current lifecycle state; not execution authorization. |
 | `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md` | Operator action host executor dispatch taskbook | Current authorization stop for any future side-effecting recovery action dispatch implementation; not execution authorization. |
 | `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT.md` | Operator action host executor dispatch closeout | Current human authority for the implemented dry-run and explicit injected-executor dispatch boundary; real recovery dispatch remains blocked by default. |
+| `PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY.md` | Agent-backed recovery executor boundary | Current human authority for host-provided / agent-backed recovery executor semantics and sandbox-only contract proof; not production recovery execution authorization. |
 | `PR_*`, `FUTURE_*`, closeouts, packets | Historical evidence | Evidence only unless linked by a current authority document. |
 
 ## Capability Status
@@ -99,6 +101,7 @@ authority is expressed by:
 | Runtime operator action host executor boundary | active / non-executing | No | Phase 11 binds planned gates, lifecycle state, authorization packets, and injected host executor descriptors for review readiness only; recovery action dispatch remains closed. |
 | Runtime operator action host-client executor review surface | active / non-executing | No | Phase 12 exposes Phase 11 review through `DesktopHostClient.reviewCurrentOperatorActionHostExecutorAuthorization()` using current lifecycle state only; bridge, dispatcher, provider, Codex CLI, and workspace-write paths remain untouched. |
 | Runtime operator action host executor dispatch | active / guarded | No by default | Phase 13 adds dry-run and explicit injected-executor dispatch control. Repository validation uses fake injected executors only; real `resume`, `rollback`, `abort`, or `fork` dispatch remains a separate authorization stop. |
+| Agent-backed recovery executor boundary | active / sandbox proof only | No production execution | Phase 13 follow-up defines host-provided / agent-backed executor semantics and a sandbox-only reference executor contract proof. It does not add business recovery logic, Codex CLI, provider, shell, external write, or arbitrary workspace-write execution. |
 | Controlled read-only real execution | guarded / productized | Yes, narrow | Requires [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md), [PR-23B minimal slice](PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md), [PR-23C evidence binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md), explicit controlled mode, injected execution dependency, permit/preflight metadata, stable evidence refs/hashes, and no hidden provider path. |
 | Workspace-write fake canary | guarded | No | Validates permit v2, patch guard, rollback evidence, and replay blocking without real host writes. |
 | Workspace-write real canary | experimental / blocked by default | No by default | Requires [workspace-write release gate](WORKSPACE_WRITE_RELEASE_GATE.md), [workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md), a fresh explicit authorization packet for the named canary, permit v2 controls, fake-canary v2 validation, and rollback evidence. |
