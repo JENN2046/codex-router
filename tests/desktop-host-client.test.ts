@@ -28,6 +28,7 @@ import {
   createInMemoryGovernanceOperatorActionReceiptStore,
   GovernanceOperatorActionReceiptSchema,
   hashGovernanceOperatorActionEnvelope,
+  planGovernanceOperatorActionExecution,
   type GovernanceOperatorActionEnvelope,
   type GovernanceOperatorActionReceiptInput,
   type GovernanceOperatorActionReceiptStore
@@ -604,6 +605,31 @@ test("desktop host client creates and consumes current operator action receipts"
   lifecycle = client.getOperatorActionLifecycle();
   assert.equal(lifecycle.status, "receipt_consumed");
   assert.equal(lifecycle.lastReceiptConsumption?.receipt?.receiptId, created.receipt?.receiptId);
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope: result.operatorActionEnvelope,
+    receiptConsumption: consumed,
+    lifecycleState: lifecycle,
+    allowedActions: [result.operatorActionEnvelope.recommendedAction],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "planned");
+  assert.deepEqual(gate.reasons, []);
+  assert.equal(gate.plan?.receiptId, created.receipt?.receiptId);
+
+  const clonedGate = planGovernanceOperatorActionExecution({
+    envelope: result.operatorActionEnvelope,
+    receiptConsumption: JSON.parse(JSON.stringify(consumed)),
+    lifecycleState: lifecycle,
+    allowedActions: [result.operatorActionEnvelope.recommendedAction],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(clonedGate.status, "blocked");
+  assert.ok(clonedGate.reasons.includes(
+    "operator_action_executor_receipt_consumption_store_proof_missing"
+  ));
 });
 
 test("desktop host client blocks replayed operator action receipts", async () => {

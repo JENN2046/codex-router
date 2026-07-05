@@ -1680,6 +1680,7 @@ test("provider execution runner exposes operator action on third controlled read
     recommendedAction: "rollback",
     requiresHumanApproval: true,
     lockdown: true,
+    checkpointRef: "checkpoint:provider-runner-before-third-failure",
     blockingReasons: [
       "governance_step_back_triggered",
       "arbitration_required"
@@ -1697,6 +1698,7 @@ test("provider execution runner exposes operator action on third controlled read
     recommendedAction: "rollback",
     requiresHumanApproval: true,
     lockdown: true,
+    checkpointRef: "checkpoint:provider-runner-before-third-failure",
     blockingReasons: [
       "governance_step_back_triggered",
       "arbitration_required"
@@ -1713,12 +1715,17 @@ test("provider execution runner exposes operator action on third controlled read
       present?: boolean;
       source?: string;
       recommendedAction?: string;
+      checkpointRef?: string;
       artifactRefs?: string[];
     };
   };
   assert.equal(completedEventPayload.operatorActionSummary?.present, true);
   assert.equal(completedEventPayload.operatorActionSummary?.source, "execution_governance");
   assert.equal(completedEventPayload.operatorActionSummary?.recommendedAction, "rollback");
+  assert.equal(
+    completedEventPayload.operatorActionSummary?.checkpointRef,
+    "checkpoint:provider-runner-before-third-failure"
+  );
   assert.deepEqual(completedEventPayload.operatorActionSummary?.artifactRefs, [
     artifactEvidenceRef
   ]);
@@ -1941,6 +1948,7 @@ test("provider execution runner blocks governance states requiring step-back bef
     recommendedAction: "rollback",
     requiresHumanApproval: true,
     lockdown: true,
+    checkpointRef: "checkpoint:provider-runner-before-third-failure",
     blockingReasons: [
       "controlled_readonly_provider_governance_state_strategy_blocked:step_back"
     ],
@@ -1957,6 +1965,7 @@ test("provider execution runner blocks governance states requiring step-back bef
     recommendedAction: "rollback",
     requiresHumanApproval: true,
     lockdown: true,
+    checkpointRef: "checkpoint:provider-runner-before-third-failure",
     blockingReasons: [
       "controlled_readonly_provider_governance_state_strategy_blocked:step_back"
     ],
@@ -1971,8 +1980,17 @@ test("provider execution runner blocks governance states requiring step-back bef
       actionFamily?: string;
       operatorAction?: { recommendedAction?: string };
     };
-    operatorActionEnvelope?: { recommendedAction?: string; source?: string };
-    operatorActionSummary?: { present?: boolean; recommendedAction?: string; source?: string };
+    operatorActionEnvelope?: {
+      recommendedAction?: string;
+      source?: string;
+      checkpointRef?: string;
+    };
+    operatorActionSummary?: {
+      present?: boolean;
+      recommendedAction?: string;
+      source?: string;
+      checkpointRef?: string;
+    };
   };
   assert.equal(completedEventPayload.preflightGovernance?.actionFamily, "step_back");
   assert.equal(
@@ -1984,11 +2002,19 @@ test("provider execution runner blocks governance states requiring step-back bef
     completedEventPayload.operatorActionEnvelope?.recommendedAction,
     "rollback"
   );
+  assert.equal(
+    completedEventPayload.operatorActionEnvelope?.checkpointRef,
+    "checkpoint:provider-runner-before-third-failure"
+  );
   assert.equal(completedEventPayload.operatorActionSummary?.present, true);
   assert.equal(completedEventPayload.operatorActionSummary?.source, "preflight_governance");
   assert.equal(
     completedEventPayload.operatorActionSummary?.recommendedAction,
     "rollback"
+  );
+  assert.equal(
+    completedEventPayload.operatorActionSummary?.checkpointRef,
+    "checkpoint:provider-runner-before-third-failure"
   );
   assert.deepEqual(calls, {
     planExecution: 0,

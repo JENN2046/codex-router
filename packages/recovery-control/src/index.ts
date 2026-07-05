@@ -168,6 +168,7 @@ export const GovernanceOperatorActionEnvelopeSchema = z.object({
   recommendedAction: RecoveryActionSchema,
   requiresHumanApproval: z.boolean(),
   lockdown: z.boolean(),
+  checkpointRef: z.string().min(1).optional(),
   blockingReasons: z.array(z.string()).default([]),
   evidenceRefs: z.array(z.string()).default([]),
   artifactRefs: z.array(z.string()).default([])
@@ -202,6 +203,22 @@ export const GovernanceOperatorActionEnvelopeSchema = z.object({
       });
     }
   }
+
+  if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_envelope_checkpoint_required"
+    });
+  }
+
+  if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_envelope_checkpoint_not_allowed"
+    });
+  }
 });
 
 export const GovernanceOperatorActionSummarySchema = z.object({
@@ -215,6 +232,7 @@ export const GovernanceOperatorActionSummarySchema = z.object({
   recommendedAction: RecoveryActionSchema.optional(),
   requiresHumanApproval: z.boolean().optional(),
   lockdown: z.boolean().optional(),
+  checkpointRef: z.string().min(1).optional(),
   blockingReasons: z.array(z.string()).default([]),
   evidenceRefs: z.array(z.string()).default([]),
   artifactRefs: z.array(z.string()).default([])
@@ -247,7 +265,8 @@ export const GovernanceOperatorActionSummarySchema = z.object({
     "trigger",
     "recommendedAction",
     "requiresHumanApproval",
-    "lockdown"
+    "lockdown",
+    "checkpointRef"
   ] as const;
   for (const field of forbiddenPresentFields) {
     if (value[field] !== undefined) {
@@ -262,7 +281,8 @@ export const GovernanceOperatorActionSummarySchema = z.object({
   if (
     value.blockingReasons.length > 0 ||
     value.evidenceRefs.length > 0 ||
-    value.artifactRefs.length > 0
+    value.artifactRefs.length > 0 ||
+    value.checkpointRef !== undefined
   ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -366,10 +386,13 @@ export const GovernanceOperatorActionReceiptConsumptionStatusSchema = z.enum([
   "blocked"
 ]);
 
+const governanceOperatorActionReceiptConsumptionStoreProofs = new WeakMap<object, string>();
+
 export const GovernanceOperatorActionReceiptConsumptionSchema = z.object({
   schemaVersion: z.literal("governance-operator-action-receipt-consumption.v1")
     .default("governance-operator-action-receipt-consumption.v1"),
   status: GovernanceOperatorActionReceiptConsumptionStatusSchema,
+  durable: z.boolean().default(false),
   reasons: z.array(z.string()).default([]),
   validation: GovernanceOperatorActionReceiptValidationSchema,
   taskId: z.string().min(1).optional(),
@@ -390,6 +413,180 @@ export const GovernanceOperatorActionReceiptConsumptionSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["reasons"],
       message: "operator_action_receipt_consumption_block_requires_reasons"
+    });
+  }
+});
+
+// ── Gated operator action planning ─────────────────────────────────────────
+
+export const GovernanceOperatorActionExecutionModeSchema = z.enum([
+  "plan_only"
+]);
+
+export const GovernanceOperatorActionExecutorReceiptConsumptionSchema = z.object({
+  schemaVersion: z.string().min(1),
+  status: z.enum(["passed", "blocked", "not_consumed"]),
+  durable: z.boolean().default(false),
+  reasons: z.array(z.string()).default([]),
+  validation: GovernanceOperatorActionReceiptValidationSchema,
+  taskId: z.string().min(1).optional(),
+  actionRef: z.string().min(1).optional(),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  receipt: GovernanceOperatorActionReceiptSchema.optional()
+}).passthrough();
+
+export const GovernanceOperatorActionExecutorLifecycleStateSchema = z.object({
+  schemaVersion: z.string().min(1),
+  status: z.enum([
+    "idle",
+    "action_available",
+    "receipt_created",
+    "receipt_consumed",
+    "receipt_not_consumed",
+    "receipt_blocked"
+  ]),
+  operatorActionPresent: z.boolean(),
+  actionIssuedAt: z.string().min(1).optional(),
+  envelope: GovernanceOperatorActionEnvelopeSchema.optional(),
+  lastReceiptConsumption: GovernanceOperatorActionExecutorReceiptConsumptionSchema.optional()
+}).passthrough();
+
+export const GovernanceOperatorActionExecutionPlanSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-execution-plan.v1")
+    .default("governance-operator-action-execution-plan.v1"),
+  taskId: z.string().min(1),
+  actionRef: z.string().min(1),
+  receiptId: z.string().min(1),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+  recommendedAction: RecoveryActionSchema,
+  executionMode: GovernanceOperatorActionExecutionModeSchema,
+  requiresHumanApproval: z.boolean(),
+  lockdown: z.boolean(),
+  checkpointRef: z.string().min(1).optional(),
+  evidenceRefs: z.array(z.string()).default([]),
+  artifactRefs: z.array(z.string()).default([]),
+  blockingReasons: z.array(z.string()).default([]),
+  operatorInstruction: z.string().min(1)
+}).superRefine((value, ctx) => {
+  if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_execution_plan_checkpoint_required"
+    });
+  }
+
+  if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_execution_plan_checkpoint_not_allowed"
+    });
+  }
+});
+
+export const GovernanceOperatorActionExecutionGateResultSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-execution-gate.v1")
+    .default("governance-operator-action-execution-gate.v1"),
+  status: z.enum(["planned", "blocked"]),
+  reasons: z.array(z.string()).default([]),
+  taskId: z.string().min(1).optional(),
+  actionRef: z.string().min(1).optional(),
+  receiptId: z.string().min(1).optional(),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  recommendedAction: RecoveryActionSchema.optional(),
+  executionMode: GovernanceOperatorActionExecutionModeSchema.optional(),
+  checkpointRef: z.string().min(1).optional(),
+  plan: GovernanceOperatorActionExecutionPlanSchema.optional()
+}).superRefine((value, ctx) => {
+  if (value.status === "planned") {
+    if (value.reasons.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reasons"],
+        message: "operator_action_execution_gate_planned_requires_no_reasons"
+      });
+    }
+    if (value.plan === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["plan"],
+        message: "operator_action_execution_gate_planned_requires_plan"
+      });
+    }
+
+    if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_execution_gate_checkpoint_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_execution_gate_checkpoint_not_allowed"
+      });
+    }
+
+    if (value.plan !== undefined) {
+      const planBindings = [
+        {
+          field: "taskId",
+          message: "operator_action_execution_gate_task_plan_mismatch"
+        },
+        {
+          field: "actionRef",
+          message: "operator_action_execution_gate_action_ref_plan_mismatch"
+        },
+        {
+          field: "receiptId",
+          message: "operator_action_execution_gate_receipt_plan_mismatch"
+        },
+        {
+          field: "envelopeHash",
+          message: "operator_action_execution_gate_envelope_hash_plan_mismatch"
+        },
+        {
+          field: "recommendedAction",
+          message: "operator_action_execution_gate_recommended_action_plan_mismatch"
+        },
+        {
+          field: "executionMode",
+          message: "operator_action_execution_gate_execution_mode_plan_mismatch"
+        },
+        {
+          field: "checkpointRef",
+          message: "operator_action_execution_gate_checkpoint_plan_mismatch"
+        }
+      ] as const;
+      for (const binding of planBindings) {
+        if (value[binding.field] !== value.plan[binding.field]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [binding.field],
+            message: binding.message
+          });
+        }
+      }
+    }
+    return;
+  }
+
+  if (value.reasons.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reasons"],
+      message: "operator_action_execution_gate_block_requires_reasons"
+    });
+  }
+  if (value.plan !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["plan"],
+      message: "operator_action_execution_gate_block_forbids_plan"
     });
   }
 });
@@ -641,6 +838,15 @@ export type GovernanceOperatorActionReceiptStoreConsumeResult = z.infer<typeof G
 export type GovernanceOperatorActionReceiptConsumptionStatus = z.infer<typeof GovernanceOperatorActionReceiptConsumptionStatusSchema>;
 export type GovernanceOperatorActionReceiptConsumptionInput = z.input<typeof GovernanceOperatorActionReceiptConsumptionSchema>;
 export type GovernanceOperatorActionReceiptConsumption = z.infer<typeof GovernanceOperatorActionReceiptConsumptionSchema>;
+export type GovernanceOperatorActionExecutionMode = z.infer<typeof GovernanceOperatorActionExecutionModeSchema>;
+export type GovernanceOperatorActionExecutorReceiptConsumptionInput = z.input<typeof GovernanceOperatorActionExecutorReceiptConsumptionSchema>;
+export type GovernanceOperatorActionExecutorReceiptConsumption = z.infer<typeof GovernanceOperatorActionExecutorReceiptConsumptionSchema>;
+export type GovernanceOperatorActionExecutorLifecycleStateInput = z.input<typeof GovernanceOperatorActionExecutorLifecycleStateSchema>;
+export type GovernanceOperatorActionExecutorLifecycleState = z.infer<typeof GovernanceOperatorActionExecutorLifecycleStateSchema>;
+export type GovernanceOperatorActionExecutionPlanInput = z.input<typeof GovernanceOperatorActionExecutionPlanSchema>;
+export type GovernanceOperatorActionExecutionPlan = z.infer<typeof GovernanceOperatorActionExecutionPlanSchema>;
+export type GovernanceOperatorActionExecutionGateResultInput = z.input<typeof GovernanceOperatorActionExecutionGateResultSchema>;
+export type GovernanceOperatorActionExecutionGateResult = z.infer<typeof GovernanceOperatorActionExecutionGateResultSchema>;
 export type GovernanceOperatorEvidenceResolutionKind = z.infer<typeof GovernanceOperatorEvidenceResolutionKindSchema>;
 export type GovernanceOperatorEvidenceResolutionStatus = z.infer<typeof GovernanceOperatorEvidenceResolutionStatusSchema>;
 export type GovernanceOperatorObservationEvidenceSummary = z.infer<typeof GovernanceOperatorObservationEvidenceSummarySchema>;
@@ -670,6 +876,14 @@ export interface CreateGovernanceOperatorActionReceiptInput {
   actionIssuedAt: string | (() => string);
   createdAt: string | (() => string);
   evidenceRefs?: string[];
+}
+
+export interface PlanGovernanceOperatorActionExecutionInput {
+  envelope: unknown;
+  receiptConsumption?: unknown;
+  lifecycleState?: unknown;
+  allowedActions?: unknown;
+  executionMode?: unknown;
 }
 
 export interface CreateArbitrationPacketInput {
@@ -730,6 +944,9 @@ export function createGovernanceOperatorActionEnvelope(input: {
     recommendedAction: input.operatorAction.recommendedAction,
     requiresHumanApproval: input.operatorAction.requiresHumanApproval,
     lockdown: input.operatorAction.lockdown,
+    ...(input.operatorAction.checkpointRef !== undefined
+      ? { checkpointRef: input.operatorAction.checkpointRef }
+      : {}),
     blockingReasons: [...input.operatorAction.blockingReasons],
     evidenceRefs: [...input.operatorAction.evidenceRefs],
     artifactRefs: input.operatorAction.evidenceRefs.filter(isArtifactEvidenceRef)
@@ -757,6 +974,7 @@ export function summarizeGovernanceOperatorActionEnvelope(
     recommendedAction: envelope.recommendedAction,
     requiresHumanApproval: envelope.requiresHumanApproval,
     lockdown: envelope.lockdown,
+    ...(envelope.checkpointRef !== undefined ? { checkpointRef: envelope.checkpointRef } : {}),
     blockingReasons: [...envelope.blockingReasons],
     evidenceRefs: [...envelope.evidenceRefs],
     artifactRefs: [...envelope.artifactRefs]
@@ -1318,6 +1536,7 @@ export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
   if (validation.status === "blocked" || validation.receipt === undefined) {
     return GovernanceOperatorActionReceiptConsumptionSchema.parse({
       status: "blocked",
+      durable: false,
       reasons: validation.reasons,
       validation,
       ...(validation.taskId !== undefined ? { taskId: validation.taskId } : {}),
@@ -1334,6 +1553,7 @@ export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
   } catch {
     return GovernanceOperatorActionReceiptConsumptionSchema.parse({
       status: "blocked",
+      durable: false,
       reasons: ["operator_action_receipt_store_failed"],
       validation,
       taskId: validation.taskId,
@@ -1349,6 +1569,7 @@ export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
   } catch {
     return GovernanceOperatorActionReceiptConsumptionSchema.parse({
       status: "blocked",
+      durable: false,
       reasons: ["operator_action_receipt_store_failed"],
       validation,
       taskId: validation.taskId,
@@ -1363,6 +1584,7 @@ export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
   ) {
     return GovernanceOperatorActionReceiptConsumptionSchema.parse({
       status: "blocked",
+      durable: false,
       reasons: ["operator_action_receipt_store_failed"],
       validation,
       taskId: validation.taskId,
@@ -1375,6 +1597,7 @@ export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
   if (storeResult.status === "replay") {
     return GovernanceOperatorActionReceiptConsumptionSchema.parse({
       status: "blocked",
+      durable: false,
       reasons: ["operator_action_receipt_replay"],
       validation: GovernanceOperatorActionReceiptValidationSchema.parse({
         ...validation,
@@ -1388,15 +1611,151 @@ export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
     });
   }
 
-  return GovernanceOperatorActionReceiptConsumptionSchema.parse({
-    status: "passed",
-    reasons: [],
-    validation,
-    taskId: validation.taskId,
-    actionRef: validation.actionRef,
-    envelopeHash: validation.envelopeHash,
-    receipt: validation.receipt
+  return markGovernanceOperatorActionReceiptConsumptionStoreProduced(
+    GovernanceOperatorActionReceiptConsumptionSchema.parse({
+      status: "passed",
+      durable: true,
+      reasons: [],
+      validation,
+      taskId: validation.taskId,
+      actionRef: validation.actionRef,
+      envelopeHash: validation.envelopeHash,
+      receipt: validation.receipt
+    })
+  );
+}
+
+export function planGovernanceOperatorActionExecution(
+  input: PlanGovernanceOperatorActionExecutionInput
+): GovernanceOperatorActionExecutionGateResult {
+  let envelope: GovernanceOperatorActionEnvelope;
+  try {
+    envelope = GovernanceOperatorActionEnvelopeSchema.parse(input.envelope);
+  } catch {
+    return createBlockedOperatorActionExecutionGateResult([
+      "operator_action_executor_envelope_invalid"
+    ]);
+  }
+
+  const reasons: string[] = [];
+  const envelopeHash = hashGovernanceOperatorActionEnvelope(envelope);
+
+  if (input.executionMode !== "plan_only") {
+    addUniqueReason(
+      reasons,
+      input.executionMode === undefined
+        ? "operator_action_executor_mode_required"
+        : "operator_action_executor_mode_not_plan_only"
+    );
+  }
+
+  let allowedActions: RecoveryAction[] | undefined;
+  try {
+    allowedActions = z.array(RecoveryActionSchema).min(1).parse(input.allowedActions);
+    if (!allowedActions.includes(envelope.recommendedAction)) {
+      addUniqueReason(reasons, "operator_action_executor_action_not_allowed");
+    }
+  } catch {
+    addUniqueReason(reasons, "operator_action_executor_allowed_actions_invalid");
+  }
+
+  let consumption: GovernanceOperatorActionExecutorReceiptConsumption | undefined;
+  if (input.receiptConsumption === undefined) {
+    addUniqueReason(reasons, "operator_action_executor_receipt_consumption_required");
+  } else {
+    try {
+      consumption = GovernanceOperatorActionExecutorReceiptConsumptionSchema.parse(
+        input.receiptConsumption
+      );
+      if (
+        consumption.status === "passed" &&
+        consumption.durable === true &&
+        !hasGovernanceOperatorActionReceiptConsumptionStoreProof(
+          input.receiptConsumption,
+          consumption
+        )
+      ) {
+        addUniqueReason(
+          reasons,
+          "operator_action_executor_receipt_consumption_store_proof_missing"
+        );
+      }
+      addOperatorActionReceiptConsumptionReasons(reasons, consumption, envelope, envelopeHash);
+    } catch {
+      addUniqueReason(reasons, "operator_action_executor_receipt_consumption_invalid");
+    }
+  }
+
+  addOperatorActionLifecycleReasons(reasons, {
+    input: input.lifecycleState,
+    envelope,
+    ...(consumption !== undefined ? { consumption } : {})
   });
+
+  const receipt = consumption?.receipt;
+  if (reasons.length > 0 || consumption === undefined || receipt === undefined) {
+    return createBlockedOperatorActionExecutionGateResult(reasons, {
+      envelope,
+      ...(consumption !== undefined ? { consumption } : {})
+    });
+  }
+
+  const plan = GovernanceOperatorActionExecutionPlanSchema.parse({
+    taskId: envelope.taskId,
+    actionRef: receipt.actionRef,
+    receiptId: receipt.receiptId,
+    envelopeHash,
+    recommendedAction: envelope.recommendedAction,
+    executionMode: "plan_only",
+    requiresHumanApproval: envelope.requiresHumanApproval,
+    lockdown: envelope.lockdown,
+    ...(envelope.checkpointRef !== undefined ? { checkpointRef: envelope.checkpointRef } : {}),
+    evidenceRefs: [...envelope.evidenceRefs],
+    artifactRefs: [...envelope.artifactRefs],
+    blockingReasons: [...envelope.blockingReasons],
+    operatorInstruction:
+      `Plan-only gate accepted ${envelope.recommendedAction}; a separate explicit executor is required for any side effect.`
+  });
+
+  return GovernanceOperatorActionExecutionGateResultSchema.parse({
+    status: "planned",
+    reasons: [],
+    taskId: envelope.taskId,
+    actionRef: receipt.actionRef,
+    receiptId: receipt.receiptId,
+    envelopeHash,
+    recommendedAction: envelope.recommendedAction,
+    executionMode: "plan_only",
+    ...(envelope.checkpointRef !== undefined ? { checkpointRef: envelope.checkpointRef } : {}),
+    plan
+  });
+}
+
+export function preserveGovernanceOperatorActionReceiptConsumptionStoreProof<T extends object>(
+  target: T,
+  source: unknown
+): T {
+  let sourceConsumption: GovernanceOperatorActionExecutorReceiptConsumption;
+  let targetConsumption: GovernanceOperatorActionExecutorReceiptConsumption;
+  try {
+    sourceConsumption = GovernanceOperatorActionExecutorReceiptConsumptionSchema.parse(source);
+    targetConsumption = GovernanceOperatorActionExecutorReceiptConsumptionSchema.parse(target);
+  } catch {
+    return target;
+  }
+
+  if (!hasGovernanceOperatorActionReceiptConsumptionStoreProof(source, sourceConsumption)) {
+    return target;
+  }
+
+  if (!operatorActionReceiptConsumptionsMatch(sourceConsumption, targetConsumption)) {
+    return target;
+  }
+
+  return markGovernanceOperatorActionReceiptConsumptionStoreProduced(
+    target,
+    targetConsumption
+  );
 }
 
 export async function resolveGovernanceOperatorActionEvidence(input: {
@@ -1466,6 +1825,253 @@ export function shouldLockdown(packet: ArbitrationPacket): boolean {
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────
+
+function markGovernanceOperatorActionReceiptConsumptionStoreProduced<T extends object>(
+  consumption: T,
+  parsedConsumption = GovernanceOperatorActionExecutorReceiptConsumptionSchema.parse(consumption)
+): T {
+  governanceOperatorActionReceiptConsumptionStoreProofs.set(
+    consumption,
+    governanceOperatorActionReceiptConsumptionStoreProofDigest(parsedConsumption)
+  );
+  return consumption;
+}
+
+function hasGovernanceOperatorActionReceiptConsumptionStoreProof(
+  value: unknown,
+  consumption: GovernanceOperatorActionExecutorReceiptConsumption
+): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  return governanceOperatorActionReceiptConsumptionStoreProofs.get(value) ===
+    governanceOperatorActionReceiptConsumptionStoreProofDigest(consumption);
+}
+
+function governanceOperatorActionReceiptConsumptionStoreProofDigest(
+  consumption: GovernanceOperatorActionExecutorReceiptConsumption
+): string {
+  return stableSha256(stableStringify(consumption));
+}
+
+function createBlockedOperatorActionExecutionGateResult(
+  reasons: string[],
+  context: {
+    envelope?: GovernanceOperatorActionEnvelope;
+    consumption?: GovernanceOperatorActionExecutorReceiptConsumption;
+  } = {}
+): GovernanceOperatorActionExecutionGateResult {
+  const receipt = context.consumption?.receipt;
+  return GovernanceOperatorActionExecutionGateResultSchema.parse({
+    status: "blocked",
+    reasons: reasons.length > 0
+      ? [...new Set(reasons)]
+      : ["operator_action_executor_blocked"],
+    ...(context.envelope !== undefined ? { taskId: context.envelope.taskId } : {}),
+    ...(receipt !== undefined ? { actionRef: receipt.actionRef } : {}),
+    ...(receipt !== undefined ? { receiptId: receipt.receiptId } : {}),
+    ...(context.envelope !== undefined
+      ? { envelopeHash: hashGovernanceOperatorActionEnvelope(context.envelope) }
+      : {}),
+    ...(context.envelope !== undefined
+      ? { recommendedAction: context.envelope.recommendedAction }
+      : {}),
+    ...(context.envelope?.checkpointRef !== undefined
+      ? { checkpointRef: context.envelope.checkpointRef }
+      : {})
+  });
+}
+
+function addOperatorActionReceiptConsumptionReasons(
+  reasons: string[],
+  consumption: GovernanceOperatorActionExecutorReceiptConsumption,
+  envelope: GovernanceOperatorActionEnvelope,
+  envelopeHash: string
+): void {
+  if (consumption.status === "not_consumed" || consumption.durable !== true) {
+    addUniqueReason(reasons, "operator_action_executor_receipt_not_durable");
+  }
+
+  if (consumption.status === "blocked") {
+    if (
+      consumption.reasons.includes("operator_action_receipt_replay") ||
+      consumption.validation.reasons.includes("operator_action_receipt_replay")
+    ) {
+      addUniqueReason(reasons, "operator_action_executor_receipt_replay");
+    } else if (
+      consumption.reasons.includes("operator_action_receipt_action_expired") ||
+      consumption.validation.reasons.includes("operator_action_receipt_action_expired")
+    ) {
+      addUniqueReason(reasons, "operator_action_executor_receipt_expired");
+    } else {
+      addUniqueReason(reasons, "operator_action_executor_receipt_consumption_blocked");
+    }
+  }
+
+  if (consumption.status !== "passed") {
+    addUniqueReason(reasons, "operator_action_executor_receipt_not_consumed");
+  }
+
+  if (consumption.validation.status !== "passed") {
+    if (consumption.validation.reasons.includes("operator_action_receipt_replay")) {
+      addUniqueReason(reasons, "operator_action_executor_receipt_replay");
+    }
+    if (consumption.validation.reasons.includes("operator_action_receipt_action_expired")) {
+      addUniqueReason(reasons, "operator_action_executor_receipt_expired");
+    }
+    addUniqueReason(reasons, "operator_action_executor_receipt_validation_blocked");
+  }
+
+  const receipt = consumption.receipt;
+  const validationReceipt = consumption.validation.receipt;
+  if (receipt === undefined || validationReceipt === undefined) {
+    addUniqueReason(reasons, "operator_action_executor_receipt_missing");
+    return;
+  }
+
+  if (stableStringify(receipt) !== stableStringify(validationReceipt)) {
+    addUniqueReason(reasons, "operator_action_executor_receipt_validation_mismatch");
+  }
+
+  const expectedActionRef = createGovernanceOperatorActionRef(envelope, {
+    actionIssuedAt: receipt.actionIssuedAt
+  });
+
+  if (consumption.taskId !== envelope.taskId) {
+    addUniqueReason(reasons, "operator_action_executor_consumption_task_mismatch");
+  }
+
+  if (consumption.validation.taskId !== envelope.taskId) {
+    addUniqueReason(reasons, "operator_action_executor_validation_task_mismatch");
+  }
+
+  if (receipt.taskId !== envelope.taskId) {
+    addUniqueReason(reasons, "operator_action_executor_receipt_task_mismatch");
+  }
+
+  if (receipt.actionRef !== expectedActionRef) {
+    addUniqueReason(reasons, "operator_action_executor_receipt_action_ref_mismatch");
+  }
+
+  if (consumption.actionRef !== expectedActionRef) {
+    addUniqueReason(reasons, "operator_action_executor_consumption_action_ref_mismatch");
+  }
+
+  if (consumption.validation.actionRef !== expectedActionRef) {
+    addUniqueReason(reasons, "operator_action_executor_validation_action_ref_mismatch");
+  }
+
+  if (receipt.envelopeHash !== envelopeHash) {
+    addUniqueReason(reasons, "operator_action_executor_receipt_envelope_hash_mismatch");
+  }
+
+  if (consumption.envelopeHash !== envelopeHash) {
+    addUniqueReason(reasons, "operator_action_executor_consumption_envelope_hash_mismatch");
+  }
+
+  if (consumption.validation.envelopeHash !== envelopeHash) {
+    addUniqueReason(reasons, "operator_action_executor_validation_envelope_hash_mismatch");
+  }
+
+  try {
+    parseReceiptForStore(receipt);
+  } catch {
+    addUniqueReason(reasons, "operator_action_executor_receipt_binding_mismatch");
+  }
+
+  if (receipt.decision !== "consumed") {
+    addUniqueReason(reasons, "operator_action_executor_receipt_decision_not_consumed");
+  }
+
+  if (envelope.lockdown && receipt.decision !== "consumed") {
+    addUniqueReason(reasons, "operator_action_executor_lockdown_resolution_required");
+  }
+}
+
+function addOperatorActionLifecycleReasons(
+  reasons: string[],
+  input: {
+    input: unknown;
+    envelope: GovernanceOperatorActionEnvelope;
+    consumption?: GovernanceOperatorActionExecutorReceiptConsumption;
+  }
+): void {
+  if (input.input === undefined) {
+    addUniqueReason(reasons, "operator_action_executor_lifecycle_required");
+    return;
+  }
+
+  let lifecycle: GovernanceOperatorActionExecutorLifecycleState;
+  try {
+    lifecycle = GovernanceOperatorActionExecutorLifecycleStateSchema.parse(input.input);
+  } catch {
+    addUniqueReason(reasons, "operator_action_executor_lifecycle_invalid");
+    return;
+  }
+
+  if (lifecycle.status !== "receipt_consumed") {
+    addUniqueReason(reasons, "operator_action_executor_lifecycle_not_consumed");
+  }
+
+  if (!lifecycle.operatorActionPresent) {
+    addUniqueReason(reasons, "operator_action_executor_lifecycle_action_missing");
+  }
+
+  if (lifecycle.envelope === undefined) {
+    addUniqueReason(reasons, "operator_action_executor_lifecycle_envelope_missing");
+  } else if (
+    stableStringify(lifecycle.envelope) !== stableStringify(input.envelope)
+  ) {
+    addUniqueReason(reasons, "operator_action_executor_lifecycle_envelope_mismatch");
+  }
+
+  if (lifecycle.lastReceiptConsumption === undefined) {
+    addUniqueReason(reasons, "operator_action_executor_lifecycle_receipt_missing");
+    return;
+  }
+
+  const lifecycleReceipt = lifecycle.lastReceiptConsumption.receipt;
+  const consumedReceipt = input.consumption?.receipt;
+  const expectedActionIssuedAt =
+    consumedReceipt?.actionIssuedAt ?? lifecycleReceipt?.actionIssuedAt;
+  if (
+    expectedActionIssuedAt !== undefined &&
+    lifecycle.actionIssuedAt !== expectedActionIssuedAt
+  ) {
+    addUniqueReason(reasons, "operator_action_executor_lifecycle_action_issued_at_mismatch");
+  }
+
+  if (
+    input.consumption !== undefined &&
+    !operatorActionReceiptConsumptionsMatch(
+      lifecycle.lastReceiptConsumption,
+      input.consumption
+    )
+  ) {
+    addUniqueReason(reasons, "operator_action_executor_lifecycle_receipt_mismatch");
+  }
+}
+
+function operatorActionReceiptConsumptionsMatch(
+  left: GovernanceOperatorActionExecutorReceiptConsumption,
+  right: GovernanceOperatorActionExecutorReceiptConsumption
+): boolean {
+  return left.status === right.status &&
+    left.durable === right.durable &&
+    left.taskId === right.taskId &&
+    left.actionRef === right.actionRef &&
+    left.envelopeHash === right.envelopeHash &&
+    stableStringify(left.reasons) === stableStringify(right.reasons) &&
+    stableStringify(left.validation) === stableStringify(right.validation) &&
+    stableStringify(left.receipt) === stableStringify(right.receipt);
+}
+
+function addUniqueReason(reasons: string[], reason: string): void {
+  if (!reasons.includes(reason)) {
+    reasons.push(reason);
+  }
+}
 
 function expectedRecommendationShape(reasonCode: RecoveryRecommendationReason): {
   action: RecoveryAction;

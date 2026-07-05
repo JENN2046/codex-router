@@ -15,8 +15,10 @@ import {
   createInMemoryGovernanceOperatorActionReceiptStore,
   GovernanceOperatorEvidenceResolutionEntrySchema,
   GovernanceOperatorActionEnvelopeSchema,
+  GovernanceOperatorActionExecutionGateResultSchema,
   GovernanceOperatorActionReceiptSchema,
   hashGovernanceOperatorActionEnvelope,
+  planGovernanceOperatorActionExecution,
   resolveGovernanceOperatorActionEvidence,
   GovernanceOperatorActionSummarySchema,
   RecoveryOperatorActionSchema,
@@ -443,6 +445,22 @@ test("recovery control creates host-consumable operator action envelopes", () =>
     ],
     artifactRefs: ["artifact:provider-runner-third-failure-report"]
   });
+});
+
+test("recovery control preserves rollback checkpoint targets in operator action envelopes", () => {
+  const checkpointRef = "checkpoint:recovery-task:latest";
+  const action = RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+    recommendedAction: "rollback",
+    reasonCode: "third_anomaly_rollback_to_checkpoint",
+    checkpointRef
+  }));
+  const envelope = createGovernanceOperatorActionEnvelope({
+    source: "desktop_live_governance",
+    operatorAction: action
+  });
+
+  assert.equal(envelope?.checkpointRef, checkpointRef);
+  assert.equal(summarizeGovernanceOperatorActionEnvelope(envelope).checkpointRef, checkpointRef);
 });
 
 test("recovery control validates operator action receipts against the action ref", () => {
@@ -1210,6 +1228,539 @@ test("recovery control fails closed when stored receipt results include replay e
   assert.deepEqual(consumed.reasons, ["operator_action_receipt_store_failed"]);
 });
 
+test("recovery control plans operator actions only after durable receipt consumption", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "planned");
+  assert.deepEqual(gate.reasons, []);
+  assert.equal(gate.taskId, "recovery-task");
+  assert.equal(gate.recommendedAction, "fork");
+  assert.equal(gate.plan?.executionMode, "plan_only");
+  assert.equal(gate.plan?.recommendedAction, "fork");
+  assert.match(gate.plan?.operatorInstruction ?? "", /Plan-only gate accepted fork/);
+});
+
+test("recovery control blocks forged durable receipt consumption without store proof", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+  const validation = validateGovernanceOperatorActionReceipt({
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+  assert.equal(validation.status, "passed");
+
+  const forgedConsumption = {
+    schemaVersion: "governance-operator-action-receipt-consumption.v1",
+    status: "passed" as const,
+    durable: true,
+    reasons: [],
+    validation,
+    taskId: validation.taskId,
+    actionRef: validation.actionRef,
+    envelopeHash: validation.envelopeHash,
+    receipt
+  };
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: forgedConsumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, forgedConsumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes(
+    "operator_action_executor_receipt_consumption_store_proof_missing"
+  ));
+  assert.equal(gate.plan, undefined);
+});
+
+test("recovery control preserves rollback checkpoint targets in execution plans", async () => {
+  const checkpointRef = "checkpoint:recovery-task:latest";
+  const action = RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+    recommendedAction: "rollback",
+    reasonCode: "third_anomaly_rollback_to_checkpoint",
+    checkpointRef
+  }));
+  const envelope = createGovernanceOperatorActionEnvelope({
+    source: "execution_governance",
+    operatorAction: action
+  });
+  assert.ok(envelope);
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["rollback"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "planned");
+  assert.equal(gate.recommendedAction, "rollback");
+  assert.equal(gate.checkpointRef, checkpointRef);
+  assert.equal(gate.plan?.recommendedAction, "rollback");
+  assert.equal(gate.plan?.checkpointRef, checkpointRef);
+});
+
+test("recovery control rejects planned gate results whose top-level fields drift from the plan", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "planned");
+  const parsed = GovernanceOperatorActionExecutionGateResultSchema.safeParse({
+    ...gate,
+    taskId: "other-task",
+    actionRef: "other-action-ref",
+    receiptId: "other-receipt",
+    envelopeHash: "0".repeat(64),
+    recommendedAction: "resume",
+    executionMode: undefined
+  });
+
+  assert.equal(parsed.success, false);
+  assert.deepEqual(
+    parsed.error.issues.map((issue) => issue.message).sort(),
+    [
+      "operator_action_execution_gate_action_ref_plan_mismatch",
+      "operator_action_execution_gate_envelope_hash_plan_mismatch",
+      "operator_action_execution_gate_execution_mode_plan_mismatch",
+      "operator_action_execution_gate_receipt_plan_mismatch",
+      "operator_action_execution_gate_recommended_action_plan_mismatch",
+      "operator_action_execution_gate_task_plan_mismatch"
+    ].sort()
+  );
+});
+
+test("recovery control preserves rollback checkpoint targets in blocked gate results", () => {
+  const checkpointRef = "checkpoint:recovery-task:latest";
+  const action = RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+    recommendedAction: "rollback",
+    reasonCode: "third_anomaly_rollback_to_checkpoint",
+    checkpointRef
+  }));
+  const envelope = createGovernanceOperatorActionEnvelope({
+    source: "execution_governance",
+    operatorAction: action
+  });
+  assert.ok(envelope);
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    lifecycleState: {
+      schemaVersion: "desktop-operator-action-lifecycle.v1",
+      status: "action_available",
+      operatorActionPresent: true,
+      envelope
+    },
+    allowedActions: ["rollback"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.equal(gate.recommendedAction, "rollback");
+  assert.equal(gate.checkpointRef, checkpointRef);
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_consumption_required"));
+});
+
+test("recovery control blocks operator action planning without consumed receipts", () => {
+  const envelope = createTestOperatorActionEnvelope();
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    lifecycleState: {
+      schemaVersion: "desktop-operator-action-lifecycle.v1",
+      status: "action_available",
+      operatorActionPresent: true,
+      envelope
+    },
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_consumption_required"));
+  assert.ok(gate.reasons.includes("operator_action_executor_lifecycle_not_consumed"));
+});
+
+test("recovery control blocks operator action planning for non-durable receipts", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const validation = validateGovernanceOperatorActionReceipt({
+    envelope,
+    receipt: createTestOperatorActionReceipt(envelope, { actionIssuedAt }),
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+  const consumption = {
+    schemaVersion: "desktop-operator-action-receipt-consumption.v1",
+    status: "not_consumed" as const,
+    durable: false,
+    reasons: ["operator_action_receipt_store_missing"],
+    validation,
+    taskId: validation.taskId,
+    actionRef: validation.actionRef,
+    envelopeHash: validation.envelopeHash,
+    receipt: validation.receipt
+  };
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt,
+      status: "receipt_not_consumed"
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_not_durable"));
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_not_consumed"));
+});
+
+test("recovery control blocks operator action planning for task/action/hash drift", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const driftedConsumption = {
+    ...consumption,
+    taskId: "other-task",
+    actionRef: "governance-operator-action:other-action",
+    envelopeHash: "b".repeat(64)
+  };
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: driftedConsumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, driftedConsumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_consumption_task_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_consumption_action_ref_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_consumption_envelope_hash_mismatch"));
+});
+
+test("recovery control blocks operator action planning for unbound durable receipts", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receiptWithoutId = {
+    taskId: envelope.taskId,
+    actionRef: "governance-operator-action:unbound-receipt",
+    actionIssuedAt,
+    decision: "consumed" as const,
+    operatorIdHash: "a".repeat(64),
+    createdAt: "2026-04-27T00:05:00.000Z",
+    evidenceRefs: [...envelope.evidenceRefs]
+  };
+  const receipt = GovernanceOperatorActionReceiptSchema.parse({
+    receiptId: createGovernanceOperatorActionReceiptId(receiptWithoutId),
+    ...receiptWithoutId
+  });
+  const consumption = {
+    schemaVersion: "desktop-operator-action-receipt-consumption.v1",
+    status: "passed" as const,
+    durable: true,
+    reasons: [],
+    validation: {
+      schemaVersion: "governance-operator-action-receipt-validation.v1" as const,
+      status: "passed" as const,
+      reasons: [],
+      taskId: envelope.taskId,
+      receipt
+    },
+    taskId: envelope.taskId,
+    receipt
+  };
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_action_ref_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_consumption_action_ref_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_validation_action_ref_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_envelope_hash_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_consumption_envelope_hash_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_validation_envelope_hash_mismatch"));
+});
+
+test("recovery control blocks operator action planning for replayed receipts", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+  await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+  const replay = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:31.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: replay,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, replay, {
+      actionIssuedAt,
+      status: "receipt_blocked"
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_replay"));
+});
+
+test("recovery control blocks operator action planning for expired receipts", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const expired = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt: createTestOperatorActionReceipt(envelope, { actionIssuedAt }),
+    actionIssuedAt,
+    now: "2026-04-27T00:10:00.000Z",
+    maxActionAgeMs: 1
+  });
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: expired,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, expired, {
+      actionIssuedAt,
+      status: "receipt_blocked"
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_expired"));
+});
+
+test("recovery control blocks operator action planning when lockdown is unresolved", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receipt = createTestOperatorActionReceipt(envelope, {
+    actionIssuedAt,
+    decision: "acknowledged"
+  });
+  const consumption = {
+    schemaVersion: "governance-operator-action-receipt-consumption.v1",
+    status: "passed" as const,
+    reasons: [],
+    validation: {
+      schemaVersion: "governance-operator-action-receipt-validation.v1" as const,
+      status: "passed" as const,
+      reasons: [],
+      taskId: envelope.taskId,
+      actionRef: receipt.actionRef,
+      envelopeHash: hashGovernanceOperatorActionEnvelope(envelope),
+      receipt
+    },
+    taskId: envelope.taskId,
+    actionRef: receipt.actionRef,
+    envelopeHash: hashGovernanceOperatorActionEnvelope(envelope),
+    receipt
+  };
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_decision_not_consumed"));
+  assert.ok(gate.reasons.includes("operator_action_executor_lockdown_resolution_required"));
+});
+
+test("recovery control blocks operator action planning outside the action allowlist", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["resume"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_action_not_allowed"));
+});
+
+test("recovery control blocks operator action planning outside plan-only mode", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["fork"],
+    executionMode: "execute"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_mode_not_plan_only"));
+  assert.equal(gate.plan, undefined);
+});
+
+test("recovery control blocks operator action planning when lifecycle has not consumed the receipt", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt,
+      status: "receipt_created"
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_lifecycle_not_consumed"));
+});
+
+test("recovery control blocks operator action planning when lifecycle receipt drifts", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const driftedLifecycleConsumption = {
+    ...consumption,
+    durable: false
+  };
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(
+      envelope,
+      driftedLifecycleConsumption,
+      { actionIssuedAt }
+    ),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_lifecycle_receipt_mismatch"));
+});
+
+test("recovery control blocks operator action planning when lifecycle issuance time drifts", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt: "2026-04-27T00:06:00.000Z"
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(
+    gate.reasons.includes("operator_action_executor_lifecycle_action_issued_at_mismatch")
+  );
+});
+
 test("recovery control resolves operator action evidence refs without raw payloads", async () => {
   const observationStore = createRecordingExecutionObservationStore();
   const artifactStore = new InMemoryArtifactStore({
@@ -1624,6 +2175,47 @@ function createTestOperatorActionReceipt(
     receiptId: createGovernanceOperatorActionReceiptId(receiptWithoutId),
     ...receiptWithoutId
   });
+}
+
+async function createTestOperatorActionConsumption(
+  envelope: GovernanceOperatorActionEnvelope,
+  options: { actionIssuedAt: string }
+) {
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  return validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt: createTestOperatorActionReceipt(envelope, {
+      actionIssuedAt: options.actionIssuedAt
+    }),
+    actionIssuedAt: options.actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+}
+
+function createTestOperatorActionLifecycle(
+  envelope: GovernanceOperatorActionEnvelope,
+  consumption: unknown,
+  options: {
+    actionIssuedAt: string;
+    status?:
+      | "idle"
+      | "action_available"
+      | "receipt_created"
+      | "receipt_consumed"
+      | "receipt_not_consumed"
+      | "receipt_blocked";
+  }
+) {
+  return {
+    schemaVersion: "desktop-operator-action-lifecycle.v1",
+    status: options.status ?? "receipt_consumed",
+    operatorActionPresent: true,
+    actionIssuedAt: options.actionIssuedAt,
+    envelope,
+    lastReceiptConsumption: consumption
+  };
 }
 
 function createStandaloneOperatorActionReceipt(overrides: {
