@@ -52,11 +52,14 @@ import {
   partitionTelemetryAlertsForDelivery
 } from "../../observability/src/index.js";
 import {
+  consumeDesktopOperatorActionReceipt,
   createHostBridgeFromBindings,
   createPrimitiveFailureEnvelope,
   createPrimitiveSuccessEnvelope,
   resumeDesktopTask,
   runDesktopTask,
+  type ConsumeDesktopOperatorActionReceiptInput,
+  type DesktopOperatorActionReceiptConsumption,
   type DesktopHostBindings,
   type DesktopHostBridge,
   type RunDesktopTaskResult
@@ -67,6 +70,11 @@ import {
   type ExecutionObservationBus,
   type ExecutionObservationStore
 } from "../../execution-observation/src/index.js";
+import type {
+  GovernanceOperatorActionEnvelope,
+  GovernanceOperatorActionEnvelopeInput,
+  GovernanceOperatorActionReceiptStore
+} from "../../recovery-control/src/index.js";
 import type { GovernanceState } from "../../state-manager/src/index.js";
 import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
 export {
@@ -128,6 +136,7 @@ export interface ExampleHostClientOptions {
   telemetryAlertDeliveryWindowStore?: TelemetryAlertDeliveryWindowStore;
   observationBus?: ExecutionObservationBus;
   observationStore?: ExecutionObservationStore;
+  operatorActionReceiptStore?: GovernanceOperatorActionReceiptStore;
   governanceState?: GovernanceState;
   onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
   preflight?: ExamplePreflightConfig;
@@ -138,6 +147,14 @@ export interface ExampleResumeOptions {
   required?: boolean;
   stage?: string;
   preferredSource?: "memory" | "checkpoint";
+}
+
+export interface ExampleOperatorActionReceiptInput {
+  envelope?: GovernanceOperatorActionEnvelopeInput;
+  receipt: unknown;
+  actionIssuedAt?: string | (() => string);
+  now?: string | (() => string);
+  maxActionAgeMs?: number;
 }
 
 interface StoredMemoryEntry {
@@ -265,6 +282,7 @@ export class ExampleDesktopHostClient {
   readonly observationStore: ExecutionObservationStore | undefined;
   telemetryAlertDeliveryWindowStore: TelemetryAlertDeliveryWindowStore | undefined;
   private currentGovernanceState: GovernanceState | undefined;
+  private currentOperatorActionEnvelope: GovernanceOperatorActionEnvelope | undefined;
   private readonly telemetryAlertDeliveryWindowPreset: TelemetryAlertDeliveryWindowPresetName | undefined;
   readonly bridge: DesktopHostBridge;
 
@@ -381,6 +399,7 @@ export class ExampleDesktopHostClient {
     });
 
     await this.flushTelemetryAlerts(result.decisionResult.decision);
+    this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
     return result;
   }
 
@@ -411,7 +430,30 @@ export class ExampleDesktopHostClient {
     });
 
     await this.flushTelemetryAlerts(result.decisionResult.decision);
+    this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
     return result;
+  }
+
+  async consumeOperatorActionReceipt(
+    input: ExampleOperatorActionReceiptInput
+  ): Promise<DesktopOperatorActionReceiptConsumption> {
+    const envelope = input.envelope ?? this.currentOperatorActionEnvelope;
+    if (envelope === undefined) {
+      return createMissingOperatorActionEnvelopeConsumption();
+    }
+
+    const consumeInput: ConsumeDesktopOperatorActionReceiptInput = {
+      ...(this.options.operatorActionReceiptStore !== undefined
+        ? { store: this.options.operatorActionReceiptStore }
+        : {}),
+      envelope,
+      receipt: input.receipt,
+      ...(input.actionIssuedAt !== undefined ? { actionIssuedAt: input.actionIssuedAt } : {}),
+      now: input.now ?? this.now,
+      ...(input.maxActionAgeMs !== undefined ? { maxActionAgeMs: input.maxActionAgeMs } : {})
+    };
+
+    return consumeDesktopOperatorActionReceipt(consumeInput);
   }
 
   private buildGovernanceForwarding(): {
@@ -625,6 +667,20 @@ export class ExampleDesktopHostClient {
       memoryOverviewProvider
     };
   }
+}
+
+function createMissingOperatorActionEnvelopeConsumption(): DesktopOperatorActionReceiptConsumption {
+  return {
+    schemaVersion: "desktop-operator-action-receipt-consumption.v1",
+    status: "blocked",
+    durable: false,
+    reasons: ["operator_action_receipt_envelope_missing"],
+    validation: {
+      schemaVersion: "governance-operator-action-receipt-validation.v1",
+      status: "blocked",
+      reasons: ["operator_action_receipt_envelope_missing"]
+    }
+  };
 }
 
 export function createExampleDesktopHostClient(

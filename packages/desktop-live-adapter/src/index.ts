@@ -46,8 +46,15 @@ import {
   createRecoveryOperatorAction,
   shouldLockdown,
   summarizeGovernanceOperatorActionEnvelope,
+  validateAndConsumeGovernanceOperatorActionReceipt,
+  validateGovernanceOperatorActionReceipt,
   type ArbitrationPacket,
   type GovernanceOperatorActionEnvelope,
+  type GovernanceOperatorActionEnvelopeInput,
+  type GovernanceOperatorActionReceipt,
+  type GovernanceOperatorActionReceiptConsumption,
+  type GovernanceOperatorActionReceiptStore,
+  type GovernanceOperatorActionReceiptValidation,
   type GovernanceOperatorActionSummary,
   type RecoveryOperatorAction,
   type RecoveryAction,
@@ -186,6 +193,31 @@ export interface RunDesktopTaskResult {
   hostDispatch?: HostDispatcherResult;
 }
 
+export type DesktopOperatorActionReceiptConsumptionStatus =
+  | GovernanceOperatorActionReceiptConsumption["status"]
+  | "not_consumed";
+
+export interface DesktopOperatorActionReceiptConsumption {
+  schemaVersion: "desktop-operator-action-receipt-consumption.v1";
+  status: DesktopOperatorActionReceiptConsumptionStatus;
+  durable: boolean;
+  reasons: string[];
+  validation: GovernanceOperatorActionReceiptValidation;
+  taskId?: string;
+  actionRef?: string;
+  envelopeHash?: string;
+  receipt?: GovernanceOperatorActionReceipt;
+}
+
+export interface ConsumeDesktopOperatorActionReceiptInput {
+  store?: GovernanceOperatorActionReceiptStore;
+  envelope: GovernanceOperatorActionEnvelopeInput;
+  receipt: unknown;
+  actionIssuedAt?: string | (() => string);
+  now: string | (() => string);
+  maxActionAgeMs?: number;
+}
+
 export async function runDesktopTask(
   input: RunDesktopTaskInput
 ): Promise<RunDesktopTaskResult> {
@@ -221,6 +253,79 @@ export async function resumeDesktopTask(
 
   const decisionResult = await resumeDesktopDecision(decisionRunnerInput);
   return executeDesktopTaskFromDecision(input, decisionResult);
+}
+
+export async function consumeDesktopOperatorActionReceipt(
+  input: ConsumeDesktopOperatorActionReceiptInput
+): Promise<DesktopOperatorActionReceiptConsumption> {
+  if (input.store !== undefined) {
+    const consumption = await validateAndConsumeGovernanceOperatorActionReceipt({
+      store: input.store,
+      envelope: input.envelope,
+      receipt: input.receipt,
+      ...(input.actionIssuedAt !== undefined ? { actionIssuedAt: input.actionIssuedAt } : {}),
+      now: input.now,
+      ...(input.maxActionAgeMs !== undefined ? { maxActionAgeMs: input.maxActionAgeMs } : {})
+    });
+
+    return createDesktopOperatorActionReceiptConsumption({
+      status: consumption.status,
+      durable: consumption.status === "passed",
+      reasons: consumption.reasons,
+      validation: consumption.validation,
+      ...(consumption.taskId !== undefined ? { taskId: consumption.taskId } : {}),
+      ...(consumption.actionRef !== undefined ? { actionRef: consumption.actionRef } : {}),
+      ...(consumption.envelopeHash !== undefined ? { envelopeHash: consumption.envelopeHash } : {}),
+      ...(consumption.receipt !== undefined ? { receipt: consumption.receipt } : {})
+    });
+  }
+
+  const validation = validateGovernanceOperatorActionReceipt({
+    envelope: input.envelope,
+    receipt: input.receipt,
+    ...(input.actionIssuedAt !== undefined ? { actionIssuedAt: input.actionIssuedAt } : {}),
+    now: input.now,
+    ...(input.maxActionAgeMs !== undefined ? { maxActionAgeMs: input.maxActionAgeMs } : {})
+  });
+
+  if (validation.status === "blocked" || validation.receipt === undefined) {
+    return createDesktopOperatorActionReceiptConsumption({
+      status: "blocked",
+      durable: false,
+      reasons: validation.reasons,
+      validation,
+      ...(validation.taskId !== undefined ? { taskId: validation.taskId } : {}),
+      ...(validation.actionRef !== undefined ? { actionRef: validation.actionRef } : {}),
+      ...(validation.envelopeHash !== undefined ? { envelopeHash: validation.envelopeHash } : {})
+    });
+  }
+
+  return createDesktopOperatorActionReceiptConsumption({
+    status: "not_consumed",
+    durable: false,
+    reasons: ["operator_action_receipt_store_missing"],
+    validation,
+    ...(validation.taskId !== undefined ? { taskId: validation.taskId } : {}),
+    ...(validation.actionRef !== undefined ? { actionRef: validation.actionRef } : {}),
+    ...(validation.envelopeHash !== undefined ? { envelopeHash: validation.envelopeHash } : {}),
+    receipt: validation.receipt
+  });
+}
+
+function createDesktopOperatorActionReceiptConsumption(
+  input: Omit<DesktopOperatorActionReceiptConsumption, "schemaVersion">
+): DesktopOperatorActionReceiptConsumption {
+  return {
+    schemaVersion: "desktop-operator-action-receipt-consumption.v1",
+    status: input.status,
+    durable: input.durable,
+    reasons: [...input.reasons],
+    validation: input.validation,
+    ...(input.taskId !== undefined ? { taskId: input.taskId } : {}),
+    ...(input.actionRef !== undefined ? { actionRef: input.actionRef } : {}),
+    ...(input.envelopeHash !== undefined ? { envelopeHash: input.envelopeHash } : {}),
+    ...(input.receipt !== undefined ? { receipt: input.receipt } : {})
+  };
 }
 
 function assertGovernanceStateTaskScoped(input: {
