@@ -168,6 +168,7 @@ export const GovernanceOperatorActionEnvelopeSchema = z.object({
   recommendedAction: RecoveryActionSchema,
   requiresHumanApproval: z.boolean(),
   lockdown: z.boolean(),
+  checkpointRef: z.string().min(1).optional(),
   blockingReasons: z.array(z.string()).default([]),
   evidenceRefs: z.array(z.string()).default([]),
   artifactRefs: z.array(z.string()).default([])
@@ -202,6 +203,22 @@ export const GovernanceOperatorActionEnvelopeSchema = z.object({
       });
     }
   }
+
+  if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_envelope_checkpoint_required"
+    });
+  }
+
+  if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_envelope_checkpoint_not_allowed"
+    });
+  }
 });
 
 export const GovernanceOperatorActionSummarySchema = z.object({
@@ -215,6 +232,7 @@ export const GovernanceOperatorActionSummarySchema = z.object({
   recommendedAction: RecoveryActionSchema.optional(),
   requiresHumanApproval: z.boolean().optional(),
   lockdown: z.boolean().optional(),
+  checkpointRef: z.string().min(1).optional(),
   blockingReasons: z.array(z.string()).default([]),
   evidenceRefs: z.array(z.string()).default([]),
   artifactRefs: z.array(z.string()).default([])
@@ -247,7 +265,8 @@ export const GovernanceOperatorActionSummarySchema = z.object({
     "trigger",
     "recommendedAction",
     "requiresHumanApproval",
-    "lockdown"
+    "lockdown",
+    "checkpointRef"
   ] as const;
   for (const field of forbiddenPresentFields) {
     if (value[field] !== undefined) {
@@ -262,7 +281,8 @@ export const GovernanceOperatorActionSummarySchema = z.object({
   if (
     value.blockingReasons.length > 0 ||
     value.evidenceRefs.length > 0 ||
-    value.artifactRefs.length > 0
+    value.artifactRefs.length > 0 ||
+    value.checkpointRef !== undefined
   ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -440,10 +460,27 @@ export const GovernanceOperatorActionExecutionPlanSchema = z.object({
   executionMode: GovernanceOperatorActionExecutionModeSchema,
   requiresHumanApproval: z.boolean(),
   lockdown: z.boolean(),
+  checkpointRef: z.string().min(1).optional(),
   evidenceRefs: z.array(z.string()).default([]),
   artifactRefs: z.array(z.string()).default([]),
   blockingReasons: z.array(z.string()).default([]),
   operatorInstruction: z.string().min(1)
+}).superRefine((value, ctx) => {
+  if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_execution_plan_checkpoint_required"
+    });
+  }
+
+  if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_execution_plan_checkpoint_not_allowed"
+    });
+  }
 });
 
 export const GovernanceOperatorActionExecutionGateResultSchema = z.object({
@@ -457,6 +494,7 @@ export const GovernanceOperatorActionExecutionGateResultSchema = z.object({
   envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   recommendedAction: RecoveryActionSchema.optional(),
   executionMode: GovernanceOperatorActionExecutionModeSchema.optional(),
+  checkpointRef: z.string().min(1).optional(),
   plan: GovernanceOperatorActionExecutionPlanSchema.optional()
 }).superRefine((value, ctx) => {
   if (value.status === "planned") {
@@ -472,6 +510,33 @@ export const GovernanceOperatorActionExecutionGateResultSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ["plan"],
         message: "operator_action_execution_gate_planned_requires_plan"
+      });
+    }
+
+    if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_execution_gate_checkpoint_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_execution_gate_checkpoint_not_allowed"
+      });
+    }
+
+    if (
+      value.plan !== undefined &&
+      value.checkpointRef !== value.plan.checkpointRef
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_execution_gate_checkpoint_plan_mismatch"
       });
     }
     return;
@@ -846,6 +911,9 @@ export function createGovernanceOperatorActionEnvelope(input: {
     recommendedAction: input.operatorAction.recommendedAction,
     requiresHumanApproval: input.operatorAction.requiresHumanApproval,
     lockdown: input.operatorAction.lockdown,
+    ...(input.operatorAction.checkpointRef !== undefined
+      ? { checkpointRef: input.operatorAction.checkpointRef }
+      : {}),
     blockingReasons: [...input.operatorAction.blockingReasons],
     evidenceRefs: [...input.operatorAction.evidenceRefs],
     artifactRefs: input.operatorAction.evidenceRefs.filter(isArtifactEvidenceRef)
@@ -873,6 +941,7 @@ export function summarizeGovernanceOperatorActionEnvelope(
     recommendedAction: envelope.recommendedAction,
     requiresHumanApproval: envelope.requiresHumanApproval,
     lockdown: envelope.lockdown,
+    ...(envelope.checkpointRef !== undefined ? { checkpointRef: envelope.checkpointRef } : {}),
     blockingReasons: [...envelope.blockingReasons],
     evidenceRefs: [...envelope.evidenceRefs],
     artifactRefs: [...envelope.artifactRefs]
@@ -1592,6 +1661,7 @@ export function planGovernanceOperatorActionExecution(
     executionMode: "plan_only",
     requiresHumanApproval: envelope.requiresHumanApproval,
     lockdown: envelope.lockdown,
+    ...(envelope.checkpointRef !== undefined ? { checkpointRef: envelope.checkpointRef } : {}),
     evidenceRefs: [...envelope.evidenceRefs],
     artifactRefs: [...envelope.artifactRefs],
     blockingReasons: [...envelope.blockingReasons],
@@ -1608,6 +1678,7 @@ export function planGovernanceOperatorActionExecution(
     envelopeHash,
     recommendedAction: envelope.recommendedAction,
     executionMode: "plan_only",
+    ...(envelope.checkpointRef !== undefined ? { checkpointRef: envelope.checkpointRef } : {}),
     plan
   });
 }

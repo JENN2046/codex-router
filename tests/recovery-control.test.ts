@@ -446,6 +446,22 @@ test("recovery control creates host-consumable operator action envelopes", () =>
   });
 });
 
+test("recovery control preserves rollback checkpoint targets in operator action envelopes", () => {
+  const checkpointRef = "checkpoint:recovery-task:latest";
+  const action = RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+    recommendedAction: "rollback",
+    reasonCode: "third_anomaly_rollback_to_checkpoint",
+    checkpointRef
+  }));
+  const envelope = createGovernanceOperatorActionEnvelope({
+    source: "desktop_live_governance",
+    operatorAction: action
+  });
+
+  assert.equal(envelope?.checkpointRef, checkpointRef);
+  assert.equal(summarizeGovernanceOperatorActionEnvelope(envelope).checkpointRef, checkpointRef);
+});
+
 test("recovery control validates operator action receipts against the action ref", () => {
   const envelope = createTestOperatorActionEnvelope();
   const actionIssuedAt = "2026-04-27T00:04:45.000Z";
@@ -1235,6 +1251,40 @@ test("recovery control plans operator actions only after durable receipt consump
   assert.equal(gate.plan?.executionMode, "plan_only");
   assert.equal(gate.plan?.recommendedAction, "fork");
   assert.match(gate.plan?.operatorInstruction ?? "", /Plan-only gate accepted fork/);
+});
+
+test("recovery control preserves rollback checkpoint targets in execution plans", async () => {
+  const checkpointRef = "checkpoint:recovery-task:latest";
+  const action = RecoveryOperatorActionSchema.parse(createOperatorActionInput({
+    recommendedAction: "rollback",
+    reasonCode: "third_anomaly_rollback_to_checkpoint",
+    checkpointRef
+  }));
+  const envelope = createGovernanceOperatorActionEnvelope({
+    source: "execution_governance",
+    operatorAction: action
+  });
+  assert.ok(envelope);
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["rollback"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "planned");
+  assert.equal(gate.recommendedAction, "rollback");
+  assert.equal(gate.checkpointRef, checkpointRef);
+  assert.equal(gate.plan?.recommendedAction, "rollback");
+  assert.equal(gate.plan?.checkpointRef, checkpointRef);
 });
 
 test("recovery control blocks operator action planning without consumed receipts", () => {
