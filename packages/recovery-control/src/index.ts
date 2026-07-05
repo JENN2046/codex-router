@@ -386,6 +386,8 @@ export const GovernanceOperatorActionReceiptConsumptionStatusSchema = z.enum([
   "blocked"
 ]);
 
+const governanceOperatorActionReceiptConsumptionStoreProofs = new WeakMap<object, string>();
+
 export const GovernanceOperatorActionReceiptConsumptionSchema = z.object({
   schemaVersion: z.literal("governance-operator-action-receipt-consumption.v1")
     .default("governance-operator-action-receipt-consumption.v1"),
@@ -1609,16 +1611,18 @@ export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
     });
   }
 
-  return GovernanceOperatorActionReceiptConsumptionSchema.parse({
-    status: "passed",
-    durable: true,
-    reasons: [],
-    validation,
-    taskId: validation.taskId,
-    actionRef: validation.actionRef,
-    envelopeHash: validation.envelopeHash,
-    receipt: validation.receipt
-  });
+  return markGovernanceOperatorActionReceiptConsumptionStoreProduced(
+    GovernanceOperatorActionReceiptConsumptionSchema.parse({
+      status: "passed",
+      durable: true,
+      reasons: [],
+      validation,
+      taskId: validation.taskId,
+      actionRef: validation.actionRef,
+      envelopeHash: validation.envelopeHash,
+      receipt: validation.receipt
+    })
+  );
 }
 
 export function planGovernanceOperatorActionExecution(
@@ -1663,6 +1667,19 @@ export function planGovernanceOperatorActionExecution(
       consumption = GovernanceOperatorActionExecutorReceiptConsumptionSchema.parse(
         input.receiptConsumption
       );
+      if (
+        consumption.status === "passed" &&
+        consumption.durable === true &&
+        !hasGovernanceOperatorActionReceiptConsumptionStoreProof(
+          input.receiptConsumption,
+          consumption
+        )
+      ) {
+        addUniqueReason(
+          reasons,
+          "operator_action_executor_receipt_consumption_store_proof_missing"
+        );
+      }
       addOperatorActionReceiptConsumptionReasons(reasons, consumption, envelope, envelopeHash);
     } catch {
       addUniqueReason(reasons, "operator_action_executor_receipt_consumption_invalid");
@@ -1781,6 +1798,28 @@ export function shouldLockdown(packet: ArbitrationPacket): boolean {
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────
+
+function markGovernanceOperatorActionReceiptConsumptionStoreProduced<
+  T extends GovernanceOperatorActionReceiptConsumption
+>(consumption: T): T {
+  governanceOperatorActionReceiptConsumptionStoreProofs.set(
+    consumption,
+    stableSha256(stableStringify(consumption))
+  );
+  return consumption;
+}
+
+function hasGovernanceOperatorActionReceiptConsumptionStoreProof(
+  value: unknown,
+  consumption: GovernanceOperatorActionExecutorReceiptConsumption
+): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  return governanceOperatorActionReceiptConsumptionStoreProofs.get(value) ===
+    stableSha256(stableStringify(consumption));
+}
 
 function createBlockedOperatorActionExecutionGateResult(
   reasons: string[],

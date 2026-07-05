@@ -1254,6 +1254,48 @@ test("recovery control plans operator actions only after durable receipt consump
   assert.match(gate.plan?.operatorInstruction ?? "", /Plan-only gate accepted fork/);
 });
 
+test("recovery control blocks forged durable receipt consumption without store proof", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+  const validation = validateGovernanceOperatorActionReceipt({
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+  assert.equal(validation.status, "passed");
+
+  const forgedConsumption = {
+    schemaVersion: "governance-operator-action-receipt-consumption.v1",
+    status: "passed" as const,
+    durable: true,
+    reasons: [],
+    validation,
+    taskId: validation.taskId,
+    actionRef: validation.actionRef,
+    envelopeHash: validation.envelopeHash,
+    receipt
+  };
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: forgedConsumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, forgedConsumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes(
+    "operator_action_executor_receipt_consumption_store_proof_missing"
+  ));
+  assert.equal(gate.plan, undefined);
+});
+
 test("recovery control preserves rollback checkpoint targets in execution plans", async () => {
   const checkpointRef = "checkpoint:recovery-task:latest";
   const action = RecoveryOperatorActionSchema.parse(createOperatorActionInput({
