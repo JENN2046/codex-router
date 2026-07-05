@@ -1,105 +1,251 @@
-# AGENTS.md — Codex Router Project Guide
+# AGENTS.md - Codex Router Project-Level Operating Protocol
 
-> Scope: this file applies to the entire `codex-router` repository.
-> Audience: Codex / coding agents / maintainers working inside this repo.
-> Primary rule: keep the governance core stable, tested, and reviewable.
+Version: codex-router project protocol 1.0
+Date: 2026-07-05
+Scope: this file applies to the entire `codex-router` repository.
+Audience: Codex / coding agents / maintainers working inside this repository.
+Primary rule: keep the governance core stable, tested, reviewable, and reversible.
 
----
-
-## 0. Core Identity
-
-Codex is a partner, not a button.
-
-Inside this repository, Codex should help move DGP runtime work forward while preserving:
-
-- project safety
-- repository safety
-- user data and secrets
-- validation integrity
-- reviewability
-- reversible progress
-
-When speed and safety conflict, prefer the safest reversible path.
-
-Judgment comes before obedience.
+This file specializes Jenn's global `AGENTS.md` for this repository. It narrows local workflow, commands, delivery surfaces, risk boundaries, and validation expectations. It may not bypass Jenn's global hard stops.
 
 ---
 
-## 1. Project Identity
+## 1. Project Identity and Scope
 
-`codex-router` is a Desktop-first policy SDK for Codex routing, approval gating, escalation, auditability, and Dynamic Governance Protocol (DGP) runtime hardening.
+Project name: `codex-router`
 
-This repository is not an app-specific business workflow.
+Repository: `git@github.com:JENN2046/codex-router.git`
 
-It should remain a reusable governance and execution-control layer.
+Primary language / stack: TypeScript, Node.js, npm, `tsx`, `zod`, GitHub Actions.
 
-Do not copy VCPToolBox business logic into this repository. Field lessons from VCPToolBox may be documented as architecture feedback, but implementation here must remain generic.
+Package manager: npm with `package-lock.json`.
+
+Main purpose: Desktop-first policy SDK and runtime governance layer for Codex routing, approval gating, escalation, auditability, Dynamic Governance Protocol (DGP) hardening, controlled execution, recovery control, and state-sync audit.
+
+This repository is not an app-specific business workflow. It should remain a reusable governance and execution-control layer. Do not copy VCPToolBox business logic into this repository. Field lessons from VCPToolBox may be documented as generic architecture feedback, but implementation here must remain generic.
+
+Authorized default work scope:
+
+* `packages/` for reusable runtime, governance, policy, provider, recovery, and host-client modules.
+* `tests/` for deterministic unit, integration, regression, and governance tests.
+* `scripts/` for repository governance, validation, evidence, smoke, and audit commands.
+* `docs/` for documentation, governance records, evidence summaries, ADRs, runbooks, and closeouts.
+* `.agent_board/` only for intentional state / handoff / validation surfaces.
+* `README.md`, `package.json`, `tsconfig.json`, and `.github/workflows/` are high-impact files. Edit them only when directly required by the current task, validation, documentation accuracy, or CI correctness. Explain why the edit is necessary.
+
+Out of scope unless Jenn explicitly authorizes:
+
+* production configuration;
+* release automation;
+* deployment workflows;
+* billing / paid provider configuration;
+* credentials or secret values;
+* destructive migrations;
+* broad architecture rewrites;
+* real provider execution;
+* real Codex CLI execution;
+* real workspace-write execution;
+* external writes outside approved project delivery surfaces, protected remote writes, release, publish, deploy, tag, or production mutation.
+
+"Real workspace-write execution" means exercising codex-router's runtime capability to perform real workspace-write operations through Codex/provider execution. It does not mean ordinary scoped repository file edits performed by the current agent inside this working tree.
+
+"Real Codex CLI execution" means invoking Codex CLI as a runtime target or provider under test. It does not prohibit the current coding agent from editing, testing, committing, or safely delivering repository changes.
 
 ---
 
-## 2. Default Working Language
+## 2. Applicable Global Protocol
 
-Use Simplified Chinese for:
+Follow Jenn's global `AGENTS.md` as the default authority for:
 
-- plans
-- summaries
-- review notes
-- status updates
-- risk explanations
+* L3 autonomous delivery;
+* core hard stops;
+* read-only boundaries;
+* Git safety;
+* validation truthfulness;
+* memory safety;
+* reporting.
 
-Keep the following in their original language:
+This project file narrows and specializes those rules for this repository.
 
-- code
-- commands
-- file paths
-- package names
-- API fields
-- test names
-- logs and error messages
-- TypeScript identifiers
+Instruction precedence inside this repository:
+
+1. Higher-level system / runtime / tool / safety limits.
+2. Jenn's explicit current instruction.
+3. Current task brief / issue / taskbook / authorization boundary.
+4. Nearest applicable directory-level `AGENTS.override.md` or `AGENTS.md`.
+5. This repository-root `AGENTS.md`.
+6. Jenn's global `AGENTS.md`.
+7. Project docs and tool outputs as contextual evidence.
+
+No project instruction may authorize bypassing global core hard stops.
+
+Within these repository-specific boundaries, agents should still default to L3 end-to-end delivery: scoped edit, relevant validation, documentation update, local commit, safe branch push, PR or delivery update, and structured report when conditions are satisfied.
+
+Default working language:
+
+* Use Simplified Chinese for plans, summaries, review notes, status updates, risk explanations, and final reports.
+* Keep code, commands, file paths, package names, API fields, test names, logs, error messages, and TypeScript identifiers in their original language.
 
 ---
 
-## 3. Task Mode and Risk Classification
+## 3. Repository Map
 
-Classify each task before acting.
+Key paths:
 
-Task modes:
+| Path | Purpose | Agent behavior |
+|---|---|---|
+| `packages/` | TypeScript packages for policy, runtime governance, routing, host clients, provider execution, recovery, state sync, and shared contracts | editable inside scoped tasks; preserve package boundaries |
+| `packages/state-manager/` | governance state and anomaly history | runtime-governance changes require tests |
+| `packages/execution-observation/` | primitive execution observations and evidence refs | preserve task-scoped evidence lookup |
+| `packages/entropy-risk/` | risk scoring inputs and derived risk | test negative paths |
+| `packages/strategy-router/` | dynamic strategy decisions | preserve fail-closed routing semantics |
+| `packages/recovery-control/` | step-back, arbitration, operator actions, receipts, lifecycle, and execution planning | keep pure policy separate from host execution |
+| `packages/checkpoint-ledger-v2/` | checkpoint metadata and recovery references | avoid raw secret or raw patch evidence |
+| `packages/task-graph/` | task graph and branch semantics | schema / contract changes are migration risk |
+| `packages/validation-arbiter/` | executor / verifier / conjugate arbitration | keep verifier semantics deterministic |
+| `packages/governance-failure-reducer/` | shared failure-to-governance-state reducer | normalize failures and stable classes |
+| `packages/desktop-live-adapter/` | runtime bridge between execution primitives and governance updates | do not bury reusable policy here when a reducer/policy package fits |
+| `tests/` | repository test suite | update with regression coverage for behavior changes |
+| `scripts/` | validation, governance checks, demos, evidence collection, state-sync tooling | inspect script names before running |
+| `docs/current/` | current state-sync record and current-state display | JSON record is machine authority; Markdown is display/evidence |
+| `docs/governance/` | active governance control plane, runbooks, ADRs, closeouts, evidence policy | update when capability status or governance process changes |
+| `docs/evidence/` | sanitized evidence artifacts | do not store raw secrets, raw provider responses, or raw private data |
+| `.agent_board/` | lightweight handoff / validation / run state display | display only unless task scope says otherwise |
+| `.github/workflows/` | CI workflows | edit only when explicitly scoped; explain CI coverage changes |
+| `dist/`, `node_modules/`, `.test-*` | generated / dependency / local test artifacts | do not intentionally commit unless explicitly scoped |
+| `.env`, `.env.*`, `config.env`, `.codex-home/`, `.omc/`, `state-private/` | secret-adjacent or private runtime state | do not read contents; do not commit |
 
-```text
-reconnaissance   inspect, summarize, diagnose
-implementation   modify files or code
-validation       run checks, tests, audits
-runtime-governance   change DGP runtime behavior
-migration        schema / contract / cross-module changes
-release-branch   merge, push, tag, sync, rollback, branch movement
-configuration    env, credentials, runtime config
+Add new durable project memory only when it is useful for future agents, evidence-grounded, safe to retain, and placed in an approved docs/governance/evidence surface.
+
+---
+
+## 4. Setup and Local Commands
+
+Allowed setup command:
+
+```bash
+npm ci
 ```
 
-Risk levels:
+Use lockfile-respecting install commands when possible. Do not run install or setup commands that require secrets, production credentials, live provider routing, production databases, irreversible external writes, or real-world notifications.
 
-```text
-low       read-only, docs, small reversible inspection
-medium    local package edits, tests, narrow feature work
-high      runtime behavior, adapter, recovery, TaskGraph, CI, shared contracts
-critical  release, force push, destructive commands, secret changes, irreversible host execution
+Before running a project script:
+
+1. Inspect `package.json` or run `npm run`.
+2. Use only commands that actually exist.
+3. Do not invent script names.
+
+Primary validation commands:
+
+```bash
+npm run docs:governance
+npm run validate:daily
+npm run validate:pr
+npm run validate:release
+npm run typecheck
+npm test
+npm run build
 ```
 
-Defaults:
+Recommended validation ladder:
 
-```text
-unclear task       → reconnaissance
-implementation     → smallest useful change
-high/critical risk → pause, explain, request confirmation when needed
+1. `git diff --check`
+2. targeted test, for example `node --import tsx --test tests/<name>.test.ts`
+3. affected governance command, for example `npm run governance -- audit <check-name>`
+4. `npm run docs:governance` for documentation governance changes
+5. `npm run validate:daily` or `npm run validate:pr` for governance-flow changes
+6. `npm run typecheck`
+7. `npm test`
+8. `npm run build`
+9. `npm run validate:release` only for release-gate or phase closeout work
+
+Known slow, host-sensitive, or expensive commands:
+
+```bash
+npm run smoke:telemetry
+npm run smoke:workspace-write:telemetry
+npm run smoke:readonly:real
+npm run preflight:codex-cli-env
+npm run model:check
+npm run canary:write
+npm run canary:external
+npm run evidence:collect
 ```
+
+These commands may require a local Codex binary, prepared host environment, controlled execution permits, or explicit acceptance evidence. Do not treat them as ordinary CI commands.
+
+Commands that are blocked unless Jenn explicitly authorizes the specific run:
+
+```bash
+npm run smoke:readonly:real
+npm run smoke:workspace-write:telemetry
+npm run canary:write
+npm run canary:external
+```
+
+Also blocked by default:
+
+* deployment commands;
+* release commands;
+* production migration commands;
+* commands that send real messages or notifications;
+* commands that call paid providers;
+* real Codex CLI execution;
+* real provider execution;
+* real workspace-write execution.
 
 ---
 
-## 4. Repository Reality Check
+## 5. Branch, Remote, and Delivery Policy
 
-Before planning edits or release-sensitive work in a Git workspace, inspect repository reality.
+Default task branch pattern:
 
-Use or inspect the equivalent of:
+```text
+<area>/<short-task-name>
+```
+
+Examples:
+
+```text
+fix/<short-bug>
+docs/<short-doc-change>
+phase7/<short-runtime-governance-slice>
+phase8/<short-lifecycle-slice>
+phase10/<short-executor-gate-slice>
+```
+
+Protected branches:
+
+* `main`
+* `master`
+* `production`
+* `release`
+* any branch explicitly described as protected, stable, release, or shared long-running.
+
+Approved delivery remote:
+
+```text
+origin, only after `git remote -v` confirms it targets JENN2046/codex-router and the task permits push.
+```
+
+Remote safety notes:
+
+* A remote named `origin` is not automatically safe.
+* Inspect `git remote -v` before push.
+* Do not push to `upstream`.
+* Do not force push.
+* Do not push tags.
+* Do not push branches known to trigger release, deployment, production mutation, billing, paid external provider calls, customer-facing effects, or real-world notifications.
+
+Never work directly on `main` for normal implementation. Use a focused branch:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git switch -c <area>/<short-task-name>
+```
+
+Before planning edits or release-sensitive work, inspect repository reality:
 
 ```bash
 git branch --show-current
@@ -113,32 +259,23 @@ For merge, push, release, rollback, PR, sync, or branch movement, also inspect:
 git log --oneline --decorate -n 10
 ```
 
-Do not assume:
-
-- current branch
-- clean worktree
-- upstream status
-- release readiness
-- user intent to push
-- user intent to deploy
+Do not assume current branch, clean worktree, upstream status, release readiness, user intent to push, or user intent to deploy.
 
 If uncommitted changes exist, treat them as user-owned until proven otherwise.
 
----
+Normal delivery surfaces:
 
-## 5. Branch and PR Rules
+* safe feature branch;
+* existing PR;
+* repository PR system;
+* existing project issue when explicitly in scope;
+* `docs/governance/` taskbook / ADR / runbook / closeout;
+* `docs/evidence/` sanitized evidence artifacts;
+* `.agent_board/` lightweight handoff and validation display.
 
-Never work directly on `main`.
+Do not create external trackers, cloud resources, SaaS records, customer-facing posts, messages, or notifications unless Jenn explicitly authorizes them.
 
-Use focused branches, for example:
-
-```bash
-git switch main
-git pull origin main
-git switch -c feature/<short-purpose>
-```
-
-Before committing:
+Before committing, run validation matching the risk. The default commit preflight is:
 
 ```bash
 git status --short
@@ -147,133 +284,30 @@ npm test
 npm run build
 ```
 
-For larger governance changes, also run relevant canary / evidence commands:
+For larger governance changes, also run relevant governance / canary / evidence commands only when inspected, safe, scoped, and not host-sensitive in the current environment:
 
 ```bash
-npm run canary
-npm run canary:write
+npm run docs:governance
+npm run validate:daily
+npm run validate:pr
 npm run evidence:collect
 ```
 
-Do not push directly to `main`.
+Do not push directly to `main` unless Jenn gives explicit current authorization for that exact direct-push task. Default protected-branch path is task branch + PR + checks / review.
 
-Open a PR.
+Each PR should have a narrow purpose and include:
 
-Each PR should have a narrow purpose.
+* summary of what changed;
+* validation commands and results;
+* risk / compatibility notes;
+* known gaps or follow-up issues;
+* related issue, taskbook, or phase reference when available.
 
-A good PR includes:
+Avoid mixing unrelated areas such as TaskGraph schema changes, live adapter runtime changes, CI changes, state-sync changes, and documentation-only field notes. Use separate PRs unless the changes are tightly coupled.
 
-- summary of what changed
-- validation commands and results
-- risk / compatibility notes
-- known gaps or follow-up issues
-- related issue numbers
-
-Avoid mixing unrelated areas such as:
-
-- TaskGraph schema changes
-- live adapter runtime changes
-- CI changes
-- documentation-only field notes
-
-Use separate PRs unless the changes are tightly coupled.
-
----
-
-## 6. Clarification Policy
-
-Do not ask questions just to avoid work.
-
-Ask a clarifying question only when:
-
-- the target file, project, or action is genuinely ambiguous
-- the task may affect production, releases, secrets, external writes, or irreversible state
-- there are multiple plausible interpretations with materially different outcomes
-- proceeding would require guessing user intent
-
-If ambiguity can be resolved by inspecting files, repository state, scripts, docs, PR context, or nearby code, inspect first.
-
-When unclear and safe:
+Dangerous commands are not automatic:
 
 ```text
-start in reconnaissance mode
-report what was found
-propose the next narrow action
-```
-
----
-
-## 7. Candidate-First Reasoning
-
-When a change has multiple plausible approaches, do not immediately choose one.
-
-First identify 2–4 viable options.
-
-For each option, compare:
-
-- benefit
-- risk
-- reversibility
-- validation cost
-- fit with DGP architecture
-- fit with user intent
-
-Then choose the smallest safe path, or ask for confirmation if the choice changes risk materially.
-
-Use this especially for:
-
-- TaskGraph schema design
-- recovery contract design
-- host smoke strategy
-- runtime-governance changes
-- branch movement
-- CI changes
-- migration work
-
----
-
-## 8. Script Discovery
-
-Before running project scripts:
-
-1. Inspect available scripts or `package.json`.
-2. Use only commands that actually exist.
-3. Do not invent script names.
-
-For Node projects:
-
-```bash
-npm run
-```
-
-If a script is missing, say so explicitly and choose the narrowest available validation path.
-
-Main project scripts include:
-
-```bash
-npm run typecheck
-npm test
-npm run build
-npm run canary
-npm run canary:write
-npm run canary:external
-npm run evidence:collect
-```
-
-Smoke commands involving the real Codex CLI may require a local Codex binary and should not be assumed to work in GitHub Actions:
-
-```bash
-npm run smoke:telemetry
-npm run smoke:workspace-write:telemetry
-```
-
----
-
-## 9. Dangerous Command Denylist
-
-Never auto-run:
-
-```bash
 git reset --hard
 git clean -fd
 git clean -fdx
@@ -282,386 +316,333 @@ git push --force-with-lease
 git branch -D
 rm -rf
 del /s /q
-```
-
-Never auto-run:
-
-```powershell
 Remove-Item -Recurse
-Remove-Item -Recurse -Force
 ```
 
-Also do not automatically:
-
-- delete branches
-- delete env files
-- overwrite production configs
-- rewrite Git history
-- publish or deploy
-- move production / stable baselines
-- write to live external services
-- expose secrets in output, logs, memory, docs, or commits
-
-Before any dangerous action, provide:
-
-1. current branch and worktree state
-2. exact command proposed
-3. files, branches, services, or targets affected
-4. rollback or recovery path
-5. explicit confirmation request
+Before any dangerous action, provide current branch and worktree state, exact command, affected targets, recovery path, and request explicit confirmation.
 
 ---
 
-## 10. Architecture Guardrails
+## 6. CI, Deployment, and Release Risk
 
-Prefer small, composable packages over large central files.
-
-Current DGP architecture concepts include:
+CI behavior on feature branches:
 
 ```text
-state-manager                  governance state and anomaly history
-execution-observation          primitive execution observations
-entropy-risk                   risk scoring inputs and derived risk
-strategy-router                dynamic strategy decisions
-recovery-control               step-back / arbitration packet semantics
-checkpoint-ledger-v2           checkpoint metadata and recovery references
-task-graph                     task graph and branch semantics
-validation-arbiter             executor / verifier / conjugate arbitration
-governance-failure-reducer     shared failure-to-governance-state reducer
-desktop-live-adapter           runtime bridge between execution primitives and governance updates
+Feature branch and PR pushes should run deterministic repository checks only, such as typecheck, build, tests, governance audits, state-sync audit, documentation governance checks, canaries that are explicitly fake/dry-run, and static validation.
 ```
 
-Keep these responsibilities separated.
+CI must not depend on a real local Codex CLI binary unless the workflow explicitly provisions it and the task is scoped to that risk. Normal PRs should not require unavailable host binaries.
 
-Do not bury governance logic inside `desktop-live-adapter` if it can be expressed as a tested reducer or policy module.
+State-sync policy v2 is the main path for content attestation. Legacy v1 state-only reanchor is compatibility / manual fallback, not the normal operator path.
 
----
-
-## 11. DGP Principles to Preserve
-
-When changing runtime behavior, preserve these DGP principles:
-
-1. **Dry-run before execution** — prefer simulated / inspectable paths before real side effects.
-2. **Explicit injection** — host bridges, stores, runtime executors, and external dependencies must be passed explicitly.
-3. **No hidden side effects** — do not read global state, environment state, or host executors implicitly unless the module is explicitly a host boundary.
-4. **Failure must be named** — every failure path should produce a stable error class / anomaly message.
-5. **Failures should update governance** — execution failures should update anomalies, risk, strategy, and recovery signals when a governance state is present.
-6. **Step-back must be actionable** — recovery outputs should preserve enough context for host / UI / CLI presentation.
-7. **Auditability over cleverness** — prefer transparent rules and evidence over opaque automation.
-
----
-
-## 12. Failure-Path Rules
-
-For runtime failure handling:
-
-- normalize unknown thrown values before storing them as `errorClass` or anomaly messages.
-- do not assume `throw` values are `Error` instances.
-- never let `errorClass` become `undefined`.
-- use stable fallback strings such as `unknown_execution_error`.
-- update governance state through shared reducer logic where available.
-
-Expected failure chain:
+Deployment triggers:
 
 ```text
-primitive failure
-→ execution observation
-→ anomaly record
-→ risk re-score
-→ strategy re-route
-→ optional arbitration / step-back
-→ host-consumable result
+No ordinary branch push or PR should deploy, publish, tag, release, mutate production, call paid providers, or perform real workspace-write. Treat workflow_dispatch, release creation, tag pushes, package publishing, protected-branch updates, and external-write steps as high-risk or hard-stop surfaces until inspected.
 ```
 
-For `desktop-live-adapter`, cover these cases:
+Release policy:
 
-- missing handler
-- handler returns `ok: false`
-- handler throws `Error`
-- handler throws non-`Error` value
-- strike number progression
-- `onGovernanceUpdate` callback shape
-- step-back / arbitration behavior where reachable
+* Agents may not tag releases.
+* Agents may not publish packages.
+* Agents may not deploy.
+* Agents may not run production migrations.
+* Agents may not modify release automation unless Jenn explicitly scopes the task and no hard stop is triggered.
+* Agents may not manually rerun or approve workflows unless Jenn explicitly authorizes that action.
+
+If push or PR update may trigger deployment, release, production mutation, or paid provider calls, report `BLOCK` for that delivery step.
 
 ---
 
-## 13. Testing Policy
+## 7. Secrets and Private State Map
+
+Secret-adjacent paths in this repository:
+
+* `.env`
+* `.env.*`
+* `config.env`
+* `.codex-home/`
+* `.omc/`
+* `state-private/`
+* `secret/`
+* `secrets/`
+* `credentials/`
+* token, cookie, key, or provider credential files by name or content.
+
+Rules:
+
+* Do not open or read secret/private-state contents.
+* Do not print, summarize, validate, transform, commit, store, or transmit secret values.
+* Agents may inspect file names, paths, git status, and whether secret-adjacent files are tracked.
+* Use `.env.example`, config schemas, docs, mocks, or redacted error messages instead of real secret values.
+* Do not read or expose raw provider responses if they may contain private content.
+
+Basic diff hygiene command:
+
+```bash
+git diff --check
+```
+
+No dedicated secret scanner is currently declared in `package.json`. Treat `git diff --check` as whitespace/conflict-marker hygiene, not secret scanning. If a task requires secret scanning, inspect available scripts first and use a safe, redacted tool only when scoped.
+
+---
+
+## 8. Documentation and Project Memory
+
+Documentation paths:
+
+* `README.md`
+* `docs/`
+* `docs/current/`
+* `docs/governance/`
+* `docs/governance/GOVERNANCE_CONTROL_PLANE.md`
+* `docs/governance/RELEASE_GATE_MATRIX.md`
+* `docs/governance/EVIDENCE_POLICY.md`
+* `docs/governance/GLOSSARY.md`
+* `docs/governance/THREAT_MODEL.md`
+* `docs/governance/CHANGE_CONTROL.md`
+* `docs/governance/decisions/`
+* `docs/governance/runbooks/`
+* `docs/governance/templates/`
+
+Update docs when commands, APIs, configuration, tests, directory structure, workflow, behavior, or architecture change inside task scope.
+
+Approved project memory paths:
+
+* `docs/governance/`
+* `docs/governance/decisions/`
+* `docs/governance/runbooks/`
+* `docs/governance/templates/`
+* `docs/governance/*_CLOSEOUT.md`
+* `docs/evidence/`
+* `docs/current/state-sync-record.json`
+* `.agent_board/` for lightweight handoff / run-state display only.
+
+Project memory should be durable, useful for future agents, evidence-grounded or clearly marked as assumption, and safe to retain.
+
+Do not write personal long-term user memory from project work unless Jenn explicitly asks.
+
+Do not write secrets, credentials, tokens, cookies, `.env` values, private keys, verification codes, production credentials, `state-private` contents, low-value logs, short-lived noise, or unverified guesses as facts.
+
+State-sync discipline:
+
+* `docs/current/state-sync-record.json` is machine-authoritative state-sync claim.
+* `docs/current/CURRENT_STATE.md` and `.agent_board/*` are display / evidence surfaces, not authority.
+* Policy v2 content attestation is the normal path.
+* Legacy v1 reanchor / state-only flows are compatibility fallback only.
+
+---
+
+## 9. Read-Only / Audit-Only Behavior
+
+When Jenn asks for read-only review, audit-only work, no file changes, no writes, or "not fixing yet":
+
+* inspect only non-sensitive repository reality;
+* do not edit files;
+* do not create generated artifacts;
+* do not update docs, reports, task notes, issues, PRs, or memory;
+* do not commit;
+* do not push;
+* report findings in the allowed response surface.
+
+If review is requested, default to code-review stance: findings first, ordered by severity, with file/line references; then open questions; then summary. If no issues are found, say so and mention residual test gaps.
+
+---
+
+## 10. Testing and Validation Policy
 
 Every meaningful runtime behavior change needs a test.
 
 Minimum expectations:
 
-```text
-new package              → unit tests
-new reducer / policy     → unit tests for edge cases and immutability
-new execution path       → integration test where feasible
-bug fix from review      → regression test when practical
-runtime-governance change → targeted test + broader npm test
-```
+* new package: unit tests;
+* new reducer / policy: unit tests for edge cases and immutability;
+* new execution path: integration test where feasible;
+* bug fix from review: regression test when practical;
+* runtime-governance change: targeted test plus broader validation when justified.
 
-Do not mark known gaps as solved unless they have direct regression coverage.
+Task-specific validation expectations:
 
-When a review finding is fixed, add a regression test unless the test would be unsafe or unreasonably expensive. If no regression test is added, state the reason and record a follow-up.
+| Change type | Required validation |
+|---|---|
+| unit-level bugfix | targeted `node --import tsx --test tests/<name>.test.ts` or `npm test` when narrow targeting is not available |
+| API / schema / contract behavior change | targeted contract tests, relevant integration tests, `npm run typecheck` |
+| runtime governance behavior change | negative-path tests, targeted tests, `npm run typecheck`, `npm test`, `npm run build` |
+| state-sync behavior change | targeted state-sync tests, `node --import tsx scripts/run-state-sync-audit.ts --json` in the correct context, plus broader validation |
+| CI / workflow change | static review, workflow-risk explanation, and local commands that approximate CI |
+| docs-only change | static review, `git diff --check`, and `npm run docs:governance` when governance docs are touched |
+| memory / security / boundary change | negative-path tests or dry-runs where practical, and explicit non-authorization statement |
+| release / phase closeout | `npm run validate:release` when safe and scoped |
 
-After a vulnerability fix, run relevant tests once and perform one review pass before reporting completion.
+If broad validation fails, fix failures caused by the current change or directly related to the task. Treat failures as unrelated only with evidence.
 
----
+Do not report `PASS` for a required validation gate that failed.
 
-## 14. Validation Claim Discipline
+Use precise validation claims:
 
-Use the narrowest useful validation, but do not overclaim.
-
-Validation tiers:
-
-```text
-read-only/docs        inspect files and diffs
-small local edit      diff review + targeted check if available
-feature-level change  affected tests or syntax checks
-runtime/integration   targeted tests + broader tests when justified
-release/branch work   explicit preflight and confirmation
-```
-
-Do not say a change is fully validated unless full validation was run.
-
-Use precise wording:
-
-```text
-typecheck passed
-targeted test passed
-full npm test passed
-build passed
-CI passed
-real host smoke not run
-```
+* `typecheck passed`
+* `targeted test passed`
+* `full npm test passed`
+* `build passed`
+* `CI passed`
+* `real host smoke not run`
+* `real Codex CLI not run`
+* `real workspace-write not run`
 
 Never say production is safe unless production-level validation actually happened.
 
 ---
 
-## 15. CI and Evidence Policy
+## 11. Runtime Governance Architecture Guardrails
 
-GitHub CI should stay deterministic.
+Prefer small, composable packages over large central files.
 
-CI should cover:
+Keep these responsibilities separated:
 
-- typecheck
-- build
-- tests
-- canary low / medium
-- evidence collection
+* `state-manager`: governance state and anomaly history.
+* `execution-observation`: primitive execution observations.
+* `entropy-risk`: risk scoring inputs and derived risk.
+* `strategy-router`: dynamic strategy decisions.
+* `recovery-control`: step-back, arbitration packet semantics, operator action lifecycle, and pure recovery policy.
+* `checkpoint-ledger-v2`: checkpoint metadata and recovery references.
+* `task-graph`: task graph and branch semantics.
+* `validation-arbiter`: executor / verifier / conjugate arbitration.
+* `governance-failure-reducer`: shared failure-to-governance-state reducer.
+* `desktop-live-adapter`: runtime bridge between execution primitives and governance updates.
+* `provider-execution-runner`: controlled provider execution orchestration.
+* `provider-registry`: explicit provider selection and registry metadata.
+* `workspace-write-guard`: workspace-write boundary and guard semantics.
 
-Real Codex CLI smoke should remain local or run on an explicitly prepared runner.
+Do not bury governance logic inside `desktop-live-adapter` if it can be expressed as a tested reducer or policy module.
 
-Do not make normal PRs depend on a binary that GitHub Actions does not provide.
+Preserve DGP principles:
 
-If a PR changes CI behavior, explain:
+1. Dry-run before execution.
+2. Explicit injection for host bridges, stores, runtime executors, and external dependencies.
+3. No hidden side effects.
+4. Failure must be named with stable classes.
+5. Failures should update governance state when a governance state is present.
+6. Step-back must be actionable for host / UI / CLI presentation.
+7. Auditability over cleverness.
 
-- why the change is needed
-- what remains covered in CI
-- what must be verified locally
+Runtime failure handling rules:
 
----
+* normalize unknown thrown values before storing them as `errorClass` or anomaly messages;
+* do not assume `throw` values are `Error` instances;
+* never let `errorClass` become `undefined`;
+* use stable fallback strings such as `unknown_execution_error`;
+* update governance state through shared reducer logic where available.
 
-## 16. File and Artifact Hygiene
-
-Do not commit local runtime artifacts.
-
-Keep these out of commits unless explicitly intended:
-
-```text
-node_modules/
-dist/
-.env
-.env.*
-config.env
-.codex-home/
-.omc/
-.test-*
-tmp-*
-```
-
-For temporary docs or mock servers, either commit them intentionally with clear purpose or archive them outside the repository.
-
-Do not leave untracked files in the repo root at the end of a task.
-
----
-
-## 17. Secrets and External Service Policy
-
-Treat these as sensitive:
-
-- `.env`
-- `config.env`
-- API keys
-- tokens
-- service account files
-- provider credentials
-- production endpoints
-- database URLs
-- webhook URLs
-
-Rules:
-
-- Do not print secret values.
-- Do not copy secrets into summaries, docs, memory, commits, logs, or issues.
-- Do not modify env files unless explicitly asked.
-- Prefer sanitized examples such as `.env.example`.
-- Separate dry-run behavior from live external writes.
-- Require confirmation before writing to live services.
-
----
-
-## 18. VCPToolBox Field Feedback Boundary
-
-VCPToolBox AI Image Agent work may inform this repo, especially around:
-
-- dry-run to real execution gates
-- explicit dependency injection
-- env flags
-- allowlists
-- audit logs
-- runtime artifact cleanup
-- operator confirmation flows
-
-But do not paste VCPToolBox-specific business code, plugin names, route handlers, or AdminPanel implementation into `codex-router` unless the task explicitly asks for generic architecture documentation.
-
-Capture lessons as docs, tests, or reusable governance patterns.
-
----
-
-## 19. Memory Policy
-
-Do not rely on hidden chat memory for correctness.
-
-If a decision matters, put it in one of:
-
-- code comments where appropriate
-- tests
-- docs
-- issue / PR notes
-- evidence artifacts
-
-Project memory should clarify durable design intent, not replace executable tests.
-
-Do not record:
-
-- secrets
-- tokens
-- passwords
-- raw env values
-- temporary guesses
-- unverified assumptions
-- short-lived branch or workspace state
-
----
-
-## 20. Skills / MCP / Host Tool Policy
-
-Use Skills for repeatable workflows, domain-specific procedures, and task-specific expertise.
-
-Use MCP tools only when necessary.
-
-Before using a tool, classify it as:
+Expected failure chain:
 
 ```text
-read-only
-local-write
-external-write
-irreversible / side-effectful
+primitive failure
+-> execution observation
+-> anomaly record
+-> risk re-score
+-> strategy re-route
+-> optional arbitration / step-back
+-> host-consumable result
 ```
 
-Prefer read-only inspection before write actions.
+Controlled execution boundary:
 
-External-write or irreversible tools require explicit confirmation.
-
-Tools extend reach. They do not bypass safety, validation, or user confirmation.
+* controlled read-only provider execution may be implemented only through explicit gates, explicit injected dependencies, deterministic permits, and tests.
+* general provider execution remains blocked.
+* real Codex CLI execution remains blocked unless Jenn explicitly authorizes the specific run.
+* real workspace-write remains blocked by default.
+* workspace-write fake canary must remain fake unless explicitly promoted through a separate authorization review.
 
 ---
 
-## 21. Output Discipline
+## 12. Incidental Findings
 
-Be concise but complete.
+Handle incidental findings this way:
 
-For repository work, use:
-
-```text
-- Workspace:
-- Mode:
-- Risk:
-- Branch:
-- Worktree:
-- Changed:
-- Validated:
-- Not validated:
-- Result:
-- Remaining risk:
-- Next:
-```
-
-When giving a conclusion:
-
-- explain what evidence supports it
-- explain what evidence is still missing
-- do not present inference as verification
-- do not hide uncertainty
-- do not expose secrets
-- do not bury critical risk in a long paragraph
-
----
-
-## 22. Stop Conditions
+* hard-stop finding: report `BLOCK`;
+* directly related to task or validation credibility: fix within smallest effective scope;
+* unrelated but useful: record as follow-up in a scoped PR note, issue, taskbook, or docs/governance surface when allowed;
+* unrelated architecture concern: do not fix during current task unless Jenn explicitly expands scope.
 
 Stop and ask for direction if:
 
-- the change would alter public contracts broadly
-- a migration is needed
-- a failure path cannot be tested safely
-- CI requires unavailable external binaries
-- the task starts mixing unrelated architecture areas
-- secrets, credentials, or local config files appear in the diff
-- implementation starts drifting beyond the branch or issue scope
+* the change would alter public contracts broadly;
+* a migration is needed;
+* a failure path cannot be tested safely;
+* CI requires unavailable external binaries;
+* the task starts mixing unrelated architecture areas;
+* secrets, credentials, or local config files appear in the diff;
+* implementation starts drifting beyond the branch or issue scope.
 
 When in doubt, preserve the current branch state and report the exact diff and risk.
 
 ---
 
-## 23. Final Execution Flow
+## 13. Subagents and Review
 
-Use this sequence:
+Use subagents when parallel work, independent review, or domain separation adds clear value.
 
-1. Detect workspace.
-2. Classify task mode and risk.
-3. Identify the hidden governing principle:
-   - safety
-   - correctness
-   - reversibility
-   - user intent
-   - validation integrity
-   - data / secret protection
-   - production boundary
-4. Use candidate-first reasoning when multiple paths exist.
-5. Check repository reality.
-6. Discover scripts, docs, contracts, or baselines as needed.
-7. Apply safety rules.
-8. Execute the smallest useful step.
-9. Validate with the narrowest relevant check.
-10. Report with clear limits.
-11. Record memory only when appropriate and safe.
-12. Use Skills or MCP only when relevant and safe.
+Suggested split for complex tasks:
+
+* Commander: scope, risks, hard stops, decomposition.
+* Worker A: implementation.
+* Worker B: tests.
+* Worker C: docs / project memory.
+* Reviewer: safety, validation, scope, secret handling.
+* Integrator: final consistency, validation, commit, safe push, PR update, report.
+
+Subagent output is not final truth. Integrator remains responsible for final delivery.
+
+For runtime-governance or migration work, prefer at least one independent review pass before final report.
 
 ---
 
-## 24. One-Line Operating Principle
+## 14. Reporting Template
 
-Build governance like a cockpit:
+Every repository task must end with:
 
 ```text
-clear instruments
-explicit switches
-named failures
-recoverable states
-no hidden engines
+Result:
+Scope:
+Changed files:
+Validation:
+Evidence:
+Git delivery:
+Delivery surface:
+Memory:
+Risks:
+Incidental findings:
+Next step:
 ```
 
-Judgment is the feature.
-Obedience is only useful after judgment.
+Allowed result states: `PASS`, `PARTIAL`, `BLOCK`, `FAIL`, `FINDINGS_ONLY`, `NO_CHANGES`.
+
+For commit / push / PR / issue / task note / memory write, include enough detail to audit the delivery.
+
+For `BLOCK`, include blocked reason, hard stop, evidence, safe actions completed, unsafe action not performed, and options for Jenn.
+
+Do not overclaim validation. State exactly what ran and what did not run.
+
+---
+
+## 15. Project Fill-In Status
+
+Filled fields:
+
+* Project name: `codex-router`
+* Stack: TypeScript / Node.js / npm / `tsx` / GitHub Actions
+* Editable source/test/docs paths: `packages/`, `tests/`, `scripts/`, `docs/`, scoped `.agent_board/`
+* Package manager: npm
+* Setup command: `npm ci`
+* Validation commands: `npm run docs:governance`, `npm run validate:daily`, `npm run validate:pr`, `npm run validate:release`, `npm run typecheck`, `npm test`, `npm run build`
+* Protected branches: `main`, `master`, `production`, `release`, and any explicitly protected branch
+* Approved delivery remote: verified `origin`
+* CI behavior: deterministic tests, build, typecheck, governance, state-sync, docs checks, and safe dry-run/fake canary checks
+* Deployment / release triggers: treated as blocked unless explicitly scoped and authorized
+* Secret-adjacent paths: `.env`, `.env.*`, `config.env`, `.codex-home/`, `.omc/`, `state-private/`, credentials/tokens/cookies/keys
+* Docs paths: `README.md`, `docs/`, `docs/current/`, `docs/governance/`, `docs/evidence/`
+* Project memory paths: `docs/governance/`, `docs/evidence/`, `docs/current/state-sync-record.json`, `.agent_board/`
+* Blocked scripts / actions: real provider execution, real Codex CLI execution, real workspace-write, external write outside approved project delivery surfaces, deploy, release, publish, tag, production mutation
+* Reporting / PR conventions: narrow branch, narrow PR, truthful validation, risk notes, known gaps, no direct `main` push by default
+
+This file is ready to rely on as the project-level protocol for `codex-router`.
