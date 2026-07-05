@@ -45,7 +45,7 @@ Out of scope unless Jenn explicitly authorizes:
 * real provider execution;
 * real Codex CLI execution;
 * real workspace-write execution;
-* external writes, protected remote writes, release, publish, deploy, tag, or production mutation.
+* external writes outside approved project delivery surfaces, protected remote writes, release, publish, deploy, tag, or production mutation.
 
 "Real workspace-write execution" means exercising codex-router's runtime capability to perform real workspace-write operations through Codex/provider execution. It does not mean ordinary scoped repository file edits performed by the current agent inside this working tree.
 
@@ -640,7 +640,7 @@ Filled fields:
 * Secret-adjacent paths: `.env`, `.env.*`, `config.env`, `.codex-home/`, `.omc/`, `state-private/`, credentials/tokens/cookies/keys
 * Docs paths: `README.md`, `docs/`, `docs/current/`, `docs/governance/`, `docs/evidence/`
 * Project memory paths: `docs/governance/`, `docs/evidence/`, `docs/current/state-sync-record.json`, `.agent_board/`
-* Blocked scripts / actions: real provider execution, real Codex CLI execution, real workspace-write, external write, deploy, release, publish, tag, production mutation
+* Blocked scripts / actions: real provider execution, real Codex CLI execution, real workspace-write, external write outside approved project delivery surfaces, deploy, release, publish, tag, production mutation
 * Reporting / PR conventions: narrow branch, narrow PR, truthful validation, risk notes, known gaps, no direct `main` push by default
 
 This file is ready to rely on as the project-level protocol for `codex-router`.
