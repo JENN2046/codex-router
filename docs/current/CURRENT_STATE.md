@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `caa384a11fe27f8cc37b73dd91232837363d58530b0df45a6525dd085429bb99`
+  `5f07280aeb58552eca413b3dc0396e4dff0ebc1bba94947a6dd95a31008feb62`
 
 Source digest excluded paths:
 
@@ -101,8 +101,11 @@ Current repository governance status:
   but still do not authorize recovery action dispatch.
 - Phase 13 operator action host executor dispatch is recorded in
   `docs/governance/PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md`;
-  this is the current authorization stop before any side-effecting recovery
-  action dispatch implementation.
+  this was the authorization stop before the first controlled implementation.
+- Phase 13 operator action host executor dispatch is closed out in
+  `docs/governance/PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT.md`;
+  dry-run and explicit injected-executor dispatch control exist, but real
+  recovery action dispatch remains blocked by default.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -226,10 +229,15 @@ current lifecycle state without bridge calls, `dispatchToHost()`, provider
 execution, Codex CLI execution, workspace-write, or recovery action dispatch.
 The Phase 13 operator action host executor dispatch taskbook is recorded at
 `docs/governance/PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md`;
-it defines the exact future authorization token and stop conditions for any
-side-effecting recovery action dispatch implementation. Without that explicit
-authorization, only read-only review of the existing non-executing boundaries is
-allowed.
+it defines the authorization token and stop conditions for the first controlled
+implementation.
+The Phase 13 operator action host executor dispatch closeout is recorded at
+`docs/governance/PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT.md`;
+it adds dry-run and explicit injected-executor dispatch control without adding
+a real recovery executor, provider execution, Codex CLI execution,
+workspace-write, or `dispatchToHost()` recovery execution.
+The next authorization stop is a real host executor dispatch run using
+`APPROVE_PHASE_13_REAL_HOST_EXECUTOR_DISPATCH_RUN`.
 
 Boundary audit marker:
 
@@ -238,6 +246,7 @@ Boundary audit marker:
 - `PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_CLOSEOUT_RECORDED`
 - `PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT_RECORDED`
 - `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK_RECORDED`
+- `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT_RECORDED`
 
 Blocked capabilities:
 

@@ -14,6 +14,7 @@ import {
   createGovernanceOperatorActionReceiptId,
   createGovernanceOperatorActionRef,
   createInMemoryGovernanceOperatorActionReceiptStore,
+  dispatchGovernanceOperatorActionHostExecutor,
   GovernanceOperatorEvidenceResolutionEntrySchema,
   GovernanceOperatorActionEnvelopeSchema,
   GovernanceOperatorActionExecutionGateResultSchema,
@@ -32,6 +33,8 @@ import {
   validateGovernanceOperatorActionReceipt,
   type GovernanceOperatorActionEnvelope,
   type GovernanceOperatorActionExecutionGateResult,
+  type GovernanceOperatorActionHostExecutorDispatchAuditEvent,
+  type GovernanceOperatorActionHostExecutorDispatchInvocation,
   type GovernanceOperatorActionHostExecutorDescriptorInput,
   type GovernanceOperatorActionReceiptInput,
   type GovernanceOperatorActionReceiptStore
@@ -1947,6 +1950,276 @@ test("recovery control blocks host executor review with unsafe authorization evi
   assert.ok(authorization.reasons.includes(
     "operator_action_host_executor_authorization_packet_invalid"
   ));
+});
+
+test("recovery control prepares host executor dispatch in dry-run without calling an executor", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+  let executorCalls = 0;
+
+  const dispatch = await dispatchGovernanceOperatorActionHostExecutor({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor,
+    authorization,
+    dispatchMode: "dry_run",
+    executor: {
+      dispatch() {
+        executorCalls += 1;
+        return { status: "completed" };
+      }
+    }
+  });
+
+  assert.equal(dispatch.status, "dry_run_ready");
+  assert.deepEqual(dispatch.reasons, []);
+  assert.equal(dispatch.dispatchMode, "dry_run");
+  assert.equal(dispatch.taskId, gate.taskId);
+  assert.equal(dispatch.actionRef, gate.actionRef);
+  assert.equal(dispatch.executionPlanHash, packet.executionPlanHash);
+  assert.equal(executorCalls, 0);
+});
+
+test("recovery control dispatches only through the injected host executor with audit records", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+  const invocations: GovernanceOperatorActionHostExecutorDispatchInvocation[] = [];
+  const auditEvents: GovernanceOperatorActionHostExecutorDispatchAuditEvent[] = [];
+
+  const dispatch = await dispatchGovernanceOperatorActionHostExecutor({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor,
+    authorization,
+    dispatchMode: "execute_injected",
+    executor: {
+      dispatch(invocation) {
+        invocations.push(invocation);
+        return {
+          status: "completed",
+          resultRef: "artifact:phase13-dispatch-result",
+          evidenceRefs: ["artifact:phase13-dispatch-result"]
+        };
+      }
+    },
+    auditSink: {
+      record(event) {
+        auditEvents.push(event);
+      }
+    }
+  });
+
+  assert.equal(dispatch.status, "dispatched");
+  assert.deepEqual(dispatch.reasons, []);
+  assert.equal(dispatch.dispatchMode, "execute_injected");
+  assert.equal(dispatch.executorResultRef, "artifact:phase13-dispatch-result");
+  assert.equal(invocations.length, 1);
+  assert.equal(invocations[0]?.recommendedAction, "fork");
+  assert.equal(invocations[0]?.hostExecutorDescriptorId, descriptor.descriptorId);
+  assert.deepEqual(
+    auditEvents.map((event) => event.status),
+    ["attempting", "dispatched"]
+  );
+  assert.equal(auditEvents[1]?.resultRef, "artifact:phase13-dispatch-result");
+});
+
+test("recovery control blocks injected host executor dispatch without an audit sink", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+  let executorCalls = 0;
+
+  const dispatch = await dispatchGovernanceOperatorActionHostExecutor({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor,
+    authorization,
+    dispatchMode: "execute_injected",
+    executor: {
+      dispatch() {
+        executorCalls += 1;
+        return { status: "completed" };
+      }
+    }
+  });
+
+  assert.equal(dispatch.status, "blocked");
+  assert.ok(dispatch.reasons.includes(
+    "operator_action_host_executor_dispatch_audit_sink_required"
+  ));
+  assert.equal(executorCalls, 0);
+});
+
+test("recovery control blocks host executor dispatch when review bindings drift", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+  let executorCalls = 0;
+
+  const dispatch = await dispatchGovernanceOperatorActionHostExecutor({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: createTestHostExecutorAuthorizationPacket(gate, descriptor, {
+      executionPlanHash: "0".repeat(64)
+    }),
+    hostExecutorDescriptor: descriptor,
+    authorization,
+    dispatchMode: "execute_injected",
+    executor: {
+      dispatch() {
+        executorCalls += 1;
+        return { status: "completed" };
+      }
+    },
+    auditSink: {
+      record() {}
+    }
+  });
+
+  assert.equal(dispatch.status, "blocked");
+  assert.ok(dispatch.reasons.includes("operator_action_host_executor_dispatch_review_not_ready"));
+  assert.ok(dispatch.reasons.includes("operator_action_host_executor_packet_plan_hash_mismatch"));
+  assert.equal(executorCalls, 0);
+});
+
+test("recovery control sanitizes injected host executor exceptions", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+  const auditEvents: GovernanceOperatorActionHostExecutorDispatchAuditEvent[] = [];
+
+  const dispatch = await dispatchGovernanceOperatorActionHostExecutor({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor,
+    authorization,
+    dispatchMode: "execute_injected",
+    executor: {
+      dispatch() {
+        throw new Error("raw token should not be returned");
+      }
+    },
+    auditSink: {
+      record(event) {
+        auditEvents.push(event);
+      }
+    }
+  });
+
+  assert.equal(dispatch.status, "failed");
+  assert.ok(dispatch.reasons.includes("operator_action_host_executor_dispatch_executor_failed"));
+  assert.equal(dispatch.errorClass, "error");
+  assert.equal(JSON.stringify(dispatch).includes("raw token"), false);
+  assert.deepEqual(
+    auditEvents.map((event) => event.status),
+    ["attempting", "failed"]
+  );
 });
 
 test("recovery control resolves operator action evidence refs without raw payloads", async () => {
