@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve as resolvePath } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import type { GovernanceState } from "../../state-manager/src/index.js";
 import type { DelegationLevel } from "../../delegation-policy/src/index.js";
@@ -996,9 +997,13 @@ export interface FileGovernanceOperatorActionReceiptStoreOptions {
 }
 
 const fileReceiptConsumeQueues = new Map<string, Promise<void>>();
+const FILE_RECEIPT_CONSUME_LOCK_DIR = ".consume.lock";
+const FILE_RECEIPT_CONSUME_LOCK_RETRY_MS = 10;
+const FILE_RECEIPT_CONSUME_LOCK_TIMEOUT_MS = 5_000;
 
 async function withFileReceiptConsumeLock<T>(
   lockKey: string,
+  lockPath: string,
   operation: () => Promise<T>
 ): Promise<T> {
   const previous = fileReceiptConsumeQueues.get(lockKey) ?? Promise.resolve();
@@ -1011,7 +1016,12 @@ async function withFileReceiptConsumeLock<T>(
 
   await previous.catch(() => undefined);
   try {
-    return await operation();
+    await acquireFileReceiptConsumeClaim(lockPath);
+    try {
+      return await operation();
+    } finally {
+      await rm(lockPath, { recursive: true, force: true });
+    }
   } finally {
     release();
     if (fileReceiptConsumeQueues.get(lockKey) === next) {
@@ -1020,20 +1030,43 @@ async function withFileReceiptConsumeLock<T>(
   }
 }
 
+async function acquireFileReceiptConsumeClaim(lockPath: string): Promise<void> {
+  const startedAt = Date.now();
+  for (;;) {
+    try {
+      await mkdir(lockPath);
+      return;
+    } catch (error: unknown) {
+      if (!isNodeError(error) || error.code !== "EEXIST") {
+        throw error;
+      }
+
+      if (Date.now() - startedAt >= FILE_RECEIPT_CONSUME_LOCK_TIMEOUT_MS) {
+        throw new Error("operator_action_receipt_store_lock_timeout");
+      }
+
+      await delay(FILE_RECEIPT_CONSUME_LOCK_RETRY_MS);
+    }
+  }
+}
+
 export class FileGovernanceOperatorActionReceiptStore
   implements GovernanceOperatorActionReceiptStore {
   private readonly basePath: string;
   private readonly lockKey: string;
+  private readonly lockPath: string;
 
   constructor(options: FileGovernanceOperatorActionReceiptStoreOptions) {
-    this.basePath = options.basePath;
-    this.lockKey = resolvePath(options.basePath);
+    this.basePath = resolvePath(options.basePath);
+    this.lockKey = this.basePath;
+    this.lockPath = join(this.basePath, FILE_RECEIPT_CONSUME_LOCK_DIR);
   }
 
   async consume(
     receiptInput: GovernanceOperatorActionReceiptInput
   ): Promise<GovernanceOperatorActionReceiptStoreConsumeResult> {
-    return withFileReceiptConsumeLock(this.lockKey, () =>
+    await mkdir(this.basePath, { recursive: true });
+    return withFileReceiptConsumeLock(this.lockKey, this.lockPath, () =>
       this.consumeExclusive(receiptInput)
     );
   }

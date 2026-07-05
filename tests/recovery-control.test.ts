@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import {
   createArbitrationPacket,
   createFileGovernanceOperatorActionReceiptStore,
@@ -34,6 +36,8 @@ import {
 } from "../packages/execution-observation/src/index.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+const execFileAsync = promisify(execFile);
 
 function createState(): GovernanceState {
   return {
@@ -815,6 +819,59 @@ test("recovery control file receipt store serializes concurrent consume attempts
   );
   assert.deepEqual(
     (await stores[0]!.loadAll()).map((item) => item.receiptId),
+    [receipt.receiptId]
+  );
+});
+
+test("recovery control file receipt store serializes concurrent consume attempts across processes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-router-operator-receipts-cross-process-"));
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+  const childScript = `
+    import { createFileGovernanceOperatorActionReceiptStore } from "./packages/recovery-control/src/index.js";
+
+    const basePath = process.env.RECEIPT_STORE_BASE_PATH;
+    const receiptJson = process.env.RECEIPT_JSON;
+    if (basePath === undefined || receiptJson === undefined) {
+      throw new Error("missing_receipt_store_test_input");
+    }
+
+    const store = createFileGovernanceOperatorActionReceiptStore({ basePath });
+    const result = await store.consume(JSON.parse(receiptJson));
+    console.log(JSON.stringify({ status: result.status }));
+  `;
+
+  const results = await Promise.all(
+    Array.from({ length: 4 }, async () => {
+      const { stdout } = await execFileAsync(
+        process.execPath,
+        ["--import", "tsx", "--input-type=module", "-e", childScript],
+        {
+          cwd: process.cwd(),
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            RECEIPT_JSON: JSON.stringify(receipt),
+            RECEIPT_STORE_BASE_PATH: dir
+          }
+        }
+      );
+      return JSON.parse(stdout.trim()) as { status: "stored" | "replay" };
+    })
+  );
+  const store = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });
+
+  assert.equal(
+    results.filter((result) => result.status === "stored").length,
+    1
+  );
+  assert.equal(
+    results.filter((result) => result.status === "replay").length,
+    results.length - 1
+  );
+  assert.deepEqual(
+    (await store.loadAll()).map((item) => item.receiptId),
     [receipt.receiptId]
   );
 });
