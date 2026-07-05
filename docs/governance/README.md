@@ -78,6 +78,10 @@ as historical evidence unless a current authority document links them.
   receipt proof binding, lifecycle binding, action allowlists, checkpoint
   propagation, and sanitized evidence summaries; this is not recovery-action
   execution authorization.
+- [Phase 11 operator action host executor boundary taskbook](PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_TASKBOOK.md):
+  current taskbook for a future non-executing authorization packet and injected
+  host executor descriptor boundary; this is not recovery-action execution
+  authorization.
 
 ## Runner Entry Points
 
