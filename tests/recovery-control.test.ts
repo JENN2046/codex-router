@@ -1115,6 +1115,46 @@ test("recovery control fails closed when injected receipt stores alter persisted
   assert.deepEqual(consumed.reasons, ["operator_action_receipt_store_failed"]);
 });
 
+test("recovery control fails closed when stored receipt results include replay evidence", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const requestedReceipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+  const store: GovernanceOperatorActionReceiptStore = {
+    async consume() {
+      return {
+        status: "stored",
+        receipt: requestedReceipt,
+        existingReceiptIds: [requestedReceipt.receiptId],
+        existingActionRefs: [requestedReceipt.actionRef]
+      };
+    },
+    async getReceipt() {
+      return undefined;
+    },
+    async findByTaskId() {
+      return [];
+    },
+    async findByActionRef() {
+      return [];
+    },
+    async loadAll() {
+      return [];
+    }
+  };
+
+  const consumed = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt: requestedReceipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(consumed.status, "blocked");
+  assert.deepEqual(consumed.reasons, ["operator_action_receipt_store_failed"]);
+});
+
 test("recovery control resolves operator action evidence refs without raw payloads", async () => {
   const observationStore = createRecordingExecutionObservationStore();
   const artifactStore = new InMemoryArtifactStore({

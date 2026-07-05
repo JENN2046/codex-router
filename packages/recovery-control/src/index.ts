@@ -348,6 +348,17 @@ export const GovernanceOperatorActionReceiptStoreConsumeResultSchema = z.object(
   receipt: GovernanceOperatorActionReceiptSchema,
   existingReceiptIds: z.array(z.string()).default([]),
   existingActionRefs: z.array(z.string()).default([])
+}).superRefine((value, ctx) => {
+  if (
+    value.status === "stored" &&
+    (value.existingReceiptIds.length > 0 || value.existingActionRefs.length > 0)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["status"],
+      message: "operator_action_receipt_store_stored_result_requires_empty_replay_evidence"
+    });
+  }
 });
 
 export const GovernanceOperatorActionReceiptConsumptionStatusSchema = z.enum([
