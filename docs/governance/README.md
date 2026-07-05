@@ -96,6 +96,10 @@ as historical evidence unless a current authority document links them.
 - [Phase 13 operator action host executor dispatch closeout](PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT.md):
   current closeout for dry-run and explicit injected-executor dispatch control;
   real recovery-action dispatch remains blocked by default.
+- [Phase 13 agent-backed recovery executor boundary](PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY.md):
+  current boundary for host-provided / agent-backed recovery executor semantics
+  and the sandbox-only reference executor contract proof; this is not
+  production recovery execution authorization.
 
 ## Runner Entry Points
 

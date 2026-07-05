@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `5f07280aeb58552eca413b3dc0396e4dff0ebc1bba94947a6dd95a31008feb62`
+  `11b7bcdd1883ec1820d2b06b36d17ff2cfa6531da308f9962ff786236814412d`
 
 Source digest excluded paths:
 
@@ -106,6 +106,11 @@ Current repository governance status:
   `docs/governance/PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT.md`;
   dry-run and explicit injected-executor dispatch control exist, but real
   recovery action dispatch remains blocked by default.
+- Phase 13 agent-backed recovery executor boundary is recorded in
+  `docs/governance/PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY.md`;
+  host-provided / agent-backed executor semantics and a sandbox-only reference
+  executor contract proof exist, but production recovery execution remains
+  outside this repository.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -236,8 +241,12 @@ The Phase 13 operator action host executor dispatch closeout is recorded at
 it adds dry-run and explicit injected-executor dispatch control without adding
 a real recovery executor, provider execution, Codex CLI execution,
 workspace-write, or `dispatchToHost()` recovery execution.
-The next authorization stop is a real host executor dispatch run using
-`APPROVE_PHASE_13_REAL_HOST_EXECUTOR_DISPATCH_RUN`.
+The Phase 13 agent-backed recovery executor boundary is recorded at
+`docs/governance/PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY.md`;
+it defines host-provided / agent-backed executor semantics and a sandbox-only
+reference executor contract proof without adding production recovery logic,
+Codex CLI execution, provider execution, shell execution, external writes, or
+arbitrary workspace-write.
 
 Boundary audit marker:
 
@@ -247,6 +256,7 @@ Boundary audit marker:
 - `PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT_RECORDED`
 - `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK_RECORDED`
 - `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT_RECORDED`
+- `PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY_RECORDED`
 
 Blocked capabilities:
 
