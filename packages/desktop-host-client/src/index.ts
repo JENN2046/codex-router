@@ -35,7 +35,8 @@ import {
   type RunDesktopTaskResult
 } from "../../desktop-live-adapter/src/index.js";
 import {
-  authorizeGovernanceOperatorActionHostExecutorReview
+  authorizeGovernanceOperatorActionHostExecutorReview,
+  dispatchGovernanceOperatorActionHostExecutor
 } from "../../recovery-control/src/index.js";
 import type {
   GovernanceOperatorActionEnvelope,
@@ -43,6 +44,10 @@ import type {
   GovernanceOperatorActionExecutionGateResultInput,
   GovernanceOperatorActionHostExecutorAuthorizationPacketInput,
   GovernanceOperatorActionHostExecutorAuthorizationResult,
+  GovernanceOperatorActionHostExecutorDispatchAuditSink,
+  GovernanceOperatorActionHostExecutorDispatchExecutor,
+  GovernanceOperatorActionHostExecutorDispatchMode,
+  GovernanceOperatorActionHostExecutorDispatchResult,
   GovernanceOperatorActionHostExecutorDescriptorInput,
   GovernanceOperatorActionReceiptDecision,
   GovernanceOperatorActionReceiptStore
@@ -102,6 +107,14 @@ export interface DesktopHostOperatorActionHostExecutorAuthorizationReviewInput {
   executionGate: GovernanceOperatorActionExecutionGateResultInput;
   authorizationPacket?: GovernanceOperatorActionHostExecutorAuthorizationPacketInput;
   hostExecutorDescriptor?: GovernanceOperatorActionHostExecutorDescriptorInput;
+}
+
+export interface DesktopHostOperatorActionHostExecutorDispatchInput
+  extends DesktopHostOperatorActionHostExecutorAuthorizationReviewInput {
+  authorization: unknown;
+  dispatchMode: GovernanceOperatorActionHostExecutorDispatchMode;
+  executor?: GovernanceOperatorActionHostExecutorDispatchExecutor;
+  auditSink?: GovernanceOperatorActionHostExecutorDispatchAuditSink;
 }
 
 export class DesktopHostClient {
@@ -285,6 +298,25 @@ export class DesktopHostClient {
       ...(input.hostExecutorDescriptor !== undefined
         ? { hostExecutorDescriptor: input.hostExecutorDescriptor }
         : {})
+    });
+  }
+
+  async dispatchCurrentOperatorActionHostExecutor(
+    input: DesktopHostOperatorActionHostExecutorDispatchInput
+  ): Promise<GovernanceOperatorActionHostExecutorDispatchResult> {
+    return dispatchGovernanceOperatorActionHostExecutor({
+      executionGate: input.executionGate,
+      lifecycleState: this.getOperatorActionLifecycle(),
+      authorization: input.authorization,
+      dispatchMode: input.dispatchMode,
+      ...(input.authorizationPacket !== undefined
+        ? { authorizationPacket: input.authorizationPacket }
+        : {}),
+      ...(input.hostExecutorDescriptor !== undefined
+        ? { hostExecutorDescriptor: input.hostExecutorDescriptor }
+        : {}),
+      ...(input.executor !== undefined ? { executor: input.executor } : {}),
+      ...(input.auditSink !== undefined ? { auditSink: input.auditSink } : {})
     });
   }
 

@@ -33,6 +33,8 @@ import {
   planGovernanceOperatorActionExecution,
   type GovernanceOperatorActionEnvelope,
   type GovernanceOperatorActionHostExecutorAuthorizationPacketInput,
+  type GovernanceOperatorActionHostExecutorDispatchAuditEvent,
+  type GovernanceOperatorActionHostExecutorDispatchInvocation,
   type GovernanceOperatorActionHostExecutorDescriptorInput,
   type GovernanceOperatorActionReceiptInput,
   type GovernanceOperatorActionReceiptStore
@@ -736,6 +738,57 @@ test("desktop host client exposes non-executing host executor review for current
   assert.equal(authorization.taskId, task.taskId);
   assert.equal(authorization.hostExecutorDescriptorId, descriptor.descriptorId);
   assert.equal(authorization.executionPlanHash, packet.executionPlanHash);
+  assert.equal(calls.length, callCountBeforeReview);
+
+  let executorCalls = 0;
+  const dryRun = await client.dispatchCurrentOperatorActionHostExecutor({
+    executionGate: gate,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor,
+    authorization,
+    dispatchMode: "dry_run",
+    executor: {
+      dispatch() {
+        executorCalls += 1;
+        return { status: "completed" };
+      }
+    }
+  });
+
+  assert.equal(dryRun.status, "dry_run_ready");
+  assert.equal(executorCalls, 0);
+  assert.equal(calls.length, callCountBeforeReview);
+
+  const dispatchInvocations: GovernanceOperatorActionHostExecutorDispatchInvocation[] = [];
+  const auditEvents: GovernanceOperatorActionHostExecutorDispatchAuditEvent[] = [];
+  const dispatched = await client.dispatchCurrentOperatorActionHostExecutor({
+    executionGate: gate,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor,
+    authorization,
+    dispatchMode: "execute_injected",
+    executor: {
+      dispatch(invocation) {
+        dispatchInvocations.push(invocation);
+        return {
+          status: "completed",
+          resultRef: "artifact:desktop-host-client-dispatch-result",
+          evidenceRefs: ["artifact:desktop-host-client-dispatch-result"]
+        };
+      }
+    },
+    auditSink: {
+      record(event) {
+        auditEvents.push(event);
+      }
+    }
+  });
+
+  assert.equal(dispatched.status, "dispatched");
+  assert.equal(dispatched.executorResultRef, "artifact:desktop-host-client-dispatch-result");
+  assert.equal(dispatchInvocations.length, 1);
+  assert.equal(dispatchInvocations[0]?.recommendedAction, result.operatorActionEnvelope.recommendedAction);
+  assert.deepEqual(auditEvents.map((event) => event.status), ["attempting", "dispatched"]);
   assert.equal(calls.length, callCountBeforeReview);
 
   const idleClient = createDesktopHostClient({

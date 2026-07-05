@@ -729,6 +729,154 @@ export const GovernanceOperatorActionHostExecutorAuthorizationResultSchema = z.o
   }
 });
 
+// ── Explicit host executor dispatch boundary ───────────────────────────────
+
+export const GovernanceOperatorActionHostExecutorDispatchModeSchema = z.enum([
+  "dry_run",
+  "execute_injected"
+]);
+
+export const GovernanceOperatorActionHostExecutorDispatchInvocationSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-host-executor-dispatch-invocation.v1")
+    .default("governance-operator-action-host-executor-dispatch-invocation.v1"),
+  dispatchMode: GovernanceOperatorActionHostExecutorDispatchModeSchema,
+  taskId: z.string().min(1),
+  actionRef: z.string().min(1),
+  receiptId: z.string().min(1),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+  recommendedAction: RecoveryActionSchema,
+  executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+  checkpointRef: z.string().min(1).optional(),
+  hostExecutorDescriptorId: z.string().min(1),
+  hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+  authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+  evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+  operatorInstruction: z.string().min(1)
+}).superRefine((value, ctx) => {
+  if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_host_executor_dispatch_checkpoint_required"
+    });
+  }
+
+  if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_host_executor_dispatch_checkpoint_not_allowed"
+    });
+  }
+});
+
+export const GovernanceOperatorActionHostExecutorDispatchExecutorResultSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-host-executor-dispatch-executor-result.v1")
+    .default("governance-operator-action-host-executor-dispatch-executor-result.v1"),
+  status: z.literal("completed"),
+  resultRef: GovernanceOperatorSanitizedRefSchema.optional(),
+  evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+});
+
+export const GovernanceOperatorActionHostExecutorDispatchAuditEventSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-host-executor-dispatch-audit.v1")
+    .default("governance-operator-action-host-executor-dispatch-audit.v1"),
+  status: z.enum(["attempting", "dispatched", "failed"]),
+  dispatchMode: GovernanceOperatorActionHostExecutorDispatchModeSchema,
+  taskId: z.string().min(1),
+  actionRef: z.string().min(1),
+  receiptId: z.string().min(1),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+  recommendedAction: RecoveryActionSchema,
+  executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+  checkpointRef: z.string().min(1).optional(),
+  hostExecutorDescriptorId: z.string().min(1),
+  hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+  authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+  resultRef: GovernanceOperatorSanitizedRefSchema.optional(),
+  errorClass: z.string().min(1).optional(),
+  evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+});
+
+export const GovernanceOperatorActionHostExecutorDispatchResultSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-host-executor-dispatch.v1")
+    .default("governance-operator-action-host-executor-dispatch.v1"),
+  status: z.enum(["dry_run_ready", "dispatched", "blocked", "failed"]),
+  reasons: z.array(z.string()).default([]),
+  dispatchMode: GovernanceOperatorActionHostExecutorDispatchModeSchema.optional(),
+  taskId: z.string().min(1).optional(),
+  actionRef: z.string().min(1).optional(),
+  receiptId: z.string().min(1).optional(),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  recommendedAction: RecoveryActionSchema.optional(),
+  executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  checkpointRef: z.string().min(1).optional(),
+  hostExecutorDescriptorId: z.string().min(1).optional(),
+  hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  executorResultRef: GovernanceOperatorSanitizedRefSchema.optional(),
+  errorClass: z.string().min(1).optional(),
+  evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+  operatorInstruction: z.string().min(1).optional()
+}).superRefine((value, ctx) => {
+  if (value.status === "dry_run_ready" || value.status === "dispatched") {
+    if (value.reasons.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reasons"],
+        message: "operator_action_host_executor_dispatch_success_requires_no_reasons"
+      });
+    }
+
+    for (const field of [
+      "dispatchMode",
+      "taskId",
+      "actionRef",
+      "receiptId",
+      "envelopeHash",
+      "recommendedAction",
+      "executionPlanHash",
+      "hostExecutorDescriptorId",
+      "hostExecutorDescriptorHash",
+      "authorizationIdentityHash",
+      "operatorInstruction"
+    ] as const) {
+      if (value[field] === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: "operator_action_host_executor_dispatch_success_requires_field"
+        });
+      }
+    }
+
+    if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_host_executor_dispatch_success_checkpoint_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_host_executor_dispatch_success_checkpoint_not_allowed"
+      });
+    }
+    return;
+  }
+
+  if (value.reasons.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reasons"],
+      message: "operator_action_host_executor_dispatch_block_requires_reasons"
+    });
+  }
+});
+
 // ── Host-consumable operator evidence resolution ───────────────────────────
 
 export const GovernanceOperatorEvidenceResolutionKindSchema = z.enum([
@@ -991,6 +1139,15 @@ export type GovernanceOperatorActionHostExecutorAuthorizationPacketInput = z.inp
 export type GovernanceOperatorActionHostExecutorAuthorizationPacket = z.infer<typeof GovernanceOperatorActionHostExecutorAuthorizationPacketSchema>;
 export type GovernanceOperatorActionHostExecutorAuthorizationResultInput = z.input<typeof GovernanceOperatorActionHostExecutorAuthorizationResultSchema>;
 export type GovernanceOperatorActionHostExecutorAuthorizationResult = z.infer<typeof GovernanceOperatorActionHostExecutorAuthorizationResultSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchMode = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchModeSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchInvocationInput = z.input<typeof GovernanceOperatorActionHostExecutorDispatchInvocationSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchInvocation = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchInvocationSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchExecutorResultInput = z.input<typeof GovernanceOperatorActionHostExecutorDispatchExecutorResultSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchExecutorResult = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchExecutorResultSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchAuditEventInput = z.input<typeof GovernanceOperatorActionHostExecutorDispatchAuditEventSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchAuditEvent = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchAuditEventSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchResultInput = z.input<typeof GovernanceOperatorActionHostExecutorDispatchResultSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchResult = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchResultSchema>;
 export type GovernanceOperatorEvidenceResolutionKind = z.infer<typeof GovernanceOperatorEvidenceResolutionKindSchema>;
 export type GovernanceOperatorEvidenceResolutionStatus = z.infer<typeof GovernanceOperatorEvidenceResolutionStatusSchema>;
 export type GovernanceOperatorObservationEvidenceSummary = z.infer<typeof GovernanceOperatorObservationEvidenceSummarySchema>;
@@ -1035,6 +1192,29 @@ export interface AuthorizeGovernanceOperatorActionHostExecutorReviewInput {
   lifecycleState?: unknown;
   authorizationPacket?: unknown;
   hostExecutorDescriptor?: unknown;
+}
+
+export interface GovernanceOperatorActionHostExecutorDispatchExecutor {
+  dispatch(
+    invocation: GovernanceOperatorActionHostExecutorDispatchInvocation
+  ): Promise<unknown> | unknown;
+}
+
+export interface GovernanceOperatorActionHostExecutorDispatchAuditSink {
+  record(
+    event: GovernanceOperatorActionHostExecutorDispatchAuditEvent
+  ): Promise<void> | void;
+}
+
+export interface DispatchGovernanceOperatorActionHostExecutorInput {
+  executionGate: unknown;
+  lifecycleState?: unknown;
+  authorizationPacket?: unknown;
+  hostExecutorDescriptor?: unknown;
+  authorization?: unknown;
+  dispatchMode?: unknown;
+  executor?: GovernanceOperatorActionHostExecutorDispatchExecutor;
+  auditSink?: GovernanceOperatorActionHostExecutorDispatchAuditSink;
 }
 
 export interface CreateArbitrationPacketInput {
@@ -2010,6 +2190,182 @@ export function authorizeGovernanceOperatorActionHostExecutorReview(
   });
 }
 
+export async function dispatchGovernanceOperatorActionHostExecutor(
+  input: DispatchGovernanceOperatorActionHostExecutorInput
+): Promise<GovernanceOperatorActionHostExecutorDispatchResult> {
+  const review = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: input.executionGate,
+    lifecycleState: input.lifecycleState,
+    ...(input.authorizationPacket !== undefined
+      ? { authorizationPacket: input.authorizationPacket }
+      : {}),
+    ...(input.hostExecutorDescriptor !== undefined
+      ? { hostExecutorDescriptor: input.hostExecutorDescriptor }
+      : {})
+  });
+  const reasons: string[] = [];
+
+  let dispatchMode: GovernanceOperatorActionHostExecutorDispatchMode | undefined;
+  if (input.dispatchMode === undefined) {
+    addUniqueReason(reasons, "operator_action_host_executor_dispatch_mode_required");
+  } else {
+    const parsedDispatchMode =
+      GovernanceOperatorActionHostExecutorDispatchModeSchema.safeParse(input.dispatchMode);
+    if (parsedDispatchMode.success) {
+      dispatchMode = parsedDispatchMode.data;
+    } else {
+      addUniqueReason(reasons, "operator_action_host_executor_dispatch_mode_invalid");
+    }
+  }
+
+  let authorization: GovernanceOperatorActionHostExecutorAuthorizationResult | undefined;
+  if (input.authorization === undefined) {
+    addUniqueReason(reasons, "operator_action_host_executor_dispatch_authorization_required");
+  } else {
+    const parsedAuthorization =
+      GovernanceOperatorActionHostExecutorAuthorizationResultSchema.safeParse(input.authorization);
+    if (parsedAuthorization.success) {
+      authorization = parsedAuthorization.data;
+      if (authorization.status !== "ready_for_host_executor_review") {
+        addUniqueReason(reasons, "operator_action_host_executor_dispatch_authorization_not_ready");
+      }
+    } else {
+      addUniqueReason(reasons, "operator_action_host_executor_dispatch_authorization_invalid");
+    }
+  }
+
+  if (review.status !== "ready_for_host_executor_review") {
+    addUniqueReason(reasons, "operator_action_host_executor_dispatch_review_not_ready");
+    for (const reason of review.reasons) {
+      addUniqueReason(reasons, reason);
+    }
+  }
+
+  if (authorization !== undefined) {
+    addHostExecutorDispatchAuthorizationReasons(reasons, {
+      authorization,
+      review
+    });
+  }
+
+  if (dispatchMode === "execute_injected") {
+    if (input.executor === undefined) {
+      addUniqueReason(reasons, "operator_action_host_executor_dispatch_executor_required");
+    }
+    if (input.auditSink === undefined) {
+      addUniqueReason(reasons, "operator_action_host_executor_dispatch_audit_sink_required");
+    }
+  }
+
+  if (
+    reasons.length > 0 ||
+    authorization === undefined ||
+    authorization.status !== "ready_for_host_executor_review" ||
+    review.status !== "ready_for_host_executor_review" ||
+    dispatchMode === undefined
+  ) {
+    return createBlockedOperatorActionHostExecutorDispatchResult(reasons, {
+      review,
+      ...(authorization !== undefined ? { authorization } : {}),
+      ...(dispatchMode !== undefined ? { dispatchMode } : {})
+    });
+  }
+
+  const invocation = createOperatorActionHostExecutorDispatchInvocation({
+    review,
+    dispatchMode
+  });
+
+  if (dispatchMode === "dry_run") {
+    return createReadyOperatorActionHostExecutorDispatchResult({
+      status: "dry_run_ready",
+      invocation,
+      evidenceRefs: invocation.evidenceRefs,
+      operatorInstruction:
+        `Dry-run host executor dispatch accepted ${invocation.recommendedAction}; no executor was called.`
+    });
+  }
+
+  if (input.executor === undefined || input.auditSink === undefined) {
+    return createBlockedOperatorActionHostExecutorDispatchResult([
+      "operator_action_host_executor_dispatch_executor_required",
+      "operator_action_host_executor_dispatch_audit_sink_required"
+    ], {
+      review,
+      authorization,
+      dispatchMode
+    });
+  }
+
+  try {
+    await input.auditSink.record(createHostExecutorDispatchAuditEvent({
+      status: "attempting",
+      invocation,
+      evidenceRefs: invocation.evidenceRefs
+    }));
+  } catch {
+    return createBlockedOperatorActionHostExecutorDispatchResult([
+      "operator_action_host_executor_dispatch_audit_sink_failed"
+    ], {
+      review,
+      authorization,
+      dispatchMode
+    });
+  }
+
+  let executorResult: GovernanceOperatorActionHostExecutorDispatchExecutorResult;
+  try {
+    executorResult = GovernanceOperatorActionHostExecutorDispatchExecutorResultSchema.parse(
+      await input.executor.dispatch(invocation)
+    );
+  } catch (error) {
+    const errorClass = normalizeHostExecutorDispatchErrorClass(error);
+    const failedResult = createFailedOperatorActionHostExecutorDispatchResult({
+      invocation,
+      reasons: ["operator_action_host_executor_dispatch_executor_failed"],
+      errorClass,
+      evidenceRefs: invocation.evidenceRefs
+    });
+    await recordHostExecutorDispatchFailure(input.auditSink, invocation, failedResult);
+    return failedResult;
+  }
+
+  const evidenceRefs = uniqueStrings([
+    ...invocation.evidenceRefs,
+    ...executorResult.evidenceRefs
+  ]);
+  const dispatched = createReadyOperatorActionHostExecutorDispatchResult({
+    status: "dispatched",
+    invocation,
+    ...(executorResult.resultRef !== undefined
+      ? { executorResultRef: executorResult.resultRef }
+      : {}),
+    evidenceRefs,
+    operatorInstruction:
+      `Injected host executor dispatch completed ${invocation.recommendedAction}; no global host lookup was used.`
+  });
+
+  try {
+    await input.auditSink.record(createHostExecutorDispatchAuditEvent({
+      status: "dispatched",
+      invocation,
+      ...(executorResult.resultRef !== undefined
+        ? { resultRef: executorResult.resultRef }
+        : {}),
+      evidenceRefs
+    }));
+  } catch {
+    return createFailedOperatorActionHostExecutorDispatchResult({
+      invocation,
+      reasons: ["operator_action_host_executor_dispatch_audit_sink_failed"],
+      errorClass: "operator_action_host_executor_dispatch_audit_sink_failed",
+      evidenceRefs
+    });
+  }
+
+  return dispatched;
+}
+
 export function preserveGovernanceOperatorActionReceiptConsumptionStoreProof<T extends object>(
   target: T,
   source: unknown
@@ -2209,6 +2565,244 @@ function createBlockedOperatorActionHostExecutorAuthorizationResult(
       ...(context.descriptor?.evidenceRefs ?? [])
     ])
   });
+}
+
+function createOperatorActionHostExecutorDispatchInvocation(input: {
+  review: GovernanceOperatorActionHostExecutorAuthorizationResult;
+  dispatchMode: GovernanceOperatorActionHostExecutorDispatchMode;
+}): GovernanceOperatorActionHostExecutorDispatchInvocation {
+  return GovernanceOperatorActionHostExecutorDispatchInvocationSchema.parse({
+    dispatchMode: input.dispatchMode,
+    taskId: input.review.taskId,
+    actionRef: input.review.actionRef,
+    receiptId: input.review.receiptId,
+    envelopeHash: input.review.envelopeHash,
+    recommendedAction: input.review.recommendedAction,
+    executionPlanHash: input.review.executionPlanHash,
+    ...(input.review.checkpointRef !== undefined
+      ? { checkpointRef: input.review.checkpointRef }
+      : {}),
+    hostExecutorDescriptorId: input.review.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.review.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.review.authorizationIdentityHash,
+    evidenceRefs: [...input.review.evidenceRefs],
+    operatorInstruction:
+      `Explicit injected host executor dispatch prepared for ${input.review.recommendedAction}.`
+  });
+}
+
+function createReadyOperatorActionHostExecutorDispatchResult(input: {
+  status: "dry_run_ready" | "dispatched";
+  invocation: GovernanceOperatorActionHostExecutorDispatchInvocation;
+  executorResultRef?: string;
+  evidenceRefs: string[];
+  operatorInstruction: string;
+}): GovernanceOperatorActionHostExecutorDispatchResult {
+  return GovernanceOperatorActionHostExecutorDispatchResultSchema.parse({
+    status: input.status,
+    reasons: [],
+    dispatchMode: input.invocation.dispatchMode,
+    taskId: input.invocation.taskId,
+    actionRef: input.invocation.actionRef,
+    receiptId: input.invocation.receiptId,
+    envelopeHash: input.invocation.envelopeHash,
+    recommendedAction: input.invocation.recommendedAction,
+    executionPlanHash: input.invocation.executionPlanHash,
+    ...(input.invocation.checkpointRef !== undefined
+      ? { checkpointRef: input.invocation.checkpointRef }
+      : {}),
+    hostExecutorDescriptorId: input.invocation.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.invocation.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.invocation.authorizationIdentityHash,
+    ...(input.executorResultRef !== undefined
+      ? { executorResultRef: input.executorResultRef }
+      : {}),
+    evidenceRefs: [...input.evidenceRefs],
+    operatorInstruction: input.operatorInstruction
+  });
+}
+
+function createBlockedOperatorActionHostExecutorDispatchResult(
+  reasons: string[],
+  context: {
+    review?: GovernanceOperatorActionHostExecutorAuthorizationResult;
+    authorization?: GovernanceOperatorActionHostExecutorAuthorizationResult;
+    dispatchMode?: GovernanceOperatorActionHostExecutorDispatchMode;
+  } = {}
+): GovernanceOperatorActionHostExecutorDispatchResult {
+  const source = context.review ?? context.authorization;
+
+  return GovernanceOperatorActionHostExecutorDispatchResultSchema.parse({
+    status: "blocked",
+    reasons: reasons.length > 0
+      ? [...new Set(reasons)]
+      : ["operator_action_host_executor_dispatch_blocked"],
+    ...(context.dispatchMode !== undefined ? { dispatchMode: context.dispatchMode } : {}),
+    ...(source?.taskId !== undefined ? { taskId: source.taskId } : {}),
+    ...(source?.actionRef !== undefined ? { actionRef: source.actionRef } : {}),
+    ...(source?.receiptId !== undefined ? { receiptId: source.receiptId } : {}),
+    ...(source?.envelopeHash !== undefined ? { envelopeHash: source.envelopeHash } : {}),
+    ...(source?.recommendedAction !== undefined ? { recommendedAction: source.recommendedAction } : {}),
+    ...(source?.executionPlanHash !== undefined ? { executionPlanHash: source.executionPlanHash } : {}),
+    ...(source?.checkpointRef !== undefined ? { checkpointRef: source.checkpointRef } : {}),
+    ...(source?.hostExecutorDescriptorId !== undefined
+      ? { hostExecutorDescriptorId: source.hostExecutorDescriptorId }
+      : {}),
+    ...(source?.hostExecutorDescriptorHash !== undefined
+      ? { hostExecutorDescriptorHash: source.hostExecutorDescriptorHash }
+      : {}),
+    ...(source?.authorizationIdentityHash !== undefined
+      ? { authorizationIdentityHash: source.authorizationIdentityHash }
+      : {}),
+    evidenceRefs: uniqueStrings([
+      ...(context.review?.evidenceRefs ?? []),
+      ...(context.authorization?.evidenceRefs ?? [])
+    ])
+  });
+}
+
+function createFailedOperatorActionHostExecutorDispatchResult(input: {
+  invocation: GovernanceOperatorActionHostExecutorDispatchInvocation;
+  reasons: string[];
+  errorClass: string;
+  evidenceRefs: string[];
+}): GovernanceOperatorActionHostExecutorDispatchResult {
+  return GovernanceOperatorActionHostExecutorDispatchResultSchema.parse({
+    status: "failed",
+    reasons: [...new Set(input.reasons)],
+    dispatchMode: input.invocation.dispatchMode,
+    taskId: input.invocation.taskId,
+    actionRef: input.invocation.actionRef,
+    receiptId: input.invocation.receiptId,
+    envelopeHash: input.invocation.envelopeHash,
+    recommendedAction: input.invocation.recommendedAction,
+    executionPlanHash: input.invocation.executionPlanHash,
+    ...(input.invocation.checkpointRef !== undefined
+      ? { checkpointRef: input.invocation.checkpointRef }
+      : {}),
+    hostExecutorDescriptorId: input.invocation.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.invocation.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.invocation.authorizationIdentityHash,
+    errorClass: input.errorClass,
+    evidenceRefs: [...input.evidenceRefs]
+  });
+}
+
+function createHostExecutorDispatchAuditEvent(input: {
+  status: "attempting" | "dispatched" | "failed";
+  invocation: GovernanceOperatorActionHostExecutorDispatchInvocation;
+  resultRef?: string;
+  errorClass?: string;
+  evidenceRefs: string[];
+}): GovernanceOperatorActionHostExecutorDispatchAuditEvent {
+  return GovernanceOperatorActionHostExecutorDispatchAuditEventSchema.parse({
+    status: input.status,
+    dispatchMode: input.invocation.dispatchMode,
+    taskId: input.invocation.taskId,
+    actionRef: input.invocation.actionRef,
+    receiptId: input.invocation.receiptId,
+    envelopeHash: input.invocation.envelopeHash,
+    recommendedAction: input.invocation.recommendedAction,
+    executionPlanHash: input.invocation.executionPlanHash,
+    ...(input.invocation.checkpointRef !== undefined
+      ? { checkpointRef: input.invocation.checkpointRef }
+      : {}),
+    hostExecutorDescriptorId: input.invocation.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.invocation.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.invocation.authorizationIdentityHash,
+    ...(input.resultRef !== undefined ? { resultRef: input.resultRef } : {}),
+    ...(input.errorClass !== undefined ? { errorClass: input.errorClass } : {}),
+    evidenceRefs: [...input.evidenceRefs]
+  });
+}
+
+async function recordHostExecutorDispatchFailure(
+  auditSink: GovernanceOperatorActionHostExecutorDispatchAuditSink,
+  invocation: GovernanceOperatorActionHostExecutorDispatchInvocation,
+  result: GovernanceOperatorActionHostExecutorDispatchResult
+): Promise<void> {
+  try {
+    await auditSink.record(createHostExecutorDispatchAuditEvent({
+      status: "failed",
+      invocation,
+      ...(result.errorClass !== undefined ? { errorClass: result.errorClass } : {}),
+      evidenceRefs: result.evidenceRefs
+    }));
+  } catch {
+    // The dispatch result remains sanitized and fail-closed even when final audit recording fails.
+  }
+}
+
+function addHostExecutorDispatchAuthorizationReasons(
+  reasons: string[],
+  input: {
+    authorization: GovernanceOperatorActionHostExecutorAuthorizationResult;
+    review: GovernanceOperatorActionHostExecutorAuthorizationResult;
+  }
+): void {
+  const bindings = [
+    {
+      authorizationValue: input.authorization.taskId,
+      expectedValue: input.review.taskId,
+      reason: "operator_action_host_executor_dispatch_authorization_task_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.actionRef,
+      expectedValue: input.review.actionRef,
+      reason: "operator_action_host_executor_dispatch_authorization_action_ref_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.receiptId,
+      expectedValue: input.review.receiptId,
+      reason: "operator_action_host_executor_dispatch_authorization_receipt_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.envelopeHash,
+      expectedValue: input.review.envelopeHash,
+      reason: "operator_action_host_executor_dispatch_authorization_envelope_hash_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.recommendedAction,
+      expectedValue: input.review.recommendedAction,
+      reason: "operator_action_host_executor_dispatch_authorization_recommended_action_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.executionMode,
+      expectedValue: input.review.executionMode,
+      reason: "operator_action_host_executor_dispatch_authorization_execution_mode_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.executionPlanHash,
+      expectedValue: input.review.executionPlanHash,
+      reason: "operator_action_host_executor_dispatch_authorization_plan_hash_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.checkpointRef,
+      expectedValue: input.review.checkpointRef,
+      reason: "operator_action_host_executor_dispatch_authorization_checkpoint_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.hostExecutorDescriptorId,
+      expectedValue: input.review.hostExecutorDescriptorId,
+      reason: "operator_action_host_executor_dispatch_authorization_descriptor_id_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.hostExecutorDescriptorHash,
+      expectedValue: input.review.hostExecutorDescriptorHash,
+      reason: "operator_action_host_executor_dispatch_authorization_descriptor_hash_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.authorizationIdentityHash,
+      expectedValue: input.review.authorizationIdentityHash,
+      reason: "operator_action_host_executor_dispatch_authorization_identity_mismatch"
+    }
+  ];
+
+  for (const binding of bindings) {
+    if (binding.authorizationValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
 }
 
 function addHostExecutorAuthorizationPacketReasons(
@@ -3128,6 +3722,26 @@ function parseReceiptLines(
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
+}
+
+function normalizeHostExecutorDispatchErrorClass(error: unknown): string {
+  const rawClass =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code
+      : error instanceof Error
+        ? error.name
+        : "unknown_host_executor_dispatch_error";
+  const normalized = rawClass
+    .replace(/[^A-Za-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+
+  return normalized.length > 0
+    ? normalized.slice(0, 80)
+    : "unknown_host_executor_dispatch_error";
 }
 
 function uniqueStrings(values: string[]): string[] {

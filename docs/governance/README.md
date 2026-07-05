@@ -93,6 +93,9 @@ as historical evidence unless a current authority document links them.
 - [Phase 13 operator action host executor dispatch taskbook](PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md):
   current authorization stop for any future side-effecting recovery action
   dispatch implementation; this is not recovery-action execution authorization.
+- [Phase 13 operator action host executor dispatch closeout](PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT.md):
+  current closeout for dry-run and explicit injected-executor dispatch control;
+  real recovery-action dispatch remains blocked by default.
 
 ## Runner Entry Points
 
