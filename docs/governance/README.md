@@ -82,6 +82,10 @@ as historical evidence unless a current authority document links them.
   current taskbook for a future non-executing authorization packet and injected
   host executor descriptor boundary; this is not recovery-action execution
   authorization.
+- [Phase 11 operator action host executor boundary closeout](PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_CLOSEOUT.md):
+  current closeout for the non-executing host executor descriptor,
+  authorization packet, and authorization review boundary; this is not
+  recovery-action execution authorization.
 
 ## Runner Entry Points
 
