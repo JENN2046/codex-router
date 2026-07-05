@@ -28,8 +28,12 @@ import {
   createInMemoryGovernanceOperatorActionReceiptStore,
   GovernanceOperatorActionReceiptSchema,
   hashGovernanceOperatorActionEnvelope,
+  hashGovernanceOperatorActionExecutionPlan,
+  hashGovernanceOperatorActionHostExecutorDescriptor,
   planGovernanceOperatorActionExecution,
   type GovernanceOperatorActionEnvelope,
+  type GovernanceOperatorActionHostExecutorAuthorizationPacketInput,
+  type GovernanceOperatorActionHostExecutorDescriptorInput,
   type GovernanceOperatorActionReceiptInput,
   type GovernanceOperatorActionReceiptStore
 } from "../packages/recovery-control/src/index.js";
@@ -630,6 +634,126 @@ test("desktop host client creates and consumes current operator action receipts"
   assert.ok(clonedGate.reasons.includes(
     "operator_action_executor_receipt_consumption_store_proof_missing"
   ));
+});
+
+test("desktop host client exposes non-executing host executor review for current operator action", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const calls: string[] = [];
+  const task = createEngineeringTask("desktop-host-executor-review");
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: {
+      ...createHostBindings(calls),
+      read_thread_terminal(invocation) {
+        calls.push(invocation.primitive);
+        return createPrimitiveFailureEnvelope(
+          "read_thread_terminal",
+          "desktop_host_executor_review_failure"
+        );
+      }
+    },
+    availableAgents: 2,
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
+    operatorActionReceiptStore: store,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  assert.ok(result.operatorActionEnvelope);
+  const created = client.createOperatorActionReceipt({
+    decision: "consumed",
+    operatorIdHash: "a".repeat(64),
+    createdAt: "2026-04-28T12:00:20.000Z"
+  });
+  const consumed = await client.consumeOperatorActionReceipt({
+    receipt: created.receipt,
+    now: "2026-04-28T12:00:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+  const lifecycle = client.getOperatorActionLifecycle();
+  const gate = planGovernanceOperatorActionExecution({
+    envelope: result.operatorActionEnvelope,
+    receiptConsumption: consumed,
+    lifecycleState: lifecycle,
+    allowedActions: [result.operatorActionEnvelope.recommendedAction],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "planned");
+  assert.ok(gate.taskId);
+  assert.ok(gate.actionRef);
+  assert.ok(gate.receiptId);
+  assert.ok(gate.envelopeHash);
+  assert.ok(gate.recommendedAction);
+  assert.ok(gate.plan);
+
+  const descriptor = {
+    descriptorId: "desktop-host-client-review-v1",
+    supportedActions: [result.operatorActionEnvelope.recommendedAction],
+    evidenceRefs: ["artifact:desktop-host-client-review"]
+  } satisfies GovernanceOperatorActionHostExecutorDescriptorInput;
+  const packet = {
+    taskId: gate.taskId,
+    actionRef: gate.actionRef,
+    receiptId: gate.receiptId,
+    envelopeHash: gate.envelopeHash,
+    recommendedAction: gate.recommendedAction,
+    executionPlanHash: hashGovernanceOperatorActionExecutionPlan(gate.plan),
+    hostExecutorDescriptorId: descriptor.descriptorId,
+    hostExecutorDescriptorHash:
+      hashGovernanceOperatorActionHostExecutorDescriptor(descriptor),
+    authorizationIdentityHash: "b".repeat(64),
+    evidenceRefs: ["artifact:desktop-host-client-review"]
+  } satisfies GovernanceOperatorActionHostExecutorAuthorizationPacketInput;
+  const callCountBeforeReview = calls.length;
+
+  const authorization = client.reviewCurrentOperatorActionHostExecutorAuthorization({
+    executionGate: gate,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+
+  assert.equal(authorization.status, "ready_for_host_executor_review");
+  assert.deepEqual(authorization.reasons, []);
+  assert.equal(authorization.executionMode, "plan_only");
+  assert.equal(authorization.taskId, task.taskId);
+  assert.equal(authorization.hostExecutorDescriptorId, descriptor.descriptorId);
+  assert.equal(authorization.executionPlanHash, packet.executionPlanHash);
+  assert.equal(calls.length, callCountBeforeReview);
+
+  const idleClient = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    bridgeBindings: createHostBindings()
+  });
+  const blocked = idleClient.reviewCurrentOperatorActionHostExecutorAuthorization({
+    executionGate: gate,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+
+  assert.equal(blocked.status, "blocked");
+  assert.ok(blocked.reasons.includes("operator_action_host_executor_lifecycle_action_missing"));
 });
 
 test("desktop host client blocks replayed operator action receipts", async () => {

@@ -86,6 +86,10 @@ as historical evidence unless a current authority document links them.
   current closeout for the non-executing host executor descriptor,
   authorization packet, and authorization review boundary; this is not
   recovery-action execution authorization.
+- [Phase 12 operator action host client review surface closeout](PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT.md):
+  current closeout for exposing the Phase 11 non-executing authorization review
+  through `DesktopHostClient` current lifecycle state; this is not
+  recovery-action execution authorization.
 
 ## Runner Entry Points
 

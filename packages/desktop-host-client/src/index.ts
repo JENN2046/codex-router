@@ -34,9 +34,16 @@ import {
   type CreateDesktopOperatorActionReceiptInput,
   type RunDesktopTaskResult
 } from "../../desktop-live-adapter/src/index.js";
+import {
+  authorizeGovernanceOperatorActionHostExecutorReview
+} from "../../recovery-control/src/index.js";
 import type {
   GovernanceOperatorActionEnvelope,
   GovernanceOperatorActionEnvelopeInput,
+  GovernanceOperatorActionExecutionGateResultInput,
+  GovernanceOperatorActionHostExecutorAuthorizationPacketInput,
+  GovernanceOperatorActionHostExecutorAuthorizationResult,
+  GovernanceOperatorActionHostExecutorDescriptorInput,
   GovernanceOperatorActionReceiptDecision,
   GovernanceOperatorActionReceiptStore
 } from "../../recovery-control/src/index.js";
@@ -89,6 +96,12 @@ export interface DesktopHostCreateOperatorActionReceiptInput {
   actionIssuedAt?: string | (() => string);
   createdAt?: string | (() => string);
   evidenceRefs?: string[];
+}
+
+export interface DesktopHostOperatorActionHostExecutorAuthorizationReviewInput {
+  executionGate: GovernanceOperatorActionExecutionGateResultInput;
+  authorizationPacket?: GovernanceOperatorActionHostExecutorAuthorizationPacketInput;
+  hostExecutorDescriptor?: GovernanceOperatorActionHostExecutorDescriptorInput;
 }
 
 export class DesktopHostClient {
@@ -256,6 +269,21 @@ export class DesktopHostClient {
         : {}),
       ...(this.currentOperatorActionReceiptConsumption !== undefined
         ? { lastReceiptConsumption: this.currentOperatorActionReceiptConsumption }
+        : {})
+    });
+  }
+
+  reviewCurrentOperatorActionHostExecutorAuthorization(
+    input: DesktopHostOperatorActionHostExecutorAuthorizationReviewInput
+  ): GovernanceOperatorActionHostExecutorAuthorizationResult {
+    return authorizeGovernanceOperatorActionHostExecutorReview({
+      executionGate: input.executionGate,
+      lifecycleState: this.getOperatorActionLifecycle(),
+      ...(input.authorizationPacket !== undefined
+        ? { authorizationPacket: input.authorizationPacket }
+        : {}),
+      ...(input.hostExecutorDescriptor !== undefined
+        ? { hostExecutorDescriptor: input.hostExecutorDescriptor }
         : {})
     });
   }
