@@ -20,18 +20,22 @@ import type { PolicySnapshot } from "../../policy-config/src/index.js";
 import type { PreflightContext } from "../../preflight/src/index.js";
 import {
   consumeDesktopOperatorActionReceipt,
+  createDesktopOperatorActionReceipt,
   createHostBridgeFromBindings,
   resumeDesktopTask,
   runDesktopTask,
+  type DesktopOperatorActionReceiptCreation,
   type DesktopOperatorActionReceiptConsumption,
   type DesktopHostBindings,
   type DesktopHostBridge,
   type ConsumeDesktopOperatorActionReceiptInput,
+  type CreateDesktopOperatorActionReceiptInput,
   type RunDesktopTaskResult
 } from "../../desktop-live-adapter/src/index.js";
 import type {
   GovernanceOperatorActionEnvelope,
   GovernanceOperatorActionEnvelopeInput,
+  GovernanceOperatorActionReceiptDecision,
   GovernanceOperatorActionReceiptStore
 } from "../../recovery-control/src/index.js";
 
@@ -76,10 +80,20 @@ export interface DesktopHostOperatorActionReceiptInput {
   maxActionAgeMs?: number;
 }
 
+export interface DesktopHostCreateOperatorActionReceiptInput {
+  envelope?: GovernanceOperatorActionEnvelopeInput;
+  decision: GovernanceOperatorActionReceiptDecision;
+  operatorIdHash: string;
+  actionIssuedAt?: string | (() => string);
+  createdAt?: string | (() => string);
+  evidenceRefs?: string[];
+}
+
 export class DesktopHostClient {
   readonly bridge: DesktopHostBridge;
   private currentGovernanceState: GovernanceState | undefined;
   private currentOperatorActionEnvelope: GovernanceOperatorActionEnvelope | undefined;
+  private currentOperatorActionIssuedAt: string | undefined;
 
   constructor(private readonly options: DesktopHostClientOptions) {
     this.bridge = resolveHostBridge(options);
@@ -111,7 +125,7 @@ export class DesktopHostClient {
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
     });
 
-    this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
+    this.captureOperatorAction(result);
     return result;
   }
 
@@ -156,8 +170,36 @@ export class DesktopHostClient {
       ...(this.options.now !== undefined ? { now: this.options.now } : {})
     });
 
-    this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
+    this.captureOperatorAction(result);
     return result;
+  }
+
+  createOperatorActionReceipt(
+    input: DesktopHostCreateOperatorActionReceiptInput
+  ): DesktopOperatorActionReceiptCreation {
+    const envelope = input.envelope ?? this.currentOperatorActionEnvelope;
+    if (envelope === undefined) {
+      return createMissingOperatorActionEnvelopeReceiptCreation();
+    }
+
+    const actionIssuedAt =
+      input.actionIssuedAt ?? (
+        input.envelope === undefined ? this.currentOperatorActionIssuedAt : undefined
+      );
+    if (actionIssuedAt === undefined) {
+      return createMissingOperatorActionIssuedAtReceiptCreation();
+    }
+
+    const createInput: CreateDesktopOperatorActionReceiptInput = {
+      envelope,
+      decision: input.decision,
+      operatorIdHash: input.operatorIdHash,
+      actionIssuedAt,
+      createdAt: input.createdAt ?? this.resolveNow,
+      ...(input.evidenceRefs !== undefined ? { evidenceRefs: input.evidenceRefs } : {})
+    };
+
+    return createDesktopOperatorActionReceipt(createInput);
   }
 
   async consumeOperatorActionReceipt(
@@ -174,13 +216,29 @@ export class DesktopHostClient {
         : {}),
       envelope,
       receipt: input.receipt,
-      ...(input.actionIssuedAt !== undefined ? { actionIssuedAt: input.actionIssuedAt } : {}),
+      ...(input.actionIssuedAt !== undefined
+        ? { actionIssuedAt: input.actionIssuedAt }
+        : input.envelope === undefined && this.currentOperatorActionIssuedAt !== undefined
+          ? { actionIssuedAt: this.currentOperatorActionIssuedAt }
+          : {}),
       now: input.now ?? this.options.now ?? (() => new Date().toISOString()),
       ...(input.maxActionAgeMs !== undefined ? { maxActionAgeMs: input.maxActionAgeMs } : {})
     };
 
     return consumeDesktopOperatorActionReceipt(consumeInput);
   }
+
+  private captureOperatorAction(result: RunDesktopTaskResult): void {
+    this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
+    this.currentOperatorActionIssuedAt =
+      result.operatorActionEnvelope === undefined ? undefined : this.resolveNow();
+  }
+
+  private resolveNow = (): string => (
+    this.options.now === undefined
+      ? new Date().toISOString()
+      : this.options.now()
+  );
 
   private buildGovernanceForwarding(): {
     governanceState?: GovernanceState;
@@ -205,6 +263,22 @@ export class DesktopHostClient {
       }
     };
   }
+}
+
+function createMissingOperatorActionEnvelopeReceiptCreation(): DesktopOperatorActionReceiptCreation {
+  return {
+    schemaVersion: "desktop-operator-action-receipt-creation.v1",
+    status: "blocked",
+    reasons: ["operator_action_receipt_envelope_missing"]
+  };
+}
+
+function createMissingOperatorActionIssuedAtReceiptCreation(): DesktopOperatorActionReceiptCreation {
+  return {
+    schemaVersion: "desktop-operator-action-receipt-creation.v1",
+    status: "blocked",
+    reasons: ["operator_action_receipt_action_issued_at_required"]
+  };
 }
 
 function createMissingOperatorActionEnvelopeConsumption(): DesktopOperatorActionReceiptConsumption {

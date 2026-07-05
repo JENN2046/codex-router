@@ -663,6 +663,15 @@ export interface GovernanceOperatorActionReceiptStore {
 
 // ── Create input ────────────────────────────────────────────────────────────
 
+export interface CreateGovernanceOperatorActionReceiptInput {
+  envelope: GovernanceOperatorActionEnvelopeInput;
+  decision: GovernanceOperatorActionReceiptDecision;
+  operatorIdHash: string;
+  actionIssuedAt: string | (() => string);
+  createdAt: string | (() => string);
+  evidenceRefs?: string[];
+}
+
 export interface CreateArbitrationPacketInput {
   state: GovernanceState;
   trigger?: ArbitrationTrigger;
@@ -783,6 +792,34 @@ export function createGovernanceOperatorActionReceiptId(
   const canonicalReceipt =
     GovernanceOperatorActionReceiptIdPayloadSchema.parse(receipt);
   return `${GOVERNANCE_OPERATOR_ACTION_RECEIPT_ID_PREFIX}${stableSha256(canonicalReceipt)}`;
+}
+
+export function createGovernanceOperatorActionReceipt(
+  input: CreateGovernanceOperatorActionReceiptInput
+): GovernanceOperatorActionReceipt {
+  const envelope = GovernanceOperatorActionEnvelopeSchema.parse(input.envelope);
+  const actionIssuedAt = typeof input.actionIssuedAt === "function"
+    ? input.actionIssuedAt()
+    : input.actionIssuedAt;
+  const createdAt = typeof input.createdAt === "function"
+    ? input.createdAt()
+    : input.createdAt;
+  const envelopeHash = hashGovernanceOperatorActionEnvelope(envelope);
+  const receiptWithoutId = {
+    taskId: envelope.taskId,
+    actionRef: createGovernanceOperatorActionRef(envelope, { actionIssuedAt }),
+    envelopeHash,
+    actionIssuedAt,
+    decision: input.decision,
+    operatorIdHash: input.operatorIdHash,
+    createdAt,
+    evidenceRefs: input.evidenceRefs ?? [...envelope.evidenceRefs]
+  };
+
+  return GovernanceOperatorActionReceiptSchema.parse({
+    receiptId: createGovernanceOperatorActionReceiptId(receiptWithoutId),
+    ...receiptWithoutId
+  });
 }
 
 export function validateGovernanceOperatorActionReceipt(input: {

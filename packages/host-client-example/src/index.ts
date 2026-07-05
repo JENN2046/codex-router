@@ -53,12 +53,15 @@ import {
 } from "../../observability/src/index.js";
 import {
   consumeDesktopOperatorActionReceipt,
+  createDesktopOperatorActionReceipt,
   createHostBridgeFromBindings,
   createPrimitiveFailureEnvelope,
   createPrimitiveSuccessEnvelope,
   resumeDesktopTask,
   runDesktopTask,
   type ConsumeDesktopOperatorActionReceiptInput,
+  type CreateDesktopOperatorActionReceiptInput,
+  type DesktopOperatorActionReceiptCreation,
   type DesktopOperatorActionReceiptConsumption,
   type DesktopHostBindings,
   type DesktopHostBridge,
@@ -73,6 +76,7 @@ import {
 import type {
   GovernanceOperatorActionEnvelope,
   GovernanceOperatorActionEnvelopeInput,
+  GovernanceOperatorActionReceiptDecision,
   GovernanceOperatorActionReceiptStore
 } from "../../recovery-control/src/index.js";
 import type { GovernanceState } from "../../state-manager/src/index.js";
@@ -155,6 +159,15 @@ export interface ExampleOperatorActionReceiptInput {
   actionIssuedAt?: string | (() => string);
   now?: string | (() => string);
   maxActionAgeMs?: number;
+}
+
+export interface ExampleCreateOperatorActionReceiptInput {
+  envelope?: GovernanceOperatorActionEnvelopeInput;
+  decision: GovernanceOperatorActionReceiptDecision;
+  operatorIdHash: string;
+  actionIssuedAt?: string | (() => string);
+  createdAt?: string | (() => string);
+  evidenceRefs?: string[];
 }
 
 interface StoredMemoryEntry {
@@ -283,6 +296,7 @@ export class ExampleDesktopHostClient {
   telemetryAlertDeliveryWindowStore: TelemetryAlertDeliveryWindowStore | undefined;
   private currentGovernanceState: GovernanceState | undefined;
   private currentOperatorActionEnvelope: GovernanceOperatorActionEnvelope | undefined;
+  private currentOperatorActionIssuedAt: string | undefined;
   private readonly telemetryAlertDeliveryWindowPreset: TelemetryAlertDeliveryWindowPresetName | undefined;
   readonly bridge: DesktopHostBridge;
 
@@ -399,7 +413,7 @@ export class ExampleDesktopHostClient {
     });
 
     await this.flushTelemetryAlerts(result.decisionResult.decision);
-    this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
+    this.captureOperatorAction(result);
     return result;
   }
 
@@ -430,8 +444,36 @@ export class ExampleDesktopHostClient {
     });
 
     await this.flushTelemetryAlerts(result.decisionResult.decision);
-    this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
+    this.captureOperatorAction(result);
     return result;
+  }
+
+  createOperatorActionReceipt(
+    input: ExampleCreateOperatorActionReceiptInput
+  ): DesktopOperatorActionReceiptCreation {
+    const envelope = input.envelope ?? this.currentOperatorActionEnvelope;
+    if (envelope === undefined) {
+      return createMissingOperatorActionEnvelopeReceiptCreation();
+    }
+
+    const actionIssuedAt =
+      input.actionIssuedAt ?? (
+        input.envelope === undefined ? this.currentOperatorActionIssuedAt : undefined
+      );
+    if (actionIssuedAt === undefined) {
+      return createMissingOperatorActionIssuedAtReceiptCreation();
+    }
+
+    const createInput: CreateDesktopOperatorActionReceiptInput = {
+      envelope,
+      decision: input.decision,
+      operatorIdHash: input.operatorIdHash,
+      actionIssuedAt,
+      createdAt: input.createdAt ?? this.now,
+      ...(input.evidenceRefs !== undefined ? { evidenceRefs: input.evidenceRefs } : {})
+    };
+
+    return createDesktopOperatorActionReceipt(createInput);
   }
 
   async consumeOperatorActionReceipt(
@@ -448,7 +490,11 @@ export class ExampleDesktopHostClient {
         : {}),
       envelope,
       receipt: input.receipt,
-      ...(input.actionIssuedAt !== undefined ? { actionIssuedAt: input.actionIssuedAt } : {}),
+      ...(input.actionIssuedAt !== undefined
+        ? { actionIssuedAt: input.actionIssuedAt }
+        : input.envelope === undefined && this.currentOperatorActionIssuedAt !== undefined
+          ? { actionIssuedAt: this.currentOperatorActionIssuedAt }
+          : {}),
       now: input.now ?? this.now,
       ...(input.maxActionAgeMs !== undefined ? { maxActionAgeMs: input.maxActionAgeMs } : {})
     };
@@ -478,6 +524,12 @@ export class ExampleDesktopHostClient {
         }
       }
     };
+  }
+
+  private captureOperatorAction(result: RunDesktopTaskResult): void {
+    this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
+    this.currentOperatorActionIssuedAt =
+      result.operatorActionEnvelope === undefined ? undefined : this.now();
   }
 
   async getState(): Promise<{
@@ -667,6 +719,22 @@ export class ExampleDesktopHostClient {
       memoryOverviewProvider
     };
   }
+}
+
+function createMissingOperatorActionEnvelopeReceiptCreation(): DesktopOperatorActionReceiptCreation {
+  return {
+    schemaVersion: "desktop-operator-action-receipt-creation.v1",
+    status: "blocked",
+    reasons: ["operator_action_receipt_envelope_missing"]
+  };
+}
+
+function createMissingOperatorActionIssuedAtReceiptCreation(): DesktopOperatorActionReceiptCreation {
+  return {
+    schemaVersion: "desktop-operator-action-receipt-creation.v1",
+    status: "blocked",
+    reasons: ["operator_action_receipt_action_issued_at_required"]
+  };
 }
 
 function createMissingOperatorActionEnvelopeConsumption(): DesktopOperatorActionReceiptConsumption {

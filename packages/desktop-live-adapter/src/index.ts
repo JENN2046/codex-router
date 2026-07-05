@@ -42,6 +42,7 @@ import {
 } from "../../state-manager/src/index.js";
 import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
 import {
+  createGovernanceOperatorActionReceipt,
   createGovernanceOperatorActionEnvelope,
   createRecoveryOperatorAction,
   shouldLockdown,
@@ -52,6 +53,7 @@ import {
   type GovernanceOperatorActionEnvelope,
   type GovernanceOperatorActionEnvelopeInput,
   type GovernanceOperatorActionReceipt,
+  type GovernanceOperatorActionReceiptDecision,
   type GovernanceOperatorActionReceiptConsumption,
   type GovernanceOperatorActionReceiptStore,
   type GovernanceOperatorActionReceiptValidation,
@@ -193,6 +195,25 @@ export interface RunDesktopTaskResult {
   hostDispatch?: HostDispatcherResult;
 }
 
+export interface DesktopOperatorActionReceiptCreation {
+  schemaVersion: "desktop-operator-action-receipt-creation.v1";
+  status: "created" | "blocked";
+  reasons: string[];
+  taskId?: string;
+  actionRef?: string;
+  envelopeHash?: string;
+  receipt?: GovernanceOperatorActionReceipt;
+}
+
+export interface CreateDesktopOperatorActionReceiptInput {
+  envelope: GovernanceOperatorActionEnvelopeInput;
+  decision: GovernanceOperatorActionReceiptDecision;
+  operatorIdHash: string;
+  actionIssuedAt: string | (() => string);
+  createdAt: string | (() => string);
+  evidenceRefs?: string[];
+}
+
 export type DesktopOperatorActionReceiptConsumptionStatus =
   | GovernanceOperatorActionReceiptConsumption["status"]
   | "not_consumed";
@@ -253,6 +274,29 @@ export async function resumeDesktopTask(
 
   const decisionResult = await resumeDesktopDecision(decisionRunnerInput);
   return executeDesktopTaskFromDecision(input, decisionResult);
+}
+
+export function createDesktopOperatorActionReceipt(
+  input: CreateDesktopOperatorActionReceiptInput
+): DesktopOperatorActionReceiptCreation {
+  try {
+    const receipt = createGovernanceOperatorActionReceipt(input);
+    return {
+      schemaVersion: "desktop-operator-action-receipt-creation.v1",
+      status: "created",
+      reasons: [],
+      taskId: receipt.taskId,
+      actionRef: receipt.actionRef,
+      ...(receipt.envelopeHash !== undefined ? { envelopeHash: receipt.envelopeHash } : {}),
+      receipt
+    };
+  } catch {
+    return {
+      schemaVersion: "desktop-operator-action-receipt-creation.v1",
+      status: "blocked",
+      reasons: ["operator_action_receipt_invalid"]
+    };
+  }
 }
 
 export async function consumeDesktopOperatorActionReceipt(

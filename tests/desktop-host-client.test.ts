@@ -530,6 +530,70 @@ test("desktop host client durably consumes operator action receipts", async () =
   assert.equal(storedByAction[0]?.receiptId, receipt.receiptId);
 });
 
+test("desktop host client creates and consumes current operator action receipts", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const task = createEngineeringTask("desktop-host-receipt-author");
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: [
+        "read_thread_terminal",
+        "spawn_agent",
+        "wait_agent",
+        "send_input",
+        "shell_command",
+        "apply_patch",
+        "automation_update",
+        "close_agent"
+      ]
+    },
+    bridgeBindings: {
+      ...createHostBindings(),
+      read_thread_terminal() {
+        return createPrimitiveFailureEnvelope(
+          "read_thread_terminal",
+          "desktop_host_receipt_author_failure"
+        );
+      }
+    },
+    availableAgents: 2,
+    persistence: {
+      telemetryStore: createRecordingTelemetrySink()
+    },
+    operatorActionReceiptStore: store,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  assert.ok(result.operatorActionEnvelope);
+  const created = client.createOperatorActionReceipt({
+    decision: "consumed",
+    operatorIdHash: "a".repeat(64),
+    createdAt: "2026-04-28T12:00:20.000Z"
+  });
+
+  assert.equal(created.status, "created");
+  assert.deepEqual(created.reasons, []);
+  assert.equal(created.receipt?.taskId, task.taskId);
+  assert.deepEqual(
+    created.receipt?.evidenceRefs,
+    result.operatorActionEnvelope.evidenceRefs
+  );
+
+  const consumed = await client.consumeOperatorActionReceipt({
+    receipt: created.receipt,
+    now: "2026-04-28T12:00:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(consumed.status, "passed");
+  assert.equal(consumed.durable, true);
+  assert.equal(consumed.receipt?.receiptId, created.receipt?.receiptId);
+});
+
 test("desktop host client blocks replayed operator action receipts", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const store = createInMemoryGovernanceOperatorActionReceiptStore();
