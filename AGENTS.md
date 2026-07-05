@@ -307,7 +307,7 @@ Avoid mixing unrelated areas such as TaskGraph schema changes, live adapter runt
 
 Dangerous commands are not automatic:
 
-```bash
+```text
 git reset --hard
 git clean -fd
 git clean -fdx
@@ -315,6 +315,8 @@ git push --force
 git push --force-with-lease
 git branch -D
 rm -rf
+del /s /q
+Remove-Item -Recurse
 ```
 
 Before any dangerous action, provide current branch and worktree state, exact command, affected targets, recovery path, and request explicit confirmation.
