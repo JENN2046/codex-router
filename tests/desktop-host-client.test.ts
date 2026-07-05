@@ -771,7 +771,7 @@ test("desktop host client exposes non-executing host executor review for current
       dispatch(invocation) {
         dispatchInvocations.push(invocation);
         return {
-          status: "completed",
+          status: "accepted",
           resultRef: "artifact:desktop-host-client-dispatch-result",
           evidenceRefs: ["artifact:desktop-host-client-dispatch-result"]
         };
@@ -785,10 +785,12 @@ test("desktop host client exposes non-executing host executor review for current
   });
 
   assert.equal(dispatched.status, "dispatched");
+  assert.equal(dispatched.executorStatus, "accepted");
   assert.equal(dispatched.executorResultRef, "artifact:desktop-host-client-dispatch-result");
   assert.equal(dispatchInvocations.length, 1);
   assert.equal(dispatchInvocations[0]?.recommendedAction, result.operatorActionEnvelope.recommendedAction);
   assert.deepEqual(auditEvents.map((event) => event.status), ["attempting", "dispatched"]);
+  assert.equal(auditEvents[1]?.executorStatus, "accepted");
   assert.equal(calls.length, callCountBeforeReview);
 
   const idleClient = createDesktopHostClient({

@@ -18,6 +18,7 @@ import {
   GovernanceOperatorEvidenceResolutionEntrySchema,
   GovernanceOperatorActionEnvelopeSchema,
   GovernanceOperatorActionExecutionGateResultSchema,
+  GovernanceOperatorActionHostExecutorDispatchExecutorResultSchema,
   GovernanceOperatorActionReceiptSchema,
   hashGovernanceOperatorActionEnvelope,
   hashGovernanceOperatorActionExecutionPlan,
@@ -2065,6 +2066,203 @@ test("recovery control dispatches only through the injected host executor with a
     ["attempting", "dispatched"]
   );
   assert.equal(auditEvents[1]?.resultRef, "artifact:phase13-dispatch-result");
+});
+
+test("recovery control preserves injected host executor receipt status", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+  const auditEvents: GovernanceOperatorActionHostExecutorDispatchAuditEvent[] = [];
+
+  const dispatch = await dispatchGovernanceOperatorActionHostExecutor({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor,
+    authorization,
+    dispatchMode: "execute_injected",
+    executor: {
+      dispatch() {
+        return {
+          status: "refused",
+          reasonCode: "phase14_agent_executor_refused",
+          resultRef: "artifact:phase14-agent-refused",
+          evidenceRefs: ["artifact:phase14-agent-refused"]
+        };
+      }
+    },
+    auditSink: {
+      record(event) {
+        auditEvents.push(event);
+      }
+    }
+  });
+
+  assert.equal(dispatch.status, "dispatched");
+  assert.equal(dispatch.executorStatus, "refused");
+  assert.equal(dispatch.executorReasonCode, "phase14_agent_executor_refused");
+  assert.equal(dispatch.executorResultRef, "artifact:phase14-agent-refused");
+  assert.match(dispatch.operatorInstruction ?? "", /returned refused/);
+  assert.deepEqual(
+    auditEvents.map((event) => event.status),
+    ["attempting", "dispatched"]
+  );
+  assert.equal(auditEvents[1]?.executorStatus, "refused");
+  assert.equal(auditEvents[1]?.executorReasonCode, "phase14_agent_executor_refused");
+});
+
+test("recovery control accepts non-terminal injected host executor receipt status", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+  const auditEvents: GovernanceOperatorActionHostExecutorDispatchAuditEvent[] = [];
+
+  const dispatch = await dispatchGovernanceOperatorActionHostExecutor({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor,
+    authorization,
+    dispatchMode: "execute_injected",
+    executor: {
+      dispatch() {
+        return {
+          status: "running",
+          resultRef: "artifact:phase14-agent-running",
+          evidenceRefs: ["artifact:phase14-agent-running"]
+        };
+      }
+    },
+    auditSink: {
+      record(event) {
+        auditEvents.push(event);
+      }
+    }
+  });
+
+  assert.equal(dispatch.status, "dispatched");
+  assert.equal(dispatch.executorStatus, "running");
+  assert.equal(dispatch.executorReasonCode, undefined);
+  assert.equal(auditEvents[1]?.executorStatus, "running");
+});
+
+test("recovery control rejects terminal injected host executor receipts without reason codes", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const descriptor = createTestHostExecutorDescriptor(["fork"]);
+  const packet = createTestHostExecutorAuthorizationPacket(gate, descriptor);
+  const authorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor
+  });
+  const auditEvents: GovernanceOperatorActionHostExecutorDispatchAuditEvent[] = [];
+
+  const dispatch = await dispatchGovernanceOperatorActionHostExecutor({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: packet,
+    hostExecutorDescriptor: descriptor,
+    authorization,
+    dispatchMode: "execute_injected",
+    executor: {
+      dispatch() {
+        return {
+          status: "failed",
+          resultRef: "artifact:phase14-agent-failed-without-reason",
+          evidenceRefs: ["artifact:phase14-agent-failed-without-reason"]
+        };
+      }
+    },
+    auditSink: {
+      record(event) {
+        auditEvents.push(event);
+      }
+    }
+  });
+
+  assert.equal(dispatch.status, "failed");
+  assert.ok(dispatch.reasons.includes("operator_action_host_executor_dispatch_executor_failed"));
+  assert.equal(dispatch.errorClass, "zoderror");
+  assert.equal(dispatch.executorStatus, undefined);
+  assert.equal(
+    JSON.stringify(dispatch).includes("phase14-agent-failed-without-reason"),
+    false
+  );
+  assert.deepEqual(
+    auditEvents.map((event) => event.status),
+    ["attempting", "failed"]
+  );
+});
+
+test("recovery control rejects unsafe injected host executor receipt reason codes", () => {
+  const parsed = GovernanceOperatorActionHostExecutorDispatchExecutorResultSchema.safeParse({
+    status: "refused",
+    reasonCode: "token-secret",
+    resultRef: "artifact:phase14-agent-refused",
+    evidenceRefs: ["artifact:phase14-agent-refused"]
+  });
+
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.ok(parsed.error.issues.some((issue) =>
+      issue.message === "operator_action_host_executor_dispatch_executor_reason_code_unsafe"
+    ));
+  }
 });
 
 test("recovery control blocks injected host executor dispatch without an audit sink", async () => {

@@ -770,12 +770,40 @@ export const GovernanceOperatorActionHostExecutorDispatchInvocationSchema = z.ob
   }
 });
 
+export const GovernanceOperatorActionHostExecutorDispatchExecutorStatusSchema = z.enum([
+  "accepted",
+  "running",
+  "completed",
+  "failed",
+  "refused",
+  "aborted"
+]);
+
+export const GovernanceOperatorActionHostExecutorDispatchExecutorReasonCodeSchema =
+  z.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9_.:-]*$/).refine(
+    (value) =>
+      !/(?:-----BEGIN|PRIVATE KEY|secret|token|password|api[_-]?key)/i.test(value),
+    { message: "operator_action_host_executor_dispatch_executor_reason_code_unsafe" }
+  );
+
 export const GovernanceOperatorActionHostExecutorDispatchExecutorResultSchema = z.object({
   schemaVersion: z.literal("governance-operator-action-host-executor-dispatch-executor-result.v1")
     .default("governance-operator-action-host-executor-dispatch-executor-result.v1"),
-  status: z.literal("completed"),
+  status: GovernanceOperatorActionHostExecutorDispatchExecutorStatusSchema,
+  reasonCode: GovernanceOperatorActionHostExecutorDispatchExecutorReasonCodeSchema.optional(),
   resultRef: GovernanceOperatorSanitizedRefSchema.optional(),
   evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+}).superRefine((value, ctx) => {
+  if (
+    ["failed", "refused", "aborted"].includes(value.status) &&
+    value.reasonCode === undefined
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reasonCode"],
+      message: "operator_action_host_executor_dispatch_executor_terminal_status_requires_reason_code"
+    });
+  }
 });
 
 export const GovernanceOperatorActionHostExecutorDispatchAuditEventSchema = z.object({
@@ -793,6 +821,9 @@ export const GovernanceOperatorActionHostExecutorDispatchAuditEventSchema = z.ob
   hostExecutorDescriptorId: z.string().min(1),
   hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
   authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+  executorStatus: GovernanceOperatorActionHostExecutorDispatchExecutorStatusSchema.optional(),
+  executorReasonCode:
+    GovernanceOperatorActionHostExecutorDispatchExecutorReasonCodeSchema.optional(),
   resultRef: GovernanceOperatorSanitizedRefSchema.optional(),
   errorClass: z.string().min(1).optional(),
   evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
@@ -814,6 +845,9 @@ export const GovernanceOperatorActionHostExecutorDispatchResultSchema = z.object
   hostExecutorDescriptorId: z.string().min(1).optional(),
   hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  executorStatus: GovernanceOperatorActionHostExecutorDispatchExecutorStatusSchema.optional(),
+  executorReasonCode:
+    GovernanceOperatorActionHostExecutorDispatchExecutorReasonCodeSchema.optional(),
   executorResultRef: GovernanceOperatorSanitizedRefSchema.optional(),
   errorClass: z.string().min(1).optional(),
   evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
@@ -863,6 +897,14 @@ export const GovernanceOperatorActionHostExecutorDispatchResultSchema = z.object
         code: z.ZodIssueCode.custom,
         path: ["checkpointRef"],
         message: "operator_action_host_executor_dispatch_success_checkpoint_not_allowed"
+      });
+    }
+
+    if (value.status === "dispatched" && value.executorStatus === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["executorStatus"],
+        message: "operator_action_host_executor_dispatch_success_requires_executor_status"
       });
     }
     return;
@@ -1142,6 +1184,8 @@ export type GovernanceOperatorActionHostExecutorAuthorizationResult = z.infer<ty
 export type GovernanceOperatorActionHostExecutorDispatchMode = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchModeSchema>;
 export type GovernanceOperatorActionHostExecutorDispatchInvocationInput = z.input<typeof GovernanceOperatorActionHostExecutorDispatchInvocationSchema>;
 export type GovernanceOperatorActionHostExecutorDispatchInvocation = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchInvocationSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchExecutorStatus = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchExecutorStatusSchema>;
+export type GovernanceOperatorActionHostExecutorDispatchExecutorReasonCode = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchExecutorReasonCodeSchema>;
 export type GovernanceOperatorActionHostExecutorDispatchExecutorResultInput = z.input<typeof GovernanceOperatorActionHostExecutorDispatchExecutorResultSchema>;
 export type GovernanceOperatorActionHostExecutorDispatchExecutorResult = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchExecutorResultSchema>;
 export type GovernanceOperatorActionHostExecutorDispatchAuditEventInput = z.input<typeof GovernanceOperatorActionHostExecutorDispatchAuditEventSchema>;
@@ -2337,18 +2381,26 @@ export async function dispatchGovernanceOperatorActionHostExecutor(
   const dispatched = createReadyOperatorActionHostExecutorDispatchResult({
     status: "dispatched",
     invocation,
+    executorStatus: executorResult.status,
+    ...(executorResult.reasonCode !== undefined
+      ? { executorReasonCode: executorResult.reasonCode }
+      : {}),
     ...(executorResult.resultRef !== undefined
       ? { executorResultRef: executorResult.resultRef }
       : {}),
     evidenceRefs,
     operatorInstruction:
-      `Injected host executor dispatch completed ${invocation.recommendedAction}; no global host lookup was used.`
+      `Injected host executor dispatch returned ${executorResult.status} for ${invocation.recommendedAction}; no global host lookup was used.`
   });
 
   try {
     await input.auditSink.record(createHostExecutorDispatchAuditEvent({
       status: "dispatched",
       invocation,
+      executorStatus: executorResult.status,
+      ...(executorResult.reasonCode !== undefined
+        ? { executorReasonCode: executorResult.reasonCode }
+        : {}),
       ...(executorResult.resultRef !== undefined
         ? { resultRef: executorResult.resultRef }
         : {}),
@@ -2594,6 +2646,8 @@ function createOperatorActionHostExecutorDispatchInvocation(input: {
 function createReadyOperatorActionHostExecutorDispatchResult(input: {
   status: "dry_run_ready" | "dispatched";
   invocation: GovernanceOperatorActionHostExecutorDispatchInvocation;
+  executorStatus?: GovernanceOperatorActionHostExecutorDispatchExecutorStatus;
+  executorReasonCode?: GovernanceOperatorActionHostExecutorDispatchExecutorReasonCode;
   executorResultRef?: string;
   evidenceRefs: string[];
   operatorInstruction: string;
@@ -2614,6 +2668,12 @@ function createReadyOperatorActionHostExecutorDispatchResult(input: {
     hostExecutorDescriptorId: input.invocation.hostExecutorDescriptorId,
     hostExecutorDescriptorHash: input.invocation.hostExecutorDescriptorHash,
     authorizationIdentityHash: input.invocation.authorizationIdentityHash,
+    ...(input.executorStatus !== undefined
+      ? { executorStatus: input.executorStatus }
+      : {}),
+    ...(input.executorReasonCode !== undefined
+      ? { executorReasonCode: input.executorReasonCode }
+      : {}),
     ...(input.executorResultRef !== undefined
       ? { executorResultRef: input.executorResultRef }
       : {}),
@@ -2691,6 +2751,8 @@ function createFailedOperatorActionHostExecutorDispatchResult(input: {
 function createHostExecutorDispatchAuditEvent(input: {
   status: "attempting" | "dispatched" | "failed";
   invocation: GovernanceOperatorActionHostExecutorDispatchInvocation;
+  executorStatus?: GovernanceOperatorActionHostExecutorDispatchExecutorStatus;
+  executorReasonCode?: GovernanceOperatorActionHostExecutorDispatchExecutorReasonCode;
   resultRef?: string;
   errorClass?: string;
   evidenceRefs: string[];
@@ -2710,6 +2772,12 @@ function createHostExecutorDispatchAuditEvent(input: {
     hostExecutorDescriptorId: input.invocation.hostExecutorDescriptorId,
     hostExecutorDescriptorHash: input.invocation.hostExecutorDescriptorHash,
     authorizationIdentityHash: input.invocation.authorizationIdentityHash,
+    ...(input.executorStatus !== undefined
+      ? { executorStatus: input.executorStatus }
+      : {}),
+    ...(input.executorReasonCode !== undefined
+      ? { executorReasonCode: input.executorReasonCode }
+      : {}),
     ...(input.resultRef !== undefined ? { resultRef: input.resultRef } : {}),
     ...(input.errorClass !== undefined ? { errorClass: input.errorClass } : {}),
     evidenceRefs: [...input.evidenceRefs]
