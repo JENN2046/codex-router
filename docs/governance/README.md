@@ -73,6 +73,11 @@ as historical evidence unless a current authority document links them.
   current closeout for host/client receipt consumption, receipt authoring, and
   current operator action lifecycle state; this is not recovery-action
   execution authorization.
+- [Phase 10 operator action executor gate closeout](PHASE_10_OPERATOR_ACTION_EXECUTOR_GATE_CLOSEOUT.md):
+  current closeout for the plan-only operator action executor gate, durable
+  receipt proof binding, lifecycle binding, action allowlists, checkpoint
+  propagation, and sanitized evidence summaries; this is not recovery-action
+  execution authorization.
 
 ## Runner Entry Points
 

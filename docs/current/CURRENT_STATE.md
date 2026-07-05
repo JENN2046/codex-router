@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `14918f3a06504ef786bf78b743fffa751d05b1238675e4dab7d81ebdad6e3b13`
+  `7acda2f10b56c6909866609f36c10f88120c80158949d327138ab4c4c2c1ab4c`
 
 Source digest excluded paths:
 
@@ -84,6 +84,9 @@ Current repository governance status:
   `docs/governance/PHASE_8_OPERATOR_ACTION_LIFECYCLE_CLOSEOUT.md`.
 - Phase 9 operator action host lifecycle integration is closed out in
   `docs/governance/PHASE_9_OPERATOR_ACTION_HOST_LIFECYCLE_CLOSEOUT.md`.
+- Phase 10 operator action executor gate is closed out in
+  `docs/governance/PHASE_10_OPERATOR_ACTION_EXECUTOR_GATE_CLOSEOUT.md`; the
+  gate is plan-only and does not authorize recovery execution.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -186,6 +189,11 @@ The Phase 9 operator action host lifecycle closeout is recorded at
 `docs/governance/PHASE_9_OPERATOR_ACTION_HOST_LIFECYCLE_CLOSEOUT.md`; it wires
 receipt consumption, receipt authoring, and current lifecycle state into host
 clients without authorizing recovery execution.
+The Phase 10 operator action executor gate closeout is recorded at
+`docs/governance/PHASE_10_OPERATOR_ACTION_EXECUTOR_GATE_CLOSEOUT.md`; it adds a
+plan-only executor gate that requires durable receipt proof, lifecycle binding,
+action allowlists, and checkpoint-preserving plans without authorizing recovery
+execution.
 
 Boundary audit marker:
 
