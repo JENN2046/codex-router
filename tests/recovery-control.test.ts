@@ -1324,6 +1324,57 @@ test("recovery control blocks operator action planning for task/action/hash drif
   assert.ok(gate.reasons.includes("operator_action_executor_consumption_envelope_hash_mismatch"));
 });
 
+test("recovery control blocks operator action planning for unbound durable receipts", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receiptWithoutId = {
+    taskId: envelope.taskId,
+    actionRef: "governance-operator-action:unbound-receipt",
+    actionIssuedAt,
+    decision: "consumed" as const,
+    operatorIdHash: "a".repeat(64),
+    createdAt: "2026-04-27T00:05:00.000Z",
+    evidenceRefs: [...envelope.evidenceRefs]
+  };
+  const receipt = GovernanceOperatorActionReceiptSchema.parse({
+    receiptId: createGovernanceOperatorActionReceiptId(receiptWithoutId),
+    ...receiptWithoutId
+  });
+  const consumption = {
+    schemaVersion: "desktop-operator-action-receipt-consumption.v1",
+    status: "passed" as const,
+    durable: true,
+    reasons: [],
+    validation: {
+      schemaVersion: "governance-operator-action-receipt-validation.v1" as const,
+      status: "passed" as const,
+      reasons: [],
+      taskId: envelope.taskId,
+      receipt
+    },
+    taskId: envelope.taskId,
+    receipt
+  };
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_action_ref_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_consumption_action_ref_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_validation_action_ref_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_receipt_envelope_hash_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_consumption_envelope_hash_mismatch"));
+  assert.ok(gate.reasons.includes("operator_action_executor_validation_envelope_hash_mismatch"));
+});
+
 test("recovery control blocks operator action planning for replayed receipts", async () => {
   const envelope = createTestOperatorActionEnvelope();
   const actionIssuedAt = "2026-04-27T00:04:45.000Z";

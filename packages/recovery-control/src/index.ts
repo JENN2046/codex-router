@@ -1756,17 +1756,15 @@ function addOperatorActionReceiptConsumptionReasons(
     addUniqueReason(reasons, "operator_action_executor_receipt_validation_mismatch");
   }
 
-  if (
-    consumption.taskId !== undefined &&
-    consumption.taskId !== envelope.taskId
-  ) {
+  const expectedActionRef = createGovernanceOperatorActionRef(envelope, {
+    actionIssuedAt: receipt.actionIssuedAt
+  });
+
+  if (consumption.taskId !== envelope.taskId) {
     addUniqueReason(reasons, "operator_action_executor_consumption_task_mismatch");
   }
 
-  if (
-    consumption.validation.taskId !== undefined &&
-    consumption.validation.taskId !== envelope.taskId
-  ) {
+  if (consumption.validation.taskId !== envelope.taskId) {
     addUniqueReason(reasons, "operator_action_executor_validation_task_mismatch");
   }
 
@@ -1774,38 +1772,27 @@ function addOperatorActionReceiptConsumptionReasons(
     addUniqueReason(reasons, "operator_action_executor_receipt_task_mismatch");
   }
 
-  if (
-    consumption.actionRef !== undefined &&
-    consumption.actionRef !== receipt.actionRef
-  ) {
+  if (receipt.actionRef !== expectedActionRef) {
+    addUniqueReason(reasons, "operator_action_executor_receipt_action_ref_mismatch");
+  }
+
+  if (consumption.actionRef !== expectedActionRef) {
     addUniqueReason(reasons, "operator_action_executor_consumption_action_ref_mismatch");
   }
 
-  if (
-    consumption.validation.actionRef !== undefined &&
-    consumption.validation.actionRef !== receipt.actionRef
-  ) {
+  if (consumption.validation.actionRef !== expectedActionRef) {
     addUniqueReason(reasons, "operator_action_executor_validation_action_ref_mismatch");
   }
 
-  if (
-    receipt.envelopeHash !== undefined &&
-    receipt.envelopeHash !== envelopeHash
-  ) {
+  if (receipt.envelopeHash !== envelopeHash) {
     addUniqueReason(reasons, "operator_action_executor_receipt_envelope_hash_mismatch");
   }
 
-  if (
-    consumption.envelopeHash !== undefined &&
-    consumption.envelopeHash !== envelopeHash
-  ) {
+  if (consumption.envelopeHash !== envelopeHash) {
     addUniqueReason(reasons, "operator_action_executor_consumption_envelope_hash_mismatch");
   }
 
-  if (
-    consumption.validation.envelopeHash !== undefined &&
-    consumption.validation.envelopeHash !== envelopeHash
-  ) {
+  if (consumption.validation.envelopeHash !== envelopeHash) {
     addUniqueReason(reasons, "operator_action_executor_validation_envelope_hash_mismatch");
   }
 
