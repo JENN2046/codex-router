@@ -53,6 +53,7 @@ import {
 } from "../../observability/src/index.js";
 import {
   consumeDesktopOperatorActionReceipt,
+  createDesktopOperatorActionLifecycleState,
   createDesktopOperatorActionReceipt,
   createHostBridgeFromBindings,
   createPrimitiveFailureEnvelope,
@@ -61,6 +62,7 @@ import {
   runDesktopTask,
   type ConsumeDesktopOperatorActionReceiptInput,
   type CreateDesktopOperatorActionReceiptInput,
+  type DesktopOperatorActionLifecycleState,
   type DesktopOperatorActionReceiptCreation,
   type DesktopOperatorActionReceiptConsumption,
   type DesktopHostBindings,
@@ -297,6 +299,8 @@ export class ExampleDesktopHostClient {
   private currentGovernanceState: GovernanceState | undefined;
   private currentOperatorActionEnvelope: GovernanceOperatorActionEnvelope | undefined;
   private currentOperatorActionIssuedAt: string | undefined;
+  private currentOperatorActionReceiptCreation: DesktopOperatorActionReceiptCreation | undefined;
+  private currentOperatorActionReceiptConsumption: DesktopOperatorActionReceiptConsumption | undefined;
   private readonly telemetryAlertDeliveryWindowPreset: TelemetryAlertDeliveryWindowPresetName | undefined;
   readonly bridge: DesktopHostBridge;
 
@@ -473,7 +477,13 @@ export class ExampleDesktopHostClient {
       ...(input.evidenceRefs !== undefined ? { evidenceRefs: input.evidenceRefs } : {})
     };
 
-    return createDesktopOperatorActionReceipt(createInput);
+    const creation = createDesktopOperatorActionReceipt(createInput);
+    if (input.envelope === undefined) {
+      this.currentOperatorActionReceiptCreation = creation;
+      this.currentOperatorActionReceiptConsumption = undefined;
+    }
+
+    return creation;
   }
 
   async consumeOperatorActionReceipt(
@@ -499,7 +509,29 @@ export class ExampleDesktopHostClient {
       ...(input.maxActionAgeMs !== undefined ? { maxActionAgeMs: input.maxActionAgeMs } : {})
     };
 
-    return consumeDesktopOperatorActionReceipt(consumeInput);
+    const consumption = await consumeDesktopOperatorActionReceipt(consumeInput);
+    if (input.envelope === undefined) {
+      this.currentOperatorActionReceiptConsumption = consumption;
+    }
+
+    return consumption;
+  }
+
+  getOperatorActionLifecycle(): DesktopOperatorActionLifecycleState {
+    return createDesktopOperatorActionLifecycleState({
+      ...(this.currentOperatorActionEnvelope !== undefined
+        ? { envelope: this.currentOperatorActionEnvelope }
+        : {}),
+      ...(this.currentOperatorActionIssuedAt !== undefined
+        ? { actionIssuedAt: this.currentOperatorActionIssuedAt }
+        : {}),
+      ...(this.currentOperatorActionReceiptCreation !== undefined
+        ? { lastReceiptCreation: this.currentOperatorActionReceiptCreation }
+        : {}),
+      ...(this.currentOperatorActionReceiptConsumption !== undefined
+        ? { lastReceiptConsumption: this.currentOperatorActionReceiptConsumption }
+        : {})
+    });
   }
 
   private buildGovernanceForwarding(): {
@@ -530,6 +562,8 @@ export class ExampleDesktopHostClient {
     this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
     this.currentOperatorActionIssuedAt =
       result.operatorActionEnvelope === undefined ? undefined : this.now();
+    this.currentOperatorActionReceiptCreation = undefined;
+    this.currentOperatorActionReceiptConsumption = undefined;
   }
 
   async getState(): Promise<{
