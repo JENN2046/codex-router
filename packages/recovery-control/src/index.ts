@@ -1296,9 +1296,23 @@ export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
     });
   }
 
+  let storedReceipt: GovernanceOperatorActionReceipt;
+  try {
+    storedReceipt = parseReceiptForStore(storeResult.receipt);
+  } catch {
+    return GovernanceOperatorActionReceiptConsumptionSchema.parse({
+      status: "blocked",
+      reasons: ["operator_action_receipt_store_failed"],
+      validation,
+      taskId: validation.taskId,
+      actionRef: validation.actionRef,
+      envelopeHash: validation.envelopeHash,
+      receipt: validation.receipt
+    });
+  }
+
   if (
-    storeResult.receipt.receiptId !== validation.receipt.receiptId ||
-    storeResult.receipt.actionRef !== validation.receipt.actionRef
+    stableStringify(storedReceipt) !== stableStringify(validation.receipt)
   ) {
     return GovernanceOperatorActionReceiptConsumptionSchema.parse({
       status: "blocked",
