@@ -801,6 +801,30 @@ test("recovery control file receipt store keeps sanitized task paths task-scoped
   );
 });
 
+test("recovery control file receipt store maps long task ids to bounded file names", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-router-operator-receipts-long-task-"));
+  const store = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });
+  const longTaskId = "task-".padEnd(360, "a");
+  const receipt = createStandaloneOperatorActionReceipt({
+    taskId: longTaskId,
+    actionRef: "governance-operator-action:long-task",
+    createdAt: "2026-04-27T00:05:00.000Z"
+  });
+
+  const result = await store.consume(receipt);
+
+  assert.equal(result.status, "stored");
+  assert.deepEqual(
+    (await store.findByTaskId(longTaskId)).map((item) => item.receiptId),
+    [receipt.receiptId]
+  );
+  assert.equal((await store.loadAll())[0]?.taskId, longTaskId);
+  const fileNames = (await readdir(dir))
+    .filter((fileName) => fileName.endsWith(".jsonl"));
+  assert.equal(fileNames.length, 1);
+  assert.match(fileNames[0]!, /^task-[a-f0-9]{64}\.jsonl$/);
+});
+
 test("recovery control file receipt store serializes concurrent consume attempts", async () => {
   const dir = await mkdtemp(join(tmpdir(), "codex-router-operator-receipts-race-"));
   const store = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });

@@ -1227,8 +1227,7 @@ export class FileGovernanceOperatorActionReceiptStore
   }
 
   private taskPath(taskId: string): string {
-    const safeTaskId = taskId.replace(/[^a-zA-Z0-9_-]/g, "_");
-    return join(this.basePath, `${safeTaskId}.jsonl`);
+    return join(this.basePath, `task-${stableSha256(taskId)}.jsonl`);
   }
 
   private async readTaskReceipts(taskId: string): Promise<GovernanceOperatorActionReceipt[]> {
