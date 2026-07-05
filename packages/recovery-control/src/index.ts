@@ -1853,6 +1853,17 @@ function addOperatorActionLifecycleReasons(
     return;
   }
 
+  const lifecycleReceipt = lifecycle.lastReceiptConsumption.receipt;
+  const consumedReceipt = input.consumption?.receipt;
+  const expectedActionIssuedAt =
+    consumedReceipt?.actionIssuedAt ?? lifecycleReceipt?.actionIssuedAt;
+  if (
+    expectedActionIssuedAt !== undefined &&
+    lifecycle.actionIssuedAt !== expectedActionIssuedAt
+  ) {
+    addUniqueReason(reasons, "operator_action_executor_lifecycle_action_issued_at_mismatch");
+  }
+
   if (
     input.consumption !== undefined &&
     !operatorActionReceiptConsumptionsMatch(

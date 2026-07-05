@@ -1573,6 +1573,29 @@ test("recovery control blocks operator action planning when lifecycle receipt dr
   assert.ok(gate.reasons.includes("operator_action_executor_lifecycle_receipt_mismatch"));
 });
 
+test("recovery control blocks operator action planning when lifecycle issuance time drifts", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState: createTestOperatorActionLifecycle(envelope, consumption, {
+      actionIssuedAt: "2026-04-27T00:06:00.000Z"
+    }),
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+
+  assert.equal(gate.status, "blocked");
+  assert.ok(
+    gate.reasons.includes("operator_action_executor_lifecycle_action_issued_at_mismatch")
+  );
+});
+
 test("recovery control resolves operator action evidence refs without raw payloads", async () => {
   const observationStore = createRecordingExecutionObservationStore();
   const artifactStore = new InMemoryArtifactStore({
