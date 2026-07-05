@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `1b7a2afa408f2a2c54358d2a4cdcd67365e435decde175df2bcef8422a7004b2`
+  `ef6ea14ea0d29a8c67bfbbaa7b1a8f934d83402d52da324724f6b1151b36fcd5`
 
 Source digest excluded paths:
 
@@ -95,6 +95,10 @@ Current repository governance status:
   `docs/governance/PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_CLOSEOUT.md`;
   the implemented boundary is non-executing and does not authorize recovery
   action dispatch.
+- Phase 12 operator action host client review surface is closed out in
+  `docs/governance/PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT.md`;
+  host clients can expose Phase 11 review results from current lifecycle state,
+  but still do not authorize recovery action dispatch.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -211,17 +215,24 @@ The Phase 11 operator action host executor boundary closeout is recorded at
 it implements the descriptor, authorization packet, lifecycle binding, and
 review result boundary without calling or exposing a side-effecting host
 executor.
+The Phase 12 operator action host client review surface closeout is recorded at
+`docs/governance/PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT.md`;
+it exposes the Phase 11 non-executing review through `DesktopHostClient`
+current lifecycle state without bridge calls, `dispatchToHost()`, provider
+execution, Codex CLI execution, workspace-write, or recovery action dispatch.
 
 Boundary audit marker:
 
 - `PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED`
 - `PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_TASKBOOK_RECORDED`
 - `PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_CLOSEOUT_RECORDED`
+- `PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT_RECORDED`
 
 Blocked capabilities:
 
 - `general_workspace_write`
 - `general_provider_execution`
+- `recovery_action_dispatch`
 - `protected_remote_write`
 - `push_to_main`
 - `release_tag_deploy`
