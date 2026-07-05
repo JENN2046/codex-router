@@ -1731,6 +1731,33 @@ export function planGovernanceOperatorActionExecution(
   });
 }
 
+export function preserveGovernanceOperatorActionReceiptConsumptionStoreProof<T extends object>(
+  target: T,
+  source: unknown
+): T {
+  let sourceConsumption: GovernanceOperatorActionExecutorReceiptConsumption;
+  let targetConsumption: GovernanceOperatorActionExecutorReceiptConsumption;
+  try {
+    sourceConsumption = GovernanceOperatorActionExecutorReceiptConsumptionSchema.parse(source);
+    targetConsumption = GovernanceOperatorActionExecutorReceiptConsumptionSchema.parse(target);
+  } catch {
+    return target;
+  }
+
+  if (!hasGovernanceOperatorActionReceiptConsumptionStoreProof(source, sourceConsumption)) {
+    return target;
+  }
+
+  if (!operatorActionReceiptConsumptionsMatch(sourceConsumption, targetConsumption)) {
+    return target;
+  }
+
+  return markGovernanceOperatorActionReceiptConsumptionStoreProduced(
+    target,
+    targetConsumption
+  );
+}
+
 export async function resolveGovernanceOperatorActionEvidence(input: {
   envelope: GovernanceOperatorActionEnvelopeInput;
   observationStore?: ExecutionObservationStore | undefined;
@@ -1799,12 +1826,13 @@ export function shouldLockdown(packet: ArbitrationPacket): boolean {
 
 // ── Internal helpers ────────────────────────────────────────────────────────
 
-function markGovernanceOperatorActionReceiptConsumptionStoreProduced<
-  T extends GovernanceOperatorActionReceiptConsumption
->(consumption: T): T {
+function markGovernanceOperatorActionReceiptConsumptionStoreProduced<T extends object>(
+  consumption: T,
+  parsedConsumption = GovernanceOperatorActionExecutorReceiptConsumptionSchema.parse(consumption)
+): T {
   governanceOperatorActionReceiptConsumptionStoreProofs.set(
     consumption,
-    stableSha256(stableStringify(consumption))
+    governanceOperatorActionReceiptConsumptionStoreProofDigest(parsedConsumption)
   );
   return consumption;
 }
@@ -1818,7 +1846,13 @@ function hasGovernanceOperatorActionReceiptConsumptionStoreProof(
   }
 
   return governanceOperatorActionReceiptConsumptionStoreProofs.get(value) ===
-    stableSha256(stableStringify(consumption));
+    governanceOperatorActionReceiptConsumptionStoreProofDigest(consumption);
+}
+
+function governanceOperatorActionReceiptConsumptionStoreProofDigest(
+  consumption: GovernanceOperatorActionExecutorReceiptConsumption
+): string {
+  return stableSha256(stableStringify(consumption));
 }
 
 function createBlockedOperatorActionExecutionGateResult(

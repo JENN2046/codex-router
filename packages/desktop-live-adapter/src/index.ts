@@ -45,6 +45,7 @@ import {
   createGovernanceOperatorActionReceipt,
   createGovernanceOperatorActionEnvelope,
   createRecoveryOperatorAction,
+  preserveGovernanceOperatorActionReceiptConsumptionStoreProof,
   shouldLockdown,
   summarizeGovernanceOperatorActionEnvelope,
   validateAndConsumeGovernanceOperatorActionReceipt,
@@ -353,7 +354,7 @@ export async function consumeDesktopOperatorActionReceipt(
       ...(input.maxActionAgeMs !== undefined ? { maxActionAgeMs: input.maxActionAgeMs } : {})
     });
 
-    return createDesktopOperatorActionReceiptConsumption({
+    const desktopConsumption = createDesktopOperatorActionReceiptConsumption({
       status: consumption.status,
       durable: consumption.status === "passed",
       reasons: consumption.reasons,
@@ -363,6 +364,11 @@ export async function consumeDesktopOperatorActionReceipt(
       ...(consumption.envelopeHash !== undefined ? { envelopeHash: consumption.envelopeHash } : {}),
       ...(consumption.receipt !== undefined ? { receipt: consumption.receipt } : {})
     });
+
+    return preserveGovernanceOperatorActionReceiptConsumptionStoreProof(
+      desktopConsumption,
+      consumption
+    );
   }
 
   const validation = validateGovernanceOperatorActionReceipt({
