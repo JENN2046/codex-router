@@ -239,6 +239,47 @@ export interface ConsumeDesktopOperatorActionReceiptInput {
   maxActionAgeMs?: number;
 }
 
+export type DesktopOperatorActionLifecycleStatus =
+  | "idle"
+  | "action_available"
+  | "receipt_created"
+  | "receipt_consumed"
+  | "receipt_not_consumed"
+  | "receipt_blocked";
+
+export interface DesktopOperatorActionLifecycleState {
+  schemaVersion: "desktop-operator-action-lifecycle.v1";
+  status: DesktopOperatorActionLifecycleStatus;
+  operatorActionPresent: boolean;
+  actionIssuedAt?: string;
+  envelope?: GovernanceOperatorActionEnvelope;
+  lastReceiptCreation?: DesktopOperatorActionReceiptCreation;
+  lastReceiptConsumption?: DesktopOperatorActionReceiptConsumption;
+}
+
+export function createDesktopOperatorActionLifecycleState(input: {
+  envelope?: GovernanceOperatorActionEnvelope;
+  actionIssuedAt?: string;
+  lastReceiptCreation?: DesktopOperatorActionReceiptCreation;
+  lastReceiptConsumption?: DesktopOperatorActionReceiptConsumption;
+}): DesktopOperatorActionLifecycleState {
+  const status = resolveDesktopOperatorActionLifecycleStatus(input);
+
+  return {
+    schemaVersion: "desktop-operator-action-lifecycle.v1",
+    status,
+    operatorActionPresent: input.envelope !== undefined,
+    ...(input.actionIssuedAt !== undefined ? { actionIssuedAt: input.actionIssuedAt } : {}),
+    ...(input.envelope !== undefined ? { envelope: input.envelope } : {}),
+    ...(input.lastReceiptCreation !== undefined
+      ? { lastReceiptCreation: input.lastReceiptCreation }
+      : {}),
+    ...(input.lastReceiptConsumption !== undefined
+      ? { lastReceiptConsumption: input.lastReceiptConsumption }
+      : {})
+  };
+}
+
 export async function runDesktopTask(
   input: RunDesktopTaskInput
 ): Promise<RunDesktopTaskResult> {
@@ -370,6 +411,36 @@ function createDesktopOperatorActionReceiptConsumption(
     ...(input.envelopeHash !== undefined ? { envelopeHash: input.envelopeHash } : {}),
     ...(input.receipt !== undefined ? { receipt: input.receipt } : {})
   };
+}
+
+function resolveDesktopOperatorActionLifecycleStatus(input: {
+  envelope?: GovernanceOperatorActionEnvelope;
+  lastReceiptCreation?: DesktopOperatorActionReceiptCreation;
+  lastReceiptConsumption?: DesktopOperatorActionReceiptConsumption;
+}): DesktopOperatorActionLifecycleStatus {
+  if (input.envelope === undefined) {
+    return "idle";
+  }
+
+  if (input.lastReceiptConsumption !== undefined) {
+    if (input.lastReceiptConsumption.status === "passed") {
+      return "receipt_consumed";
+    }
+
+    if (input.lastReceiptConsumption.status === "not_consumed") {
+      return "receipt_not_consumed";
+    }
+
+    return "receipt_blocked";
+  }
+
+  if (input.lastReceiptCreation !== undefined) {
+    return input.lastReceiptCreation.status === "created"
+      ? "receipt_created"
+      : "receipt_blocked";
+  }
+
+  return "action_available";
 }
 
 function assertGovernanceStateTaskScoped(input: {

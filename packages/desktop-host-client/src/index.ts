@@ -20,12 +20,14 @@ import type { PolicySnapshot } from "../../policy-config/src/index.js";
 import type { PreflightContext } from "../../preflight/src/index.js";
 import {
   consumeDesktopOperatorActionReceipt,
+  createDesktopOperatorActionLifecycleState,
   createDesktopOperatorActionReceipt,
   createHostBridgeFromBindings,
   resumeDesktopTask,
   runDesktopTask,
   type DesktopOperatorActionReceiptCreation,
   type DesktopOperatorActionReceiptConsumption,
+  type DesktopOperatorActionLifecycleState,
   type DesktopHostBindings,
   type DesktopHostBridge,
   type ConsumeDesktopOperatorActionReceiptInput,
@@ -94,6 +96,8 @@ export class DesktopHostClient {
   private currentGovernanceState: GovernanceState | undefined;
   private currentOperatorActionEnvelope: GovernanceOperatorActionEnvelope | undefined;
   private currentOperatorActionIssuedAt: string | undefined;
+  private currentOperatorActionReceiptCreation: DesktopOperatorActionReceiptCreation | undefined;
+  private currentOperatorActionReceiptConsumption: DesktopOperatorActionReceiptConsumption | undefined;
 
   constructor(private readonly options: DesktopHostClientOptions) {
     this.bridge = resolveHostBridge(options);
@@ -199,7 +203,13 @@ export class DesktopHostClient {
       ...(input.evidenceRefs !== undefined ? { evidenceRefs: input.evidenceRefs } : {})
     };
 
-    return createDesktopOperatorActionReceipt(createInput);
+    const creation = createDesktopOperatorActionReceipt(createInput);
+    if (input.envelope === undefined) {
+      this.currentOperatorActionReceiptCreation = creation;
+      this.currentOperatorActionReceiptConsumption = undefined;
+    }
+
+    return creation;
   }
 
   async consumeOperatorActionReceipt(
@@ -225,13 +235,37 @@ export class DesktopHostClient {
       ...(input.maxActionAgeMs !== undefined ? { maxActionAgeMs: input.maxActionAgeMs } : {})
     };
 
-    return consumeDesktopOperatorActionReceipt(consumeInput);
+    const consumption = await consumeDesktopOperatorActionReceipt(consumeInput);
+    if (input.envelope === undefined) {
+      this.currentOperatorActionReceiptConsumption = consumption;
+    }
+
+    return consumption;
+  }
+
+  getOperatorActionLifecycle(): DesktopOperatorActionLifecycleState {
+    return createDesktopOperatorActionLifecycleState({
+      ...(this.currentOperatorActionEnvelope !== undefined
+        ? { envelope: this.currentOperatorActionEnvelope }
+        : {}),
+      ...(this.currentOperatorActionIssuedAt !== undefined
+        ? { actionIssuedAt: this.currentOperatorActionIssuedAt }
+        : {}),
+      ...(this.currentOperatorActionReceiptCreation !== undefined
+        ? { lastReceiptCreation: this.currentOperatorActionReceiptCreation }
+        : {}),
+      ...(this.currentOperatorActionReceiptConsumption !== undefined
+        ? { lastReceiptConsumption: this.currentOperatorActionReceiptConsumption }
+        : {})
+    });
   }
 
   private captureOperatorAction(result: RunDesktopTaskResult): void {
     this.currentOperatorActionEnvelope = result.operatorActionEnvelope;
     this.currentOperatorActionIssuedAt =
       result.operatorActionEnvelope === undefined ? undefined : this.resolveNow();
+    this.currentOperatorActionReceiptCreation = undefined;
+    this.currentOperatorActionReceiptConsumption = undefined;
   }
 
   private resolveNow = (): string => (

@@ -371,14 +371,16 @@ test("example host client creates and consumes current operator action receipts"
 
   const result = await client.run(task);
   assert.ok(result.operatorActionEnvelope);
+  let lifecycle = client.getOperatorActionLifecycle();
+  assert.equal(lifecycle.status, "action_available");
+  assert.equal(lifecycle.operatorActionPresent, true);
+  assert.equal(lifecycle.actionIssuedAt, "2026-04-28T12:00:00.000Z");
+  assert.equal(lifecycle.envelope?.taskId, task.taskId);
+
   const created = client.createOperatorActionReceipt({
     decision: "consumed",
     operatorIdHash: "a".repeat(64),
     createdAt: "2026-04-28T12:00:20.000Z"
-  });
-  const consumed = await client.consumeOperatorActionReceipt({
-    receipt: created.receipt,
-    now: "2026-04-28T12:00:30.000Z"
   });
 
   assert.equal(created.status, "created");
@@ -387,8 +389,20 @@ test("example host client creates and consumes current operator action receipts"
     created.receipt?.evidenceRefs,
     result.operatorActionEnvelope.evidenceRefs
   );
+  lifecycle = client.getOperatorActionLifecycle();
+  assert.equal(lifecycle.status, "receipt_created");
+  assert.equal(lifecycle.lastReceiptCreation?.receipt?.receiptId, created.receipt?.receiptId);
+
+  const consumed = await client.consumeOperatorActionReceipt({
+    receipt: created.receipt,
+    now: "2026-04-28T12:00:30.000Z"
+  });
+
   assert.equal(consumed.status, "passed");
   assert.equal(consumed.durable, true);
+  lifecycle = client.getOperatorActionLifecycle();
+  assert.equal(lifecycle.status, "receipt_consumed");
+  assert.equal(lifecycle.lastReceiptConsumption?.receipt?.receiptId, created.receipt?.receiptId);
 });
 
 test("example host client persists updated governance state between run and resume", async () => {
