@@ -69,6 +69,10 @@ as historical evidence unless a current authority document links them.
   current closeout for operator action receipts, lifecycle stores, replay
   blocking, expiry, lockdown receipt policy, and receipt validation; this is
   not recovery-action execution authorization.
+- [Phase 9 operator action host lifecycle closeout](PHASE_9_OPERATOR_ACTION_HOST_LIFECYCLE_CLOSEOUT.md):
+  current closeout for host/client receipt consumption, receipt authoring, and
+  current operator action lifecycle state; this is not recovery-action
+  execution authorization.
 
 ## Runner Entry Points
 

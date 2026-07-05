@@ -13,6 +13,8 @@ verified_by:
 post_closeout_updates:
   - merge_commit: 237fd65
     summary: durable receipt store primitive added after initial Phase 8 closeout
+  - merge_commit: b577dd8
+    summary: host/client receipt lifecycle integration completed in Phase 9
 supersedes: []
 superseded_by: null
 applies_to:
@@ -61,8 +63,10 @@ executing a recovery action.
 
 ## Remaining Risks
 
-- Phase 8 does not automatically wire receipt stores into host/client runtime
-  lifecycle calls. Host integration is the next separate capability slice.
+- Phase 8 itself did not automatically wire receipt stores into host/client
+  runtime lifecycle calls. That separate host integration slice is now recorded
+  in
+  [Phase 9 Operator Action Host Lifecycle Closeout](PHASE_9_OPERATOR_ACTION_HOST_LIFECYCLE_CLOSEOUT.md).
 - Phase 8 does not execute, resume, abort, or roll back any task. It only
   validates the operator decision receipt for an already surfaced action.
 - Receipt evidence remains refs and summaries only; raw payload, raw prompt,
