@@ -391,13 +391,16 @@ Audit and acceptance checks are available through the consolidated runner:
 npm run governance -- list
 npm run governance -- list --all
 npm run governance -- audit state-sync
-npm run governance -- acceptance readonly-chain
+npm run governance -- acceptance readonly-chain --check
+npm run governance -- acceptance controlled-readonly-provider-execution --check
 npm run governance -- operator readonly
 ```
 
 The default `list` output shows the current operating surface. Historical
 one-off governance checks remain executable and can be discovered with
 `npm run governance -- list --all`.
+Acceptance checks refresh committed `docs/evidence/*.json` files by default
+when they pass; use `--check` for a no-write local review pass.
 
 Policy v2 content attestations are the normal state-sync path and do not need a
 post-merge `main` reanchor. Legacy v1 repair remains an advanced compatibility

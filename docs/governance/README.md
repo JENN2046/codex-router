@@ -65,6 +65,10 @@ as historical evidence unless a current authority document links them.
   current closeout for preflight governance blocks, operator action envelopes,
   summaries, host-client surfaces, and sanitized evidence resolution; this is
   not recovery-action execution authorization.
+- [Phase 8 operator action lifecycle closeout](PHASE_8_OPERATOR_ACTION_LIFECYCLE_CLOSEOUT.md):
+  current closeout for operator action receipts, replay blocking, expiry,
+  lockdown receipt policy, and receipt validation; this is not recovery-action
+  execution authorization.
 
 ## Runner Entry Points
 
@@ -76,13 +80,15 @@ npm run governance -- list --all
 npm run docs:governance
 npm run governance -- audit state-sync
 npm run governance -- audit controlled-provider-execution-taskbook-review
-npm run governance -- acceptance readonly-chain
-npm run governance -- acceptance controlled-readonly-provider-execution
+npm run governance -- acceptance readonly-chain --check
+npm run governance -- acceptance controlled-readonly-provider-execution --check
 npm run governance -- operator readonly
 ```
 
 Default `list` output stays focused on current/core checks. Use `--all` only
 when deliberately browsing archived one-off audit and acceptance commands.
+Acceptance checks refresh their committed evidence by default when they pass;
+use `--check` for a no-write local review pass.
 
 ## Historical Evidence
 

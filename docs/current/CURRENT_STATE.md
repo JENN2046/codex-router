@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `9e8f9c4a24756fa3fe1ad4dfa7d53be8af47ee07d1c3bea99a2ba51acd73070a`
+  `f0d890daebedc68f73a86c5ae6f98736f1426925c29de29a4eec4ba34f85845f`
 
 Source digest excluded paths:
 
@@ -75,11 +75,17 @@ Current repository governance status:
 - Runtime governance hardening and operator-action work is merged; this state
   surface should describe current repository status rather than any old PR as
   the active task.
-- Phase 6 controlled execution runtime hardening is the next staged runtime
-  line. Its baseline is recorded in
-  `docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md`.
+- Phase 6 controlled execution runtime hardening is closed out in
+  `docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_CLOSEOUT.md`.
+- Phase 7 runtime operator actionability is closed out in
+  `docs/governance/PHASE_7_RUNTIME_OPERATOR_ACTIONABILITY_CLOSEOUT.md`.
+- Phase 8 operator action lifecycle receipt validation is closed out in
+  `docs/governance/PHASE_8_OPERATOR_ACTION_LIFECYCLE_CLOSEOUT.md`.
 - Controlled read-only provider execution is now exposed as the current
-  acceptance line `npm run governance -- acceptance controlled-readonly-provider-execution`.
+  acceptance line
+  `npm run governance -- acceptance controlled-readonly-provider-execution`.
+  Use `--check` for no-write local review; omit it only to intentionally
+  refresh committed acceptance evidence.
 - Controlled read-only execution evidence binding is recorded in
   `docs/governance/PR_23C_EXECUTION_EVIDENCE_BINDING.md`; it strengthens
   sanitized refs and hashes without authorizing broader execution.
@@ -139,7 +145,9 @@ that baseline sequences future work but does not authorize real provider,
 real Codex CLI, or real workspace-write execution.
 The PR-23B controlled read-only minimal slice is recorded at
 `docs/governance/PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md`
-and exposed through `npm run governance -- acceptance controlled-readonly-provider-execution`.
+and exposed through
+`npm run governance -- acceptance controlled-readonly-provider-execution --check`
+for no-write local review.
 The PR-23C evidence-binding line is recorded at
 `docs/governance/PR_23C_EXECUTION_EVIDENCE_BINDING.md`; it binds controlled
 read-only evidence to preflight, registry, permit, plan, policy, principal, and
@@ -161,6 +169,15 @@ The Phase 6 controlled execution runtime hardening closeout is recorded at
 `docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_CLOSEOUT.md`;
 it closes the PR-23A through PR-23F runtime-hardening stage without authorizing
 real workspace-write by default.
+The Phase 7 runtime operator actionability closeout is recorded at
+`docs/governance/PHASE_7_RUNTIME_OPERATOR_ACTIONABILITY_CLOSEOUT.md`; it
+standardizes preflight governance blocks, operator action envelopes, host
+surfaces, summaries, and evidence resolution without authorizing recovery
+execution.
+The Phase 8 operator action lifecycle closeout is recorded at
+`docs/governance/PHASE_8_OPERATOR_ACTION_LIFECYCLE_CLOSEOUT.md`; it validates
+operator action receipts, expiry, replay blocking, and lockdown receipt policy
+without executing the recommended action.
 
 Boundary audit marker:
 

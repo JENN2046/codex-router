@@ -82,12 +82,17 @@ operator checks without scanning the full `package.json` script list.
 npm run governance -- list
 npm run governance -- list --all
 npm run governance -- audit state-sync
-npm run governance -- acceptance readonly-chain
+npm run governance -- acceptance readonly-chain --check
+npm run governance -- acceptance controlled-readonly-provider-execution --check
 npm run governance -- operator readonly
 ```
 
 The default `list` output is the current operating surface. Historical one-off
 checks remain registered and executable; use `npm run governance -- list --all`
 when intentionally looking for archived audit or acceptance commands.
+
+Current acceptance checks refresh committed `docs/evidence/*.json` files by
+default after a pass. Use `--check` for a no-write local review pass; omit
+`--check` only when intentionally updating acceptance evidence.
 
 Legacy per-check package script aliases have been removed. Use the consolidated `governance` runner instead.

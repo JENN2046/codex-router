@@ -38,6 +38,7 @@ simulation.
 | Main state-sync | `node --import tsx scripts/run-state-sync-audit.ts --json` on local `main` | Post-merge/main closeout. | Main state authority when it fails. |
 | Phase 6 closeout | [Phase 6 Controlled Execution Runtime Hardening Closeout](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_CLOSEOUT.md) | Runtime-governance capability status review. | Claims that Phase 6 broadened default execution. |
 | Phase 7 closeout | [Phase 7 Runtime Operator Actionability Closeout](PHASE_7_RUNTIME_OPERATOR_ACTIONABILITY_CLOSEOUT.md) | Runtime operator-action capability status review. | Claims that operator-action surfaces authorize execution. |
+| Phase 8 closeout | [Phase 8 Operator Action Lifecycle Closeout](PHASE_8_OPERATOR_ACTION_LIFECYCLE_CLOSEOUT.md) | Operator action receipt lifecycle status review. | Claims that receipts authorize recovery execution. |
 | Workspace-write release gate | [Workspace-write Release Gate](WORKSPACE_WRITE_RELEASE_GATE.md) | Any PR that can broaden real workspace-write or canary execution. | Real workspace-write readiness. |
 | Release tier | `npm run validate:release` | Deterministic release-sensitive local validation. | Release/tag/deploy/package publish. |
 | Current governance list | `npm run governance -- list` | Shows current operating checks. | Documentation claims about available current checks. |
@@ -107,6 +108,10 @@ authorize executing the recommended recovery action, real workspace-write,
 external writes, protected remote actions, release, publish, deploy, tag, or
 default real Codex CLI execution.
 
+Phase 8 closeout records operator action lifecycle receipt validation. It does
+not authorize executing, resuming, aborting, rolling back, or otherwise
+consuming the recommended action without a separate execution gate.
+
 ## Failure Policy
 
 | Failure | Effect |
@@ -120,6 +125,7 @@ default real Codex CLI execution.
 | Main state-sync fails | Treat current state authority as invalid until fixed. |
 | Phase 6 closeout contradicts a gate | Treat the stricter gate as authoritative until the contradiction is reviewed. |
 | Phase 7 closeout contradicts a gate | Treat the stricter gate as authoritative until the contradiction is reviewed. |
+| Phase 8 closeout contradicts a gate | Treat the stricter gate as authoritative until the contradiction is reviewed. |
 | Release tier fails | Do not release, tag, deploy, publish, or promote. |
 | Workspace-write release gate fails | Do not run real workspace-write; use fake/dry-run validation only. |
 | Evidence collection fails | Do not claim release evidence completeness. |

@@ -109,6 +109,12 @@ export interface ControlledReadonlyProviderExecutionAcceptanceOptions {
   generatedAt?: string;
 }
 
+export interface ControlledReadonlyProviderExecutionAcceptanceCliResult {
+  evidence: ControlledReadonlyProviderExecutionAcceptanceEvidence;
+  checkMode: boolean;
+  evidencePath?: string;
+}
+
 export async function runControlledReadonlyProviderExecutionAcceptance(
   options: ControlledReadonlyProviderExecutionAcceptanceOptions = {}
 ): Promise<ControlledReadonlyProviderExecutionAcceptanceEvidence> {
@@ -406,6 +412,32 @@ export async function writeControlledReadonlyProviderExecutionAcceptanceEvidence
   return {
     path: evidencePath,
     evidence
+  };
+}
+
+export async function runControlledReadonlyProviderExecutionAcceptanceCli(
+  args: readonly string[] = process.argv.slice(2)
+): Promise<ControlledReadonlyProviderExecutionAcceptanceCliResult> {
+  const checkMode = args.includes("--check") || args.includes("--no-write");
+  const outputPath = optionValue(args, "--output") ?? DEFAULT_EVIDENCE_PATH;
+  const evidence = await runControlledReadonlyProviderExecutionAcceptance();
+
+  if (checkMode) {
+    return {
+      evidence,
+      checkMode
+    };
+  }
+
+  const write = await writeControlledReadonlyProviderExecutionAcceptanceEvidence(
+    evidence,
+    outputPath
+  );
+
+  return {
+    evidence,
+    checkMode,
+    evidencePath: write.path
   };
 }
 
@@ -869,15 +901,8 @@ function createFakeCodexCliChild(options: {
 }
 
 async function main(): Promise<void> {
-  const outputIdx = process.argv.indexOf("--output");
-  const outputPath = outputIdx >= 0
-    ? process.argv[outputIdx + 1]!
-    : DEFAULT_EVIDENCE_PATH;
-  const evidence = await runControlledReadonlyProviderExecutionAcceptance();
-  const write = await writeControlledReadonlyProviderExecutionAcceptanceEvidence(
-    evidence,
-    outputPath
-  );
+  const result = await runControlledReadonlyProviderExecutionAcceptanceCli();
+  const { evidence } = result;
 
   console.log("Codex CLI controlled read-only provider execution acceptance");
   console.log(`runner status ok: ${evidence.checks.runnerStatusOk}`);
@@ -886,7 +911,11 @@ async function main(): Promise<void> {
   console.log(`workspace-write execute calls: ${evidence.counters.workspaceWriteExecuteCalls}`);
   console.log(`external write calls: ${evidence.counters.externalWriteCalls}`);
   console.log(`evidence sanitized: ${evidence.checks.evidenceSanitized}`);
-  console.log(`evidence: ${write.path}`);
+  console.log(
+    result.checkMode
+      ? "evidence: not written (--check)"
+      : `evidence: ${result.evidencePath}`
+  );
 
   if (!Object.values(evidence.checks).every(Boolean)) {
     process.exitCode = 1;
@@ -901,4 +930,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     );
     process.exitCode = 1;
   });
+}
+
+function optionValue(args: readonly string[], name: string): string | undefined {
+  const index = args.indexOf(name);
+  if (index < 0) {
+    return undefined;
+  }
+
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`${name} requires a value`);
+  }
+
+  return value;
 }
