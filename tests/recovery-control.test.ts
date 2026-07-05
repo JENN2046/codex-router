@@ -23,7 +23,8 @@ import {
   validateAndConsumeGovernanceOperatorActionReceipt,
   validateGovernanceOperatorActionReceipt,
   type GovernanceOperatorActionEnvelope,
-  type GovernanceOperatorActionReceiptInput
+  type GovernanceOperatorActionReceiptInput,
+  type GovernanceOperatorActionReceiptStore
 } from "../packages/recovery-control/src/index.js";
 import type { GovernanceState } from "../packages/state-manager/src/index.js";
 import { InMemoryArtifactStore } from "../packages/artifact-store/src/index.js";
@@ -871,6 +872,40 @@ test("recovery control fails closed when receipt store records have stale ids", 
     "utf8"
   );
   const store = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });
+
+  const consumed = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt: createTestOperatorActionReceipt(envelope, { actionIssuedAt }),
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(consumed.status, "blocked");
+  assert.deepEqual(consumed.reasons, ["operator_action_receipt_store_failed"]);
+});
+
+test("recovery control fails closed when injected receipt stores return malformed consume results", async () => {
+  const store: GovernanceOperatorActionReceiptStore = {
+    async consume() {
+      return {} as never;
+    },
+    async getReceipt() {
+      return undefined;
+    },
+    async findByTaskId() {
+      return [];
+    },
+    async findByActionRef() {
+      return [];
+    },
+    async loadAll() {
+      return [];
+    }
+  };
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
 
   const consumed = await validateAndConsumeGovernanceOperatorActionReceipt({
     store,

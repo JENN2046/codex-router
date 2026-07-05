@@ -1168,7 +1168,9 @@ export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
 
   let storeResult: GovernanceOperatorActionReceiptStoreConsumeResult;
   try {
-    storeResult = await input.store.consume(validation.receipt);
+    storeResult = GovernanceOperatorActionReceiptStoreConsumeResultSchema.parse(
+      await input.store.consume(validation.receipt)
+    );
   } catch {
     return GovernanceOperatorActionReceiptConsumptionSchema.parse({
       status: "blocked",
