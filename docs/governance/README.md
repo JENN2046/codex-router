@@ -66,9 +66,9 @@ as historical evidence unless a current authority document links them.
   summaries, host-client surfaces, and sanitized evidence resolution; this is
   not recovery-action execution authorization.
 - [Phase 8 operator action lifecycle closeout](PHASE_8_OPERATOR_ACTION_LIFECYCLE_CLOSEOUT.md):
-  current closeout for operator action receipts, replay blocking, expiry,
-  lockdown receipt policy, and receipt validation; this is not recovery-action
-  execution authorization.
+  current closeout for operator action receipts, lifecycle stores, replay
+  blocking, expiry, lockdown receipt policy, and receipt validation; this is
+  not recovery-action execution authorization.
 
 ## Runner Entry Points
 

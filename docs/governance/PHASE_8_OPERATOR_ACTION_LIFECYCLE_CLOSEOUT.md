@@ -10,6 +10,9 @@ verified_by:
   - npm run docs:governance
   - node --import tsx --test tests/recovery-control.test.ts
   - pull_request-context state-sync audit
+post_closeout_updates:
+  - merge_commit: 237fd65
+    summary: durable receipt store primitive added after initial Phase 8 closeout
 supersedes: []
 superseded_by: null
 applies_to:
@@ -29,6 +32,7 @@ executing a recovery action.
 | Slice | Merge commit | Result |
 | --- | --- | --- |
 | Operator action lifecycle receipts | `09a9e6f` | `GovernanceOperatorActionReceipt` and validation helpers bind task, action ref, optional envelope hash, operator identity hash, timestamp, evidence refs, expiry, and replay state. |
+| Operator action receipt stores | `237fd65` | Adds reusable in-memory and file-backed receipt stores plus validate-and-consume handling for replay, stale locks, injected-store results, receipt binding, and long task ids. |
 
 ## Capability Status
 
@@ -38,6 +42,7 @@ executing a recovery action.
 | Receipt identity binding | active | No by itself | Receipt ids are derived from a normalized receipt payload and bind task id, action ref, optional envelope hash, action issue time, decision, operator id hash, created time, and evidence refs. |
 | Receipt validation | active | No by itself | Validation blocks task mismatch, action ref mismatch, envelope hash mismatch, malformed receipts, stale actions, receipts dated before the action, future-dated receipts, replayed actions, and replayed receipt ids. |
 | Lockdown receipt policy | active | No by itself | Lockdown actions require an explicit `consumed` or `rejected` decision before the lifecycle receipt can pass. |
+| Receipt lifecycle stores | active | No by itself | Recovery-control now provides reusable in-memory and file-backed stores with task-scoped reads, replay detection, cross-process file claims, stale lock recovery, and fail-closed injected-store result validation. |
 
 ## Closed Risks
 
@@ -49,11 +54,15 @@ executing a recovery action.
   validation uses, including default `evidenceRefs: []`.
 - Receipt timelines reject decisions that appear before the issued operator
   action.
+- Durable receipt-store primitives now exist for host integration. The file
+  backend uses bounded task filenames, task-scoped reads, cross-process consume
+  claims, stale lock recovery, and fail-closed validation of injected store
+  results.
 
 ## Remaining Risks
 
-- Phase 8 does not include a durable receipt store implementation. Callers must
-  provide consumed action refs and consumed receipt ids from their own store.
+- Phase 8 does not automatically wire receipt stores into host/client runtime
+  lifecycle calls. Host integration is the next separate capability slice.
 - Phase 8 does not execute, resume, abort, or roll back any task. It only
   validates the operator decision receipt for an already surfaced action.
 - Receipt evidence remains refs and summaries only; raw payload, raw prompt,
