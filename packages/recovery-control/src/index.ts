@@ -529,15 +529,46 @@ export const GovernanceOperatorActionExecutionGateResultSchema = z.object({
       });
     }
 
-    if (
-      value.plan !== undefined &&
-      value.checkpointRef !== value.plan.checkpointRef
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["checkpointRef"],
-        message: "operator_action_execution_gate_checkpoint_plan_mismatch"
-      });
+    if (value.plan !== undefined) {
+      const planBindings = [
+        {
+          field: "taskId",
+          message: "operator_action_execution_gate_task_plan_mismatch"
+        },
+        {
+          field: "actionRef",
+          message: "operator_action_execution_gate_action_ref_plan_mismatch"
+        },
+        {
+          field: "receiptId",
+          message: "operator_action_execution_gate_receipt_plan_mismatch"
+        },
+        {
+          field: "envelopeHash",
+          message: "operator_action_execution_gate_envelope_hash_plan_mismatch"
+        },
+        {
+          field: "recommendedAction",
+          message: "operator_action_execution_gate_recommended_action_plan_mismatch"
+        },
+        {
+          field: "executionMode",
+          message: "operator_action_execution_gate_execution_mode_plan_mismatch"
+        },
+        {
+          field: "checkpointRef",
+          message: "operator_action_execution_gate_checkpoint_plan_mismatch"
+        }
+      ] as const;
+      for (const binding of planBindings) {
+        if (value[binding.field] !== value.plan[binding.field]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [binding.field],
+            message: binding.message
+          });
+        }
+      }
     }
     return;
   }
@@ -1772,6 +1803,9 @@ function createBlockedOperatorActionExecutionGateResult(
       : {}),
     ...(context.envelope !== undefined
       ? { recommendedAction: context.envelope.recommendedAction }
+      : {}),
+    ...(context.envelope?.checkpointRef !== undefined
+      ? { checkpointRef: context.envelope.checkpointRef }
       : {})
   });
 }
