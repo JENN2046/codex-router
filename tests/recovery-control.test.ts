@@ -547,6 +547,33 @@ test("recovery control blocks fresh receipts for stale operator actions", () => 
   assert.ok(validation.reasons.includes("operator_action_receipt_action_expired"));
 });
 
+test("recovery control fails closed for invalid operator action max age", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:00:00.000Z";
+
+  for (const maxActionAgeMs of [
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    -1
+  ]) {
+    const validation = validateGovernanceOperatorActionReceipt({
+      envelope,
+      receipt: createTestOperatorActionReceipt(envelope, {
+        actionIssuedAt,
+        createdAt: "2026-04-27T00:05:00.000Z"
+      }),
+      actionIssuedAt,
+      now: "2026-04-27T00:05:30.000Z",
+      maxActionAgeMs
+    });
+
+    assert.equal(validation.status, "blocked");
+    assert.ok(validation.reasons.includes(
+      "operator_action_receipt_max_action_age_invalid"
+    ));
+  }
+});
+
 test("recovery control blocks receipts dated before the operator action", () => {
   const envelope = createTestOperatorActionEnvelope();
   const actionIssuedAt = "2026-04-27T00:04:45.000Z";

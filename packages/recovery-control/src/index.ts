@@ -894,7 +894,9 @@ export function validateGovernanceOperatorActionReceipt(input: {
 
     const maxActionAgeMs =
       input.maxActionAgeMs ?? DEFAULT_OPERATOR_ACTION_MAX_AGE_MS;
-    if (nowMs - actionIssuedAtMs > maxActionAgeMs) {
+    if (!Number.isFinite(maxActionAgeMs) || maxActionAgeMs < 0) {
+      reasons.push("operator_action_receipt_max_action_age_invalid");
+    } else if (nowMs - actionIssuedAtMs > maxActionAgeMs) {
       reasons.push("operator_action_receipt_action_expired");
     }
   }
