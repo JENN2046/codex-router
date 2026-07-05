@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import type { GovernanceState } from "../../state-manager/src/index.js";
 import type { DelegationLevel } from "../../delegation-policy/src/index.js";
@@ -335,6 +337,51 @@ export const GovernanceOperatorActionReceiptValidationSchema = z.object({
   }
 });
 
+export const GovernanceOperatorActionReceiptStoreConsumeStatusSchema = z.enum([
+  "stored",
+  "replay"
+]);
+
+export const GovernanceOperatorActionReceiptStoreConsumeResultSchema = z.object({
+  status: GovernanceOperatorActionReceiptStoreConsumeStatusSchema,
+  receipt: GovernanceOperatorActionReceiptSchema,
+  existingReceiptIds: z.array(z.string()).default([]),
+  existingActionRefs: z.array(z.string()).default([])
+});
+
+export const GovernanceOperatorActionReceiptConsumptionStatusSchema = z.enum([
+  "passed",
+  "blocked"
+]);
+
+export const GovernanceOperatorActionReceiptConsumptionSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-receipt-consumption.v1")
+    .default("governance-operator-action-receipt-consumption.v1"),
+  status: GovernanceOperatorActionReceiptConsumptionStatusSchema,
+  reasons: z.array(z.string()).default([]),
+  validation: GovernanceOperatorActionReceiptValidationSchema,
+  taskId: z.string().min(1).optional(),
+  actionRef: z.string().min(1).optional(),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  receipt: GovernanceOperatorActionReceiptSchema.optional()
+}).superRefine((value, ctx) => {
+  if (value.status === "passed" && value.reasons.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reasons"],
+      message: "operator_action_receipt_consumption_pass_requires_no_reasons"
+    });
+  }
+
+  if (value.status === "blocked" && value.reasons.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reasons"],
+      message: "operator_action_receipt_consumption_block_requires_reasons"
+    });
+  }
+});
+
 // ── Host-consumable operator evidence resolution ───────────────────────────
 
 export const GovernanceOperatorEvidenceResolutionKindSchema = z.enum([
@@ -576,6 +623,12 @@ export type GovernanceOperatorActionReceipt = z.infer<typeof GovernanceOperatorA
 export type GovernanceOperatorActionReceiptValidationStatus = z.infer<typeof GovernanceOperatorActionReceiptValidationStatusSchema>;
 export type GovernanceOperatorActionReceiptValidationInput = z.input<typeof GovernanceOperatorActionReceiptValidationSchema>;
 export type GovernanceOperatorActionReceiptValidation = z.infer<typeof GovernanceOperatorActionReceiptValidationSchema>;
+export type GovernanceOperatorActionReceiptStoreConsumeStatus = z.infer<typeof GovernanceOperatorActionReceiptStoreConsumeStatusSchema>;
+export type GovernanceOperatorActionReceiptStoreConsumeResultInput = z.input<typeof GovernanceOperatorActionReceiptStoreConsumeResultSchema>;
+export type GovernanceOperatorActionReceiptStoreConsumeResult = z.infer<typeof GovernanceOperatorActionReceiptStoreConsumeResultSchema>;
+export type GovernanceOperatorActionReceiptConsumptionStatus = z.infer<typeof GovernanceOperatorActionReceiptConsumptionStatusSchema>;
+export type GovernanceOperatorActionReceiptConsumptionInput = z.input<typeof GovernanceOperatorActionReceiptConsumptionSchema>;
+export type GovernanceOperatorActionReceiptConsumption = z.infer<typeof GovernanceOperatorActionReceiptConsumptionSchema>;
 export type GovernanceOperatorEvidenceResolutionKind = z.infer<typeof GovernanceOperatorEvidenceResolutionKindSchema>;
 export type GovernanceOperatorEvidenceResolutionStatus = z.infer<typeof GovernanceOperatorEvidenceResolutionStatusSchema>;
 export type GovernanceOperatorObservationEvidenceSummary = z.infer<typeof GovernanceOperatorObservationEvidenceSummarySchema>;
@@ -587,6 +640,14 @@ export type GovernanceOperatorEvidenceResolution = z.infer<typeof GovernanceOper
 export type ArbitrationTrigger = z.infer<typeof ArbitrationTriggerSchema>;
 export type ArbitrationPacketInput = z.input<typeof ArbitrationPacketSchema>;
 export type ArbitrationPacket = z.infer<typeof ArbitrationPacketSchema>;
+
+export interface GovernanceOperatorActionReceiptStore {
+  consume(receipt: GovernanceOperatorActionReceiptInput): Promise<GovernanceOperatorActionReceiptStoreConsumeResult>;
+  getReceipt(receiptId: string): Promise<GovernanceOperatorActionReceipt | undefined>;
+  findByTaskId(taskId: string): Promise<GovernanceOperatorActionReceipt[]>;
+  findByActionRef(actionRef: string): Promise<GovernanceOperatorActionReceipt[]>;
+  loadAll(): Promise<GovernanceOperatorActionReceipt[]>;
+}
 
 // ── Create input ────────────────────────────────────────────────────────────
 
@@ -864,6 +925,251 @@ export function validateGovernanceOperatorActionReceipt(input: {
     actionRef,
     envelopeHash,
     receipt
+  });
+}
+
+export class InMemoryGovernanceOperatorActionReceiptStore
+  implements GovernanceOperatorActionReceiptStore {
+  private readonly receiptsById = new Map<string, GovernanceOperatorActionReceipt>();
+
+  async consume(
+    receiptInput: GovernanceOperatorActionReceiptInput
+  ): Promise<GovernanceOperatorActionReceiptStoreConsumeResult> {
+    const receipt = parseReceiptForStore(receiptInput);
+    const replay = this.findReplay(receipt);
+    if (replay.existingReceiptIds.length > 0 || replay.existingActionRefs.length > 0) {
+      return GovernanceOperatorActionReceiptStoreConsumeResultSchema.parse({
+        status: "replay",
+        receipt,
+        ...replay
+      });
+    }
+
+    this.receiptsById.set(receipt.receiptId, cloneReceipt(receipt));
+    return GovernanceOperatorActionReceiptStoreConsumeResultSchema.parse({
+      status: "stored",
+      receipt,
+      existingReceiptIds: [],
+      existingActionRefs: []
+    });
+  }
+
+  async getReceipt(receiptId: string): Promise<GovernanceOperatorActionReceipt | undefined> {
+    const receipt = this.receiptsById.get(receiptId);
+    return receipt === undefined ? undefined : cloneReceipt(receipt);
+  }
+
+  async findByTaskId(taskId: string): Promise<GovernanceOperatorActionReceipt[]> {
+    return [...this.receiptsById.values()]
+      .filter((receipt) => receipt.taskId === taskId)
+      .map(cloneReceipt);
+  }
+
+  async findByActionRef(actionRef: string): Promise<GovernanceOperatorActionReceipt[]> {
+    return [...this.receiptsById.values()]
+      .filter((receipt) => receipt.actionRef === actionRef)
+      .map(cloneReceipt);
+  }
+
+  async loadAll(): Promise<GovernanceOperatorActionReceipt[]> {
+    return [...this.receiptsById.values()].map(cloneReceipt);
+  }
+
+  private findReplay(receipt: GovernanceOperatorActionReceipt): {
+    existingReceiptIds: string[];
+    existingActionRefs: string[];
+  } {
+    const existingReceipt = this.receiptsById.get(receipt.receiptId);
+    const existingActionRefs = [...this.receiptsById.values()]
+      .filter((item) => item.actionRef === receipt.actionRef)
+      .map((item) => item.actionRef);
+
+    return {
+      existingReceiptIds: existingReceipt === undefined ? [] : [existingReceipt.receiptId],
+      existingActionRefs: uniqueStrings(existingActionRefs)
+    };
+  }
+}
+
+export interface FileGovernanceOperatorActionReceiptStoreOptions {
+  basePath: string;
+}
+
+export class FileGovernanceOperatorActionReceiptStore
+  implements GovernanceOperatorActionReceiptStore {
+  private readonly basePath: string;
+
+  constructor(options: FileGovernanceOperatorActionReceiptStoreOptions) {
+    this.basePath = options.basePath;
+  }
+
+  async consume(
+    receiptInput: GovernanceOperatorActionReceiptInput
+  ): Promise<GovernanceOperatorActionReceiptStoreConsumeResult> {
+    const receipt = parseReceiptForStore(receiptInput);
+    const existingReceipt = await this.getReceipt(receipt.receiptId);
+    const existingActionRefs = (await this.findByActionRef(receipt.actionRef))
+      .map((item) => item.actionRef);
+    if (existingReceipt !== undefined || existingActionRefs.length > 0) {
+      return GovernanceOperatorActionReceiptStoreConsumeResultSchema.parse({
+        status: "replay",
+        receipt,
+        existingReceiptIds: existingReceipt === undefined ? [] : [existingReceipt.receiptId],
+        existingActionRefs: uniqueStrings(existingActionRefs)
+      });
+    }
+
+    await mkdir(this.basePath, { recursive: true });
+    await writeFile(
+      this.taskPath(receipt.taskId),
+      `${JSON.stringify(receipt)}\n`,
+      { encoding: "utf8", flag: "a" }
+    );
+
+    return GovernanceOperatorActionReceiptStoreConsumeResultSchema.parse({
+      status: "stored",
+      receipt,
+      existingReceiptIds: [],
+      existingActionRefs: []
+    });
+  }
+
+  async getReceipt(receiptId: string): Promise<GovernanceOperatorActionReceipt | undefined> {
+    const receipts = await this.loadAll();
+    const receipt = receipts.find((item) => item.receiptId === receiptId);
+    return receipt === undefined ? undefined : cloneReceipt(receipt);
+  }
+
+  async findByTaskId(taskId: string): Promise<GovernanceOperatorActionReceipt[]> {
+    const receipts = await this.readTaskReceipts(taskId);
+    return receipts
+      .filter((receipt) => receipt.taskId === taskId)
+      .map(cloneReceipt);
+  }
+
+  async findByActionRef(actionRef: string): Promise<GovernanceOperatorActionReceipt[]> {
+    const receipts = await this.loadAll();
+    return receipts
+      .filter((receipt) => receipt.actionRef === actionRef)
+      .map(cloneReceipt);
+  }
+
+  async loadAll(): Promise<GovernanceOperatorActionReceipt[]> {
+    await mkdir(this.basePath, { recursive: true });
+    const fileNames = await readdir(this.basePath);
+    const receipts: GovernanceOperatorActionReceipt[] = [];
+    for (const fileName of fileNames) {
+      if (!fileName.endsWith(".jsonl")) {
+        continue;
+      }
+      receipts.push(...await this.readReceiptFile(join(this.basePath, fileName)));
+    }
+    return receipts.map(cloneReceipt);
+  }
+
+  private taskPath(taskId: string): string {
+    const safeTaskId = taskId.replace(/[^a-zA-Z0-9_-]/g, "_");
+    return join(this.basePath, `${safeTaskId}.jsonl`);
+  }
+
+  private async readTaskReceipts(taskId: string): Promise<GovernanceOperatorActionReceipt[]> {
+    const taskPath = this.taskPath(taskId);
+    const content = await readFile(taskPath, "utf8").catch((error: unknown) => {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return "";
+      }
+
+      throw error;
+    });
+    if (content === "") {
+      return [];
+    }
+
+    return parseReceiptLines(content, taskPath);
+  }
+
+  private async readReceiptFile(filePath: string): Promise<GovernanceOperatorActionReceipt[]> {
+    const content = await readFile(filePath, "utf8");
+    return parseReceiptLines(content, filePath);
+  }
+}
+
+export function createInMemoryGovernanceOperatorActionReceiptStore(): InMemoryGovernanceOperatorActionReceiptStore {
+  return new InMemoryGovernanceOperatorActionReceiptStore();
+}
+
+export function createFileGovernanceOperatorActionReceiptStore(
+  options: FileGovernanceOperatorActionReceiptStoreOptions
+): FileGovernanceOperatorActionReceiptStore {
+  return new FileGovernanceOperatorActionReceiptStore(options);
+}
+
+export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
+  store: GovernanceOperatorActionReceiptStore;
+  envelope: GovernanceOperatorActionEnvelopeInput;
+  receipt: unknown;
+  actionIssuedAt?: string | (() => string);
+  now: string | (() => string);
+  maxActionAgeMs?: number;
+}): Promise<GovernanceOperatorActionReceiptConsumption> {
+  const validation = validateGovernanceOperatorActionReceipt({
+    envelope: input.envelope,
+    receipt: input.receipt,
+    ...(input.actionIssuedAt !== undefined ? { actionIssuedAt: input.actionIssuedAt } : {}),
+    now: input.now,
+    ...(input.maxActionAgeMs !== undefined ? { maxActionAgeMs: input.maxActionAgeMs } : {})
+  });
+
+  if (validation.status === "blocked" || validation.receipt === undefined) {
+    return GovernanceOperatorActionReceiptConsumptionSchema.parse({
+      status: "blocked",
+      reasons: validation.reasons,
+      validation,
+      ...(validation.taskId !== undefined ? { taskId: validation.taskId } : {}),
+      ...(validation.actionRef !== undefined ? { actionRef: validation.actionRef } : {}),
+      ...(validation.envelopeHash !== undefined ? { envelopeHash: validation.envelopeHash } : {})
+    });
+  }
+
+  let storeResult: GovernanceOperatorActionReceiptStoreConsumeResult;
+  try {
+    storeResult = await input.store.consume(validation.receipt);
+  } catch {
+    return GovernanceOperatorActionReceiptConsumptionSchema.parse({
+      status: "blocked",
+      reasons: ["operator_action_receipt_store_failed"],
+      validation,
+      taskId: validation.taskId,
+      actionRef: validation.actionRef,
+      envelopeHash: validation.envelopeHash,
+      receipt: validation.receipt
+    });
+  }
+
+  if (storeResult.status === "replay") {
+    return GovernanceOperatorActionReceiptConsumptionSchema.parse({
+      status: "blocked",
+      reasons: ["operator_action_receipt_replay"],
+      validation: GovernanceOperatorActionReceiptValidationSchema.parse({
+        ...validation,
+        status: "blocked",
+        reasons: ["operator_action_receipt_replay"]
+      }),
+      taskId: validation.taskId,
+      actionRef: validation.actionRef,
+      envelopeHash: validation.envelopeHash,
+      receipt: validation.receipt
+    });
+  }
+
+  return GovernanceOperatorActionReceiptConsumptionSchema.parse({
+    status: "passed",
+    reasons: [],
+    validation,
+    taskId: validation.taskId,
+    actionRef: validation.actionRef,
+    envelopeHash: validation.envelopeHash,
+    receipt: validation.receipt
   });
 }
 
@@ -1373,6 +1679,62 @@ function isSafeArtifactId(artifactId: string): boolean {
     && !artifactId.includes("..")
     && !artifactId.includes("/")
     && !artifactId.includes("\\");
+}
+
+function cloneReceipt(
+  receipt: GovernanceOperatorActionReceipt
+): GovernanceOperatorActionReceipt {
+  return GovernanceOperatorActionReceiptSchema.parse(JSON.parse(JSON.stringify(receipt)));
+}
+
+function parseReceiptForStore(
+  receiptInput: GovernanceOperatorActionReceiptInput
+): GovernanceOperatorActionReceipt {
+  const receipt = GovernanceOperatorActionReceiptSchema.parse(receiptInput);
+  const expectedReceiptId = createGovernanceOperatorActionReceiptId({
+    taskId: receipt.taskId,
+    actionRef: receipt.actionRef,
+    ...(receipt.envelopeHash !== undefined ? { envelopeHash: receipt.envelopeHash } : {}),
+    actionIssuedAt: receipt.actionIssuedAt,
+    decision: receipt.decision,
+    operatorIdHash: receipt.operatorIdHash,
+    createdAt: receipt.createdAt,
+    evidenceRefs: receipt.evidenceRefs
+  });
+  if (receipt.receiptId !== expectedReceiptId) {
+    throw new Error("operator_action_receipt_store_receipt_id_mismatch");
+  }
+
+  return receipt;
+}
+
+function parseReceiptLines(
+  content: string,
+  filePath: string
+): GovernanceOperatorActionReceipt[] {
+  const receipts: GovernanceOperatorActionReceipt[] = [];
+  const lines = content.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line === undefined || line.trim() === "") {
+      continue;
+    }
+
+    try {
+      receipts.push(parseReceiptForStore(JSON.parse(line)));
+    } catch {
+      throw new Error(`operator_action_receipt_store_record_invalid:${filePath}:${index + 1}`);
+    }
+  }
+  return receipts;
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)].sort();
 }
 
 function stableSha256(input: unknown): string {

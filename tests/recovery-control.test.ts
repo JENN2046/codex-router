@@ -1,10 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   createArbitrationPacket,
+  createFileGovernanceOperatorActionReceiptStore,
   createGovernanceOperatorActionEnvelope,
   createGovernanceOperatorActionReceiptId,
   createGovernanceOperatorActionRef,
+  createInMemoryGovernanceOperatorActionReceiptStore,
   GovernanceOperatorEvidenceResolutionEntrySchema,
   GovernanceOperatorActionEnvelopeSchema,
   GovernanceOperatorActionReceiptSchema,
@@ -15,6 +20,7 @@ import {
   parseArbitrationPacket,
   shouldLockdown,
   summarizeGovernanceOperatorActionEnvelope,
+  validateAndConsumeGovernanceOperatorActionReceipt,
   validateGovernanceOperatorActionReceipt,
   type GovernanceOperatorActionEnvelope,
   type GovernanceOperatorActionReceiptInput
@@ -665,6 +671,171 @@ test("recovery control blocks operator action receipts with mismatched action re
   assert.ok(validation.reasons.includes("operator_action_receipt_action_ref_mismatch"));
 });
 
+test("recovery control consumes operator action receipts once in memory", async () => {
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+
+  const first = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(first.status, "passed");
+  assert.deepEqual(first.reasons, []);
+  assert.equal((await store.getReceipt(receipt.receiptId))?.receiptId, receipt.receiptId);
+
+  const replay = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:31.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(replay.status, "blocked");
+  assert.deepEqual(replay.reasons, ["operator_action_receipt_replay"]);
+  assert.equal(replay.validation.status, "blocked");
+});
+
+test("recovery control persists operator action receipts in a file store", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-router-operator-receipts-"));
+  const store = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+
+  const consumed = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(consumed.status, "passed");
+
+  const reloadedStore = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });
+  assert.equal((await reloadedStore.getReceipt(receipt.receiptId))?.receiptId, receipt.receiptId);
+  assert.deepEqual(
+    (await reloadedStore.findByTaskId("recovery-task")).map((item) => item.receiptId),
+    [receipt.receiptId]
+  );
+
+  const replay = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store: reloadedStore,
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:31.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(replay.status, "blocked");
+  assert.deepEqual(replay.reasons, ["operator_action_receipt_replay"]);
+});
+
+test("recovery control file receipt store keeps sanitized task paths task-scoped", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-router-operator-receipts-scope-"));
+  const store = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });
+  const receiptA = createStandaloneOperatorActionReceipt({
+    taskId: "task:1",
+    actionRef: "governance-operator-action:task-a",
+    createdAt: "2026-04-27T00:05:00.000Z"
+  });
+  const receiptB = createStandaloneOperatorActionReceipt({
+    taskId: "task_1",
+    actionRef: "governance-operator-action:task-b",
+    createdAt: "2026-04-27T00:05:01.000Z"
+  });
+
+  await store.consume(receiptA);
+  await store.consume(receiptB);
+
+  assert.deepEqual(
+    (await store.findByTaskId("task:1")).map((receipt) => receipt.receiptId),
+    [receiptA.receiptId]
+  );
+  assert.deepEqual(
+    (await store.findByTaskId("task_1")).map((receipt) => receipt.receiptId),
+    [receiptB.receiptId]
+  );
+});
+
+test("recovery control does not store invalid operator action receipts", async () => {
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+
+  const consumed = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt: createTestOperatorActionReceipt(envelope, {
+      actionIssuedAt,
+      taskId: "other-task"
+    }),
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(consumed.status, "blocked");
+  assert.ok(consumed.reasons.includes("operator_action_receipt_task_mismatch"));
+  assert.deepEqual(await store.loadAll(), []);
+});
+
+test("recovery control fails closed when receipt store records are malformed", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-router-operator-receipts-bad-"));
+  await writeFile(join(dir, "recovery-task.jsonl"), "{\"not\":\"a receipt\"}\n", "utf8");
+  const store = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+
+  const consumed = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt: createTestOperatorActionReceipt(envelope, { actionIssuedAt }),
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(consumed.status, "blocked");
+  assert.deepEqual(consumed.reasons, ["operator_action_receipt_store_failed"]);
+});
+
+test("recovery control fails closed when receipt store records have stale ids", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-router-operator-receipts-stale-"));
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const storedReceipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+  await writeFile(
+    join(dir, "recovery-task.jsonl"),
+    `${JSON.stringify({ ...storedReceipt, receiptId: "stale-receipt-id" })}\n`,
+    "utf8"
+  );
+  const store = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });
+
+  const consumed = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt: createTestOperatorActionReceipt(envelope, { actionIssuedAt }),
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(consumed.status, "blocked");
+  assert.deepEqual(consumed.reasons, ["operator_action_receipt_store_failed"]);
+});
+
 test("recovery control resolves operator action evidence refs without raw payloads", async () => {
   const observationStore = createRecordingExecutionObservationStore();
   const artifactStore = new InMemoryArtifactStore({
@@ -1073,6 +1244,27 @@ function createTestOperatorActionReceipt(
     createdAt: "2026-04-27T00:05:00.000Z",
     evidenceRefs: [...envelope.evidenceRefs],
     ...overrides
+  };
+
+  return GovernanceOperatorActionReceiptSchema.parse({
+    receiptId: createGovernanceOperatorActionReceiptId(receiptWithoutId),
+    ...receiptWithoutId
+  });
+}
+
+function createStandaloneOperatorActionReceipt(overrides: {
+  taskId: string;
+  actionRef: string;
+  createdAt: string;
+}) {
+  const receiptWithoutId = {
+    taskId: overrides.taskId,
+    actionRef: overrides.actionRef,
+    actionIssuedAt: "2026-04-27T00:04:45.000Z",
+    decision: "consumed" as const,
+    operatorIdHash: "a".repeat(64),
+    createdAt: overrides.createdAt,
+    evidenceRefs: []
   };
 
   return GovernanceOperatorActionReceiptSchema.parse({
