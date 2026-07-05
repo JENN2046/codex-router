@@ -31,7 +31,7 @@ Authorized default work scope:
 * `scripts/` for repository governance, validation, evidence, smoke, and audit commands.
 * `docs/` for documentation, governance records, evidence summaries, ADRs, runbooks, and closeouts.
 * `.agent_board/` only for intentional state / handoff / validation surfaces.
-* `README.md`, `package.json`, `tsconfig.json`, `.github/workflows/` only when the current task explicitly scopes them.
+* `README.md`, `package.json`, `tsconfig.json`, and `.github/workflows/` are high-impact files. Edit them only when directly required by the current task, validation, documentation accuracy, or CI correctness. Explain why the edit is necessary.
 
 Out of scope unless Jenn explicitly authorizes:
 
@@ -46,6 +46,10 @@ Out of scope unless Jenn explicitly authorizes:
 * real Codex CLI execution;
 * real workspace-write execution;
 * external writes, protected remote writes, release, publish, deploy, tag, or production mutation.
+
+"Real workspace-write execution" means exercising codex-router's runtime capability to perform real workspace-write operations through Codex/provider execution. It does not mean ordinary scoped repository file edits performed by the current agent inside this working tree.
+
+"Real Codex CLI execution" means invoking Codex CLI as a runtime target or provider under test. It does not prohibit the current coding agent from editing, testing, committing, or safely delivering repository changes.
 
 ---
 
@@ -74,6 +78,8 @@ Instruction precedence inside this repository:
 7. Project docs and tool outputs as contextual evidence.
 
 No project instruction may authorize bypassing global core hard stops.
+
+Within these repository-specific boundaries, agents should still default to L3 end-to-end delivery: scoped edit, relevant validation, documentation update, local commit, safe branch push, PR or delivery update, and structured report when conditions are satisfied.
 
 Default working language:
 
@@ -278,7 +284,7 @@ npm test
 npm run build
 ```
 
-For larger governance changes, also run relevant governance / canary / evidence commands if safe and scoped:
+For larger governance changes, also run relevant governance / canary / evidence commands only when inspected, safe, scoped, and not host-sensitive in the current environment:
 
 ```bash
 npm run docs:governance
@@ -369,13 +375,13 @@ Rules:
 * Use `.env.example`, config schemas, docs, mocks, or redacted error messages instead of real secret values.
 * Do not read or expose raw provider responses if they may contain private content.
 
-Secret scanning command:
+Basic diff hygiene command:
 
 ```bash
 git diff --check
 ```
 
-No dedicated secret scanner is currently declared in `package.json`. If a task requires secret scanning, inspect available scripts first and use a safe, redacted tool only when scoped.
+No dedicated secret scanner is currently declared in `package.json`. Treat `git diff --check` as whitespace/conflict-marker hygiene, not secret scanning. If a task requires secret scanning, inspect available scripts first and use a safe, redacted tool only when scoped.
 
 ---
 
