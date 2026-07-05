@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -876,6 +876,27 @@ test("recovery control file receipt store serializes concurrent consume attempts
   );
 });
 
+test("recovery control file receipt store reclaims stale consume locks", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-router-operator-receipts-stale-lock-"));
+  const lockPath = join(dir, ".consume.lock");
+  await mkdir(lockPath);
+  const staleTimestamp = new Date(Date.now() - 60_000);
+  await utimes(lockPath, staleTimestamp, staleTimestamp);
+  const store = createFileGovernanceOperatorActionReceiptStore({ basePath: dir });
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+
+  const result = await store.consume(receipt);
+
+  assert.equal(result.status, "stored");
+  assert.deepEqual(
+    (await store.loadAll()).map((item) => item.receiptId),
+    [receipt.receiptId]
+  );
+  assert.equal((await readdir(dir)).includes(".consume.lock"), false);
+});
+
 test("recovery control does not store invalid operator action receipts", async () => {
   const store = createInMemoryGovernanceOperatorActionReceiptStore();
   const envelope = createTestOperatorActionEnvelope();
@@ -968,6 +989,50 @@ test("recovery control fails closed when injected receipt stores return malforme
     store,
     envelope,
     receipt: createTestOperatorActionReceipt(envelope, { actionIssuedAt }),
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(consumed.status, "blocked");
+  assert.deepEqual(consumed.reasons, ["operator_action_receipt_store_failed"]);
+});
+
+test("recovery control fails closed when injected receipt stores consume a different receipt", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const requestedReceipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
+  const otherReceipt = createTestOperatorActionReceipt(envelope, {
+    actionIssuedAt,
+    createdAt: "2026-04-27T00:05:01.000Z"
+  });
+  const store: GovernanceOperatorActionReceiptStore = {
+    async consume() {
+      return {
+        status: "stored",
+        receipt: otherReceipt,
+        existingReceiptIds: [],
+        existingActionRefs: []
+      };
+    },
+    async getReceipt() {
+      return undefined;
+    },
+    async findByTaskId() {
+      return [];
+    },
+    async findByActionRef() {
+      return [];
+    },
+    async loadAll() {
+      return [];
+    }
+  };
+
+  const consumed = await validateAndConsumeGovernanceOperatorActionReceipt({
+    store,
+    envelope,
+    receipt: requestedReceipt,
     actionIssuedAt,
     now: "2026-04-27T00:05:30.000Z",
     maxActionAgeMs: 60_000

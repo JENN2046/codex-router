@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve as resolvePath } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
@@ -998,8 +998,15 @@ export interface FileGovernanceOperatorActionReceiptStoreOptions {
 
 const fileReceiptConsumeQueues = new Map<string, Promise<void>>();
 const FILE_RECEIPT_CONSUME_LOCK_DIR = ".consume.lock";
+const FILE_RECEIPT_CONSUME_LOCK_OWNER_FILE = "owner.json";
 const FILE_RECEIPT_CONSUME_LOCK_RETRY_MS = 10;
 const FILE_RECEIPT_CONSUME_LOCK_TIMEOUT_MS = 5_000;
+const FILE_RECEIPT_CONSUME_LOCK_STALE_MS = 30_000;
+
+type FileReceiptConsumeClaim = {
+  lockPath: string;
+  ownerToken: string;
+};
 
 async function withFileReceiptConsumeLock<T>(
   lockKey: string,
@@ -1016,11 +1023,11 @@ async function withFileReceiptConsumeLock<T>(
 
   await previous.catch(() => undefined);
   try {
-    await acquireFileReceiptConsumeClaim(lockPath);
+    const claim = await acquireFileReceiptConsumeClaim(lockPath);
     try {
       return await operation();
     } finally {
-      await rm(lockPath, { recursive: true, force: true });
+      await releaseFileReceiptConsumeClaim(claim);
     }
   } finally {
     release();
@@ -1030,24 +1037,95 @@ async function withFileReceiptConsumeLock<T>(
   }
 }
 
-async function acquireFileReceiptConsumeClaim(lockPath: string): Promise<void> {
+async function acquireFileReceiptConsumeClaim(lockPath: string): Promise<FileReceiptConsumeClaim> {
   const startedAt = Date.now();
   for (;;) {
     try {
       await mkdir(lockPath);
-      return;
     } catch (error: unknown) {
       if (!isNodeError(error) || error.code !== "EEXIST") {
         throw error;
       }
+
+      await reclaimStaleFileReceiptConsumeClaim(lockPath);
 
       if (Date.now() - startedAt >= FILE_RECEIPT_CONSUME_LOCK_TIMEOUT_MS) {
         throw new Error("operator_action_receipt_store_lock_timeout");
       }
 
       await delay(FILE_RECEIPT_CONSUME_LOCK_RETRY_MS);
+      continue;
+    }
+
+    const ownerToken = `${process.pid}:${Date.now()}:${randomUUID()}`;
+    try {
+      await writeFile(
+        join(lockPath, FILE_RECEIPT_CONSUME_LOCK_OWNER_FILE),
+        `${JSON.stringify({
+          ownerToken,
+          pid: process.pid,
+          createdAt: new Date().toISOString()
+        })}\n`,
+        { encoding: "utf8", flag: "wx" }
+      );
+      return { lockPath, ownerToken };
+    } catch (error: unknown) {
+      await rm(lockPath, { recursive: true, force: true });
+      throw error;
     }
   }
+}
+
+async function reclaimStaleFileReceiptConsumeClaim(lockPath: string): Promise<void> {
+  const lockStat = await stat(lockPath).catch((error: unknown) => {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return undefined;
+    }
+
+    throw error;
+  });
+
+  if (lockStat === undefined) {
+    return;
+  }
+
+  if (Date.now() - lockStat.mtimeMs < FILE_RECEIPT_CONSUME_LOCK_STALE_MS) {
+    return;
+  }
+
+  await rm(lockPath, { recursive: true, force: true });
+}
+
+async function releaseFileReceiptConsumeClaim(
+  claim: FileReceiptConsumeClaim
+): Promise<void> {
+  const ownerText = await readFile(
+    join(claim.lockPath, FILE_RECEIPT_CONSUME_LOCK_OWNER_FILE),
+    "utf8"
+  ).catch((error: unknown) => {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return undefined;
+    }
+
+    throw error;
+  });
+
+  if (ownerText === undefined) {
+    return;
+  }
+
+  let owner: { ownerToken?: unknown };
+  try {
+    owner = JSON.parse(ownerText) as { ownerToken?: unknown };
+  } catch {
+    return;
+  }
+
+  if (owner.ownerToken !== claim.ownerToken) {
+    return;
+  }
+
+  await rm(claim.lockPath, { recursive: true, force: true });
 }
 
 export class FileGovernanceOperatorActionReceiptStore
@@ -1205,6 +1283,21 @@ export async function validateAndConsumeGovernanceOperatorActionReceipt(input: {
       await input.store.consume(validation.receipt)
     );
   } catch {
+    return GovernanceOperatorActionReceiptConsumptionSchema.parse({
+      status: "blocked",
+      reasons: ["operator_action_receipt_store_failed"],
+      validation,
+      taskId: validation.taskId,
+      actionRef: validation.actionRef,
+      envelopeHash: validation.envelopeHash,
+      receipt: validation.receipt
+    });
+  }
+
+  if (
+    storeResult.receipt.receiptId !== validation.receipt.receiptId ||
+    storeResult.receipt.actionRef !== validation.receipt.actionRef
+  ) {
     return GovernanceOperatorActionReceiptConsumptionSchema.parse({
       status: "blocked",
       reasons: ["operator_action_receipt_store_failed"],
