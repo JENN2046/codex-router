@@ -79,7 +79,8 @@ Current repository governance status:
   `docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_CLOSEOUT.md`.
 - Phase 7 runtime operator actionability is closed out in
   `docs/governance/PHASE_7_RUNTIME_OPERATOR_ACTIONABILITY_CLOSEOUT.md`.
-- Phase 8 operator action lifecycle receipt validation is closed out in
+- Phase 8 operator action lifecycle receipt validation and receipt-store
+  primitives are closed out in
   `docs/governance/PHASE_8_OPERATOR_ACTION_LIFECYCLE_CLOSEOUT.md`.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
@@ -176,8 +177,9 @@ surfaces, summaries, and evidence resolution without authorizing recovery
 execution.
 The Phase 8 operator action lifecycle closeout is recorded at
 `docs/governance/PHASE_8_OPERATOR_ACTION_LIFECYCLE_CLOSEOUT.md`; it validates
-operator action receipts, expiry, replay blocking, and lockdown receipt policy
-without executing the recommended action.
+operator action receipts, expiry, replay blocking, durable receipt-store
+primitives, and lockdown receipt policy without executing the recommended
+action.
 
 Boundary audit marker:
 
