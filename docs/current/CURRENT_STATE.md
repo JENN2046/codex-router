@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `ef6ea14ea0d29a8c67bfbbaa7b1a8f934d83402d52da324724f6b1151b36fcd5`
+  `caa384a11fe27f8cc37b73dd91232837363d58530b0df45a6525dd085429bb99`
 
 Source digest excluded paths:
 
@@ -99,6 +99,10 @@ Current repository governance status:
   `docs/governance/PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT.md`;
   host clients can expose Phase 11 review results from current lifecycle state,
   but still do not authorize recovery action dispatch.
+- Phase 13 operator action host executor dispatch is recorded in
+  `docs/governance/PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md`;
+  this is the current authorization stop before any side-effecting recovery
+  action dispatch implementation.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -220,6 +224,12 @@ The Phase 12 operator action host client review surface closeout is recorded at
 it exposes the Phase 11 non-executing review through `DesktopHostClient`
 current lifecycle state without bridge calls, `dispatchToHost()`, provider
 execution, Codex CLI execution, workspace-write, or recovery action dispatch.
+The Phase 13 operator action host executor dispatch taskbook is recorded at
+`docs/governance/PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md`;
+it defines the exact future authorization token and stop conditions for any
+side-effecting recovery action dispatch implementation. Without that explicit
+authorization, only read-only review of the existing non-executing boundaries is
+allowed.
 
 Boundary audit marker:
 
@@ -227,6 +237,7 @@ Boundary audit marker:
 - `PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_TASKBOOK_RECORDED`
 - `PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_CLOSEOUT_RECORDED`
 - `PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT_RECORDED`
+- `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK_RECORDED`
 
 Blocked capabilities:
 

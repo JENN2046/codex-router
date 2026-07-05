@@ -48,6 +48,7 @@ authority is expressed by:
 - [Phase 11 Operator Action Host Executor Boundary Taskbook](PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_TASKBOOK.md);
 - [Phase 11 Operator Action Host Executor Boundary Closeout](PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_CLOSEOUT.md);
 - [Phase 12 Operator Action Host Client Review Surface Closeout](PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT.md);
+- [Phase 13 Operator Action Host Executor Dispatch Taskbook](PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md);
 - executable checks exposed through `npm run governance -- list`;
 - the structured state-sync claim at `docs/current/state-sync-record.json`.
 
@@ -79,6 +80,7 @@ authority is expressed by:
 | `PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_TASKBOOK.md` | Operator action host executor boundary taskbook | Current human authority for the next non-executing authorization packet and injected host executor descriptor boundary; not execution authorization. |
 | `PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_CLOSEOUT.md` | Operator action host executor boundary closeout | Current human authority for the implemented non-executing host executor descriptor, authorization packet, lifecycle binding, and review result boundary; not execution authorization. |
 | `PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT.md` | Operator action host client review surface closeout | Current human authority for exposing the Phase 11 non-executing review result through `DesktopHostClient` current lifecycle state; not execution authorization. |
+| `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md` | Operator action host executor dispatch taskbook | Current authorization stop for any future side-effecting recovery action dispatch implementation; not execution authorization. |
 | `PR_*`, `FUTURE_*`, closeouts, packets | Historical evidence | Evidence only unless linked by a current authority document. |
 
 ## Capability Status
@@ -94,6 +96,7 @@ authority is expressed by:
 | Runtime operator action executor gate | active / plan-only | No | Phase 10 can produce a checkpoint-preserving plan only after durable receipt proof, lifecycle binding, and action allowlist checks pass. |
 | Runtime operator action host executor boundary | active / non-executing | No | Phase 11 binds planned gates, lifecycle state, authorization packets, and injected host executor descriptors for review readiness only; recovery action dispatch remains closed. |
 | Runtime operator action host-client executor review surface | active / non-executing | No | Phase 12 exposes Phase 11 review through `DesktopHostClient.reviewCurrentOperatorActionHostExecutorAuthorization()` using current lifecycle state only; bridge, dispatcher, provider, Codex CLI, and workspace-write paths remain untouched. |
+| Runtime operator action host executor dispatch | taskbook / blocked | No | Phase 13 records the exact future dispatch authorization token and stop conditions; no dispatch implementation is authorized by default. |
 | Controlled read-only real execution | guarded / productized | Yes, narrow | Requires [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md), [PR-23B minimal slice](PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md), [PR-23C evidence binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md), explicit controlled mode, injected execution dependency, permit/preflight metadata, stable evidence refs/hashes, and no hidden provider path. |
 | Workspace-write fake canary | guarded | No | Validates permit v2, patch guard, rollback evidence, and replay blocking without real host writes. |
 | Workspace-write real canary | experimental / blocked by default | No by default | Requires [workspace-write release gate](WORKSPACE_WRITE_RELEASE_GATE.md), [workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md), a fresh explicit authorization packet for the named canary, permit v2 controls, fake-canary v2 validation, and rollback evidence. |
@@ -144,6 +147,7 @@ Use these first:
 | Runtime operator action host executor boundary taskbook | `PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_TASKBOOK.md` |
 | Runtime operator action host executor boundary closeout | `PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_CLOSEOUT.md` |
 | Runtime operator action host client review surface closeout | `PHASE_12_OPERATOR_ACTION_HOST_CLIENT_REVIEW_SURFACE_CLOSEOUT.md` |
+| Runtime operator action host executor dispatch taskbook | `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md` |
 | Controlled read-only provider execution acceptance | `npm run governance -- acceptance controlled-readonly-provider-execution --check` for no-write review; omit `--check` to refresh evidence intentionally. |
 | Available current checks | `npm run governance -- list` |
 | Governance docs structure check | `npm run docs:governance` |

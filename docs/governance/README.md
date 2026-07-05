@@ -90,6 +90,9 @@ as historical evidence unless a current authority document links them.
   current closeout for exposing the Phase 11 non-executing authorization review
   through `DesktopHostClient` current lifecycle state; this is not
   recovery-action execution authorization.
+- [Phase 13 operator action host executor dispatch taskbook](PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md):
+  current authorization stop for any future side-effecting recovery action
+  dispatch implementation; this is not recovery-action execution authorization.
 
 ## Runner Entry Points
 
