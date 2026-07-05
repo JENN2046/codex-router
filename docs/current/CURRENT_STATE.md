@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `7acda2f10b56c6909866609f36c10f88120c80158949d327138ab4c4c2c1ab4c`
+  `13dd461cfe0f62efa4abda14fa4b5afba3d0c5d782a3f64ded2d187bd67c5b79`
 
 Source digest excluded paths:
 
@@ -87,6 +87,10 @@ Current repository governance status:
 - Phase 10 operator action executor gate is closed out in
   `docs/governance/PHASE_10_OPERATOR_ACTION_EXECUTOR_GATE_CLOSEOUT.md`; the
   gate is plan-only and does not authorize recovery execution.
+- Phase 11 operator action host executor boundary is recorded in
+  `docs/governance/PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_TASKBOOK.md`;
+  this is a non-executing taskbook for future authorization packet and injected
+  host executor descriptor work.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -194,10 +198,15 @@ The Phase 10 operator action executor gate closeout is recorded at
 plan-only executor gate that requires durable receipt proof, lifecycle binding,
 action allowlists, and checkpoint-preserving plans without authorizing recovery
 execution.
+The Phase 11 operator action host executor boundary taskbook is recorded at
+`docs/governance/PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_TASKBOOK.md`;
+it defines a future non-executing authorization packet and injected host
+executor descriptor boundary without authorizing recovery action dispatch.
 
 Boundary audit marker:
 
 - `PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_REVIEW_RECORDED`
+- `PHASE_11_OPERATOR_ACTION_HOST_EXECUTOR_BOUNDARY_TASKBOOK_RECORDED`
 
 Blocked capabilities:
 
