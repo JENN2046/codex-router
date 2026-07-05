@@ -9,6 +9,7 @@ import {
   createArbitrationPacket,
   createFileGovernanceOperatorActionReceiptStore,
   createGovernanceOperatorActionEnvelope,
+  createGovernanceOperatorActionReceipt,
   createGovernanceOperatorActionReceiptId,
   createGovernanceOperatorActionRef,
   createInMemoryGovernanceOperatorActionReceiptStore,
@@ -477,6 +478,36 @@ test("recovery control validates operator action receipts against the action ref
   assert.equal(validation.taskId, "recovery-task");
   assert.equal(validation.actionRef, actionRef);
   assert.equal(validation.envelopeHash, envelopeHash);
+});
+
+test("recovery control creates bound operator action receipts", () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const createdAt = "2026-04-27T00:05:00.000Z";
+
+  const receipt = createGovernanceOperatorActionReceipt({
+    envelope,
+    actionIssuedAt,
+    createdAt,
+    decision: "consumed",
+    operatorIdHash: "a".repeat(64)
+  });
+  const validation = validateGovernanceOperatorActionReceipt({
+    envelope,
+    receipt,
+    actionIssuedAt,
+    now: "2026-04-27T00:05:30.000Z",
+    maxActionAgeMs: 60_000
+  });
+
+  assert.equal(receipt.taskId, envelope.taskId);
+  assert.equal(receipt.actionRef, createGovernanceOperatorActionRef(envelope, {
+    actionIssuedAt
+  }));
+  assert.equal(receipt.envelopeHash, hashGovernanceOperatorActionEnvelope(envelope));
+  assert.deepEqual(receipt.evidenceRefs, envelope.evidenceRefs);
+  assert.equal(validation.status, "passed");
+  assert.deepEqual(validation.reasons, []);
 });
 
 test("recovery control normalizes default receipt evidence refs before hashing", () => {

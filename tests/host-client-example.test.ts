@@ -335,6 +335,62 @@ test("example host client consumes operator action receipts through an injected 
   assert.equal(stored[0]?.receiptId, receipt.receiptId);
 });
 
+test("example host client creates and consumes current operator action receipts", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const store = createInMemoryGovernanceOperatorActionReceiptStore();
+  const task: TaskEnvelopeInput = {
+    taskId: "example-governance-receipt-author",
+    source: "desktop-thread",
+    intent: {
+      summary: "implement host client recovery receipt authoring",
+      requestedAction: "add TypeScript host recovery receipt authoring changes",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router" },
+    target: {
+      branches: [],
+      files: ["packages/host-client-example/src/index.ts"],
+      modules: []
+    },
+    constraints: {},
+    hints: {
+      taskClassHint: "engineering",
+      riskHints: [],
+      tags: []
+    }
+  };
+  const client = createExampleDesktopHostClient({
+    policy,
+    bridge: createFailingExampleHostBridge("send_input", "example_governance_receipt_author_failure"),
+    availableAgents: 3,
+    operatorActionReceiptStore: store,
+    governanceState: createHighRiskStateWithTwoExecutionFailures(task.taskId),
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+
+  const result = await client.run(task);
+  assert.ok(result.operatorActionEnvelope);
+  const created = client.createOperatorActionReceipt({
+    decision: "consumed",
+    operatorIdHash: "a".repeat(64),
+    createdAt: "2026-04-28T12:00:20.000Z"
+  });
+  const consumed = await client.consumeOperatorActionReceipt({
+    receipt: created.receipt,
+    now: "2026-04-28T12:00:30.000Z"
+  });
+
+  assert.equal(created.status, "created");
+  assert.equal(created.receipt?.taskId, task.taskId);
+  assert.deepEqual(
+    created.receipt?.evidenceRefs,
+    result.operatorActionEnvelope.evidenceRefs
+  );
+  assert.equal(consumed.status, "passed");
+  assert.equal(consumed.durable, true);
+});
+
 test("example host client persists updated governance state between run and resume", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const task: TaskEnvelopeInput = {
