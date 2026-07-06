@@ -27,7 +27,7 @@ import {
   evaluateWorkspaceWriteRealCanaryPreExecutionGate,
   evaluateWorkspaceWritePatchGuard,
   inspectWorkspaceWriteUnifiedDiff
-} from "../packages/workspace-write-guard/src/index.js";
+} from "../packages/governance-internal-workspace-write-guard/src/index.js";
 
 test("workspace-write guard passes bounded permitted diffs", () => {
   const permit = createWorkspaceWritePermit({

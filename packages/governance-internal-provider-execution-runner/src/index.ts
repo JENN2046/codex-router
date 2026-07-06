@@ -27,7 +27,7 @@ import {
   createObservationId,
   parseExecutionObservation,
   type ExecutionObservationBus
-} from "../../execution-observation/src/index.js";
+} from "../../governance-internal-execution-observation/src/index.js";
 import {
   ArtifactSchema,
   EventSchema,
@@ -74,7 +74,7 @@ import {
   type GovernanceOperatorActionSummary,
   type RecoveryOperatorAction,
   type RecoveryRecommendation
-} from "../../recovery-control/src/index.js";
+} from "../../governance-internal-recovery-control/src/index.js";
 import {
   createSafeAuditDetails,
   redactText
@@ -83,19 +83,19 @@ import {
   parseGovernanceState,
   type AnomalyRecord,
   type GovernanceState
-} from "../../state-manager/src/index.js";
+} from "../../governance-internal-state-manager/src/index.js";
 
 export {
   summarizeGovernanceOperatorActionEnvelope
-} from "../../recovery-control/src/index.js";
+} from "../../governance-internal-recovery-control/src/index.js";
 export type {
   GovernanceOperatorActionEnvelope,
   GovernanceOperatorActionSummary
-} from "../../recovery-control/src/index.js";
+} from "../../governance-internal-recovery-control/src/index.js";
 import {
   routeStrategyV2,
   type StrategyDecisionV2
-} from "../../strategy-router/src/index.js";
+} from "../../governance-internal-strategy-router/src/index.js";
 
 export const ProviderExecutionRunnerStatusSchema = z.enum([
   "dry_run_succeeded",

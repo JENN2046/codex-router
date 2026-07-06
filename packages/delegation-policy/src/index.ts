@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { GovernanceState, ApprovalHistoryRecord } from "../../state-manager/src/index.js";
+import type { GovernanceState, ApprovalHistoryRecord } from "../../governance-internal-state-manager/src/index.js";
 
 // ── Delegation Level ─────────────────────────────────────────────────────────
 

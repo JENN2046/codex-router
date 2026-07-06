@@ -37,7 +37,7 @@ import {
 import {
   runProviderExecutionPlanControlledReadOnly,
   type ControlledReadOnlyProviderExecutionRunnerResult
-} from "../packages/provider-execution-runner/src/index.js";
+} from "../packages/governance-internal-provider-execution-runner/src/index.js";
 import { ProviderRegistry } from "../packages/provider-registry/src/index.js";
 import { CodexCliExecutorProvider } from "../packages/providers/codex-cli/src/index.js";
 

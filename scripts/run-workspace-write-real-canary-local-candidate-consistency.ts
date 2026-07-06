@@ -16,7 +16,7 @@ import {
   type WorkspaceWriteRealCanaryConfig,
   type WorkspaceWriteRealCanaryConfigEnv,
   type WorkspaceWriteRealCanaryConfigInput
-} from "../packages/workspace-write-guard/src/index.js";
+} from "../packages/governance-internal-workspace-write-guard/src/index.js";
 import {
   WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS,
   formatWorkspaceWriteRealCanaryFinalLocalAuditResult,
@@ -29,7 +29,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_RANGE_FILES = [
-  "packages/workspace-write-guard/src/index.ts",
+  "packages/governance-internal-workspace-write-guard/src/index.ts",
   "tests/workspace-write-guard.test.ts",
   "scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
   "scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",

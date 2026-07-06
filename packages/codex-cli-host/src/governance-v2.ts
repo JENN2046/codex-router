@@ -6,22 +6,22 @@ import {
   type GovernanceRiskScore,
   type AnomalyRecord,
   type GovernancePhase
-} from "../../state-manager/src/index.js";
+} from "../../governance-internal-state-manager/src/index.js";
 import {
   createRecordingExecutionObservationStore,
   parseExecutionObservation,
   type ExecutionObservation,
   type ExecutionObservationBus
-} from "../../execution-observation/src/index.js";
+} from "../../governance-internal-execution-observation/src/index.js";
 import {
   routeStrategyV2,
   type StrategyDecisionV2
-} from "../../strategy-router/src/index.js";
+} from "../../governance-internal-strategy-router/src/index.js";
 import {
   createArbitrationPacket,
   shouldLockdown,
   type ArbitrationPacket
-} from "../../recovery-control/src/index.js";
+} from "../../governance-internal-recovery-control/src/index.js";
 import {
   createRecordingCheckpointLedgerStore,
   parseCheckpointLedgerEntry,
@@ -30,7 +30,7 @@ import {
 import {
   scoreGovernanceRisk,
   type ScoreGovernanceRiskInput
-} from "../../entropy-risk/src/index.js";
+} from "../../governance-internal-entropy-risk/src/index.js";
 
 export type CodexCliGovernancePhase =
   | "planning"

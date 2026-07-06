@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { GovernanceState } from "../../state-manager/src/index.js";
+import type { GovernanceState } from "../../governance-internal-state-manager/src/index.js";
 
 // ── Action family ───────────────────────────────────────────────────────────
 

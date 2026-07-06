@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
-import { parseExecutionObservation } from "../packages/execution-observation/src/index.js";
+import { parseExecutionObservation } from "../packages/governance-internal-execution-observation/src/index.js";
 import {
   scoreEntanglement,
   scoreFailureCost,
   scoreEntropy,
   scoreContextPressure,
   scoreGovernanceRisk
-} from "../packages/entropy-risk/src/index.js";
+} from "../packages/governance-internal-entropy-risk/src/index.js";
 
 // ── Entanglement tests ──────────────────────────────────────────────────────
 

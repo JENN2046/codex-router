@@ -17,14 +17,14 @@ import {
 import {
   createRecordingExecutionObservationStore,
   parseExecutionObservation
-} from "../packages/execution-observation/src/index.js";
+} from "../packages/governance-internal-execution-observation/src/index.js";
 import {
   createCodexDesktopBindings,
   type CodexDesktopRuntime
 } from "../packages/codex-desktop-bindings/src/index.js";
 import {
   type GovernanceState
-} from "../packages/state-manager/src/index.js";
+} from "../packages/governance-internal-state-manager/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
 const TEST_README_WORKSPACE_WRITE_PREFLIGHT = {

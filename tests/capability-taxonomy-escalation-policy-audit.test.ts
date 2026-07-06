@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE
-} from "../packages/workspace-write-guard/src/index.js";
+} from "../packages/governance-internal-workspace-write-guard/src/index.js";
 import {
   formatCapabilityTaxonomyEscalationPolicyAuditResult,
   reviewCapabilityTaxonomyEscalationPolicyAudit,

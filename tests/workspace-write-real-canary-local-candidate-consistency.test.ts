@@ -6,7 +6,7 @@ import {
   PR_12B_REAL_CANARY_ALLOWED_ACTION,
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
   PR_12B_REAL_CANARY_WORKSPACE
-} from "../packages/workspace-write-guard/src/index.js";
+} from "../packages/governance-internal-workspace-write-guard/src/index.js";
 import {
   formatWorkspaceWriteRealCanaryLocalCandidateConsistencyReview,
   reviewWorkspaceWriteRealCanaryLocalCandidateConsistency,
@@ -14,7 +14,7 @@ import {
 } from "../scripts/run-workspace-write-real-canary-local-candidate-consistency.js";
 
 const requiredChangedFiles = [
-  "packages/workspace-write-guard/src/index.ts",
+  "packages/governance-internal-workspace-write-guard/src/index.ts",
   "tests/workspace-write-guard.test.ts",
   "scripts/run-workspace-write-real-canary-authorization-acceptance.ts",
   "scripts/run-workspace-write-real-canary-pre-execution-acceptance.ts",

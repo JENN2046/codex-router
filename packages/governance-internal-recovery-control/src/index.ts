@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { join, resolve as resolvePath } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import type { GovernanceState } from "../../state-manager/src/index.js";
+import type { GovernanceState } from "../../governance-internal-state-manager/src/index.js";
 import type { DelegationLevel } from "../../delegation-policy/src/index.js";
 import { filterRecoveryActions } from "../../delegation-policy/src/index.js";
 import type {
@@ -14,12 +14,12 @@ import type {
 import type {
   ExecutionObservation,
   ExecutionObservationStore
-} from "../../execution-observation/src/index.js";
+} from "../../governance-internal-execution-observation/src/index.js";
 import {
   EXECUTION_OBSERVATION_REF_PREFIX,
   parseExecutionObservationRef,
   resolveExecutionObservationRef
-} from "../../execution-observation/src/index.js";
+} from "../../governance-internal-execution-observation/src/index.js";
 
 // ── Recovery action ─────────────────────────────────────────────────────────
 

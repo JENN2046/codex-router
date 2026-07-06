@@ -4,7 +4,7 @@ import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
 import { runDesktopDecisionWithGovernance } from "../packages/desktop-decision-runner/src/index.js";
 import { createFileCheckpointLedgerStore } from "../packages/checkpoint-ledger-v2/src/index.js";
-import { createFileExecutionObservationStore } from "../packages/execution-observation/src/index.js";
+import { createFileExecutionObservationStore } from "../packages/governance-internal-execution-observation/src/index.js";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rm } from "node:fs/promises";

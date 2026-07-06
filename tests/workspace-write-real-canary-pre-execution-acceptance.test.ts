@@ -8,7 +8,7 @@ import {
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE,
   PR_12B_REAL_CANARY_WORKSPACE,
   WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV
-} from "../packages/workspace-write-guard/src/index.js";
+} from "../packages/governance-internal-workspace-write-guard/src/index.js";
 import {
   runWorkspaceWriteRealCanaryPreExecutionAcceptance,
   writeWorkspaceWriteRealCanaryPreExecutionAcceptanceEvidence,

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV } from "../packages/workspace-write-guard/src/index.js";
+import { WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV } from "../packages/governance-internal-workspace-write-guard/src/index.js";
 import {
   WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_COMMANDS,
   WORKSPACE_WRITE_REAL_CANARY_FINAL_LOCAL_AUDIT_FORBIDDEN_COMMAND_MARKERS,

@@ -15,7 +15,9 @@ external writes, deployment, tags, or protected-branch mutation.
 
 ## Implementation Status
 
-Phase A is implemented as a source-level public facade and export lock.
+Phase A is implemented as a source-level public facade and export lock. Phase B
+has moved the first high-risk governance core packages under explicit
+`governance-internal-*` directories.
 
 Implemented boundary:
 
@@ -25,17 +27,34 @@ Implemented boundary:
   runtime export names.
 - The facade exports product, host, protocol, and provider SPI surfaces.
 - The facade intentionally does not export internal governance implementation
-  modules such as `recovery-control`, `workspace-write-guard`,
-  `provider-execution-runner`, `state-manager`, `strategy-router`,
-  `entropy-risk`, `execution-observation`, approval, checkpoint, runtime
-  control, or validation arbiter internals.
+  modules such as recovery, workspace-write guard, provider execution runner,
+  state manager, strategy router, entropy risk, execution observation, approval,
+  checkpoint, runtime control, or validation arbiter internals.
+- The first high-risk internal package directories now use explicit internal
+  names:
+  - `packages/governance-internal-recovery-control`
+  - `packages/governance-internal-workspace-write-guard`
+  - `packages/governance-internal-provider-execution-runner`
+  - `packages/governance-internal-state-manager`
+  - `packages/governance-internal-strategy-router`
+  - `packages/governance-internal-entropy-risk`
+  - `packages/governance-internal-execution-observation`
+- Internal source, script, and test imports have been migrated to those new
+  directory names.
+- This rename is a source-organization boundary change only. It does not add
+  runtime behavior, root package exports, provider execution, Codex CLI
+  execution, workspace-write execution, release automation, deployment, or
+  package publishing.
 
 Not yet implemented:
 
 - root `package.json` `exports` map;
-- internal directory renames to `packages/governance-internal-*`;
+- approval, checkpoint, runtime-control, run-manager, and validation-arbiter
+  internal directory renames;
+- support/SPI classification and any directory decisions for observability,
+  artifact-store, kernel-store, redaction, and tool-registry;
 - removal of existing `packages/*/src/index.ts` exports;
-- migration of existing internal imports.
+- migration pressure on downstream consumers.
 
 Those steps remain staged for follow-up PRs.
 
@@ -69,14 +88,14 @@ Highest source export counts observed:
 
 | Module | Export count | Review meaning |
 |---|---:|---|
-| `recovery-control` | 166 | Too broad for external product API. |
+| `governance-internal-recovery-control` | 166 | Too broad for external product API. |
 | `provider-core` | 81 | Candidate provider SPI, but needs a narrow facade. |
 | `contracts` | 66 | Legacy / compatibility contract surface. |
 | `observability` | 61 | Internal telemetry / audit implementation surface. |
 | `kernel-contracts` | 51 | Candidate canonical public contract surface. |
 | `task-graph` | 44 | Internal governance data structure unless explicitly productized. |
 | `protocol-a2a` | 39 | Candidate protocol SPI. |
-| `workspace-write-guard` | 38 | Internal safety implementation, not default product API. |
+| `governance-internal-workspace-write-guard` | 38 | Internal safety implementation, not default product API. |
 | `codex-desktop-live-host` | 36 | Candidate host integration API. |
 | `delegation-policy` | 33 | Internal governance policy implementation. |
 
@@ -142,18 +161,19 @@ be re-exported from public facades by default.
 
 | Module group | Modules | Reason |
 |---|---|---|
-| Recovery and operator governance | `recovery-control`, `approval-gate`, `approval-permit`, `intent-gate`, `runtime-control`, `run-manager` | These define internal lifecycle, approval, dispatch, and recovery policy machinery. |
-| Execution planning and guardrails | `execution-planner`, `execution-eligibility`, `provider-execution-runner`, `workspace-write-guard`, `tool-invocation-planner` | These are safety/control implementations; external callers should use higher-level facades. |
-| Governance state and risk | `state-manager`, `strategy-router`, `entropy-risk`, `execution-observation`, `governance-failure-reducer`, `validation-arbiter` | These are internal reducers, risk models, and arbitration machinery. |
+| Recovery and operator governance | `governance-internal-recovery-control`, `approval-gate`, `approval-permit`, `intent-gate`, `runtime-control`, `run-manager` | These define internal lifecycle, approval, dispatch, and recovery policy machinery. |
+| Execution planning and guardrails | `execution-planner`, `execution-eligibility`, `governance-internal-provider-execution-runner`, `governance-internal-workspace-write-guard`, `tool-invocation-planner` | These are safety/control implementations; external callers should use higher-level facades. |
+| Governance state and risk | `governance-internal-state-manager`, `governance-internal-strategy-router`, `governance-internal-entropy-risk`, `governance-internal-execution-observation`, `governance-failure-reducer`, `validation-arbiter` | These are internal reducers, risk models, and arbitration machinery. |
 | Checkpoint and graph internals | `checkpoint-ledger-v2`, `checkpoint-index`, `task-graph` | These are internal data structures unless separately productized. |
 | Configuration and policy internals | `policy-config`, `delegation-policy`, `recon-policy`, `capability`, `admission-control`, `preflight` | These should be consumed through SDK / host / provider flows. |
 | Internal host/runtime plumbing | `desktop-live-adapter`, `desktop-decision-runner`, `desktop-agent-strategy`, `desktop-bridge`, `host-dispatcher`, `final-host-locator` | These are composition layers behind host-facing APIs. |
 | Audit and support internals | `observability`, `redaction`, `artifact-store`, `kernel-store`, `audit-memory`, `state-sync-audit`, `tool-registry` | Useful infrastructure, but too low-level for the default product API. |
 
-Important rule: `recovery-control` should not be exposed wholesale. It is the
-largest current export surface and contains the most sensitive governance
-lifecycle concepts. Only the specific dispatch, receipt, and authorization
-contract types required by a public host facade should be re-exported.
+Important rule: `governance-internal-recovery-control` should not be exposed
+wholesale. It is the largest current export surface and contains the most
+sensitive governance lifecycle concepts. Only the specific dispatch, receipt,
+and authorization contract types required by a public host facade should be
+re-exported.
 
 ### Examples, diagnostics, and testing surfaces
 

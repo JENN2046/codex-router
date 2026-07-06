@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import {
   DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE
-} from "../packages/workspace-write-guard/src/index.js";
+} from "../packages/governance-internal-workspace-write-guard/src/index.js";
 
 const execFileAsync = promisify(execFile);
 
