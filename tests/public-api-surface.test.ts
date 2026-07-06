@@ -1,9 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import packageJson from "../package.json" with { type: "json" };
+import tsconfigJson from "../tsconfig.json" with { type: "json" };
 import publicApiHostSurfaceLockFixture from "./fixtures/public-api-host-surface-lock.fixture.json" with { type: "json" };
 import publicApiProtocolSurfaceLockFixture from "./fixtures/public-api-protocol-surface-lock.fixture.json" with { type: "json" };
 import publicApiProviderSurfaceLockFixture from "./fixtures/public-api-provider-surface-lock.fixture.json" with { type: "json" };
@@ -155,6 +158,61 @@ test("root package exports only approved public API facades", () => {
   }
 });
 
+test("public-api package type targets are emitted and stay governance-internal free", () => {
+  assert.equal(
+    tsconfigJson.compilerOptions.declaration,
+    true,
+    "build must emit declaration files for package.json type targets"
+  );
+
+  const declarationOutDir = mkdtempSync(resolve(tmpdir(), "codex-router-public-api-types-"));
+  try {
+    execFileSync(
+      process.execPath,
+      [
+        resolve(repoRoot, "node_modules/typescript/bin/tsc"),
+        "-p",
+        "tsconfig.json",
+        "--emitDeclarationOnly",
+        "--outDir",
+        declarationOutDir
+      ],
+      {
+        cwd: repoRoot,
+        stdio: "pipe"
+      }
+    );
+
+    const exportEntries = Object.values(
+      packageJson.exports as Record<string, { types: string; import: string }>
+    );
+    const publicTypeTargets = exportEntries.map((entry) =>
+      resolve(declarationOutDir, entry.types.replace(/^\.\/dist\//, ""))
+    );
+
+    for (const typeTarget of publicTypeTargets) {
+      assert.equal(existsSync(typeTarget), true, `${typeTarget} must be emitted`);
+    }
+
+    for (const typeTarget of publicTypeTargets) {
+      const declaration = readFileSync(typeTarget, "utf8");
+      for (const forbiddenPattern of [
+        "governance-internal",
+        "../../desktop-host-client/src/index.js",
+        "../../codex-desktop-live-host/src/index.js"
+      ]) {
+        assert.equal(
+          declaration.includes(forbiddenPattern),
+          false,
+          `${typeTarget} must not expose ${forbiddenPattern}`
+        );
+      }
+    }
+  } finally {
+    rmSync(declarationOutDir, { recursive: true, force: true });
+  }
+});
+
 test("public-api facade exposes product and extension entrypoints", async () => {
   const moduleExports = await import("../packages/public-api/src/index.js");
 
@@ -186,6 +244,36 @@ test("public-api facade exposes product and extension entrypoints", async () => 
   ]) {
     assert.equal(name in moduleExports, true, `${name} should be public`);
   }
+});
+
+test("public-api host facade delegates through declaration-safe wrappers", async () => {
+  const {
+    DesktopHostClient,
+    assertCodexDesktopLiveHostObject,
+    createCodexDesktopLiveHostEmbeddingStarter,
+    createDesktopHostClient,
+    inspectCodexDesktopLiveHostObject
+  } = await import("../packages/public-api/src/host.js");
+
+  const client = createDesktopHostClient({
+    policy: {},
+    preflight: {},
+    bridge: {
+      invokePrimitive: () => ({ ok: true })
+    }
+  });
+
+  assert.equal(client instanceof DesktopHostClient, true);
+
+  const inspection = inspectCodexDesktopLiveHostObject({});
+  assert.equal(inspection.ready, false);
+  assert.throws(() => assertCodexDesktopLiveHostObject({}), /codex_desktop_live_host_missing/);
+
+  const starter = createCodexDesktopLiveHostEmbeddingStarter({
+    anchor: "public-api-host-wrapper",
+    policy: {}
+  });
+  assert.equal(starter.getStatus().ready, false);
 });
 
 test("public-api facade does not expose internal governance implementation", async () => {

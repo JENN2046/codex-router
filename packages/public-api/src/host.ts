@@ -1,47 +1,476 @@
-export {
-  DesktopHostClient,
-  createDesktopHostClient
+import {
+  DesktopHostClient as InternalDesktopHostClient,
+  type DesktopHostClientOptions as InternalDesktopHostClientOptions,
+  type DesktopHostCreateOperatorActionReceiptInput as InternalDesktopHostCreateOperatorActionReceiptInput,
+  type DesktopHostOperatorActionHostExecutorAuthorizationReviewInput as InternalDesktopHostOperatorActionHostExecutorAuthorizationReviewInput,
+  type DesktopHostOperatorActionHostExecutorDispatchInput as InternalDesktopHostOperatorActionHostExecutorDispatchInput,
+  type DesktopHostOperatorActionReceiptInput as InternalDesktopHostOperatorActionReceiptInput,
+  type DesktopHostResumeOptions as InternalDesktopHostResumeOptions
 } from "../../desktop-host-client/src/index.js";
-export type {
-  DesktopHostClientOptions,
-  DesktopHostClientPersistence,
-  DesktopHostCreateOperatorActionReceiptInput,
-  DesktopHostOperatorActionHostExecutorAuthorizationReviewInput,
-  DesktopHostOperatorActionHostExecutorDispatchInput,
-  DesktopHostOperatorActionReceiptInput,
-  DesktopHostResumeOptions
-} from "../../desktop-host-client/src/index.js";
+import {
+  assertCodexDesktopLiveHostObject as assertInternalCodexDesktopLiveHostObject,
+  createCodexDesktopLiveHostBundle as createInternalCodexDesktopLiveHostBundle,
+  createCodexDesktopLiveHostBundleFromHostObject as createInternalCodexDesktopLiveHostBundleFromHostObject,
+  createCodexDesktopLiveHostBundleFromTools as createInternalCodexDesktopLiveHostBundleFromTools,
+  createCodexDesktopLiveHostEmbeddingStarter as createInternalCodexDesktopLiveHostEmbeddingStarter,
+  createCodexDesktopLiveHostStarter as createInternalCodexDesktopLiveHostStarter,
+  getCodexDesktopLiveHostEmbeddingStatus as getInternalCodexDesktopLiveHostEmbeddingStatus,
+  getMissingCodexDesktopLiveHostMethods as getInternalMissingCodexDesktopLiveHostMethods,
+  inspectCodexDesktopLiveHostObject as inspectInternalCodexDesktopLiveHostObject,
+  resolveLiveHostPreflight as resolveInternalLiveHostPreflight,
+  resolveLiveHostPreflightFromHost as resolveInternalLiveHostPreflightFromHost
+} from "../../codex-desktop-live-host/src/index.js";
 
-export {
-  assertCodexDesktopLiveHostObject,
-  createCodexDesktopLiveHostBundle,
-  createCodexDesktopLiveHostBundleFromHostObject,
-  createCodexDesktopLiveHostBundleFromTools,
-  createCodexDesktopLiveHostEmbeddingStarter,
-  createCodexDesktopLiveHostStarter,
-  getCodexDesktopLiveHostEmbeddingStatus,
-  getMissingCodexDesktopLiveHostMethods,
-  inspectCodexDesktopLiveHostObject,
-  resolveLiveHostPreflight,
-  resolveLiveHostPreflightFromHost
-} from "../../codex-desktop-live-host/src/index.js";
-export type {
-  CodexDesktopBindingOptions,
-  CodexDesktopBindingSession,
-  CodexDesktopDirectiveResolvers,
-  CodexDesktopLiveHostBundle,
-  CodexDesktopLiveHostEmbeddingStarter,
-  CodexDesktopLiveHostEmbeddingStarterOptions,
-  CodexDesktopLiveHostEmbeddingStatus,
-  CodexDesktopLiveHostFromHostObjectOptions,
-  CodexDesktopLiveHostFromToolsOptions,
-  CodexDesktopLiveHostInspection,
-  CodexDesktopLiveHostMemoryTools,
-  CodexDesktopLiveHostMutableHost,
-  CodexDesktopLiveHostObject,
-  CodexDesktopLiveHostOptions,
-  CodexDesktopLiveHostStarterOptions,
-  CodexDesktopRuntime,
-  CodexDesktopToolRuntimeOperations,
-  CodexMemoryHostOperations
-} from "../../codex-desktop-live-host/src/index.js";
+export type DesktopHostUnknownRecord = Record<string, unknown>;
+
+export interface DesktopPrimitiveInvocation extends DesktopHostUnknownRecord {
+  primitive?: string;
+  taskId?: string;
+  reason?: string;
+}
+
+export type DesktopHostBinding = (
+  invocation: DesktopPrimitiveInvocation
+) => Promise<unknown> | unknown;
+
+export type DesktopHostBindings = Record<string, DesktopHostBinding | undefined>;
+
+export interface DesktopHostBridge {
+  invokePrimitive(
+    invocation: DesktopPrimitiveInvocation
+  ): Promise<unknown> | unknown;
+}
+
+export interface DesktopHostClientPersistence {
+  checkpointStore?: unknown;
+  auditStore?: unknown;
+  memoryAdapter?: unknown;
+  memoryRecall?: unknown;
+  memoryOverviewProvider?: unknown;
+  telemetryStore?: unknown;
+}
+
+export interface DesktopHostClientOptions {
+  policy: unknown;
+  preflight: DesktopHostUnknownRecord;
+  bridge?: DesktopHostBridge;
+  bridgeBindings?: DesktopHostBindings;
+  persistence?: DesktopHostClientPersistence;
+  codexCliOptions?: unknown;
+  availableAgents?: number;
+  stopOnFailure?: boolean;
+  observationBus?: unknown;
+  operatorActionReceiptStore?: unknown;
+  governanceState?: unknown;
+  onGovernanceUpdate?: (state: unknown, strategy: unknown) => Promise<void> | void;
+  now?: () => string;
+}
+
+export interface DesktopHostResumeOptions {
+  required?: boolean;
+  stage?: string;
+  preferredSource?: "memory" | "checkpoint";
+  memoryRecall?: unknown;
+  checkpointStore?: unknown;
+}
+
+export type DesktopHostOperatorActionReceiptDecision =
+  | "acknowledged"
+  | "rejected"
+  | "deferred"
+  | "consumed";
+
+export interface DesktopHostOperatorActionReceiptInput {
+  envelope?: unknown;
+  receipt: unknown;
+  actionIssuedAt?: string | (() => string);
+  now?: string | (() => string);
+  maxActionAgeMs?: number;
+}
+
+export interface DesktopHostCreateOperatorActionReceiptInput {
+  envelope?: unknown;
+  decision: DesktopHostOperatorActionReceiptDecision;
+  operatorIdHash: string;
+  actionIssuedAt?: string | (() => string);
+  createdAt?: string | (() => string);
+  evidenceRefs?: string[];
+}
+
+export interface DesktopHostOperatorActionHostExecutorAuthorizationReviewInput {
+  executionGate: unknown;
+  authorizationPacket?: unknown;
+  hostExecutorDescriptor?: unknown;
+}
+
+export type DesktopHostOperatorActionHostExecutorDispatchMode =
+  | "dry_run"
+  | "execute_injected";
+
+export interface DesktopHostOperatorActionHostExecutorDispatchExecutor {
+  dispatch(invocation: unknown): Promise<unknown> | unknown;
+}
+
+export interface DesktopHostOperatorActionHostExecutorDispatchAuditSink {
+  record(event: unknown): Promise<void> | void;
+}
+
+export interface DesktopHostOperatorActionHostExecutorDispatchInput
+  extends DesktopHostOperatorActionHostExecutorAuthorizationReviewInput {
+  authorization: unknown;
+  dispatchMode: DesktopHostOperatorActionHostExecutorDispatchMode;
+  executor?: DesktopHostOperatorActionHostExecutorDispatchExecutor;
+  auditSink?: DesktopHostOperatorActionHostExecutorDispatchAuditSink;
+}
+
+export interface DesktopHostRunResult extends DesktopHostUnknownRecord {
+  decisionResult: unknown;
+  executionResult: unknown;
+  operatorActionEnvelope?: unknown;
+  operatorActionSummary: unknown;
+  hostDispatch?: unknown;
+}
+
+export interface DesktopHostOperatorActionReceiptCreation {
+  schemaVersion: "desktop-operator-action-receipt-creation.v1";
+  status: "created" | "blocked";
+  reasons: string[];
+  taskId?: string;
+  actionRef?: string;
+  envelopeHash?: string;
+  receipt?: unknown;
+}
+
+export type DesktopHostOperatorActionReceiptConsumptionStatus =
+  | "passed"
+  | "blocked"
+  | "not_consumed";
+
+export interface DesktopHostOperatorActionReceiptConsumption {
+  schemaVersion: "desktop-operator-action-receipt-consumption.v1";
+  status: DesktopHostOperatorActionReceiptConsumptionStatus;
+  durable: boolean;
+  reasons: string[];
+  validation: unknown;
+  taskId?: string;
+  actionRef?: string;
+  envelopeHash?: string;
+  receipt?: unknown;
+}
+
+export type DesktopHostOperatorActionLifecycleStatus =
+  | "idle"
+  | "action_available"
+  | "receipt_created"
+  | "receipt_consumed"
+  | "receipt_not_consumed"
+  | "receipt_blocked";
+
+export interface DesktopHostOperatorActionLifecycleState {
+  schemaVersion: "desktop-operator-action-lifecycle.v1";
+  status: DesktopHostOperatorActionLifecycleStatus;
+  operatorActionPresent: boolean;
+  actionIssuedAt?: string;
+  envelope?: unknown;
+  lastReceiptCreation?: DesktopHostOperatorActionReceiptCreation;
+  lastReceiptConsumption?: DesktopHostOperatorActionReceiptConsumption;
+}
+
+export type DesktopHostOperatorActionHostExecutorAuthorizationResult = unknown;
+export type DesktopHostOperatorActionHostExecutorDispatchResult = unknown;
+
+export class DesktopHostClient {
+  private inner: InternalDesktopHostClient;
+  bridge: DesktopHostBridge;
+
+  constructor(options: DesktopHostClientOptions) {
+    this.inner = new InternalDesktopHostClient(
+      options as unknown as InternalDesktopHostClientOptions
+    );
+    this.bridge = this.inner.bridge as unknown as DesktopHostBridge;
+  }
+
+  async run(task: unknown): Promise<DesktopHostRunResult> {
+    return this.inner.run(task as never) as Promise<DesktopHostRunResult>;
+  }
+
+  async resume(
+    task: unknown,
+    options: DesktopHostResumeOptions = {}
+  ): Promise<DesktopHostRunResult> {
+    return this.inner.resume(
+      task as never,
+      options as unknown as InternalDesktopHostResumeOptions
+    ) as Promise<DesktopHostRunResult>;
+  }
+
+  createOperatorActionReceipt(
+    input: DesktopHostCreateOperatorActionReceiptInput
+  ): DesktopHostOperatorActionReceiptCreation {
+    return this.inner.createOperatorActionReceipt(
+      input as unknown as InternalDesktopHostCreateOperatorActionReceiptInput
+    ) as DesktopHostOperatorActionReceiptCreation;
+  }
+
+  async consumeOperatorActionReceipt(
+    input: DesktopHostOperatorActionReceiptInput
+  ): Promise<DesktopHostOperatorActionReceiptConsumption> {
+    return this.inner.consumeOperatorActionReceipt(
+      input as unknown as InternalDesktopHostOperatorActionReceiptInput
+    ) as Promise<DesktopHostOperatorActionReceiptConsumption>;
+  }
+
+  getOperatorActionLifecycle(): DesktopHostOperatorActionLifecycleState {
+    return this.inner.getOperatorActionLifecycle() as DesktopHostOperatorActionLifecycleState;
+  }
+
+  reviewCurrentOperatorActionHostExecutorAuthorization(
+    input: DesktopHostOperatorActionHostExecutorAuthorizationReviewInput
+  ): DesktopHostOperatorActionHostExecutorAuthorizationResult {
+    return this.inner.reviewCurrentOperatorActionHostExecutorAuthorization(
+      input as unknown as InternalDesktopHostOperatorActionHostExecutorAuthorizationReviewInput
+    );
+  }
+
+  async dispatchCurrentOperatorActionHostExecutor(
+    input: DesktopHostOperatorActionHostExecutorDispatchInput
+  ): Promise<DesktopHostOperatorActionHostExecutorDispatchResult> {
+    return this.inner.dispatchCurrentOperatorActionHostExecutor(
+      input as unknown as InternalDesktopHostOperatorActionHostExecutorDispatchInput
+    );
+  }
+}
+
+export function createDesktopHostClient(options: DesktopHostClientOptions): DesktopHostClient {
+  return new DesktopHostClient(options);
+}
+
+export interface CodexDesktopLiveHostMemoryTools {
+  recordMemoryTool(input: unknown): Promise<unknown> | unknown;
+  searchMemoryTool(input: unknown): Promise<unknown> | unknown;
+  memoryOverviewTool?(input?: unknown): Promise<unknown> | unknown;
+}
+
+export interface CodexDesktopLiveHostOptions {
+  policy: unknown;
+  runtime: unknown;
+  memory: {
+    adapter: unknown;
+    operations?: unknown;
+    tools?: CodexDesktopLiveHostMemoryTools;
+  };
+  preflight?: DesktopHostUnknownRecord;
+  directives?: unknown;
+  binding?: DesktopHostUnknownRecord & {
+    session?: unknown;
+  };
+  persistence?: Omit<
+    DesktopHostClientPersistence,
+    "memoryAdapter" | "memoryRecall" | "memoryOverviewProvider"
+  >;
+  codexCliOptions?: unknown;
+  telemetryStore?: unknown;
+  availableAgents?: number;
+  stopOnFailure?: boolean;
+  now?: () => string;
+}
+
+export interface CodexDesktopLiveHostFromToolsOptions
+  extends Omit<CodexDesktopLiveHostOptions, "runtime"> {
+  runtimeTools: CodexDesktopToolRuntimeOperations;
+}
+
+export interface CodexDesktopLiveHostObject extends CodexDesktopToolRuntimeOperations {
+  record_memory(input: unknown): Promise<unknown> | unknown;
+  search_memory(input: unknown): Promise<unknown> | unknown;
+  memory_overview?(input?: unknown): Promise<unknown> | unknown;
+}
+
+export interface CodexDesktopLiveHostFromHostObjectOptions
+  extends Omit<CodexDesktopLiveHostOptions, "runtime" | "memory"> {
+  host: CodexDesktopLiveHostObject;
+  memory: {
+    adapter: unknown;
+  };
+}
+
+export interface CodexDesktopLiveHostStarterOptions
+  extends Omit<CodexDesktopLiveHostFromHostObjectOptions, "memory"> {
+  anchor: string;
+  memoryAdapter?: unknown;
+}
+
+export interface CodexDesktopLiveHostBundle {
+  hostClient: DesktopHostClient;
+  bridge: unknown;
+  session: unknown;
+  memoryClient: unknown;
+  memoryAdapter: unknown;
+  memoryOperations: unknown;
+}
+
+export interface CodexDesktopLiveHostInspection {
+  ready: boolean;
+  availableRuntimeMethods: string[];
+  availableMemoryMethods: string[];
+  availableTools: string[];
+  missingMethods: string[];
+  supportsMemoryOverview: boolean;
+}
+
+export type CodexDesktopLiveHostMutableHost = Partial<CodexDesktopLiveHostObject>;
+
+export interface CodexDesktopLiveHostEmbeddingStarterOptions
+  extends Omit<CodexDesktopLiveHostStarterOptions, "host"> {
+  host?: CodexDesktopLiveHostMutableHost;
+}
+
+export interface CodexDesktopLiveHostEmbeddingStarter {
+  host: CodexDesktopLiveHostMutableHost;
+  inspect(): CodexDesktopLiveHostInspection;
+  getStatus(): CodexDesktopLiveHostEmbeddingStatus;
+  assertReady(): void;
+  createBundle(): CodexDesktopLiveHostBundle;
+}
+
+export interface CodexDesktopLiveHostEmbeddingStatus {
+  ready: boolean;
+  wiredRuntimeMethods: string[];
+  wiredMemoryMethods: string[];
+  pendingRequiredMethods: string[];
+  pendingOptionalMethods: string[];
+  nextAction: "wire_required_methods" | "create_bundle";
+}
+
+export type CodexDesktopToolRuntimeOperation = (
+  input?: unknown
+) => Promise<unknown> | unknown;
+
+export interface CodexDesktopToolRuntimeOperations {
+  read_thread_terminal: CodexDesktopToolRuntimeOperation;
+  spawn_agent: CodexDesktopToolRuntimeOperation;
+  wait_agent: CodexDesktopToolRuntimeOperation;
+  send_input: CodexDesktopToolRuntimeOperation;
+  close_agent: CodexDesktopToolRuntimeOperation;
+  shell_command: CodexDesktopToolRuntimeOperation;
+  apply_patch: CodexDesktopToolRuntimeOperation;
+  automation_update: CodexDesktopToolRuntimeOperation;
+}
+
+export type CodexDesktopRuntime = unknown;
+export type CodexDesktopBindingOptions = DesktopHostUnknownRecord;
+export type CodexDesktopBindingSession = unknown;
+export type CodexDesktopDirectiveResolvers = unknown;
+export type CodexMemoryHostOperations = unknown;
+
+function wrapDesktopHostClient(inner: InternalDesktopHostClient): DesktopHostClient {
+  const client = Object.create(DesktopHostClient.prototype) as DesktopHostClient;
+  const mutableClient = client as unknown as {
+    inner: InternalDesktopHostClient;
+    bridge: DesktopHostBridge;
+  };
+
+  mutableClient.inner = inner;
+  mutableClient.bridge = inner.bridge as unknown as DesktopHostBridge;
+  return client;
+}
+
+function wrapHostBundle(bundle: unknown): CodexDesktopLiveHostBundle {
+  const record = bundle as CodexDesktopLiveHostBundle & { hostClient?: unknown };
+  return {
+    ...record,
+    hostClient: record.hostClient instanceof InternalDesktopHostClient
+      ? wrapDesktopHostClient(record.hostClient)
+      : record.hostClient as DesktopHostClient
+  };
+}
+
+export function createCodexDesktopLiveHostBundle(
+  options: CodexDesktopLiveHostOptions
+): CodexDesktopLiveHostBundle {
+  return wrapHostBundle(createInternalCodexDesktopLiveHostBundle(options as never));
+}
+
+export function createCodexDesktopLiveHostBundleFromTools(
+  options: CodexDesktopLiveHostFromToolsOptions
+): CodexDesktopLiveHostBundle {
+  return wrapHostBundle(createInternalCodexDesktopLiveHostBundleFromTools(options as never));
+}
+
+export function createCodexDesktopLiveHostBundleFromHostObject(
+  options: CodexDesktopLiveHostFromHostObjectOptions
+): CodexDesktopLiveHostBundle {
+  return wrapHostBundle(createInternalCodexDesktopLiveHostBundleFromHostObject(options as never));
+}
+
+export function createCodexDesktopLiveHostStarter(
+  options: CodexDesktopLiveHostStarterOptions
+): CodexDesktopLiveHostBundle {
+  return wrapHostBundle(createInternalCodexDesktopLiveHostStarter(options as never));
+}
+
+export function createCodexDesktopLiveHostEmbeddingStarter(
+  options: CodexDesktopLiveHostEmbeddingStarterOptions
+): CodexDesktopLiveHostEmbeddingStarter {
+  const starter = createInternalCodexDesktopLiveHostEmbeddingStarter(
+    options as never
+  ) as {
+    host: CodexDesktopLiveHostMutableHost;
+    inspect(): CodexDesktopLiveHostInspection;
+    getStatus(): CodexDesktopLiveHostEmbeddingStatus;
+    assertReady(): void;
+    createBundle(): unknown;
+  };
+
+  return {
+    host: starter.host,
+    inspect: () => starter.inspect(),
+    getStatus: () => starter.getStatus(),
+    assertReady: () => starter.assertReady(),
+    createBundle: () => wrapHostBundle(starter.createBundle())
+  };
+}
+
+export function resolveLiveHostPreflight(
+  input: DesktopHostUnknownRecord = {}
+): DesktopHostUnknownRecord {
+  return resolveInternalLiveHostPreflight(input as never) as DesktopHostUnknownRecord;
+}
+
+export function inspectCodexDesktopLiveHostObject(
+  host: Partial<CodexDesktopLiveHostObject>
+): CodexDesktopLiveHostInspection {
+  return inspectInternalCodexDesktopLiveHostObject(
+    host as never
+  ) as CodexDesktopLiveHostInspection;
+}
+
+export function getCodexDesktopLiveHostEmbeddingStatus(
+  host: Partial<CodexDesktopLiveHostObject>
+): CodexDesktopLiveHostEmbeddingStatus {
+  return getInternalCodexDesktopLiveHostEmbeddingStatus(
+    host as never
+  ) as CodexDesktopLiveHostEmbeddingStatus;
+}
+
+export function resolveLiveHostPreflightFromHost(
+  host: Partial<CodexDesktopLiveHostObject>,
+  input: DesktopHostUnknownRecord = {}
+): DesktopHostUnknownRecord {
+  return resolveInternalLiveHostPreflightFromHost(
+    host as never,
+    input as never
+  ) as DesktopHostUnknownRecord;
+}
+
+export function getMissingCodexDesktopLiveHostMethods(
+  host: Partial<CodexDesktopLiveHostObject>
+): string[] {
+  return getInternalMissingCodexDesktopLiveHostMethods(host as never);
+}
+
+export function assertCodexDesktopLiveHostObject(
+  host: Partial<CodexDesktopLiveHostObject>
+): asserts host is CodexDesktopLiveHostObject {
+  assertInternalCodexDesktopLiveHostObject(host as never);
+}

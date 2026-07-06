@@ -45,31 +45,19 @@ export type {
 
 export {
   DesktopHostClient,
-  createDesktopHostClient
-} from "../../desktop-host-client/src/index.js";
-export type {
-  DesktopHostClientOptions,
-  DesktopHostClientPersistence,
-  DesktopHostCreateOperatorActionReceiptInput,
-  DesktopHostOperatorActionHostExecutorAuthorizationReviewInput,
-  DesktopHostOperatorActionHostExecutorDispatchInput,
-  DesktopHostOperatorActionReceiptInput,
-  DesktopHostResumeOptions
-} from "../../desktop-host-client/src/index.js";
-
-export {
   assertCodexDesktopLiveHostObject,
   createCodexDesktopLiveHostBundle,
   createCodexDesktopLiveHostBundleFromHostObject,
   createCodexDesktopLiveHostBundleFromTools,
   createCodexDesktopLiveHostEmbeddingStarter,
   createCodexDesktopLiveHostStarter,
+  createDesktopHostClient,
   getCodexDesktopLiveHostEmbeddingStatus,
   getMissingCodexDesktopLiveHostMethods,
   inspectCodexDesktopLiveHostObject,
   resolveLiveHostPreflight,
   resolveLiveHostPreflightFromHost
-} from "../../codex-desktop-live-host/src/index.js";
+} from "./host.js";
 export type {
   CodexDesktopBindingOptions,
   CodexDesktopBindingSession,
@@ -88,8 +76,15 @@ export type {
   CodexDesktopLiveHostStarterOptions,
   CodexDesktopRuntime,
   CodexDesktopToolRuntimeOperations,
-  CodexMemoryHostOperations
-} from "../../codex-desktop-live-host/src/index.js";
+  CodexMemoryHostOperations,
+  DesktopHostClientOptions,
+  DesktopHostClientPersistence,
+  DesktopHostCreateOperatorActionReceiptInput,
+  DesktopHostOperatorActionHostExecutorAuthorizationReviewInput,
+  DesktopHostOperatorActionHostExecutorDispatchInput,
+  DesktopHostOperatorActionReceiptInput,
+  DesktopHostResumeOptions
+} from "./host.js";
 
 export {
   AgentManifestSchema,

@@ -11,7 +11,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "rootDir": ".",
-    "outDir": "dist"
+    "outDir": "dist",
+    "declaration": true
   },
   "include": [
     "packages/**/*.ts",

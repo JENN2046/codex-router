@@ -32,7 +32,13 @@ Implemented boundary:
 - `packages/public-api/src/index.ts` is the explicit source-level public facade.
 - `packages/public-api/src/sdk.ts`, `host.ts`, `protocol.ts`, `provider.ts`,
   and `support.ts` are explicit source-level subfacades.
+- `packages/public-api/src/host.ts` owns declaration-safe host wrapper types for
+  the public facade instead of re-exporting host implementation types that carry
+  governance-internal references.
 - `tests/public-api-surface.test.ts` locks the facade export list.
+- `tests/public-api-surface.test.ts` also generates declaration-only output for
+  the public package type targets and rejects public facade declarations that
+  expose governance-internal host implementation paths.
 - `tests/fixtures/public-api-surface-lock.fixture.json` records the approved
   runtime export names.
 - `tests/fixtures/public-api-*-surface-lock.fixture.json` records the approved
@@ -50,6 +56,8 @@ Implemented boundary:
   - `./protocol`
   - `./provider`
   - `./support`
+- `tsconfig.json` emits declaration files so the package `types` targets resolve
+  after `npm run build`.
 - The root export map intentionally does not expose `./testing`,
   `./diagnostics`, raw `packages/*` paths, or governance-internal modules.
 - `docs/governance/API_TESTING_DIAGNOSTICS_SURFACE_PLAN.md` records the
