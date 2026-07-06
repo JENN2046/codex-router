@@ -53,13 +53,79 @@ export interface DesktopHostPreflightContext extends DesktopHostUnknownRecord {
   memoryExecutionGuidance?: unknown;
 }
 
+export interface DesktopHostCheckpointRef {
+  checkpointId: string;
+  taskId: string;
+  stage: string;
+  createdAt: string;
+  summary: string;
+}
+
+export interface DesktopHostAuditEvent {
+  type: string;
+  taskId: string;
+  timestamp: string;
+  details: DesktopHostUnknownRecord;
+}
+
+export interface DesktopHostLogEvent {
+  level: "info" | "warn" | "error";
+  message: string;
+  correlationId: string;
+  context?: DesktopHostUnknownRecord;
+}
+
+export interface DesktopHostCheckpointStore {
+  record(checkpoint: DesktopHostCheckpointRef): Promise<void> | void;
+}
+
+export interface DesktopHostCheckpointLookup {
+  findLatestForTask(
+    taskId: string
+  ): Promise<DesktopHostCheckpointRef | undefined> | DesktopHostCheckpointRef | undefined;
+}
+
+export interface DesktopHostAuditStore {
+  record(event: DesktopHostAuditEvent): Promise<void> | void;
+}
+
+export interface DesktopHostMemoryRecallInput {
+  taskId: string;
+  stage?: string;
+  limit?: number;
+  includeContent?: boolean;
+}
+
+export interface DesktopHostMemoryAdapter {
+  recordCheckpoint(checkpoint: DesktopHostCheckpointRef): Promise<void> | void;
+  recallLatestCheckpointRef?(
+    input: DesktopHostMemoryRecallInput
+  ): Promise<DesktopHostCheckpointRef | undefined> | DesktopHostCheckpointRef | undefined;
+}
+
+export interface DesktopHostCheckpointRecallAdapter {
+  recallLatestCheckpointRef(
+    input: DesktopHostMemoryRecallInput
+  ): Promise<DesktopHostCheckpointRef | undefined> | DesktopHostCheckpointRef | undefined;
+}
+
+export interface DesktopHostMemoryOverviewProvider {
+  memoryOverview(
+    input?: CodexMemoryOverviewInput
+  ): Promise<DesktopHostUnknownRecord> | DesktopHostUnknownRecord;
+}
+
+export interface DesktopHostTelemetrySink {
+  record(event: DesktopHostLogEvent): Promise<void> | void;
+}
+
 export interface DesktopHostClientPersistence {
-  checkpointStore?: unknown;
-  auditStore?: unknown;
-  memoryAdapter?: unknown;
-  memoryRecall?: unknown;
-  memoryOverviewProvider?: unknown;
-  telemetryStore?: unknown;
+  checkpointStore?: DesktopHostCheckpointStore & Partial<DesktopHostCheckpointLookup>;
+  auditStore?: DesktopHostAuditStore;
+  memoryAdapter?: DesktopHostMemoryAdapter;
+  memoryRecall?: DesktopHostCheckpointRecallAdapter;
+  memoryOverviewProvider?: DesktopHostMemoryOverviewProvider;
+  telemetryStore?: DesktopHostTelemetrySink;
 }
 
 export interface DesktopHostClientOptions {
@@ -120,7 +186,15 @@ export interface DesktopHostTaskConstraints {
 export interface DesktopHostTaskHintProvenance {
   field: "taskClassHint" | "riskHints" | "tags";
   value: string;
-  source?: "user" | "agent" | "system" | "policy" | "operator" | "memory" | "legacy" | "unknown";
+  source?:
+    | "user"
+    | "agent"
+    | "system"
+    | "policy"
+    | "operator"
+    | "memory"
+    | "legacy"
+    | "unknown";
   reason?: string;
   createdAt?: string;
 }
@@ -147,8 +221,8 @@ export interface DesktopHostResumeOptions {
   required?: boolean;
   stage?: string;
   preferredSource?: "memory" | "checkpoint";
-  memoryRecall?: unknown;
-  checkpointStore?: unknown;
+  memoryRecall?: DesktopHostCheckpointRecallAdapter;
+  checkpointStore?: DesktopHostCheckpointLookup;
 }
 
 export type DesktopHostOperatorActionReceiptDecision =
@@ -390,7 +464,7 @@ export interface CodexDesktopLiveHostOptions {
     "memoryAdapter" | "memoryRecall" | "memoryOverviewProvider"
   >;
   codexCliOptions?: unknown;
-  telemetryStore?: unknown;
+  telemetryStore?: DesktopHostTelemetrySink;
   availableAgents?: number;
   stopOnFailure?: boolean;
   now?: () => string;

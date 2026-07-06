@@ -26,9 +26,17 @@ import type {
   CodexMemorySearchInput,
   CodexMemoryWriteInput,
   DesktopHostClient,
+  DesktopHostClientPersistence,
   DesktopHostClientOptions,
+  DesktopHostCheckpointLookup,
+  DesktopHostCheckpointRecallAdapter,
+  DesktopHostCheckpointRef,
+  DesktopHostCheckpointStore,
+  DesktopHostMemoryAdapter,
+  DesktopHostResumeOptions,
   DesktopHostPreflightContext,
   DesktopHostTaskEnvelopeInput,
+  DesktopHostTelemetrySink,
   DesktopPrimitiveInvocation,
   ExecutorProvider,
   KernelStore,
@@ -378,7 +386,7 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     }
   };
 
-  const memoryAdapter: CodexMemoryAdapterOptions = {
+  const memoryAdapterOptions: CodexMemoryAdapterOptions = {
     anchor: "public-api-host-memory"
   };
 
@@ -386,7 +394,7 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     policy: {},
     runtime: desktopRuntime,
     memory: {
-      adapter: memoryAdapter,
+      adapter: memoryAdapterOptions,
       operations: memoryOperations
     }
   };
@@ -399,12 +407,69 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     }
   };
 
+  const checkpoint: DesktopHostCheckpointRef = {
+    checkpointId: "checkpoint-public-host",
+    taskId: taskEnvelope.taskId,
+    stage: "public-api",
+    createdAt: "2026-07-06T00:00:00.000Z",
+    summary: "Public host checkpoint contract"
+  };
+
+  const checkpointStore: DesktopHostCheckpointStore & DesktopHostCheckpointLookup = {
+    record(input: DesktopHostCheckpointRef) {
+      return Promise.resolve(void input);
+    },
+    findLatestForTask(taskId: string) {
+      return taskId === checkpoint.taskId ? checkpoint : undefined;
+    }
+  };
+
+  const checkpointMemoryAdapter: DesktopHostMemoryAdapter & DesktopHostCheckpointRecallAdapter = {
+    recordCheckpoint(input: DesktopHostCheckpointRef) {
+      return Promise.resolve(void input);
+    },
+    recallLatestCheckpointRef(input) {
+      return input.taskId === checkpoint.taskId ? checkpoint : undefined;
+    }
+  };
+
+  const telemetryStore: DesktopHostTelemetrySink = {
+    record(event) {
+      void event.message;
+    }
+  };
+
+  const persistence: DesktopHostClientPersistence = {
+    checkpointStore,
+    auditStore: {
+      record(event) {
+        return Promise.resolve(void event.taskId);
+      }
+    },
+    memoryAdapter: checkpointMemoryAdapter,
+    memoryRecall: checkpointMemoryAdapter,
+    memoryOverviewProvider: {
+      memoryOverview(input = {}) {
+        return {
+          limit: input.limit ?? 0
+        };
+      }
+    },
+    telemetryStore
+  };
+
+  const resumeOptions: DesktopHostResumeOptions = {
+    memoryRecall: checkpointMemoryAdapter,
+    checkpointStore,
+    preferredSource: "memory"
+  };
+
   const assertDesktopHostTaskRunnerContract = (
     client: Pick<DesktopHostClient, "run" | "resume">,
     task: DesktopHostTaskEnvelopeInput
   ) => {
     void client.run(task);
-    void client.resume(task);
+    void client.resume(task, resumeOptions);
   };
 
   const assertPublicHostNegativeContracts = () => {
@@ -413,13 +478,23 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     void client.run({});
     // @ts-expect-error public memory adapter options require an anchor.
     const missingAnchor: CodexMemoryAdapterOptions = {};
+    // @ts-expect-error public checkpoint stores require a record method.
+    const missingCheckpointStore: DesktopHostClientPersistence = { checkpointStore: {} };
+    // @ts-expect-error public resume memory recall requires lookup method.
+    const missingMemoryRecall: DesktopHostResumeOptions = { memoryRecall: {} };
     void missingAnchor;
+    void missingCheckpointStore;
+    void missingMemoryRecall;
   };
 
   assert.equal(preflight.authAvailable, true);
   assert.equal(liveHostOptions.memory.adapter.anchor, "public-api-host-memory");
   assert.equal(liveHostOptions.memory.operations?.search_memory, memoryOperations.search_memory);
   assert.equal(taskEnvelope.taskId, "task-public-host-envelope");
+  assert.equal(persistence.checkpointStore?.findLatestForTask?.(taskEnvelope.taskId), checkpoint);
+  assert.equal(resumeOptions.memoryRecall?.recallLatestCheckpointRef({
+    taskId: taskEnvelope.taskId
+  }), checkpoint);
   assert.equal(typeof assertDesktopHostTaskRunnerContract, "function");
   assert.equal(typeof assertPublicHostNegativeContracts, "function");
   assert.equal(invocation.primitive, "shell_command");
