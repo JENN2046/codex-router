@@ -113,6 +113,11 @@ as historical evidence unless a current authority document links them.
   adapters; this validates descriptor and packet binding without invoking
   Codex CLI, provider, sub-agent runtime, shell, workspace-write, or recovery
   execution.
+- [Phase 15 agent executor adapter sandbox contract closeout](PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT.md):
+  current sandbox-only contract witness for future agent-backed executor
+  adapters; this validates explicit injection, audit, packet binding, and
+  sandbox artifact containment without invoking Codex CLI, provider,
+  sub-agent runtime, shell, workspace-write, or production recovery execution.
 
 ## Runner Entry Points
 

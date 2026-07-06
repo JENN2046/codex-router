@@ -101,13 +101,13 @@ npm run build
 
 ## Next Stop
 
-The next execution-adjacent stop remains the sandbox-only adapter contract run:
+The next execution-adjacent stop was the sandbox-only adapter contract run:
 
 ```text
 APPROVE_PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_RUN
 ```
 
-That future line may validate one explicitly injected sandbox-only adapter
-contract witness. It still does not authorize Codex CLI, provider,
-sub-agent-runtime, shell, workspace-write, external write, release, deployment,
-tag, secret access, or production recovery execution.
+That line may validate one explicitly injected sandbox-only adapter contract
+witness. It still does not authorize Codex CLI, provider, sub-agent-runtime,
+shell, workspace-write, external write, release, deployment, tag, secret access,
+or production recovery execution.

@@ -49,6 +49,27 @@ The implemented boundary still cannot call an adapter. It exposes no Codex CLI,
 sub-agent runtime, provider, shell, process, workspace-write, or recovery-action
 invocation path.
 
+## Implemented Sandbox Contract Run
+
+`APPROVE_PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_RUN` authorizes only
+one sandbox-only contract witness path. That path is now implemented in
+`packages/recovery-control` and validated by a test fixture under `tests/`.
+
+The implemented boundary can:
+
+- require Phase 15 review-only readiness before a contract run;
+- validate a sandbox contract packet carrying the exact approval string;
+- require `adapterKind = sandbox_reference_adapter`;
+- require `sideEffectBoundary = sandbox_only`;
+- call only an explicitly injected sandbox reference adapter;
+- write only controlled test artifacts under a caller-provided sandbox root;
+- return sanitized adapter receipt status, reason code, result ref, and evidence
+  refs.
+
+The sandbox contract run remains a contract witness. It is not a Codex-backed
+adapter, sub-agent runtime adapter, provider adapter, shell/process executor,
+workspace-write path, or production recovery engine.
+
 ## Still Blocked
 
 This taskbook does not authorize:
@@ -196,14 +217,22 @@ Phase 15 review-only readiness implementation is complete when:
    workspace-write, external write, release, publish, deploy, tag, or secret
    access.
 
+Phase 15 sandbox contract implementation is complete when:
+
+1. `packages/recovery-control` exposes sandbox contract packet, invocation,
+   adapter-result, audit-event, result, and run surfaces;
+2. the sandbox contract run requires a ready Phase 15 review-only readiness
+   result;
+3. the packet is limited to `sandbox_reference_adapter` and `sandbox_only`;
+4. missing audit sink, missing adapter, readiness drift, packet drift, malformed
+   adapter output, unsafe refs, and sandbox path escapes fail closed;
+5. validation passes without real Codex CLI, provider, sub-agent runtime, shell,
+   workspace-write, external write, release, publish, deploy, tag, or secret
+   access.
+
 ## Next Stop
 
-The next safe execution-adjacent stop is the sandbox-only adapter contract run:
-
-```text
-APPROVE_PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_RUN
-```
-
-Any actual sandbox contract run, Codex-backed adapter, sub-agent-backed adapter,
-provider-backed adapter, workspace-write adapter, or production recovery path
-requires a separate explicit approval and must satisfy this taskbook first.
+Any Codex-backed adapter, sub-agent-backed adapter, provider-backed adapter,
+workspace-write adapter, shell/process executor, production recovery path, or
+real recovery-action execution requires a separate taskbook with host-specific
+scope, rollback evidence, audit evidence, and a fresh exact approval string.
