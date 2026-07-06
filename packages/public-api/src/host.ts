@@ -709,8 +709,8 @@ export function createCodexDesktopLiveHostEmbeddingStarter(
 
 export function resolveLiveHostPreflight(
   input: DesktopHostUnknownRecord = {}
-): DesktopHostUnknownRecord {
-  return resolveInternalLiveHostPreflight(input as never) as DesktopHostUnknownRecord;
+): DesktopHostPreflightContext {
+  return resolveInternalLiveHostPreflight(input as never) as DesktopHostPreflightContext;
 }
 
 export function inspectCodexDesktopLiveHostObject(
@@ -732,11 +732,11 @@ export function getCodexDesktopLiveHostEmbeddingStatus(
 export function resolveLiveHostPreflightFromHost(
   host: Partial<CodexDesktopLiveHostObject>,
   input: DesktopHostUnknownRecord = {}
-): DesktopHostUnknownRecord {
+): DesktopHostPreflightContext {
   return resolveInternalLiveHostPreflightFromHost(
     host as never,
     input as never
-  ) as DesktopHostUnknownRecord;
+  ) as DesktopHostPreflightContext;
 }
 
 export function getMissingCodexDesktopLiveHostMethods(

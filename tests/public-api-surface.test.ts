@@ -272,15 +272,15 @@ test("public-api host facade delegates through declaration-safe wrappers", async
     assertCodexDesktopLiveHostObject,
     createCodexDesktopLiveHostEmbeddingStarter,
     createDesktopHostClient,
-    inspectCodexDesktopLiveHostObject
+    inspectCodexDesktopLiveHostObject,
+    resolveLiveHostPreflight,
+    resolveLiveHostPreflightFromHost
   } = await import("../packages/public-api/src/host.js");
 
+  const resolvedPreflight = resolveLiveHostPreflight();
   const client = createDesktopHostClient({
     policy: {},
-    preflight: {
-      authAvailable: true,
-      availableTools: []
-    },
+    preflight: resolvedPreflight,
     bridge: {
       invokePrimitive: () => ({ ok: true })
     }
@@ -297,6 +297,21 @@ test("public-api host facade delegates through declaration-safe wrappers", async
     policy: {}
   });
   assert.equal(starter.getStatus().ready, false);
+
+  const hostResolvedPreflight = resolveLiveHostPreflightFromHost({
+    read_thread_terminal: () => "terminal snapshot",
+    spawn_agent: () => ({ ok: true })
+  });
+  const hostPreflightClient = createDesktopHostClient({
+    policy: {},
+    preflight: hostResolvedPreflight,
+    bridge: {
+      invokePrimitive: () => ({ ok: true })
+    }
+  });
+  assert.equal(hostPreflightClient instanceof DesktopHostClient, true);
+  assert.equal(resolvedPreflight.authAvailable, true);
+  assert.equal(Array.isArray(hostResolvedPreflight.availableTools), true);
 });
 
 test("public-api host facade preserves concrete runtime handler contracts", () => {
