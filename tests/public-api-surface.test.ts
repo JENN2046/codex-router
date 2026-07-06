@@ -18,6 +18,9 @@ import type {
   AgentOsSdkOptions,
   ArtifactStore,
   CodexMemoryAdapterOptions,
+  CodexDesktopBindingOptions,
+  CodexDesktopBindingSession,
+  CodexDesktopDirectiveResolvers,
   CodexDesktopLiveHostOptions,
   CodexDesktopRuntime,
   CodexDesktopToolRuntimeOperations,
@@ -405,13 +408,66 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     anchor: "public-api-host-memory"
   };
 
+  const bindingSession: CodexDesktopBindingSession = {
+    read(taskId: string) {
+      void taskId;
+      return { activeAgents: [] };
+    },
+    write(taskId: string, session) {
+      void taskId;
+      void session.activeAgents;
+    },
+    clear(taskId: string) {
+      void taskId;
+    }
+  };
+
+  const directives: CodexDesktopDirectiveResolvers = {
+    spawnAgent(invocation) {
+      return {
+        requests: [{
+          message: invocation.reason,
+          agentType: "default",
+          forkContext: true
+        }]
+      };
+    },
+    waitAgent(_invocation, session) {
+      return {
+        targets: session.activeAgents.map((agent) => agent.agentId)
+      };
+    },
+    shellCommand() {
+      return {
+        command: "pwd"
+      };
+    }
+  };
+
+  const binding: CodexDesktopBindingOptions = {
+    session: bindingSession,
+    sendInputWithoutAgentMode: "noop",
+    shellPolicy: {
+      governedMode: true,
+      allowRawCommand: true,
+      allowedExecutables: ["git"]
+    }
+  };
+
   const liveHostOptions: CodexDesktopLiveHostOptions = {
     policy: {},
     runtime: desktopRuntime,
     memory: {
       adapter: memoryAdapterOptions,
       operations: memoryOperations
-    }
+    },
+    preflight: {
+      authAvailable: true,
+      availableTools: ["spawn_agent"],
+      workspaceClean: true
+    },
+    directives,
+    binding
   };
 
   const taskEnvelope: DesktopHostTaskEnvelopeInput = {
@@ -497,13 +553,25 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     const missingCheckpointStore: DesktopHostClientPersistence = { checkpointStore: {} };
     // @ts-expect-error public resume memory recall requires lookup method.
     const missingMemoryRecall: DesktopHostResumeOptions = { memoryRecall: {} };
+    // @ts-expect-error live-host preflight availableTools must be a string array.
+    const malformedLiveHostPreflight: CodexDesktopLiveHostOptions["preflight"] = { availableTools: {} };
+    // @ts-expect-error live-host directive resolvers must be functions.
+    const malformedDirectiveResolvers: CodexDesktopDirectiveResolvers = { spawnAgent: "bad" };
+    // @ts-expect-error live-host binding session requires read/write/clear methods.
+    const malformedBindingOptions: CodexDesktopBindingOptions = { session: {} };
     void missingAnchor;
     void missingCheckpointStore;
     void missingMemoryRecall;
+    void malformedLiveHostPreflight;
+    void malformedDirectiveResolvers;
+    void malformedBindingOptions;
   };
 
   assert.equal(preflight.authAvailable, true);
   assert.equal(liveHostOptions.memory.adapter.anchor, "public-api-host-memory");
+  assert.equal(liveHostOptions.preflight?.availableTools?.includes("spawn_agent"), true);
+  assert.equal(liveHostOptions.directives?.spawnAgent?.(invocation)?.requests[0]?.message, invocation.reason);
+  assert.deepEqual(liveHostOptions.binding?.session?.read(taskEnvelope.taskId), { activeAgents: [] });
   assert.equal(liveHostOptions.memory.operations?.search_memory, memoryOperations.search_memory);
   assert.equal(taskEnvelope.taskId, "task-public-host-envelope");
   assert.equal(persistence.checkpointStore?.findLatestForTask?.(taskEnvelope.taskId), checkpoint);

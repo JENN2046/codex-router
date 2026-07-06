@@ -454,11 +454,9 @@ export interface CodexDesktopLiveHostOptions {
     operations?: CodexMemoryHostOperations;
     tools?: CodexDesktopLiveHostMemoryTools;
   };
-  preflight?: DesktopHostUnknownRecord;
-  directives?: unknown;
-  binding?: DesktopHostUnknownRecord & {
-    session?: unknown;
-  };
+  preflight?: Partial<DesktopHostPreflightContext>;
+  directives?: CodexDesktopDirectiveResolvers;
+  binding?: CodexDesktopBindingOptions;
   persistence?: Omit<
     DesktopHostClientPersistence,
     "memoryAdapter" | "memoryRecall" | "memoryOverviewProvider"
@@ -635,9 +633,58 @@ export interface CodexDesktopRuntime {
   applyPatch(patch: string): Promise<unknown> | unknown;
 }
 
-export type CodexDesktopBindingOptions = DesktopHostUnknownRecord;
-export type CodexDesktopBindingSession = unknown;
-export type CodexDesktopDirectiveResolvers = unknown;
+interface CodexDesktopTrackedAgent {
+  agentId: string;
+  role?: string;
+  mode?: "read_only" | "write";
+  ownership?: string[];
+}
+
+interface CodexDesktopTaskSession {
+  activeAgents: CodexDesktopTrackedAgent[];
+}
+
+export interface CodexDesktopBindingSession {
+  read(taskId: string): CodexDesktopTaskSession;
+  write(taskId: string, session: CodexDesktopTaskSession): void;
+  clear(taskId: string): void;
+}
+
+export interface CodexDesktopDirectiveResolvers {
+  spawnAgent?: (
+    invocation: DesktopPrimitiveInvocation
+  ) => { requests: CodexDesktopSpawnAgentRequest[] } | undefined;
+  sendInput?: (
+    invocation: DesktopPrimitiveInvocation,
+    session: CodexDesktopTaskSession
+  ) => { requests: CodexDesktopSendInputRequest[] } | undefined;
+  waitAgent?: (
+    invocation: DesktopPrimitiveInvocation,
+    session: CodexDesktopTaskSession
+  ) => { targets: string[]; timeoutMs?: number } | undefined;
+  closeAgent?: (
+    invocation: DesktopPrimitiveInvocation,
+    session: CodexDesktopTaskSession
+  ) => { targets: string[] } | undefined;
+  automationUpdate?: (
+    invocation: DesktopPrimitiveInvocation
+  ) => CodexDesktopAutomationUpdateRequest | undefined;
+  shellCommand?: (
+    invocation: DesktopPrimitiveInvocation
+  ) => CodexDesktopShellCommandRequest | undefined;
+  applyPatch?: (invocation: DesktopPrimitiveInvocation) => string | undefined;
+}
+
+export interface CodexDesktopBindingOptions {
+  session?: CodexDesktopBindingSession;
+  sendInputWithoutAgentMode?: "fail" | "noop";
+  shellPolicy?: {
+    governedMode?: boolean;
+    allowRawCommand?: boolean;
+    allowShell?: boolean;
+    allowedExecutables?: string[];
+  };
+}
 
 function wrapDesktopHostClient(inner: InternalDesktopHostClient): DesktopHostClient {
   const client = Object.create(DesktopHostClient.prototype) as DesktopHostClient;
