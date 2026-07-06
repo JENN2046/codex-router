@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
 import { runDesktopDecisionWithGovernance } from "../packages/desktop-decision-runner/src/index.js";
-import { createFileCheckpointLedgerStore } from "../packages/checkpoint-ledger-v2/src/index.js";
+import { createFileCheckpointLedgerStore } from "../packages/governance-internal-checkpoint-ledger-v2/src/index.js";
 import { createFileExecutionObservationStore } from "../packages/governance-internal-execution-observation/src/index.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));

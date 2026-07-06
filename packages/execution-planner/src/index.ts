@@ -41,7 +41,7 @@ import {
 } from "../../execution-eligibility/src/index.js";
 import {
   hashApprovalScope
-} from "../../approval-permit/src/index.js";
+} from "../../governance-internal-approval-permit/src/index.js";
 import {
   type ProviderRegistry,
   type ProviderRegistryEntry

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
-import { evaluateApprovalRequirement } from "../packages/approval-gate/src/index.js";
+import { evaluateApprovalRequirement } from "../packages/governance-internal-approval-gate/src/index.js";
 import { routeTask } from "../packages/routing-engine/src/index.js";
 import { classifyIntent } from "../packages/intent-gate/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";

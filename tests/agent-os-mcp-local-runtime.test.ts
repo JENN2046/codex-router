@@ -37,7 +37,7 @@ import {
   createApprovalPermit,
   hashApprovalScope,
   InMemoryApprovalPermitStore
-} from "../packages/approval-permit/src/index.js";
+} from "../packages/governance-internal-approval-permit/src/index.js";
 import { validArtifact } from "../packages/kernel-contracts/test-fixtures/valid-artifact.js";
 import { validEvent } from "../packages/kernel-contracts/test-fixtures/valid-event.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";

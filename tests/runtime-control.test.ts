@@ -5,7 +5,7 @@ import {
   evaluateRuntimeSignals,
   upgradeModel,
   type GovernanceStateRuntimeSignalSource
-} from "../packages/runtime-control/src/index.js";
+} from "../packages/governance-internal-runtime-control/src/index.js";
 import { parseRoutingDecision, type ModelId, type RuntimeSignal } from "../packages/contracts/src/index.js";
 import type { PolicySnapshot } from "../packages/policy-config/src/index.js";
 

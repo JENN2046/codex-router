@@ -24,7 +24,7 @@ import {
   hashApprovalScope,
   validateApprovalPermit,
   type ApprovalPermitStore
-} from "../../approval-permit/src/index.js";
+} from "../../governance-internal-approval-permit/src/index.js";
 import {
   evaluateExecutionEligibilityWithPermitStore
 } from "../../execution-eligibility/src/index.js";
@@ -32,7 +32,7 @@ import {
   capabilityImplies
 } from "../../capability/src/index.js";
 import type { ProviderRegistry } from "../../provider-registry/src/index.js";
-import { RunManager } from "../../run-manager/src/index.js";
+import { RunManager } from "../../governance-internal-run-manager/src/index.js";
 import {
   AgentOsMcpToolNameSchema,
   agentOsMcpToolManifests,

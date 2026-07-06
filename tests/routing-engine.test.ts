@@ -165,7 +165,7 @@ test("routing engine covers engineering, high-risk, and release tasks", async ()
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["packages/approval-gate/src/index.ts"], modules: [] },
+    target: { branches: [], files: ["packages/governance-internal-approval-gate/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });
@@ -220,7 +220,7 @@ test("routing engine fails closed when a task class host route is missing", asyn
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["packages/approval-gate/src/index.ts"], modules: [] },
+    target: { branches: [], files: ["packages/governance-internal-approval-gate/src/index.ts"], modules: [] },
     constraints: {},
     hints: { riskHints: [], tags: [] }
   });

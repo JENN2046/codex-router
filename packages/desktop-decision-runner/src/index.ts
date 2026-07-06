@@ -9,7 +9,7 @@ import type {
   TaskEnvelopeInput
 } from "../../contracts/src/index.js";
 import { parseTaskEnvelope } from "../../contracts/src/index.js";
-import { evaluateApprovalRequirement } from "../../approval-gate/src/index.js";
+import { evaluateApprovalRequirement } from "../../governance-internal-approval-gate/src/index.js";
 import type {
   AuditEvent,
   CheckpointRecallAdapter,

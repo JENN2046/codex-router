@@ -6,7 +6,7 @@ import {
   InMemoryApprovalPermitStore,
   revokeApprovalPermit,
   validateApprovalPermit
-} from "../packages/approval-permit/src/index.js";
+} from "../packages/governance-internal-approval-permit/src/index.js";
 import {
   ApprovalPermitSchema
 } from "../packages/kernel-contracts/src/index.js";

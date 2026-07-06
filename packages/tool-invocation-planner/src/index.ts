@@ -6,7 +6,7 @@ import {
 import {
   hashApprovalScope,
   validateApprovalPermit
-} from "../../approval-permit/src/index.js";
+} from "../../governance-internal-approval-permit/src/index.js";
 import type {
   ApprovalPermit,
   PolicyDecision,
