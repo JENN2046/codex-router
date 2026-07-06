@@ -17,8 +17,13 @@ import type {
   A2AAgentCardSkeleton,
   AgentOsSdkOptions,
   ArtifactStore,
+  CodexDesktopLiveHostOptions,
   CodexDesktopRuntime,
   CodexDesktopToolRuntimeOperations,
+  CodexMemoryHostOperations,
+  CodexMemoryOverviewInput,
+  CodexMemorySearchInput,
+  CodexMemoryWriteInput,
   DesktopHostClientOptions,
   DesktopHostPreflightContext,
   DesktopPrimitiveInvocation,
@@ -349,7 +354,38 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     }
   };
 
+  const memoryOperations: CodexMemoryHostOperations = {
+    record_memory(input: CodexMemoryWriteInput) {
+      return {
+        success: input.validated,
+        memoryId: input.title
+      };
+    },
+    search_memory(input: CodexMemorySearchInput) {
+      return {
+        results: [{
+          title: input.query
+        }]
+      };
+    },
+    memory_overview(input: CodexMemoryOverviewInput = {}) {
+      return {
+        limit: input.limit ?? 0
+      };
+    }
+  };
+
+  const liveHostOptions: CodexDesktopLiveHostOptions = {
+    policy: {},
+    runtime: desktopRuntime,
+    memory: {
+      adapter: {},
+      operations: memoryOperations
+    }
+  };
+
   assert.equal(preflight.authAvailable, true);
+  assert.equal(liveHostOptions.memory.operations?.search_memory, memoryOperations.search_memory);
   assert.equal(invocation.primitive, "shell_command");
   assert.equal(invocation.taskId, "task-public-host-contract");
   assert.equal(
@@ -358,6 +394,9 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
   );
   assert.deepEqual(runtimeTools.spawn_agent({ message: "spawn" }), { message: "spawn" });
   assert.deepEqual(desktopRuntime.spawnAgent({ message: "spawn" }), { message: "spawn" });
+  assert.deepEqual(memoryOperations.search_memory({ query: "checkpoint" }), {
+    results: [{ title: "checkpoint" }]
+  });
 });
 
 test("public-api facade does not expose internal governance implementation", async () => {

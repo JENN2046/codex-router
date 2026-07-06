@@ -257,18 +257,50 @@ export function createDesktopHostClient(options: DesktopHostClientOptions): Desk
   return new DesktopHostClient(options);
 }
 
+export type CodexMemoryTarget = "process" | "knowledge";
+export type CodexMemorySearchTarget = "process" | "knowledge" | "both";
+
+export interface CodexMemoryWriteInput {
+  target: CodexMemoryTarget;
+  title: string;
+  content: string;
+  evidence: string;
+  reusable: boolean;
+  sensitivity: string;
+  tags?: string;
+  validated: boolean;
+}
+
+export interface CodexMemorySearchInput {
+  query: string;
+  target?: CodexMemorySearchTarget;
+  includeContent?: boolean;
+  limit?: number;
+}
+
+export interface CodexMemoryOverviewInput {
+  auditWindow?: number;
+  limit?: number;
+}
+
+export interface CodexMemoryHostOperations {
+  record_memory(input: CodexMemoryWriteInput): Promise<unknown> | unknown;
+  search_memory(input: CodexMemorySearchInput): Promise<unknown> | unknown;
+  memory_overview?(input?: CodexMemoryOverviewInput): Promise<unknown> | unknown;
+}
+
 export interface CodexDesktopLiveHostMemoryTools {
-  recordMemoryTool(input: unknown): Promise<unknown> | unknown;
-  searchMemoryTool(input: unknown): Promise<unknown> | unknown;
-  memoryOverviewTool?(input?: unknown): Promise<unknown> | unknown;
+  recordMemoryTool(input: CodexMemoryWriteInput): Promise<unknown> | unknown;
+  searchMemoryTool(input: CodexMemorySearchInput): Promise<unknown> | unknown;
+  memoryOverviewTool?(input?: CodexMemoryOverviewInput): Promise<unknown> | unknown;
 }
 
 export interface CodexDesktopLiveHostOptions {
   policy: unknown;
-  runtime: unknown;
+  runtime: CodexDesktopRuntime;
   memory: {
     adapter: unknown;
-    operations?: unknown;
+    operations?: CodexMemoryHostOperations;
     tools?: CodexDesktopLiveHostMemoryTools;
   };
   preflight?: DesktopHostUnknownRecord;
@@ -293,9 +325,9 @@ export interface CodexDesktopLiveHostFromToolsOptions
 }
 
 export interface CodexDesktopLiveHostObject extends CodexDesktopToolRuntimeOperations {
-  record_memory(input: unknown): Promise<unknown> | unknown;
-  search_memory(input: unknown): Promise<unknown> | unknown;
-  memory_overview?(input?: unknown): Promise<unknown> | unknown;
+  record_memory(input: CodexMemoryWriteInput): Promise<unknown> | unknown;
+  search_memory(input: CodexMemorySearchInput): Promise<unknown> | unknown;
+  memory_overview?(input?: CodexMemoryOverviewInput): Promise<unknown> | unknown;
 }
 
 export interface CodexDesktopLiveHostFromHostObjectOptions
@@ -318,7 +350,7 @@ export interface CodexDesktopLiveHostBundle {
   session: unknown;
   memoryClient: unknown;
   memoryAdapter: unknown;
-  memoryOperations: unknown;
+  memoryOperations: CodexMemoryHostOperations;
 }
 
 export interface CodexDesktopLiveHostInspection {
@@ -455,7 +487,6 @@ export interface CodexDesktopRuntime {
 export type CodexDesktopBindingOptions = DesktopHostUnknownRecord;
 export type CodexDesktopBindingSession = unknown;
 export type CodexDesktopDirectiveResolvers = unknown;
-export type CodexMemoryHostOperations = unknown;
 
 function wrapDesktopHostClient(inner: InternalDesktopHostClient): DesktopHostClient {
   const client = Object.create(DesktopHostClient.prototype) as DesktopHostClient;

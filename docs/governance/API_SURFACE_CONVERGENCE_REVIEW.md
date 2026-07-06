@@ -41,6 +41,9 @@ Implemented boundary:
 - The public host wrapper also re-declares the required direct-client preflight
   fields and the camelCase desktop runtime method contract so invalid host
   objects do not type-check as complete public integrations.
+- The public host wrapper re-declares host memory operation contracts for
+  `record_memory`, `search_memory`, and optional `memory_overview` instead of
+  accepting arbitrary `unknown` operation objects.
 - `tests/public-api-surface.test.ts` locks the facade export list.
 - `tests/public-api-surface.test.ts` also generates declaration-only output for
   the public package type targets and rejects public facade declarations that
