@@ -41,6 +41,18 @@ export interface DesktopHostBridge {
   ): Promise<unknown> | unknown;
 }
 
+export interface DesktopHostPreflightContext extends DesktopHostUnknownRecord {
+  authAvailable: boolean;
+  availableTools: string[];
+  workspaceClean?: boolean;
+  protectedBranch?: boolean;
+  memoryOverview?: DesktopHostUnknownRecord;
+  requireMemoryOverview?: boolean;
+  memoryOverviewPolicy?: DesktopHostUnknownRecord;
+  memoryOverviewPolicyPack?: string;
+  memoryExecutionGuidance?: unknown;
+}
+
 export interface DesktopHostClientPersistence {
   checkpointStore?: unknown;
   auditStore?: unknown;
@@ -52,7 +64,7 @@ export interface DesktopHostClientPersistence {
 
 export interface DesktopHostClientOptions {
   policy: unknown;
-  preflight: DesktopHostUnknownRecord;
+  preflight: DesktopHostPreflightContext;
   bridge?: DesktopHostBridge;
   bridgeBindings?: DesktopHostBindings;
   persistence?: DesktopHostClientPersistence;
@@ -395,7 +407,51 @@ export interface CodexDesktopToolRuntimeOperations {
   automation_update(input: CodexDesktopAutomationUpdateInput): Promise<unknown> | unknown;
 }
 
-export type CodexDesktopRuntime = unknown;
+export interface CodexDesktopSpawnAgentRequest {
+  message: string;
+  agentType?: CodexDesktopAgentType;
+  forkContext?: boolean;
+  model?: string;
+  reasoningEffort?: "low" | "medium" | "high";
+}
+
+export interface CodexDesktopSendInputRequest {
+  target: string;
+  message: string;
+  interrupt?: boolean;
+}
+
+export interface CodexDesktopWaitAgentRequest {
+  targets: string[];
+  timeoutMs?: number;
+}
+
+export interface CodexDesktopCloseAgentRequest {
+  target: string;
+}
+
+export interface CodexDesktopShellCommandRequest {
+  command?: string;
+  structuredCommand?: CodexDesktopStructuredShellCommand;
+  justification?: string;
+  timeoutMs?: number;
+  workdir?: string;
+  login?: boolean;
+}
+
+export type CodexDesktopAutomationUpdateRequest = DesktopHostUnknownRecord;
+
+export interface CodexDesktopRuntime {
+  readThreadTerminal(): Promise<unknown> | unknown;
+  spawnAgent(input: CodexDesktopSpawnAgentRequest): Promise<unknown> | unknown;
+  sendInput(input: CodexDesktopSendInputRequest): Promise<unknown> | unknown;
+  waitAgent(input: CodexDesktopWaitAgentRequest): Promise<unknown> | unknown;
+  closeAgent(input: CodexDesktopCloseAgentRequest): Promise<unknown> | unknown;
+  automationUpdate(input: CodexDesktopAutomationUpdateRequest): Promise<unknown> | unknown;
+  shellCommand(input: CodexDesktopShellCommandRequest): Promise<unknown> | unknown;
+  applyPatch(patch: string): Promise<unknown> | unknown;
+}
+
 export type CodexDesktopBindingOptions = DesktopHostUnknownRecord;
 export type CodexDesktopBindingSession = unknown;
 export type CodexDesktopDirectiveResolvers = unknown;

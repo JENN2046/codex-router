@@ -38,6 +38,9 @@ Implemented boundary:
 - The public host wrapper keeps runtime invocation metadata (`primitive`,
   `taskId`, `reason`) required and preserves per-tool desktop runtime operation
   signatures while still hiding internal implementation types.
+- The public host wrapper also re-declares the required direct-client preflight
+  fields and the camelCase desktop runtime method contract so invalid host
+  objects do not type-check as complete public integrations.
 - `tests/public-api-surface.test.ts` locks the facade export list.
 - `tests/public-api-surface.test.ts` also generates declaration-only output for
   the public package type targets and rejects public facade declarations that
