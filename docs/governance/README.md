@@ -108,6 +108,11 @@ as historical evidence unless a current authority document links them.
   current pre-execution authorization boundary for future agent-backed
   executor adapters; this does not authorize Codex CLI, provider,
   sub-agent runtime, shell, workspace-write, or production recovery execution.
+- [Phase 15 agent executor adapter review-only closeout](PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT.md):
+  current review-only readiness boundary for future agent-backed executor
+  adapters; this validates descriptor and packet binding without invoking
+  Codex CLI, provider, sub-agent runtime, shell, workspace-write, or recovery
+  execution.
 
 ## Runner Entry Points
 

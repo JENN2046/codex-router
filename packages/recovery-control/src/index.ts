@@ -729,6 +729,170 @@ export const GovernanceOperatorActionHostExecutorAuthorizationResultSchema = z.o
   }
 });
 
+// ── Review-only agent executor adapter boundary ────────────────────────────
+
+export const GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL =
+  "APPROVE_PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_IMPLEMENTATION" as const;
+
+export const GovernanceOperatorActionAgentExecutorAdapterKindSchema = z.enum([
+  "codex_cli_adapter",
+  "sub_agent_adapter",
+  "host_runtime_adapter",
+  "sandbox_reference_adapter"
+]);
+
+export const GovernanceOperatorActionAgentExecutorAdapterDescriptorSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-agent-executor-adapter-descriptor.v1")
+    .default("governance-operator-action-agent-executor-adapter-descriptor.v1"),
+  adapterId: z.string().min(1),
+  adapterKind: GovernanceOperatorActionAgentExecutorAdapterKindSchema,
+  hostExecutorDescriptorId: z.string().min(1),
+  executionBoundary: z.literal("review_only").default("review_only"),
+  invocationSupported: z.literal(false).default(false),
+  sideEffectBoundary: z.literal("none").default("none"),
+  supportedActions: z.array(RecoveryActionSchema).min(1),
+  evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+}).superRefine((value, ctx) => {
+  if (new Set(value.supportedActions).size !== value.supportedActions.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["supportedActions"],
+      message: "operator_action_agent_executor_adapter_descriptor_duplicate_actions"
+    });
+  }
+});
+
+export const GovernanceOperatorActionAgentExecutorAdapterReviewPacketSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-agent-executor-adapter-review-packet.v1")
+    .default("governance-operator-action-agent-executor-adapter-review-packet.v1"),
+  approvalString: z.literal(
+    GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL
+  ),
+  taskId: z.string().min(1),
+  actionRef: z.string().min(1),
+  receiptId: z.string().min(1),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+  recommendedAction: RecoveryActionSchema,
+  executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+  checkpointRef: z.string().min(1).optional(),
+  hostExecutorDescriptorId: z.string().min(1),
+  hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+  authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+  adapterId: z.string().min(1),
+  adapterKind: GovernanceOperatorActionAgentExecutorAdapterKindSchema,
+  adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+  executionBoundary: z.literal("review_only").default("review_only"),
+  invocationSupported: z.literal(false).default(false),
+  evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+}).superRefine((value, ctx) => {
+  if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_agent_executor_adapter_review_checkpoint_required"
+    });
+  }
+
+  if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["checkpointRef"],
+      message: "operator_action_agent_executor_adapter_review_checkpoint_not_allowed"
+    });
+  }
+});
+
+export const GovernanceOperatorActionAgentExecutorAdapterReviewResultSchema = z.object({
+  schemaVersion: z.literal("governance-operator-action-agent-executor-adapter-review.v1")
+    .default("governance-operator-action-agent-executor-adapter-review.v1"),
+  status: z.enum(["ready_for_agent_executor_adapter_review", "blocked"]),
+  reasons: z.array(z.string()).default([]),
+  approvalString: z.literal(
+    GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL
+  ).optional(),
+  taskId: z.string().min(1).optional(),
+  actionRef: z.string().min(1).optional(),
+  receiptId: z.string().min(1).optional(),
+  envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  recommendedAction: RecoveryActionSchema.optional(),
+  executionMode: GovernanceOperatorActionExecutionModeSchema.optional(),
+  executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  checkpointRef: z.string().min(1).optional(),
+  hostExecutorDescriptorId: z.string().min(1).optional(),
+  hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  adapterId: z.string().min(1).optional(),
+  adapterKind: GovernanceOperatorActionAgentExecutorAdapterKindSchema.optional(),
+  adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  executionBoundary: z.literal("review_only").optional(),
+  invocationSupported: z.literal(false).optional(),
+  evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+  operatorInstruction: z.string().min(1).optional()
+}).superRefine((value, ctx) => {
+  if (value.status === "ready_for_agent_executor_adapter_review") {
+    if (value.reasons.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reasons"],
+        message: "operator_action_agent_executor_adapter_ready_requires_no_reasons"
+      });
+    }
+
+    for (const field of [
+      "approvalString",
+      "taskId",
+      "actionRef",
+      "receiptId",
+      "envelopeHash",
+      "recommendedAction",
+      "executionMode",
+      "executionPlanHash",
+      "hostExecutorDescriptorId",
+      "hostExecutorDescriptorHash",
+      "authorizationIdentityHash",
+      "adapterId",
+      "adapterKind",
+      "adapterDescriptorHash",
+      "executionBoundary",
+      "invocationSupported",
+      "operatorInstruction"
+    ] as const) {
+      if (value[field] === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: "operator_action_agent_executor_adapter_ready_requires_field"
+        });
+      }
+    }
+
+    if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_agent_executor_adapter_ready_checkpoint_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_agent_executor_adapter_ready_checkpoint_not_allowed"
+      });
+    }
+    return;
+  }
+
+  if (value.reasons.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reasons"],
+      message: "operator_action_agent_executor_adapter_block_requires_reasons"
+    });
+  }
+});
+
 // ── Explicit host executor dispatch boundary ───────────────────────────────
 
 export const GovernanceOperatorActionHostExecutorDispatchModeSchema = z.enum([
@@ -1181,6 +1345,13 @@ export type GovernanceOperatorActionHostExecutorAuthorizationPacketInput = z.inp
 export type GovernanceOperatorActionHostExecutorAuthorizationPacket = z.infer<typeof GovernanceOperatorActionHostExecutorAuthorizationPacketSchema>;
 export type GovernanceOperatorActionHostExecutorAuthorizationResultInput = z.input<typeof GovernanceOperatorActionHostExecutorAuthorizationResultSchema>;
 export type GovernanceOperatorActionHostExecutorAuthorizationResult = z.infer<typeof GovernanceOperatorActionHostExecutorAuthorizationResultSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterKind = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterKindSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterDescriptorInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterDescriptorSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterDescriptor = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterDescriptorSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterReviewPacketInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterReviewPacketSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterReviewPacket = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterReviewPacketSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterReviewResultInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterReviewResultSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterReviewResult = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterReviewResultSchema>;
 export type GovernanceOperatorActionHostExecutorDispatchMode = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchModeSchema>;
 export type GovernanceOperatorActionHostExecutorDispatchInvocationInput = z.input<typeof GovernanceOperatorActionHostExecutorDispatchInvocationSchema>;
 export type GovernanceOperatorActionHostExecutorDispatchInvocation = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchInvocationSchema>;
@@ -1236,6 +1407,16 @@ export interface AuthorizeGovernanceOperatorActionHostExecutorReviewInput {
   lifecycleState?: unknown;
   authorizationPacket?: unknown;
   hostExecutorDescriptor?: unknown;
+}
+
+export interface ReviewGovernanceOperatorActionAgentExecutorAdapterReadinessInput {
+  executionGate: unknown;
+  lifecycleState?: unknown;
+  authorizationPacket?: unknown;
+  hostExecutorDescriptor?: unknown;
+  hostExecutorAuthorization?: unknown;
+  adapterDescriptor?: unknown;
+  adapterReviewPacket?: unknown;
 }
 
 export interface GovernanceOperatorActionHostExecutorDispatchExecutor {
@@ -2120,6 +2301,14 @@ export function hashGovernanceOperatorActionHostExecutorDescriptor(
   );
 }
 
+export function hashGovernanceOperatorActionAgentExecutorAdapterDescriptor(
+  descriptor: GovernanceOperatorActionAgentExecutorAdapterDescriptorInput
+): string {
+  return stableSha256(
+    GovernanceOperatorActionAgentExecutorAdapterDescriptorSchema.parse(descriptor)
+  );
+}
+
 export function authorizeGovernanceOperatorActionHostExecutorReview(
   input: AuthorizeGovernanceOperatorActionHostExecutorReviewInput
 ): GovernanceOperatorActionHostExecutorAuthorizationResult {
@@ -2231,6 +2420,163 @@ export function authorizeGovernanceOperatorActionHostExecutorReview(
     evidenceRefs: uniqueStrings([...packet.evidenceRefs, ...descriptor.evidenceRefs]),
     operatorInstruction:
       `Non-executing host executor review accepted ${gate.recommendedAction}; a separate explicit dispatch authorization is required for any side effect.`
+  });
+}
+
+export function reviewGovernanceOperatorActionAgentExecutorAdapterReadiness(
+  input: ReviewGovernanceOperatorActionAgentExecutorAdapterReadinessInput
+): GovernanceOperatorActionAgentExecutorAdapterReviewResult {
+  const review = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: input.executionGate,
+    lifecycleState: input.lifecycleState,
+    ...(input.authorizationPacket !== undefined
+      ? { authorizationPacket: input.authorizationPacket }
+      : {}),
+    ...(input.hostExecutorDescriptor !== undefined
+      ? { hostExecutorDescriptor: input.hostExecutorDescriptor }
+      : {})
+  });
+  const reasons: string[] = [];
+
+  let authorization: GovernanceOperatorActionHostExecutorAuthorizationResult | undefined;
+  if (input.hostExecutorAuthorization === undefined) {
+    addUniqueReason(reasons, "operator_action_agent_executor_adapter_authorization_required");
+  } else {
+    const parsedAuthorization =
+      GovernanceOperatorActionHostExecutorAuthorizationResultSchema.safeParse(
+        input.hostExecutorAuthorization
+      );
+    if (parsedAuthorization.success) {
+      authorization = parsedAuthorization.data;
+      if (authorization.status !== "ready_for_host_executor_review") {
+        addUniqueReason(reasons, "operator_action_agent_executor_adapter_authorization_not_ready");
+      }
+    } else {
+      addUniqueReason(reasons, "operator_action_agent_executor_adapter_authorization_invalid");
+    }
+  }
+
+  let adapterDescriptor: GovernanceOperatorActionAgentExecutorAdapterDescriptor | undefined;
+  let adapterDescriptorHash: string | undefined;
+  if (input.adapterDescriptor === undefined) {
+    addUniqueReason(reasons, "operator_action_agent_executor_adapter_descriptor_required");
+  } else {
+    const parsedDescriptor =
+      GovernanceOperatorActionAgentExecutorAdapterDescriptorSchema.safeParse(
+        input.adapterDescriptor
+      );
+    if (parsedDescriptor.success) {
+      adapterDescriptor = parsedDescriptor.data;
+      adapterDescriptorHash =
+        hashGovernanceOperatorActionAgentExecutorAdapterDescriptor(adapterDescriptor);
+      if (
+        review.recommendedAction !== undefined &&
+        !adapterDescriptor.supportedActions.includes(review.recommendedAction)
+      ) {
+        addUniqueReason(reasons, "operator_action_agent_executor_adapter_action_not_supported");
+      }
+      if (
+        review.hostExecutorDescriptorId !== undefined &&
+        adapterDescriptor.hostExecutorDescriptorId !== review.hostExecutorDescriptorId
+      ) {
+        addUniqueReason(
+          reasons,
+          "operator_action_agent_executor_adapter_host_descriptor_id_mismatch"
+        );
+      }
+    } else {
+      addUniqueReason(reasons, "operator_action_agent_executor_adapter_descriptor_invalid");
+    }
+  }
+
+  let adapterReviewPacket: GovernanceOperatorActionAgentExecutorAdapterReviewPacket | undefined;
+  if (input.adapterReviewPacket === undefined) {
+    addUniqueReason(reasons, "operator_action_agent_executor_adapter_review_packet_required");
+  } else {
+    const parsedPacket =
+      GovernanceOperatorActionAgentExecutorAdapterReviewPacketSchema.safeParse(
+        input.adapterReviewPacket
+      );
+    if (parsedPacket.success) {
+      adapterReviewPacket = parsedPacket.data;
+    } else {
+      addUniqueReason(reasons, "operator_action_agent_executor_adapter_review_packet_invalid");
+    }
+  }
+
+  if (review.status !== "ready_for_host_executor_review") {
+    addUniqueReason(reasons, "operator_action_agent_executor_adapter_review_not_ready");
+    for (const reason of review.reasons) {
+      addUniqueReason(reasons, reason);
+    }
+  }
+
+  if (authorization !== undefined && review.status === "ready_for_host_executor_review") {
+    addAgentExecutorAdapterAuthorizationReasons(reasons, {
+      authorization,
+      review
+    });
+  }
+
+  if (
+    adapterReviewPacket !== undefined &&
+    review.status === "ready_for_host_executor_review"
+  ) {
+    addAgentExecutorAdapterReviewPacketReasons(reasons, {
+      packet: adapterReviewPacket,
+      review,
+      ...(adapterDescriptor !== undefined ? { adapterDescriptor } : {}),
+      ...(adapterDescriptorHash !== undefined ? { adapterDescriptorHash } : {})
+    });
+  }
+
+  if (
+    reasons.length > 0 ||
+    authorization === undefined ||
+    authorization.status !== "ready_for_host_executor_review" ||
+    review.status !== "ready_for_host_executor_review" ||
+    adapterDescriptor === undefined ||
+    adapterDescriptorHash === undefined ||
+    adapterReviewPacket === undefined
+  ) {
+    return createBlockedOperatorActionAgentExecutorAdapterReviewResult(reasons, {
+      review,
+      ...(authorization !== undefined ? { authorization } : {}),
+      ...(adapterDescriptor !== undefined ? { adapterDescriptor } : {}),
+      ...(adapterDescriptorHash !== undefined ? { adapterDescriptorHash } : {}),
+      ...(adapterReviewPacket !== undefined ? { adapterReviewPacket } : {})
+    });
+  }
+
+  const evidenceRefs = uniqueStrings([
+    ...review.evidenceRefs,
+    ...adapterDescriptor.evidenceRefs,
+    ...adapterReviewPacket.evidenceRefs
+  ]);
+
+  return GovernanceOperatorActionAgentExecutorAdapterReviewResultSchema.parse({
+    status: "ready_for_agent_executor_adapter_review",
+    reasons: [],
+    approvalString: GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL,
+    taskId: review.taskId,
+    actionRef: review.actionRef,
+    receiptId: review.receiptId,
+    envelopeHash: review.envelopeHash,
+    recommendedAction: review.recommendedAction,
+    executionMode: review.executionMode,
+    executionPlanHash: review.executionPlanHash,
+    ...(review.checkpointRef !== undefined ? { checkpointRef: review.checkpointRef } : {}),
+    hostExecutorDescriptorId: review.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: review.hostExecutorDescriptorHash,
+    authorizationIdentityHash: review.authorizationIdentityHash,
+    adapterId: adapterDescriptor.adapterId,
+    adapterKind: adapterDescriptor.adapterKind,
+    adapterDescriptorHash,
+    executionBoundary: "review_only",
+    invocationSupported: false,
+    evidenceRefs,
+    operatorInstruction:
+      `Review-only agent executor adapter readiness accepted ${review.recommendedAction}; no Codex CLI, sub-agent runtime, provider, shell, workspace-write, or recovery action was invoked.`
   });
 }
 
@@ -2619,6 +2965,70 @@ function createBlockedOperatorActionHostExecutorAuthorizationResult(
   });
 }
 
+function createBlockedOperatorActionAgentExecutorAdapterReviewResult(
+  reasons: string[],
+  context: {
+    review?: GovernanceOperatorActionHostExecutorAuthorizationResult;
+    authorization?: GovernanceOperatorActionHostExecutorAuthorizationResult;
+    adapterDescriptor?: GovernanceOperatorActionAgentExecutorAdapterDescriptor;
+    adapterDescriptorHash?: string;
+    adapterReviewPacket?: GovernanceOperatorActionAgentExecutorAdapterReviewPacket;
+  } = {}
+): GovernanceOperatorActionAgentExecutorAdapterReviewResult {
+  const source = context.review ?? context.authorization;
+
+  return GovernanceOperatorActionAgentExecutorAdapterReviewResultSchema.parse({
+    status: "blocked",
+    reasons: reasons.length > 0
+      ? [...new Set(reasons)]
+      : ["operator_action_agent_executor_adapter_blocked"],
+    approvalString:
+      context.adapterReviewPacket?.approvalString ??
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL,
+    ...(source?.taskId !== undefined ? { taskId: source.taskId } : {}),
+    ...(source?.actionRef !== undefined ? { actionRef: source.actionRef } : {}),
+    ...(source?.receiptId !== undefined ? { receiptId: source.receiptId } : {}),
+    ...(source?.envelopeHash !== undefined ? { envelopeHash: source.envelopeHash } : {}),
+    ...(source?.recommendedAction !== undefined ? { recommendedAction: source.recommendedAction } : {}),
+    ...(source?.executionMode !== undefined ? { executionMode: source.executionMode } : {}),
+    ...(source?.executionPlanHash !== undefined ? { executionPlanHash: source.executionPlanHash } : {}),
+    ...(source?.checkpointRef !== undefined ? { checkpointRef: source.checkpointRef } : {}),
+    ...(source?.hostExecutorDescriptorId !== undefined
+      ? { hostExecutorDescriptorId: source.hostExecutorDescriptorId }
+      : {}),
+    ...(source?.hostExecutorDescriptorHash !== undefined
+      ? { hostExecutorDescriptorHash: source.hostExecutorDescriptorHash }
+      : {}),
+    ...(source?.authorizationIdentityHash !== undefined
+      ? { authorizationIdentityHash: source.authorizationIdentityHash }
+      : {}),
+    ...(context.adapterDescriptor !== undefined
+      ? { adapterId: context.adapterDescriptor.adapterId }
+      : context.adapterReviewPacket !== undefined
+        ? { adapterId: context.adapterReviewPacket.adapterId }
+        : {}),
+    ...(context.adapterDescriptor !== undefined
+      ? { adapterKind: context.adapterDescriptor.adapterKind }
+      : context.adapterReviewPacket !== undefined
+        ? { adapterKind: context.adapterReviewPacket.adapterKind }
+        : {}),
+    ...(context.adapterDescriptorHash !== undefined
+      ? { adapterDescriptorHash: context.adapterDescriptorHash }
+      : context.adapterReviewPacket !== undefined
+        ? { adapterDescriptorHash: context.adapterReviewPacket.adapterDescriptorHash }
+        : {}),
+    ...(context.adapterDescriptor !== undefined || context.adapterReviewPacket !== undefined
+      ? { executionBoundary: "review_only" as const, invocationSupported: false as const }
+      : {}),
+    evidenceRefs: uniqueStrings([
+      ...(context.review?.evidenceRefs ?? []),
+      ...(context.authorization?.evidenceRefs ?? []),
+      ...(context.adapterDescriptor?.evidenceRefs ?? []),
+      ...(context.adapterReviewPacket?.evidenceRefs ?? [])
+    ])
+  });
+}
+
 function createOperatorActionHostExecutorDispatchInvocation(input: {
   review: GovernanceOperatorActionHostExecutorAuthorizationResult;
   dispatchMode: GovernanceOperatorActionHostExecutorDispatchMode;
@@ -2868,6 +3278,162 @@ function addHostExecutorDispatchAuthorizationReasons(
 
   for (const binding of bindings) {
     if (binding.authorizationValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
+}
+
+function addAgentExecutorAdapterAuthorizationReasons(
+  reasons: string[],
+  input: {
+    authorization: GovernanceOperatorActionHostExecutorAuthorizationResult;
+    review: GovernanceOperatorActionHostExecutorAuthorizationResult;
+  }
+): void {
+  const bindings = [
+    {
+      authorizationValue: input.authorization.taskId,
+      expectedValue: input.review.taskId,
+      reason: "operator_action_agent_executor_adapter_authorization_task_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.actionRef,
+      expectedValue: input.review.actionRef,
+      reason: "operator_action_agent_executor_adapter_authorization_action_ref_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.receiptId,
+      expectedValue: input.review.receiptId,
+      reason: "operator_action_agent_executor_adapter_authorization_receipt_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.envelopeHash,
+      expectedValue: input.review.envelopeHash,
+      reason: "operator_action_agent_executor_adapter_authorization_envelope_hash_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.recommendedAction,
+      expectedValue: input.review.recommendedAction,
+      reason: "operator_action_agent_executor_adapter_authorization_recommended_action_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.executionMode,
+      expectedValue: input.review.executionMode,
+      reason: "operator_action_agent_executor_adapter_authorization_execution_mode_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.executionPlanHash,
+      expectedValue: input.review.executionPlanHash,
+      reason: "operator_action_agent_executor_adapter_authorization_plan_hash_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.checkpointRef,
+      expectedValue: input.review.checkpointRef,
+      reason: "operator_action_agent_executor_adapter_authorization_checkpoint_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.hostExecutorDescriptorId,
+      expectedValue: input.review.hostExecutorDescriptorId,
+      reason: "operator_action_agent_executor_adapter_authorization_descriptor_id_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.hostExecutorDescriptorHash,
+      expectedValue: input.review.hostExecutorDescriptorHash,
+      reason: "operator_action_agent_executor_adapter_authorization_descriptor_hash_mismatch"
+    },
+    {
+      authorizationValue: input.authorization.authorizationIdentityHash,
+      expectedValue: input.review.authorizationIdentityHash,
+      reason: "operator_action_agent_executor_adapter_authorization_identity_mismatch"
+    }
+  ];
+
+  for (const binding of bindings) {
+    if (binding.authorizationValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
+}
+
+function addAgentExecutorAdapterReviewPacketReasons(
+  reasons: string[],
+  input: {
+    packet: GovernanceOperatorActionAgentExecutorAdapterReviewPacket;
+    review: GovernanceOperatorActionHostExecutorAuthorizationResult;
+    adapterDescriptor?: GovernanceOperatorActionAgentExecutorAdapterDescriptor;
+    adapterDescriptorHash?: string;
+  }
+): void {
+  const bindings = [
+    {
+      packetValue: input.packet.taskId,
+      expectedValue: input.review.taskId,
+      reason: "operator_action_agent_executor_adapter_packet_task_mismatch"
+    },
+    {
+      packetValue: input.packet.actionRef,
+      expectedValue: input.review.actionRef,
+      reason: "operator_action_agent_executor_adapter_packet_action_ref_mismatch"
+    },
+    {
+      packetValue: input.packet.receiptId,
+      expectedValue: input.review.receiptId,
+      reason: "operator_action_agent_executor_adapter_packet_receipt_mismatch"
+    },
+    {
+      packetValue: input.packet.envelopeHash,
+      expectedValue: input.review.envelopeHash,
+      reason: "operator_action_agent_executor_adapter_packet_envelope_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.recommendedAction,
+      expectedValue: input.review.recommendedAction,
+      reason: "operator_action_agent_executor_adapter_packet_recommended_action_mismatch"
+    },
+    {
+      packetValue: input.packet.executionPlanHash,
+      expectedValue: input.review.executionPlanHash,
+      reason: "operator_action_agent_executor_adapter_packet_plan_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.checkpointRef,
+      expectedValue: input.review.checkpointRef,
+      reason: "operator_action_agent_executor_adapter_packet_checkpoint_mismatch"
+    },
+    {
+      packetValue: input.packet.hostExecutorDescriptorId,
+      expectedValue: input.review.hostExecutorDescriptorId,
+      reason: "operator_action_agent_executor_adapter_packet_host_descriptor_id_mismatch"
+    },
+    {
+      packetValue: input.packet.hostExecutorDescriptorHash,
+      expectedValue: input.review.hostExecutorDescriptorHash,
+      reason: "operator_action_agent_executor_adapter_packet_host_descriptor_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.authorizationIdentityHash,
+      expectedValue: input.review.authorizationIdentityHash,
+      reason: "operator_action_agent_executor_adapter_packet_identity_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterId,
+      expectedValue: input.adapterDescriptor?.adapterId,
+      reason: "operator_action_agent_executor_adapter_packet_adapter_id_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterKind,
+      expectedValue: input.adapterDescriptor?.adapterKind,
+      reason: "operator_action_agent_executor_adapter_packet_adapter_kind_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterDescriptorHash,
+      expectedValue: input.adapterDescriptorHash,
+      reason: "operator_action_agent_executor_adapter_packet_descriptor_hash_mismatch"
+    }
+  ];
+
+  for (const binding of bindings) {
+    if (binding.packetValue !== binding.expectedValue) {
       addUniqueReason(reasons, binding.reason);
     }
   }

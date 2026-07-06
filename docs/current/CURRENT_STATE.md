@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `cf1ccab83c9faa495c5dbca4d71f6829739ef631482280a8841ddc9274ef388a`
+  `a8cce95c5340b5056262c828c0cf12864879255580ee26d182f64f08599657ba`
 
 Source digest excluded paths:
 
@@ -121,6 +121,12 @@ Current repository governance status:
   it defines future adapter packet, pre-execution review, rollback expectation,
   and exact approval strings without authorizing Codex CLI, provider,
   sub-agent runtime, shell, workspace-write, or production recovery execution.
+- Phase 15 agent executor adapter review-only readiness is closed out in
+  `docs/governance/PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT.md`;
+  it implements review-only adapter descriptor, packet, hash, and readiness
+  review surfaces without adapter invocation, Codex CLI, provider,
+  sub-agent runtime, shell, workspace-write, external write, or production
+  recovery execution.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -264,10 +270,16 @@ Codex CLI adapter, provider adapter, shell/process executor, external write,
 workspace-write, or production recovery execution.
 The Phase 15 agent executor adapter authorization taskbook is recorded at
 `docs/governance/PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK.md`;
-it defines future adapter pre-execution requirements without adding an adapter,
-Codex CLI invocation, provider invocation, sub-agent runtime invocation,
-shell/process execution, external write, workspace-write, or production
-recovery execution.
+it defines future adapter pre-execution requirements and exact approval
+strings without authorizing Codex CLI invocation, provider invocation,
+sub-agent runtime invocation, shell/process execution, external write,
+workspace-write, or production recovery execution.
+The Phase 15 agent executor adapter review-only closeout is recorded at
+`docs/governance/PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT.md`;
+it implements review-only adapter descriptor, packet, hash, and readiness
+review surfaces without adding adapter invocation, Codex CLI invocation,
+provider invocation, sub-agent runtime invocation, shell/process execution,
+external write, workspace-write, or production recovery execution.
 
 Boundary audit marker:
 
@@ -280,6 +292,7 @@ Boundary audit marker:
 - `PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY_RECORDED`
 - `PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT_RECORDED`
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK_RECORDED`
+- `PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT_RECORDED`
 
 Blocked capabilities:
 

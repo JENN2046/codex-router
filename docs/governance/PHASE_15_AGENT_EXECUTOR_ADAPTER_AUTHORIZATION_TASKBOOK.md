@@ -31,6 +31,24 @@ Allowed in this line:
 - add review-only schemas or tests if needed;
 - keep the default runtime posture non-executing.
 
+## Implemented Review-Only Readiness
+
+`APPROVE_PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_IMPLEMENTATION` authorizes
+only the review-only readiness surface. That surface is now implemented as
+schema and policy review in `packages/recovery-control`.
+
+The implemented boundary can validate:
+
+- a review-only agent executor adapter descriptor;
+- a review-only adapter packet carrying the exact approval string;
+- binding to a ready Phase 11 host executor authorization result;
+- adapter descriptor hash and action support;
+- sanitized evidence refs.
+
+The implemented boundary still cannot call an adapter. It exposes no Codex CLI,
+sub-agent runtime, provider, shell, process, workspace-write, or recovery-action
+invocation path.
+
 ## Still Blocked
 
 This taskbook does not authorize:
@@ -166,12 +184,24 @@ Phase 15 taskbook work is complete when:
 4. validation passes without real Codex CLI, provider, shell, workspace-write,
    external write, release, publish, deploy, tag, or secret access.
 
+Phase 15 review-only readiness implementation is complete when:
+
+1. `packages/recovery-control` exposes review-only adapter descriptor, packet,
+   result, hash, and readiness review surfaces;
+2. the readiness review requires a ready Phase 11 host executor authorization;
+3. adapter invocation remains unsupported by schema;
+4. wrong approval strings, descriptor drift, unsupported actions, and unsafe
+   invocation claims fail closed;
+5. validation passes without real Codex CLI, provider, sub-agent runtime, shell,
+   workspace-write, external write, release, publish, deploy, tag, or secret
+   access.
+
 ## Next Stop
 
-The next safe implementation line is review-only adapter readiness:
+The next safe execution-adjacent stop is the sandbox-only adapter contract run:
 
 ```text
-APPROVE_PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_IMPLEMENTATION
+APPROVE_PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_RUN
 ```
 
 Any actual sandbox contract run, Codex-backed adapter, sub-agent-backed adapter,
