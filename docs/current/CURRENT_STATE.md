@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `d8e06792e06e0c7c317597289421563dd28d0fca6bc158e3c1322f0100f498f1`
+  `9dbd7c3432a3d1daff516fe31d2229bd5a06e573573cc4bf9821b2024e7c7533`
 
 Source digest excluded paths:
 
@@ -132,6 +132,13 @@ Current repository governance status:
   it implements an explicitly injected sandbox reference adapter contract
   witness with sanitized audit and sandbox-contained test artifacts, without
   Codex CLI, provider, sub-agent runtime, shell, real workspace-write, external
+  write, or production recovery execution.
+- Phase 16 agent executor adapter dispatch authorization is recorded in
+  `docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_TASKBOOK.md`;
+  it defines future adapter dispatch authorization packets, dispatch classes,
+  side-effect classes, audit, receipt, scope, and fail-closed requirements
+  without implementing adapter dispatch or authorizing Codex CLI, provider,
+  sub-agent runtime, shell/process execution, real workspace-write, external
   write, or production recovery execution.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
@@ -293,6 +300,15 @@ injection, sanitized audit, packet/readiness binding, and sandbox-contained
 test artifacts without adding Codex CLI invocation, provider invocation,
 sub-agent runtime invocation, shell/process execution, real workspace-write,
 external write, or production recovery execution.
+The Phase 16 agent executor adapter dispatch authorization taskbook is recorded
+at
+`docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_TASKBOOK.md`;
+it defines future dispatch authorization requirements for adapter packets,
+dispatch classes, side-effect classes, audit, receipts, scope, and fail-closed
+behavior without implementing adapter dispatch or authorizing Codex CLI
+invocation, provider invocation, sub-agent runtime invocation, shell/process
+execution, real workspace-write, external write, or production recovery
+execution.
 
 Boundary audit marker:
 
@@ -307,6 +323,7 @@ Boundary audit marker:
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK_RECORDED`
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT_RECORDED`
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT_RECORDED`
+- `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_TASKBOOK_RECORDED`
 
 Blocked capabilities:
 
