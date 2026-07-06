@@ -40,6 +40,9 @@ as historical evidence unless a current authority document links them.
   current source-level review of product APIs, extension contracts, internal
   governance implementation modules, and recommended facade boundaries; this is
   not an API change.
+- [API testing and diagnostics surface plan](API_TESTING_DIAGNOSTICS_SURFACE_PLAN.md):
+  narrow follow-up decision keeping `./testing` and `./diagnostics` closed until
+  separate curation; this is not a new public export.
 - [PR-22A controlled provider execution taskbook](PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md):
   local-only planning line for the next controlled provider execution slice;
   this is not execution authorization.

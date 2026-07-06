@@ -23,7 +23,9 @@ package directories under the same naming convention. Phase D has applied the
 support/SPI review: `redaction` is internalized, while observability, artifact
 store, kernel store, and tool registry are retained as support modules. Phase E
 adds an explicit public support SPI facade for those retained modules. Phase F
-adds a root package export map for the implemented public facades.
+adds a root package export map for the implemented public facades. Phase G
+records the narrow testing/diagnostics review and keeps `./testing` and
+`./diagnostics` closed pending separate curation.
 
 Implemented boundary:
 
@@ -50,6 +52,8 @@ Implemented boundary:
   - `./support`
 - The root export map intentionally does not expose `./testing`,
   `./diagnostics`, raw `packages/*` paths, or governance-internal modules.
+- `docs/governance/API_TESTING_DIAGNOSTICS_SURFACE_PLAN.md` records the
+  follow-up decision that `./testing` and `./diagnostics` remain closed for now.
 - The support SPI facade exposes only curated telemetry, artifact store, kernel
   store, and tool registry contracts. It does not use `export *`.
 - The support SPI facade intentionally excludes preflight-specific telemetry
@@ -103,8 +107,9 @@ Not yet implemented:
 
 - removal of existing `packages/*/src/index.ts` exports;
 - migration pressure on downstream consumers.
-- `./testing` and `./diagnostics` package exports, because those facades need
-  separate curation before they should become public entrypoints.
+- any future `./testing` and `./diagnostics` package exports, because the
+  current review decided those facades must remain closed until separately
+  curated.
 
 Those steps remain staged for follow-up PRs.
 
@@ -229,15 +234,17 @@ re-exported.
 
 ### Examples, diagnostics, and testing surfaces
 
-These should remain outside the default product API. They can be available
-through a separate testing or diagnostics entrypoint.
+These should remain outside the default product API. The narrow follow-up in
+`API_TESTING_DIAGNOSTICS_SURFACE_PLAN.md` decided that `./testing` and
+`./diagnostics` should not be opened in the current convergence line.
 
 | Surface | Classification |
 |---|---|
 | `host-client-example` | Example only. |
-| fake providers / skeleton providers | Testing and examples only. |
-| smoke helpers | Diagnostics only. |
-| evidence collection helpers | Diagnostics / governance validation only. |
+| fake providers / fake transports | Internal tests and package-local examples only. |
+| protocol skeleton providers | Curated protocol facade only when disabled and non-executing. |
+| smoke helpers | Diagnostics-internal script/runbook surface only. |
+| evidence collection helpers | Diagnostics / governance validation only; not root public API. |
 | sandbox reference executors | Contract proof fixtures only; not production executor APIs. |
 
 ## Recommended Public Shape
@@ -252,9 +259,10 @@ look like this:
 ./protocol
 ./provider
 ./support
-./testing
-./diagnostics
 ```
+
+Potential future `./testing` and `./diagnostics` facades are closed by default
+and require separate curation before they can become public entrypoints.
 
 Recommended facade responsibilities:
 
@@ -265,8 +273,8 @@ Recommended facade responsibilities:
 | `./protocol` | canonical kernel contracts, MCP/A2A public protocol converters. | Local runtime implementation details and legacy adapters by default. |
 | `./provider` | provider manifest schemas, provider interfaces, provider registry setup. | Execution runner internals and permit lifecycle internals. |
 | `./support` | telemetry sink contracts, storage SPI, artifact store SPI, kernel store SPI, and curated tool registry contracts. | Redaction internals, JSONL event log internals, preflight-specific telemetry builders, and default tool manifests. |
-| `./testing` | fake providers, contract witnesses, fixtures. | Production-facing entrypoints. |
-| `./diagnostics` | smoke, preflight, and evidence helpers. | Default SDK path. |
+| future `./testing` | Only separately curated pure in-memory builders, schema sample factories, or disabled contract witnesses. | Current fake providers, fake transports, test fixtures, sandbox reference executors, examples, production-facing entrypoints. |
+| future `./diagnostics` | Only separately curated non-executing validators, summary formatters, or sanitized evidence schema readers. | Smoke runners, canaries, model probes, preflight probes, evidence writers, script re-exports, default SDK path. |
 
 Example target imports:
 
@@ -281,7 +289,7 @@ import { createRecordingTelemetrySink, InMemoryKernelStore } from "codex-router/
 ## Recommended Convergence Sequence
 
 1. Create explicit public facade modules for SDK, host, protocol, provider,
-   and support. Testing and diagnostics remain future curation work.
+   and support. Testing and diagnostics remain closed pending separate curation.
 2. Add public export lock tests for each implemented facade, following the existing
    `codex-cli-host` export lock pattern.
 3. Promote `kernel-contracts` as the canonical public contract surface.
@@ -305,6 +313,8 @@ slice:
 - no Codex CLI execution;
 - no workspace-write execution;
 - no public contract removal without compatibility review;
+- no public `./testing` or `./diagnostics` export without a separate curation
+  PR;
 - no broad module rename;
 - no migration that forces downstream callers before a facade exists.
 
@@ -335,5 +345,5 @@ It should not present every governance package as a public product API.
 The governance kernel can remain modular internally, but external consumers
 should not need to depend on recovery lifecycle internals, execution guard
 implementations, state reducers, risk scoring internals, checkpoint ledgers, or
-diagnostic helpers unless they intentionally opt into an advanced or testing
-surface.
+diagnostic helpers. Any future advanced testing or diagnostics surface requires
+a separate curated facade decision.
