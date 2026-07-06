@@ -104,6 +104,10 @@ as historical evidence unless a current authority document links them.
   current boundary for executor receipt status normalization across
   `accepted`, `running`, `completed`, `failed`, `refused`, and `aborted`;
   this is not real recovery-action execution authorization.
+- [Phase 15 agent executor adapter authorization taskbook](PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK.md):
+  current pre-execution authorization boundary for future agent-backed
+  executor adapters; this does not authorize Codex CLI, provider,
+  sub-agent runtime, shell, workspace-write, or production recovery execution.
 
 ## Runner Entry Points
 

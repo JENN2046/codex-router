@@ -52,6 +52,7 @@ authority is expressed by:
 - [Phase 13 Operator Action Host Executor Dispatch Closeout](PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT.md);
 - [Phase 13 Agent-Backed Recovery Executor Boundary](PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY.md);
 - [Phase 14 Agent Executor Receipt Contract](PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT.md);
+- [Phase 15 Agent Executor Adapter Authorization Taskbook](PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK.md);
 - executable checks exposed through `npm run governance -- list`;
 - the structured state-sync claim at `docs/current/state-sync-record.json`.
 
@@ -87,6 +88,7 @@ authority is expressed by:
 | `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT.md` | Operator action host executor dispatch closeout | Current human authority for the implemented dry-run and explicit injected-executor dispatch boundary; real recovery dispatch remains blocked by default. |
 | `PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY.md` | Agent-backed recovery executor boundary | Current human authority for host-provided / agent-backed recovery executor semantics and sandbox-only contract proof; not production recovery execution authorization. |
 | `PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT.md` | Agent executor receipt contract | Current human authority for non-executing executor receipt status normalization; not real recovery execution authorization. |
+| `PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK.md` | Agent executor adapter authorization taskbook | Current human authority for future adapter pre-execution review requirements; not Codex CLI, provider, sub-agent runtime, shell, workspace-write, or production recovery execution authorization. |
 | `PR_*`, `FUTURE_*`, closeouts, packets | Historical evidence | Evidence only unless linked by a current authority document. |
 
 ## Capability Status
@@ -105,6 +107,7 @@ authority is expressed by:
 | Runtime operator action host executor dispatch | active / guarded | No by default | Phase 13 adds dry-run and explicit injected-executor dispatch control. Repository validation uses fake injected executors only; real `resume`, `rollback`, `abort`, or `fork` dispatch remains a separate authorization stop. |
 | Agent-backed recovery executor boundary | active / sandbox proof only | No production execution | Phase 13 follow-up defines host-provided / agent-backed executor semantics and a sandbox-only reference executor contract proof. It does not add business recovery logic, Codex CLI, provider, shell, external write, or arbitrary workspace-write execution. |
 | Agent executor receipt contract | active / non-executing | No | Phase 14 normalizes injected executor receipt statuses as `accepted`, `running`, `completed`, `failed`, `refused`, or `aborted` with sanitized reason codes and refs. It does not add an executor adapter, Codex CLI invocation, provider call, shell/process execution, external write, or workspace-write execution. |
+| Agent executor adapter authorization | active / taskbook only | No | Phase 15 records future adapter packet, pre-execution review, rollback expectation, and exact approval strings. It does not authorize Codex CLI, provider, sub-agent runtime, shell/process execution, external write, workspace-write, or production recovery execution. |
 | Controlled read-only real execution | guarded / productized | Yes, narrow | Requires [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md), [PR-23B minimal slice](PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md), [PR-23C evidence binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md), explicit controlled mode, injected execution dependency, permit/preflight metadata, stable evidence refs/hashes, and no hidden provider path. |
 | Workspace-write fake canary | guarded | No | Validates permit v2, patch guard, rollback evidence, and replay blocking without real host writes. |
 | Workspace-write real canary | experimental / blocked by default | No by default | Requires [workspace-write release gate](WORKSPACE_WRITE_RELEASE_GATE.md), [workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md), a fresh explicit authorization packet for the named canary, permit v2 controls, fake-canary v2 validation, and rollback evidence. |
@@ -158,6 +161,7 @@ Use these first:
 | Runtime operator action host executor dispatch taskbook | `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_TASKBOOK.md` |
 | Runtime operator action host executor dispatch closeout | `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT.md` |
 | Agent executor receipt contract | `PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT.md` |
+| Agent executor adapter authorization taskbook | `PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK.md` |
 | Controlled read-only provider execution acceptance | `npm run governance -- acceptance controlled-readonly-provider-execution --check` for no-write review; omit `--check` to refresh evidence intentionally. |
 | Available current checks | `npm run governance -- list` |
 | Governance docs structure check | `npm run docs:governance` |
