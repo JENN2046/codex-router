@@ -15,16 +15,19 @@ import {
   createGovernanceOperatorActionRef,
   createInMemoryGovernanceOperatorActionReceiptStore,
   dispatchGovernanceOperatorActionHostExecutor,
+  GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL,
   GovernanceOperatorEvidenceResolutionEntrySchema,
   GovernanceOperatorActionEnvelopeSchema,
   GovernanceOperatorActionExecutionGateResultSchema,
   GovernanceOperatorActionHostExecutorDispatchExecutorResultSchema,
   GovernanceOperatorActionReceiptSchema,
   hashGovernanceOperatorActionEnvelope,
+  hashGovernanceOperatorActionAgentExecutorAdapterDescriptor,
   hashGovernanceOperatorActionExecutionPlan,
   hashGovernanceOperatorActionHostExecutorDescriptor,
   planGovernanceOperatorActionExecution,
   resolveGovernanceOperatorActionEvidence,
+  reviewGovernanceOperatorActionAgentExecutorAdapterReadiness,
   GovernanceOperatorActionSummarySchema,
   RecoveryOperatorActionSchema,
   parseArbitrationPacket,
@@ -34,8 +37,10 @@ import {
   validateGovernanceOperatorActionReceipt,
   type GovernanceOperatorActionEnvelope,
   type GovernanceOperatorActionExecutionGateResult,
+  type GovernanceOperatorActionAgentExecutorAdapterDescriptorInput,
   type GovernanceOperatorActionHostExecutorDispatchAuditEvent,
   type GovernanceOperatorActionHostExecutorDispatchInvocation,
+  type GovernanceOperatorActionHostExecutorAuthorizationResult,
   type GovernanceOperatorActionHostExecutorDescriptorInput,
   type GovernanceOperatorActionReceiptInput,
   type GovernanceOperatorActionReceiptStore
@@ -1953,6 +1958,271 @@ test("recovery control blocks host executor review with unsafe authorization evi
   ));
 });
 
+test("recovery control accepts review-only agent executor adapter readiness", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const hostDescriptor = createTestHostExecutorDescriptor(["fork"]);
+  const hostPacket = createTestHostExecutorAuthorizationPacket(gate, hostDescriptor);
+  const hostAuthorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: hostPacket,
+    hostExecutorDescriptor: hostDescriptor
+  });
+  const adapterDescriptor = createTestAgentExecutorAdapterDescriptor(hostDescriptor, ["fork"]);
+  const adapterPacket = createTestAgentExecutorAdapterReviewPacket(
+    gate,
+    hostAuthorization,
+    adapterDescriptor
+  );
+
+  const readiness = reviewGovernanceOperatorActionAgentExecutorAdapterReadiness({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: hostPacket,
+    hostExecutorDescriptor: hostDescriptor,
+    hostExecutorAuthorization: hostAuthorization,
+    adapterDescriptor,
+    adapterReviewPacket: adapterPacket
+  });
+
+  assert.equal(readiness.status, "ready_for_agent_executor_adapter_review");
+  assert.deepEqual(readiness.reasons, []);
+  assert.equal(
+    readiness.approvalString,
+    GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL
+  );
+  assert.equal(readiness.executionBoundary, "review_only");
+  assert.equal(readiness.invocationSupported, false);
+  assert.equal(readiness.adapterId, adapterDescriptor.adapterId);
+  assert.equal(readiness.adapterKind, "sub_agent_adapter");
+  assert.equal(readiness.hostExecutorDescriptorId, hostDescriptor.descriptorId);
+  assert.equal(
+    readiness.adapterDescriptorHash,
+    hashGovernanceOperatorActionAgentExecutorAdapterDescriptor(adapterDescriptor)
+  );
+  assert.ok(readiness.evidenceRefs.includes("evidence:phase15-adapter-descriptor"));
+  assert.ok(readiness.evidenceRefs.includes("evidence:phase15-adapter-review"));
+  assert.match(readiness.operatorInstruction ?? "", /no Codex CLI/);
+  assert.match(readiness.operatorInstruction ?? "", /was invoked/);
+});
+
+test("recovery control blocks review-only agent executor adapter with wrong approval string", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const hostDescriptor = createTestHostExecutorDescriptor(["fork"]);
+  const hostPacket = createTestHostExecutorAuthorizationPacket(gate, hostDescriptor);
+  const hostAuthorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: hostPacket,
+    hostExecutorDescriptor: hostDescriptor
+  });
+  const adapterDescriptor = createTestAgentExecutorAdapterDescriptor(hostDescriptor, ["fork"]);
+  const adapterPacket = createTestAgentExecutorAdapterReviewPacket(
+    gate,
+    hostAuthorization,
+    adapterDescriptor,
+    {
+      approvalString: "APPROVE_PHASE_15_REAL_AGENT_EXECUTOR_INVOCATION"
+    }
+  );
+
+  const readiness = reviewGovernanceOperatorActionAgentExecutorAdapterReadiness({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: hostPacket,
+    hostExecutorDescriptor: hostDescriptor,
+    hostExecutorAuthorization: hostAuthorization,
+    adapterDescriptor,
+    adapterReviewPacket: adapterPacket
+  });
+
+  assert.equal(readiness.status, "blocked");
+  assert.ok(readiness.reasons.includes(
+    "operator_action_agent_executor_adapter_review_packet_invalid"
+  ));
+});
+
+test("recovery control blocks agent executor adapter descriptors that claim invocation support", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const hostDescriptor = createTestHostExecutorDescriptor(["fork"]);
+  const hostPacket = createTestHostExecutorAuthorizationPacket(gate, hostDescriptor);
+  const hostAuthorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: hostPacket,
+    hostExecutorDescriptor: hostDescriptor
+  });
+  const validAdapterDescriptor = createTestAgentExecutorAdapterDescriptor(
+    hostDescriptor,
+    ["fork"]
+  );
+  const adapterDescriptor = {
+    ...validAdapterDescriptor,
+    invocationSupported: true
+  };
+  const adapterPacket = createTestAgentExecutorAdapterReviewPacket(
+    gate,
+    hostAuthorization,
+    validAdapterDescriptor
+  );
+
+  const readiness = reviewGovernanceOperatorActionAgentExecutorAdapterReadiness({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: hostPacket,
+    hostExecutorDescriptor: hostDescriptor,
+    hostExecutorAuthorization: hostAuthorization,
+    adapterDescriptor,
+    adapterReviewPacket: adapterPacket
+  });
+
+  assert.equal(readiness.status, "blocked");
+  assert.ok(readiness.reasons.includes(
+    "operator_action_agent_executor_adapter_descriptor_invalid"
+  ));
+});
+
+test("recovery control blocks agent executor adapter descriptor hash drift", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const hostDescriptor = createTestHostExecutorDescriptor(["fork"]);
+  const hostPacket = createTestHostExecutorAuthorizationPacket(gate, hostDescriptor);
+  const hostAuthorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: hostPacket,
+    hostExecutorDescriptor: hostDescriptor
+  });
+  const adapterDescriptor = createTestAgentExecutorAdapterDescriptor(hostDescriptor, ["fork"]);
+  const adapterPacket = createTestAgentExecutorAdapterReviewPacket(
+    gate,
+    hostAuthorization,
+    adapterDescriptor,
+    {
+      adapterDescriptorHash: "0".repeat(64)
+    }
+  );
+
+  const readiness = reviewGovernanceOperatorActionAgentExecutorAdapterReadiness({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: hostPacket,
+    hostExecutorDescriptor: hostDescriptor,
+    hostExecutorAuthorization: hostAuthorization,
+    adapterDescriptor,
+    adapterReviewPacket: adapterPacket
+  });
+
+  assert.equal(readiness.status, "blocked");
+  assert.ok(readiness.reasons.includes(
+    "operator_action_agent_executor_adapter_packet_descriptor_hash_mismatch"
+  ));
+});
+
+test("recovery control blocks agent executor adapter descriptors without action support", async () => {
+  const envelope = createTestOperatorActionEnvelope();
+  const actionIssuedAt = "2026-04-27T00:04:45.000Z";
+  const consumption = await createTestOperatorActionConsumption(envelope, {
+    actionIssuedAt
+  });
+  const lifecycleState = createTestOperatorActionLifecycle(envelope, consumption, {
+    actionIssuedAt
+  });
+  const gate = planGovernanceOperatorActionExecution({
+    envelope,
+    receiptConsumption: consumption,
+    lifecycleState,
+    allowedActions: ["fork"],
+    executionMode: "plan_only"
+  });
+  const hostDescriptor = createTestHostExecutorDescriptor(["fork"]);
+  const hostPacket = createTestHostExecutorAuthorizationPacket(gate, hostDescriptor);
+  const hostAuthorization = authorizeGovernanceOperatorActionHostExecutorReview({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: hostPacket,
+    hostExecutorDescriptor: hostDescriptor
+  });
+  const adapterDescriptor = createTestAgentExecutorAdapterDescriptor(hostDescriptor, [
+    "resume"
+  ]);
+  const adapterPacket = createTestAgentExecutorAdapterReviewPacket(
+    gate,
+    hostAuthorization,
+    adapterDescriptor
+  );
+
+  const readiness = reviewGovernanceOperatorActionAgentExecutorAdapterReadiness({
+    executionGate: gate,
+    lifecycleState,
+    authorizationPacket: hostPacket,
+    hostExecutorDescriptor: hostDescriptor,
+    hostExecutorAuthorization: hostAuthorization,
+    adapterDescriptor,
+    adapterReviewPacket: adapterPacket
+  });
+
+  assert.equal(readiness.status, "blocked");
+  assert.ok(readiness.reasons.includes(
+    "operator_action_agent_executor_adapter_action_not_supported"
+  ));
+});
+
 test("recovery control prepares host executor dispatch in dry-run without calling an executor", async () => {
   const envelope = createTestOperatorActionEnvelope();
   const actionIssuedAt = "2026-04-27T00:04:45.000Z";
@@ -2933,6 +3203,85 @@ function createTestHostExecutorAuthorizationPacket(
   };
 
   return packet;
+}
+
+function createTestAgentExecutorAdapterDescriptor(
+  hostDescriptor: GovernanceOperatorActionHostExecutorDescriptorInput,
+  supportedActions: Array<"resume" | "rollback" | "abort" | "fork">
+): GovernanceOperatorActionAgentExecutorAdapterDescriptorInput {
+  return {
+    schemaVersion: "governance-operator-action-agent-executor-adapter-descriptor.v1",
+    adapterId: "agent-executor-adapter:sub-agent-review-only",
+    adapterKind: "sub_agent_adapter",
+    hostExecutorDescriptorId: hostDescriptor.descriptorId,
+    executionBoundary: "review_only",
+    invocationSupported: false,
+    sideEffectBoundary: "none",
+    supportedActions,
+    evidenceRefs: ["evidence:phase15-adapter-descriptor"]
+  };
+}
+
+function createTestAgentExecutorAdapterReviewPacket(
+  gate: GovernanceOperatorActionExecutionGateResult,
+  hostAuthorization: GovernanceOperatorActionHostExecutorAuthorizationResult,
+  adapterDescriptor: GovernanceOperatorActionAgentExecutorAdapterDescriptorInput,
+  overrides: Partial<{
+    approvalString: string;
+    taskId: string;
+    actionRef: string;
+    receiptId: string;
+    envelopeHash: string;
+    recommendedAction: "resume" | "rollback" | "abort" | "fork";
+    executionPlanHash: string;
+    checkpointRef: string;
+    hostExecutorDescriptorId: string;
+    hostExecutorDescriptorHash: string;
+    authorizationIdentityHash: string;
+    adapterId: string;
+    adapterKind:
+      | "codex_cli_adapter"
+      | "sub_agent_adapter"
+      | "host_runtime_adapter"
+      | "sandbox_reference_adapter";
+    adapterDescriptorHash: string;
+    executionBoundary: string;
+    invocationSupported: boolean;
+    evidenceRefs: string[];
+  }> = {}
+) {
+  assert.ok(gate.taskId);
+  assert.ok(gate.actionRef);
+  assert.ok(gate.receiptId);
+  assert.ok(gate.envelopeHash);
+  assert.ok(gate.recommendedAction);
+  assert.ok(hostAuthorization.executionPlanHash);
+  assert.ok(hostAuthorization.hostExecutorDescriptorId);
+  assert.ok(hostAuthorization.hostExecutorDescriptorHash);
+  assert.ok(hostAuthorization.authorizationIdentityHash);
+
+  return {
+    schemaVersion: "governance-operator-action-agent-executor-adapter-review-packet.v1",
+    approvalString: GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL,
+    taskId: gate.taskId,
+    actionRef: gate.actionRef,
+    receiptId: gate.receiptId,
+    envelopeHash: gate.envelopeHash,
+    recommendedAction: gate.recommendedAction,
+    executionPlanHash: hostAuthorization.executionPlanHash,
+    ...(gate.checkpointRef !== undefined ? { checkpointRef: gate.checkpointRef } : {}),
+    hostExecutorDescriptorId: hostAuthorization.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: hostAuthorization.hostExecutorDescriptorHash,
+    authorizationIdentityHash: hostAuthorization.authorizationIdentityHash,
+    adapterId: adapterDescriptor.adapterId,
+    adapterKind: adapterDescriptor.adapterKind,
+    adapterDescriptorHash:
+      hashGovernanceOperatorActionAgentExecutorAdapterDescriptor(adapterDescriptor),
+    executionBoundary: "review_only",
+    invocationSupported: false,
+    evidenceRefs: ["evidence:phase15-adapter-review"],
+    ...overrides
+  };
 }
 
 function createStandaloneOperatorActionReceipt(overrides: {
