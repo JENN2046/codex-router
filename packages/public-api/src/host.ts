@@ -24,7 +24,7 @@ import {
 export type DesktopHostUnknownRecord = Record<string, unknown>;
 
 export interface DesktopPrimitiveInvocation extends DesktopHostUnknownRecord {
-  primitive: string;
+  primitive: DesktopHostPrimitive;
   taskId: string;
   reason: string;
 }
@@ -33,7 +33,17 @@ export type DesktopHostBinding = (
   invocation: DesktopPrimitiveInvocation
 ) => Promise<unknown> | unknown;
 
-export type DesktopHostBindings = Record<string, DesktopHostBinding | undefined>;
+type DesktopHostPrimitive =
+  | "spawn_agent"
+  | "send_input"
+  | "wait_agent"
+  | "close_agent"
+  | "automation_update"
+  | "shell_command"
+  | "apply_patch"
+  | "read_thread_terminal";
+
+export type DesktopHostBindings = Partial<Record<DesktopHostPrimitive, DesktopHostBinding>>;
 
 export interface DesktopHostBridge {
   invokePrimitive(
@@ -755,7 +765,7 @@ export function createCodexDesktopLiveHostEmbeddingStarter(
 }
 
 export function resolveLiveHostPreflight(
-  input: DesktopHostUnknownRecord = {}
+  input: Partial<DesktopHostPreflightContext> = {}
 ): DesktopHostPreflightContext {
   return resolveInternalLiveHostPreflight(input as never) as DesktopHostPreflightContext;
 }
@@ -778,7 +788,7 @@ export function getCodexDesktopLiveHostEmbeddingStatus(
 
 export function resolveLiveHostPreflightFromHost(
   host: Partial<CodexDesktopLiveHostObject>,
-  input: DesktopHostUnknownRecord = {}
+  input: Partial<DesktopHostPreflightContext> = {}
 ): DesktopHostPreflightContext {
   return resolveInternalLiveHostPreflightFromHost(
     host as never,

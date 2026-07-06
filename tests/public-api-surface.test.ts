@@ -29,6 +29,7 @@ import type {
   CodexMemorySearchInput,
   CodexMemoryWriteInput,
   DesktopHostClient,
+  DesktopHostBindings,
   DesktopHostClientPersistence,
   DesktopHostClientOptions,
   DesktopHostCheckpointLookup,
@@ -52,6 +53,11 @@ import type {
   TelemetrySink,
   ToolRegistry
 } from "../packages/public-api/src/index.js";
+
+type ResolveLiveHostPreflightInput =
+  Parameters<typeof import("../packages/public-api/src/index.js").resolveLiveHostPreflight>[0];
+type ResolveLiveHostPreflightFromHostInput =
+  Parameters<typeof import("../packages/public-api/src/index.js").resolveLiveHostPreflightFromHost>[1];
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -356,6 +362,11 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     }
   };
 
+  const bridgeBindings: DesktopHostBindings = {
+    spawn_agent: () => ({ ok: true }),
+    read_thread_terminal: () => "terminal snapshot"
+  };
+
   const desktopRuntime: CodexDesktopRuntime = {
     readThreadTerminal() {
       return "terminal snapshot";
@@ -559,15 +570,25 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     const malformedDirectiveResolvers: CodexDesktopDirectiveResolvers = { spawnAgent: "bad" };
     // @ts-expect-error live-host binding session requires read/write/clear methods.
     const malformedBindingOptions: CodexDesktopBindingOptions = { session: {} };
+    // @ts-expect-error bridge bindings use snake-case desktop primitive keys.
+    const malformedBridgeBindings: DesktopHostBindings = { spawnAgent: () => ({ ok: true }) };
+    // @ts-expect-error preflight helper input availableTools must be a string array.
+    const malformedPreflightHelperInput: ResolveLiveHostPreflightInput = { availableTools: {} };
+    // @ts-expect-error from-host preflight helper input availableTools must be a string array.
+    const malformedFromHostPreflightInput: ResolveLiveHostPreflightFromHostInput = { availableTools: {} };
     void missingAnchor;
     void missingCheckpointStore;
     void missingMemoryRecall;
     void malformedLiveHostPreflight;
     void malformedDirectiveResolvers;
     void malformedBindingOptions;
+    void malformedBridgeBindings;
+    void malformedPreflightHelperInput;
+    void malformedFromHostPreflightInput;
   };
 
   assert.equal(preflight.authAvailable, true);
+  assert.equal(typeof bridgeBindings.spawn_agent, "function");
   assert.equal(liveHostOptions.memory.adapter.anchor, "public-api-host-memory");
   assert.equal(liveHostOptions.preflight?.availableTools?.includes("spawn_agent"), true);
   assert.equal(liveHostOptions.directives?.spawnAgent?.(invocation)?.requests[0]?.message, invocation.reason);
