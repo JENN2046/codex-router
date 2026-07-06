@@ -13,6 +13,9 @@ import publicApiProviderSurfaceLockFixture from "./fixtures/public-api-provider-
 import publicApiSdkSurfaceLockFixture from "./fixtures/public-api-sdk-surface-lock.fixture.json" with { type: "json" };
 import publicApiSurfaceLockFixture from "./fixtures/public-api-surface-lock.fixture.json" with { type: "json" };
 import publicApiSupportSpiSurfaceLockFixture from "./fixtures/public-api-support-spi-surface-lock.fixture.json" with { type: "json" };
+import {
+  createCodexDesktopLiveHostBundle
+} from "../packages/public-api/src/index.js";
 import type {
   A2AAgentCardSkeleton,
   AgentOsSdkOptions,
@@ -21,6 +24,7 @@ import type {
   CodexDesktopBindingOptions,
   CodexDesktopBindingSession,
   CodexDesktopDirectiveResolvers,
+  CodexDesktopLiveHostBundle,
   CodexDesktopLiveHostOptions,
   CodexDesktopRuntime,
   CodexDesktopToolRuntimeOperations,
@@ -36,9 +40,13 @@ import type {
   DesktopHostCheckpointRecallAdapter,
   DesktopHostCheckpointRef,
   DesktopHostCheckpointStore,
+  DesktopHostAgentStrategyPlan,
+  DesktopHostExecutionPlan,
   DesktopHostMemoryAdapter,
+  DesktopHostOperation,
   DesktopHostResumeOptions,
   DesktopHostPreflightContext,
+  DesktopHostRoutingDecision,
   DesktopHostTaskEnvelopeInput,
   DesktopHostTelemetrySink,
   DesktopPrimitiveInvocation,
@@ -323,13 +331,79 @@ test("public-api host facade delegates through declaration-safe wrappers", async
   assert.equal(Array.isArray(hostResolvedPreflight.availableTools), true);
 });
 
-test("public-api host facade preserves concrete runtime handler contracts", () => {
+test("public-api host facade preserves concrete runtime handler contracts", async () => {
   const preflight: DesktopHostPreflightContext = {
     authAvailable: true,
     availableTools: []
   };
 
+  const taskEnvelope: DesktopHostTaskEnvelopeInput = {
+    taskId: "task-public-host-envelope",
+    intent: {
+      summary: "Verify public host task envelope type",
+      requestedAction: "Run a declaration-safe desktop host task"
+    }
+  };
+
+  const operation: DesktopHostOperation = {
+    primitive: "shell_command",
+    reason: "verify public host facade metadata"
+  };
+
+  const executionPlan: DesktopHostExecutionPlan = {
+    executionProfile: "engineering",
+    primitives: [operation],
+    notes: ["public facade type contract"]
+  };
+
+  const routingDecision: DesktopHostRoutingDecision = {
+    schemaVersion: "routing-decision.v1",
+    decisionId: "decision-public-host-contract",
+    taskId: taskEnvelope.taskId,
+    policyVersion: "public-api-test",
+    classification: {
+      taskClass: "engineering",
+      riskLevel: "medium",
+      ambiguityScore: 0,
+      clarificationRequired: false,
+      riskFactors: []
+    },
+    execution: {
+      selectedModel: "gpt-5.3-codex",
+      toolAccess: "engineering_write",
+      executionProfile: "engineering",
+      reasoningEffort: "medium"
+    },
+    approval: {
+      required: false,
+      reasons: []
+    },
+    parallelism: {
+      allowed: true,
+      maxAgents: 1,
+      mode: "owned_write"
+    },
+    hostRoute: "desktop"
+  };
+
+  const agentStrategy: DesktopHostAgentStrategyPlan = {
+    parallel: true,
+    maxAgents: 1,
+    assignments: [{
+      role: "worker",
+      mode: "write",
+      ownership: ["packages/public-api/src/host.ts"]
+    }],
+    reasons: ["public facade type contract"]
+  };
+
   const invocation: DesktopPrimitiveInvocation = {
+    task: taskEnvelope,
+    decision: routingDecision,
+    executionPlan,
+    agentStrategy,
+    operation,
+    stepIndex: 0,
     primitive: "shell_command",
     taskId: "task-public-host-contract",
     reason: "verify public host facade metadata"
@@ -419,17 +493,18 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     anchor: "public-api-host-memory"
   };
 
+  const bindingSessionRecords = new Map<string, ReturnType<CodexDesktopBindingSession["read"]>>();
   const bindingSession: CodexDesktopBindingSession = {
     read(taskId: string) {
-      void taskId;
-      return { activeAgents: [] };
+      return bindingSessionRecords.get(taskId) ?? { activeAgents: [] };
     },
     write(taskId: string, session) {
-      void taskId;
-      void session.activeAgents;
+      bindingSessionRecords.set(taskId, {
+        activeAgents: [...session.activeAgents]
+      });
     },
     clear(taskId: string) {
-      void taskId;
+      bindingSessionRecords.delete(taskId);
     }
   };
 
@@ -437,9 +512,10 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     spawnAgent(invocation) {
       return {
         requests: [{
-          message: invocation.reason,
+          message: `${invocation.task.intent.summary}:${invocation.agentStrategy.assignments[0]?.role}`,
           agentType: "default",
-          forkContext: true
+          forkContext: true,
+          reasoningEffort: invocation.decision.execution.reasoningEffort
         }]
       };
     },
@@ -448,10 +524,16 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
         targets: session.activeAgents.map((agent) => agent.agentId)
       };
     },
-    shellCommand() {
+    shellCommand(invocation) {
       return {
-        command: "pwd"
+        command: "pwd",
+        justification: `${invocation.executionPlan.primitives[0]?.primitive}:${invocation.stepIndex}`
       };
+    },
+    applyPatch(invocation) {
+      return invocation.operation.primitive === "apply_patch"
+        ? "*** Begin Patch\n*** End Patch\n"
+        : undefined;
     }
   };
 
@@ -479,14 +561,6 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     },
     directives,
     binding
-  };
-
-  const taskEnvelope: DesktopHostTaskEnvelopeInput = {
-    taskId: "task-public-host-envelope",
-    intent: {
-      summary: "Verify public host task envelope type",
-      requestedAction: "Run a declaration-safe desktop host task"
-    }
   };
 
   const checkpoint: DesktopHostCheckpointRef = {
@@ -554,6 +628,16 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     void client.resume(task, resumeOptions);
   };
 
+  const assertLiveHostBundleContract = async (bundle: CodexDesktopLiveHostBundle) => {
+    await bundle.bridge.invokePrimitive(invocation);
+    void bundle.session.read(taskEnvelope.taskId);
+    void bundle.memoryClient.recordMemory;
+    void bundle.memoryClient.searchMemory;
+    void bundle.memoryClient.memoryOverview;
+    void bundle.memoryAdapter.recordCheckpoint;
+    void bundle.memoryAdapter.recallLatestCheckpointRef;
+  };
+
   const assertPublicHostNegativeContracts = () => {
     const client = null as unknown as DesktopHostClient;
     // @ts-expect-error public DesktopHostClient.run requires a task envelope input.
@@ -591,7 +675,11 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
   assert.equal(typeof bridgeBindings.spawn_agent, "function");
   assert.equal(liveHostOptions.memory.adapter.anchor, "public-api-host-memory");
   assert.equal(liveHostOptions.preflight?.availableTools?.includes("spawn_agent"), true);
-  assert.equal(liveHostOptions.directives?.spawnAgent?.(invocation)?.requests[0]?.message, invocation.reason);
+  assert.equal(
+    liveHostOptions.directives?.spawnAgent?.(invocation)?.requests[0]?.message,
+    "Verify public host task envelope type:worker"
+  );
+  assert.equal(liveHostOptions.directives?.shellCommand?.(invocation)?.justification, "shell_command:0");
   assert.deepEqual(liveHostOptions.binding?.session?.read(taskEnvelope.taskId), { activeAgents: [] });
   assert.equal(liveHostOptions.memory.operations?.search_memory, memoryOperations.search_memory);
   assert.equal(taskEnvelope.taskId, "task-public-host-envelope");
@@ -600,9 +688,16 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     taskId: taskEnvelope.taskId
   }), checkpoint);
   assert.equal(typeof assertDesktopHostTaskRunnerContract, "function");
+  assert.equal(typeof assertLiveHostBundleContract, "function");
   assert.equal(typeof assertPublicHostNegativeContracts, "function");
   assert.equal(invocation.primitive, "shell_command");
   assert.equal(invocation.taskId, "task-public-host-contract");
+  assert.equal(invocation.task.intent.requestedAction, "Run a declaration-safe desktop host task");
+  assert.equal(invocation.decision.execution.reasoningEffort, "medium");
+  assert.equal(invocation.executionPlan.primitives[0]?.reason, "verify public host facade metadata");
+  assert.equal(invocation.agentStrategy.assignments[0]?.ownership?.[0], "packages/public-api/src/host.ts");
+  assert.equal(invocation.operation.primitive, "shell_command");
+  assert.equal(invocation.stepIndex, 0);
   assert.equal(
     runtimeTools.apply_patch("*** Begin Patch\n*** End Patch\n"),
     "*** Begin Patch\n*** End Patch\n"
@@ -612,6 +707,19 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
   assert.deepEqual(memoryOperations.search_memory({ query: "checkpoint" }), {
     results: [{ title: "checkpoint" }]
   });
+
+  const bundle = createCodexDesktopLiveHostBundle(liveHostOptions);
+  await assertLiveHostBundleContract(bundle);
+  bundle.session.write(taskEnvelope.taskId, {
+    activeAgents: [{
+      agentId: "agent-public-host",
+      role: "worker",
+      mode: "write",
+      ownership: ["packages/public-api/src/host.ts"]
+    }]
+  });
+  assert.equal(bundle.session.read(taskEnvelope.taskId).activeAgents[0]?.agentId, "agent-public-host");
+  assert.deepEqual(await bundle.memoryClient.memoryOverview({ limit: 1 }), { limit: 1 });
 });
 
 test("public-api facade does not expose internal governance implementation", async () => {

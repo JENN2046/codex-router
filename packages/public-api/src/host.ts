@@ -23,17 +23,7 @@ import {
 
 export type DesktopHostUnknownRecord = Record<string, unknown>;
 
-export interface DesktopPrimitiveInvocation extends DesktopHostUnknownRecord {
-  primitive: DesktopHostPrimitive;
-  taskId: string;
-  reason: string;
-}
-
-export type DesktopHostBinding = (
-  invocation: DesktopPrimitiveInvocation
-) => Promise<unknown> | unknown;
-
-type DesktopHostPrimitive =
+export type DesktopHostPrimitive =
   | "spawn_agent"
   | "send_input"
   | "wait_agent"
@@ -42,6 +32,95 @@ type DesktopHostPrimitive =
   | "shell_command"
   | "apply_patch"
   | "read_thread_terminal";
+
+export type DesktopHostAgentRole = "analyst" | "architect" | "worker" | "reviewer";
+export type DesktopHostAgentMode = "read_only" | "write";
+export type DesktopHostRiskLevel = "low" | "medium" | "high";
+export type DesktopHostToolAccessLevel =
+  | "read_only"
+  | "local_write"
+  | "engineering_write"
+  | "protected_remote";
+export type DesktopHostExecutionProfileName =
+  | "recon-only"
+  | "clarify-then-plan"
+  | "engineering"
+  | "high-risk-change"
+  | "release-governance";
+export type DesktopHostReasoningEffort = "low" | "medium" | "high";
+export type DesktopHostParallelismMode = "disabled" | "read_only" | "owned_write";
+export type DesktopHostRoute = "desktop" | "codex-cli";
+
+export interface DesktopHostOperation {
+  primitive: DesktopHostPrimitive;
+  reason: string;
+}
+
+export interface DesktopHostExecutionPlan {
+  executionProfile: DesktopHostExecutionProfileName;
+  primitives: DesktopHostOperation[];
+  notes: string[];
+}
+
+export interface DesktopHostAgentAssignment {
+  role: DesktopHostAgentRole;
+  mode: DesktopHostAgentMode;
+  ownership?: string[];
+}
+
+export interface DesktopHostAgentStrategyPlan {
+  parallel: boolean;
+  maxAgents: number;
+  assignments: DesktopHostAgentAssignment[];
+  reasons: string[];
+}
+
+export interface DesktopHostRoutingDecision extends DesktopHostUnknownRecord {
+  schemaVersion?: "routing-decision.v1";
+  decisionId: string;
+  taskId: string;
+  policyVersion: string;
+  classification: {
+    taskClass: DesktopHostTaskClass;
+    riskLevel: DesktopHostRiskLevel;
+    ambiguityScore: number;
+    clarificationRequired: boolean;
+    riskFactors: string[];
+  };
+  execution: {
+    selectedModel: string;
+    toolAccess: DesktopHostToolAccessLevel;
+    executionProfile: DesktopHostExecutionProfileName;
+    reasoningEffort: DesktopHostReasoningEffort;
+  };
+  approval: {
+    required: boolean;
+    reasons: string[];
+  };
+  parallelism: {
+    allowed: boolean;
+    maxAgents: number;
+    mode: DesktopHostParallelismMode;
+  };
+  hostRoute: DesktopHostRoute;
+  providerGrant?: DesktopHostUnknownRecord;
+}
+
+export interface DesktopPrimitiveInvocation extends DesktopHostUnknownRecord {
+  task: DesktopHostTaskEnvelopeInput;
+  decision: DesktopHostRoutingDecision;
+  executionPlan: DesktopHostExecutionPlan;
+  agentStrategy: DesktopHostAgentStrategyPlan;
+  operation: DesktopHostOperation;
+  stepIndex: number;
+  primitive: DesktopHostPrimitive;
+  taskId: string;
+  reason: string;
+}
+
+export type DesktopHostBinding = (
+  invocation: DesktopPrimitiveInvocation
+) => Promise<unknown> | unknown;
 
 export type DesktopHostBindings = Partial<Record<DesktopHostPrimitive, DesktopHostBinding>>;
 
@@ -420,6 +499,13 @@ export interface CodexMemoryWriteInput {
   validated: boolean;
 }
 
+export interface CodexMemoryWriteResponse {
+  success: boolean;
+  memoryId?: string | null;
+  filePath?: string | null;
+  reason?: string | null;
+}
+
 export interface CodexMemorySearchInput {
   query: string;
   target?: CodexMemorySearchTarget;
@@ -427,9 +513,33 @@ export interface CodexMemorySearchInput {
   limit?: number;
 }
 
+export interface CodexMemorySearchResult {
+  target?: string;
+  title: string;
+  memoryId?: string;
+  score?: number;
+  sourceFile?: string;
+  matchedTags?: string[];
+  snippet?: string;
+  content?: string;
+  text?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CodexMemorySearchResponse {
+  results: CodexMemorySearchResult[];
+}
+
 export interface CodexMemoryOverviewInput {
   auditWindow?: number;
   limit?: number;
+}
+
+export interface CodexMemoryHostClient {
+  recordMemory(input: CodexMemoryWriteInput): Promise<CodexMemoryWriteResponse>;
+  searchMemory(input: CodexMemorySearchInput): Promise<CodexMemorySearchResponse>;
+  memoryOverview(input?: CodexMemoryOverviewInput): Promise<DesktopHostUnknownRecord>;
 }
 
 export interface CodexMemoryHostOperations {
@@ -448,6 +558,17 @@ export interface CodexMemoryAdapterOptions {
   verifyRecall?: boolean;
   requireRecallHit?: boolean;
   recallLimit?: number;
+}
+
+export interface CodexMemoryAdapter {
+  recordCheckpoint(checkpoint: DesktopHostCheckpointRef): Promise<void> | void;
+  recordCheckpointDetailed?(checkpoint: DesktopHostCheckpointRef): Promise<unknown>;
+  recallLatestCheckpointRef(
+    input: DesktopHostMemoryRecallInput
+  ): Promise<DesktopHostCheckpointRef | undefined> | DesktopHostCheckpointRef | undefined;
+  recallLatestCheckpoint?(
+    input: DesktopHostMemoryRecallInput
+  ): Promise<CodexMemorySearchResult | undefined>;
 }
 
 export interface CodexDesktopLiveHostMemoryTools {
@@ -505,10 +626,10 @@ export interface CodexDesktopLiveHostStarterOptions
 
 export interface CodexDesktopLiveHostBundle {
   hostClient: DesktopHostClient;
-  bridge: unknown;
-  session: unknown;
-  memoryClient: unknown;
-  memoryAdapter: unknown;
+  bridge: DesktopHostBridge;
+  session: CodexDesktopBindingSession;
+  memoryClient: CodexMemoryHostClient;
+  memoryAdapter: CodexMemoryAdapter;
   memoryOperations: CodexMemoryHostOperations;
 }
 
@@ -643,14 +764,14 @@ export interface CodexDesktopRuntime {
   applyPatch(patch: string): Promise<unknown> | unknown;
 }
 
-interface CodexDesktopTrackedAgent {
+export interface CodexDesktopTrackedAgent {
   agentId: string;
-  role?: string;
+  role?: DesktopHostAgentRole;
   mode?: "read_only" | "write";
   ownership?: string[];
 }
 
-interface CodexDesktopTaskSession {
+export interface CodexDesktopTaskSession {
   activeAgents: CodexDesktopTrackedAgent[];
 }
 
