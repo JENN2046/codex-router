@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `4a10808f742318221d9ca12c095271c08de613b0db817d1121f75d514dae3b4d`
+  `cf1ccab83c9faa495c5dbca4d71f6829739ef631482280a8841ddc9274ef388a`
 
 Source digest excluded paths:
 
@@ -116,6 +116,11 @@ Current repository governance status:
   executor receipt statuses can now be normalized as `accepted`, `running`,
   `completed`, `failed`, `refused`, or `aborted` without authorizing real
   recovery execution.
+- Phase 15 agent executor adapter authorization taskbook is recorded in
+  `docs/governance/PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK.md`;
+  it defines future adapter packet, pre-execution review, rollback expectation,
+  and exact approval strings without authorizing Codex CLI, provider,
+  sub-agent runtime, shell, workspace-write, or production recovery execution.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -257,6 +262,12 @@ The Phase 14 agent executor receipt contract is recorded at
 injected executor receipt statuses and stable reason codes without adding a
 Codex CLI adapter, provider adapter, shell/process executor, external write,
 workspace-write, or production recovery execution.
+The Phase 15 agent executor adapter authorization taskbook is recorded at
+`docs/governance/PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK.md`;
+it defines future adapter pre-execution requirements without adding an adapter,
+Codex CLI invocation, provider invocation, sub-agent runtime invocation,
+shell/process execution, external write, workspace-write, or production
+recovery execution.
 
 Boundary audit marker:
 
@@ -268,6 +279,7 @@ Boundary audit marker:
 - `PHASE_13_OPERATOR_ACTION_HOST_EXECUTOR_DISPATCH_CLOSEOUT_RECORDED`
 - `PHASE_13_AGENT_BACKED_RECOVERY_EXECUTOR_BOUNDARY_RECORDED`
 - `PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT_RECORDED`
+- `PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK_RECORDED`
 
 Blocked capabilities:
 
