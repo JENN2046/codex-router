@@ -1,6 +1,6 @@
 # API Surface Convergence Review
 
-Status: review report, not an API change.
+Status: active API convergence record.
 Date: 2026-07-06
 Scope: source-level API surface review for `codex-router`.
 
@@ -22,19 +22,34 @@ checkpoint, runtime-control, run-manager, and validation-arbiter internal
 package directories under the same naming convention. Phase D has applied the
 support/SPI review: `redaction` is internalized, while observability, artifact
 store, kernel store, and tool registry are retained as support modules. Phase E
-adds an explicit public support SPI facade for those retained modules.
+adds an explicit public support SPI facade for those retained modules. Phase F
+adds a root package export map for the implemented public facades.
 
 Implemented boundary:
 
 - `packages/public-api/src/index.ts` is the explicit source-level public facade.
+- `packages/public-api/src/sdk.ts`, `host.ts`, `protocol.ts`, `provider.ts`,
+  and `support.ts` are explicit source-level subfacades.
 - `tests/public-api-surface.test.ts` locks the facade export list.
 - `tests/fixtures/public-api-surface-lock.fixture.json` records the approved
   runtime export names.
+- `tests/fixtures/public-api-*-surface-lock.fixture.json` records the approved
+  runtime export names for each subfacade.
 - The facade exports product, host, protocol, and provider SPI surfaces.
 - `packages/public-api/src/support.ts` is the explicit support SPI facade for
   retained support modules.
 - `tests/fixtures/public-api-support-spi-surface-lock.fixture.json` records the
   approved support SPI runtime export names.
+- The root `package.json` now maps only these package exports to built public
+  facade outputs:
+  - `.`
+  - `./sdk`
+  - `./host`
+  - `./protocol`
+  - `./provider`
+  - `./support`
+- The root export map intentionally does not expose `./testing`,
+  `./diagnostics`, raw `packages/*` paths, or governance-internal modules.
 - The support SPI facade exposes only curated telemetry, artifact store, kernel
   store, and tool registry contracts. It does not use `export *`.
 - The support SPI facade intentionally excludes preflight-specific telemetry
@@ -79,16 +94,17 @@ Implemented boundary:
     and the in-memory registry are exposed through the public support facade.
 - Internal source, script, and test imports have been migrated to those new
   directory names.
-- This rename is a source-organization boundary change only. It does not add
-  runtime behavior, root package exports, provider execution, Codex CLI
-  execution, workspace-write execution, release automation, deployment, or
-  package publishing.
+- This rename and export-map work is an API boundary change only. It does not
+  add runtime behavior, provider execution, Codex CLI execution,
+  workspace-write execution, release automation, deployment, or package
+  publishing.
 
 Not yet implemented:
 
-- root `package.json` `exports` map;
 - removal of existing `packages/*/src/index.ts` exports;
 - migration pressure on downstream consumers.
+- `./testing` and `./diagnostics` package exports, because those facades need
+  separate curation before they should become public entrypoints.
 
 Those steps remain staged for follow-up PRs.
 
@@ -109,7 +125,8 @@ Observed surfaces:
 
 Key repository facts:
 
-- The root `package.json` is private and has no `exports` map.
+- The root `package.json` is private and has an `exports` map limited to the
+  public facade outputs under `dist/packages/public-api/src/`.
 - Only `packages/task-graph/package.json` and
   `packages/governance-failure-reducer/package.json` currently exist as
   package-level manifests.
@@ -254,25 +271,25 @@ Recommended facade responsibilities:
 Example target imports:
 
 ```ts
-import { createAgentOsSdk } from "@codex-router/sdk";
-import { createCodexDesktopLiveHostEmbeddingStarter } from "@codex-router/host";
-import { ProviderManifestSchema, type ExecutorProvider } from "@codex-router/provider";
-import { TaskSchema, RunSchema } from "@codex-router/protocol";
-import { createRecordingTelemetrySink, InMemoryKernelStore } from "@codex-router/support";
+import { createAgentOsSdk } from "codex-router/sdk";
+import { createCodexDesktopLiveHostEmbeddingStarter } from "codex-router/host";
+import { ProviderManifestSchema, type ExecutorProvider } from "codex-router/provider";
+import { TaskSchema, RunSchema } from "codex-router/protocol";
+import { createRecordingTelemetrySink, InMemoryKernelStore } from "codex-router/support";
 ```
 
 ## Recommended Convergence Sequence
 
 1. Create explicit public facade modules for SDK, host, protocol, provider,
-   support, testing, and diagnostics.
-2. Add public export lock tests for each facade, following the existing
+   and support. Testing and diagnostics remain future curation work.
+2. Add public export lock tests for each implemented facade, following the existing
    `codex-cli-host` export lock pattern.
 3. Promote `kernel-contracts` as the canonical public contract surface.
 4. Mark `contracts` as legacy / compatibility unless a separate compatibility
    policy says otherwise.
 5. Replace broad `export *` patterns on public surfaces with explicit exports.
 6. Stop re-exporting internal governance modules from any product facade.
-7. Add a root `exports` map only after the facade shape is stable.
+7. Keep the root `exports` map limited to curated public facades.
 8. Keep internal tests allowed to import internal modules directly, but do not
    treat those imports as product API commitments.
 
