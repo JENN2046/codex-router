@@ -1,6 +1,6 @@
 import type { TaskEnvelope } from "../../contracts/src/index.js";
-import type { ExecutionObservation } from "../../execution-observation/src/index.js";
-import type { GovernanceRiskScore } from "../../state-manager/src/index.js";
+import type { ExecutionObservation } from "../../governance-internal-execution-observation/src/index.js";
+import type { GovernanceRiskScore } from "../../governance-internal-state-manager/src/index.js";
 import type { DelegationLevel } from "../../delegation-policy/src/index.js";
 import { delegationLevelToHistoricalTrust } from "../../delegation-policy/src/index.js";
 

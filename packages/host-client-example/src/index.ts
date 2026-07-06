@@ -74,15 +74,15 @@ import {
   type ExecutionObservation,
   type ExecutionObservationBus,
   type ExecutionObservationStore
-} from "../../execution-observation/src/index.js";
+} from "../../governance-internal-execution-observation/src/index.js";
 import type {
   GovernanceOperatorActionEnvelope,
   GovernanceOperatorActionEnvelopeInput,
   GovernanceOperatorActionReceiptDecision,
   GovernanceOperatorActionReceiptStore
-} from "../../recovery-control/src/index.js";
-import type { GovernanceState } from "../../state-manager/src/index.js";
-import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
+} from "../../governance-internal-recovery-control/src/index.js";
+import type { GovernanceState } from "../../governance-internal-state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../../governance-internal-strategy-router/src/index.js";
 export {
   createCodexDesktopTargetHostEmbeddingStarter,
   getCodexDesktopTargetHostEmbeddingStatus,

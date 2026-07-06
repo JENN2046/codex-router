@@ -15,12 +15,12 @@ import {
   createExecutionObservationRef,
   createRecordingExecutionObservationStore,
   resolveExecutionObservationRef
-} from "../packages/execution-observation/src/index.js";
+} from "../packages/governance-internal-execution-observation/src/index.js";
 import type {
   GovernanceState,
   AnomalyRecord
-} from "../packages/state-manager/src/index.js";
-import type { StrategyDecisionV2 } from "../packages/strategy-router/src/index.js";
+} from "../packages/governance-internal-state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../packages/governance-internal-strategy-router/src/index.js";
 
 const policyPath = fileURLToPath(new URL("../routing-policy.yaml", import.meta.url));
 

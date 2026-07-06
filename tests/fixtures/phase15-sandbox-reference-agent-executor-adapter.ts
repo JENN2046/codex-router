@@ -5,7 +5,7 @@ import type {
   GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapter,
   GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapterResult,
   GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocation
-} from "../../packages/recovery-control/src/index.js";
+} from "../../packages/governance-internal-recovery-control/src/index.js";
 
 export interface Phase15SandboxReferenceAgentExecutorAdapterOptions {
   sandboxRoot: string;

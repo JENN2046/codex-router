@@ -4,8 +4,8 @@ import {
   routeStrategyV2,
   requiresHumanStepBack,
   isWriteExecutionAllowed
-} from "../packages/strategy-router/src/index.js";
-import type { GovernanceState } from "../packages/state-manager/src/index.js";
+} from "../packages/governance-internal-strategy-router/src/index.js";
+import type { GovernanceState } from "../packages/governance-internal-state-manager/src/index.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

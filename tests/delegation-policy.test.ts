@@ -19,7 +19,7 @@ import {
   createRecordingDelegationHistoryStore,
   createFileDelegationHistoryStore
 } from "../packages/delegation-policy/src/index.js";
-import type { GovernanceState, ApprovalHistoryRecord } from "../packages/state-manager/src/index.js";
+import type { GovernanceState, ApprovalHistoryRecord } from "../packages/governance-internal-state-manager/src/index.js";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";

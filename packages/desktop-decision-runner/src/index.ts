@@ -38,11 +38,11 @@ import {
 import {
   createInitialGovernanceState,
   type GovernanceState
-} from "../../state-manager/src/index.js";
+} from "../../governance-internal-state-manager/src/index.js";
 import {
   routeStrategyV2,
   type StrategyDecisionV2
-} from "../../strategy-router/src/index.js";
+} from "../../governance-internal-strategy-router/src/index.js";
 
 export type DesktopDecisionRunnerStatus =
   | "blocked_preflight"

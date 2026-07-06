@@ -10,7 +10,7 @@ import {
   type WorkspaceWriteRealCanaryConfig,
   type WorkspaceWriteRealCanaryConfigEnv,
   type WorkspaceWriteRealCanaryConfigInput
-} from "../packages/workspace-write-guard/src/index.js";
+} from "../packages/governance-internal-workspace-write-guard/src/index.js";
 
 const execFileAsync = promisify(execFile);
 

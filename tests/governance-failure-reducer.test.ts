@@ -5,7 +5,7 @@ import {
   type ApplyExecutionFailureInput
 } from "../packages/governance-failure-reducer/src/index.js";
 import { parseTaskEnvelope } from "../packages/contracts/src/index.js";
-import type { GovernanceState, AnomalyRecord } from "../packages/state-manager/src/index.js";
+import type { GovernanceState, AnomalyRecord } from "../packages/governance-internal-state-manager/src/index.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

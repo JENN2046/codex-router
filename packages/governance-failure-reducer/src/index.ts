@@ -3,21 +3,21 @@ import type {
   GovernanceState,
   AnomalyRecord,
   GovernanceRiskScore
-} from "../../state-manager/src/index.js";
-import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
-import { routeStrategyV2 } from "../../strategy-router/src/index.js";
-import type { ArbitrationPacket } from "../../recovery-control/src/index.js";
-import { createArbitrationPacket } from "../../recovery-control/src/index.js";
+} from "../../governance-internal-state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../../governance-internal-strategy-router/src/index.js";
+import { routeStrategyV2 } from "../../governance-internal-strategy-router/src/index.js";
+import type { ArbitrationPacket } from "../../governance-internal-recovery-control/src/index.js";
+import { createArbitrationPacket } from "../../governance-internal-recovery-control/src/index.js";
 import {
   scoreGovernanceRisk,
   type ScoreGovernanceRiskInput
-} from "../../entropy-risk/src/index.js";
+} from "../../governance-internal-entropy-risk/src/index.js";
 import {
   parseExecutionObservation,
   createObservationId,
   EXECUTION_OBSERVATION_REF_PREFIX,
   type ExecutionObservation
-} from "../../execution-observation/src/index.js";
+} from "../../governance-internal-execution-observation/src/index.js";
 
 // ── Input / Output ────────────────────────────────────────────────────────
 

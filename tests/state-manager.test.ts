@@ -5,7 +5,7 @@ import {
   createDefaultRiskScore,
   recordAnomaly,
   parseGovernanceState
-} from "../packages/state-manager/src/index.js";
+} from "../packages/governance-internal-state-manager/src/index.js";
 import {
   parseRoutingDecision,
   parseTaskEnvelope

@@ -21,7 +21,7 @@ import {
   type GovernanceOperatorActionHostExecutorDispatchInvocation,
   type GovernanceOperatorActionHostExecutorDescriptorInput,
   type RecoveryAction
-} from "../packages/recovery-control/src/index.js";
+} from "../packages/governance-internal-recovery-control/src/index.js";
 import {
   createPhase13SandboxReferenceRunId,
   Phase13SandboxReferenceRecoveryExecutor

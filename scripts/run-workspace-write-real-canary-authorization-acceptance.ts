@@ -12,7 +12,7 @@ import {
   type WorkspaceWriteRealCanaryConfigEnv,
   type WorkspaceWriteRealCanaryConfigInput,
   evaluateWorkspaceWriteRealCanaryAuthorization
-} from "../packages/workspace-write-guard/src/index.js";
+} from "../packages/governance-internal-workspace-write-guard/src/index.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const DEFAULT_EVIDENCE_PATH = join(

@@ -11,9 +11,9 @@ import {
 import {
   createExecutionObservationRef,
   resolveExecutionObservationRef
-} from "../packages/execution-observation/src/index.js";
+} from "../packages/governance-internal-execution-observation/src/index.js";
 import { loadPolicyFromFile, type PolicySnapshot } from "../packages/policy-config/src/index.js";
-import type { GovernanceState } from "../packages/state-manager/src/index.js";
+import type { GovernanceState } from "../packages/governance-internal-state-manager/src/index.js";
 
 export interface RuntimeGovernanceDemoScenario {
   name: string;

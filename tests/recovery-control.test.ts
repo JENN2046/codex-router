@@ -44,13 +44,13 @@ import {
   type GovernanceOperatorActionHostExecutorDescriptorInput,
   type GovernanceOperatorActionReceiptInput,
   type GovernanceOperatorActionReceiptStore
-} from "../packages/recovery-control/src/index.js";
-import type { GovernanceState } from "../packages/state-manager/src/index.js";
+} from "../packages/governance-internal-recovery-control/src/index.js";
+import type { GovernanceState } from "../packages/governance-internal-state-manager/src/index.js";
 import { InMemoryArtifactStore } from "../packages/artifact-store/src/index.js";
 import {
   createExecutionObservationRef,
   createRecordingExecutionObservationStore
-} from "../packages/execution-observation/src/index.js";
+} from "../packages/governance-internal-execution-observation/src/index.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -943,7 +943,7 @@ test("recovery control file receipt store serializes concurrent consume attempts
   const actionIssuedAt = "2026-04-27T00:04:45.000Z";
   const receipt = createTestOperatorActionReceipt(envelope, { actionIssuedAt });
   const childScript = `
-    import { createFileGovernanceOperatorActionReceiptStore } from "./packages/recovery-control/src/index.js";
+    import { createFileGovernanceOperatorActionReceiptStore } from "./packages/governance-internal-recovery-control/src/index.js";
 
     const basePath = process.env.RECEIPT_STORE_BASE_PATH;
     const receiptJson = process.env.RECEIPT_JSON;

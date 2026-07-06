@@ -11,7 +11,7 @@ import {
   createObservationId,
   parseExecutionObservationRef,
   resolveExecutionObservationRef
-} from "../packages/execution-observation/src/index.js";
+} from "../packages/governance-internal-execution-observation/src/index.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const TEST_BASE_PATH = join(__dirname, "..", ".test-exec-observation");

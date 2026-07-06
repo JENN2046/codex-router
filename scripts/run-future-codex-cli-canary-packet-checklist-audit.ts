@@ -10,7 +10,7 @@ import {
   DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
   PR_12B_REAL_CANARY_ALLOWED_ACTION,
   PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE
-} from "../packages/workspace-write-guard/src/index.js";
+} from "../packages/governance-internal-workspace-write-guard/src/index.js";
 
 const execFileAsync = promisify(execFile);
 

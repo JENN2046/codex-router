@@ -36,11 +36,11 @@ import {
   createExecutionObservationRef,
   parseExecutionObservation,
   type ExecutionObservationBus
-} from "../../execution-observation/src/index.js";
+} from "../../governance-internal-execution-observation/src/index.js";
 import {
   type GovernanceState
-} from "../../state-manager/src/index.js";
-import type { StrategyDecisionV2 } from "../../strategy-router/src/index.js";
+} from "../../governance-internal-state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../../governance-internal-strategy-router/src/index.js";
 import {
   createGovernanceOperatorActionReceipt,
   createGovernanceOperatorActionEnvelope,
@@ -62,7 +62,7 @@ import {
   type RecoveryOperatorAction,
   type RecoveryAction,
   type RecoveryRecommendation
-} from "../../recovery-control/src/index.js";
+} from "../../governance-internal-recovery-control/src/index.js";
 import {
   applyExecutionFailureToGovernanceState
 } from "../../governance-failure-reducer/src/index.js";

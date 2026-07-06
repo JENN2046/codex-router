@@ -5,7 +5,7 @@ import type {
   GovernanceOperatorActionHostExecutorDispatchExecutor,
   GovernanceOperatorActionHostExecutorDispatchExecutorResult,
   GovernanceOperatorActionHostExecutorDispatchInvocation
-} from "../../packages/recovery-control/src/index.js";
+} from "../../packages/governance-internal-recovery-control/src/index.js";
 
 export interface Phase13SandboxReferenceRecoveryExecutorOptions {
   sandboxRoot: string;

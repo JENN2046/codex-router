@@ -14,7 +14,7 @@ import {
 import {
   createRecordingExecutionObservationStore,
   resolveExecutionObservationRef
-} from "../packages/execution-observation/src/index.js";
+} from "../packages/governance-internal-execution-observation/src/index.js";
 import {
   hashProviderExecutionPlannerObject,
   planProviderExecution,
@@ -57,11 +57,11 @@ import {
   runProviderExecutionPlanControlledReadOnly,
   runProviderExecutionPlanDryRun,
   summarizeGovernanceOperatorActionEnvelope
-} from "../packages/provider-execution-runner/src/index.js";
+} from "../packages/governance-internal-provider-execution-runner/src/index.js";
 import { ProviderRegistry } from "../packages/provider-registry/src/index.js";
 import { CodexCliExecutorProvider } from "../packages/providers/codex-cli/src/index.js";
-import type { GovernanceState } from "../packages/state-manager/src/index.js";
-import type { StrategyDecisionV2 } from "../packages/strategy-router/src/index.js";
+import type { GovernanceState } from "../packages/governance-internal-state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../packages/governance-internal-strategy-router/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
 import { validRun } from "../packages/kernel-contracts/test-fixtures/valid-run.js";
@@ -2235,7 +2235,7 @@ test("provider execution runner blocks stale governance task envelopes before pr
     },
     target: {
       branches: ["stale-target-branch"],
-      files: ["packages/provider-execution-runner/src/index.ts"],
+      files: ["packages/governance-internal-provider-execution-runner/src/index.ts"],
       modules: ["provider-execution-runner"]
     },
     constraints: {

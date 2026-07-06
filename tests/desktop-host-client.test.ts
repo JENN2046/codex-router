@@ -19,7 +19,7 @@ import { createDesktopHostClient } from "../packages/desktop-host-client/src/ind
 import {
   createExecutionObservationRef,
   createRecordingExecutionObservationStore
-} from "../packages/execution-observation/src/index.js";
+} from "../packages/governance-internal-execution-observation/src/index.js";
 import { createRecordingTelemetrySink } from "../packages/observability/src/index.js";
 import { loadPolicyFromFile } from "../packages/policy-config/src/index.js";
 import {
@@ -38,9 +38,9 @@ import {
   type GovernanceOperatorActionHostExecutorDescriptorInput,
   type GovernanceOperatorActionReceiptInput,
   type GovernanceOperatorActionReceiptStore
-} from "../packages/recovery-control/src/index.js";
-import type { GovernanceState } from "../packages/state-manager/src/index.js";
-import type { StrategyDecisionV2 } from "../packages/strategy-router/src/index.js";
+} from "../packages/governance-internal-recovery-control/src/index.js";
+import type { GovernanceState } from "../packages/governance-internal-state-manager/src/index.js";
+import type { StrategyDecisionV2 } from "../packages/governance-internal-strategy-router/src/index.js";
 import type {
   CodexMemoryClient,
   CodexMemorySearchInput,

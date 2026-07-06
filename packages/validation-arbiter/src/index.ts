@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ExecutionObservation } from "../../execution-observation/src/index.js";
-import type { GovernanceState } from "../../state-manager/src/index.js";
+import type { ExecutionObservation } from "../../governance-internal-execution-observation/src/index.js";
+import type { GovernanceState } from "../../governance-internal-state-manager/src/index.js";
 
 // ── Agent role ──────────────────────────────────────────────────────────────
 
