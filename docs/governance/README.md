@@ -118,6 +118,12 @@ as historical evidence unless a current authority document links them.
   adapters; this validates explicit injection, audit, packet binding, and
   sandbox artifact containment without invoking Codex CLI, provider,
   sub-agent runtime, shell, workspace-write, or production recovery execution.
+- [Phase 16 agent executor adapter dispatch authorization taskbook](PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_TASKBOOK.md):
+  current pre-implementation boundary for future adapter dispatch
+  authorization; this defines packet, audit, receipt, scope, and fail-closed
+  requirements without authorizing Codex CLI, provider, sub-agent runtime,
+  shell/process execution, workspace-write, external write, or production
+  recovery execution.
 
 ## Runner Entry Points
 
