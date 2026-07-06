@@ -24,9 +24,9 @@ import {
 export type DesktopHostUnknownRecord = Record<string, unknown>;
 
 export interface DesktopPrimitiveInvocation extends DesktopHostUnknownRecord {
-  primitive?: string;
-  taskId?: string;
-  reason?: string;
+  primitive: string;
+  taskId: string;
+  reason: string;
 }
 
 export type DesktopHostBinding = (
@@ -342,19 +342,57 @@ export interface CodexDesktopLiveHostEmbeddingStatus {
   nextAction: "wire_required_methods" | "create_bundle";
 }
 
-export type CodexDesktopToolRuntimeOperation = (
-  input?: unknown
-) => Promise<unknown> | unknown;
+export type CodexDesktopAgentType = "default" | "explorer" | "worker";
+
+export interface CodexDesktopSpawnAgentInput {
+  message: string;
+  agent_type?: CodexDesktopAgentType;
+  fork_context?: boolean;
+  model?: string;
+  reasoning_effort?: "low" | "medium" | "high";
+}
+
+export interface CodexDesktopSendInputInput {
+  target: string;
+  message: string;
+  interrupt?: boolean;
+}
+
+export interface CodexDesktopWaitAgentInput {
+  targets: string[];
+  timeout_ms?: number;
+}
+
+export interface CodexDesktopCloseAgentInput {
+  target: string;
+}
+
+export interface CodexDesktopStructuredShellCommand {
+  executable: string;
+  args?: string[];
+  shell?: boolean;
+}
+
+export interface CodexDesktopShellCommandInput {
+  command?: string;
+  structured_command?: CodexDesktopStructuredShellCommand;
+  justification?: string;
+  timeout_ms?: number;
+  workdir?: string;
+  login?: boolean;
+}
+
+export type CodexDesktopAutomationUpdateInput = DesktopHostUnknownRecord;
 
 export interface CodexDesktopToolRuntimeOperations {
-  read_thread_terminal: CodexDesktopToolRuntimeOperation;
-  spawn_agent: CodexDesktopToolRuntimeOperation;
-  wait_agent: CodexDesktopToolRuntimeOperation;
-  send_input: CodexDesktopToolRuntimeOperation;
-  close_agent: CodexDesktopToolRuntimeOperation;
-  shell_command: CodexDesktopToolRuntimeOperation;
-  apply_patch: CodexDesktopToolRuntimeOperation;
-  automation_update: CodexDesktopToolRuntimeOperation;
+  read_thread_terminal(): Promise<unknown> | unknown;
+  spawn_agent(input: CodexDesktopSpawnAgentInput): Promise<unknown> | unknown;
+  wait_agent(input: CodexDesktopWaitAgentInput): Promise<unknown> | unknown;
+  send_input(input: CodexDesktopSendInputInput): Promise<unknown> | unknown;
+  close_agent(input: CodexDesktopCloseAgentInput): Promise<unknown> | unknown;
+  shell_command(input: CodexDesktopShellCommandInput): Promise<unknown> | unknown;
+  apply_patch(patch: string): Promise<unknown> | unknown;
+  automation_update(input: CodexDesktopAutomationUpdateInput): Promise<unknown> | unknown;
 }
 
 export type CodexDesktopRuntime = unknown;

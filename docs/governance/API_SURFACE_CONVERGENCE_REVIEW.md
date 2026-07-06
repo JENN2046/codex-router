@@ -35,6 +35,9 @@ Implemented boundary:
 - `packages/public-api/src/host.ts` owns declaration-safe host wrapper types for
   the public facade instead of re-exporting host implementation types that carry
   governance-internal references.
+- The public host wrapper keeps runtime invocation metadata (`primitive`,
+  `taskId`, `reason`) required and preserves per-tool desktop runtime operation
+  signatures while still hiding internal implementation types.
 - `tests/public-api-surface.test.ts` locks the facade export list.
 - `tests/public-api-surface.test.ts` also generates declaration-only output for
   the public package type targets and rejects public facade declarations that

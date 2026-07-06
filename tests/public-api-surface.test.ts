@@ -17,6 +17,8 @@ import type {
   A2AAgentCardSkeleton,
   AgentOsSdkOptions,
   ArtifactStore,
+  CodexDesktopToolRuntimeOperations,
+  DesktopPrimitiveInvocation,
   DesktopHostClientOptions,
   ExecutorProvider,
   KernelStore,
@@ -274,6 +276,49 @@ test("public-api host facade delegates through declaration-safe wrappers", async
     policy: {}
   });
   assert.equal(starter.getStatus().ready, false);
+});
+
+test("public-api host facade preserves concrete runtime handler contracts", () => {
+  const invocation: DesktopPrimitiveInvocation = {
+    primitive: "shell_command",
+    taskId: "task-public-host-contract",
+    reason: "verify public host facade metadata"
+  };
+
+  const runtimeTools: CodexDesktopToolRuntimeOperations = {
+    read_thread_terminal() {
+      return "terminal snapshot";
+    },
+    spawn_agent(input: { message: string }) {
+      return { message: input.message };
+    },
+    wait_agent(input: { targets: string[] }) {
+      return { targets: input.targets };
+    },
+    send_input(input: { target: string; message: string }) {
+      return { target: input.target, message: input.message };
+    },
+    close_agent(input: { target: string }) {
+      return { target: input.target };
+    },
+    shell_command(input: { command: string }) {
+      return { command: input.command };
+    },
+    apply_patch(patch: string) {
+      return patch;
+    },
+    automation_update(input: { status?: string }) {
+      return input.status ?? "updated";
+    }
+  };
+
+  assert.equal(invocation.primitive, "shell_command");
+  assert.equal(invocation.taskId, "task-public-host-contract");
+  assert.equal(
+    runtimeTools.apply_patch("*** Begin Patch\n*** End Patch\n"),
+    "*** Begin Patch\n*** End Patch\n"
+  );
+  assert.deepEqual(runtimeTools.spawn_agent({ message: "spawn" }), { message: "spawn" });
 });
 
 test("public-api facade does not expose internal governance implementation", async () => {

@@ -59,8 +59,11 @@ export {
   resolveLiveHostPreflightFromHost
 } from "./host.js";
 export type {
+  CodexDesktopAgentType,
+  CodexDesktopAutomationUpdateInput,
   CodexDesktopBindingOptions,
   CodexDesktopBindingSession,
+  CodexDesktopCloseAgentInput,
   CodexDesktopDirectiveResolvers,
   CodexDesktopLiveHostBundle,
   CodexDesktopLiveHostEmbeddingStarter,
@@ -75,14 +78,24 @@ export type {
   CodexDesktopLiveHostOptions,
   CodexDesktopLiveHostStarterOptions,
   CodexDesktopRuntime,
+  CodexDesktopSendInputInput,
+  CodexDesktopShellCommandInput,
+  CodexDesktopSpawnAgentInput,
+  CodexDesktopStructuredShellCommand,
   CodexDesktopToolRuntimeOperations,
+  CodexDesktopWaitAgentInput,
   CodexMemoryHostOperations,
+  DesktopHostBinding,
+  DesktopHostBindings,
+  DesktopHostBridge,
   DesktopHostClientOptions,
   DesktopHostClientPersistence,
   DesktopHostCreateOperatorActionReceiptInput,
   DesktopHostOperatorActionHostExecutorAuthorizationReviewInput,
   DesktopHostOperatorActionHostExecutorDispatchInput,
   DesktopHostOperatorActionReceiptInput,
+  DesktopHostUnknownRecord,
+  DesktopPrimitiveInvocation,
   DesktopHostResumeOptions
 } from "./host.js";
 
