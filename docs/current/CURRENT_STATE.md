@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `a8cce95c5340b5056262c828c0cf12864879255580ee26d182f64f08599657ba`
+  `d8e06792e06e0c7c317597289421563dd28d0fca6bc158e3c1322f0100f498f1`
 
 Source digest excluded paths:
 
@@ -127,6 +127,12 @@ Current repository governance status:
   review surfaces without adapter invocation, Codex CLI, provider,
   sub-agent runtime, shell, workspace-write, external write, or production
   recovery execution.
+- Phase 15 agent executor adapter sandbox contract is closed out in
+  `docs/governance/PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT.md`;
+  it implements an explicitly injected sandbox reference adapter contract
+  witness with sanitized audit and sandbox-contained test artifacts, without
+  Codex CLI, provider, sub-agent runtime, shell, real workspace-write, external
+  write, or production recovery execution.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
@@ -280,6 +286,13 @@ it implements review-only adapter descriptor, packet, hash, and readiness
 review surfaces without adding adapter invocation, Codex CLI invocation,
 provider invocation, sub-agent runtime invocation, shell/process execution,
 external write, workspace-write, or production recovery execution.
+The Phase 15 agent executor adapter sandbox contract closeout is recorded at
+`docs/governance/PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT.md`;
+it implements a sandbox-only reference adapter contract witness with explicit
+injection, sanitized audit, packet/readiness binding, and sandbox-contained
+test artifacts without adding Codex CLI invocation, provider invocation,
+sub-agent runtime invocation, shell/process execution, real workspace-write,
+external write, or production recovery execution.
 
 Boundary audit marker:
 
@@ -293,6 +306,7 @@ Boundary audit marker:
 - `PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT_RECORDED`
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK_RECORDED`
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT_RECORDED`
+- `PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT_RECORDED`
 
 Blocked capabilities:
 

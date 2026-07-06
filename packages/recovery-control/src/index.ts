@@ -733,6 +733,8 @@ export const GovernanceOperatorActionHostExecutorAuthorizationResultSchema = z.o
 
 export const GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL =
   "APPROVE_PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_IMPLEMENTATION" as const;
+export const GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_APPROVAL =
+  "APPROVE_PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_RUN" as const;
 
 export const GovernanceOperatorActionAgentExecutorAdapterKindSchema = z.enum([
   "codex_cli_adapter",
@@ -1083,6 +1085,267 @@ export const GovernanceOperatorActionHostExecutorDispatchResultSchema = z.object
   }
 });
 
+// ── Sandbox-only agent executor adapter contract run boundary ──────────────
+
+export const GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacketSchema =
+  z.object({
+    schemaVersion:
+      z.literal("governance-operator-action-agent-executor-adapter-sandbox-contract-packet.v1")
+        .default("governance-operator-action-agent-executor-adapter-sandbox-contract-packet.v1"),
+    approvalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_APPROVAL
+    ),
+    reviewApprovalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL
+    ),
+    taskId: z.string().min(1),
+    actionRef: z.string().min(1),
+    receiptId: z.string().min(1),
+    envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+    recommendedAction: RecoveryActionSchema,
+    executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+    checkpointRef: z.string().min(1).optional(),
+    hostExecutorDescriptorId: z.string().min(1),
+    hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+    adapterId: z.string().min(1),
+    adapterKind: z.literal("sandbox_reference_adapter"),
+    adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    sandboxScopeRef: GovernanceOperatorSanitizedRefSchema,
+    sideEffectBoundary: z.literal("sandbox_only").default("sandbox_only"),
+    evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+  }).superRefine((value, ctx) => {
+    if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_agent_executor_adapter_sandbox_contract_checkpoint_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_agent_executor_adapter_sandbox_contract_checkpoint_not_allowed"
+      });
+    }
+  });
+
+export const GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocationSchema =
+  z.object({
+    schemaVersion:
+      z.literal("governance-operator-action-agent-executor-adapter-sandbox-contract-invocation.v1")
+        .default("governance-operator-action-agent-executor-adapter-sandbox-contract-invocation.v1"),
+    contractMode: z.literal("sandbox_contract").default("sandbox_contract"),
+    taskId: z.string().min(1),
+    actionRef: z.string().min(1),
+    receiptId: z.string().min(1),
+    envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+    recommendedAction: RecoveryActionSchema,
+    executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+    checkpointRef: z.string().min(1).optional(),
+    hostExecutorDescriptorId: z.string().min(1),
+    hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+    adapterId: z.string().min(1),
+    adapterKind: z.literal("sandbox_reference_adapter"),
+    adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    sandboxScopeRef: GovernanceOperatorSanitizedRefSchema,
+    sideEffectBoundary: z.literal("sandbox_only"),
+    evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+    operatorInstruction: z.string().min(1)
+  }).superRefine((value, ctx) => {
+    if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_agent_executor_adapter_sandbox_invocation_checkpoint_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRef"],
+        message: "operator_action_agent_executor_adapter_sandbox_invocation_checkpoint_not_allowed"
+      });
+    }
+  });
+
+export const GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapterResultSchema =
+  z.object({
+    schemaVersion:
+      z.literal("governance-operator-action-agent-executor-adapter-sandbox-contract-adapter-result.v1")
+        .default("governance-operator-action-agent-executor-adapter-sandbox-contract-adapter-result.v1"),
+    status: GovernanceOperatorActionHostExecutorDispatchExecutorStatusSchema,
+    reasonCode:
+      GovernanceOperatorActionHostExecutorDispatchExecutorReasonCodeSchema.optional(),
+    resultRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+  }).superRefine((value, ctx) => {
+    if (
+      ["failed", "refused", "aborted"].includes(value.status) &&
+      value.reasonCode === undefined
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reasonCode"],
+        message:
+          "operator_action_agent_executor_adapter_sandbox_contract_terminal_status_requires_reason_code"
+      });
+    }
+  });
+
+export const GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditEventSchema =
+  z.object({
+    schemaVersion:
+      z.literal("governance-operator-action-agent-executor-adapter-sandbox-contract-audit.v1")
+        .default("governance-operator-action-agent-executor-adapter-sandbox-contract-audit.v1"),
+    status: z.enum(["attempting", "completed", "failed"]),
+    taskId: z.string().min(1),
+    actionRef: z.string().min(1),
+    receiptId: z.string().min(1),
+    envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+    recommendedAction: RecoveryActionSchema,
+    executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+    checkpointRef: z.string().min(1).optional(),
+    hostExecutorDescriptorId: z.string().min(1),
+    hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+    adapterId: z.string().min(1),
+    adapterKind: z.literal("sandbox_reference_adapter"),
+    adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    sandboxScopeRef: GovernanceOperatorSanitizedRefSchema,
+    sideEffectBoundary: z.literal("sandbox_only"),
+    adapterStatus: GovernanceOperatorActionHostExecutorDispatchExecutorStatusSchema.optional(),
+    adapterReasonCode:
+      GovernanceOperatorActionHostExecutorDispatchExecutorReasonCodeSchema.optional(),
+    resultRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    errorClass: z.string().min(1).optional(),
+    evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+  });
+
+export const GovernanceOperatorActionAgentExecutorAdapterSandboxContractResultSchema =
+  z.object({
+    schemaVersion:
+      z.literal("governance-operator-action-agent-executor-adapter-sandbox-contract.v1")
+        .default("governance-operator-action-agent-executor-adapter-sandbox-contract.v1"),
+    status: z.enum(["completed", "blocked", "failed"]),
+    reasons: z.array(z.string()).default([]),
+    approvalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_APPROVAL
+    ).optional(),
+    reviewApprovalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL
+    ).optional(),
+    taskId: z.string().min(1).optional(),
+    actionRef: z.string().min(1).optional(),
+    receiptId: z.string().min(1).optional(),
+    envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    recommendedAction: RecoveryActionSchema.optional(),
+    executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    checkpointRef: z.string().min(1).optional(),
+    hostExecutorDescriptorId: z.string().min(1).optional(),
+    hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    adapterId: z.string().min(1).optional(),
+    adapterKind: GovernanceOperatorActionAgentExecutorAdapterKindSchema.optional(),
+    adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    sandboxScopeRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    sideEffectBoundary: z.literal("sandbox_only").optional(),
+    adapterStatus: GovernanceOperatorActionHostExecutorDispatchExecutorStatusSchema.optional(),
+    adapterReasonCode:
+      GovernanceOperatorActionHostExecutorDispatchExecutorReasonCodeSchema.optional(),
+    adapterResultRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    errorClass: z.string().min(1).optional(),
+    evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+    operatorInstruction: z.string().min(1).optional()
+  }).superRefine((value, ctx) => {
+    if (value.status === "completed") {
+      if (value.reasons.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["reasons"],
+          message: "operator_action_agent_executor_adapter_sandbox_contract_success_requires_no_reasons"
+        });
+      }
+
+      for (const field of [
+        "approvalString",
+        "reviewApprovalString",
+        "taskId",
+        "actionRef",
+        "receiptId",
+        "envelopeHash",
+        "recommendedAction",
+        "executionPlanHash",
+        "hostExecutorDescriptorId",
+        "hostExecutorDescriptorHash",
+        "authorizationIdentityHash",
+        "adapterId",
+        "adapterKind",
+        "adapterDescriptorHash",
+        "sandboxScopeRef",
+        "sideEffectBoundary",
+        "adapterStatus",
+        "operatorInstruction"
+      ] as const) {
+        if (value[field] === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message: "operator_action_agent_executor_adapter_sandbox_contract_success_requires_field"
+          });
+        }
+      }
+
+      if (value.adapterKind !== "sandbox_reference_adapter") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["adapterKind"],
+          message:
+            "operator_action_agent_executor_adapter_sandbox_contract_success_requires_sandbox_reference"
+        });
+      }
+
+      if (value.recommendedAction === "rollback" && value.checkpointRef === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["checkpointRef"],
+          message:
+            "operator_action_agent_executor_adapter_sandbox_contract_success_checkpoint_required"
+        });
+      }
+
+      if (value.recommendedAction !== "rollback" && value.checkpointRef !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["checkpointRef"],
+          message:
+            "operator_action_agent_executor_adapter_sandbox_contract_success_checkpoint_not_allowed"
+        });
+      }
+      return;
+    }
+
+    if (value.reasons.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reasons"],
+        message: "operator_action_agent_executor_adapter_sandbox_contract_block_requires_reasons"
+      });
+    }
+
+    if (value.status === "failed" && value.errorClass === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["errorClass"],
+        message: "operator_action_agent_executor_adapter_sandbox_contract_failed_requires_error_class"
+      });
+    }
+  });
+
 // ── Host-consumable operator evidence resolution ───────────────────────────
 
 export const GovernanceOperatorEvidenceResolutionKindSchema = z.enum([
@@ -1363,6 +1626,16 @@ export type GovernanceOperatorActionHostExecutorDispatchAuditEventInput = z.inpu
 export type GovernanceOperatorActionHostExecutorDispatchAuditEvent = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchAuditEventSchema>;
 export type GovernanceOperatorActionHostExecutorDispatchResultInput = z.input<typeof GovernanceOperatorActionHostExecutorDispatchResultSchema>;
 export type GovernanceOperatorActionHostExecutorDispatchResult = z.infer<typeof GovernanceOperatorActionHostExecutorDispatchResultSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacketInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacketSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacket = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacketSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocationInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocationSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocation = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocationSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapterResultInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapterResultSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapterResult = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapterResultSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditEventInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditEventSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditEvent = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditEventSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterSandboxContractResultInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterSandboxContractResultSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterSandboxContractResult = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterSandboxContractResultSchema>;
 export type GovernanceOperatorEvidenceResolutionKind = z.infer<typeof GovernanceOperatorEvidenceResolutionKindSchema>;
 export type GovernanceOperatorEvidenceResolutionStatus = z.infer<typeof GovernanceOperatorEvidenceResolutionStatusSchema>;
 export type GovernanceOperatorObservationEvidenceSummary = z.infer<typeof GovernanceOperatorObservationEvidenceSummarySchema>;
@@ -1417,6 +1690,32 @@ export interface ReviewGovernanceOperatorActionAgentExecutorAdapterReadinessInpu
   hostExecutorAuthorization?: unknown;
   adapterDescriptor?: unknown;
   adapterReviewPacket?: unknown;
+}
+
+export interface GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapter {
+  runSandboxContract(
+    invocation: GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocation
+  ): Promise<unknown> | unknown;
+}
+
+export interface GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditSink {
+  record(
+    event: GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditEvent
+  ): Promise<void> | void;
+}
+
+export interface RunGovernanceOperatorActionAgentExecutorAdapterSandboxContractInput {
+  executionGate: unknown;
+  lifecycleState?: unknown;
+  authorizationPacket?: unknown;
+  hostExecutorDescriptor?: unknown;
+  hostExecutorAuthorization?: unknown;
+  adapterDescriptor?: unknown;
+  adapterReviewPacket?: unknown;
+  adapterReadiness?: unknown;
+  sandboxContractPacket?: unknown;
+  adapter?: GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapter;
+  auditSink?: GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditSink;
 }
 
 export interface GovernanceOperatorActionHostExecutorDispatchExecutor {
@@ -2580,6 +2879,212 @@ export function reviewGovernanceOperatorActionAgentExecutorAdapterReadiness(
   });
 }
 
+export async function runGovernanceOperatorActionAgentExecutorAdapterSandboxContract(
+  input: RunGovernanceOperatorActionAgentExecutorAdapterSandboxContractInput
+): Promise<GovernanceOperatorActionAgentExecutorAdapterSandboxContractResult> {
+  const readiness = reviewGovernanceOperatorActionAgentExecutorAdapterReadiness({
+    executionGate: input.executionGate,
+    lifecycleState: input.lifecycleState,
+    ...(input.authorizationPacket !== undefined
+      ? { authorizationPacket: input.authorizationPacket }
+      : {}),
+    ...(input.hostExecutorDescriptor !== undefined
+      ? { hostExecutorDescriptor: input.hostExecutorDescriptor }
+      : {}),
+    ...(input.hostExecutorAuthorization !== undefined
+      ? { hostExecutorAuthorization: input.hostExecutorAuthorization }
+      : {}),
+    ...(input.adapterDescriptor !== undefined
+      ? { adapterDescriptor: input.adapterDescriptor }
+      : {}),
+    ...(input.adapterReviewPacket !== undefined
+      ? { adapterReviewPacket: input.adapterReviewPacket }
+      : {})
+  });
+  const reasons: string[] = [];
+
+  let suppliedReadiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult | undefined;
+  if (input.adapterReadiness === undefined) {
+    addUniqueReason(reasons, "operator_action_agent_executor_adapter_sandbox_contract_readiness_required");
+  } else {
+    const parsedReadiness =
+      GovernanceOperatorActionAgentExecutorAdapterReviewResultSchema.safeParse(
+        input.adapterReadiness
+      );
+    if (parsedReadiness.success) {
+      suppliedReadiness = parsedReadiness.data;
+      if (suppliedReadiness.status !== "ready_for_agent_executor_adapter_review") {
+        addUniqueReason(
+          reasons,
+          "operator_action_agent_executor_adapter_sandbox_contract_readiness_not_ready"
+        );
+      }
+    } else {
+      addUniqueReason(reasons, "operator_action_agent_executor_adapter_sandbox_contract_readiness_invalid");
+    }
+  }
+
+  let sandboxContractPacket:
+    | GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacket
+    | undefined;
+  if (input.sandboxContractPacket === undefined) {
+    addUniqueReason(reasons, "operator_action_agent_executor_adapter_sandbox_contract_packet_required");
+  } else {
+    const parsedPacket =
+      GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacketSchema.safeParse(
+        input.sandboxContractPacket
+      );
+    if (parsedPacket.success) {
+      sandboxContractPacket = parsedPacket.data;
+    } else {
+      addUniqueReason(reasons, "operator_action_agent_executor_adapter_sandbox_contract_packet_invalid");
+    }
+  }
+
+  if (readiness.status !== "ready_for_agent_executor_adapter_review") {
+    addUniqueReason(reasons, "operator_action_agent_executor_adapter_sandbox_contract_review_not_ready");
+    for (const reason of readiness.reasons) {
+      addUniqueReason(reasons, reason);
+    }
+  }
+
+  if (
+    suppliedReadiness !== undefined &&
+    readiness.status === "ready_for_agent_executor_adapter_review"
+  ) {
+    addAgentExecutorAdapterSandboxContractReadinessReasons(reasons, {
+      suppliedReadiness,
+      readiness
+    });
+  }
+
+  if (
+    sandboxContractPacket !== undefined &&
+    readiness.status === "ready_for_agent_executor_adapter_review"
+  ) {
+    addAgentExecutorAdapterSandboxContractPacketReasons(reasons, {
+      packet: sandboxContractPacket,
+      readiness
+    });
+  }
+
+  if (input.adapter === undefined) {
+    addUniqueReason(reasons, "operator_action_agent_executor_adapter_sandbox_contract_adapter_required");
+  }
+
+  if (input.auditSink === undefined) {
+    addUniqueReason(reasons, "operator_action_agent_executor_adapter_sandbox_contract_audit_sink_required");
+  }
+
+  if (
+    reasons.length > 0 ||
+    suppliedReadiness === undefined ||
+    suppliedReadiness.status !== "ready_for_agent_executor_adapter_review" ||
+    readiness.status !== "ready_for_agent_executor_adapter_review" ||
+    sandboxContractPacket === undefined
+  ) {
+    return createBlockedOperatorActionAgentExecutorAdapterSandboxContractResult(reasons, {
+      readiness,
+      ...(suppliedReadiness !== undefined ? { suppliedReadiness } : {}),
+      ...(sandboxContractPacket !== undefined ? { sandboxContractPacket } : {})
+    });
+  }
+
+  const invocation = createOperatorActionAgentExecutorAdapterSandboxContractInvocation({
+    readiness,
+    sandboxContractPacket
+  });
+
+  if (input.adapter === undefined || input.auditSink === undefined) {
+    return createBlockedOperatorActionAgentExecutorAdapterSandboxContractResult([
+      "operator_action_agent_executor_adapter_sandbox_contract_adapter_required",
+      "operator_action_agent_executor_adapter_sandbox_contract_audit_sink_required"
+    ], {
+      readiness,
+      suppliedReadiness,
+      sandboxContractPacket
+    });
+  }
+
+  try {
+    await input.auditSink.record(createAgentExecutorAdapterSandboxContractAuditEvent({
+      status: "attempting",
+      invocation,
+      evidenceRefs: invocation.evidenceRefs
+    }));
+  } catch {
+    return createBlockedOperatorActionAgentExecutorAdapterSandboxContractResult([
+      "operator_action_agent_executor_adapter_sandbox_contract_audit_sink_failed"
+    ], {
+      readiness,
+      suppliedReadiness,
+      sandboxContractPacket
+    });
+  }
+
+  let adapterResult: GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapterResult;
+  try {
+    adapterResult =
+      GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapterResultSchema.parse(
+        await input.adapter.runSandboxContract(invocation)
+      );
+  } catch (error) {
+    const errorClass = normalizeAgentExecutorAdapterSandboxContractErrorClass(error);
+    const failedResult = createFailedOperatorActionAgentExecutorAdapterSandboxContractResult({
+      invocation,
+      reasons: ["operator_action_agent_executor_adapter_sandbox_contract_adapter_failed"],
+      errorClass,
+      evidenceRefs: invocation.evidenceRefs
+    });
+    await recordAgentExecutorAdapterSandboxContractFailure(
+      input.auditSink,
+      invocation,
+      failedResult
+    );
+    return failedResult;
+  }
+
+  const evidenceRefs = uniqueStrings([
+    ...invocation.evidenceRefs,
+    ...adapterResult.evidenceRefs
+  ]);
+  const completed = createReadyOperatorActionAgentExecutorAdapterSandboxContractResult({
+    invocation,
+    adapterStatus: adapterResult.status,
+    ...(adapterResult.reasonCode !== undefined
+      ? { adapterReasonCode: adapterResult.reasonCode }
+      : {}),
+    ...(adapterResult.resultRef !== undefined
+      ? { adapterResultRef: adapterResult.resultRef }
+      : {}),
+    evidenceRefs,
+    operatorInstruction:
+      `Sandbox-only agent executor adapter contract returned ${adapterResult.status} for ${invocation.recommendedAction}; no Codex CLI, sub-agent runtime, provider, shell, workspace-write, or recovery action was invoked by codex-router.`
+  });
+
+  try {
+    await input.auditSink.record(createAgentExecutorAdapterSandboxContractAuditEvent({
+      status: "completed",
+      invocation,
+      adapterStatus: adapterResult.status,
+      ...(adapterResult.reasonCode !== undefined
+        ? { adapterReasonCode: adapterResult.reasonCode }
+        : {}),
+      ...(adapterResult.resultRef !== undefined ? { resultRef: adapterResult.resultRef } : {}),
+      evidenceRefs
+    }));
+  } catch {
+    return createFailedOperatorActionAgentExecutorAdapterSandboxContractResult({
+      invocation,
+      reasons: ["operator_action_agent_executor_adapter_sandbox_contract_audit_sink_failed"],
+      errorClass: "operator_action_agent_executor_adapter_sandbox_contract_audit_sink_failed",
+      evidenceRefs
+    });
+  }
+
+  return completed;
+}
+
 export async function dispatchGovernanceOperatorActionHostExecutor(
   input: DispatchGovernanceOperatorActionHostExecutorInput
 ): Promise<GovernanceOperatorActionHostExecutorDispatchResult> {
@@ -3029,6 +3534,237 @@ function createBlockedOperatorActionAgentExecutorAdapterReviewResult(
   });
 }
 
+function createBlockedOperatorActionAgentExecutorAdapterSandboxContractResult(
+  reasons: string[],
+  context: {
+    readiness?: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+    suppliedReadiness?: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+    sandboxContractPacket?: GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacket;
+  } = {}
+): GovernanceOperatorActionAgentExecutorAdapterSandboxContractResult {
+  const source = context.readiness ?? context.suppliedReadiness;
+
+  return GovernanceOperatorActionAgentExecutorAdapterSandboxContractResultSchema.parse({
+    status: "blocked",
+    reasons: reasons.length > 0
+      ? [...new Set(reasons)]
+      : ["operator_action_agent_executor_adapter_sandbox_contract_blocked"],
+    approvalString:
+      context.sandboxContractPacket?.approvalString ??
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_APPROVAL,
+    reviewApprovalString:
+      context.sandboxContractPacket?.reviewApprovalString ??
+      context.suppliedReadiness?.approvalString ??
+      context.readiness?.approvalString,
+    ...(source?.taskId !== undefined ? { taskId: source.taskId } : {}),
+    ...(source?.actionRef !== undefined ? { actionRef: source.actionRef } : {}),
+    ...(source?.receiptId !== undefined ? { receiptId: source.receiptId } : {}),
+    ...(source?.envelopeHash !== undefined ? { envelopeHash: source.envelopeHash } : {}),
+    ...(source?.recommendedAction !== undefined ? { recommendedAction: source.recommendedAction } : {}),
+    ...(source?.executionPlanHash !== undefined ? { executionPlanHash: source.executionPlanHash } : {}),
+    ...(source?.checkpointRef !== undefined ? { checkpointRef: source.checkpointRef } : {}),
+    ...(source?.hostExecutorDescriptorId !== undefined
+      ? { hostExecutorDescriptorId: source.hostExecutorDescriptorId }
+      : {}),
+    ...(source?.hostExecutorDescriptorHash !== undefined
+      ? { hostExecutorDescriptorHash: source.hostExecutorDescriptorHash }
+      : {}),
+    ...(source?.authorizationIdentityHash !== undefined
+      ? { authorizationIdentityHash: source.authorizationIdentityHash }
+      : {}),
+    ...(context.sandboxContractPacket !== undefined
+      ? { adapterId: context.sandboxContractPacket.adapterId }
+      : source?.adapterId !== undefined
+        ? { adapterId: source.adapterId }
+        : {}),
+    ...(context.sandboxContractPacket !== undefined
+      ? { adapterKind: context.sandboxContractPacket.adapterKind }
+      : source?.adapterKind !== undefined
+        ? { adapterKind: source.adapterKind }
+        : {}),
+    ...(context.sandboxContractPacket !== undefined
+      ? { adapterDescriptorHash: context.sandboxContractPacket.adapterDescriptorHash }
+      : source?.adapterDescriptorHash !== undefined
+        ? { adapterDescriptorHash: source.adapterDescriptorHash }
+        : {}),
+    ...(context.sandboxContractPacket?.sandboxScopeRef !== undefined
+      ? { sandboxScopeRef: context.sandboxContractPacket.sandboxScopeRef }
+      : {}),
+    ...(context.sandboxContractPacket !== undefined
+      ? { sideEffectBoundary: "sandbox_only" as const }
+      : {}),
+    evidenceRefs: uniqueStrings([
+      ...(context.readiness?.evidenceRefs ?? []),
+      ...(context.suppliedReadiness?.evidenceRefs ?? []),
+      ...(context.sandboxContractPacket?.evidenceRefs ?? [])
+    ])
+  });
+}
+
+function createOperatorActionAgentExecutorAdapterSandboxContractInvocation(input: {
+  readiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+  sandboxContractPacket: GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacket;
+}): GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocation {
+  return GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocationSchema.parse({
+    contractMode: "sandbox_contract",
+    taskId: input.readiness.taskId,
+    actionRef: input.readiness.actionRef,
+    receiptId: input.readiness.receiptId,
+    envelopeHash: input.readiness.envelopeHash,
+    recommendedAction: input.readiness.recommendedAction,
+    executionPlanHash: input.readiness.executionPlanHash,
+    ...(input.readiness.checkpointRef !== undefined
+      ? { checkpointRef: input.readiness.checkpointRef }
+      : {}),
+    hostExecutorDescriptorId: input.readiness.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.readiness.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.readiness.authorizationIdentityHash,
+    adapterId: input.sandboxContractPacket.adapterId,
+    adapterKind: input.sandboxContractPacket.adapterKind,
+    adapterDescriptorHash: input.sandboxContractPacket.adapterDescriptorHash,
+    sandboxScopeRef: input.sandboxContractPacket.sandboxScopeRef,
+    sideEffectBoundary: "sandbox_only",
+    evidenceRefs: uniqueStrings([
+      ...input.readiness.evidenceRefs,
+      ...input.sandboxContractPacket.evidenceRefs
+    ]),
+    operatorInstruction:
+      `Sandbox-only agent executor adapter contract prepared for ${input.readiness.recommendedAction}.`
+  });
+}
+
+function createReadyOperatorActionAgentExecutorAdapterSandboxContractResult(input: {
+  invocation: GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocation;
+  adapterStatus: GovernanceOperatorActionHostExecutorDispatchExecutorStatus;
+  adapterReasonCode?: GovernanceOperatorActionHostExecutorDispatchExecutorReasonCode;
+  adapterResultRef?: string;
+  evidenceRefs: string[];
+  operatorInstruction: string;
+}): GovernanceOperatorActionAgentExecutorAdapterSandboxContractResult {
+  return GovernanceOperatorActionAgentExecutorAdapterSandboxContractResultSchema.parse({
+    status: "completed",
+    reasons: [],
+    approvalString: GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_APPROVAL,
+    reviewApprovalString: GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL,
+    taskId: input.invocation.taskId,
+    actionRef: input.invocation.actionRef,
+    receiptId: input.invocation.receiptId,
+    envelopeHash: input.invocation.envelopeHash,
+    recommendedAction: input.invocation.recommendedAction,
+    executionPlanHash: input.invocation.executionPlanHash,
+    ...(input.invocation.checkpointRef !== undefined
+      ? { checkpointRef: input.invocation.checkpointRef }
+      : {}),
+    hostExecutorDescriptorId: input.invocation.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.invocation.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.invocation.authorizationIdentityHash,
+    adapterId: input.invocation.adapterId,
+    adapterKind: input.invocation.adapterKind,
+    adapterDescriptorHash: input.invocation.adapterDescriptorHash,
+    sandboxScopeRef: input.invocation.sandboxScopeRef,
+    sideEffectBoundary: "sandbox_only",
+    adapterStatus: input.adapterStatus,
+    ...(input.adapterReasonCode !== undefined
+      ? { adapterReasonCode: input.adapterReasonCode }
+      : {}),
+    ...(input.adapterResultRef !== undefined
+      ? { adapterResultRef: input.adapterResultRef }
+      : {}),
+    evidenceRefs: [...input.evidenceRefs],
+    operatorInstruction: input.operatorInstruction
+  });
+}
+
+function createFailedOperatorActionAgentExecutorAdapterSandboxContractResult(input: {
+  invocation: GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocation;
+  reasons: string[];
+  errorClass: string;
+  evidenceRefs: string[];
+}): GovernanceOperatorActionAgentExecutorAdapterSandboxContractResult {
+  return GovernanceOperatorActionAgentExecutorAdapterSandboxContractResultSchema.parse({
+    status: "failed",
+    reasons: [...new Set(input.reasons)],
+    approvalString: GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_APPROVAL,
+    reviewApprovalString: GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL,
+    taskId: input.invocation.taskId,
+    actionRef: input.invocation.actionRef,
+    receiptId: input.invocation.receiptId,
+    envelopeHash: input.invocation.envelopeHash,
+    recommendedAction: input.invocation.recommendedAction,
+    executionPlanHash: input.invocation.executionPlanHash,
+    ...(input.invocation.checkpointRef !== undefined
+      ? { checkpointRef: input.invocation.checkpointRef }
+      : {}),
+    hostExecutorDescriptorId: input.invocation.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.invocation.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.invocation.authorizationIdentityHash,
+    adapterId: input.invocation.adapterId,
+    adapterKind: input.invocation.adapterKind,
+    adapterDescriptorHash: input.invocation.adapterDescriptorHash,
+    sandboxScopeRef: input.invocation.sandboxScopeRef,
+    sideEffectBoundary: "sandbox_only",
+    errorClass: input.errorClass,
+    evidenceRefs: [...input.evidenceRefs]
+  });
+}
+
+function createAgentExecutorAdapterSandboxContractAuditEvent(input: {
+  status: "attempting" | "completed" | "failed";
+  invocation: GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocation;
+  adapterStatus?: GovernanceOperatorActionHostExecutorDispatchExecutorStatus;
+  adapterReasonCode?: GovernanceOperatorActionHostExecutorDispatchExecutorReasonCode;
+  resultRef?: string;
+  errorClass?: string;
+  evidenceRefs: string[];
+}): GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditEvent {
+  return GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditEventSchema.parse({
+    status: input.status,
+    taskId: input.invocation.taskId,
+    actionRef: input.invocation.actionRef,
+    receiptId: input.invocation.receiptId,
+    envelopeHash: input.invocation.envelopeHash,
+    recommendedAction: input.invocation.recommendedAction,
+    executionPlanHash: input.invocation.executionPlanHash,
+    ...(input.invocation.checkpointRef !== undefined
+      ? { checkpointRef: input.invocation.checkpointRef }
+      : {}),
+    hostExecutorDescriptorId: input.invocation.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.invocation.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.invocation.authorizationIdentityHash,
+    adapterId: input.invocation.adapterId,
+    adapterKind: input.invocation.adapterKind,
+    adapterDescriptorHash: input.invocation.adapterDescriptorHash,
+    sandboxScopeRef: input.invocation.sandboxScopeRef,
+    sideEffectBoundary: "sandbox_only",
+    ...(input.adapterStatus !== undefined
+      ? { adapterStatus: input.adapterStatus }
+      : {}),
+    ...(input.adapterReasonCode !== undefined
+      ? { adapterReasonCode: input.adapterReasonCode }
+      : {}),
+    ...(input.resultRef !== undefined ? { resultRef: input.resultRef } : {}),
+    ...(input.errorClass !== undefined ? { errorClass: input.errorClass } : {}),
+    evidenceRefs: [...input.evidenceRefs]
+  });
+}
+
+async function recordAgentExecutorAdapterSandboxContractFailure(
+  auditSink: GovernanceOperatorActionAgentExecutorAdapterSandboxContractAuditSink,
+  invocation: GovernanceOperatorActionAgentExecutorAdapterSandboxContractInvocation,
+  result: GovernanceOperatorActionAgentExecutorAdapterSandboxContractResult
+): Promise<void> {
+  try {
+    await auditSink.record(createAgentExecutorAdapterSandboxContractAuditEvent({
+      status: "failed",
+      invocation,
+      ...(result.errorClass !== undefined ? { errorClass: result.errorClass } : {}),
+      evidenceRefs: result.evidenceRefs
+    }));
+  } catch {
+    // The sanitized failed result remains authoritative when final audit recording fails.
+  }
+}
+
 function createOperatorActionHostExecutorDispatchInvocation(input: {
   review: GovernanceOperatorActionHostExecutorAuthorizationResult;
   dispatchMode: GovernanceOperatorActionHostExecutorDispatchMode;
@@ -3429,6 +4165,188 @@ function addAgentExecutorAdapterReviewPacketReasons(
       packetValue: input.packet.adapterDescriptorHash,
       expectedValue: input.adapterDescriptorHash,
       reason: "operator_action_agent_executor_adapter_packet_descriptor_hash_mismatch"
+    }
+  ];
+
+  for (const binding of bindings) {
+    if (binding.packetValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
+}
+
+function addAgentExecutorAdapterSandboxContractReadinessReasons(
+  reasons: string[],
+  input: {
+    suppliedReadiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+    readiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+  }
+): void {
+  const bindings = [
+    {
+      suppliedValue: input.suppliedReadiness.approvalString,
+      expectedValue: input.readiness.approvalString,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_readiness_approval_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.taskId,
+      expectedValue: input.readiness.taskId,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_readiness_task_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.actionRef,
+      expectedValue: input.readiness.actionRef,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_readiness_action_ref_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.receiptId,
+      expectedValue: input.readiness.receiptId,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_readiness_receipt_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.envelopeHash,
+      expectedValue: input.readiness.envelopeHash,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_readiness_envelope_hash_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.recommendedAction,
+      expectedValue: input.readiness.recommendedAction,
+      reason:
+        "operator_action_agent_executor_adapter_sandbox_contract_readiness_recommended_action_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.executionPlanHash,
+      expectedValue: input.readiness.executionPlanHash,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_readiness_plan_hash_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.checkpointRef,
+      expectedValue: input.readiness.checkpointRef,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_readiness_checkpoint_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.hostExecutorDescriptorId,
+      expectedValue: input.readiness.hostExecutorDescriptorId,
+      reason:
+        "operator_action_agent_executor_adapter_sandbox_contract_readiness_host_descriptor_id_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.hostExecutorDescriptorHash,
+      expectedValue: input.readiness.hostExecutorDescriptorHash,
+      reason:
+        "operator_action_agent_executor_adapter_sandbox_contract_readiness_host_descriptor_hash_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.authorizationIdentityHash,
+      expectedValue: input.readiness.authorizationIdentityHash,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_readiness_identity_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.adapterId,
+      expectedValue: input.readiness.adapterId,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_readiness_adapter_id_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.adapterKind,
+      expectedValue: input.readiness.adapterKind,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_readiness_adapter_kind_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.adapterDescriptorHash,
+      expectedValue: input.readiness.adapterDescriptorHash,
+      reason:
+        "operator_action_agent_executor_adapter_sandbox_contract_readiness_adapter_descriptor_hash_mismatch"
+    }
+  ];
+
+  for (const binding of bindings) {
+    if (binding.suppliedValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
+}
+
+function addAgentExecutorAdapterSandboxContractPacketReasons(
+  reasons: string[],
+  input: {
+    packet: GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacket;
+    readiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+  }
+): void {
+  const bindings = [
+    {
+      packetValue: input.packet.reviewApprovalString,
+      expectedValue: input.readiness.approvalString,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_packet_review_approval_mismatch"
+    },
+    {
+      packetValue: input.packet.taskId,
+      expectedValue: input.readiness.taskId,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_packet_task_mismatch"
+    },
+    {
+      packetValue: input.packet.actionRef,
+      expectedValue: input.readiness.actionRef,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_packet_action_ref_mismatch"
+    },
+    {
+      packetValue: input.packet.receiptId,
+      expectedValue: input.readiness.receiptId,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_packet_receipt_mismatch"
+    },
+    {
+      packetValue: input.packet.envelopeHash,
+      expectedValue: input.readiness.envelopeHash,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_packet_envelope_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.recommendedAction,
+      expectedValue: input.readiness.recommendedAction,
+      reason:
+        "operator_action_agent_executor_adapter_sandbox_contract_packet_recommended_action_mismatch"
+    },
+    {
+      packetValue: input.packet.executionPlanHash,
+      expectedValue: input.readiness.executionPlanHash,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_packet_plan_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.checkpointRef,
+      expectedValue: input.readiness.checkpointRef,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_packet_checkpoint_mismatch"
+    },
+    {
+      packetValue: input.packet.hostExecutorDescriptorId,
+      expectedValue: input.readiness.hostExecutorDescriptorId,
+      reason:
+        "operator_action_agent_executor_adapter_sandbox_contract_packet_host_descriptor_id_mismatch"
+    },
+    {
+      packetValue: input.packet.hostExecutorDescriptorHash,
+      expectedValue: input.readiness.hostExecutorDescriptorHash,
+      reason:
+        "operator_action_agent_executor_adapter_sandbox_contract_packet_host_descriptor_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.authorizationIdentityHash,
+      expectedValue: input.readiness.authorizationIdentityHash,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_packet_identity_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterId,
+      expectedValue: input.readiness.adapterId,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_packet_adapter_id_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterKind,
+      expectedValue: input.readiness.adapterKind,
+      reason: "operator_action_agent_executor_adapter_sandbox_contract_packet_adapter_kind_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterDescriptorHash,
+      expectedValue: input.readiness.adapterDescriptorHash,
+      reason:
+        "operator_action_agent_executor_adapter_sandbox_contract_packet_descriptor_hash_mismatch"
     }
   ];
 
@@ -4376,6 +5294,26 @@ function normalizeHostExecutorDispatchErrorClass(error: unknown): string {
   return normalized.length > 0
     ? normalized.slice(0, 80)
     : "unknown_host_executor_dispatch_error";
+}
+
+function normalizeAgentExecutorAdapterSandboxContractErrorClass(error: unknown): string {
+  const rawClass =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code
+      : error instanceof Error
+        ? error.name
+        : "unknown_agent_executor_adapter_sandbox_contract_error";
+  const normalized = rawClass
+    .replace(/[^A-Za-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+
+  return normalized.length > 0
+    ? normalized.slice(0, 80)
+    : "unknown_agent_executor_adapter_sandbox_contract_error";
 }
 
 function uniqueStrings(values: string[]): string[] {

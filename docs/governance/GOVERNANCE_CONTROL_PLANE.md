@@ -54,6 +54,7 @@ authority is expressed by:
 - [Phase 14 Agent Executor Receipt Contract](PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT.md);
 - [Phase 15 Agent Executor Adapter Authorization Taskbook](PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK.md);
 - [Phase 15 Agent Executor Adapter Review-Only Closeout](PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT.md);
+- [Phase 15 Agent Executor Adapter Sandbox Contract Closeout](PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT.md);
 - executable checks exposed through `npm run governance -- list`;
 - the structured state-sync claim at `docs/current/state-sync-record.json`.
 
@@ -91,6 +92,7 @@ authority is expressed by:
 | `PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT.md` | Agent executor receipt contract | Current human authority for non-executing executor receipt status normalization; not real recovery execution authorization. |
 | `PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK.md` | Agent executor adapter authorization taskbook | Current human authority for future adapter pre-execution review requirements; not Codex CLI, provider, sub-agent runtime, shell, workspace-write, or production recovery execution authorization. |
 | `PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT.md` | Agent executor adapter review-only closeout | Current human authority for implemented review-only adapter descriptor and packet readiness; not Codex CLI, provider, sub-agent runtime, shell, workspace-write, or production recovery execution authorization. |
+| `PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT.md` | Agent executor adapter sandbox contract closeout | Current human authority for implemented sandbox-only adapter contract witness; not Codex CLI, provider, sub-agent runtime, shell, workspace-write, or production recovery execution authorization. |
 | `PR_*`, `FUTURE_*`, closeouts, packets | Historical evidence | Evidence only unless linked by a current authority document. |
 
 ## Capability Status
@@ -109,7 +111,7 @@ authority is expressed by:
 | Runtime operator action host executor dispatch | active / guarded | No by default | Phase 13 adds dry-run and explicit injected-executor dispatch control. Repository validation uses fake injected executors only; real `resume`, `rollback`, `abort`, or `fork` dispatch remains a separate authorization stop. |
 | Agent-backed recovery executor boundary | active / sandbox proof only | No production execution | Phase 13 follow-up defines host-provided / agent-backed executor semantics and a sandbox-only reference executor contract proof. It does not add business recovery logic, Codex CLI, provider, shell, external write, or arbitrary workspace-write execution. |
 | Agent executor receipt contract | active / non-executing | No | Phase 14 normalizes injected executor receipt statuses as `accepted`, `running`, `completed`, `failed`, `refused`, or `aborted` with sanitized reason codes and refs. It does not add an executor adapter, Codex CLI invocation, provider call, shell/process execution, external write, or workspace-write execution. |
-| Agent executor adapter authorization | active / review-only readiness | No | Phase 15 records future adapter packet requirements and implements review-only adapter descriptor, packet, hash, and readiness review surfaces. Adapter invocation remains unsupported; Codex CLI, provider, sub-agent runtime, shell/process execution, external write, workspace-write, and production recovery execution remain blocked. |
+| Agent executor adapter authorization | active / sandbox contract witness | No | Phase 15 records future adapter packet requirements and implements review-only readiness plus a sandbox-only reference adapter contract run. The contract run is limited to `sandbox_reference_adapter`, explicit injection, sanitized audit, and sandbox-contained test artifacts; Codex CLI, provider, sub-agent runtime, shell/process execution, external write, workspace-write, and production recovery execution remain blocked. |
 | Controlled read-only real execution | guarded / productized | Yes, narrow | Requires [read-only controlled execution runbook](runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md), [PR-23B minimal slice](PR_23B_CONTROLLED_READONLY_PROVIDER_EXECUTION_MINIMAL_SLICE.md), [PR-23C evidence binding](PR_23C_EXECUTION_EVIDENCE_BINDING.md), explicit controlled mode, injected execution dependency, permit/preflight metadata, stable evidence refs/hashes, and no hidden provider path. |
 | Workspace-write fake canary | guarded | No | Validates permit v2, patch guard, rollback evidence, and replay blocking without real host writes. |
 | Workspace-write real canary | experimental / blocked by default | No by default | Requires [workspace-write release gate](WORKSPACE_WRITE_RELEASE_GATE.md), [workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md), a fresh explicit authorization packet for the named canary, permit v2 controls, fake-canary v2 validation, and rollback evidence. |
@@ -165,6 +167,7 @@ Use these first:
 | Agent executor receipt contract | `PHASE_14_AGENT_EXECUTOR_RECEIPT_CONTRACT.md` |
 | Agent executor adapter authorization taskbook | `PHASE_15_AGENT_EXECUTOR_ADAPTER_AUTHORIZATION_TASKBOOK.md` |
 | Agent executor adapter review-only closeout | `PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT.md` |
+| Agent executor adapter sandbox contract closeout | `PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT.md` |
 | Controlled read-only provider execution acceptance | `npm run governance -- acceptance controlled-readonly-provider-execution --check` for no-write review; omit `--check` to refresh evidence intentionally. |
 | Available current checks | `npm run governance -- list` |
 | Governance docs structure check | `npm run docs:governance` |
