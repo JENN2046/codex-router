@@ -13,6 +13,32 @@ This report does not authorize release, package publishing, production use,
 real provider execution, real Codex CLI execution, workspace-write execution,
 external writes, deployment, tags, or protected-branch mutation.
 
+## Implementation Status
+
+Phase A is implemented as a source-level public facade and export lock.
+
+Implemented boundary:
+
+- `packages/public-api/src/index.ts` is the explicit source-level public facade.
+- `tests/public-api-surface.test.ts` locks the facade export list.
+- `tests/fixtures/public-api-surface-lock.fixture.json` records the approved
+  runtime export names.
+- The facade exports product, host, protocol, and provider SPI surfaces.
+- The facade intentionally does not export internal governance implementation
+  modules such as `recovery-control`, `workspace-write-guard`,
+  `provider-execution-runner`, `state-manager`, `strategy-router`,
+  `entropy-risk`, `execution-observation`, approval, checkpoint, runtime
+  control, or validation arbiter internals.
+
+Not yet implemented:
+
+- root `package.json` `exports` map;
+- internal directory renames to `packages/governance-internal-*`;
+- removal of existing `packages/*/src/index.ts` exports;
+- migration of existing internal imports.
+
+Those steps remain staged for follow-up PRs.
+
 ## Review Method
 
 The review used source and test structure as evidence rather than project
