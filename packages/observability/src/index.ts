@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { PreflightResult } from "../../preflight/src/index.js";
-import { createSafeAuditDetails } from "../../redaction/src/index.js";
+import { createSafeAuditDetails } from "../../governance-internal-redaction/src/index.js";
 
 export interface LogEvent {
   level: "info" | "warn" | "error";

@@ -1,5 +1,5 @@
 import type { DesktopPrimitive } from "../../contracts/src/index.js";
-import { redactSecretLikeFields } from "../../redaction/src/index.js";
+import { redactSecretLikeFields } from "../../governance-internal-redaction/src/index.js";
 
 interface PrimitiveSuccessEnvelopeBase<P extends DesktopPrimitive> {
   primitive: P;

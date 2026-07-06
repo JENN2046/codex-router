@@ -4,7 +4,7 @@ import {
   EventSchema,
   type Event
 } from "../../kernel-contracts/src/index.js";
-import { redactSecretLikeFields } from "../../redaction/src/index.js";
+import { redactSecretLikeFields } from "../../governance-internal-redaction/src/index.js";
 
 export type JsonlEventLogReadIssue = {
   lineNumber: number;

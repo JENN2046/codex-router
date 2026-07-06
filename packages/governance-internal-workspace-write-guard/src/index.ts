@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { redactText } from "../../redaction/src/index.js";
+import { redactText } from "../../governance-internal-redaction/src/index.js";
 import {
   WorkspaceWriteProviderExecutionPermitSchema,
   WorkspaceWriteProviderExecutionPermitV2Schema,

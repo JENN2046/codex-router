@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { CheckpointRef } from "../../contracts/src/index.js";
-import { createSafeAuditDetails } from "../../redaction/src/index.js";
+import { createSafeAuditDetails } from "../../governance-internal-redaction/src/index.js";
 
 export interface AuditEvent {
   type:

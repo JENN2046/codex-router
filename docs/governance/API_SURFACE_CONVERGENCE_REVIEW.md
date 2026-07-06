@@ -19,7 +19,10 @@ Phase A is implemented as a source-level public facade and export lock. Phase B
 moved the first high-risk governance core packages under explicit
 `governance-internal-*` directories. Phase C has moved the approval,
 checkpoint, runtime-control, run-manager, and validation-arbiter internal
-package directories under the same naming convention.
+package directories under the same naming convention. Phase D has applied the
+support/SPI review: `redaction` is internalized, while observability, artifact
+store, kernel store, and tool registry remain candidate SPI surfaces until
+their public facades are explicitly designed.
 
 Implemented boundary:
 
@@ -50,6 +53,19 @@ Implemented boundary:
   - `packages/governance-internal-runtime-control`
   - `packages/governance-internal-run-manager`
   - `packages/governance-internal-validation-arbiter`
+- The support-layer decision slice internalizes the pure redaction utility:
+  - `packages/governance-internal-redaction`
+- The support-layer decision slice intentionally retains these directory names
+  for now:
+  - `packages/observability`, because `TelemetrySink` is part of current host
+    option types and needs a host telemetry facade before internalization.
+  - `packages/kernel-store`, because `KernelStore` is part of current local
+    runtime options used by SDK, CLI, and app-server entrypoints.
+  - `packages/artifact-store`, because artifact persistence is a plausible
+    testing / diagnostics / storage SPI and should not be renamed before that
+    facade decision.
+  - `packages/tool-registry`, because provider and MCP protocol surfaces already
+    build public tool manifest types from it.
 - Internal source, script, and test imports have been migrated to those new
   directory names.
 - This rename is a source-organization boundary change only. It does not add
@@ -60,8 +76,8 @@ Implemented boundary:
 Not yet implemented:
 
 - root `package.json` `exports` map;
-- support/SPI classification and any directory decisions for observability,
-  artifact-store, kernel-store, redaction, and tool-registry;
+- explicit host telemetry, storage, artifact, and tool manifest SPI facades for
+  retained support modules;
 - removal of existing `packages/*/src/index.ts` exports;
 - migration pressure on downstream consumers.
 
@@ -176,7 +192,8 @@ be re-exported from public facades by default.
 | Checkpoint and graph internals | `governance-internal-checkpoint-ledger-v2`, `governance-internal-checkpoint-index`, `task-graph` | These are internal data structures unless separately productized. |
 | Configuration and policy internals | `policy-config`, `delegation-policy`, `recon-policy`, `capability`, `admission-control`, `preflight` | These should be consumed through SDK / host / provider flows. |
 | Internal host/runtime plumbing | `desktop-live-adapter`, `desktop-decision-runner`, `desktop-agent-strategy`, `desktop-bridge`, `host-dispatcher`, `final-host-locator` | These are composition layers behind host-facing APIs. |
-| Audit and support internals | `observability`, `redaction`, `artifact-store`, `kernel-store`, `audit-memory`, `state-sync-audit`, `tool-registry` | Useful infrastructure, but too low-level for the default product API. |
+| Audit and support internals | `governance-internal-redaction`, `audit-memory`, `state-sync-audit` | Internal safety and audit implementation details. |
+| Candidate support SPI | `observability`, `artifact-store`, `kernel-store`, `tool-registry` | These are not default product APIs, but current host/provider/protocol types depend on them or may need explicit future SPI facades. |
 
 Important rule: `governance-internal-recovery-control` should not be exposed
 wholesale. It is the largest current export surface and contains the most
