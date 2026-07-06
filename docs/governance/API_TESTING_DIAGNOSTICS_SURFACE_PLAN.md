@@ -1,7 +1,7 @@
 # API Testing and Diagnostics Surface Plan
 
 Status: active API surface follow-up.
-Date: 2026-07-07
+Date: 2026-07-06
 Scope: narrow review and plan for whether `./testing` and `./diagnostics`
 should become root public package exports.
 
