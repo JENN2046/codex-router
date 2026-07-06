@@ -36,6 +36,12 @@ export type DesktopHostPrimitive =
 export type DesktopHostAgentRole = "analyst" | "architect" | "worker" | "reviewer";
 export type DesktopHostAgentMode = "read_only" | "write";
 export type DesktopHostRiskLevel = "low" | "medium" | "high";
+export type DesktopHostModelId =
+  | "gpt-5.4-mini"
+  | "gpt-5.4"
+  | "gpt-5.3-codex-spark"
+  | "gpt-5.3-codex"
+  | "gpt-5.1-codex-max";
 export type DesktopHostToolAccessLevel =
   | "read_only"
   | "local_write"
@@ -50,6 +56,138 @@ export type DesktopHostExecutionProfileName =
 export type DesktopHostReasoningEffort = "low" | "medium" | "high";
 export type DesktopHostParallelismMode = "disabled" | "read_only" | "owned_write";
 export type DesktopHostRoute = "desktop" | "codex-cli";
+export type DesktopHostRolloutMode =
+  | "desktop-first"
+  | "shadow"
+  | "enforced-local"
+  | "protected-remote";
+export type DesktopHostMemoryHealthSeverity = "ignore" | "warn" | "block";
+export type DesktopHostMemoryHealthPolicyPackName =
+  | "read_only"
+  | "local_write"
+  | "engineering"
+  | "release";
+export type DesktopHostMemoryCheckpointFrequency =
+  | "minimal"
+  | "standard"
+  | "stage"
+  | "dense";
+export type DesktopHostTelemetryAlertThresholdPresetName =
+  | "read_only"
+  | "local_write"
+  | "engineering"
+  | "release";
+export type DesktopHostTelemetryAlertDeliveryWindowPresetName =
+  DesktopHostTelemetryAlertThresholdPresetName;
+
+export interface DesktopHostMemoryHealthPolicy {
+  overviewUnavailableSeverity: DesktopHostMemoryHealthSeverity;
+  codexMcpUnavailableSeverity: DesktopHostMemoryHealthSeverity;
+  maxRejectedWrites: number;
+  rejectedWritesSeverity: DesktopHostMemoryHealthSeverity;
+  maxShadowReconcileCount: number;
+  shadowReconcileSeverity: DesktopHostMemoryHealthSeverity;
+  recallUnavailableSeverity: DesktopHostMemoryHealthSeverity;
+  nonActiveRecallSeverity: DesktopHostMemoryHealthSeverity;
+}
+
+export interface DesktopHostMemoryExecutionGuidance {
+  memoryRequired: boolean;
+  resumeExpected: boolean;
+  telemetryMandatory: boolean;
+  checkpointFrequency: DesktopHostMemoryCheckpointFrequency;
+}
+
+export interface DesktopHostMemoryHealthPolicyPack {
+  health: DesktopHostMemoryHealthPolicy;
+  guidance: DesktopHostMemoryExecutionGuidance;
+}
+
+export interface DesktopHostTelemetryAlertMetricThresholdValues {
+  failures?: number;
+  timeouts?: number;
+  retries?: number;
+  failureRate?: number;
+  timeoutRate?: number;
+}
+
+export interface DesktopHostTelemetryAlertThresholdScope {
+  totals?: DesktopHostTelemetryAlertMetricThresholdValues;
+  perSink?: DesktopHostTelemetryAlertMetricThresholdValues;
+}
+
+export interface DesktopHostTelemetryAlertThresholds {
+  warn?: DesktopHostTelemetryAlertThresholdScope;
+  error?: DesktopHostTelemetryAlertThresholdScope;
+}
+
+export interface DesktopHostTelemetryAlertDeliveryWindowPolicy {
+  dedupeWindowMs?: number;
+  cooldownWindowMs?: number;
+}
+
+export interface DesktopHostPolicySnapshot extends DesktopHostUnknownRecord {
+  policyVersion: string;
+  rolloutMode: DesktopHostRolloutMode;
+  models: Record<DesktopHostTaskClass, DesktopHostModelId>;
+  toolPolicies: Record<DesktopHostTaskClass, DesktopHostToolAccessLevel>;
+  executionProfiles: Record<DesktopHostTaskClass, DesktopHostExecutionProfileName>;
+  hostRoutes: Record<DesktopHostTaskClass, DesktopHostRoute>;
+  approvalRules: {
+    protectedBranches: string[];
+    protectedKeywords: string[];
+    protectedToolAccess: DesktopHostToolAccessLevel[];
+  };
+  escalationRules: {
+    failureThreshold: number;
+    contextPressureThreshold: number;
+    highRiskSticky: boolean;
+  };
+  memoryHealth: {
+    defaultPack: DesktopHostMemoryHealthPolicyPackName;
+    packByToolAccess: Record<
+      DesktopHostToolAccessLevel,
+      DesktopHostMemoryHealthPolicyPackName
+    >;
+    packs: Record<
+      DesktopHostMemoryHealthPolicyPackName,
+      DesktopHostMemoryHealthPolicyPack
+    >;
+  };
+  telemetryAlerts: {
+    defaultPreset: DesktopHostTelemetryAlertThresholdPresetName;
+    presetByToolAccess: Record<
+      DesktopHostToolAccessLevel,
+      DesktopHostTelemetryAlertThresholdPresetName
+    >;
+    presets: Record<
+      DesktopHostTelemetryAlertThresholdPresetName,
+      DesktopHostTelemetryAlertThresholds
+    >;
+  };
+  telemetryAlertDeliveryAlerts: {
+    defaultPreset: DesktopHostTelemetryAlertThresholdPresetName;
+    presetByToolAccess: Record<
+      DesktopHostToolAccessLevel,
+      DesktopHostTelemetryAlertThresholdPresetName
+    >;
+    presets: Record<
+      DesktopHostTelemetryAlertThresholdPresetName,
+      DesktopHostTelemetryAlertThresholds
+    >;
+  };
+  telemetryAlertDeliveryWindow: {
+    defaultPreset: DesktopHostTelemetryAlertDeliveryWindowPresetName;
+    presetByToolAccess: Record<
+      DesktopHostToolAccessLevel,
+      DesktopHostTelemetryAlertDeliveryWindowPresetName
+    >;
+    presets: Record<
+      DesktopHostTelemetryAlertDeliveryWindowPresetName,
+      DesktopHostTelemetryAlertDeliveryWindowPolicy
+    >;
+  };
+}
 
 export interface DesktopHostOperation {
   primitive: DesktopHostPrimitive;
@@ -218,7 +356,7 @@ export interface DesktopHostClientPersistence {
 }
 
 export interface DesktopHostClientOptions {
-  policy: unknown;
+  policy: DesktopHostPolicySnapshot;
   preflight: DesktopHostPreflightContext;
   bridge?: DesktopHostBridge;
   bridgeBindings?: DesktopHostBindings;
@@ -578,7 +716,7 @@ export interface CodexDesktopLiveHostMemoryTools {
 }
 
 export interface CodexDesktopLiveHostOptions {
-  policy: unknown;
+  policy: DesktopHostPolicySnapshot;
   runtime: CodexDesktopRuntime;
   memory: {
     adapter: CodexMemoryAdapterOptions;

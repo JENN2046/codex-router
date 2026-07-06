@@ -44,6 +44,7 @@ import type {
   DesktopHostExecutionPlan,
   DesktopHostMemoryAdapter,
   DesktopHostOperation,
+  DesktopHostPolicySnapshot,
   DesktopHostResumeOptions,
   DesktopHostPreflightContext,
   DesktopHostRoutingDecision,
@@ -68,6 +69,146 @@ type ResolveLiveHostPreflightFromHostInput =
   Parameters<typeof import("../packages/public-api/src/index.js").resolveLiveHostPreflightFromHost>[1];
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+const publicHostMemoryHealthPack = {
+  health: {
+    overviewUnavailableSeverity: "warn",
+    codexMcpUnavailableSeverity: "warn",
+    maxRejectedWrites: 1,
+    rejectedWritesSeverity: "warn",
+    maxShadowReconcileCount: 1,
+    shadowReconcileSeverity: "warn",
+    recallUnavailableSeverity: "warn",
+    nonActiveRecallSeverity: "warn"
+  },
+  guidance: {
+    memoryRequired: false,
+    resumeExpected: false,
+    telemetryMandatory: false,
+    checkpointFrequency: "standard"
+  }
+} as const;
+
+const publicHostTelemetryThresholds = {
+  warn: {
+    totals: {
+      failures: 1
+    }
+  },
+  error: {
+    totals: {
+      failures: 3
+    }
+  }
+} as const;
+
+const publicHostDeliveryWindowPolicy = {
+  dedupeWindowMs: 0,
+  cooldownWindowMs: 0
+} as const;
+
+const publicHostPolicy: DesktopHostPolicySnapshot = {
+  policyVersion: "public-api-test-policy",
+  rolloutMode: "desktop-first",
+  models: {
+    read_only: "gpt-5.4-mini",
+    small_edit: "gpt-5.3-codex",
+    engineering: "gpt-5.3-codex",
+    high_risk: "gpt-5.4",
+    release_external_action: "gpt-5.4"
+  },
+  toolPolicies: {
+    read_only: "read_only",
+    small_edit: "local_write",
+    engineering: "engineering_write",
+    high_risk: "protected_remote",
+    release_external_action: "protected_remote"
+  },
+  executionProfiles: {
+    read_only: "recon-only",
+    small_edit: "engineering",
+    engineering: "engineering",
+    high_risk: "high-risk-change",
+    release_external_action: "release-governance"
+  },
+  hostRoutes: {
+    read_only: "desktop",
+    small_edit: "desktop",
+    engineering: "desktop",
+    high_risk: "desktop",
+    release_external_action: "desktop"
+  },
+  approvalRules: {
+    protectedBranches: ["main"],
+    protectedKeywords: ["deploy"],
+    protectedToolAccess: ["protected_remote"]
+  },
+  escalationRules: {
+    failureThreshold: 2,
+    contextPressureThreshold: 0.8,
+    highRiskSticky: true
+  },
+  memoryHealth: {
+    defaultPack: "engineering",
+    packByToolAccess: {
+      read_only: "read_only",
+      local_write: "local_write",
+      engineering_write: "engineering",
+      protected_remote: "release"
+    },
+    packs: {
+      read_only: publicHostMemoryHealthPack,
+      local_write: publicHostMemoryHealthPack,
+      engineering: publicHostMemoryHealthPack,
+      release: publicHostMemoryHealthPack
+    }
+  },
+  telemetryAlerts: {
+    defaultPreset: "engineering",
+    presetByToolAccess: {
+      read_only: "read_only",
+      local_write: "local_write",
+      engineering_write: "engineering",
+      protected_remote: "release"
+    },
+    presets: {
+      read_only: publicHostTelemetryThresholds,
+      local_write: publicHostTelemetryThresholds,
+      engineering: publicHostTelemetryThresholds,
+      release: publicHostTelemetryThresholds
+    }
+  },
+  telemetryAlertDeliveryAlerts: {
+    defaultPreset: "engineering",
+    presetByToolAccess: {
+      read_only: "read_only",
+      local_write: "local_write",
+      engineering_write: "engineering",
+      protected_remote: "release"
+    },
+    presets: {
+      read_only: publicHostTelemetryThresholds,
+      local_write: publicHostTelemetryThresholds,
+      engineering: publicHostTelemetryThresholds,
+      release: publicHostTelemetryThresholds
+    }
+  },
+  telemetryAlertDeliveryWindow: {
+    defaultPreset: "engineering",
+    presetByToolAccess: {
+      read_only: "read_only",
+      local_write: "local_write",
+      engineering_write: "engineering",
+      protected_remote: "release"
+    },
+    presets: {
+      read_only: publicHostDeliveryWindowPolicy,
+      local_write: publicHostDeliveryWindowPolicy,
+      engineering: publicHostDeliveryWindowPolicy,
+      release: publicHostDeliveryWindowPolicy
+    }
+  }
+};
 
 test("public-api facade export surface is lock-stable", async () => {
   const moduleExports = await import("../packages/public-api/src/index.js");
@@ -296,7 +437,7 @@ test("public-api host facade delegates through declaration-safe wrappers", async
 
   const resolvedPreflight = resolveLiveHostPreflight();
   const client = createDesktopHostClient({
-    policy: {},
+    policy: publicHostPolicy,
     preflight: resolvedPreflight,
     bridge: {
       invokePrimitive: () => ({ ok: true })
@@ -311,7 +452,7 @@ test("public-api host facade delegates through declaration-safe wrappers", async
 
   const starter = createCodexDesktopLiveHostEmbeddingStarter({
     anchor: "public-api-host-wrapper",
-    policy: {}
+    policy: publicHostPolicy
   });
   assert.equal(starter.getStatus().ready, false);
 
@@ -320,7 +461,7 @@ test("public-api host facade delegates through declaration-safe wrappers", async
     spawn_agent: () => ({ ok: true })
   });
   const hostPreflightClient = createDesktopHostClient({
-    policy: {},
+    policy: publicHostPolicy,
     preflight: hostResolvedPreflight,
     bridge: {
       invokePrimitive: () => ({ ok: true })
@@ -548,7 +689,7 @@ test("public-api host facade preserves concrete runtime handler contracts", asyn
   };
 
   const liveHostOptions: CodexDesktopLiveHostOptions = {
-    policy: {},
+    policy: publicHostPolicy,
     runtime: desktopRuntime,
     memory: {
       adapter: memoryAdapterOptions,
@@ -638,10 +779,28 @@ test("public-api host facade preserves concrete runtime handler contracts", asyn
     void bundle.memoryAdapter.recallLatestCheckpointRef;
   };
 
-  const assertPublicHostNegativeContracts = () => {
+ const assertPublicHostNegativeContracts = () => {
     const client = null as unknown as DesktopHostClient;
+    const emptyPolicy = {};
     // @ts-expect-error public DesktopHostClient.run requires a task envelope input.
     void client.run({});
+    const malformedHostPolicy: DesktopHostClientOptions = {
+      // @ts-expect-error public desktop host options require a structural policy snapshot.
+      policy: emptyPolicy,
+      preflight,
+      bridge: {
+        invokePrimitive: () => ({ ok: true })
+      }
+    };
+    const malformedLiveHostPolicy: CodexDesktopLiveHostOptions = {
+      // @ts-expect-error public live-host options require a structural policy snapshot.
+      policy: emptyPolicy,
+      runtime: desktopRuntime,
+      memory: {
+        adapter: memoryAdapterOptions,
+        operations: memoryOperations
+      }
+    };
     // @ts-expect-error public memory adapter options require an anchor.
     const missingAnchor: CodexMemoryAdapterOptions = {};
     // @ts-expect-error public checkpoint stores require a record method.
@@ -660,6 +819,8 @@ test("public-api host facade preserves concrete runtime handler contracts", asyn
     const malformedPreflightHelperInput: ResolveLiveHostPreflightInput = { availableTools: {} };
     // @ts-expect-error from-host preflight helper input availableTools must be a string array.
     const malformedFromHostPreflightInput: ResolveLiveHostPreflightFromHostInput = { availableTools: {} };
+    void malformedHostPolicy;
+    void malformedLiveHostPolicy;
     void missingAnchor;
     void missingCheckpointStore;
     void missingMemoryRecall;
