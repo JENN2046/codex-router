@@ -17,6 +17,7 @@ import type {
   A2AAgentCardSkeleton,
   AgentOsSdkOptions,
   ArtifactStore,
+  CodexMemoryAdapterOptions,
   CodexDesktopLiveHostOptions,
   CodexDesktopRuntime,
   CodexDesktopToolRuntimeOperations,
@@ -24,8 +25,10 @@ import type {
   CodexMemoryOverviewInput,
   CodexMemorySearchInput,
   CodexMemoryWriteInput,
+  DesktopHostClient,
   DesktopHostClientOptions,
   DesktopHostPreflightContext,
+  DesktopHostTaskEnvelopeInput,
   DesktopPrimitiveInvocation,
   ExecutorProvider,
   KernelStore,
@@ -375,17 +378,50 @@ test("public-api host facade preserves concrete runtime handler contracts", () =
     }
   };
 
+  const memoryAdapter: CodexMemoryAdapterOptions = {
+    anchor: "public-api-host-memory"
+  };
+
   const liveHostOptions: CodexDesktopLiveHostOptions = {
     policy: {},
     runtime: desktopRuntime,
     memory: {
-      adapter: {},
+      adapter: memoryAdapter,
       operations: memoryOperations
     }
   };
 
+  const taskEnvelope: DesktopHostTaskEnvelopeInput = {
+    taskId: "task-public-host-envelope",
+    intent: {
+      summary: "Verify public host task envelope type",
+      requestedAction: "Run a declaration-safe desktop host task"
+    }
+  };
+
+  const assertDesktopHostTaskRunnerContract = (
+    client: Pick<DesktopHostClient, "run" | "resume">,
+    task: DesktopHostTaskEnvelopeInput
+  ) => {
+    void client.run(task);
+    void client.resume(task);
+  };
+
+  const assertPublicHostNegativeContracts = () => {
+    const client = null as unknown as DesktopHostClient;
+    // @ts-expect-error public DesktopHostClient.run requires a task envelope input.
+    void client.run({});
+    // @ts-expect-error public memory adapter options require an anchor.
+    const missingAnchor: CodexMemoryAdapterOptions = {};
+    void missingAnchor;
+  };
+
   assert.equal(preflight.authAvailable, true);
+  assert.equal(liveHostOptions.memory.adapter.anchor, "public-api-host-memory");
   assert.equal(liveHostOptions.memory.operations?.search_memory, memoryOperations.search_memory);
+  assert.equal(taskEnvelope.taskId, "task-public-host-envelope");
+  assert.equal(typeof assertDesktopHostTaskRunnerContract, "function");
+  assert.equal(typeof assertPublicHostNegativeContracts, "function");
   assert.equal(invocation.primitive, "shell_command");
   assert.equal(invocation.taskId, "task-public-host-contract");
   assert.equal(

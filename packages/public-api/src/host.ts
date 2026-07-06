@@ -78,6 +78,71 @@ export interface DesktopHostClientOptions {
   now?: () => string;
 }
 
+export type DesktopHostTaskClass =
+  | "read_only"
+  | "small_edit"
+  | "engineering"
+  | "high_risk"
+  | "release_external_action";
+
+export type DesktopHostTaskEnvelopeSource =
+  | "desktop-thread"
+  | "desktop-automation"
+  | "cli"
+  | "api";
+
+export interface DesktopHostTaskIntent {
+  summary: string;
+  requestedAction: string;
+  successCriteria?: string[];
+  outOfScope?: string[];
+}
+
+export interface DesktopHostTaskRepoContext {
+  repoRoot?: string;
+  branch?: string;
+  worktreeClean?: boolean;
+  protectedBranch?: boolean;
+}
+
+export interface DesktopHostTaskTarget {
+  branches?: string[];
+  files?: string[];
+  modules?: string[];
+}
+
+export interface DesktopHostTaskConstraints {
+  requiresNetwork?: boolean;
+  explicitOwnership?: boolean;
+  allowBackgroundAutomation?: boolean;
+}
+
+export interface DesktopHostTaskHintProvenance {
+  field: "taskClassHint" | "riskHints" | "tags";
+  value: string;
+  source?: "user" | "agent" | "system" | "policy" | "operator" | "memory" | "legacy" | "unknown";
+  reason?: string;
+  createdAt?: string;
+}
+
+export interface DesktopHostTaskHints {
+  taskClassHint?: DesktopHostTaskClass;
+  riskHints?: string[];
+  tags?: string[];
+  provenance?: DesktopHostTaskHintProvenance[];
+}
+
+export interface DesktopHostTaskEnvelopeInput {
+  schemaVersion?: "task-envelope.v1";
+  taskId: string;
+  source?: DesktopHostTaskEnvelopeSource;
+  intent: DesktopHostTaskIntent;
+  repoContext?: DesktopHostTaskRepoContext;
+  target?: DesktopHostTaskTarget;
+  constraints?: DesktopHostTaskConstraints;
+  hints?: DesktopHostTaskHints;
+}
+
 export interface DesktopHostResumeOptions {
   required?: boolean;
   stage?: string;
@@ -202,12 +267,12 @@ export class DesktopHostClient {
     this.bridge = this.inner.bridge as unknown as DesktopHostBridge;
   }
 
-  async run(task: unknown): Promise<DesktopHostRunResult> {
+  async run(task: DesktopHostTaskEnvelopeInput): Promise<DesktopHostRunResult> {
     return this.inner.run(task as never) as Promise<DesktopHostRunResult>;
   }
 
   async resume(
-    task: unknown,
+    task: DesktopHostTaskEnvelopeInput,
     options: DesktopHostResumeOptions = {}
   ): Promise<DesktopHostRunResult> {
     return this.inner.resume(
@@ -289,6 +354,18 @@ export interface CodexMemoryHostOperations {
   memory_overview?(input?: CodexMemoryOverviewInput): Promise<unknown> | unknown;
 }
 
+export interface CodexMemoryAdapterOptions {
+  anchor: string;
+  target?: CodexMemoryTarget;
+  sensitivity?: string;
+  reusable?: boolean;
+  validated?: boolean;
+  tags?: string[];
+  verifyRecall?: boolean;
+  requireRecallHit?: boolean;
+  recallLimit?: number;
+}
+
 export interface CodexDesktopLiveHostMemoryTools {
   recordMemoryTool(input: CodexMemoryWriteInput): Promise<unknown> | unknown;
   searchMemoryTool(input: CodexMemorySearchInput): Promise<unknown> | unknown;
@@ -299,7 +376,7 @@ export interface CodexDesktopLiveHostOptions {
   policy: unknown;
   runtime: CodexDesktopRuntime;
   memory: {
-    adapter: unknown;
+    adapter: CodexMemoryAdapterOptions;
     operations?: CodexMemoryHostOperations;
     tools?: CodexDesktopLiveHostMemoryTools;
   };
@@ -334,14 +411,14 @@ export interface CodexDesktopLiveHostFromHostObjectOptions
   extends Omit<CodexDesktopLiveHostOptions, "runtime" | "memory"> {
   host: CodexDesktopLiveHostObject;
   memory: {
-    adapter: unknown;
+    adapter: CodexMemoryAdapterOptions;
   };
 }
 
 export interface CodexDesktopLiveHostStarterOptions
   extends Omit<CodexDesktopLiveHostFromHostObjectOptions, "memory"> {
   anchor: string;
-  memoryAdapter?: unknown;
+  memoryAdapter?: Omit<CodexMemoryAdapterOptions, "anchor">;
 }
 
 export interface CodexDesktopLiveHostBundle {

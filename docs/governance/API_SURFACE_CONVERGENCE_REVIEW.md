@@ -44,6 +44,10 @@ Implemented boundary:
 - The public host wrapper re-declares host memory operation contracts for
   `record_memory`, `search_memory`, and optional `memory_overview` instead of
   accepting arbitrary `unknown` operation objects.
+- The public host wrapper re-declares `DesktopHostClient.run` and `resume` task
+  envelope input structure so `{}` is rejected before the internal parser.
+- The public live-host wrapper re-declares memory adapter options with required
+  `anchor` metadata instead of accepting arbitrary adapter values.
 - `tests/public-api-surface.test.ts` locks the facade export list.
 - `tests/public-api-surface.test.ts` also generates declaration-only output for
   the public package type targets and rejects public facade declarations that
