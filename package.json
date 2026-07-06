@@ -4,6 +4,34 @@
   "private": true,
   "type": "module",
   "description": "Desktop-first policy SDK for Codex routing, approval gating, escalation, and auditability.",
+  "main": "./dist/packages/public-api/src/index.js",
+  "types": "./dist/packages/public-api/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/packages/public-api/src/index.d.ts",
+      "import": "./dist/packages/public-api/src/index.js"
+    },
+    "./sdk": {
+      "types": "./dist/packages/public-api/src/sdk.d.ts",
+      "import": "./dist/packages/public-api/src/sdk.js"
+    },
+    "./host": {
+      "types": "./dist/packages/public-api/src/host.d.ts",
+      "import": "./dist/packages/public-api/src/host.js"
+    },
+    "./protocol": {
+      "types": "./dist/packages/public-api/src/protocol.d.ts",
+      "import": "./dist/packages/public-api/src/protocol.js"
+    },
+    "./provider": {
+      "types": "./dist/packages/public-api/src/provider.d.ts",
+      "import": "./dist/packages/public-api/src/provider.js"
+    },
+    "./support": {
+      "types": "./dist/packages/public-api/src/support.d.ts",
+      "import": "./dist/packages/public-api/src/support.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "governance": "tsx scripts/run-governance-check.ts",
