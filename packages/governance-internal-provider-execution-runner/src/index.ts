@@ -78,7 +78,7 @@ import {
 import {
   createSafeAuditDetails,
   redactText
-} from "../../redaction/src/index.js";
+} from "../../governance-internal-redaction/src/index.js";
 import {
   parseGovernanceState,
   type AnomalyRecord,

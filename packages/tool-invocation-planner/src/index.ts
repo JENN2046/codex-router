@@ -24,7 +24,7 @@ import {
   type ToolProvider,
   type ToolSideEffectClass
 } from "../../tool-registry/src/index.js";
-import { redactSecretLikeFields } from "../../redaction/src/index.js";
+import { redactSecretLikeFields } from "../../governance-internal-redaction/src/index.js";
 
 export type ToolInvocationPlanStatus =
   | "planned"

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { Buffer } from "node:buffer";
-import { redactSecretLikeFields } from "../../redaction/src/index.js";
+import { redactSecretLikeFields } from "../../governance-internal-redaction/src/index.js";
 
 export const artifactStoreTypes = [
   "text",

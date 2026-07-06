@@ -7,7 +7,7 @@ import {
   redactSecretLikeText,
   redactText,
   redactValue
-} from "../packages/redaction/src/index.js";
+} from "../packages/governance-internal-redaction/src/index.js";
 
 test("redaction covers text, JSON, and split argv secret values", () => {
   assert.equal(

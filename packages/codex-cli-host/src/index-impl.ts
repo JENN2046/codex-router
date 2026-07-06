@@ -15,7 +15,7 @@ import {
   createSafeAuditDetails,
   redactSecretLikeFields,
   redactText
-} from "../../redaction/src/index.js";
+} from "../../governance-internal-redaction/src/index.js";
 import {
   ModelIdSchema,
   parseRoutingDecision,
