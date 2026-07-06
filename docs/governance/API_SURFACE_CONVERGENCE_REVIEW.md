@@ -21,8 +21,8 @@ moved the first high-risk governance core packages under explicit
 checkpoint, runtime-control, run-manager, and validation-arbiter internal
 package directories under the same naming convention. Phase D has applied the
 support/SPI review: `redaction` is internalized, while observability, artifact
-store, kernel store, and tool registry remain candidate SPI surfaces until
-their public facades are explicitly designed.
+store, kernel store, and tool registry are retained as support modules. Phase E
+adds an explicit public support SPI facade for those retained modules.
 
 Implemented boundary:
 
@@ -31,6 +31,16 @@ Implemented boundary:
 - `tests/fixtures/public-api-surface-lock.fixture.json` records the approved
   runtime export names.
 - The facade exports product, host, protocol, and provider SPI surfaces.
+- `packages/public-api/src/support.ts` is the explicit support SPI facade for
+  retained support modules.
+- `tests/fixtures/public-api-support-spi-surface-lock.fixture.json` records the
+  approved support SPI runtime export names.
+- The support SPI facade exposes only curated telemetry, artifact store, kernel
+  store, and tool registry contracts. It does not use `export *`.
+- The support SPI facade intentionally excludes preflight-specific telemetry
+  builders, JSONL event log internals, redaction internals, default tool
+  manifest fixtures, and default tool registry helpers that would imply
+  local-write or external-write capability.
 - The facade intentionally does not export internal governance implementation
   modules such as recovery, workspace-write guard, provider execution runner,
   state manager, strategy router, entropy risk, execution observation, approval,
@@ -56,16 +66,17 @@ Implemented boundary:
 - The support-layer decision slice internalizes the pure redaction utility:
   - `packages/governance-internal-redaction`
 - The support-layer decision slice intentionally retains these directory names
-  for now:
+  and exposes their supported SPI only through `packages/public-api/src/support.ts`:
   - `packages/observability`, because `TelemetrySink` is part of current host
-    option types and needs a host telemetry facade before internalization.
+    option types and now has an explicit host telemetry SPI facade.
   - `packages/kernel-store`, because `KernelStore` is part of current local
     runtime options used by SDK, CLI, and app-server entrypoints.
   - `packages/artifact-store`, because artifact persistence is a plausible
-    testing / diagnostics / storage SPI and should not be renamed before that
-    facade decision.
+    testing / diagnostics / storage SPI and is now exposed through a curated
+    support facade.
   - `packages/tool-registry`, because provider and MCP protocol surfaces already
-    build public tool manifest types from it.
+    build public tool manifest types from it; only schemas, registry contracts,
+    and the in-memory registry are exposed through the public support facade.
 - Internal source, script, and test imports have been migrated to those new
   directory names.
 - This rename is a source-organization boundary change only. It does not add
@@ -76,8 +87,6 @@ Implemented boundary:
 Not yet implemented:
 
 - root `package.json` `exports` map;
-- explicit host telemetry, storage, artifact, and tool manifest SPI facades for
-  retained support modules;
 - removal of existing `packages/*/src/index.ts` exports;
 - migration pressure on downstream consumers.
 
@@ -225,6 +234,7 @@ look like this:
 ./host
 ./protocol
 ./provider
+./support
 ./testing
 ./diagnostics
 ```
@@ -237,6 +247,7 @@ Recommended facade responsibilities:
 | `./host` | desktop host client, live host starter, host embedding contracts. | Desktop adapter plumbing and decision-runner internals. |
 | `./protocol` | canonical kernel contracts, MCP/A2A public protocol converters. | Local runtime implementation details and legacy adapters by default. |
 | `./provider` | provider manifest schemas, provider interfaces, provider registry setup. | Execution runner internals and permit lifecycle internals. |
+| `./support` | telemetry sink contracts, storage SPI, artifact store SPI, kernel store SPI, and curated tool registry contracts. | Redaction internals, JSONL event log internals, preflight-specific telemetry builders, and default tool manifests. |
 | `./testing` | fake providers, contract witnesses, fixtures. | Production-facing entrypoints. |
 | `./diagnostics` | smoke, preflight, and evidence helpers. | Default SDK path. |
 
@@ -247,12 +258,13 @@ import { createAgentOsSdk } from "@codex-router/sdk";
 import { createCodexDesktopLiveHostEmbeddingStarter } from "@codex-router/host";
 import { ProviderManifestSchema, type ExecutorProvider } from "@codex-router/provider";
 import { TaskSchema, RunSchema } from "@codex-router/protocol";
+import { createRecordingTelemetrySink, InMemoryKernelStore } from "@codex-router/support";
 ```
 
 ## Recommended Convergence Sequence
 
 1. Create explicit public facade modules for SDK, host, protocol, provider,
-   testing, and diagnostics.
+   support, testing, and diagnostics.
 2. Add public export lock tests for each facade, following the existing
    `codex-cli-host` export lock pattern.
 3. Promote `kernel-contracts` as the canonical public contract surface.
