@@ -30,7 +30,7 @@ import {
   createApprovalPermit,
   hashApprovalScope,
   InMemoryApprovalPermitStore
-} from "../packages/approval-permit/src/index.js";
+} from "../packages/governance-internal-approval-permit/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
 

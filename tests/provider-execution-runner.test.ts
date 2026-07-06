@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { hashApprovalScope } from "../packages/approval-permit/src/index.js";
+import { hashApprovalScope } from "../packages/governance-internal-approval-permit/src/index.js";
 import { InMemoryArtifactStore } from "../packages/artifact-store/src/index.js";
 import {
   type CodexCliProcessSpawner

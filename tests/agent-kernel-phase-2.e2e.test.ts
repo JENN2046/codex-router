@@ -9,11 +9,11 @@ import {
   evaluateExecutionEligibility
 } from "../packages/execution-eligibility/src/index.js";
 import { InMemoryKernelStore } from "../packages/kernel-store/src/index.js";
-import { createApprovalPermit, hashApprovalScope } from "../packages/approval-permit/src/index.js";
+import { createApprovalPermit, hashApprovalScope } from "../packages/governance-internal-approval-permit/src/index.js";
 import {
   InMemoryScheduler
 } from "../packages/scheduler/src/index.js";
-import { RunManager } from "../packages/run-manager/src/index.js";
+import { RunManager } from "../packages/governance-internal-run-manager/src/index.js";
 import {
   InMemoryToolRegistry,
   builtinReadFileToolManifest

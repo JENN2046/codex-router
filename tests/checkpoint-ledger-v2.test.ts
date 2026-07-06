@@ -8,7 +8,7 @@ import {
   createRecordingCheckpointLedgerStore,
   parseCheckpointLedgerEntry,
   hasIrreversibleActions
-} from "../packages/checkpoint-ledger-v2/src/index.js";
+} from "../packages/governance-internal-checkpoint-ledger-v2/src/index.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const TEST_BASE_PATH = join(__dirname, "..", ".test-checkpoint-ledger");

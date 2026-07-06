@@ -4,7 +4,7 @@ import {
   createApprovalPermit,
   hashApprovalScope,
   InMemoryApprovalPermitStore
-} from "../packages/approval-permit/src/index.js";
+} from "../packages/governance-internal-approval-permit/src/index.js";
 import {
   evaluateExecutionEligibility,
   evaluateExecutionEligibilityWithPermitStore

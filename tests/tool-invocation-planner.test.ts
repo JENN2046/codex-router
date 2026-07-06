@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   createApprovalPermit,
   hashApprovalScope
-} from "../packages/approval-permit/src/index.js";
+} from "../packages/governance-internal-approval-permit/src/index.js";
 import {
   hashToolInvocationInput,
   planToolInvocation,

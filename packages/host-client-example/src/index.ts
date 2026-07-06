@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AuditEvent, MemoryOverviewProvider } from "../../audit-memory/src/index.js";
 import type { CodexCliProcessRunOptions } from "../../codex-cli-host/src/index.js";
 import { CodexMemoryAdapter, type CodexMemoryClient, type CodexMemorySearchInput, type CodexMemorySearchResponse, type CodexMemoryTarget, type CodexMemoryWriteInput, type CodexMemoryWriteResponse } from "../../codex-memory-adapter/src/index.js";
-import { FileCheckpointIndex } from "../../checkpoint-index/src/index.js";
+import { FileCheckpointIndex } from "../../governance-internal-checkpoint-index/src/index.js";
 import type { CheckpointRef, DesktopPrimitive, RoutingDecision, TaskEnvelopeInput } from "../../contracts/src/index.js";
 import {
   getTelemetryAlertDeliveryThresholdPreset,

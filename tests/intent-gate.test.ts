@@ -181,7 +181,7 @@ test("intent gate does not allow taskClassHint to down-classify risky text", () 
       outOfScope: []
     },
     repoContext: { repoRoot: "A:/codex-router" },
-    target: { branches: [], files: ["packages/approval-gate/src/index.ts"], modules: [] },
+    target: { branches: [], files: ["packages/governance-internal-approval-gate/src/index.ts"], modules: [] },
     constraints: {},
     hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
   }));

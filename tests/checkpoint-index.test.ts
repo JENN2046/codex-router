@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { FileCheckpointIndex } from "../packages/checkpoint-index/src/index.js";
+import { FileCheckpointIndex } from "../packages/governance-internal-checkpoint-index/src/index.js";
 
 test("checkpoint index restores latest checkpoint for a task", async () => {
   const dir = await mkdtemp(join(tmpdir(), "codex-router-checkpoint-"));

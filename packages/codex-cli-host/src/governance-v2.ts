@@ -26,7 +26,7 @@ import {
   createRecordingCheckpointLedgerStore,
   parseCheckpointLedgerEntry,
   type CheckpointLedgerEntry
-} from "../../checkpoint-ledger-v2/src/index.js";
+} from "../../governance-internal-checkpoint-ledger-v2/src/index.js";
 import {
   scoreGovernanceRisk,
   type ScoreGovernanceRiskInput

@@ -16,7 +16,7 @@ import {
 } from "../packages/execution-eligibility/src/index.js";
 import {
   hashApprovalScope
-} from "../packages/approval-permit/src/index.js";
+} from "../packages/governance-internal-approval-permit/src/index.js";
 import {
   ProviderRegistry
 } from "../packages/provider-registry/src/index.js";

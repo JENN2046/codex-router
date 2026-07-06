@@ -16,8 +16,10 @@ external writes, deployment, tags, or protected-branch mutation.
 ## Implementation Status
 
 Phase A is implemented as a source-level public facade and export lock. Phase B
-has moved the first high-risk governance core packages under explicit
-`governance-internal-*` directories.
+moved the first high-risk governance core packages under explicit
+`governance-internal-*` directories. Phase C has moved the approval,
+checkpoint, runtime-control, run-manager, and validation-arbiter internal
+package directories under the same naming convention.
 
 Implemented boundary:
 
@@ -39,6 +41,15 @@ Implemented boundary:
   - `packages/governance-internal-strategy-router`
   - `packages/governance-internal-entropy-risk`
   - `packages/governance-internal-execution-observation`
+- The approval / checkpoint / runtime-control follow-up directories now use
+  explicit internal names:
+  - `packages/governance-internal-approval-gate`
+  - `packages/governance-internal-approval-permit`
+  - `packages/governance-internal-checkpoint-index`
+  - `packages/governance-internal-checkpoint-ledger-v2`
+  - `packages/governance-internal-runtime-control`
+  - `packages/governance-internal-run-manager`
+  - `packages/governance-internal-validation-arbiter`
 - Internal source, script, and test imports have been migrated to those new
   directory names.
 - This rename is a source-organization boundary change only. It does not add
@@ -49,8 +60,6 @@ Implemented boundary:
 Not yet implemented:
 
 - root `package.json` `exports` map;
-- approval, checkpoint, runtime-control, run-manager, and validation-arbiter
-  internal directory renames;
 - support/SPI classification and any directory decisions for observability,
   artifact-store, kernel-store, redaction, and tool-registry;
 - removal of existing `packages/*/src/index.ts` exports;
@@ -161,10 +170,10 @@ be re-exported from public facades by default.
 
 | Module group | Modules | Reason |
 |---|---|---|
-| Recovery and operator governance | `governance-internal-recovery-control`, `approval-gate`, `approval-permit`, `intent-gate`, `runtime-control`, `run-manager` | These define internal lifecycle, approval, dispatch, and recovery policy machinery. |
+| Recovery and operator governance | `governance-internal-recovery-control`, `governance-internal-approval-gate`, `governance-internal-approval-permit`, `intent-gate`, `governance-internal-runtime-control`, `governance-internal-run-manager` | These define internal lifecycle, approval, dispatch, and recovery policy machinery. |
 | Execution planning and guardrails | `execution-planner`, `execution-eligibility`, `governance-internal-provider-execution-runner`, `governance-internal-workspace-write-guard`, `tool-invocation-planner` | These are safety/control implementations; external callers should use higher-level facades. |
-| Governance state and risk | `governance-internal-state-manager`, `governance-internal-strategy-router`, `governance-internal-entropy-risk`, `governance-internal-execution-observation`, `governance-failure-reducer`, `validation-arbiter` | These are internal reducers, risk models, and arbitration machinery. |
-| Checkpoint and graph internals | `checkpoint-ledger-v2`, `checkpoint-index`, `task-graph` | These are internal data structures unless separately productized. |
+| Governance state and risk | `governance-internal-state-manager`, `governance-internal-strategy-router`, `governance-internal-entropy-risk`, `governance-internal-execution-observation`, `governance-failure-reducer`, `governance-internal-validation-arbiter` | These are internal reducers, risk models, and arbitration machinery. |
+| Checkpoint and graph internals | `governance-internal-checkpoint-ledger-v2`, `governance-internal-checkpoint-index`, `task-graph` | These are internal data structures unless separately productized. |
 | Configuration and policy internals | `policy-config`, `delegation-policy`, `recon-policy`, `capability`, `admission-control`, `preflight` | These should be consumed through SDK / host / provider flows. |
 | Internal host/runtime plumbing | `desktop-live-adapter`, `desktop-decision-runner`, `desktop-agent-strategy`, `desktop-bridge`, `host-dispatcher`, `final-host-locator` | These are composition layers behind host-facing APIs. |
 | Audit and support internals | `observability`, `redaction`, `artifact-store`, `kernel-store`, `audit-memory`, `state-sync-audit`, `tool-registry` | Useful infrastructure, but too low-level for the default product API. |

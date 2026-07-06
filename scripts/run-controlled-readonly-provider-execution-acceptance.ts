@@ -4,7 +4,7 @@ import { EventEmitter } from "node:events";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { hashApprovalScope } from "../packages/approval-permit/src/index.js";
+import { hashApprovalScope } from "../packages/governance-internal-approval-permit/src/index.js";
 import { InMemoryArtifactStore } from "../packages/artifact-store/src/index.js";
 import { type CodexCliProcessSpawner } from "../packages/codex-cli-host/src/index.js";
 import {

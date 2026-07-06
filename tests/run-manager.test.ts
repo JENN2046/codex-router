@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { InMemoryKernelStore } from "../packages/kernel-store/src/index.js";
-import { RunManager } from "../packages/run-manager/src/index.js";
+import { RunManager } from "../packages/governance-internal-run-manager/src/index.js";
 import type { Principal, Task } from "../packages/kernel-contracts/src/index.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
 import { validTask } from "../packages/kernel-contracts/test-fixtures/valid-task.js";

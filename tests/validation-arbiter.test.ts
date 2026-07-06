@@ -6,7 +6,7 @@ import {
   shouldTriggerConjugateAgent,
   createEvidenceRecord,
   parseEvidenceRecord
-} from "../packages/validation-arbiter/src/index.js";
+} from "../packages/governance-internal-validation-arbiter/src/index.js";
 import type { GovernanceState } from "../packages/governance-internal-state-manager/src/index.js";
 import { parseExecutionObservation } from "../packages/governance-internal-execution-observation/src/index.js";
 

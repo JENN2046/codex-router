@@ -33,7 +33,7 @@ import {
   CODEX_CLI_PROVIDER_ID,
   CodexCliExecutorProvider
 } from "../packages/providers/codex-cli/src/index.js";
-import { RunManager } from "../packages/run-manager/src/index.js";
+import { RunManager } from "../packages/governance-internal-run-manager/src/index.js";
 import { validAgentManifest } from "../packages/kernel-contracts/test-fixtures/valid-agent-manifest.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
