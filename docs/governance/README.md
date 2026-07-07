@@ -151,11 +151,18 @@ as historical evidence unless a current authority document links them.
   `sandbox_reference_adapter` contract witness and records sanitized audit and
   evidence without authorizing real recovery execution.
 - [Phase 17 agent task control dispatch boundary taskbook](PHASE_17_AGENT_TASK_CONTROL_DISPATCH_BOUNDARY_TASKBOOK.md):
-  current planning-only boundary for future `agent_task_control` dispatch
+  current taskbook boundary for future `agent_task_control` dispatch
   authorization; this defines packet, host responsibility, audit/evidence, and
   fail-closed requirements without authorizing Codex CLI, provider,
   sub-agent runtime, shell/process execution, workspace-write, external write,
   or production recovery execution.
+- [Phase 17 agent task control dispatch authorization review-only closeout](PHASE_17_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT.md):
+  current review-only implementation boundary for `agent_task_control` +
+  `agent_context_only` authorization; this validates Phase 10/11/15/16
+  bindings, host-agent refs, context refs, idempotency, timeout, and sink
+  identities without invoking an adapter, Codex CLI, provider, sub-agent
+  runtime, shell/process execution, workspace-write, external write, or
+  production recovery execution.
 
 ## Runner Entry Points
 

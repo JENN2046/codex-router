@@ -165,10 +165,19 @@ Current repository governance status:
 - Phase 17 agent task control dispatch boundary is recorded in
   `docs/governance/PHASE_17_AGENT_TASK_CONTROL_DISPATCH_BOUNDARY_TASKBOOK.md`;
   it defines future `agent_task_control` + `agent_context_only` packet,
-  host-responsibility, audit/evidence, and fail-closed requirements. It is
-  planning-only and does not authorize Codex CLI, provider, sub-agent runtime,
-  shell/process execution, real workspace-write, external write, production
-  recovery, or real recovery-action execution.
+  host-responsibility, audit/evidence, and fail-closed requirements. It is a
+  taskbook boundary and does not authorize Codex CLI, provider, sub-agent
+  runtime, shell/process execution, real workspace-write, external write,
+  production recovery, or real recovery-action execution.
+- Phase 17 agent task control dispatch authorization review-only
+  implementation is closed out in
+  `docs/governance/PHASE_17_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT.md`;
+  it implements non-executing `agent_task_control` + `agent_context_only`
+  packet binding against Phase 10/11/15/16 identities, host-agent refs,
+  context refs, idempotency, timeout, and sink identities. It does not invoke
+  an adapter, Codex CLI, provider, sub-agent runtime, shell/process execution,
+  real workspace-write, external write, production recovery, or real recovery
+  action.
 - Public contract compatibility closeout is recorded in
   `docs/governance/PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md`; new consumers
   should use `codex-router/protocol`, `kernel-contracts` is the canonical

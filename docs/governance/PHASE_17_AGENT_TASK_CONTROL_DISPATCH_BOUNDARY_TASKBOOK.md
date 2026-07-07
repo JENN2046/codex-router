@@ -254,6 +254,11 @@ APPROVE_PHASE_17_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_IMPLEMENT
 
 That string is not active unless Jenn provides it in a later task context.
 
+Implementation note: Jenn later provided this exact approval string for the
+review-only implementation slice. The implemented non-executing boundary is
+closed out in
+`PHASE_17_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT.md`.
+
 Real Codex-backed, sub-agent-backed, provider-backed, workspace-write,
 shell/process, external-write, or production recovery dispatch approval is
 intentionally not defined here. Those classes require newer host-specific
