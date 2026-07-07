@@ -43,6 +43,10 @@ as historical evidence unless a current authority document links them.
 - [API testing and diagnostics surface plan](API_TESTING_DIAGNOSTICS_SURFACE_PLAN.md):
   narrow follow-up decision keeping `./testing` and `./diagnostics` closed until
   separate curation; this is not a new public export.
+- [Public contract compatibility closeout](PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md):
+  final narrow API surface closeout that directs new consumers to
+  `codex-router/protocol`, records `kernel-contracts` as the canonical public
+  contract source, and keeps `contracts` as legacy compatibility only.
 - [PR-22A controlled provider execution taskbook](PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md):
   local-only planning line for the next controlled provider execution slice;
   this is not execution authorization.

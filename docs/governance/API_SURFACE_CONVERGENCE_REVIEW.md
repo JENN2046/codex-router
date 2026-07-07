@@ -25,7 +25,10 @@ store, kernel store, and tool registry are retained as support modules. Phase E
 adds an explicit public support SPI facade for those retained modules. Phase F
 adds a root package export map for the implemented public facades. Phase G
 records the narrow testing/diagnostics review and keeps `./testing` and
-`./diagnostics` closed pending separate curation.
+`./diagnostics` closed pending separate curation. Phase H closes the public
+contract compatibility line by making `kernel-contracts` the canonical public
+contract source behind `./protocol` while retaining `contracts` only as a
+legacy compatibility surface.
 
 Implemented boundary:
 
@@ -78,6 +81,18 @@ Implemented boundary:
   `./diagnostics`, raw `packages/*` paths, or governance-internal modules.
 - `docs/governance/API_TESTING_DIAGNOSTICS_SURFACE_PLAN.md` records the
   follow-up decision that `./testing` and `./diagnostics` remain closed for now.
+- `docs/governance/PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md` records that new
+  consumers should use `codex-router/protocol` for canonical public contracts.
+- `packages/kernel-contracts` is the canonical source for public contract
+  shapes re-exported through `packages/public-api/src/protocol.ts`.
+- `packages/contracts` remains a legacy / compatibility surface for older
+  router and desktop-planning shapes; it is not a preferred new-consumer API.
+- `tests/public-api-surface.test.ts` rejects root package exports for
+  `./contracts`, `./kernel-contracts`, `./protocol-mcp`, and `./protocol-a2a`
+  so consumers do not bypass the curated protocol facade.
+- `tests/public-api-surface.test.ts` rejects legacy `contracts` declarations and
+  names from the public protocol facade while requiring the protocol facade
+  declarations to preserve the canonical `kernel-contracts` source.
 - The support SPI facade exposes only curated telemetry, artifact store, kernel
   store, and tool registry contracts. It does not use `export *`.
 - The support SPI facade intentionally excludes preflight-specific telemetry
@@ -219,6 +234,7 @@ contract-oriented facades instead of wholesale source exports.
 | Module | External role | Convergence decision |
 |---|---|---|
 | `kernel-contracts` | Canonical schemas and data contracts. | Promote as the main public contract surface. |
+| `contracts` | Legacy router / desktop-planning contracts. | Retain only for compatibility; do not prefer for new consumers. |
 | `protocol-mcp` | MCP manifest / descriptor / local adapter contracts. | Keep public, but replace broad `export *` with explicit exports. |
 | `protocol-a2a` | Agent-to-agent protocol contracts. | Keep public as protocol SPI if actively supported. |
 | `provider-core` | Provider author SPI. | Keep a narrow public provider contract facade. |
@@ -309,6 +325,16 @@ import { ProviderManifestSchema, type ExecutorProvider } from "codex-router/prov
 import { TaskSchema, RunSchema } from "codex-router/protocol";
 import { createRecordingTelemetrySink, InMemoryKernelStore } from "codex-router/support";
 ```
+
+For public contract types and schemas, new consumers should prefer:
+
+```ts
+import { TaskSchema, RunSchema, PolicyDecisionSchema } from "codex-router/protocol";
+```
+
+The legacy `contracts` module remains in source for compatibility and internal
+migration paths, but it is not a root package export and should not be added to
+the protocol facade for new consumers.
 
 ## Recommended Convergence Sequence
 

@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `27895871b78e264753bcf0ab00350f99ac2b5d79f06e022699572ad8d324accb`
+  `37ab5014709bf5311629e1abd4f272d06021139f032eac49594ff880801443b0`
 
 Source digest excluded paths:
 
@@ -140,6 +140,11 @@ Current repository governance status:
   without implementing adapter dispatch or authorizing Codex CLI, provider,
   sub-agent runtime, shell/process execution, real workspace-write, external
   write, or production recovery execution.
+- Public contract compatibility closeout is recorded in
+  `docs/governance/PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md`; new consumers
+  should use `codex-router/protocol`, `kernel-contracts` is the canonical
+  public contract source behind that facade, and `contracts` remains legacy
+  compatibility only.
 - Controlled read-only provider execution is now exposed as the current
   acceptance line
   `npm run governance -- acceptance controlled-readonly-provider-execution`.
