@@ -739,6 +739,8 @@ export const GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZ
   "APPROVE_PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_IMPLEMENTATION" as const;
 export const GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN_APPROVAL =
   "APPROVE_PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN" as const;
+export const GOVERNANCE_OPERATOR_ACTION_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_APPROVAL =
+  "APPROVE_PHASE_17_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_IMPLEMENTATION" as const;
 
 export const GovernanceOperatorActionAgentExecutorAdapterKindSchema = z.enum([
   "codex_cli_adapter",
@@ -1625,6 +1627,316 @@ export const GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationRe
     }
   });
 
+// ── Review-only agent task control dispatch authorization ─────────────────
+
+export const GovernanceOperatorActionAgentTaskControlDispatchAuthorizationPacketSchema =
+  z.object({
+    schemaVersion:
+      z.literal("governance-operator-action-agent-task-control-dispatch-authorization-packet.v1")
+        .default("governance-operator-action-agent-task-control-dispatch-authorization-packet.v1"),
+    approvalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_APPROVAL
+    ),
+    dispatchAuthorizationApprovalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_APPROVAL
+    ),
+    taskId: z.string().min(1),
+    actionRef: z.string().min(1),
+    receiptId: z.string().min(1),
+    envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+    recommendedAction: RecoveryActionSchema,
+    executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+    checkpointRefHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    executionGateHash: z.string().regex(/^[a-f0-9]{64}$/),
+    hostExecutorDescriptorId: z.string().min(1),
+    hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+    adapterId: z.string().min(1),
+    adapterKind: GovernanceOperatorActionAgentExecutorAdapterKindSchema,
+    adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    adapterReadinessHash: z.string().regex(/^[a-f0-9]{64}$/),
+    phase16DispatchAuthorizationReviewHash: z.string().regex(/^[a-f0-9]{64}$/),
+    sandboxDryRunProofRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    requestedDispatchClass:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchClassSchema,
+    requestedSideEffectClass:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchSideEffectClassSchema,
+    authorizedTaskControlScopeRef: GovernanceOperatorSanitizedRefSchema,
+    hostAgentRuntimeRef: GovernanceOperatorSanitizedRefSchema,
+    hostAgentCapabilityRef: GovernanceOperatorSanitizedRefSchema,
+    contextPackageRef: GovernanceOperatorSanitizedRefSchema,
+    contextPackageHash: z.string().regex(/^[a-f0-9]{64}$/),
+    permittedTaskControlOperationRefs:
+      z.array(GovernanceOperatorSanitizedRefSchema).min(1),
+    promptContentPolicyRef: GovernanceOperatorSanitizedRefSchema,
+    workspaceBoundaryRef: GovernanceOperatorSanitizedRefSchema,
+    rollbackExpectationRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    abortExpectationRef: GovernanceOperatorSanitizedRefSchema,
+    timeoutPolicyRef: GovernanceOperatorSanitizedRefSchema,
+    idempotencyKeyHash: z.string().regex(/^[a-f0-9]{64}$/),
+    auditSinkIdentityRef: GovernanceOperatorSanitizedRefSchema,
+    evidenceSinkIdentityRef: GovernanceOperatorSanitizedRefSchema,
+    receiptContractVersion:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchReceiptContractVersionSchema,
+    validationCommandRefs: z.array(GovernanceOperatorSanitizedRefSchema).min(1),
+    nonAuthorizationDeclaration:
+      z.literal("phase17_agent_task_control_review_only_no_adapter_invocation"),
+    evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+  }).superRefine((value, ctx) => {
+    if (value.recommendedAction === "rollback" && value.checkpointRefHash === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRefHash"],
+        message:
+          "operator_action_agent_task_control_dispatch_authorization_checkpoint_hash_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.checkpointRefHash !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRefHash"],
+        message:
+          "operator_action_agent_task_control_dispatch_authorization_checkpoint_hash_not_allowed"
+      });
+    }
+
+    if (value.recommendedAction === "rollback" && value.rollbackExpectationRef === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["rollbackExpectationRef"],
+        message:
+          "operator_action_agent_task_control_dispatch_authorization_rollback_expectation_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.rollbackExpectationRef !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["rollbackExpectationRef"],
+        message:
+          "operator_action_agent_task_control_dispatch_authorization_rollback_expectation_not_allowed"
+      });
+    }
+  });
+
+export const GovernanceOperatorActionAgentTaskControlDispatchAuthorizationReviewResultSchema =
+  z.object({
+    schemaVersion:
+      z.literal("governance-operator-action-agent-task-control-dispatch-authorization-review.v1")
+        .default("governance-operator-action-agent-task-control-dispatch-authorization-review.v1"),
+    status: z.enum([
+      "ready_for_agent_task_control_dispatch_authorization_review",
+      "blocked"
+    ]),
+    reasons: z.array(z.string()).default([]),
+    approvalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_APPROVAL
+    ).optional(),
+    dispatchAuthorizationApprovalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_APPROVAL
+    ).optional(),
+    taskId: z.string().min(1).optional(),
+    actionRef: z.string().min(1).optional(),
+    receiptId: z.string().min(1).optional(),
+    envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    recommendedAction: RecoveryActionSchema.optional(),
+    executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    checkpointRefHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    executionGateHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    hostExecutorDescriptorId: z.string().min(1).optional(),
+    hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    adapterId: z.string().min(1).optional(),
+    adapterKind: GovernanceOperatorActionAgentExecutorAdapterKindSchema.optional(),
+    adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    adapterReadinessHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    phase16DispatchAuthorizationReviewHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    sandboxDryRunProofRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    requestedDispatchClass:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchClassSchema.optional(),
+    requestedSideEffectClass:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchSideEffectClassSchema.optional(),
+    authorizedTaskControlScopeRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    hostAgentRuntimeRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    hostAgentCapabilityRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    contextPackageRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    contextPackageHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    permittedTaskControlOperationRefs:
+      z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+    promptContentPolicyRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    workspaceBoundaryRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    rollbackExpectationRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    abortExpectationRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    timeoutPolicyRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    idempotencyKeyHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    auditSinkIdentityRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    evidenceSinkIdentityRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    receiptContractVersion:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchReceiptContractVersionSchema.optional(),
+    validationCommandRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+    nonAuthorizationDeclaration:
+      z.literal("phase17_agent_task_control_review_only_no_adapter_invocation")
+        .optional(),
+    evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+    operatorInstruction: z.string().min(1).optional()
+  }).superRefine((value, ctx) => {
+    if (value.status === "ready_for_agent_task_control_dispatch_authorization_review") {
+      if (value.reasons.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["reasons"],
+          message:
+            "operator_action_agent_task_control_dispatch_authorization_ready_requires_no_reasons"
+        });
+      }
+
+      for (const field of [
+        "approvalString",
+        "dispatchAuthorizationApprovalString",
+        "taskId",
+        "actionRef",
+        "receiptId",
+        "envelopeHash",
+        "recommendedAction",
+        "executionPlanHash",
+        "executionGateHash",
+        "hostExecutorDescriptorId",
+        "hostExecutorDescriptorHash",
+        "authorizationIdentityHash",
+        "adapterId",
+        "adapterKind",
+        "adapterDescriptorHash",
+        "adapterReadinessHash",
+        "phase16DispatchAuthorizationReviewHash",
+        "requestedDispatchClass",
+        "requestedSideEffectClass",
+        "authorizedTaskControlScopeRef",
+        "hostAgentRuntimeRef",
+        "hostAgentCapabilityRef",
+        "contextPackageRef",
+        "contextPackageHash",
+        "promptContentPolicyRef",
+        "workspaceBoundaryRef",
+        "abortExpectationRef",
+        "timeoutPolicyRef",
+        "idempotencyKeyHash",
+        "auditSinkIdentityRef",
+        "evidenceSinkIdentityRef",
+        "receiptContractVersion",
+        "nonAuthorizationDeclaration",
+        "operatorInstruction"
+      ] as const) {
+        if (value[field] === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message:
+              "operator_action_agent_task_control_dispatch_authorization_ready_requires_field"
+          });
+        }
+      }
+
+      if (value.permittedTaskControlOperationRefs.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["permittedTaskControlOperationRefs"],
+          message:
+            "operator_action_agent_task_control_dispatch_authorization_ready_requires_operation_refs"
+        });
+      }
+
+      if (value.recommendedAction !== undefined) {
+        const expectedOperationRef =
+          expectedAgentTaskControlOperationRef(value.recommendedAction);
+        if (
+          value.permittedTaskControlOperationRefs.length !== 1 ||
+          value.permittedTaskControlOperationRefs[0] !== expectedOperationRef
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["permittedTaskControlOperationRefs"],
+            message:
+              "operator_action_agent_task_control_dispatch_authorization_ready_operation_ref_mismatch"
+          });
+        }
+      }
+
+      if (value.validationCommandRefs.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["validationCommandRefs"],
+          message:
+            "operator_action_agent_task_control_dispatch_authorization_ready_requires_validation_refs"
+        });
+      }
+
+      if (value.requestedDispatchClass !== "agent_task_control") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["requestedDispatchClass"],
+          message:
+            "operator_action_agent_task_control_dispatch_authorization_ready_requires_agent_task_control"
+        });
+      }
+
+      if (value.requestedSideEffectClass !== "agent_context_only") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["requestedSideEffectClass"],
+          message:
+            "operator_action_agent_task_control_dispatch_authorization_ready_requires_agent_context_only"
+        });
+      }
+
+      if (value.recommendedAction === "rollback") {
+        if (value.checkpointRefHash === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["checkpointRefHash"],
+            message:
+              "operator_action_agent_task_control_dispatch_authorization_ready_checkpoint_hash_required"
+          });
+        }
+        if (value.rollbackExpectationRef === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["rollbackExpectationRef"],
+            message:
+              "operator_action_agent_task_control_dispatch_authorization_ready_rollback_expectation_required"
+          });
+        }
+      } else {
+        if (value.checkpointRefHash !== undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["checkpointRefHash"],
+            message:
+              "operator_action_agent_task_control_dispatch_authorization_ready_checkpoint_hash_not_allowed"
+          });
+        }
+        if (value.rollbackExpectationRef !== undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["rollbackExpectationRef"],
+            message:
+              "operator_action_agent_task_control_dispatch_authorization_ready_rollback_expectation_not_allowed"
+          });
+        }
+      }
+      return;
+    }
+
+    if (value.reasons.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reasons"],
+        message:
+          "operator_action_agent_task_control_dispatch_authorization_block_requires_reasons"
+      });
+    }
+  });
+
 // ── Sandbox-only agent executor adapter dispatch dry-run ──────────────────
 
 export const GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacketSchema =
@@ -2236,6 +2548,10 @@ export type GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationPac
 export type GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationPacket = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationPacketSchema>;
 export type GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResultInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResultSchema>;
 export type GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResult = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResultSchema>;
+export type GovernanceOperatorActionAgentTaskControlDispatchAuthorizationPacketInput = z.input<typeof GovernanceOperatorActionAgentTaskControlDispatchAuthorizationPacketSchema>;
+export type GovernanceOperatorActionAgentTaskControlDispatchAuthorizationPacket = z.infer<typeof GovernanceOperatorActionAgentTaskControlDispatchAuthorizationPacketSchema>;
+export type GovernanceOperatorActionAgentTaskControlDispatchAuthorizationReviewResultInput = z.input<typeof GovernanceOperatorActionAgentTaskControlDispatchAuthorizationReviewResultSchema>;
+export type GovernanceOperatorActionAgentTaskControlDispatchAuthorizationReviewResult = z.infer<typeof GovernanceOperatorActionAgentTaskControlDispatchAuthorizationReviewResultSchema>;
 export type GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacketInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacketSchema>;
 export type GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacket = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacketSchema>;
 export type GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEventInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEventSchema>;
@@ -2334,6 +2650,11 @@ export interface ReviewGovernanceOperatorActionAgentExecutorAdapterDispatchAutho
   adapterReviewPacket?: unknown;
   adapterReadiness?: unknown;
   dispatchAuthorizationPacket?: unknown;
+}
+
+export interface ReviewGovernanceOperatorActionAgentTaskControlDispatchAuthorizationInput
+  extends ReviewGovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationInput {
+  agentTaskControlDispatchAuthorizationPacket?: unknown;
 }
 
 export interface GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditSink {
@@ -3238,6 +3559,12 @@ export function hashGovernanceOperatorActionExecutionPlan(
   return stableSha256(GovernanceOperatorActionExecutionPlanSchema.parse(plan));
 }
 
+export function hashGovernanceOperatorActionExecutionGateResult(
+  gate: GovernanceOperatorActionExecutionGateResultInput
+): string {
+  return stableSha256(GovernanceOperatorActionExecutionGateResultSchema.parse(gate));
+}
+
 export function hashGovernanceOperatorActionHostExecutorDescriptor(
   descriptor: GovernanceOperatorActionHostExecutorDescriptorInput
 ): string {
@@ -3259,6 +3586,16 @@ export function hashGovernanceOperatorActionAgentExecutorAdapterReviewResult(
 ): string {
   return stableSha256(
     GovernanceOperatorActionAgentExecutorAdapterReviewResultSchema.parse(reviewResult)
+  );
+}
+
+export function hashGovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResult(
+  reviewResult: GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResultInput
+): string {
+  return stableSha256(
+    GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResultSchema.parse(
+      reviewResult
+    )
   );
 }
 
@@ -3941,6 +4278,219 @@ export function reviewGovernanceOperatorActionAgentExecutorAdapterDispatchAuthor
     evidenceRefs,
     operatorInstruction:
       `Review-only agent executor adapter dispatch authorization accepted ${readiness.recommendedAction}; no adapter, no Codex CLI, no sub-agent runtime, no provider, no shell, no workspace-write, no external write, and no recovery action was invoked.`
+  });
+}
+
+export function reviewGovernanceOperatorActionAgentTaskControlDispatchAuthorization(
+  input: ReviewGovernanceOperatorActionAgentTaskControlDispatchAuthorizationInput
+): GovernanceOperatorActionAgentTaskControlDispatchAuthorizationReviewResult {
+  const dispatchAuthorizationReview =
+    reviewGovernanceOperatorActionAgentExecutorAdapterDispatchAuthorization({
+      executionGate: input.executionGate,
+      lifecycleState: input.lifecycleState,
+      ...(input.authorizationPacket !== undefined
+        ? { authorizationPacket: input.authorizationPacket }
+        : {}),
+      ...(input.hostExecutorDescriptor !== undefined
+        ? { hostExecutorDescriptor: input.hostExecutorDescriptor }
+        : {}),
+      ...(input.hostExecutorAuthorization !== undefined
+        ? { hostExecutorAuthorization: input.hostExecutorAuthorization }
+        : {}),
+      ...(input.adapterDescriptor !== undefined
+        ? { adapterDescriptor: input.adapterDescriptor }
+        : {}),
+      ...(input.adapterReviewPacket !== undefined
+        ? { adapterReviewPacket: input.adapterReviewPacket }
+        : {}),
+      ...(input.adapterReadiness !== undefined
+        ? { adapterReadiness: input.adapterReadiness }
+        : {}),
+      ...(input.dispatchAuthorizationPacket !== undefined
+        ? { dispatchAuthorizationPacket: input.dispatchAuthorizationPacket }
+        : {})
+    });
+  const reasons: string[] = [];
+
+  let executionGateHash: string | undefined;
+  const parsedGate = GovernanceOperatorActionExecutionGateResultSchema.safeParse(
+    input.executionGate
+  );
+  if (parsedGate.success) {
+    executionGateHash =
+      hashGovernanceOperatorActionExecutionGateResult(parsedGate.data);
+  } else {
+    addUniqueReason(
+      reasons,
+      "operator_action_agent_task_control_dispatch_authorization_execution_gate_invalid"
+    );
+  }
+
+  let packet:
+    | GovernanceOperatorActionAgentTaskControlDispatchAuthorizationPacket
+    | undefined;
+  if (input.agentTaskControlDispatchAuthorizationPacket === undefined) {
+    addUniqueReason(
+      reasons,
+      "operator_action_agent_task_control_dispatch_authorization_packet_required"
+    );
+  } else {
+    const parsedPacket =
+      GovernanceOperatorActionAgentTaskControlDispatchAuthorizationPacketSchema.safeParse(
+        input.agentTaskControlDispatchAuthorizationPacket
+      );
+    if (parsedPacket.success) {
+      packet = parsedPacket.data;
+    } else {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_task_control_dispatch_authorization_packet_invalid"
+      );
+    }
+  }
+
+  if (
+    dispatchAuthorizationReview.status !==
+    "ready_for_agent_executor_adapter_dispatch_authorization_review"
+  ) {
+    addUniqueReason(
+      reasons,
+      "operator_action_agent_task_control_dispatch_authorization_phase16_review_not_ready"
+    );
+    for (const reason of dispatchAuthorizationReview.reasons) {
+      addUniqueReason(reasons, reason);
+    }
+  }
+
+  if (
+    packet !== undefined &&
+    dispatchAuthorizationReview.status ===
+      "ready_for_agent_executor_adapter_dispatch_authorization_review"
+  ) {
+    const phase16DispatchAuthorizationReviewHash =
+      hashGovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResult(
+        dispatchAuthorizationReview
+      );
+    addAgentTaskControlDispatchAuthorizationPacketReasons(reasons, {
+      packet,
+      dispatchAuthorizationReview,
+      phase16DispatchAuthorizationReviewHash,
+      ...(executionGateHash !== undefined ? { executionGateHash } : {})
+    });
+
+    if (packet.requestedDispatchClass !== "agent_task_control") {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_task_control_dispatch_authorization_dispatch_class_not_agent_task_control"
+      );
+    }
+
+    if (packet.requestedSideEffectClass !== "agent_context_only") {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_task_control_dispatch_authorization_side_effect_class_not_agent_context_only"
+      );
+    }
+
+    if (packet.adapterKind === "sandbox_reference_adapter") {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_task_control_dispatch_authorization_adapter_kind_incompatible"
+      );
+    }
+
+    const expectedOperationRef =
+      expectedAgentTaskControlOperationRef(packet.recommendedAction);
+    if (
+      packet.permittedTaskControlOperationRefs.length !== 1 ||
+      packet.permittedTaskControlOperationRefs[0] !== expectedOperationRef
+    ) {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_task_control_dispatch_authorization_operation_ref_mismatch"
+      );
+    }
+  }
+
+  if (
+    reasons.length > 0 ||
+    dispatchAuthorizationReview.status !==
+      "ready_for_agent_executor_adapter_dispatch_authorization_review" ||
+    executionGateHash === undefined ||
+    packet === undefined
+  ) {
+    return createBlockedOperatorActionAgentTaskControlDispatchAuthorizationReviewResult(
+      reasons,
+      {
+        dispatchAuthorizationReview,
+        ...(executionGateHash !== undefined ? { executionGateHash } : {}),
+        ...(packet !== undefined ? { packet } : {})
+      }
+    );
+  }
+
+  const phase16DispatchAuthorizationReviewHash =
+    hashGovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResult(
+      dispatchAuthorizationReview
+    );
+  const evidenceRefs = uniqueStrings([
+    ...dispatchAuthorizationReview.evidenceRefs,
+    ...packet.evidenceRefs
+  ]);
+
+  return GovernanceOperatorActionAgentTaskControlDispatchAuthorizationReviewResultSchema.parse({
+    status: "ready_for_agent_task_control_dispatch_authorization_review",
+    reasons: [],
+    approvalString:
+      GOVERNANCE_OPERATOR_ACTION_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_APPROVAL,
+    dispatchAuthorizationApprovalString:
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_APPROVAL,
+    taskId: dispatchAuthorizationReview.taskId,
+    actionRef: dispatchAuthorizationReview.actionRef,
+    receiptId: dispatchAuthorizationReview.receiptId,
+    envelopeHash: dispatchAuthorizationReview.envelopeHash,
+    recommendedAction: dispatchAuthorizationReview.recommendedAction,
+    executionPlanHash: dispatchAuthorizationReview.executionPlanHash,
+    ...(dispatchAuthorizationReview.checkpointRefHash !== undefined
+      ? { checkpointRefHash: dispatchAuthorizationReview.checkpointRefHash }
+      : {}),
+    executionGateHash,
+    hostExecutorDescriptorId: dispatchAuthorizationReview.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: dispatchAuthorizationReview.hostExecutorDescriptorHash,
+    authorizationIdentityHash: dispatchAuthorizationReview.authorizationIdentityHash,
+    adapterId: dispatchAuthorizationReview.adapterId,
+    adapterKind: dispatchAuthorizationReview.adapterKind,
+    adapterDescriptorHash: dispatchAuthorizationReview.adapterDescriptorHash,
+    adapterReadinessHash: dispatchAuthorizationReview.adapterReadinessHash,
+    phase16DispatchAuthorizationReviewHash,
+    ...(packet.sandboxDryRunProofRef !== undefined
+      ? { sandboxDryRunProofRef: packet.sandboxDryRunProofRef }
+      : {}),
+    requestedDispatchClass: "agent_task_control",
+    requestedSideEffectClass: "agent_context_only",
+    authorizedTaskControlScopeRef: packet.authorizedTaskControlScopeRef,
+    hostAgentRuntimeRef: packet.hostAgentRuntimeRef,
+    hostAgentCapabilityRef: packet.hostAgentCapabilityRef,
+    contextPackageRef: packet.contextPackageRef,
+    contextPackageHash: packet.contextPackageHash,
+    permittedTaskControlOperationRefs: [...packet.permittedTaskControlOperationRefs],
+    promptContentPolicyRef: packet.promptContentPolicyRef,
+    workspaceBoundaryRef: packet.workspaceBoundaryRef,
+    ...(packet.rollbackExpectationRef !== undefined
+      ? { rollbackExpectationRef: packet.rollbackExpectationRef }
+      : {}),
+    abortExpectationRef: packet.abortExpectationRef,
+    timeoutPolicyRef: packet.timeoutPolicyRef,
+    idempotencyKeyHash: packet.idempotencyKeyHash,
+    auditSinkIdentityRef: packet.auditSinkIdentityRef,
+    evidenceSinkIdentityRef: packet.evidenceSinkIdentityRef,
+    receiptContractVersion: packet.receiptContractVersion,
+    validationCommandRefs: [...packet.validationCommandRefs],
+    nonAuthorizationDeclaration:
+      "phase17_agent_task_control_review_only_no_adapter_invocation",
+    evidenceRefs,
+    operatorInstruction:
+      `Review-only agent task control dispatch authorization accepted ${dispatchAuthorizationReview.recommendedAction}; no adapter, no Codex CLI, no sub-agent runtime, no provider, no shell, no workspace-write, no external write, and no recovery action was invoked.`
   });
 }
 
@@ -4995,6 +5545,155 @@ function createBlockedOperatorActionAgentExecutorAdapterDispatchAuthorizationRev
     evidenceRefs: uniqueStrings([
       ...(context.readiness?.evidenceRefs ?? []),
       ...(context.suppliedReadiness?.evidenceRefs ?? []),
+      ...(packet?.evidenceRefs ?? [])
+    ])
+  });
+}
+
+function createBlockedOperatorActionAgentTaskControlDispatchAuthorizationReviewResult(
+  reasons: string[],
+  context: {
+    dispatchAuthorizationReview?:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResult;
+    executionGateHash?: string;
+    packet?: GovernanceOperatorActionAgentTaskControlDispatchAuthorizationPacket;
+  } = {}
+): GovernanceOperatorActionAgentTaskControlDispatchAuthorizationReviewResult {
+  const source = context.dispatchAuthorizationReview;
+  const packet = context.packet;
+
+  return GovernanceOperatorActionAgentTaskControlDispatchAuthorizationReviewResultSchema.parse({
+    status: "blocked",
+    reasons: reasons.length > 0
+      ? [...new Set(reasons)]
+      : ["operator_action_agent_task_control_dispatch_authorization_blocked"],
+    approvalString:
+      packet?.approvalString ??
+      GOVERNANCE_OPERATOR_ACTION_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_APPROVAL,
+    dispatchAuthorizationApprovalString:
+      packet?.dispatchAuthorizationApprovalString ??
+      source?.approvalString,
+    ...(source?.taskId !== undefined ? { taskId: source.taskId } : {}),
+    ...(source?.actionRef !== undefined ? { actionRef: source.actionRef } : {}),
+    ...(source?.receiptId !== undefined ? { receiptId: source.receiptId } : {}),
+    ...(source?.envelopeHash !== undefined ? { envelopeHash: source.envelopeHash } : {}),
+    ...(source?.recommendedAction !== undefined
+      ? { recommendedAction: source.recommendedAction }
+      : {}),
+    ...(source?.executionPlanHash !== undefined
+      ? { executionPlanHash: source.executionPlanHash }
+      : {}),
+    ...(packet?.checkpointRefHash !== undefined
+      ? { checkpointRefHash: packet.checkpointRefHash }
+      : source?.checkpointRefHash !== undefined
+        ? { checkpointRefHash: source.checkpointRefHash }
+        : {}),
+    ...(packet?.executionGateHash !== undefined
+      ? { executionGateHash: packet.executionGateHash }
+      : context.executionGateHash !== undefined
+        ? { executionGateHash: context.executionGateHash }
+        : {}),
+    ...(source?.hostExecutorDescriptorId !== undefined
+      ? { hostExecutorDescriptorId: source.hostExecutorDescriptorId }
+      : {}),
+    ...(source?.hostExecutorDescriptorHash !== undefined
+      ? { hostExecutorDescriptorHash: source.hostExecutorDescriptorHash }
+      : {}),
+    ...(source?.authorizationIdentityHash !== undefined
+      ? { authorizationIdentityHash: source.authorizationIdentityHash }
+      : {}),
+    ...(source?.adapterId !== undefined
+      ? { adapterId: source.adapterId }
+      : packet?.adapterId !== undefined
+        ? { adapterId: packet.adapterId }
+        : {}),
+    ...(source?.adapterKind !== undefined
+      ? { adapterKind: source.adapterKind }
+      : packet?.adapterKind !== undefined
+        ? { adapterKind: packet.adapterKind }
+        : {}),
+    ...(source?.adapterDescriptorHash !== undefined
+      ? { adapterDescriptorHash: source.adapterDescriptorHash }
+      : packet?.adapterDescriptorHash !== undefined
+        ? { adapterDescriptorHash: packet.adapterDescriptorHash }
+        : {}),
+    ...(packet?.adapterReadinessHash !== undefined
+      ? { adapterReadinessHash: packet.adapterReadinessHash }
+      : source?.adapterReadinessHash !== undefined
+        ? { adapterReadinessHash: source.adapterReadinessHash }
+        : {}),
+    ...(packet?.phase16DispatchAuthorizationReviewHash !== undefined
+      ? {
+          phase16DispatchAuthorizationReviewHash:
+            packet.phase16DispatchAuthorizationReviewHash
+        }
+      : source !== undefined
+        ? {
+            phase16DispatchAuthorizationReviewHash:
+              hashGovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResult(
+                source
+              )
+          }
+        : {}),
+    ...(packet?.sandboxDryRunProofRef !== undefined
+      ? { sandboxDryRunProofRef: packet.sandboxDryRunProofRef }
+      : {}),
+    ...(packet?.requestedDispatchClass !== undefined
+      ? { requestedDispatchClass: packet.requestedDispatchClass }
+      : {}),
+    ...(packet?.requestedSideEffectClass !== undefined
+      ? { requestedSideEffectClass: packet.requestedSideEffectClass }
+      : {}),
+    ...(packet?.authorizedTaskControlScopeRef !== undefined
+      ? { authorizedTaskControlScopeRef: packet.authorizedTaskControlScopeRef }
+      : {}),
+    ...(packet?.hostAgentRuntimeRef !== undefined
+      ? { hostAgentRuntimeRef: packet.hostAgentRuntimeRef }
+      : {}),
+    ...(packet?.hostAgentCapabilityRef !== undefined
+      ? { hostAgentCapabilityRef: packet.hostAgentCapabilityRef }
+      : {}),
+    ...(packet?.contextPackageRef !== undefined
+      ? { contextPackageRef: packet.contextPackageRef }
+      : {}),
+    ...(packet?.contextPackageHash !== undefined
+      ? { contextPackageHash: packet.contextPackageHash }
+      : {}),
+    permittedTaskControlOperationRefs:
+      packet?.permittedTaskControlOperationRefs ?? [],
+    ...(packet?.promptContentPolicyRef !== undefined
+      ? { promptContentPolicyRef: packet.promptContentPolicyRef }
+      : {}),
+    ...(packet?.workspaceBoundaryRef !== undefined
+      ? { workspaceBoundaryRef: packet.workspaceBoundaryRef }
+      : {}),
+    ...(packet?.rollbackExpectationRef !== undefined
+      ? { rollbackExpectationRef: packet.rollbackExpectationRef }
+      : {}),
+    ...(packet?.abortExpectationRef !== undefined
+      ? { abortExpectationRef: packet.abortExpectationRef }
+      : {}),
+    ...(packet?.timeoutPolicyRef !== undefined
+      ? { timeoutPolicyRef: packet.timeoutPolicyRef }
+      : {}),
+    ...(packet?.idempotencyKeyHash !== undefined
+      ? { idempotencyKeyHash: packet.idempotencyKeyHash }
+      : {}),
+    ...(packet?.auditSinkIdentityRef !== undefined
+      ? { auditSinkIdentityRef: packet.auditSinkIdentityRef }
+      : {}),
+    ...(packet?.evidenceSinkIdentityRef !== undefined
+      ? { evidenceSinkIdentityRef: packet.evidenceSinkIdentityRef }
+      : {}),
+    ...(packet?.receiptContractVersion !== undefined
+      ? { receiptContractVersion: packet.receiptContractVersion }
+      : {}),
+    validationCommandRefs: packet?.validationCommandRefs ?? [],
+    ...(packet?.nonAuthorizationDeclaration !== undefined
+      ? { nonAuthorizationDeclaration: packet.nonAuthorizationDeclaration }
+      : {}),
+    evidenceRefs: uniqueStrings([
+      ...(source?.evidenceRefs ?? []),
       ...(packet?.evidenceRefs ?? [])
     ])
   });
@@ -6290,6 +6989,132 @@ function addAgentExecutorAdapterDispatchAuthorizationPacketReasons(
       addUniqueReason(reasons, binding.reason);
     }
   }
+}
+
+function addAgentTaskControlDispatchAuthorizationPacketReasons(
+  reasons: string[],
+  input: {
+    packet: GovernanceOperatorActionAgentTaskControlDispatchAuthorizationPacket;
+    dispatchAuthorizationReview:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResult;
+    phase16DispatchAuthorizationReviewHash: string;
+    executionGateHash?: string;
+  }
+): void {
+  const bindings = [
+    {
+      packetValue: input.packet.dispatchAuthorizationApprovalString,
+      expectedValue: input.dispatchAuthorizationReview.approvalString,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_phase16_approval_mismatch"
+    },
+    {
+      packetValue: input.packet.taskId,
+      expectedValue: input.dispatchAuthorizationReview.taskId,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_task_mismatch"
+    },
+    {
+      packetValue: input.packet.actionRef,
+      expectedValue: input.dispatchAuthorizationReview.actionRef,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_action_ref_mismatch"
+    },
+    {
+      packetValue: input.packet.receiptId,
+      expectedValue: input.dispatchAuthorizationReview.receiptId,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_receipt_mismatch"
+    },
+    {
+      packetValue: input.packet.envelopeHash,
+      expectedValue: input.dispatchAuthorizationReview.envelopeHash,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_envelope_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.recommendedAction,
+      expectedValue: input.dispatchAuthorizationReview.recommendedAction,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_recommended_action_mismatch"
+    },
+    {
+      packetValue: input.packet.executionPlanHash,
+      expectedValue: input.dispatchAuthorizationReview.executionPlanHash,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_plan_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.checkpointRefHash,
+      expectedValue: input.dispatchAuthorizationReview.checkpointRefHash,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_checkpoint_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.executionGateHash,
+      expectedValue: input.executionGateHash,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_execution_gate_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.hostExecutorDescriptorId,
+      expectedValue: input.dispatchAuthorizationReview.hostExecutorDescriptorId,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_host_descriptor_id_mismatch"
+    },
+    {
+      packetValue: input.packet.hostExecutorDescriptorHash,
+      expectedValue: input.dispatchAuthorizationReview.hostExecutorDescriptorHash,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_host_descriptor_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.authorizationIdentityHash,
+      expectedValue: input.dispatchAuthorizationReview.authorizationIdentityHash,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_identity_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterId,
+      expectedValue: input.dispatchAuthorizationReview.adapterId,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_adapter_id_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterKind,
+      expectedValue: input.dispatchAuthorizationReview.adapterKind,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_adapter_kind_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterDescriptorHash,
+      expectedValue: input.dispatchAuthorizationReview.adapterDescriptorHash,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_adapter_descriptor_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterReadinessHash,
+      expectedValue: input.dispatchAuthorizationReview.adapterReadinessHash,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_readiness_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.phase16DispatchAuthorizationReviewHash,
+      expectedValue: input.phase16DispatchAuthorizationReviewHash,
+      reason:
+        "operator_action_agent_task_control_dispatch_authorization_packet_phase16_review_hash_mismatch"
+    }
+  ];
+
+  for (const binding of bindings) {
+    if (binding.packetValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
+}
+
+function expectedAgentTaskControlOperationRef(action: RecoveryAction): string {
+  return `task-control-operation:${action}`;
 }
 
 function addAgentExecutorAdapterDispatchSandboxDryRunReadinessReasons(
