@@ -1,6 +1,6 @@
 ---
 title: Phase 16 Agent Executor Adapter Dispatch Sandbox Dry-Run Taskbook
-status: active taskbook
+status: implemented by closeout
 scope: pre-implementation boundary for a sandbox-only dispatch dry-run extension
 ---
 
@@ -17,8 +17,9 @@ sandbox reference adapter contract witness. It must not become a Codex-backed,
 sub-agent-backed, provider-backed, shell/process, workspace-write, external
 write, or production recovery path.
 
-This taskbook is planning authority only. It does not authorize implementation
-by itself and does not consume an execution approval string.
+This taskbook was planning authority only. The implementation is closed out in
+`PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT.md` after
+Jenn provided the exact sandbox dry-run approval string.
 
 ## Why This Stop Exists
 
@@ -35,13 +36,12 @@ does not yet sit behind the Phase 16 dispatch authorization packet. The next
 safe step is to define exactly how a later implementation may connect those two
 surfaces while staying inside sandbox-only evidence.
 
-## Authorized Future Shape
+## Authorized Implementation Shape
 
-A later implementation PR may be considered only if Jenn provides the exact
-approval string named below and the implementation remains inside this
-taskbook.
+The implementation PR was considered only after Jenn provided the exact approval
+string named below and the implementation remained inside this taskbook.
 
-Allowed future implementation shape:
+Allowed implementation shape:
 
 - add a Phase 16 sandbox dry-run review/run surface;
 - accept only `requestedDispatchClass = sandbox_contract`;
@@ -73,17 +73,17 @@ This taskbook does not authorize:
 - adapter auto-discovery;
 - background unattended recovery execution.
 
-## Exact Future Approval String
+## Exact Approval String
 
-The future implementation must require this exact approval string:
+The implementation requires this exact approval string:
 
 ```text
 APPROVE_PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN
 ```
 
-This string is not active until Jenn provides it in the current task context.
-Prior Phase 15 approvals, Phase 16 review-only approval, branch names, PR
-titles, or vague "continue" instructions must not be treated as this approval.
+Jenn provided this string in the implementation task context. Prior Phase 15
+approvals, Phase 16 review-only approval, branch names, PR titles, or vague
+"continue" instructions must not be treated as this approval.
 
 ## Boundary Semantics
 
@@ -99,7 +99,7 @@ completed.
 
 ## Required Packet Binding
 
-The future sandbox dry-run must bind:
+The sandbox dry-run must bind:
 
 - Phase 10 planned execution gate identity;
 - Phase 11 host executor descriptor and authorization identity;
@@ -133,7 +133,7 @@ arbitrary host filesystem paths.
 
 ## Fail-Closed Requirements
 
-The future sandbox dry-run must block before adapter invocation when:
+The sandbox dry-run must block before adapter invocation when:
 
 - the exact sandbox dry-run approval string is missing;
 - the Phase 15 readiness result is missing, blocked, invalid, or drifted;
@@ -151,16 +151,16 @@ The future sandbox dry-run must block before adapter invocation when:
 - any evidence ref, result ref, reason code, or scope ref is unsafe;
 - adapter output is malformed or omits required terminal reason codes.
 
-The future sandbox dry-run must return a sanitized failed result when:
+The sandbox dry-run must return a sanitized failed result when:
 
 - the sandbox adapter throws;
 - final audit recording fails after adapter invocation;
 - final evidence recording fails after adapter invocation;
 - sandbox containment fails after adapter invocation.
 
-## Expected Tests For A Later Implementation
+## Implemented Tests
 
-A later implementation PR should add targeted tests for:
+The implementation adds targeted tests for:
 
 - successful sandbox dry-run using an explicitly injected
   `sandbox_reference_adapter`;
@@ -187,13 +187,13 @@ This taskbook slice is complete when:
    sub-agent runtime invocation, shell/process execution, real workspace-write,
    external write, release, publish, deploy, tag, or secret access.
 
-## Next Stop
+## Closeout
 
-The next implementation stop is blocked until Jenn explicitly provides:
+The implemented boundary is closed out in:
 
 ```text
-APPROVE_PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN
+PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT.md
 ```
 
-Without that exact approval, the safe continuation remains review, planning,
-or documentation only.
+Any next adapter dispatch line beyond this sandbox dry-run requires a separate
+taskbook and fresh exact approval string.

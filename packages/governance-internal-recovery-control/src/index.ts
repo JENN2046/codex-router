@@ -737,6 +737,8 @@ export const GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_
   "APPROVE_PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_RUN" as const;
 export const GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_APPROVAL =
   "APPROVE_PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_IMPLEMENTATION" as const;
+export const GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN_APPROVAL =
+  "APPROVE_PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN" as const;
 
 export const GovernanceOperatorActionAgentExecutorAdapterKindSchema = z.enum([
   "codex_cli_adapter",
@@ -1623,6 +1625,321 @@ export const GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationRe
     }
   });
 
+// ── Sandbox-only agent executor adapter dispatch dry-run ──────────────────
+
+export const GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacketSchema =
+  z.object({
+    schemaVersion:
+      z.literal("governance-operator-action-agent-executor-adapter-dispatch-sandbox-dry-run-packet.v1")
+        .default("governance-operator-action-agent-executor-adapter-dispatch-sandbox-dry-run-packet.v1"),
+    approvalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN_APPROVAL
+    ),
+    reviewApprovalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL
+    ),
+    taskId: z.string().min(1),
+    actionRef: z.string().min(1),
+    receiptId: z.string().min(1),
+    envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+    recommendedAction: RecoveryActionSchema,
+    executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+    checkpointRefHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    hostExecutorDescriptorId: z.string().min(1),
+    hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+    adapterId: z.string().min(1),
+    adapterKind: GovernanceOperatorActionAgentExecutorAdapterKindSchema,
+    adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    adapterReadinessHash: z.string().regex(/^[a-f0-9]{64}$/),
+    sandboxContractProofMode: z.literal("fresh_run").default("fresh_run"),
+    requestedDispatchClass:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchClassSchema,
+    requestedSideEffectClass:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchSideEffectClassSchema,
+    authorizedScopeRef: GovernanceOperatorSanitizedRefSchema,
+    sandboxScopeRef: GovernanceOperatorSanitizedRefSchema,
+    rollbackExpectationRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    abortExpectationRef: GovernanceOperatorSanitizedRefSchema,
+    timeoutPolicyRef: GovernanceOperatorSanitizedRefSchema,
+    auditSinkIdentityRef: GovernanceOperatorSanitizedRefSchema,
+    evidenceSinkIdentityRef: GovernanceOperatorSanitizedRefSchema,
+    receiptContractVersion:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchReceiptContractVersionSchema,
+    validationCommandRefs: z.array(GovernanceOperatorSanitizedRefSchema).min(1),
+    nonAuthorizationDeclaration:
+      z.literal("phase16_sandbox_dry_run_no_real_recovery_execution"),
+    evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+  }).superRefine((value, ctx) => {
+    if (value.recommendedAction === "rollback" && value.checkpointRefHash === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRefHash"],
+        message:
+          "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_checkpoint_hash_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.checkpointRefHash !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkpointRefHash"],
+        message:
+          "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_checkpoint_hash_not_allowed"
+      });
+    }
+
+    if (value.recommendedAction === "rollback" && value.rollbackExpectationRef === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["rollbackExpectationRef"],
+        message:
+          "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_rollback_expectation_required"
+      });
+    }
+
+    if (value.recommendedAction !== "rollback" && value.rollbackExpectationRef !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["rollbackExpectationRef"],
+        message:
+          "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_rollback_expectation_not_allowed"
+      });
+    }
+  });
+
+export const GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEventSchema =
+  z.object({
+    schemaVersion:
+      z.literal("governance-operator-action-agent-executor-adapter-dispatch-sandbox-dry-run-audit.v1")
+        .default("governance-operator-action-agent-executor-adapter-dispatch-sandbox-dry-run-audit.v1"),
+    status: z.enum(["attempting", "completed", "failed"]),
+    taskId: z.string().min(1),
+    actionRef: z.string().min(1),
+    receiptId: z.string().min(1),
+    envelopeHash: z.string().regex(/^[a-f0-9]{64}$/),
+    recommendedAction: RecoveryActionSchema,
+    executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/),
+    checkpointRefHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    hostExecutorDescriptorId: z.string().min(1),
+    hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/),
+    adapterId: z.string().min(1),
+    adapterKind: z.literal("sandbox_reference_adapter"),
+    adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/),
+    adapterReadinessHash: z.string().regex(/^[a-f0-9]{64}$/),
+    requestedDispatchClass: z.literal("sandbox_contract"),
+    requestedSideEffectClass: z.literal("sandbox_only"),
+    authorizedScopeRef: GovernanceOperatorSanitizedRefSchema,
+    sandboxScopeRef: GovernanceOperatorSanitizedRefSchema,
+    rollbackExpectationRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    abortExpectationRef: GovernanceOperatorSanitizedRefSchema,
+    timeoutPolicyRef: GovernanceOperatorSanitizedRefSchema,
+    auditSinkIdentityRef: GovernanceOperatorSanitizedRefSchema,
+    evidenceSinkIdentityRef: GovernanceOperatorSanitizedRefSchema,
+    receiptContractVersion:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchReceiptContractVersionSchema,
+    adapterStatus: GovernanceOperatorActionHostExecutorDispatchExecutorStatusSchema.optional(),
+    adapterReasonCode:
+      GovernanceOperatorActionHostExecutorDispatchExecutorReasonCodeSchema.optional(),
+    resultRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    errorClass: z.string().min(1).optional(),
+    evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([])
+  });
+
+export const GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResultSchema =
+  z.object({
+    schemaVersion:
+      z.literal("governance-operator-action-agent-executor-adapter-dispatch-sandbox-dry-run.v1")
+        .default("governance-operator-action-agent-executor-adapter-dispatch-sandbox-dry-run.v1"),
+    status: z.enum(["completed", "blocked", "failed"]),
+    reasons: z.array(z.string()).default([]),
+    approvalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN_APPROVAL
+    ).optional(),
+    reviewApprovalString: z.literal(
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL
+    ).optional(),
+    taskId: z.string().min(1).optional(),
+    actionRef: z.string().min(1).optional(),
+    receiptId: z.string().min(1).optional(),
+    envelopeHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    recommendedAction: RecoveryActionSchema.optional(),
+    executionPlanHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    checkpointRefHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    hostExecutorDescriptorId: z.string().min(1).optional(),
+    hostExecutorDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    authorizationIdentityHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    adapterId: z.string().min(1).optional(),
+    adapterKind: GovernanceOperatorActionAgentExecutorAdapterKindSchema.optional(),
+    adapterDescriptorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    adapterReadinessHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    requestedDispatchClass:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchClassSchema.optional(),
+    requestedSideEffectClass:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchSideEffectClassSchema.optional(),
+    authorizedScopeRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    sandboxScopeRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    rollbackExpectationRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    abortExpectationRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    timeoutPolicyRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    auditSinkIdentityRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    evidenceSinkIdentityRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    receiptContractVersion:
+      GovernanceOperatorActionAgentExecutorAdapterDispatchReceiptContractVersionSchema.optional(),
+    validationCommandRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+    adapterStatus: GovernanceOperatorActionHostExecutorDispatchExecutorStatusSchema.optional(),
+    adapterReasonCode:
+      GovernanceOperatorActionHostExecutorDispatchExecutorReasonCodeSchema.optional(),
+    adapterResultRef: GovernanceOperatorSanitizedRefSchema.optional(),
+    errorClass: z.string().min(1).optional(),
+    nonAuthorizationDeclaration:
+      z.literal("phase16_sandbox_dry_run_no_real_recovery_execution").optional(),
+    evidenceRefs: z.array(GovernanceOperatorSanitizedRefSchema).default([]),
+    operatorInstruction: z.string().min(1).optional()
+  }).superRefine((value, ctx) => {
+    if (value.status === "completed") {
+      if (value.reasons.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["reasons"],
+          message:
+            "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_success_requires_no_reasons"
+        });
+      }
+
+      for (const field of [
+        "approvalString",
+        "reviewApprovalString",
+        "taskId",
+        "actionRef",
+        "receiptId",
+        "envelopeHash",
+        "recommendedAction",
+        "executionPlanHash",
+        "hostExecutorDescriptorId",
+        "hostExecutorDescriptorHash",
+        "authorizationIdentityHash",
+        "adapterId",
+        "adapterKind",
+        "adapterDescriptorHash",
+        "adapterReadinessHash",
+        "requestedDispatchClass",
+        "requestedSideEffectClass",
+        "authorizedScopeRef",
+        "sandboxScopeRef",
+        "abortExpectationRef",
+        "timeoutPolicyRef",
+        "auditSinkIdentityRef",
+        "evidenceSinkIdentityRef",
+        "receiptContractVersion",
+        "adapterStatus",
+        "nonAuthorizationDeclaration",
+        "operatorInstruction"
+      ] as const) {
+        if (value[field] === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message:
+              "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_success_requires_field"
+          });
+        }
+      }
+
+      if (value.validationCommandRefs.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["validationCommandRefs"],
+          message:
+            "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_success_requires_validation_refs"
+        });
+      }
+
+      if (value.adapterKind !== "sandbox_reference_adapter") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["adapterKind"],
+          message:
+            "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_success_requires_sandbox_reference"
+        });
+      }
+
+      if (value.requestedDispatchClass !== "sandbox_contract") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["requestedDispatchClass"],
+          message:
+            "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_success_requires_sandbox_contract"
+        });
+      }
+
+      if (value.requestedSideEffectClass !== "sandbox_only") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["requestedSideEffectClass"],
+          message:
+            "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_success_requires_sandbox_only"
+        });
+      }
+
+      if (value.recommendedAction === "rollback") {
+        if (value.checkpointRefHash === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["checkpointRefHash"],
+            message:
+              "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_success_checkpoint_hash_required"
+          });
+        }
+        if (value.rollbackExpectationRef === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["rollbackExpectationRef"],
+            message:
+              "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_success_rollback_expectation_required"
+          });
+        }
+      } else {
+        if (value.checkpointRefHash !== undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["checkpointRefHash"],
+            message:
+              "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_success_checkpoint_hash_not_allowed"
+          });
+        }
+        if (value.rollbackExpectationRef !== undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["rollbackExpectationRef"],
+            message:
+              "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_success_rollback_expectation_not_allowed"
+          });
+        }
+      }
+      return;
+    }
+
+    if (value.reasons.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reasons"],
+        message:
+          "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_block_requires_reasons"
+      });
+    }
+
+    if (value.status === "failed" && value.errorClass === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["errorClass"],
+        message:
+          "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_failed_requires_error_class"
+      });
+    }
+  });
+
 // ── Host-consumable operator evidence resolution ───────────────────────────
 
 export const GovernanceOperatorEvidenceResolutionKindSchema = z.enum([
@@ -1919,6 +2236,12 @@ export type GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationPac
 export type GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationPacket = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationPacketSchema>;
 export type GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResultInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResultSchema>;
 export type GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResult = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchAuthorizationReviewResultSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacketInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacketSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacket = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacketSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEventInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEventSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEvent = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEventSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResultInput = z.input<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResultSchema>;
+export type GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult = z.infer<typeof GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResultSchema>;
 export type GovernanceOperatorEvidenceResolutionKind = z.infer<typeof GovernanceOperatorEvidenceResolutionKindSchema>;
 export type GovernanceOperatorEvidenceResolutionStatus = z.infer<typeof GovernanceOperatorEvidenceResolutionStatusSchema>;
 export type GovernanceOperatorObservationEvidenceSummary = z.infer<typeof GovernanceOperatorObservationEvidenceSummarySchema>;
@@ -2011,6 +2334,34 @@ export interface ReviewGovernanceOperatorActionAgentExecutorAdapterDispatchAutho
   adapterReviewPacket?: unknown;
   adapterReadiness?: unknown;
   dispatchAuthorizationPacket?: unknown;
+}
+
+export interface GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditSink {
+  record(
+    event: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEvent
+  ): Promise<void> | void;
+}
+
+export interface GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunEvidenceSink {
+  record(
+    result: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult
+  ): Promise<void> | void;
+}
+
+export interface RunGovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunInput {
+  executionGate: unknown;
+  lifecycleState?: unknown;
+  authorizationPacket?: unknown;
+  hostExecutorDescriptor?: unknown;
+  hostExecutorAuthorization?: unknown;
+  adapterDescriptor?: unknown;
+  adapterReviewPacket?: unknown;
+  adapterReadiness?: unknown;
+  dispatchSandboxDryRunPacket?: unknown;
+  sandboxContractPacket?: unknown;
+  adapter?: GovernanceOperatorActionAgentExecutorAdapterSandboxContractAdapter;
+  auditSink?: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditSink;
+  evidenceSink?: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunEvidenceSink;
 }
 
 export interface GovernanceOperatorActionHostExecutorDispatchExecutor {
@@ -3593,6 +3944,430 @@ export function reviewGovernanceOperatorActionAgentExecutorAdapterDispatchAuthor
   });
 }
 
+export async function runGovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRun(
+  input: RunGovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunInput
+): Promise<GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult> {
+  const readiness = reviewGovernanceOperatorActionAgentExecutorAdapterReadiness({
+    executionGate: input.executionGate,
+    lifecycleState: input.lifecycleState,
+    ...(input.authorizationPacket !== undefined
+      ? { authorizationPacket: input.authorizationPacket }
+      : {}),
+    ...(input.hostExecutorDescriptor !== undefined
+      ? { hostExecutorDescriptor: input.hostExecutorDescriptor }
+      : {}),
+    ...(input.hostExecutorAuthorization !== undefined
+      ? { hostExecutorAuthorization: input.hostExecutorAuthorization }
+      : {}),
+    ...(input.adapterDescriptor !== undefined
+      ? { adapterDescriptor: input.adapterDescriptor }
+      : {}),
+    ...(input.adapterReviewPacket !== undefined
+      ? { adapterReviewPacket: input.adapterReviewPacket }
+      : {})
+  });
+  const reasons: string[] = [];
+
+  let suppliedReadiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult | undefined;
+  if (input.adapterReadiness === undefined) {
+    addUniqueReason(
+      reasons,
+      "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_required"
+    );
+  } else {
+    const parsedReadiness =
+      GovernanceOperatorActionAgentExecutorAdapterReviewResultSchema.safeParse(
+        input.adapterReadiness
+      );
+    if (parsedReadiness.success) {
+      suppliedReadiness = parsedReadiness.data;
+      if (suppliedReadiness.status !== "ready_for_agent_executor_adapter_review") {
+        addUniqueReason(
+          reasons,
+          "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_not_ready"
+        );
+      }
+    } else {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_invalid"
+      );
+    }
+  }
+
+  let dispatchSandboxDryRunPacket:
+    | GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacket
+    | undefined;
+  if (input.dispatchSandboxDryRunPacket === undefined) {
+    addUniqueReason(
+      reasons,
+      "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_required"
+    );
+  } else {
+    const parsedPacket =
+      GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacketSchema.safeParse(
+        input.dispatchSandboxDryRunPacket
+      );
+    if (parsedPacket.success) {
+      dispatchSandboxDryRunPacket = parsedPacket.data;
+    } else {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_invalid"
+      );
+    }
+  }
+
+  let sandboxContractPacket:
+    | GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacket
+    | undefined;
+  if (input.sandboxContractPacket === undefined) {
+    addUniqueReason(
+      reasons,
+      "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_sandbox_contract_packet_required"
+    );
+  } else {
+    const parsedSandboxContractPacket =
+      GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacketSchema.safeParse(
+        input.sandboxContractPacket
+      );
+    if (parsedSandboxContractPacket.success) {
+      sandboxContractPacket = parsedSandboxContractPacket.data;
+    } else {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_sandbox_contract_packet_invalid"
+      );
+    }
+  }
+
+  if (readiness.status !== "ready_for_agent_executor_adapter_review") {
+    addUniqueReason(
+      reasons,
+      "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_review_not_ready"
+    );
+    for (const reason of readiness.reasons) {
+      addUniqueReason(reasons, reason);
+    }
+  }
+
+  if (
+    suppliedReadiness !== undefined &&
+    readiness.status === "ready_for_agent_executor_adapter_review"
+  ) {
+    addAgentExecutorAdapterDispatchSandboxDryRunReadinessReasons(reasons, {
+      suppliedReadiness,
+      readiness
+    });
+  }
+
+  if (
+    dispatchSandboxDryRunPacket !== undefined &&
+    readiness.status === "ready_for_agent_executor_adapter_review"
+  ) {
+    addAgentExecutorAdapterDispatchSandboxDryRunPacketReasons(reasons, {
+      packet: dispatchSandboxDryRunPacket,
+      readiness,
+      adapterReadinessHash:
+        hashGovernanceOperatorActionAgentExecutorAdapterReviewResult(readiness)
+    });
+
+    if (dispatchSandboxDryRunPacket.requestedDispatchClass !== "sandbox_contract") {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_dispatch_class_not_sandbox_contract"
+      );
+    }
+
+    if (dispatchSandboxDryRunPacket.requestedSideEffectClass !== "sandbox_only") {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_side_effect_class_not_sandbox_only"
+      );
+    }
+
+    if (dispatchSandboxDryRunPacket.adapterKind !== "sandbox_reference_adapter") {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_adapter_kind_not_sandbox_reference"
+      );
+    }
+  }
+
+  if (
+    dispatchSandboxDryRunPacket !== undefined &&
+    sandboxContractPacket !== undefined
+  ) {
+    addAgentExecutorAdapterDispatchSandboxDryRunContractPacketReasons(reasons, {
+      packet: dispatchSandboxDryRunPacket,
+      sandboxContractPacket
+    });
+  }
+
+  if (input.adapter === undefined) {
+    addUniqueReason(
+      reasons,
+      "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_adapter_required"
+    );
+  }
+
+  if (input.auditSink === undefined) {
+    addUniqueReason(
+      reasons,
+      "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_audit_sink_required"
+    );
+  }
+
+  if (input.evidenceSink === undefined) {
+    addUniqueReason(
+      reasons,
+      "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_evidence_sink_required"
+    );
+  }
+
+  if (
+    reasons.length > 0 ||
+    suppliedReadiness === undefined ||
+    suppliedReadiness.status !== "ready_for_agent_executor_adapter_review" ||
+    readiness.status !== "ready_for_agent_executor_adapter_review" ||
+    dispatchSandboxDryRunPacket === undefined ||
+    sandboxContractPacket === undefined
+  ) {
+    return createBlockedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult(
+      reasons,
+      {
+        readiness,
+        ...(suppliedReadiness !== undefined ? { suppliedReadiness } : {}),
+        ...(dispatchSandboxDryRunPacket !== undefined
+          ? { packet: dispatchSandboxDryRunPacket }
+          : {})
+      }
+    );
+  }
+
+  if (input.adapter === undefined || input.auditSink === undefined || input.evidenceSink === undefined) {
+    return createBlockedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult(
+      [
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_adapter_required",
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_audit_sink_required",
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_evidence_sink_required"
+      ],
+      {
+        readiness,
+        suppliedReadiness,
+        packet: dispatchSandboxDryRunPacket
+      }
+    );
+  }
+
+  try {
+    await input.auditSink.record(createAgentExecutorAdapterDispatchSandboxDryRunAuditEvent({
+      status: "attempting",
+      readiness,
+      packet: dispatchSandboxDryRunPacket,
+      evidenceRefs: uniqueStrings([
+        ...readiness.evidenceRefs,
+        ...dispatchSandboxDryRunPacket.evidenceRefs
+      ])
+    }));
+  } catch {
+    return createBlockedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult(
+      [
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_audit_sink_failed"
+      ],
+      {
+        readiness,
+        suppliedReadiness,
+        packet: dispatchSandboxDryRunPacket
+      }
+    );
+  }
+
+  let sandboxContractResult: GovernanceOperatorActionAgentExecutorAdapterSandboxContractResult;
+  try {
+    sandboxContractResult =
+      await runGovernanceOperatorActionAgentExecutorAdapterSandboxContract({
+        executionGate: input.executionGate,
+        lifecycleState: input.lifecycleState,
+        ...(input.authorizationPacket !== undefined
+          ? { authorizationPacket: input.authorizationPacket }
+          : {}),
+        ...(input.hostExecutorDescriptor !== undefined
+          ? { hostExecutorDescriptor: input.hostExecutorDescriptor }
+          : {}),
+        ...(input.hostExecutorAuthorization !== undefined
+          ? { hostExecutorAuthorization: input.hostExecutorAuthorization }
+          : {}),
+        ...(input.adapterDescriptor !== undefined
+          ? { adapterDescriptor: input.adapterDescriptor }
+          : {}),
+        ...(input.adapterReviewPacket !== undefined
+          ? { adapterReviewPacket: input.adapterReviewPacket }
+          : {}),
+        adapterReadiness: suppliedReadiness,
+        sandboxContractPacket,
+        adapter: input.adapter,
+        auditSink: {
+          record() {}
+        }
+      });
+  } catch (error) {
+    const failedResult = createFailedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult({
+      readiness,
+      packet: dispatchSandboxDryRunPacket,
+      reasons: [
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_sandbox_contract_failed"
+      ],
+      errorClass: normalizeAgentExecutorAdapterSandboxContractErrorClass(error),
+      evidenceRefs: uniqueStrings([
+        ...readiness.evidenceRefs,
+        ...dispatchSandboxDryRunPacket.evidenceRefs
+      ])
+    });
+    await recordAgentExecutorAdapterDispatchSandboxDryRunFailure(
+      input.auditSink,
+      readiness,
+      dispatchSandboxDryRunPacket,
+      failedResult
+    );
+    return failedResult;
+  }
+
+  if (sandboxContractResult.status === "blocked") {
+    return createBlockedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult(
+      [
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_sandbox_contract_blocked",
+        ...sandboxContractResult.reasons
+      ],
+      {
+        readiness,
+        suppliedReadiness,
+        packet: dispatchSandboxDryRunPacket,
+        sandboxContractResult
+      }
+    );
+  }
+
+  if (sandboxContractResult.status === "failed") {
+    const failedResult = createFailedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult({
+      readiness,
+      packet: dispatchSandboxDryRunPacket,
+      reasons: [
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_sandbox_contract_failed",
+        ...sandboxContractResult.reasons
+      ],
+      errorClass:
+        sandboxContractResult.errorClass ??
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_sandbox_contract_failed",
+      evidenceRefs: uniqueStrings([
+        ...readiness.evidenceRefs,
+        ...dispatchSandboxDryRunPacket.evidenceRefs,
+        ...sandboxContractResult.evidenceRefs
+      ]),
+      ...(sandboxContractResult.adapterStatus !== undefined
+        ? { adapterStatus: sandboxContractResult.adapterStatus }
+        : {}),
+      ...(sandboxContractResult.adapterReasonCode !== undefined
+        ? { adapterReasonCode: sandboxContractResult.adapterReasonCode }
+        : {}),
+      ...(sandboxContractResult.adapterResultRef !== undefined
+        ? { adapterResultRef: sandboxContractResult.adapterResultRef }
+        : {})
+    });
+    await recordAgentExecutorAdapterDispatchSandboxDryRunFailure(
+      input.auditSink,
+      readiness,
+      dispatchSandboxDryRunPacket,
+      failedResult
+    );
+    return failedResult;
+  }
+
+  const completed = createReadyOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult({
+    readiness,
+    packet: dispatchSandboxDryRunPacket,
+    sandboxContractResult,
+    evidenceRefs: uniqueStrings([
+      ...readiness.evidenceRefs,
+      ...dispatchSandboxDryRunPacket.evidenceRefs,
+      ...sandboxContractResult.evidenceRefs
+    ]),
+    operatorInstruction:
+      `Phase 16 sandbox dry-run returned ${sandboxContractResult.adapterStatus} for ${readiness.recommendedAction}; no Codex CLI, sub-agent runtime, provider, shell, real workspace-write, external write, production recovery, or real recovery action was invoked.`
+  });
+
+  try {
+    await input.auditSink.record(createAgentExecutorAdapterDispatchSandboxDryRunAuditEvent({
+      status: "completed",
+      readiness,
+      packet: dispatchSandboxDryRunPacket,
+      ...(completed.adapterStatus !== undefined
+        ? { adapterStatus: completed.adapterStatus }
+        : {}),
+      ...(completed.adapterReasonCode !== undefined
+        ? { adapterReasonCode: completed.adapterReasonCode }
+        : {}),
+      ...(completed.adapterResultRef !== undefined
+        ? { resultRef: completed.adapterResultRef }
+        : {}),
+      evidenceRefs: completed.evidenceRefs
+    }));
+  } catch {
+    return createFailedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult({
+      readiness,
+      packet: dispatchSandboxDryRunPacket,
+      reasons: [
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_audit_sink_failed"
+      ],
+      errorClass:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_audit_sink_failed",
+      evidenceRefs: completed.evidenceRefs,
+      ...(completed.adapterStatus !== undefined
+        ? { adapterStatus: completed.adapterStatus }
+        : {}),
+      ...(completed.adapterReasonCode !== undefined
+        ? { adapterReasonCode: completed.adapterReasonCode }
+        : {}),
+      ...(completed.adapterResultRef !== undefined
+        ? { adapterResultRef: completed.adapterResultRef }
+        : {})
+    });
+  }
+
+  try {
+    await input.evidenceSink.record(completed);
+  } catch {
+    const failedResult = createFailedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult({
+      readiness,
+      packet: dispatchSandboxDryRunPacket,
+      reasons: [
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_evidence_sink_failed"
+      ],
+      errorClass:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_evidence_sink_failed",
+      evidenceRefs: completed.evidenceRefs,
+      ...(completed.adapterStatus !== undefined
+        ? { adapterStatus: completed.adapterStatus }
+        : {}),
+      ...(completed.adapterReasonCode !== undefined
+        ? { adapterReasonCode: completed.adapterReasonCode }
+        : {}),
+      ...(completed.adapterResultRef !== undefined
+        ? { adapterResultRef: completed.adapterResultRef }
+        : {})
+    });
+    await recordAgentExecutorAdapterDispatchSandboxDryRunFailure(
+      input.auditSink,
+      readiness,
+      dispatchSandboxDryRunPacket,
+      failedResult
+    );
+    return failedResult;
+  }
+
+  return completed;
+}
+
 export async function dispatchGovernanceOperatorActionHostExecutor(
   input: DispatchGovernanceOperatorActionHostExecutorInput
 ): Promise<GovernanceOperatorActionHostExecutorDispatchResult> {
@@ -4225,6 +5000,130 @@ function createBlockedOperatorActionAgentExecutorAdapterDispatchAuthorizationRev
   });
 }
 
+function createBlockedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult(
+  reasons: string[],
+  context: {
+    readiness?: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+    suppliedReadiness?: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+    packet?: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacket;
+    sandboxContractResult?: GovernanceOperatorActionAgentExecutorAdapterSandboxContractResult;
+  } = {}
+): GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult {
+  const source = context.readiness ?? context.suppliedReadiness;
+  const packet = context.packet;
+  const sourceCheckpointRefHash = source === undefined
+    ? undefined
+    : getAgentExecutorAdapterReadinessCheckpointRefHash(source);
+
+  return GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResultSchema.parse({
+    status: "blocked",
+    reasons: reasons.length > 0
+      ? [...new Set(reasons)]
+      : ["operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_blocked"],
+    approvalString:
+      packet?.approvalString ??
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN_APPROVAL,
+    reviewApprovalString:
+      packet?.reviewApprovalString ??
+      context.suppliedReadiness?.approvalString ??
+      context.readiness?.approvalString,
+    ...(source?.taskId !== undefined ? { taskId: source.taskId } : {}),
+    ...(source?.actionRef !== undefined ? { actionRef: source.actionRef } : {}),
+    ...(source?.receiptId !== undefined ? { receiptId: source.receiptId } : {}),
+    ...(source?.envelopeHash !== undefined ? { envelopeHash: source.envelopeHash } : {}),
+    ...(source?.recommendedAction !== undefined
+      ? { recommendedAction: source.recommendedAction }
+      : {}),
+    ...(source?.executionPlanHash !== undefined
+      ? { executionPlanHash: source.executionPlanHash }
+      : {}),
+    ...(packet?.checkpointRefHash !== undefined
+      ? { checkpointRefHash: packet.checkpointRefHash }
+      : sourceCheckpointRefHash !== undefined
+        ? { checkpointRefHash: sourceCheckpointRefHash }
+        : {}),
+    ...(source?.hostExecutorDescriptorId !== undefined
+      ? { hostExecutorDescriptorId: source.hostExecutorDescriptorId }
+      : {}),
+    ...(source?.hostExecutorDescriptorHash !== undefined
+      ? { hostExecutorDescriptorHash: source.hostExecutorDescriptorHash }
+      : {}),
+    ...(source?.authorizationIdentityHash !== undefined
+      ? { authorizationIdentityHash: source.authorizationIdentityHash }
+      : {}),
+    ...(source?.adapterId !== undefined
+      ? { adapterId: source.adapterId }
+      : packet?.adapterId !== undefined
+        ? { adapterId: packet.adapterId }
+        : {}),
+    ...(source?.adapterKind !== undefined
+      ? { adapterKind: source.adapterKind }
+      : packet?.adapterKind !== undefined
+        ? { adapterKind: packet.adapterKind }
+        : {}),
+    ...(source?.adapterDescriptorHash !== undefined
+      ? { adapterDescriptorHash: source.adapterDescriptorHash }
+      : packet?.adapterDescriptorHash !== undefined
+        ? { adapterDescriptorHash: packet.adapterDescriptorHash }
+        : {}),
+    ...(packet?.adapterReadinessHash !== undefined
+      ? { adapterReadinessHash: packet.adapterReadinessHash }
+      : source !== undefined
+        ? {
+            adapterReadinessHash:
+              hashGovernanceOperatorActionAgentExecutorAdapterReviewResult(source)
+          }
+        : {}),
+    ...(packet?.requestedDispatchClass !== undefined
+      ? { requestedDispatchClass: packet.requestedDispatchClass }
+      : {}),
+    ...(packet?.requestedSideEffectClass !== undefined
+      ? { requestedSideEffectClass: packet.requestedSideEffectClass }
+      : {}),
+    ...(packet?.authorizedScopeRef !== undefined
+      ? { authorizedScopeRef: packet.authorizedScopeRef }
+      : {}),
+    ...(packet?.sandboxScopeRef !== undefined ? { sandboxScopeRef: packet.sandboxScopeRef } : {}),
+    ...(packet?.rollbackExpectationRef !== undefined
+      ? { rollbackExpectationRef: packet.rollbackExpectationRef }
+      : {}),
+    ...(packet?.abortExpectationRef !== undefined
+      ? { abortExpectationRef: packet.abortExpectationRef }
+      : {}),
+    ...(packet?.timeoutPolicyRef !== undefined
+      ? { timeoutPolicyRef: packet.timeoutPolicyRef }
+      : {}),
+    ...(packet?.auditSinkIdentityRef !== undefined
+      ? { auditSinkIdentityRef: packet.auditSinkIdentityRef }
+      : {}),
+    ...(packet?.evidenceSinkIdentityRef !== undefined
+      ? { evidenceSinkIdentityRef: packet.evidenceSinkIdentityRef }
+      : {}),
+    ...(packet?.receiptContractVersion !== undefined
+      ? { receiptContractVersion: packet.receiptContractVersion }
+      : {}),
+    validationCommandRefs: packet?.validationCommandRefs ?? [],
+    ...(context.sandboxContractResult?.adapterStatus !== undefined
+      ? { adapterStatus: context.sandboxContractResult.adapterStatus }
+      : {}),
+    ...(context.sandboxContractResult?.adapterReasonCode !== undefined
+      ? { adapterReasonCode: context.sandboxContractResult.adapterReasonCode }
+      : {}),
+    ...(context.sandboxContractResult?.adapterResultRef !== undefined
+      ? { adapterResultRef: context.sandboxContractResult.adapterResultRef }
+      : {}),
+    ...(packet?.nonAuthorizationDeclaration !== undefined
+      ? { nonAuthorizationDeclaration: packet.nonAuthorizationDeclaration }
+      : {}),
+    evidenceRefs: uniqueStrings([
+      ...(context.readiness?.evidenceRefs ?? []),
+      ...(context.suppliedReadiness?.evidenceRefs ?? []),
+      ...(packet?.evidenceRefs ?? []),
+      ...(context.sandboxContractResult?.evidenceRefs ?? [])
+    ])
+  });
+}
+
 function getAgentExecutorAdapterReadinessCheckpointRefHash(
   readiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult
 ): string | undefined {
@@ -4390,6 +5289,198 @@ async function recordAgentExecutorAdapterSandboxContractFailure(
     await auditSink.record(createAgentExecutorAdapterSandboxContractAuditEvent({
       status: "failed",
       invocation,
+      ...(result.errorClass !== undefined ? { errorClass: result.errorClass } : {}),
+      evidenceRefs: result.evidenceRefs
+    }));
+  } catch {
+    // The sanitized failed result remains authoritative when final audit recording fails.
+  }
+}
+
+function createReadyOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult(input: {
+  readiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+  packet: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacket;
+  sandboxContractResult: GovernanceOperatorActionAgentExecutorAdapterSandboxContractResult;
+  evidenceRefs: string[];
+  operatorInstruction: string;
+}): GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult {
+  return GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResultSchema.parse({
+    status: "completed",
+    reasons: [],
+    approvalString:
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN_APPROVAL,
+    reviewApprovalString: GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL,
+    taskId: input.readiness.taskId,
+    actionRef: input.readiness.actionRef,
+    receiptId: input.readiness.receiptId,
+    envelopeHash: input.readiness.envelopeHash,
+    recommendedAction: input.readiness.recommendedAction,
+    executionPlanHash: input.readiness.executionPlanHash,
+    ...(input.packet.checkpointRefHash !== undefined
+      ? { checkpointRefHash: input.packet.checkpointRefHash }
+      : {}),
+    hostExecutorDescriptorId: input.readiness.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.readiness.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.readiness.authorizationIdentityHash,
+    adapterId: input.readiness.adapterId,
+    adapterKind: input.readiness.adapterKind,
+    adapterDescriptorHash: input.readiness.adapterDescriptorHash,
+    adapterReadinessHash:
+      hashGovernanceOperatorActionAgentExecutorAdapterReviewResult(input.readiness),
+    requestedDispatchClass: "sandbox_contract",
+    requestedSideEffectClass: "sandbox_only",
+    authorizedScopeRef: input.packet.authorizedScopeRef,
+    sandboxScopeRef: input.packet.sandboxScopeRef,
+    ...(input.packet.rollbackExpectationRef !== undefined
+      ? { rollbackExpectationRef: input.packet.rollbackExpectationRef }
+      : {}),
+    abortExpectationRef: input.packet.abortExpectationRef,
+    timeoutPolicyRef: input.packet.timeoutPolicyRef,
+    auditSinkIdentityRef: input.packet.auditSinkIdentityRef,
+    evidenceSinkIdentityRef: input.packet.evidenceSinkIdentityRef,
+    receiptContractVersion: input.packet.receiptContractVersion,
+    validationCommandRefs: [...input.packet.validationCommandRefs],
+    adapterStatus: input.sandboxContractResult.adapterStatus,
+    ...(input.sandboxContractResult.adapterReasonCode !== undefined
+      ? { adapterReasonCode: input.sandboxContractResult.adapterReasonCode }
+      : {}),
+    ...(input.sandboxContractResult.adapterResultRef !== undefined
+      ? { adapterResultRef: input.sandboxContractResult.adapterResultRef }
+      : {}),
+    nonAuthorizationDeclaration: "phase16_sandbox_dry_run_no_real_recovery_execution",
+    evidenceRefs: [...input.evidenceRefs],
+    operatorInstruction: input.operatorInstruction
+  });
+}
+
+function createFailedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult(input: {
+  readiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+  packet: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacket;
+  reasons: string[];
+  errorClass: string;
+  evidenceRefs: string[];
+  adapterStatus?: GovernanceOperatorActionHostExecutorDispatchExecutorStatus;
+  adapterReasonCode?: GovernanceOperatorActionHostExecutorDispatchExecutorReasonCode;
+  adapterResultRef?: string;
+}): GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult {
+  const checkpointRefHash =
+    input.packet.checkpointRefHash ??
+    getAgentExecutorAdapterReadinessCheckpointRefHash(input.readiness);
+
+  return GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResultSchema.parse({
+    status: "failed",
+    reasons: [...new Set(input.reasons)],
+    approvalString:
+      GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_SANDBOX_DRY_RUN_APPROVAL,
+    reviewApprovalString: GOVERNANCE_OPERATOR_ACTION_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_APPROVAL,
+    taskId: input.readiness.taskId,
+    actionRef: input.readiness.actionRef,
+    receiptId: input.readiness.receiptId,
+    envelopeHash: input.readiness.envelopeHash,
+    recommendedAction: input.readiness.recommendedAction,
+    executionPlanHash: input.readiness.executionPlanHash,
+    ...(checkpointRefHash !== undefined ? { checkpointRefHash } : {}),
+    hostExecutorDescriptorId: input.readiness.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.readiness.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.readiness.authorizationIdentityHash,
+    adapterId: input.readiness.adapterId,
+    adapterKind: input.readiness.adapterKind,
+    adapterDescriptorHash: input.readiness.adapterDescriptorHash,
+    adapterReadinessHash:
+      hashGovernanceOperatorActionAgentExecutorAdapterReviewResult(input.readiness),
+    requestedDispatchClass: input.packet.requestedDispatchClass,
+    requestedSideEffectClass: input.packet.requestedSideEffectClass,
+    authorizedScopeRef: input.packet.authorizedScopeRef,
+    sandboxScopeRef: input.packet.sandboxScopeRef,
+    ...(input.packet.rollbackExpectationRef !== undefined
+      ? { rollbackExpectationRef: input.packet.rollbackExpectationRef }
+      : {}),
+    abortExpectationRef: input.packet.abortExpectationRef,
+    timeoutPolicyRef: input.packet.timeoutPolicyRef,
+    auditSinkIdentityRef: input.packet.auditSinkIdentityRef,
+    evidenceSinkIdentityRef: input.packet.evidenceSinkIdentityRef,
+    receiptContractVersion: input.packet.receiptContractVersion,
+    validationCommandRefs: [...input.packet.validationCommandRefs],
+    ...(input.adapterStatus !== undefined ? { adapterStatus: input.adapterStatus } : {}),
+    ...(input.adapterReasonCode !== undefined
+      ? { adapterReasonCode: input.adapterReasonCode }
+      : {}),
+    ...(input.adapterResultRef !== undefined ? { adapterResultRef: input.adapterResultRef } : {}),
+    errorClass: input.errorClass,
+    nonAuthorizationDeclaration: "phase16_sandbox_dry_run_no_real_recovery_execution",
+    evidenceRefs: [...input.evidenceRefs]
+  });
+}
+
+function createAgentExecutorAdapterDispatchSandboxDryRunAuditEvent(input: {
+  status: "attempting" | "completed" | "failed";
+  readiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+  packet: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacket;
+  adapterStatus?: GovernanceOperatorActionHostExecutorDispatchExecutorStatus;
+  adapterReasonCode?: GovernanceOperatorActionHostExecutorDispatchExecutorReasonCode;
+  resultRef?: string;
+  errorClass?: string;
+  evidenceRefs: string[];
+}): GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEvent {
+  const checkpointRefHash =
+    input.packet.checkpointRefHash ??
+    getAgentExecutorAdapterReadinessCheckpointRefHash(input.readiness);
+
+  return GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEventSchema.parse({
+    status: input.status,
+    taskId: input.readiness.taskId,
+    actionRef: input.readiness.actionRef,
+    receiptId: input.readiness.receiptId,
+    envelopeHash: input.readiness.envelopeHash,
+    recommendedAction: input.readiness.recommendedAction,
+    executionPlanHash: input.readiness.executionPlanHash,
+    ...(checkpointRefHash !== undefined ? { checkpointRefHash } : {}),
+    hostExecutorDescriptorId: input.readiness.hostExecutorDescriptorId,
+    hostExecutorDescriptorHash: input.readiness.hostExecutorDescriptorHash,
+    authorizationIdentityHash: input.readiness.authorizationIdentityHash,
+    adapterId: input.readiness.adapterId,
+    adapterKind: input.readiness.adapterKind,
+    adapterDescriptorHash: input.readiness.adapterDescriptorHash,
+    adapterReadinessHash:
+      hashGovernanceOperatorActionAgentExecutorAdapterReviewResult(input.readiness),
+    requestedDispatchClass: "sandbox_contract",
+    requestedSideEffectClass: "sandbox_only",
+    authorizedScopeRef: input.packet.authorizedScopeRef,
+    sandboxScopeRef: input.packet.sandboxScopeRef,
+    ...(input.packet.rollbackExpectationRef !== undefined
+      ? { rollbackExpectationRef: input.packet.rollbackExpectationRef }
+      : {}),
+    abortExpectationRef: input.packet.abortExpectationRef,
+    timeoutPolicyRef: input.packet.timeoutPolicyRef,
+    auditSinkIdentityRef: input.packet.auditSinkIdentityRef,
+    evidenceSinkIdentityRef: input.packet.evidenceSinkIdentityRef,
+    receiptContractVersion: input.packet.receiptContractVersion,
+    ...(input.adapterStatus !== undefined ? { adapterStatus: input.adapterStatus } : {}),
+    ...(input.adapterReasonCode !== undefined
+      ? { adapterReasonCode: input.adapterReasonCode }
+      : {}),
+    ...(input.resultRef !== undefined ? { resultRef: input.resultRef } : {}),
+    ...(input.errorClass !== undefined ? { errorClass: input.errorClass } : {}),
+    evidenceRefs: [...input.evidenceRefs]
+  });
+}
+
+async function recordAgentExecutorAdapterDispatchSandboxDryRunFailure(
+  auditSink: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditSink,
+  readiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult,
+  packet: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacket,
+  result: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult
+): Promise<void> {
+  try {
+    await auditSink.record(createAgentExecutorAdapterDispatchSandboxDryRunAuditEvent({
+      status: "failed",
+      readiness,
+      packet,
+      ...(result.adapterStatus !== undefined ? { adapterStatus: result.adapterStatus } : {}),
+      ...(result.adapterReasonCode !== undefined
+        ? { adapterReasonCode: result.adapterReasonCode }
+        : {}),
+      ...(result.adapterResultRef !== undefined ? { resultRef: result.adapterResultRef } : {}),
       ...(result.errorClass !== undefined ? { errorClass: result.errorClass } : {}),
       evidenceRefs: result.evidenceRefs
     }));
@@ -5191,6 +6282,327 @@ function addAgentExecutorAdapterDispatchAuthorizationPacketReasons(
       expectedValue: input.adapterReadinessHash,
       reason:
         "operator_action_agent_executor_adapter_dispatch_authorization_packet_readiness_hash_mismatch"
+    }
+  ];
+
+  for (const binding of bindings) {
+    if (binding.packetValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
+}
+
+function addAgentExecutorAdapterDispatchSandboxDryRunReadinessReasons(
+  reasons: string[],
+  input: {
+    suppliedReadiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+    readiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+  }
+): void {
+  const bindings = [
+    {
+      suppliedValue: input.suppliedReadiness.approvalString,
+      expectedValue: input.readiness.approvalString,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_approval_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.taskId,
+      expectedValue: input.readiness.taskId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_task_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.actionRef,
+      expectedValue: input.readiness.actionRef,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_action_ref_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.receiptId,
+      expectedValue: input.readiness.receiptId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_receipt_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.envelopeHash,
+      expectedValue: input.readiness.envelopeHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_envelope_hash_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.recommendedAction,
+      expectedValue: input.readiness.recommendedAction,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_recommended_action_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.executionPlanHash,
+      expectedValue: input.readiness.executionPlanHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_plan_hash_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.checkpointRef,
+      expectedValue: input.readiness.checkpointRef,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_checkpoint_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.hostExecutorDescriptorId,
+      expectedValue: input.readiness.hostExecutorDescriptorId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_host_descriptor_id_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.hostExecutorDescriptorHash,
+      expectedValue: input.readiness.hostExecutorDescriptorHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_host_descriptor_hash_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.authorizationIdentityHash,
+      expectedValue: input.readiness.authorizationIdentityHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_identity_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.adapterId,
+      expectedValue: input.readiness.adapterId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_adapter_id_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.adapterKind,
+      expectedValue: input.readiness.adapterKind,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_adapter_kind_mismatch"
+    },
+    {
+      suppliedValue: input.suppliedReadiness.adapterDescriptorHash,
+      expectedValue: input.readiness.adapterDescriptorHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_readiness_adapter_descriptor_hash_mismatch"
+    }
+  ];
+
+  for (const binding of bindings) {
+    if (binding.suppliedValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
+}
+
+function addAgentExecutorAdapterDispatchSandboxDryRunPacketReasons(
+  reasons: string[],
+  input: {
+    packet: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacket;
+    readiness: GovernanceOperatorActionAgentExecutorAdapterReviewResult;
+    adapterReadinessHash: string;
+  }
+): void {
+  const checkpointRefHash =
+    getAgentExecutorAdapterReadinessCheckpointRefHash(input.readiness);
+  const bindings = [
+    {
+      packetValue: input.packet.reviewApprovalString,
+      expectedValue: input.readiness.approvalString,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_review_approval_mismatch"
+    },
+    {
+      packetValue: input.packet.taskId,
+      expectedValue: input.readiness.taskId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_task_mismatch"
+    },
+    {
+      packetValue: input.packet.actionRef,
+      expectedValue: input.readiness.actionRef,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_action_ref_mismatch"
+    },
+    {
+      packetValue: input.packet.receiptId,
+      expectedValue: input.readiness.receiptId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_receipt_mismatch"
+    },
+    {
+      packetValue: input.packet.envelopeHash,
+      expectedValue: input.readiness.envelopeHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_envelope_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.recommendedAction,
+      expectedValue: input.readiness.recommendedAction,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_recommended_action_mismatch"
+    },
+    {
+      packetValue: input.packet.executionPlanHash,
+      expectedValue: input.readiness.executionPlanHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_plan_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.checkpointRefHash,
+      expectedValue: checkpointRefHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_checkpoint_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.hostExecutorDescriptorId,
+      expectedValue: input.readiness.hostExecutorDescriptorId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_host_descriptor_id_mismatch"
+    },
+    {
+      packetValue: input.packet.hostExecutorDescriptorHash,
+      expectedValue: input.readiness.hostExecutorDescriptorHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_host_descriptor_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.authorizationIdentityHash,
+      expectedValue: input.readiness.authorizationIdentityHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_identity_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterId,
+      expectedValue: input.readiness.adapterId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_adapter_id_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterKind,
+      expectedValue: input.readiness.adapterKind,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_adapter_kind_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterDescriptorHash,
+      expectedValue: input.readiness.adapterDescriptorHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_descriptor_hash_mismatch"
+    },
+    {
+      packetValue: input.packet.adapterReadinessHash,
+      expectedValue: input.adapterReadinessHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_packet_readiness_hash_mismatch"
+    }
+  ];
+
+  for (const binding of bindings) {
+    if (binding.packetValue !== binding.expectedValue) {
+      addUniqueReason(reasons, binding.reason);
+    }
+  }
+}
+
+function addAgentExecutorAdapterDispatchSandboxDryRunContractPacketReasons(
+  reasons: string[],
+  input: {
+    packet: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunPacket;
+    sandboxContractPacket: GovernanceOperatorActionAgentExecutorAdapterSandboxContractPacket;
+  }
+): void {
+  const sandboxCheckpointHash = input.sandboxContractPacket.checkpointRef === undefined
+    ? undefined
+    : stableSha256(input.sandboxContractPacket.checkpointRef);
+  const bindings = [
+    {
+      packetValue: input.sandboxContractPacket.taskId,
+      expectedValue: input.packet.taskId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_task_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.actionRef,
+      expectedValue: input.packet.actionRef,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_action_ref_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.receiptId,
+      expectedValue: input.packet.receiptId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_receipt_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.envelopeHash,
+      expectedValue: input.packet.envelopeHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_envelope_hash_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.recommendedAction,
+      expectedValue: input.packet.recommendedAction,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_recommended_action_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.executionPlanHash,
+      expectedValue: input.packet.executionPlanHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_plan_hash_mismatch"
+    },
+    {
+      packetValue: sandboxCheckpointHash,
+      expectedValue: input.packet.checkpointRefHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_checkpoint_hash_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.hostExecutorDescriptorId,
+      expectedValue: input.packet.hostExecutorDescriptorId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_host_descriptor_id_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.hostExecutorDescriptorHash,
+      expectedValue: input.packet.hostExecutorDescriptorHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_host_descriptor_hash_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.authorizationIdentityHash,
+      expectedValue: input.packet.authorizationIdentityHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_identity_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.adapterId,
+      expectedValue: input.packet.adapterId,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_adapter_id_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.adapterKind,
+      expectedValue: input.packet.adapterKind,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_adapter_kind_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.adapterDescriptorHash,
+      expectedValue: input.packet.adapterDescriptorHash,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_descriptor_hash_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.sandboxScopeRef,
+      expectedValue: input.packet.sandboxScopeRef,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_sandbox_scope_mismatch"
+    },
+    {
+      packetValue: input.sandboxContractPacket.sideEffectBoundary,
+      expectedValue: input.packet.requestedSideEffectClass,
+      reason:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_contract_packet_side_effect_mismatch"
     }
   ];
 

@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `3008ba97cbe683d40796a7228273c87dd3a917cb34cc38c4f804af9b42abc0e0`
+  `a1f559b2214f80127ec15677eb0c6541a1d3dbb0481df0591b74bf0a6d2d69eb`
 
 Source digest excluded paths:
 
@@ -150,10 +150,18 @@ Current repository governance status:
 - Phase 16 agent executor adapter dispatch sandbox dry-run taskbook is recorded
   in
   `docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK.md`;
-  it defines a future sandbox-only dispatch dry-run planning stop that would
-  bind Phase 16 dispatch authorization to the Phase 15 sandbox reference
-  adapter contract witness, but it does not authorize implementation or adapter
-  invocation without the exact sandbox dry-run approval string.
+  it records the planning boundary for binding Phase 16 dispatch authorization
+  to the Phase 15 sandbox reference adapter contract witness under
+  `sandbox_contract` and `sandbox_only`.
+- Phase 16 agent executor adapter dispatch sandbox dry-run implementation is
+  closed out in
+  `docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT.md`;
+  it implements the exact approved sandbox dry-run path using only an explicitly
+  injected `sandbox_reference_adapter`, sanitized audit/evidence sinks, and
+  Phase 15 sandbox contract binding. It does not authorize Codex CLI, provider,
+  sub-agent runtime, shell/process execution, real workspace-write, external
+  write, production recovery, or real `resume`, `rollback`, `abort`, or `fork`
+  execution.
 - Public contract compatibility closeout is recorded in
   `docs/governance/PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md`; new consumers
   should use `codex-router/protocol`, `kernel-contracts` is the canonical
@@ -338,11 +346,17 @@ recovery execution.
 The Phase 16 agent executor adapter dispatch sandbox dry-run taskbook is
 recorded at
 `docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK.md`;
-it defines the future planning boundary for binding Phase 16 dispatch
-authorization to the Phase 15 sandbox reference adapter contract witness under
-`sandbox_contract` and `sandbox_only`, but it is not implementation approval and
-does not authorize adapter invocation without the exact sandbox dry-run approval
-string.
+it records the planning boundary for binding Phase 16 dispatch authorization to
+the Phase 15 sandbox reference adapter contract witness under
+`sandbox_contract` and `sandbox_only`.
+The Phase 16 agent executor adapter dispatch sandbox dry-run closeout is
+recorded at
+`docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT.md`;
+it implements the exact approved sandbox dry-run path with an explicitly
+injected `sandbox_reference_adapter`, sanitized audit/evidence, and fail-closed
+packet binding, without Codex CLI invocation, provider invocation, sub-agent
+runtime invocation, shell/process execution, real workspace-write, external
+write, production recovery, or real recovery-action execution.
 
 Boundary audit marker:
 
@@ -360,6 +374,7 @@ Boundary audit marker:
 - `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_TASKBOOK_RECORDED`
 - `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT_RECORDED`
 - `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK_RECORDED`
+- `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT_RECORDED`
 
 Blocked capabilities:
 

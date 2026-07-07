@@ -141,9 +141,15 @@ as historical evidence unless a current authority document links them.
   invoking an adapter, Codex CLI, provider, sub-agent runtime, shell/process
   execution, workspace-write, external write, or production recovery execution.
 - [Phase 16 agent executor adapter dispatch sandbox dry-run taskbook](PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK.md):
-  current planning boundary for a future sandbox-only dispatch dry-run
-  extension; this does not authorize implementation or adapter invocation
-  without the exact sandbox dry-run approval string.
+  implemented planning boundary for the sandbox-only dispatch dry-run
+  extension; this records the exact approval and does not authorize Codex CLI,
+  provider, sub-agent runtime, shell/process execution, workspace-write,
+  external write, or production recovery execution.
+- [Phase 16 agent executor adapter dispatch sandbox dry-run closeout](PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT.md):
+  current sandbox-only dispatch dry-run implementation boundary; this validates
+  Phase 16 dispatch authorization against the explicitly injected Phase 15
+  `sandbox_reference_adapter` contract witness and records sanitized audit and
+  evidence without authorizing real recovery execution.
 
 ## Runner Entry Points
 
