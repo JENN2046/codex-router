@@ -4297,37 +4297,6 @@ export async function runGovernanceOperatorActionAgentExecutorAdapterDispatchSan
   });
 
   try {
-    await input.evidenceSink.record(completed);
-  } catch {
-    const failedResult = createFailedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult({
-      readiness,
-      packet: dispatchSandboxDryRunPacket,
-      reasons: [
-        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_evidence_sink_failed"
-      ],
-      errorClass:
-        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_evidence_sink_failed",
-      evidenceRefs: completed.evidenceRefs,
-      ...(completed.adapterStatus !== undefined
-        ? { adapterStatus: completed.adapterStatus }
-        : {}),
-      ...(completed.adapterReasonCode !== undefined
-        ? { adapterReasonCode: completed.adapterReasonCode }
-        : {}),
-      ...(completed.adapterResultRef !== undefined
-        ? { adapterResultRef: completed.adapterResultRef }
-        : {})
-    });
-    await recordAgentExecutorAdapterDispatchSandboxDryRunFailure(
-      input.auditSink,
-      readiness,
-      dispatchSandboxDryRunPacket,
-      failedResult
-    );
-    return failedResult;
-  }
-
-  try {
     await input.auditSink.record(createAgentExecutorAdapterDispatchSandboxDryRunAuditEvent({
       status: "completed",
       readiness,
@@ -4363,6 +4332,37 @@ export async function runGovernanceOperatorActionAgentExecutorAdapterDispatchSan
         ? { adapterResultRef: completed.adapterResultRef }
         : {})
     });
+  }
+
+  try {
+    await input.evidenceSink.record(completed);
+  } catch {
+    const failedResult = createFailedOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult({
+      readiness,
+      packet: dispatchSandboxDryRunPacket,
+      reasons: [
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_evidence_sink_failed"
+      ],
+      errorClass:
+        "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_evidence_sink_failed",
+      evidenceRefs: completed.evidenceRefs,
+      ...(completed.adapterStatus !== undefined
+        ? { adapterStatus: completed.adapterStatus }
+        : {}),
+      ...(completed.adapterReasonCode !== undefined
+        ? { adapterReasonCode: completed.adapterReasonCode }
+        : {}),
+      ...(completed.adapterResultRef !== undefined
+        ? { adapterResultRef: completed.adapterResultRef }
+        : {})
+    });
+    await recordAgentExecutorAdapterDispatchSandboxDryRunFailure(
+      input.auditSink,
+      readiness,
+      dispatchSandboxDryRunPacket,
+      failedResult
+    );
+    return failedResult;
   }
 
   return completed;

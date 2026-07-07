@@ -246,6 +246,42 @@ test("phase16 sandbox dry-run fails closed on unsafe adapter refs", async () => 
   assert.deepEqual(auditEvents.map((event) => event.status), ["attempting", "failed"]);
 });
 
+test("phase16 sandbox dry-run records completion evidence only after final audit succeeds", async () => {
+  const context = await createApprovedSandboxDryRunContext({ recommendedAction: "fork" });
+  const sandboxRoot = await mkdtemp(join(tmpdir(), "phase16-sandbox-dry-run-audit-fail-"));
+  const auditEvents: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunAuditEvent[] = [];
+  const evidenceRecords: GovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRunResult[] = [];
+
+  const result = await runGovernanceOperatorActionAgentExecutorAdapterDispatchSandboxDryRun({
+    ...context.runInput,
+    adapter: new Phase15SandboxReferenceAgentExecutorAdapter({
+      sandboxRoot,
+      now: () => "2026-07-07T03:02:00.000Z"
+    }),
+    auditSink: {
+      record(event) {
+        if (event.status === "completed") {
+          throw new Error("final audit sink failed");
+        }
+        auditEvents.push(event);
+      }
+    },
+    evidenceSink: {
+      record(record) {
+        evidenceRecords.push(record);
+      }
+    }
+  });
+
+  assert.equal(result.status, "failed");
+  assert.ok(result.reasons.includes(
+    "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_audit_sink_failed"
+  ));
+  assert.equal(result.errorClass, "operator_action_agent_executor_adapter_dispatch_sandbox_dry_run_audit_sink_failed");
+  assert.deepEqual(auditEvents.map((event) => event.status), ["attempting"]);
+  assert.equal(evidenceRecords.length, 0);
+});
+
 test("phase16 sandbox dry-run blocks contract packet sandbox-scope drift before adapter", async () => {
   const context = await createApprovedSandboxDryRunContext({ recommendedAction: "fork" });
   let adapterCalls = 0;

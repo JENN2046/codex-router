@@ -54,6 +54,7 @@ The run requires:
 - a Phase 15 sandbox contract packet bound to the same task, action, receipt,
   plan, descriptor, authorization, adapter, and sandbox scope;
 - explicitly injected sandbox adapter, audit sink, and evidence sink;
+- final completed audit recording before completion evidence persistence;
 - rollback checkpoint binding by `checkpointRefHash` only.
 
 ## Fail-Closed Cases
