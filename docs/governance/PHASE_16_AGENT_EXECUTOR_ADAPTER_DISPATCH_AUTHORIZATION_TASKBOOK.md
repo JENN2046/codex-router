@@ -296,3 +296,17 @@ policy slice for the Phase 16 dispatch authorization packet.
 That next stop still must not call Codex CLI, spawn a sub-agent, call a
 provider, execute a shell/process runner, mutate a workspace, dispatch a real
 recovery action, or perform production recovery.
+
+## Implementation Follow-Up
+
+The review-only implementation stop is closed out in:
+
+```text
+docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT.md
+```
+
+The remaining future stops still require fresh taskbooks and exact approval
+strings before any sandbox dry-run extension, Codex-backed adapter,
+sub-agent-backed adapter, provider-backed adapter, workspace-write adapter,
+shell/process executor, external write, or production recovery path is
+implemented.

@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `b87503bc8a2814c61056e353e7f4a3184ee276ecf86c8e9bf9266ec78f36980d`
+  `b4bd6a5247cd6d52e877e5a0f4d962dd5b370d7427b5b1bb4c07a1b59c61ac77`
 
 Source digest excluded paths:
 
@@ -140,6 +140,13 @@ Current repository governance status:
   without implementing adapter dispatch or authorizing Codex CLI, provider,
   sub-agent runtime, shell/process execution, real workspace-write, external
   write, or production recovery execution.
+- Phase 16 agent executor adapter dispatch authorization review-only
+  implementation is closed out in
+  `docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT.md`;
+  it implements packet/readiness binding for `review_only` + `none` without
+  invoking an adapter, Codex CLI, provider, sub-agent runtime, shell/process
+  execution, real workspace-write, external write, or production recovery
+  execution.
 - Public contract compatibility closeout is recorded in
   `docs/governance/PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md`; new consumers
   should use `codex-router/protocol`, `kernel-contracts` is the canonical
@@ -314,6 +321,13 @@ behavior without implementing adapter dispatch or authorizing Codex CLI
 invocation, provider invocation, sub-agent runtime invocation, shell/process
 execution, real workspace-write, external write, or production recovery
 execution.
+The Phase 16 agent executor adapter dispatch authorization review-only closeout
+is recorded at
+`docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT.md`;
+it implements dispatch authorization packet/readiness binding for `review_only`
+and `none` without invoking an adapter, Codex CLI, provider, sub-agent runtime,
+shell/process execution, real workspace-write, external write, or production
+recovery execution.
 
 Boundary audit marker:
 
@@ -329,6 +343,7 @@ Boundary audit marker:
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT_RECORDED`
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT_RECORDED`
 - `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_TASKBOOK_RECORDED`
+- `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT_RECORDED`
 
 Blocked capabilities:
 

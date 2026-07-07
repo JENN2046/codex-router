@@ -135,6 +135,11 @@ as historical evidence unless a current authority document links them.
   requirements without authorizing Codex CLI, provider, sub-agent runtime,
   shell/process execution, workspace-write, external write, or production
   recovery execution.
+- [Phase 16 agent executor adapter dispatch authorization review-only closeout](PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT.md):
+  current review-only implementation boundary for adapter dispatch
+  authorization; this validates dispatch authorization packet binding without
+  invoking an adapter, Codex CLI, provider, sub-agent runtime, shell/process
+  execution, workspace-write, external write, or production recovery execution.
 
 ## Runner Entry Points
 
