@@ -140,6 +140,13 @@ Current repository governance status:
   without implementing adapter dispatch or authorizing Codex CLI, provider,
   sub-agent runtime, shell/process execution, real workspace-write, external
   write, or production recovery execution.
+- Phase 16 agent executor adapter dispatch authorization review-only
+  implementation is closed out in
+  `docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT.md`;
+  it implements packet/readiness binding for `review_only` + `none` without
+  invoking an adapter, Codex CLI, provider, sub-agent runtime, shell/process
+  execution, real workspace-write, external write, or production recovery
+  execution.
 - Public contract compatibility closeout is recorded in
   `docs/governance/PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md`; new consumers
   should use `codex-router/protocol`, `kernel-contracts` is the canonical
@@ -314,6 +321,13 @@ behavior without implementing adapter dispatch or authorizing Codex CLI
 invocation, provider invocation, sub-agent runtime invocation, shell/process
 execution, real workspace-write, external write, or production recovery
 execution.
+The Phase 16 agent executor adapter dispatch authorization review-only closeout
+is recorded at
+`docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT.md`;
+it implements dispatch authorization packet/readiness binding for `review_only`
+and `none` without invoking an adapter, Codex CLI, provider, sub-agent runtime,
+shell/process execution, real workspace-write, external write, or production
+recovery execution.
 
 Boundary audit marker:
 
@@ -329,6 +343,7 @@ Boundary audit marker:
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_REVIEW_ONLY_CLOSEOUT_RECORDED`
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT_RECORDED`
 - `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_TASKBOOK_RECORDED`
+- `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT_RECORDED`
 
 Blocked capabilities:
 
