@@ -182,11 +182,14 @@ const FORBIDDEN_AUTHORIZATION_MARKERS = [
 
 const FORBIDDEN_OUTPUT_MARKERS = [
   "OPENAI_API_KEY",
-  "sk-",
   "Bearer",
   "raw env",
   "raw environment",
   "raw token"
+] as const;
+
+const FORBIDDEN_OUTPUT_PATTERNS = [
+  /(^|[^A-Za-z0-9_])sk-[A-Za-z0-9_-]{3,}/
 ] as const;
 
 export interface ControlledProviderExecutionTaskbookReviewAuditInput {
@@ -449,7 +452,10 @@ function outputIsSanitized(
     input.capabilityPolicyText
   ].join("\n");
 
-  return !FORBIDDEN_OUTPUT_MARKERS.some((marker) => combined.includes(marker));
+  return (
+    !FORBIDDEN_OUTPUT_MARKERS.some((marker) => combined.includes(marker))
+    && !FORBIDDEN_OUTPUT_PATTERNS.some((pattern) => pattern.test(combined))
+  );
 }
 
 function collectReasons(checks: Record<string, boolean>): string[] {
