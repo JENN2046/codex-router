@@ -57,7 +57,8 @@ The review requires:
   readiness hashes;
 - sanitized host agent runtime and capability refs;
 - sanitized context package ref plus context package hash;
-- sanitized permitted task-control operation refs;
+- sanitized permitted task-control operation refs bound exactly to the
+  recommended action as `task-control-operation:${recommendedAction}`;
 - prompt/content policy and workspace boundary refs;
 - rollback checkpoint hash and rollback expectation ref for `rollback`;
 - abort expectation, timeout policy, and idempotency key hash;
@@ -76,6 +77,8 @@ The review blocks before any adapter invocation when:
 - the packet requests any side-effect class other than `agent_context_only`;
 - the packet binds an incompatible `sandbox_reference_adapter` as a task
   control adapter;
+- the packet permits a task-control operation ref that does not exactly match
+  `task-control-operation:${recommendedAction}`;
 - the Phase 10 gate hash, Phase 16 review hash, adapter readiness hash, or any
   prior task/action/receipt/plan binding drifts;
 - rollback checkpoint hash or rollback expectation binding is malformed.
@@ -104,6 +107,7 @@ The review-only boundary is covered by targeted tests for:
 - successful `agent_task_control` + `agent_context_only` review readiness;
 - wrong dispatch class and side-effect class blocking;
 - Phase 16 dispatch authorization review hash drift;
+- permitted task-control operation refs bound to the approved recovery action;
 - incompatible sandbox reference adapter kind blocking;
 - rollback checkpoint hashing without raw checkpoint ref exposure.
 
