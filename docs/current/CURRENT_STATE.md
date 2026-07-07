@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `b4bd6a5247cd6d52e877e5a0f4d962dd5b370d7427b5b1bb4c07a1b59c61ac77`
+  `3008ba97cbe683d40796a7228273c87dd3a917cb34cc38c4f804af9b42abc0e0`
 
 Source digest excluded paths:
 
@@ -147,6 +147,13 @@ Current repository governance status:
   invoking an adapter, Codex CLI, provider, sub-agent runtime, shell/process
   execution, real workspace-write, external write, or production recovery
   execution.
+- Phase 16 agent executor adapter dispatch sandbox dry-run taskbook is recorded
+  in
+  `docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK.md`;
+  it defines a future sandbox-only dispatch dry-run planning stop that would
+  bind Phase 16 dispatch authorization to the Phase 15 sandbox reference
+  adapter contract witness, but it does not authorize implementation or adapter
+  invocation without the exact sandbox dry-run approval string.
 - Public contract compatibility closeout is recorded in
   `docs/governance/PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md`; new consumers
   should use `codex-router/protocol`, `kernel-contracts` is the canonical
@@ -328,6 +335,14 @@ it implements dispatch authorization packet/readiness binding for `review_only`
 and `none` without invoking an adapter, Codex CLI, provider, sub-agent runtime,
 shell/process execution, real workspace-write, external write, or production
 recovery execution.
+The Phase 16 agent executor adapter dispatch sandbox dry-run taskbook is
+recorded at
+`docs/governance/PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK.md`;
+it defines the future planning boundary for binding Phase 16 dispatch
+authorization to the Phase 15 sandbox reference adapter contract witness under
+`sandbox_contract` and `sandbox_only`, but it is not implementation approval and
+does not authorize adapter invocation without the exact sandbox dry-run approval
+string.
 
 Boundary audit marker:
 
@@ -344,6 +359,7 @@ Boundary audit marker:
 - `PHASE_15_AGENT_EXECUTOR_ADAPTER_SANDBOX_CONTRACT_CLOSEOUT_RECORDED`
 - `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_TASKBOOK_RECORDED`
 - `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT_RECORDED`
+- `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK_RECORDED`
 
 Blocked capabilities:
 
