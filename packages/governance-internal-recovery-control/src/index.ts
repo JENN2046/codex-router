@@ -1846,6 +1846,22 @@ export const GovernanceOperatorActionAgentTaskControlDispatchAuthorizationReview
         });
       }
 
+      if (value.recommendedAction !== undefined) {
+        const expectedOperationRef =
+          expectedAgentTaskControlOperationRef(value.recommendedAction);
+        if (
+          value.permittedTaskControlOperationRefs.length !== 1 ||
+          value.permittedTaskControlOperationRefs[0] !== expectedOperationRef
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["permittedTaskControlOperationRefs"],
+            message:
+              "operator_action_agent_task_control_dispatch_authorization_ready_operation_ref_mismatch"
+          });
+        }
+      }
+
       if (value.validationCommandRefs.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -4380,6 +4396,18 @@ export function reviewGovernanceOperatorActionAgentTaskControlDispatchAuthorizat
       addUniqueReason(
         reasons,
         "operator_action_agent_task_control_dispatch_authorization_adapter_kind_incompatible"
+      );
+    }
+
+    const expectedOperationRef =
+      expectedAgentTaskControlOperationRef(packet.recommendedAction);
+    if (
+      packet.permittedTaskControlOperationRefs.length !== 1 ||
+      packet.permittedTaskControlOperationRefs[0] !== expectedOperationRef
+    ) {
+      addUniqueReason(
+        reasons,
+        "operator_action_agent_task_control_dispatch_authorization_operation_ref_mismatch"
       );
     }
   }
@@ -7083,6 +7111,10 @@ function addAgentTaskControlDispatchAuthorizationPacketReasons(
       addUniqueReason(reasons, binding.reason);
     }
   }
+}
+
+function expectedAgentTaskControlOperationRef(action: RecoveryAction): string {
+  return `task-control-operation:${action}`;
 }
 
 function addAgentExecutorAdapterDispatchSandboxDryRunReadinessReasons(

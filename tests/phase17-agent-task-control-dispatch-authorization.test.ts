@@ -127,6 +127,24 @@ test("phase17 task control dispatch authorization blocks phase16 review hash dri
   ));
 });
 
+test("phase17 task control dispatch authorization binds permitted operation refs to action", async () => {
+  const context = await createApprovedAgentTaskControlDispatchAuthorizationContext({
+    recommendedAction: "fork",
+    phase17PacketOverrides: {
+      permittedTaskControlOperationRefs: ["task-control-operation:abort"]
+    }
+  });
+
+  const result = reviewGovernanceOperatorActionAgentTaskControlDispatchAuthorization(
+    context.reviewInput
+  );
+
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes(
+    "operator_action_agent_task_control_dispatch_authorization_operation_ref_mismatch"
+  ));
+});
+
 test("phase17 task control dispatch authorization blocks sandbox reference adapter kind", async () => {
   const context = await createApprovedAgentTaskControlDispatchAuthorizationContext({
     recommendedAction: "fork",
@@ -180,6 +198,7 @@ async function createApprovedAgentTaskControlDispatchAuthorizationContext(option
     phase16DispatchAuthorizationReviewHash: string;
     requestedDispatchClass: GovernanceOperatorActionAgentExecutorAdapterDispatchClass;
     requestedSideEffectClass: GovernanceOperatorActionAgentExecutorAdapterDispatchSideEffectClass;
+    permittedTaskControlOperationRefs: string[];
   }>;
 }): Promise<{
   envelope: GovernanceOperatorActionEnvelope;
