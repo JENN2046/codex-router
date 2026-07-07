@@ -163,6 +163,12 @@ as historical evidence unless a current authority document links them.
   identities without invoking an adapter, Codex CLI, provider, sub-agent
   runtime, shell/process execution, workspace-write, external write, or
   production recovery execution.
+- [Phase 18 agent task control dispatch sandbox dry-run taskbook](PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK.md):
+  current planning boundary for a future sandbox-only task-control contract
+  witness; this defines a separate sandbox task-control adapter boundary and
+  future exact approval string without invoking an adapter, Codex CLI,
+  provider, sub-agent runtime, shell/process execution, workspace-write,
+  external write, or production recovery execution.
 
 ## Runner Entry Points
 

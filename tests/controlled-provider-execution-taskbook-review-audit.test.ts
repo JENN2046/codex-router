@@ -153,6 +153,22 @@ test("controlled provider execution taskbook review blocks dirty worktree state"
   );
 });
 
+test("controlled provider execution taskbook review blocks secret-like sk tokens", async () => {
+  const review = reviewControlledProviderExecutionTaskbookReviewAudit({
+    ...(await createInputFromWorkspace()),
+    currentStateText:
+      "CURRENT_STATE_RECORDED\nsecret-like output marker sk-test-secret"
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.equal(review.checks.outputSanitized, false);
+  assert.ok(
+    review.reasons.includes(
+      "controlled_provider_execution_taskbook_review_outputSanitized"
+    )
+  );
+});
+
 test("controlled provider execution taskbook review output stays summarized and sanitized", async () => {
   const review = reviewControlledProviderExecutionTaskbookReviewAudit(
     await createInputFromWorkspace()

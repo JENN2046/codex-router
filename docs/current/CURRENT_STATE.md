@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `5b9eecd40946e4cdb6bd6abc608caa345258618f47057b83aea18f4750768df3`
+  `f0695a17880fabac493b2378673f8e3b7a4c77f12e1ce1a152ff7b74fe4ce7af`
 
 Source digest excluded paths:
 
@@ -178,6 +178,13 @@ Current repository governance status:
   an adapter, Codex CLI, provider, sub-agent runtime, shell/process execution,
   real workspace-write, external write, production recovery, or real recovery
   action.
+- Phase 18 agent task control dispatch sandbox dry-run taskbook is recorded in
+  `docs/governance/PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK.md`;
+  it defines a future sandbox-only task-control contract witness and separate
+  sandbox task-control adapter boundary. It is planning-only and does not
+  authorize adapter invocation, Codex CLI, provider, sub-agent runtime,
+  shell/process execution, real workspace-write, external write, production
+  recovery, or real recovery action.
 - Public contract compatibility closeout is recorded in
   `docs/governance/PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md`; new consumers
   should use `codex-router/protocol`, `kernel-contracts` is the canonical
@@ -380,6 +387,14 @@ requirements for host-provided agent adapters while keeping Codex CLI
 invocation, provider invocation, sub-agent runtime invocation, shell/process
 execution, real workspace-write, external write, production recovery, and real
 recovery-action execution blocked.
+The Phase 18 agent task control dispatch sandbox dry-run taskbook is recorded
+at
+`docs/governance/PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK.md`;
+it defines the future sandbox-only task-control contract witness boundary while
+keeping adapter invocation, Codex CLI invocation, provider invocation,
+sub-agent runtime invocation, shell/process execution, real workspace-write,
+external write, production recovery, and real recovery-action execution
+blocked.
 
 Boundary audit marker:
 
@@ -399,6 +414,8 @@ Boundary audit marker:
 - `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK_RECORDED`
 - `PHASE_16_AGENT_EXECUTOR_ADAPTER_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT_RECORDED`
 - `PHASE_17_AGENT_TASK_CONTROL_DISPATCH_BOUNDARY_TASKBOOK_RECORDED`
+- `PHASE_17_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT_RECORDED`
+- `PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK_RECORDED`
 
 Blocked capabilities:
 
