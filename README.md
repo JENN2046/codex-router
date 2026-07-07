@@ -12,57 +12,36 @@ already provides the execution runtime, then adds the missing governance layer:
 
 ## Layout
 
-- `packages/contracts`
-- `packages/policy-config`
-- `packages/intent-gate`
-- `packages/execution-profiles`
-- `packages/routing-engine`
-- `packages/approval-gate`
-- `packages/runtime-control`
-- `packages/desktop-bridge`
-- `packages/desktop-host-client`
-- `packages/desktop-decision-runner`
-- `packages/desktop-live-adapter`
-- `packages/desktop-agent-strategy`
-- `packages/recon-policy`
-- `packages/preflight`
-- `packages/checkpoint-index`
-- `packages/audit-memory`
-- `packages/codex-desktop-bindings`
-- `packages/codex-desktop-live-host`
-- `packages/codex-cli-host`
-- `packages/final-host-locator`
-- `packages/codex-memory-adapter`
-- `packages/codex-memory-host-client`
-- `packages/codex-memory-mcp-client`
-- `packages/host-client-example`
-- `packages/observability`
+The supported external surface is the curated public facade, not raw
+`packages/*/src/index.ts` paths:
 
-## V1 Protocol
+- `codex-router/sdk` for SDK integration
+- `codex-router/host` for desktop and host integration
+- `codex-router/protocol` for canonical kernel contracts and protocol adapters
+- `codex-router/provider` for provider author SPI
+- `codex-router/support` for curated telemetry, store, artifact, and tool SPI
 
-The current stable protocol surface is:
+The source tree still contains many package directories under `packages/` for
+internal composition, tests, and compatibility. Those directories are not
+product API commitments unless they are exposed through the public facade.
 
-- `TaskEnvelope`
-  - `schemaVersion`
-  - `taskId`
-  - `source`
-  - `intent`
-  - `repoContext`
-  - `target`
-  - `constraints`
-  - `hints`
-- `RoutingDecision`
-  - `schemaVersion`
-  - `decisionId`
-  - `taskId`
-  - `policyVersion`
-  - `classification`
-  - `execution`
-  - `approval`
-  - `parallelism`
+## Public Protocol
 
-Use `parseTaskEnvelope()` and `parseRoutingDecision()` from `packages/contracts`
-to normalize caller input and apply defaults before routing or validation.
+New consumers should import canonical contracts from `codex-router/protocol`:
+
+```ts
+import { TaskSchema, RunSchema, PolicyDecisionSchema } from "codex-router/protocol";
+```
+
+`packages/kernel-contracts` is the canonical contract source behind that facade.
+`packages/contracts` remains in the repository only as a legacy compatibility
+surface for older `TaskEnvelope` / `RoutingDecision` flows. Do not use
+`packages/contracts`, `parseTaskEnvelope()`, or `parseRoutingDecision()` as new
+consumer entrypoints.
+
+The historical `docs/protocol-v1.md` page documents that legacy compatibility
+shape. It is kept for migration context, not as the preferred public protocol
+surface.
 
 ## Desktop Runner
 

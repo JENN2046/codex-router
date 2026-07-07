@@ -1,8 +1,25 @@
 # codex-router Protocol v1
 
+Status: legacy compatibility reference.
+
+This page documents the older `TaskEnvelope` / `RoutingDecision` contract
+family that remains in `packages/contracts` for internal compatibility and
+migration context.
+
+New consumers should not use this page as the preferred public contract entry.
+Use the curated protocol facade instead:
+
+```ts
+import { TaskSchema, RunSchema, PolicyDecisionSchema } from "codex-router/protocol";
+```
+
+The current public contract boundary is recorded in
+`docs/governance/PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md`.
+
 ## TaskEnvelope
 
-`TaskEnvelope` is the normalized task input contract for the Desktop-first policy SDK.
+`TaskEnvelope` is the legacy normalized task input contract for older
+Desktop-first policy SDK flows.
 
 ```ts
 type TaskEnvelope = {
@@ -48,7 +65,7 @@ Why it is shaped this way:
 
 ## RoutingDecision
 
-`RoutingDecision` is the normalized routing output contract.
+`RoutingDecision` is the legacy normalized routing output contract.
 
 ```ts
 type RoutingDecision = {
@@ -89,6 +106,9 @@ Why it is shaped this way:
 
 ## Caller Guidance
 
-- Call `parseTaskEnvelope()` before storing or reusing incoming task data.
-- Call `parseRoutingDecision()` if a decision is loaded from a file, queue, or external adapter.
-- Avoid constructing protocol objects by hand across package boundaries when a parser helper is available.
+- For new public integrations, use `codex-router/protocol` and the canonical
+  kernel contract schemas.
+- Use `parseTaskEnvelope()` and `parseRoutingDecision()` only when maintaining
+  older compatibility flows that already depend on `packages/contracts`.
+- Do not add these legacy names to the public protocol facade without a separate
+  compatibility review.
