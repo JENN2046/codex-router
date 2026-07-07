@@ -32,7 +32,29 @@ Implemented boundary:
 - `packages/public-api/src/index.ts` is the explicit source-level public facade.
 - `packages/public-api/src/sdk.ts`, `host.ts`, `protocol.ts`, `provider.ts`,
   and `support.ts` are explicit source-level subfacades.
+- `packages/public-api/src/host.ts` owns declaration-safe host wrapper types for
+  the public facade instead of re-exporting host implementation types that carry
+  governance-internal references.
+- The public host wrapper keeps runtime invocation metadata (`primitive`,
+  `taskId`, `reason`) required and preserves per-tool desktop runtime operation
+  signatures while still hiding internal implementation types.
+- The public host wrapper also re-declares the required direct-client preflight
+  fields and the camelCase desktop runtime method contract so invalid host
+  objects do not type-check as complete public integrations.
+- The public host wrapper re-declares host memory operation contracts for
+  `record_memory`, `search_memory`, and optional `memory_overview` instead of
+  accepting arbitrary `unknown` operation objects.
+- The public host wrapper re-declares `DesktopHostClient.run` and `resume` task
+  envelope input structure so `{}` is rejected before the internal parser.
+- The public live-host wrapper re-declares memory adapter options with required
+  `anchor` metadata instead of accepting arbitrary adapter values.
+- The public host wrapper re-declares persistence and resume adapter method
+  contracts for checkpoint, audit, memory recall, memory overview, and
+  telemetry integration points instead of accepting arbitrary `unknown` objects.
 - `tests/public-api-surface.test.ts` locks the facade export list.
+- `tests/public-api-surface.test.ts` also generates declaration-only output for
+  the public package type targets and rejects public facade declarations that
+  expose governance-internal host implementation paths.
 - `tests/fixtures/public-api-surface-lock.fixture.json` records the approved
   runtime export names.
 - `tests/fixtures/public-api-*-surface-lock.fixture.json` records the approved
@@ -50,6 +72,8 @@ Implemented boundary:
   - `./protocol`
   - `./provider`
   - `./support`
+- `tsconfig.json` emits declaration files so the package `types` targets resolve
+  after `npm run build`.
 - The root export map intentionally does not expose `./testing`,
   `./diagnostics`, raw `packages/*` paths, or governance-internal modules.
 - `docs/governance/API_TESTING_DIAGNOSTICS_SURFACE_PLAN.md` records the
