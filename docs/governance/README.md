@@ -150,6 +150,12 @@ as historical evidence unless a current authority document links them.
   Phase 16 dispatch authorization against the explicitly injected Phase 15
   `sandbox_reference_adapter` contract witness and records sanitized audit and
   evidence without authorizing real recovery execution.
+- [Phase 17 agent task control dispatch boundary taskbook](PHASE_17_AGENT_TASK_CONTROL_DISPATCH_BOUNDARY_TASKBOOK.md):
+  current planning-only boundary for future `agent_task_control` dispatch
+  authorization; this defines packet, host responsibility, audit/evidence, and
+  fail-closed requirements without authorizing Codex CLI, provider,
+  sub-agent runtime, shell/process execution, workspace-write, external write,
+  or production recovery execution.
 
 ## Runner Entry Points
 
