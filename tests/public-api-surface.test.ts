@@ -256,6 +256,38 @@ test("public-api support SPI facade export surface is lock-stable", async () => 
   assert.deepEqual(actualExports, publicApiSupportSpiSurfaceLockFixture);
 });
 
+test("public protocol facade exposes kernel contracts without legacy compatibility contracts", async () => {
+  const moduleExports = await import("../packages/public-api/src/protocol.js");
+
+  for (const name of [
+    "TaskSchema",
+    "RunSchema",
+    "PolicyDecisionSchema",
+    "ApprovalPermitSchema",
+    "ToolInvocationSchema",
+    "hashKernelObject",
+    "parseTask",
+    "parsePolicyDecision"
+  ]) {
+    assert.equal(name in moduleExports, true, `${name} should be public through kernel contracts`);
+  }
+
+  for (const legacyName of [
+    "TaskEnvelopeSchema",
+    "RoutingDecisionSchema",
+    "DesktopExecutionPlanSchema",
+    "DesktopPrimitiveSchema",
+    "parseTaskEnvelope",
+    "parseRoutingDecision"
+  ]) {
+    assert.equal(
+      legacyName in moduleExports,
+      false,
+      `${legacyName} must remain on the legacy compatibility contract surface`
+    );
+  }
+});
+
 test("root package exports only approved public API facades", () => {
   const expectedExports = {
     ".": {
@@ -311,6 +343,10 @@ test("root package exports only approved public API facades", () => {
   for (const blockedSubpath of [
     "./packages/public-api/src/index.js",
     "./packages/*",
+    "./contracts",
+    "./kernel-contracts",
+    "./protocol-mcp",
+    "./protocol-a2a",
     "./observability",
     "./artifact-store",
     "./kernel-store",
@@ -376,6 +412,7 @@ test("public-api package type targets are emitted and stay governance-internal f
       const declaration = readFileSync(typeTarget, "utf8");
       for (const forbiddenPattern of [
         "governance-internal",
+        "../../contracts/src/index.js",
         "../../desktop-host-client/src/index.js",
         "../../codex-desktop-live-host/src/index.js"
       ]) {
@@ -386,6 +423,17 @@ test("public-api package type targets are emitted and stay governance-internal f
         );
       }
     }
+
+    const protocolTypeTarget = resolve(
+      declarationOutDir,
+      "packages/public-api/src/protocol.d.ts"
+    );
+    const protocolDeclaration = readFileSync(protocolTypeTarget, "utf8");
+    assert.equal(
+      protocolDeclaration.includes("../../kernel-contracts/src/index.js"),
+      true,
+      "protocol facade declarations must preserve the canonical kernel contract source"
+    );
   } finally {
     rmSync(declarationOutDir, { recursive: true, force: true });
   }
