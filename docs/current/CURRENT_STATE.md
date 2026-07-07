@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `f0695a17880fabac493b2378673f8e3b7a4c77f12e1ce1a152ff7b74fe4ce7af`
+  `46d7eda47423b44d8371ad36a8fb3ddf8344e75f8c0d99035cd1782c018d18a7`
 
 Source digest excluded paths:
 
@@ -180,11 +180,16 @@ Current repository governance status:
   action.
 - Phase 18 agent task control dispatch sandbox dry-run taskbook is recorded in
   `docs/governance/PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK.md`;
-  it defines a future sandbox-only task-control contract witness and separate
-  sandbox task-control adapter boundary. It is planning-only and does not
-  authorize adapter invocation, Codex CLI, provider, sub-agent runtime,
-  shell/process execution, real workspace-write, external write, production
-  recovery, or real recovery action.
+  it defines the sandbox-only task-control contract witness and separate
+  sandbox task-control adapter boundary.
+- Phase 18 agent task control dispatch sandbox dry-run implementation is closed
+  out in
+  `docs/governance/PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT.md`;
+  it binds a ready Phase 17 authorization review to an explicitly injected
+  `sandbox_task_control_adapter`, sanitized audit/evidence sinks, and
+  sandbox-contained test artifacts. It does not authorize Codex CLI, provider,
+  sub-agent runtime, shell/process execution, real workspace-write, external
+  write, production recovery, or real recovery action.
 - Public contract compatibility closeout is recorded in
   `docs/governance/PUBLIC_CONTRACT_COMPATIBILITY_CLOSEOUT.md`; new consumers
   should use `codex-router/protocol`, `kernel-contracts` is the canonical
@@ -390,11 +395,15 @@ recovery-action execution blocked.
 The Phase 18 agent task control dispatch sandbox dry-run taskbook is recorded
 at
 `docs/governance/PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK.md`;
-it defines the future sandbox-only task-control contract witness boundary while
-keeping adapter invocation, Codex CLI invocation, provider invocation,
-sub-agent runtime invocation, shell/process execution, real workspace-write,
-external write, production recovery, and real recovery-action execution
-blocked.
+it defines the sandbox-only task-control contract witness boundary.
+The Phase 18 agent task control dispatch sandbox dry-run implementation is
+closed out at
+`docs/governance/PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT.md`;
+it can call only an explicitly injected `sandbox_task_control_adapter` contract
+witness after the Phase 18 packet and ready Phase 17 authorization review bind.
+Codex CLI invocation, provider invocation, sub-agent runtime invocation,
+shell/process execution, real workspace-write, external write, production
+recovery, and real recovery-action execution remain blocked.
 
 Boundary audit marker:
 
@@ -416,10 +425,11 @@ Boundary audit marker:
 - `PHASE_17_AGENT_TASK_CONTROL_DISPATCH_BOUNDARY_TASKBOOK_RECORDED`
 - `PHASE_17_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_CLOSEOUT_RECORDED`
 - `PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_TASKBOOK_RECORDED`
+- `PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT_RECORDED`
 
 Blocked capabilities:
 
-- `agent_task_control_dispatch`
+- `real_agent_task_control_dispatch`
 - `general_workspace_write`
 - `general_provider_execution`
 - `recovery_action_dispatch`

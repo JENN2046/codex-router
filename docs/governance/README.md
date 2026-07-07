@@ -169,6 +169,12 @@ as historical evidence unless a current authority document links them.
   future exact approval string without invoking an adapter, Codex CLI,
   provider, sub-agent runtime, shell/process execution, workspace-write,
   external write, or production recovery execution.
+- [Phase 18 agent task control dispatch sandbox dry-run closeout](PHASE_18_AGENT_TASK_CONTROL_DISPATCH_SANDBOX_DRY_RUN_CLOSEOUT.md):
+  current sandbox-only task-control contract witness; this binds a ready Phase
+  17 authorization review to an explicitly injected `sandbox_task_control_adapter`
+  and records sanitized audit/evidence without authorizing Codex CLI, provider,
+  sub-agent runtime, shell/process execution, workspace-write, external write,
+  or production recovery execution.
 
 ## Runner Entry Points
 
