@@ -1,10 +1,10 @@
 ---
-title: Phase 17 Agent Task-Control Dispatch Boundary Taskbook
+title: Phase 17 Agent Task Control Dispatch Boundary Taskbook
 status: active taskbook
-scope: pre-implementation boundary for future agent-task-control dispatch
+scope: pre-implementation boundary for future agent task control dispatch
 ---
 
-# Phase 17 Agent Task-Control Dispatch Boundary Taskbook
+# Phase 17 Agent Task Control Dispatch Boundary Taskbook
 
 ## Decision
 
@@ -15,7 +15,7 @@ This taskbook does not authorize `codex-router` to invoke Codex CLI, spawn a
 sub-agent, call a provider, run a shell command, mutate a workspace, dispatch a
 real recovery action, or perform production recovery.
 
-`codex-router` remains the governance kernel. A future agent-task-control
+`codex-router` remains the governance kernel. A future agent task control
 adapter would be host-provided, explicitly injected, separately authorized, and
 responsible for any operational semantics outside this repository.
 
@@ -40,7 +40,7 @@ Allowed in this line:
 - define the future `agent_task_control` packet shape;
 - define the future `agent_context_only` side-effect boundary;
 - define required host-agent runtime refs, capability refs, and context refs;
-- define task-control semantics for `resume`, `rollback`, `abort`, and `fork`;
+- define task control semantics for `resume`, `rollback`, `abort`, and `fork`;
 - define host responsibilities and `codex-router` responsibilities;
 - define audit, evidence, timeout, idempotency, and receipt requirements;
 - define fail-closed cases and non-authorization boundaries;
@@ -86,7 +86,7 @@ runtime integration.
 
 ## Future Packet Requirements
 
-A future agent-task-control dispatch packet must bind:
+A future agent task control dispatch packet must bind:
 
 - schema version;
 - exact operator approval string for the specific implementation slice;
@@ -106,12 +106,12 @@ A future agent-task-control dispatch packet must bind:
 - Phase 16 sandbox dry-run proof ref when required by adapter class;
 - requested dispatch class;
 - requested side-effect class;
-- authorized task-control scope ref;
+- authorized task control scope ref;
 - host agent runtime ref;
 - host agent capability ref;
 - context package ref;
 - context package hash;
-- permitted task-control operation refs;
+- permitted task control operation refs;
 - prompt/content policy ref;
 - workspace boundary ref;
 - rollback expectation ref for `rollback`;
@@ -137,19 +137,19 @@ The packet must not contain:
 - full private host configuration;
 - unredacted agent context payloads.
 
-## Task-Control Semantics
+## Task Control Semantics
 
 Phase 17 defines only authorization semantics. Operational semantics belong to
 the future host adapter.
 
-| Action | Future task-control request boundary |
+| Action | Future task control request boundary |
 | --- | --- |
 | `resume` | Request continuation from an approved plan step, checkpoint, or context ref. |
 | `rollback` | Request rollback planning inside an approved checkpoint or patch scope; no workspace mutation is implied. |
 | `abort` | Request that the host agent stop, refuse continuation, or mark a task context terminal. |
 | `fork` | Request an isolated task context or lineage from an approved state; no git branch or workspace write is implied. |
 
-`completed` on a future receipt would mean the task-control dispatch transaction
+`completed` on a future receipt would mean the task control dispatch transaction
 completed. It must not be treated as proof that business recovery completed
 unless a later host-specific taskbook defines and validates that meaning.
 
@@ -170,7 +170,7 @@ The future host adapter would be responsible for:
 - selecting and managing any Codex, sub-agent, or host runtime;
 - managing runtime permissions, workspace access, credentials, and process
   boundaries;
-- interpreting task-control requests into host operations;
+- interpreting task control requests into host operations;
 - enforcing its own scope and safety limits;
 - returning sanitized receipts only.
 
@@ -179,7 +179,7 @@ vars, global state, or filesystem discovery.
 
 ## Required Pre-Dispatch Review
 
-Before any future agent-task-control implementation, review must confirm:
+Before any future agent task control implementation, review must confirm:
 
 - the adapter is explicitly injected;
 - no adapter is selected by global lookup, environment discovery, or implicit
@@ -198,11 +198,11 @@ Before any future agent-task-control implementation, review must confirm:
 
 ## Audit And Evidence Requirements
 
-Any future agent-task-control path must emit sanitized audit events for:
+Any future agent task control path must emit sanitized audit events for:
 
 - authorization review attempted;
 - dispatch authorization accepted or blocked;
-- task-control adapter invocation attempted;
+- task control adapter invocation attempted;
 - adapter receipt accepted, refused, failed, or rejected as malformed;
 - final dispatch result normalized.
 
@@ -216,7 +216,7 @@ arbitrary host filesystem paths.
 
 ## Fail-Closed Requirements
 
-Future agent-task-control authorization must block before adapter invocation
+Future agent task control authorization must block before adapter invocation
 when:
 
 - Phase 10, Phase 11, Phase 15, or Phase 16 binding is missing, blocked,
@@ -225,13 +225,13 @@ when:
 - dispatch class is not `agent_task_control`;
 - side-effect class is not `agent_context_only`;
 - host agent runtime ref, capability ref, or context package hash is missing;
-- adapter kind is incompatible with task-control dispatch;
+- adapter kind is incompatible with task control dispatch;
 - rollback checkpoint hash or rollback expectation binding is malformed;
 - audit sink or evidence sink identity binding is missing;
 - audit or evidence sink injection is missing;
 - secret/private-state access would be required.
 
-Future agent-task-control authorization must return a sanitized failed result
+Future agent task control authorization must return a sanitized failed result
 when:
 
 - adapter output is malformed;
@@ -246,7 +246,7 @@ when:
 No Phase 17 implementation approval is consumed by this taskbook.
 
 The next safe implementation stop, if approved later, would be review-only
-schema/policy for the agent-task-control packet:
+schema/policy for the agent task control packet:
 
 ```text
 APPROVE_PHASE_17_AGENT_TASK_CONTROL_DISPATCH_AUTHORIZATION_REVIEW_ONLY_IMPLEMENTATION
@@ -263,7 +263,7 @@ taskbooks, rollback evidence, audit evidence, and fresh exact approval strings.
 
 This taskbook slice is complete when:
 
-1. the Phase 17 agent-task-control boundary is recorded in governance docs;
+1. the Phase 17 agent task control boundary is recorded in governance docs;
 2. current-state docs identify it as planning-only and non-executing;
 3. the control plane lists the capability as taskbook-only;
 4. blocked capabilities remain blocked;

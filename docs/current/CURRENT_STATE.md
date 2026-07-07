@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `c8aee7f7b3e162ecef36953d77135a0bffe72c656333304ce51843654f429ed7`
+  `a8cae40862a2426f8ae4168951f89baf1617d1b2e533b709eae4bcf86b11c172`
 
 Source digest excluded paths:
 
@@ -162,7 +162,7 @@ Current repository governance status:
   sub-agent runtime, shell/process execution, real workspace-write, external
   write, production recovery, or real `resume`, `rollback`, `abort`, or `fork`
   execution.
-- Phase 17 agent task-control dispatch boundary is recorded in
+- Phase 17 agent task control dispatch boundary is recorded in
   `docs/governance/PHASE_17_AGENT_TASK_CONTROL_DISPATCH_BOUNDARY_TASKBOOK.md`;
   it defines future `agent_task_control` + `agent_context_only` packet,
   host-responsibility, audit/evidence, and fail-closed requirements. It is
@@ -364,7 +364,7 @@ injected `sandbox_reference_adapter`, sanitized audit/evidence, and fail-closed
 packet binding, without Codex CLI invocation, provider invocation, sub-agent
 runtime invocation, shell/process execution, real workspace-write, external
 write, production recovery, or real recovery-action execution.
-The Phase 17 agent task-control dispatch boundary taskbook is recorded at
+The Phase 17 agent task control dispatch boundary taskbook is recorded at
 `docs/governance/PHASE_17_AGENT_TASK_CONTROL_DISPATCH_BOUNDARY_TASKBOOK.md`;
 it defines future `agent_task_control` and `agent_context_only` authorization
 requirements for host-provided agent adapters while keeping Codex CLI
