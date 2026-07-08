@@ -1353,13 +1353,7 @@ function stateSyncPolicyV2TransitionIsAllowed(
 
   const commonAllowed =
     claim.repository.fullName === (input.repositoryFullName ?? "")
-    && (
-      claim.repository.id === undefined
-      || (
-        repositoryId !== ""
-        && claim.repository.id === repositoryId
-      )
-    )
+    && policyV2RepositoryIdMatchesContext(claim, eventName, repositoryId)
     && claim.source.sourceTreeDigest.algorithm === ACCEPTED_SOURCE_TREE_DIGEST_ALGORITHM
     && sameStringSet(
       claim.source.sourceTreeDigest.excludedPaths,
@@ -1420,6 +1414,22 @@ function stateSyncPolicyV2TransitionIsAllowed(
   }
 
   return false;
+}
+
+function policyV2RepositoryIdMatchesContext(
+  claim: StateSyncPolicyV2Claim,
+  eventName: string,
+  repositoryId: string
+): boolean {
+  if (claim.repository.id === undefined) {
+    return true;
+  }
+
+  if (repositoryId !== "") {
+    return claim.repository.id === repositoryId;
+  }
+
+  return eventName === "local";
 }
 
 function policyV2ContextAllowed(
