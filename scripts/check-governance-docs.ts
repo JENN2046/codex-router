@@ -89,6 +89,11 @@ export const RELEASE_GATE_EXECUTION_BOUNDARY_MARKERS = [
   "host executor does not execute provider or sub-agent runtime"
 ] as const;
 
+export const GOVERNANCE_README_RUNNER_ENTRY_MARKERS = [
+  "npm run governance -- audit execution-boundary-current-surface",
+  "npm run governance -- audit source-release-package-boundary"
+] as const;
+
 export async function checkGovernanceDocs(
   cwd = process.cwd()
 ): Promise<GovernanceDocsCheckResult> {
@@ -102,6 +107,7 @@ export async function checkGovernanceDocs(
   await checkCloseoutTemplate(cwd, issues, checkedFiles);
   await checkReleaseGateCommands(cwd, issues, checkedFiles);
   await checkReleaseGateExecutionBoundaryMarkers(cwd, issues, checkedFiles);
+  await checkGovernanceReadmeRunnerEntries(cwd, issues, checkedFiles);
   await checkMarkdownLinks(cwd, issues, checkedFiles);
 
   return {
@@ -252,6 +258,29 @@ async function checkReleaseGateExecutionBoundaryMarkers(
       filePath,
       `Release gate matrix must record execution boundary marker: ${marker}`
     ));
+  }
+}
+
+async function checkGovernanceReadmeRunnerEntries(
+  cwd: string,
+  issues: GovernanceDocsIssue[],
+  checkedFiles: Set<string>
+): Promise<void> {
+  const filePath = "docs/governance/README.md";
+  const text = await readOptional(cwd, filePath);
+  if (text === undefined) {
+    return;
+  }
+  checkedFiles.add(filePath);
+
+  for (const marker of GOVERNANCE_README_RUNNER_ENTRY_MARKERS) {
+    if (!text.includes(marker)) {
+      issues.push(issue(
+        "governance_readme_runner_entry_missing",
+        filePath,
+        `Governance README must list runner entry: ${marker}`
+      ));
+    }
   }
 }
 

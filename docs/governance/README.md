@@ -252,6 +252,7 @@ npm run governance -- audit agent-task-control-review-boundary
 npm run governance -- audit agent-task-control-sandbox-boundary
 npm run governance -- audit sub-agent-runtime-boundary
 npm run governance -- audit execution-boundary-current-surface
+npm run governance -- audit source-release-package-boundary
 npm run governance -- acceptance readonly-chain --check
 npm run governance -- acceptance controlled-readonly-provider-execution --check
 npm run governance -- operator readonly

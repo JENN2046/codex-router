@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   checkGovernanceDocs,
+  GOVERNANCE_README_RUNNER_ENTRY_MARKERS,
   missingReleaseGateExecutionBoundaryMarkers
 } from "../scripts/check-governance-docs.js";
 
@@ -37,3 +38,18 @@ test("release gate matrix records execution authority lattice markers", async ()
     ["Codex CLI host does not authorize host executor or sub-agent runtime"]
   );
 });
+
+test("governance README records current runner entries", async () => {
+  const text = await readFile(
+    new URL("../docs/governance/README.md", import.meta.url),
+    "utf8"
+  );
+
+  for (const marker of GOVERNANCE_README_RUNNER_ENTRY_MARKERS) {
+    assert.match(text, new RegExp(escapeRegExp(marker)));
+  }
+});
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
