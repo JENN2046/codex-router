@@ -50,6 +50,9 @@ const REQUIRED_DESIGN_MARKERS = [
   "`releaseGateRequired`: `true`",
   "`pushAuthorized`: `false`",
   "`releaseAuthorized`: `false`",
+  "`tagAuthorized`: `false`",
+  "`deploymentAuthorized`: `false`",
+  "`packagePublishAuthorized`: `false`",
   "`externalWriteAuthorized`: `false`",
   "`secretMutationAuthorized`: `false`",
   "`WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET_DESIGNED`"

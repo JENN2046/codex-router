@@ -78,6 +78,31 @@ test("workspace-write real canary authorization design audit blocks broadened pa
   );
 });
 
+test("workspace-write real canary authorization design audit blocks release-side effects", async () => {
+  const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
+
+  for (const field of [
+    "tagAuthorized",
+    "deploymentAuthorized",
+    "packagePublishAuthorized"
+  ]) {
+    const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
+      ...input,
+      designDocText: input.designDocText.replace(
+        `\`${field}\`: \`false\``,
+        `\`${field}\`: \`true\``
+      )
+    });
+
+    assert.equal(review.status, "blocked", `${field} must stay false`);
+    assert.ok(
+      review.reasons.includes(
+        "workspace_write_real_canary_authorization_design_designDocRecorded"
+      )
+    );
+  }
+});
+
 test("workspace-write real canary authorization design audit blocks missing permit v2", async () => {
   const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
   const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
