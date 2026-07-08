@@ -57,6 +57,10 @@ canary execution:
 - clean `main` worktree
 - local `main` not behind `origin/main`
 - canary target file absent
+- authorization packet accepted by packet schema
+- permit v2 validated against plan and manifest
+- packet action bound to canary config
+- packet permit binding accepted
 - controlled execution gate audit passed
 - future canary packet checklist audit passed
 - workspace-write real canary final local audit passed

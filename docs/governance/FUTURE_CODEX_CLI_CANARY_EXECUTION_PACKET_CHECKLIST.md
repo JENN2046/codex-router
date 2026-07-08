@@ -58,6 +58,10 @@ The future packet must prove before execution:
 - controlled execution gate audit passed
 - read-only real smoke chain local closeout passed
 - workspace-write real canary final local audit passed
+- authorization packet accepted by packet schema
+- permit v2 validated against plan and manifest
+- packet action bound to canary config
+- packet permit binding accepted
 - PR-12B authorization evidence remains local-only and sanitized
 - PR-12B pre-execution evidence remains local-only and sanitized
 - canary target file does not already exist

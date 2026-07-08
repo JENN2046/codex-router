@@ -1,14 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { readFile, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import {
   DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE
 } from "../packages/governance-internal-workspace-write-guard/src/index.js";
 import {
   formatFutureCodexCliCanaryExecutionGateAuditResult,
+  readFutureCodexCliCanaryExecutionGateAheadBehind,
   reviewFutureCodexCliCanaryExecutionGateAudit,
   type FutureCodexCliCanaryExecutionGateAuditInput
 } from "../scripts/run-future-codex-cli-canary-execution-gate-audit.js";
+
+const execFileAsync = promisify(execFile);
 
 const forbiddenOutputMarkers = [
   "requestedAction",
@@ -75,14 +82,24 @@ test("future canary execution gate audit blocks stale evidence", async () => {
       mode: "workspace-write-real-canary-pre-execution-local-only",
       checks: {
         authorizationAccepted: true,
+        authorizationPacketAccepted: true,
+        permitV2Accepted: true,
+        permitV2Approved: true,
+        permitV2Validated: false,
+        packetActionBoundToConfig: true,
+        packetPermitBindingAccepted: true,
         preExecutionGateReady: false,
+        authorizationPacketFailureBlocksGate: false,
         existingCanaryFileBlocksGate: false
       },
       summary: {
         providerId: "codex-cli",
+        packetSchemaVersion: "workspace-write-real-canary-authorization-packet.v1",
+        permitSchemaVersion: "provider-workspace-write-execution-permit.v2",
         targetFile: "tmp/other.txt",
         sideEffectClass: "workspace_write",
         sandbox: "workspace-write",
+        authorizationPacketStatus: "blocked",
         pushDisallowed: false,
         rollbackReady: false
       },
@@ -93,6 +110,32 @@ test("future canary execution gate audit blocks stale evidence", async () => {
         canaryFileWrites: 0
       }
     })
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(
+    review.reasons.includes(
+      "future_codex_cli_canary_execution_gate_workspaceWritePreExecutionEvidenceValid"
+    )
+  );
+});
+
+test("future canary execution gate audit requires packet and permit v2 proof", async () => {
+  const input = await createInputFromWorkspace();
+  const evidence = JSON.parse(input.workspaceWritePreExecutionEvidenceText) as {
+    checks: Record<string, boolean>;
+    summary: Record<string, string>;
+  };
+
+  delete evidence.checks.permitV2Validated;
+  delete evidence.checks.packetActionBoundToConfig;
+  delete evidence.checks.packetPermitBindingAccepted;
+  delete evidence.summary.packetSchemaVersion;
+  delete evidence.summary.permitSchemaVersion;
+
+  const review = reviewFutureCodexCliCanaryExecutionGateAudit({
+    ...input,
+    workspaceWritePreExecutionEvidenceText: JSON.stringify(evidence)
   });
 
   assert.equal(review.status, "blocked");
@@ -118,6 +161,23 @@ test("future canary execution gate audit blocks unsafe local state", async () =>
   assert.ok(review.reasons.includes("future_codex_cli_canary_execution_gate_branchMain"));
   assert.ok(review.reasons.includes("future_codex_cli_canary_execution_gate_notBehindOrigin"));
   assert.ok(review.reasons.includes("future_codex_cli_canary_execution_gate_canaryFileAbsent"));
+});
+
+test("future canary execution gate audit fails closed without origin main", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "future-canary-gate-no-origin-"));
+  await execFileAsync("git", ["init"], { cwd: dir });
+  await execFileAsync("git", ["config", "user.email", "test@example.invalid"], {
+    cwd: dir
+  });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
+  await writeFile(join(dir, "README.md"), "fixture\n", "utf8");
+  await execFileAsync("git", ["add", "README.md"], { cwd: dir });
+  await execFileAsync("git", ["commit", "-m", "fixture"], { cwd: dir });
+
+  assert.equal(
+    await readFutureCodexCliCanaryExecutionGateAheadBehind(dir),
+    "0\t1"
+  );
 });
 
 test("future canary execution gate audit output stays summarized", async () => {

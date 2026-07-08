@@ -430,7 +430,10 @@ test("governance check runner resolves registered checks with passthrough args",
   );
   const acceptance = resolveGovernanceCheck("acceptance", "readonly-chain");
   const operator = resolveGovernanceCheck("operator", "readonly");
-  const archived = resolveGovernanceCheck("audit", "future-codex-cli-canary-execution-gate");
+  const futureCanaryExecutionGateAudit = resolveGovernanceCheck(
+    "audit",
+    "future-codex-cli-canary-execution-gate"
+  );
   const archivedCapabilityTaxonomyEscalationPolicy = resolveGovernanceCheck(
     "audit",
     "capability-taxonomy-escalation-policy"
@@ -739,7 +742,7 @@ test("governance check runner resolves registered checks with passthrough args",
     expectedTsxArgs(["scripts/run-codex-cli-operator-acceptance-readonly.ts"])
   );
   assert.deepEqual(
-    archived.args,
+    futureCanaryExecutionGateAudit.args,
     expectedTsxArgs(["scripts/run-future-codex-cli-canary-execution-gate-audit.ts"])
   );
   assert.deepEqual(
