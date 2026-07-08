@@ -59,6 +59,7 @@ test("release validation tier avoids external and real host smoke by default", (
     "canary",
     "canary:write",
     "smoke:contract",
+    "governance-audit-workspace-write-release-gate",
     "evidence:collect"
   ]);
   assert.equal(commandIds.includes("canary:external"), false);
@@ -72,6 +73,7 @@ test("governance check runner default list shows current checks only", () => {
   assert.ok(checks.audit.includes("state-sync"));
   assert.ok(checks.audit.includes("state-sync-boundary"));
   assert.ok(checks.audit.includes("readonly-productization-boundary"));
+  assert.ok(checks.audit.includes("workspace-write-release-gate"));
   assert.ok(checks.audit.includes("strategy-router-execution-boundary"));
   assert.ok(checks.audit.includes("execution-profiles-boundary"));
   assert.ok(checks.audit.includes("policy-config-boundary"));

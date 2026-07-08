@@ -114,6 +114,11 @@ import {
   type StateSyncBoundaryAuditResult
 } from "./run-state-sync-boundary-audit.js";
 import {
+  collectWorkspaceWriteReleaseGateAuditInput,
+  reviewWorkspaceWriteReleaseGateAudit,
+  type WorkspaceWriteReleaseGateAuditResult
+} from "./run-workspace-write-release-gate-audit.js";
+import {
   collectAdmissionControlBoundaryAuditInput,
   reviewAdmissionControlBoundaryAudit,
   type AdmissionControlBoundaryAuditResult
@@ -364,6 +369,7 @@ const REQUIRED_CURRENT_AUDITS = [
   "approval-consumption-dispatch-boundary",
   "readonly-productization-boundary",
   "state-sync-boundary",
+  "workspace-write-release-gate",
   "admission-control-boundary",
   "delegation-policy-boundary",
   "execution-eligibility-boundary",
@@ -444,6 +450,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditInput {
   approvalConsumptionDispatchReview: ApprovalConsumptionDispatchBoundaryAuditResult;
   readonlyProductizationReview: ReadonlyProductizationBoundaryAuditResult;
   stateSyncReview: StateSyncBoundaryAuditResult;
+  workspaceWriteReleaseGateReview: WorkspaceWriteReleaseGateAuditResult;
   admissionControlReview: AdmissionControlBoundaryAuditResult;
   delegationPolicyReview: DelegationPolicyBoundaryAuditResult;
   executionEligibilityReview: ExecutionEligibilityBoundaryAuditResult;
@@ -521,6 +528,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     approvalConsumptionDispatchBoundaryConstrained: boolean;
     readonlyProductizationBoundaryConstrained: boolean;
     stateSyncBoundaryConstrained: boolean;
+    workspaceWriteReleaseGateBoundaryConstrained: boolean;
     admissionControlBoundaryConstrained: boolean;
     delegationPolicyBoundaryConstrained: boolean;
     executionEligibilityBoundaryConstrained: boolean;
@@ -599,6 +607,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     readonlyProductizationBoundaryMode:
       "local_readonly_productization_acceptance_gate_only";
     stateSyncBoundaryMode: "state_consistency_observation_gate_only";
+    workspaceWriteReleaseGateMode: "promotion_review_gate_only";
     admissionControlMode: "admission_status_and_requirement_derivation_only";
     delegationPolicyMode: "delegation_level_approval_requirement_and_recovery_filter_only";
     executionEligibilityMode: "admission_capability_permit_decision_only";
@@ -851,6 +860,14 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     stateSyncGitStateIsExecutionAuthorization: false;
     stateSyncCleanWorktreeIsProviderExecutionAuthorization: false;
     stateSyncPolicyV2IsExecutionAuthorization: false;
+    workspaceWriteReleaseGateIsWorkspaceWriteAuthorization: false;
+    workspaceWriteReleaseGateIsRealCodexCliAuthorization: false;
+    workspaceWriteReleaseGateIsProviderExecutionAuthorization: false;
+    workspaceWriteReleaseGateIsHostExecutorAuthorization: false;
+    workspaceWriteReleaseGateIsSubAgentRuntimeAuthorization: false;
+    workspaceWriteReleaseGateIsExternalWriteAuthorization: false;
+    workspaceWriteReleaseGateIsPushAuthorization: false;
+    workspaceWriteReleaseGateIsReleaseAuthorization: false;
     admissionControlAcceptedStatusIsExecutionAuthorization: false;
     admissionControlNeedsApprovalStatusIsApprovalGrant: false;
     admissionControlRejectedStatusIsRuntimeBlockExecution: false;
@@ -1316,6 +1333,13 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     totalStateSyncBoundaryExternalWriteCallsDuringAudit: 0;
     totalStateSyncBoundaryStateWritesDuringAudit: 0;
     totalStateSyncBoundaryRemoteWritesDuringAudit: 0;
+    totalWorkspaceWriteReleaseGateProviderExecuteCallsDuringAudit: 0;
+    totalWorkspaceWriteReleaseGateCodexCliCallsDuringAudit: 0;
+    totalWorkspaceWriteReleaseGateWorkspaceWriteCallsDuringAudit: 0;
+    totalWorkspaceWriteReleaseGateHostExecutorCallsDuringAudit: 0;
+    totalWorkspaceWriteReleaseGateSubAgentRuntimeCallsDuringAudit: 0;
+    totalWorkspaceWriteReleaseGateExternalWriteCallsDuringAudit: 0;
+    totalWorkspaceWriteReleaseGateEvidenceWritesDuringAudit: 0;
     totalAdmissionControlCallsDuringAudit: 0;
     totalAdmissionControlProviderExecuteCallsDuringAudit: 0;
     totalAdmissionControlCodexCliCallsDuringAudit: 0;
@@ -1557,6 +1581,7 @@ export async function collectExecutionBoundaryCurrentSurfaceAuditInput(
     approvalConsumptionDispatchInput,
     readonlyProductizationInput,
     stateSyncInput,
+    workspaceWriteReleaseGateInput,
     admissionControlInput,
     delegationPolicyInput,
     executionEligibilityInput,
@@ -1629,6 +1654,7 @@ export async function collectExecutionBoundaryCurrentSurfaceAuditInput(
     collectApprovalConsumptionDispatchBoundaryAuditInput(cwd),
     collectReadonlyProductizationBoundaryAuditInput(cwd),
     collectStateSyncBoundaryAuditInput(cwd),
+    collectWorkspaceWriteReleaseGateAuditInput(cwd),
     collectAdmissionControlBoundaryAuditInput(cwd),
     collectDelegationPolicyBoundaryAuditInput(cwd),
     collectExecutionEligibilityBoundaryAuditInput(cwd),
@@ -1736,6 +1762,8 @@ export async function collectExecutionBoundaryCurrentSurfaceAuditInput(
       reviewReadonlyProductizationBoundaryAudit(readonlyProductizationInput),
     stateSyncReview:
       reviewStateSyncBoundaryAudit(stateSyncInput),
+    workspaceWriteReleaseGateReview:
+      reviewWorkspaceWriteReleaseGateAudit(workspaceWriteReleaseGateInput),
     admissionControlReview:
       reviewAdmissionControlBoundaryAudit(admissionControlInput),
     delegationPolicyReview:
@@ -1896,6 +1924,8 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
       readonlyProductizationBoundaryConstrained(input),
     stateSyncBoundaryConstrained:
       stateSyncBoundaryConstrained(input),
+    workspaceWriteReleaseGateBoundaryConstrained:
+      workspaceWriteReleaseGateBoundaryConstrained(input),
     admissionControlBoundaryConstrained:
       admissionControlBoundaryConstrained(input),
     delegationPolicyBoundaryConstrained:
@@ -2032,6 +2062,8 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
         input.readonlyProductizationReview.summary.readonlyProductizationBoundaryMode,
       stateSyncBoundaryMode:
         input.stateSyncReview.summary.stateSyncBoundaryMode,
+      workspaceWriteReleaseGateMode:
+        input.workspaceWriteReleaseGateReview.summary.workspaceWriteReleaseGateMode,
       admissionControlMode: "admission_status_and_requirement_derivation_only",
       delegationPolicyMode: "delegation_level_approval_requirement_and_recovery_filter_only",
       executionEligibilityMode: "admission_capability_permit_decision_only",
@@ -2495,6 +2527,22 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
         input.stateSyncReview.summary.stateSyncCleanWorktreeIsProviderExecutionAuthorization,
       stateSyncPolicyV2IsExecutionAuthorization:
         input.stateSyncReview.summary.stateSyncPolicyV2IsExecutionAuthorization,
+      workspaceWriteReleaseGateIsWorkspaceWriteAuthorization:
+        input.workspaceWriteReleaseGateReview.summary.workspaceWriteReleaseGateIsWorkspaceWriteAuthorization,
+      workspaceWriteReleaseGateIsRealCodexCliAuthorization:
+        input.workspaceWriteReleaseGateReview.summary.workspaceWriteReleaseGateIsRealCodexCliAuthorization,
+      workspaceWriteReleaseGateIsProviderExecutionAuthorization:
+        input.workspaceWriteReleaseGateReview.summary.workspaceWriteReleaseGateIsProviderExecutionAuthorization,
+      workspaceWriteReleaseGateIsHostExecutorAuthorization:
+        input.workspaceWriteReleaseGateReview.summary.workspaceWriteReleaseGateIsHostExecutorAuthorization,
+      workspaceWriteReleaseGateIsSubAgentRuntimeAuthorization:
+        input.workspaceWriteReleaseGateReview.summary.workspaceWriteReleaseGateIsSubAgentRuntimeAuthorization,
+      workspaceWriteReleaseGateIsExternalWriteAuthorization:
+        input.workspaceWriteReleaseGateReview.summary.workspaceWriteReleaseGateIsExternalWriteAuthorization,
+      workspaceWriteReleaseGateIsPushAuthorization:
+        input.workspaceWriteReleaseGateReview.summary.workspaceWriteReleaseGateIsPushAuthorization,
+      workspaceWriteReleaseGateIsReleaseAuthorization:
+        input.workspaceWriteReleaseGateReview.summary.workspaceWriteReleaseGateIsReleaseAuthorization,
       admissionControlAcceptedStatusIsExecutionAuthorization:
         input.admissionControlReview.summary.acceptedStatusIsExecutionAuthorization,
       admissionControlNeedsApprovalStatusIsApprovalGrant:
@@ -3253,6 +3301,20 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
         input.stateSyncReview.summary.stateWritesDuringBoundaryAudit,
       totalStateSyncBoundaryRemoteWritesDuringAudit:
         input.stateSyncReview.summary.remoteWritesDuringBoundaryAudit,
+      totalWorkspaceWriteReleaseGateProviderExecuteCallsDuringAudit:
+        input.workspaceWriteReleaseGateReview.summary.providerExecuteCallsDuringAudit,
+      totalWorkspaceWriteReleaseGateCodexCliCallsDuringAudit:
+        input.workspaceWriteReleaseGateReview.summary.codexCliCallsDuringAudit,
+      totalWorkspaceWriteReleaseGateWorkspaceWriteCallsDuringAudit:
+        input.workspaceWriteReleaseGateReview.summary.workspaceWriteCallsDuringAudit,
+      totalWorkspaceWriteReleaseGateHostExecutorCallsDuringAudit:
+        input.workspaceWriteReleaseGateReview.summary.hostExecutorCallsDuringAudit,
+      totalWorkspaceWriteReleaseGateSubAgentRuntimeCallsDuringAudit:
+        input.workspaceWriteReleaseGateReview.summary.subAgentRuntimeCallsDuringAudit,
+      totalWorkspaceWriteReleaseGateExternalWriteCallsDuringAudit:
+        input.workspaceWriteReleaseGateReview.summary.externalWriteCallsDuringAudit,
+      totalWorkspaceWriteReleaseGateEvidenceWritesDuringAudit:
+        input.workspaceWriteReleaseGateReview.summary.evidenceWritesDuringAudit,
       totalAdmissionControlCallsDuringAudit:
         input.admissionControlReview.summary.admissionControlCallsDuringAudit,
       totalAdmissionControlProviderExecuteCallsDuringAudit:
@@ -3594,6 +3656,7 @@ export function formatExecutionBoundaryCurrentSurfaceAuditResult(
     `approval consumption dispatch mode: ${review.summary.approvalConsumptionDispatchMode}`,
     `read-only productization boundary mode: ${review.summary.readonlyProductizationBoundaryMode}`,
     `state-sync boundary mode: ${review.summary.stateSyncBoundaryMode}`,
+    `workspace-write release gate mode: ${review.summary.workspaceWriteReleaseGateMode}`,
     `admission control mode: ${review.summary.admissionControlMode}`,
     `delegation policy mode: ${review.summary.delegationPolicyMode}`,
     `execution eligibility mode: ${review.summary.executionEligibilityMode}`,
@@ -3834,6 +3897,14 @@ export function formatExecutionBoundaryCurrentSurfaceAuditResult(
     `state-sync git state is execution authorization: ${review.summary.stateSyncGitStateIsExecutionAuthorization}`,
     `state-sync clean worktree is provider execution authorization: ${review.summary.stateSyncCleanWorktreeIsProviderExecutionAuthorization}`,
     `state-sync policy v2 is execution authorization: ${review.summary.stateSyncPolicyV2IsExecutionAuthorization}`,
+    `workspace-write release gate is workspace-write authorization: ${review.summary.workspaceWriteReleaseGateIsWorkspaceWriteAuthorization}`,
+    `workspace-write release gate is real Codex CLI authorization: ${review.summary.workspaceWriteReleaseGateIsRealCodexCliAuthorization}`,
+    `workspace-write release gate is provider execution authorization: ${review.summary.workspaceWriteReleaseGateIsProviderExecutionAuthorization}`,
+    `workspace-write release gate is host executor authorization: ${review.summary.workspaceWriteReleaseGateIsHostExecutorAuthorization}`,
+    `workspace-write release gate is sub-agent runtime authorization: ${review.summary.workspaceWriteReleaseGateIsSubAgentRuntimeAuthorization}`,
+    `workspace-write release gate is external-write authorization: ${review.summary.workspaceWriteReleaseGateIsExternalWriteAuthorization}`,
+    `workspace-write release gate is push authorization: ${review.summary.workspaceWriteReleaseGateIsPushAuthorization}`,
+    `workspace-write release gate is release authorization: ${review.summary.workspaceWriteReleaseGateIsReleaseAuthorization}`,
     `Admission control accepted status is execution authorization: ${review.summary.admissionControlAcceptedStatusIsExecutionAuthorization}`,
     `Admission control needs_approval status is approval grant: ${review.summary.admissionControlNeedsApprovalStatusIsApprovalGrant}`,
     `Admission control rejected status is runtime block execution: ${review.summary.admissionControlRejectedStatusIsRuntimeBlockExecution}`,
@@ -4296,6 +4367,13 @@ export function formatExecutionBoundaryCurrentSurfaceAuditResult(
     `state-sync boundary external write calls during audit: ${review.summary.totalStateSyncBoundaryExternalWriteCallsDuringAudit}`,
     `state-sync boundary state writes during audit: ${review.summary.totalStateSyncBoundaryStateWritesDuringAudit}`,
     `state-sync boundary remote writes during audit: ${review.summary.totalStateSyncBoundaryRemoteWritesDuringAudit}`,
+    `workspace-write release gate provider execute calls during audit: ${review.summary.totalWorkspaceWriteReleaseGateProviderExecuteCallsDuringAudit}`,
+    `workspace-write release gate Codex CLI calls during audit: ${review.summary.totalWorkspaceWriteReleaseGateCodexCliCallsDuringAudit}`,
+    `workspace-write release gate workspace-write calls during audit: ${review.summary.totalWorkspaceWriteReleaseGateWorkspaceWriteCallsDuringAudit}`,
+    `workspace-write release gate host executor calls during audit: ${review.summary.totalWorkspaceWriteReleaseGateHostExecutorCallsDuringAudit}`,
+    `workspace-write release gate sub-agent runtime calls during audit: ${review.summary.totalWorkspaceWriteReleaseGateSubAgentRuntimeCallsDuringAudit}`,
+    `workspace-write release gate external write calls during audit: ${review.summary.totalWorkspaceWriteReleaseGateExternalWriteCallsDuringAudit}`,
+    `workspace-write release gate evidence writes during audit: ${review.summary.totalWorkspaceWriteReleaseGateEvidenceWritesDuringAudit}`,
     `Admission control calls during audit: ${review.summary.totalAdmissionControlCallsDuringAudit}`,
     `Admission control provider execute calls during audit: ${review.summary.totalAdmissionControlProviderExecuteCallsDuringAudit}`,
     `Admission control Codex CLI calls during audit: ${review.summary.totalAdmissionControlCodexCliCallsDuringAudit}`,
@@ -4547,6 +4625,7 @@ function allComponentAuditsPassed(
     && input.approvalConsumptionDispatchReview.status === "passed"
     && input.readonlyProductizationReview.status === "passed"
     && input.stateSyncReview.status === "passed"
+    && input.workspaceWriteReleaseGateReview.status === "passed"
     && input.admissionControlReview.status === "passed"
     && input.delegationPolicyReview.status === "passed"
     && input.executionEligibilityReview.status === "passed"
@@ -5657,6 +5736,36 @@ function stateSyncBoundaryConstrained(
     && summary.externalWriteCallsDuringBoundaryAudit === 0
     && summary.stateWritesDuringBoundaryAudit === 0
     && summary.remoteWritesDuringBoundaryAudit === 0;
+}
+
+function workspaceWriteReleaseGateBoundaryConstrained(
+  input: ExecutionBoundaryCurrentSurfaceAuditInput
+): boolean {
+  const summary = input.workspaceWriteReleaseGateReview.summary;
+
+  return input.workspaceWriteReleaseGateReview.status === "passed"
+    && summary.workspaceWriteReleaseGateMode === "promotion_review_gate_only"
+    && summary.permitV2Status === "schema_validation_consumption_only"
+    && summary.fakeCanaryStatus === "guarded_non_executing_validation_only"
+    && summary.realWorkspaceWriteDefault === "blocked"
+    && summary.generalWorkspaceWriteDefault === "blocked"
+    && summary.workspaceWriteReleaseGateIsWorkspaceWriteAuthorization === false
+    && summary.workspaceWriteReleaseGateIsRealCodexCliAuthorization === false
+    && summary.workspaceWriteReleaseGateIsProviderExecutionAuthorization === false
+    && summary.workspaceWriteReleaseGateIsHostExecutorAuthorization === false
+    && summary.workspaceWriteReleaseGateIsSubAgentRuntimeAuthorization === false
+    && summary.workspaceWriteReleaseGateIsExternalWriteAuthorization === false
+    && summary.workspaceWriteReleaseGateIsPushAuthorization === false
+    && summary.workspaceWriteReleaseGateIsReleaseAuthorization === false
+    && summary.releaseValidationIncludesFakeCanary === true
+    && summary.releaseValidationIncludesEvidenceCollection === true
+    && summary.providerExecuteCallsDuringAudit === 0
+    && summary.codexCliCallsDuringAudit === 0
+    && summary.workspaceWriteCallsDuringAudit === 0
+    && summary.hostExecutorCallsDuringAudit === 0
+    && summary.subAgentRuntimeCallsDuringAudit === 0
+    && summary.externalWriteCallsDuringAudit === 0
+    && summary.evidenceWritesDuringAudit === 0;
 }
 
 function admissionControlBoundaryConstrained(
@@ -7542,6 +7651,7 @@ function auditItselfIsNonExecuting(
     input.approvalConsumptionDispatchReview.summary;
   const readonlyProductization = input.readonlyProductizationReview.summary;
   const stateSync = input.stateSyncReview.summary;
+  const workspaceWriteReleaseGate = input.workspaceWriteReleaseGateReview.summary;
   const admissionControl = input.admissionControlReview.summary;
   const delegationPolicy = input.delegationPolicyReview.summary;
   const executionEligibility = input.executionEligibilityReview.summary;
@@ -8092,6 +8202,21 @@ function auditItselfIsNonExecuting(
     && stateSync.externalWriteCallsDuringBoundaryAudit === 0
     && stateSync.stateWritesDuringBoundaryAudit === 0
     && stateSync.remoteWritesDuringBoundaryAudit === 0
+    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsWorkspaceWriteAuthorization === false
+    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsRealCodexCliAuthorization === false
+    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsProviderExecutionAuthorization === false
+    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsHostExecutorAuthorization === false
+    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsSubAgentRuntimeAuthorization === false
+    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsExternalWriteAuthorization === false
+    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsPushAuthorization === false
+    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsReleaseAuthorization === false
+    && workspaceWriteReleaseGate.providerExecuteCallsDuringAudit === 0
+    && workspaceWriteReleaseGate.codexCliCallsDuringAudit === 0
+    && workspaceWriteReleaseGate.workspaceWriteCallsDuringAudit === 0
+    && workspaceWriteReleaseGate.hostExecutorCallsDuringAudit === 0
+    && workspaceWriteReleaseGate.subAgentRuntimeCallsDuringAudit === 0
+    && workspaceWriteReleaseGate.externalWriteCallsDuringAudit === 0
+    && workspaceWriteReleaseGate.evidenceWritesDuringAudit === 0
     && admissionControl.admissionControlCallsDuringAudit === 0
     && admissionControl.providerExecuteCallsDuringAudit === 0
     && admissionControl.codexCliCallsDuringAudit === 0
@@ -8855,6 +8980,7 @@ function outputSanitized(): boolean {
       approvalConsumptionDispatchBoundaryConstrained: true,
       readonlyProductizationBoundaryConstrained: true,
       stateSyncBoundaryConstrained: true,
+      workspaceWriteReleaseGateBoundaryConstrained: true,
       admissionControlBoundaryConstrained: true,
       delegationPolicyBoundaryConstrained: true,
       executionEligibilityBoundaryConstrained: true,
@@ -8941,6 +9067,7 @@ function outputSanitized(): boolean {
       readonlyProductizationBoundaryMode:
         "local_readonly_productization_acceptance_gate_only",
       stateSyncBoundaryMode: "state_consistency_observation_gate_only",
+      workspaceWriteReleaseGateMode: "promotion_review_gate_only",
       admissionControlMode: "admission_status_and_requirement_derivation_only",
       delegationPolicyMode: "delegation_level_approval_requirement_and_recovery_filter_only",
       executionEligibilityMode: "admission_capability_permit_decision_only",
@@ -9197,6 +9324,14 @@ function outputSanitized(): boolean {
       stateSyncGitStateIsExecutionAuthorization: false,
       stateSyncCleanWorktreeIsProviderExecutionAuthorization: false,
       stateSyncPolicyV2IsExecutionAuthorization: false,
+      workspaceWriteReleaseGateIsWorkspaceWriteAuthorization: false,
+      workspaceWriteReleaseGateIsRealCodexCliAuthorization: false,
+      workspaceWriteReleaseGateIsProviderExecutionAuthorization: false,
+      workspaceWriteReleaseGateIsHostExecutorAuthorization: false,
+      workspaceWriteReleaseGateIsSubAgentRuntimeAuthorization: false,
+      workspaceWriteReleaseGateIsExternalWriteAuthorization: false,
+      workspaceWriteReleaseGateIsPushAuthorization: false,
+      workspaceWriteReleaseGateIsReleaseAuthorization: false,
       admissionControlAcceptedStatusIsExecutionAuthorization: false,
       admissionControlNeedsApprovalStatusIsApprovalGrant: false,
       admissionControlRejectedStatusIsRuntimeBlockExecution: false,
@@ -9650,6 +9785,13 @@ function outputSanitized(): boolean {
       totalStateSyncBoundaryExternalWriteCallsDuringAudit: 0,
       totalStateSyncBoundaryStateWritesDuringAudit: 0,
       totalStateSyncBoundaryRemoteWritesDuringAudit: 0,
+      totalWorkspaceWriteReleaseGateProviderExecuteCallsDuringAudit: 0,
+      totalWorkspaceWriteReleaseGateCodexCliCallsDuringAudit: 0,
+      totalWorkspaceWriteReleaseGateWorkspaceWriteCallsDuringAudit: 0,
+      totalWorkspaceWriteReleaseGateHostExecutorCallsDuringAudit: 0,
+      totalWorkspaceWriteReleaseGateSubAgentRuntimeCallsDuringAudit: 0,
+      totalWorkspaceWriteReleaseGateExternalWriteCallsDuringAudit: 0,
+      totalWorkspaceWriteReleaseGateEvidenceWritesDuringAudit: 0,
       totalAdmissionControlCallsDuringAudit: 0,
       totalAdmissionControlProviderExecuteCallsDuringAudit: 0,
       totalAdmissionControlCodexCliCallsDuringAudit: 0,

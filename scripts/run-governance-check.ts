@@ -152,6 +152,7 @@ const GOVERNANCE_CHECKS: readonly GovernanceCheckDefinition[] = [
   auditCheck("workspace-write-real-canary-candidate", "scripts/run-workspace-write-real-canary-local-candidate-consistency.ts", "archive"),
   auditCheck("workspace-write-real-canary-sensitive-scan", "scripts/run-workspace-write-real-canary-sensitive-scan.ts", "archive"),
   auditCheck("workspace-write-real-canary-final-local", "scripts/run-workspace-write-real-canary-final-local-audit.ts", "archive"),
+  auditCheck("workspace-write-release-gate", "scripts/run-workspace-write-release-gate-audit.ts"),
   auditCheck("source-release-package-boundary", "scripts/run-source-release-package-boundary-audit.ts"),
   auditCheck("state-sync-boundary", "scripts/run-state-sync-boundary-audit.ts"),
   auditCheck("state-sync", "scripts/run-state-sync-audit.ts")
@@ -196,6 +197,7 @@ export function getValidationTierPlan(
     npmScript("canary", "canary", "Deterministic low-risk canary"),
     npmScript("canary:write", "canary:write", "Deterministic medium-risk canary"),
     npmScript("smoke:contract", "smoke:contract", "Host contract smoke without real CLI dependency"),
+    resolveGovernanceCheck("audit", "workspace-write-release-gate"),
     npmScript("evidence:collect", "evidence:collect", "Evidence manifest collection")
   ];
 }
