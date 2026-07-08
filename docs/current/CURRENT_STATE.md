@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `9b7d8110912a0e42113d5daa032bd95e01098b74ec326f8ca9dcdd431e5181bb`
+  `c9e01ae1570d47ac9948a7ec30ac9172ed4da07bdd40824e503fae422252128f`
 
 Source digest excluded paths:
 
@@ -242,6 +242,11 @@ Current repository governance status:
   `npm run governance -- audit workspace-write-real-canary-authorization-design`;
   it is design/pre-execution review only and does not authorize real
   workspace-write execution.
+- Archived future Codex CLI canary execution gate remains machine-checkable with
+  `npm run governance -- audit future-codex-cli-canary-execution-gate` when
+  explicitly selected from the historical registry; it requires packet-schema
+  acceptance, permit v2 plan/manifest validation, packet action/config binding,
+  and packet/permit binding before any later execution packet can be considered.
 - Real provider execution, real Codex CLI execution, secret changes, dependency
   changes, workflow changes, and direct `main` pushes remain outside normal
   display-only pruning work.

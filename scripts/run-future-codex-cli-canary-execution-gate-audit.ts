@@ -53,6 +53,10 @@ const REQUIRED_PRECONDITIONS = [
   "clean `main` worktree",
   "local `main` aligned with `origin/main`",
   "canary target file absent",
+  "authorization packet accepted by packet schema",
+  "permit v2 validated against plan and manifest",
+  "packet action bound to canary config",
+  "packet permit binding accepted",
   "controlled execution gate audit passed",
   "future canary packet checklist audit passed",
   "future canary authorization packet audit passed",
@@ -162,7 +166,7 @@ export async function collectFutureCodexCliCanaryExecutionGateAuditInput(
   const [gitStatusShort, branch, aheadBehind] = await Promise.all([
     git(["status", "--short"], cwd),
     git(["branch", "--show-current"], cwd),
-    git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd)
+    readFutureCodexCliCanaryExecutionGateAheadBehind(cwd)
   ]);
 
   return {
@@ -179,6 +183,21 @@ export async function collectFutureCodexCliCanaryExecutionGateAuditInput(
       await read(cwd, WORKSPACE_WRITE_PRE_EXECUTION_EVIDENCE),
     canaryFileExists: existsSync(join(cwd, DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE))
   };
+}
+
+export async function readFutureCodexCliCanaryExecutionGateAheadBehind(
+  cwd = process.cwd()
+): Promise<string> {
+  const upstreamExists = await gitSucceeds(
+    ["rev-parse", "--verify", "--quiet", "origin/main"],
+    cwd
+  );
+
+  if (!upstreamExists) {
+    return "0\t1";
+  }
+
+  return git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd);
 }
 
 export function reviewFutureCodexCliCanaryExecutionGateAudit(
@@ -284,6 +303,15 @@ async function git(args: string[], cwd: string): Promise<string> {
   return stdout;
 }
 
+async function gitSucceeds(args: string[], cwd: string): Promise<boolean> {
+  try {
+    await git(args, cwd);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function read(cwd: string, filePath: string): Promise<string> {
   return readFile(join(cwd, filePath), "utf8");
 }
@@ -336,12 +364,24 @@ function authorizationEvidenceIsValid(evidence: Record<string, unknown> | undefi
 function preExecutionEvidenceIsValid(evidence: Record<string, unknown> | undefined): boolean {
   return getString(evidence, ["mode"]) === "workspace-write-real-canary-pre-execution-local-only"
     && getBoolean(evidence, ["checks", "authorizationAccepted"]) === true
+    && getBoolean(evidence, ["checks", "authorizationPacketAccepted"]) === true
+    && getBoolean(evidence, ["checks", "permitV2Accepted"]) === true
+    && getBoolean(evidence, ["checks", "permitV2Approved"]) === true
+    && getBoolean(evidence, ["checks", "permitV2Validated"]) === true
+    && getBoolean(evidence, ["checks", "packetActionBoundToConfig"]) === true
+    && getBoolean(evidence, ["checks", "packetPermitBindingAccepted"]) === true
     && getBoolean(evidence, ["checks", "preExecutionGateReady"]) === true
+    && getBoolean(evidence, ["checks", "authorizationPacketFailureBlocksGate"]) === true
     && getBoolean(evidence, ["checks", "existingCanaryFileBlocksGate"]) === true
     && getString(evidence, ["summary", "providerId"]) === "codex-cli"
+    && getString(evidence, ["summary", "packetSchemaVersion"]) ===
+      "workspace-write-real-canary-authorization-packet.v1"
+    && getString(evidence, ["summary", "permitSchemaVersion"]) ===
+      "provider-workspace-write-execution-permit.v2"
     && getString(evidence, ["summary", "targetFile"]) === DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE
     && getString(evidence, ["summary", "sideEffectClass"]) === "workspace_write"
     && getString(evidence, ["summary", "sandbox"]) === "workspace-write"
+    && getString(evidence, ["summary", "authorizationPacketStatus"]) === "accepted"
     && getBoolean(evidence, ["summary", "pushDisallowed"]) === true
     && getBoolean(evidence, ["summary", "rollbackReady"]) === true
     && evidenceCountersAreZero(evidence);
