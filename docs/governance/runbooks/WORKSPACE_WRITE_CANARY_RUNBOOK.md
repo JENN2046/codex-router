@@ -21,8 +21,9 @@ Describe the current workspace-write canary boundary without authorizing a real
 workspace-write run by default.
 
 Workspace-write real canary remains experimental and blocked unless a fresh,
-exact authorization packet names the canary target, rollback plan, and evidence
-requirements.
+exact
+[workspace-write real canary authorization packet](../WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET.md)
+names the canary target, rollback plan, and evidence requirements.
 
 This runbook is not a permit. It describes the procedure that may be used only
 after the [Workspace-write Release Gate](../WORKSPACE_WRITE_RELEASE_GATE.md)
@@ -79,7 +80,8 @@ not by itself authorize a real Codex CLI workspace-write execution.
 1. Classify the requested action as fake canary, real bounded canary, or broader
    workspace-write.
 2. If the request is broader than a bounded canary, stop.
-3. Verify the exact authorization packet before real execution.
+3. Verify the exact workspace-write real canary authorization packet before
+   real execution.
 4. Verify permit v2 bindings: expiration, nonce, consumption record, policy
    hash, manifest hash, principal hash, provider execution plan hash, target
    allowlist, and operator authorization id.

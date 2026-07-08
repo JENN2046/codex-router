@@ -30,6 +30,7 @@ const CORE_GOVERNANCE_DOCS = [
   "docs/governance/THREAT_MODEL.md",
   "docs/governance/CHANGE_CONTROL.md",
   "docs/governance/WORKSPACE_WRITE_RELEASE_GATE.md",
+  "docs/governance/WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET.md",
   "docs/governance/DOCS_AUTOMATION_SPEC.md",
   "docs/governance/inventory/DOCUMENT_INVENTORY.md",
   "docs/governance/inventory/DOCUMENT_BASELINE.md",
@@ -44,6 +45,7 @@ const ACTIVE_FRONTMATTER_DOCS = [
   "docs/governance/THREAT_MODEL.md",
   "docs/governance/CHANGE_CONTROL.md",
   "docs/governance/WORKSPACE_WRITE_RELEASE_GATE.md",
+  "docs/governance/WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET.md",
   "docs/governance/DOCS_AUTOMATION_SPEC.md"
 ] as const;
 
@@ -56,7 +58,8 @@ const README_LINK_DOCS = [
   "docs/governance/EVIDENCE_POLICY.md",
   "docs/governance/THREAT_MODEL.md",
   "docs/governance/CHANGE_CONTROL.md",
-  "docs/governance/WORKSPACE_WRITE_RELEASE_GATE.md"
+  "docs/governance/WORKSPACE_WRITE_RELEASE_GATE.md",
+  "docs/governance/WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET.md"
 ] as const;
 
 const RUNBOOK_REQUIRED_HEADINGS = [
@@ -92,12 +95,14 @@ export const RELEASE_GATE_EXECUTION_BOUNDARY_MARKERS = [
 export const GOVERNANCE_README_RUNNER_ENTRY_MARKERS = [
   "npm run governance -- audit execution-boundary-current-surface",
   "npm run governance -- audit workspace-write-release-gate",
+  "npm run governance -- audit workspace-write-real-canary-authorization-design",
   "npm run governance -- audit source-release-package-boundary"
 ] as const;
 
 export const CURRENT_STATE_RUNNER_ENTRY_MARKERS = [
   "npm run governance -- audit execution-boundary-current-surface",
   "npm run governance -- audit workspace-write-release-gate",
+  "npm run governance -- audit workspace-write-real-canary-authorization-design",
   "npm run governance -- audit source-release-package-boundary",
   "Run the execution-boundary current surface before claiming source/release\npackage separation."
 ] as const;

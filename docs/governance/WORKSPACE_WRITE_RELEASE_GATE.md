@@ -107,7 +107,8 @@ npm run canary:write
 flow. It is not general authorization for real host execution.
 
 Real workspace-write execution requires the exact
-[workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md)
+[workspace-write real canary authorization packet](WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET.md),
+[workspace-write canary runbook](runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md),
 and a fresh explicit authorization packet.
 
 ## Evidence Contract
