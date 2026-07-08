@@ -1,5 +1,8 @@
 import { z } from "zod";
 import {
+  capabilityScopeToCanonicalString
+} from "../../capability/src/index.js";
+import {
   hashProviderExecutionPlannerObject,
   ProviderExecutionPlanSchema,
   type ProviderExecutionPlan
@@ -24,6 +27,7 @@ import {
 } from "../../governance-internal-state-manager/src/index.js";
 import {
   parseTaskEnvelope,
+  type TaskClass,
   type TaskEnvelopeInput
 } from "../../contracts/src/index.js";
 import {
@@ -46,7 +50,8 @@ import {
   validateProviderExecutionPermitForPlan,
   type ExecutorExecutionPlan,
   type ProviderExecutionPermit,
-  type ProviderManifest
+  type ProviderManifest,
+  type ProviderSideEffectClass
 } from "../../provider-core/src/index.js";
 import {
   summarizeProviderSelectionResult,
@@ -55,6 +60,13 @@ import {
 } from "../../provider-registry/src/index.js";
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
+const GovernanceTaskClassHints = new Set<TaskClass>([
+  "read_only",
+  "small_edit",
+  "engineering",
+  "high_risk",
+  "release_external_action"
+]);
 
 export const ControlledReadOnlyDispatchPreflightChecksSchema = z.object({
   injectedSpawner: z.literal(true),
@@ -229,6 +241,7 @@ export function reviewControlledReadOnlyProviderDispatch(
   const selection = input.providerRegistry.select({
     providerId: providerExecutionPlan.providerId,
     kind: "executor",
+    requiredCapabilities: providerExecutionPlan.requiredCapabilities,
     requiredSandboxProfile: providerExecutionPlan.sandboxProfile,
     requiredSideEffectClass: "read_only",
     ...(providerExecutionPlan.providerManifestHash !== undefined
@@ -248,6 +261,13 @@ export function reviewControlledReadOnlyProviderDispatch(
       run,
       principal,
       policyDecision,
+      executorPlan
+    }),
+    ...collectExecutorPlanInvariantReasons({
+      providerExecutionPlan,
+      executorPlan
+    }),
+    ...collectExecutorApprovalPolicyReasons({
       executorPlan
     }),
     ...collectDispatchPreflightReasons({
@@ -386,6 +406,9 @@ function collectPlanReasons(input: {
   if (providerExecutionPlan.providerKind !== "executor") {
     reasons.push(`controlled_readonly_dispatch_requires_executor_provider:${providerExecutionPlan.providerKind}`);
   }
+  if (providerExecutionPlan.providerManifestHash === undefined) {
+    reasons.push("controlled_readonly_dispatch_provider_manifest_hash_required");
+  }
   if (providerExecutionPlan.sideEffectClass !== "read_only") {
     reasons.push(`controlled_readonly_dispatch_requires_read_only_side_effect:${providerExecutionPlan.sideEffectClass}`);
   }
@@ -398,23 +421,49 @@ function collectPlanReasons(input: {
   if (policyDecision.approval.required !== false) {
     reasons.push("controlled_readonly_dispatch_requires_approval_policy_never");
   }
+  if (providerExecutionPlan.requiredApprovals.length > 0) {
+    reasons.push("controlled_readonly_dispatch_provider_plan_required_approvals_present");
+  }
   if (providerExecutionPlan.taskId !== task.taskId) {
     reasons.push(`controlled_readonly_dispatch_task_mismatch:${providerExecutionPlan.taskId}:${task.taskId}`);
+  }
+  const expectedTaskHash = hashProviderExecutionPlannerObject(task);
+  if (providerExecutionPlan.taskHash === undefined) {
+    reasons.push("controlled_readonly_dispatch_task_hash_required");
+  } else if (providerExecutionPlan.taskHash !== expectedTaskHash) {
+    reasons.push("controlled_readonly_dispatch_task_hash_mismatch");
   }
   if (providerExecutionPlan.runId !== run.runId || run.taskId !== task.taskId) {
     reasons.push("controlled_readonly_dispatch_run_binding_mismatch");
   }
+  if (run.status !== "running") {
+    reasons.push(`controlled_readonly_dispatch_run_not_running:${run.status}`);
+  }
+  if (policyDecision.taskId !== task.taskId) {
+    reasons.push(`controlled_readonly_dispatch_policy_task_mismatch:${policyDecision.taskId}:${task.taskId}`);
+  }
+  if (
+    run.policyDecisionId !== undefined &&
+    run.policyDecisionId !== policyDecision.decisionId
+  ) {
+    reasons.push(
+      `controlled_readonly_dispatch_run_policy_decision_mismatch:${run.policyDecisionId}:${policyDecision.decisionId}`
+    );
+  }
   if (providerExecutionPlan.principalId !== principal.principalId) {
     reasons.push("controlled_readonly_dispatch_principal_mismatch");
+  }
+  const expectedPrincipalHash = hashProviderExecutionPlannerObject(principal);
+  if (providerExecutionPlan.principalHash === undefined) {
+    reasons.push("controlled_readonly_dispatch_principal_hash_required");
+  } else if (providerExecutionPlan.principalHash !== expectedPrincipalHash) {
+    reasons.push("controlled_readonly_dispatch_principal_hash_mismatch");
   }
   if (providerExecutionPlan.policyDecisionHash !== hashProviderExecutionPlannerObject(policyDecision)) {
     reasons.push("controlled_readonly_dispatch_policy_hash_mismatch");
   }
   if (executorPlan.providerExecutionPlanHash !== hashProviderExecutionPlannerObject(providerExecutionPlan)) {
     reasons.push("controlled_readonly_dispatch_executor_plan_hash_mismatch");
-  }
-  if (executorPlan.providerId !== providerExecutionPlan.providerId) {
-    reasons.push("controlled_readonly_dispatch_executor_provider_mismatch");
   }
   if (executorPlan.sideEffectClass !== "read_only") {
     reasons.push(`controlled_readonly_dispatch_executor_requires_read_only_side_effect:${executorPlan.sideEffectClass}`);
@@ -425,8 +474,130 @@ function collectPlanReasons(input: {
   if (executorPlan.approvalRequired !== false) {
     reasons.push("controlled_readonly_dispatch_executor_requires_approval_policy_never");
   }
+  reasons.push(...collectProviderPlanPolicyInvariantReasons({
+    providerExecutionPlan,
+    policyDecision
+  }));
 
   return uniqueStrings(reasons);
+}
+
+function collectProviderPlanPolicyInvariantReasons(input: {
+  providerExecutionPlan: ProviderExecutionPlan;
+  policyDecision: PolicyDecision;
+}): string[] {
+  const reasons: string[] = [];
+  const expectedSandboxProfile = input.policyDecision.execution.sandbox;
+  const expectedRequiredCapabilities = input.policyDecision.capabilities.map(
+    capabilityScopeToCanonicalString
+  );
+  const expectedSideEffectClass = resolvePolicySideEffectClass(input.policyDecision);
+
+  if (
+    hashProviderExecutionPlannerObject(input.providerExecutionPlan.sandboxProfile)
+    !== hashProviderExecutionPlannerObject(expectedSandboxProfile)
+  ) {
+    reasons.push("controlled_readonly_dispatch_provider_plan_sandbox_profile_policy_mismatch");
+  }
+
+  if (!equalStringSets(
+    input.providerExecutionPlan.requiredCapabilities,
+    expectedRequiredCapabilities
+  )) {
+    reasons.push("controlled_readonly_dispatch_provider_plan_required_capabilities_policy_mismatch");
+  }
+
+  if (input.providerExecutionPlan.sideEffectClass !== expectedSideEffectClass) {
+    reasons.push(
+      `controlled_readonly_dispatch_provider_plan_side_effect_class_policy_mismatch:${input.providerExecutionPlan.sideEffectClass}:${expectedSideEffectClass}`
+    );
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function collectExecutorPlanInvariantReasons(input: {
+  providerExecutionPlan: ProviderExecutionPlan;
+  executorPlan: ExecutorExecutionPlan;
+}): string[] {
+  const reasons: string[] = [];
+  const { providerExecutionPlan, executorPlan } = input;
+
+  if (executorPlan.taskId !== providerExecutionPlan.taskId) {
+    reasons.push(
+      `controlled_readonly_dispatch_executor_plan_task_mismatch:${executorPlan.taskId}:${providerExecutionPlan.taskId}`
+    );
+  }
+  if (executorPlan.taskHash !== providerExecutionPlan.taskHash) {
+    reasons.push("controlled_readonly_dispatch_executor_plan_task_hash_mismatch");
+  }
+  if (executorPlan.runId !== providerExecutionPlan.runId) {
+    reasons.push(
+      `controlled_readonly_dispatch_executor_plan_run_mismatch:${executorPlan.runId}:${providerExecutionPlan.runId}`
+    );
+  }
+  if (executorPlan.principalId !== providerExecutionPlan.principalId) {
+    reasons.push("controlled_readonly_dispatch_executor_plan_principal_mismatch");
+  }
+  if (executorPlan.principalHash !== providerExecutionPlan.principalHash) {
+    reasons.push("controlled_readonly_dispatch_executor_plan_principal_hash_mismatch");
+  }
+  if (executorPlan.providerId !== providerExecutionPlan.providerId) {
+    reasons.push(
+      `controlled_readonly_dispatch_executor_plan_provider_mismatch:${executorPlan.providerId}:${providerExecutionPlan.providerId}`
+    );
+  }
+  const expectedProviderExecutionPlanHash =
+    hashProviderExecutionPlannerObject(providerExecutionPlan);
+  if (executorPlan.providerExecutionPlanHash !== expectedProviderExecutionPlanHash) {
+    reasons.push("controlled_readonly_dispatch_executor_plan_provider_execution_plan_hash_mismatch");
+  }
+  if (
+    providerExecutionPlan.providerManifestHash !== undefined &&
+    executorPlan.providerManifestHash !== providerExecutionPlan.providerManifestHash
+  ) {
+    reasons.push("controlled_readonly_dispatch_executor_plan_provider_manifest_hash_mismatch");
+  }
+  if (executorPlan.policyDecisionHash !== providerExecutionPlan.policyDecisionHash) {
+    reasons.push("controlled_readonly_dispatch_executor_plan_policy_decision_hash_mismatch");
+  }
+  if (executorPlan.inputHash !== providerExecutionPlan.inputHash) {
+    reasons.push("controlled_readonly_dispatch_executor_plan_input_hash_mismatch");
+  }
+  if (!equalStringSets(
+    executorPlan.requiredCapabilities,
+    providerExecutionPlan.requiredCapabilities
+  )) {
+    reasons.push("controlled_readonly_dispatch_executor_plan_required_capabilities_mismatch");
+  }
+  if (
+    hashProviderExecutionPlannerObject(executorPlan.sandboxProfile)
+    !== hashProviderExecutionPlannerObject(providerExecutionPlan.sandboxProfile)
+  ) {
+    reasons.push("controlled_readonly_dispatch_executor_plan_sandbox_profile_mismatch");
+  }
+  if (executorPlan.sideEffectClass !== providerExecutionPlan.sideEffectClass) {
+    reasons.push(
+      `controlled_readonly_dispatch_executor_plan_side_effect_class_mismatch:${executorPlan.sideEffectClass}:${providerExecutionPlan.sideEffectClass}`
+    );
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function collectExecutorApprovalPolicyReasons(input: {
+  executorPlan: ExecutorExecutionPlan;
+}): string[] {
+  const approvalPolicy = readCodexCliApprovalPolicy(input.executorPlan);
+  if (approvalPolicy === "never") {
+    return [];
+  }
+
+  return [
+    approvalPolicy === undefined
+      ? "controlled_readonly_dispatch_executor_plan_approval_policy_missing"
+      : `controlled_readonly_dispatch_executor_plan_requires_approval_policy_never:${approvalPolicy}`
+  ];
 }
 
 function collectDispatchPreflightReasons(input: {
@@ -450,6 +621,9 @@ function collectDispatchPreflightReasons(input: {
   }
   if (input.dispatchPreflight.environmentPreflight.blockingReasons.length > 0) {
     reasons.push("controlled_readonly_dispatch_environment_preflight_blocked");
+  }
+  if (containsForbiddenExecutionMaterial(input.dispatchPreflight.environmentPreflight)) {
+    reasons.push("controlled_readonly_dispatch_preflight_metadata_not_sanitized");
   }
   if (input.dispatchPreflight.environmentPreflight.artifactRef !== expectedPreflight.artifactRef) {
     reasons.push("controlled_readonly_dispatch_environment_preflight_artifact_ref_mismatch");
@@ -477,6 +651,18 @@ function collectGovernanceReasons(input: {
   }
   if (input.taskEnvelope.taskId !== input.task.taskId) {
     reasons.push("controlled_readonly_dispatch_task_envelope_mismatch");
+  }
+  const expectedTaskEnvelope = createControlledReadOnlyDispatchTaskEnvelope(
+    input.task
+  );
+  const actualTaskEnvelopeHash = hashProviderExecutionPlannerObject(
+    input.taskEnvelope
+  );
+  const expectedTaskEnvelopeHash = hashProviderExecutionPlannerObject(
+    expectedTaskEnvelope
+  );
+  if (actualTaskEnvelopeHash !== expectedTaskEnvelopeHash) {
+    reasons.push("controlled_readonly_dispatch_task_envelope_hash_mismatch");
   }
   if (
     input.governanceState.phase === "recovery" ||
@@ -577,6 +763,173 @@ function createEnvironmentPreflight(input: {
     checks: input.checks,
     blockingReasons: []
   });
+}
+
+function createControlledReadOnlyDispatchTaskEnvelope(task: Task) {
+  const repoContext = task.workspace ?? task.repo;
+  const taskClassHint = resolveGovernanceTaskClassHint(task);
+
+  return parseTaskEnvelope({
+    schemaVersion: "task-envelope.v1",
+    taskId: task.taskId,
+    source: task.source,
+    intent: task.intent ?? {
+      summary: task.title,
+      requestedAction: task.requestedAction,
+      successCriteria: [...task.successCriteria],
+      outOfScope: [...task.outOfScope]
+    },
+    repoContext: {
+      ...(repoContext.root !== undefined ? { repoRoot: repoContext.root } : {}),
+      ...(repoContext.branch !== undefined ? { branch: repoContext.branch } : {}),
+      ...(repoContext.worktreeClean !== undefined
+        ? { worktreeClean: repoContext.worktreeClean }
+        : {}),
+      ...(repoContext.protectedBranch !== undefined
+        ? { protectedBranch: repoContext.protectedBranch }
+        : {})
+    },
+    target: {
+      branches: [...task.target.branches],
+      files: [...task.target.files],
+      modules: [...task.target.modules]
+    },
+    constraints: {
+      ...(typeof task.constraints.requiresNetwork === "boolean"
+        ? { requiresNetwork: task.constraints.requiresNetwork }
+        : {}),
+      ...(typeof task.constraints.explicitOwnership === "boolean"
+        ? { explicitOwnership: task.constraints.explicitOwnership }
+        : {}),
+      ...(typeof task.constraints.allowBackgroundAutomation === "boolean"
+        ? { allowBackgroundAutomation: task.constraints.allowBackgroundAutomation }
+        : {})
+    },
+    hints: {
+      ...(taskClassHint !== undefined ? { taskClassHint } : {}),
+      riskHints: [...task.hints.riskHints],
+      tags: [...task.hints.tags],
+      provenance: task.hints.provenance.map((entry) => ({
+        ...entry,
+        field: entry.field === "taskClass" ? "taskClassHint" : entry.field
+      }))
+    }
+  });
+}
+
+function resolveGovernanceTaskClassHint(task: Task): TaskClass | undefined {
+  return toGovernanceTaskClassHint(task.hints.taskClass);
+}
+
+function toGovernanceTaskClassHint(value: string | undefined): TaskClass | undefined {
+  if (value === undefined || !GovernanceTaskClassHints.has(value as TaskClass)) {
+    return undefined;
+  }
+
+  return value as TaskClass;
+}
+
+function readCodexCliApprovalPolicy(plan: ExecutorExecutionPlan): string | undefined {
+  const metadata = plan.metadata.codexCliProvider;
+  if (!isRecord(metadata)) {
+    return undefined;
+  }
+
+  const codexCliPlan = metadata.codexCliPlan;
+  if (!isRecord(codexCliPlan) || typeof codexCliPlan.approvalPolicy !== "string") {
+    return undefined;
+  }
+
+  return codexCliPlan.approvalPolicy;
+}
+
+function equalStringSets(left: readonly string[], right: readonly string[]): boolean {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+
+  if (
+    leftSet.size !== left.length ||
+    rightSet.size !== right.length ||
+    leftSet.size !== rightSet.size
+  ) {
+    return false;
+  }
+
+  return [...leftSet].every((value) => rightSet.has(value));
+}
+
+function resolvePolicySideEffectClass(policyDecision: PolicyDecision): ProviderSideEffectClass {
+  const sandboxProfile = policyDecision.execution.sandbox;
+
+  if (hasProtectedRemoteSideEffect(policyDecision)) {
+    return "protected_remote";
+  }
+
+  if (hasExternalSideEffect(policyDecision)) {
+    return "external_side_effects";
+  }
+
+  if (hasSecretAccess(policyDecision)) {
+    return "secret_access";
+  }
+
+  if (hasLocalCommand(policyDecision)) {
+    return "local_command";
+  }
+
+  if (sandboxProfile.mode === "workspace-write") {
+    return "workspace_write";
+  }
+
+  return "read_only";
+}
+
+function hasProtectedRemoteSideEffect(policyDecision: PolicyDecision): boolean {
+  return policyDecision.legacy.toolAccess === "protected_remote"
+    || policyDecision.capabilities.some((scope) => (
+      scope.kind === "external"
+      && scope.resource === "protected_remote"
+      && scope.access !== "read"
+    ));
+}
+
+function hasExternalSideEffect(policyDecision: PolicyDecision): boolean {
+  return policyDecision.capabilities.some((scope) => (
+    scope.kind === "external"
+    && scope.access !== "read"
+  ));
+}
+
+function hasSecretAccess(policyDecision: PolicyDecision): boolean {
+  return policyDecision.capabilities.some((scope) => scope.kind === "secret");
+}
+
+function hasLocalCommand(policyDecision: PolicyDecision): boolean {
+  return policyDecision.capabilities.some((scope) => (
+    (scope.kind === "tool" || scope.kind === "process")
+    && scope.access === "execute"
+  ));
+}
+
+function containsForbiddenExecutionMaterial(value: unknown): boolean {
+  const serialized = typeof value === "string" ? value : JSON.stringify(value);
+  if (typeof serialized !== "string") {
+    return false;
+  }
+
+  return [
+    /\brequestedaction\b/i,
+    /\braw\s+(?:command|task envelope|env|token|patch|prompt|stdout|stderr|output)\b/i,
+    /openai_api_key/i,
+    /\bsk-(?:proj-)?[a-z0-9_-]{4,}\b/i,
+    /\bbearer\s+[a-z0-9._~+/=-]+/i,
+    /["'](?:prompt|args|argv|stdout|stderr|environment|env|processenv|token|secret|patch|authorization|apikey|api_key|access[-_]?token|client[-_]?secret|output|command|workdir|cwd)["']\s*:/i,
+    /\b(?:prompt|stdout|stderr|processenv|authorization|apikey|api_key|access[-_]?token|client[-_]?secret)\b/i
+  ].some((pattern) => pattern.test(serialized));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function uniqueStrings(values: string[]): string[] {

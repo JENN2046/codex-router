@@ -105,6 +105,34 @@ test("controlled provider dispatcher blocks preflight artifact drift before runn
   assert.equal(fixture.provider.calls.execute, 0);
 });
 
+test("controlled provider dispatcher blocks unsafe preflight metadata before runner", async () => {
+  const fixture = createFixture();
+  const dispatchPreflight = createControlledReadOnlyProviderDispatchPreflight({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    environmentChecks: {
+      versionProbe: "raw stdout contained provider probe output"
+    }
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    dispatchPreflight,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_preflight_metadata_not_sanitized"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
 test("controlled provider dispatcher blocks permit drift before runner", () => {
   const fixture = createFixture();
   const review = reviewControlledReadOnlyProviderDispatch({
@@ -127,6 +155,433 @@ test("controlled provider dispatcher blocks permit drift before runner", () => {
     )
   );
   assert.equal(fixture.provider.calls.planExecution, 1);
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher blocks stale task content before runner", async () => {
+  const fixture = createFixture();
+  const replacedTask = TaskSchema.parse({
+    ...fixture.task,
+    requestedAction: "Inspect a different repository state with the same task id."
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    task: replacedTask,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes("controlled_readonly_dispatch_task_hash_mismatch")
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher blocks stale principal content before runner", async () => {
+  const fixture = createFixture();
+  const replacedPrincipal = PrincipalSchema.parse({
+    ...fixture.principal,
+    displayName: "Edited Principal With Same Id"
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    principal: replacedPrincipal,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes("controlled_readonly_dispatch_principal_hash_mismatch")
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher blocks stale task envelope content before runner", async () => {
+  const fixture = createFixture();
+  const replacedTaskEnvelope = parseTaskEnvelope({
+    ...fixture.taskEnvelope,
+    intent: {
+      ...fixture.taskEnvelope.intent,
+      requestedAction: "Inspect a different envelope with the same task id."
+    }
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    taskEnvelope: replacedTaskEnvelope,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_task_envelope_hash_mismatch"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher blocks non-running runs before runner", async () => {
+  const fixture = createFixture();
+  const completedRun = RunSchema.parse({
+    ...fixture.run,
+    status: "succeeded",
+    completedAt: now
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    run: completedRun,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes("controlled_readonly_dispatch_run_not_running:succeeded")
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher blocks provider plans requiring approvals before runner", async () => {
+  const fixture = createFixture();
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse({
+    ...fixture.providerExecutionPlan,
+    requiredApprovals: ["approval:manual-review"]
+  });
+  const executorPlan = parseExecutorExecutionPlan({
+    ...fixture.executorPlan,
+    providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan)
+  });
+  const permit = createApprovedProviderExecutionPermit({
+    plan: executorPlan,
+    manifest: fixture.provider.manifest,
+    permitId: `permit-${executorPlan.planId}-provider-approvals`,
+    issuedAt: now
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    providerExecutionPlan,
+    executorPlan,
+    permit,
+    dispatchPreflight: createControlledReadOnlyProviderDispatchPreflight({
+      providerExecutionPlan
+    }),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_provider_plan_required_approvals_present"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher blocks policy-derived provider plan drift before runner", async () => {
+  const fixture = createFixture();
+  const policyRequiringLocalCommand = PolicyDecisionSchema.parse({
+    ...fixture.policyDecision,
+    capabilities: [
+      CapabilityScopeSchema.parse({
+        kind: "process",
+        resource: "codex-cli",
+        access: "execute"
+      })
+    ]
+  });
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse({
+    ...fixture.providerExecutionPlan,
+    policyDecisionHash: hashProviderExecutionPlannerObject(policyRequiringLocalCommand)
+  });
+  const executorPlan = parseExecutorExecutionPlan({
+    ...fixture.executorPlan,
+    providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+    policyDecisionHash: providerExecutionPlan.policyDecisionHash
+  });
+  const permit = createApprovedProviderExecutionPermit({
+    plan: executorPlan,
+    manifest: fixture.provider.manifest,
+    permitId: `permit-${executorPlan.planId}-policy-drift`,
+    issuedAt: now
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    policyDecision: policyRequiringLocalCommand,
+    providerExecutionPlan,
+    executorPlan,
+    permit,
+    dispatchPreflight: createControlledReadOnlyProviderDispatchPreflight({
+      providerExecutionPlan
+    }),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_provider_plan_required_capabilities_policy_mismatch"
+    )
+  );
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_provider_plan_side_effect_class_policy_mismatch:read_only:local_command"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher blocks providers missing required capabilities before runner", async () => {
+  const manifestWithoutReadCapability = createFakeCodexCliManifest({
+    capabilities: ["execution.plan", "execution.validate", "execution.execute"]
+  });
+  const fixture = createFixture({ manifest: manifestWithoutReadCapability });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes("provider_selection_missing_capability:fs.read:workspace/**")
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher accepts runtime provider entries without duplicate attestation registration", async () => {
+  const fixture = createFixture();
+  const providerRegistry = new ProviderRegistry();
+  providerRegistry.registerProvider(fixture.provider.manifest, fixture.provider);
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    providerRegistry,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "runner_completed");
+  assert.equal(result.runnerInvoked, true);
+  assert.equal(result.executeInvoked, true);
+});
+
+test("controlled provider dispatcher blocks policy task and run binding drift before runner", async () => {
+  const fixture = createFixture();
+  const otherPolicy = PolicyDecisionSchema.parse({
+    ...fixture.policyDecision,
+    decisionId: "decision_controlled_provider_dispatcher_other",
+    taskId: "task_controlled_provider_dispatcher_other"
+  });
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse({
+    ...fixture.providerExecutionPlan,
+    policyDecisionHash: hashProviderExecutionPlannerObject(otherPolicy)
+  });
+  const executorPlan = parseExecutorExecutionPlan({
+    ...fixture.executorPlan,
+    providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+    policyDecisionHash: providerExecutionPlan.policyDecisionHash
+  });
+  const permit = createApprovedProviderExecutionPermit({
+    plan: executorPlan,
+    manifest: fixture.provider.manifest,
+    permitId: `permit-${executorPlan.planId}-policy-binding`,
+    issuedAt: now
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    policyDecision: otherPolicy,
+    providerExecutionPlan,
+    executorPlan,
+    permit,
+    dispatchPreflight: createControlledReadOnlyProviderDispatchPreflight({
+      providerExecutionPlan
+    }),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_policy_task_mismatch:task_controlled_provider_dispatcher_other:task_controlled_provider_dispatcher_001"
+    )
+  );
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_run_policy_decision_mismatch:decision_controlled_provider_dispatcher_001:decision_controlled_provider_dispatcher_other"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher blocks provider plans without manifest binding before runner", async () => {
+  const fixture = createFixture();
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse({
+    ...fixture.providerExecutionPlan,
+    providerManifestHash: undefined
+  });
+  const executorPlan = parseExecutorExecutionPlan({
+    ...fixture.executorPlan,
+    providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+    providerManifestHash: undefined
+  });
+  const permit = createApprovedProviderExecutionPermit({
+    plan: executorPlan,
+    manifest: fixture.provider.manifest,
+    permitId: `permit-${executorPlan.planId}-manifestless`,
+    issuedAt: now
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    providerExecutionPlan,
+    executorPlan,
+    permit,
+    dispatchPreflight: createControlledReadOnlyProviderDispatchPreflight({
+      providerExecutionPlan
+    }),
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_provider_manifest_hash_required"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher blocks stale executor plan fields before runner", async () => {
+  const fixture = createFixture();
+  const alteredExecutorPlan = parseExecutorExecutionPlan({
+    ...fixture.executorPlan,
+    taskId: "task_controlled_provider_dispatcher_other",
+    runId: "run_controlled_provider_dispatcher_other",
+    taskHash: "0".repeat(64),
+    principalHash: "0".repeat(64),
+    inputHash: "0".repeat(64)
+  });
+  const permit = createApprovedProviderExecutionPermit({
+    plan: alteredExecutorPlan,
+    manifest: fixture.provider.manifest,
+    permitId: `permit-${alteredExecutorPlan.planId}-altered`,
+    issuedAt: now
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    executorPlan: alteredExecutorPlan,
+    permit,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_executor_plan_task_hash_mismatch"
+    )
+  );
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_executor_plan_run_mismatch:run_controlled_provider_dispatcher_other:run_controlled_provider_dispatcher_001"
+    )
+  );
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_executor_plan_principal_hash_mismatch"
+    )
+  );
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_executor_plan_input_hash_mismatch"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher blocks stale executor approval policy before runner", async () => {
+  const fixture = createFixture();
+  const alteredExecutorPlan = parseExecutorExecutionPlan({
+    ...fixture.executorPlan,
+    metadata: {
+      codexCliProvider: {
+        schemaVersion: "codex-cli-provider-executor-plan.v1",
+        codexCliPlan: {
+          approvalPolicy: "on-request"
+        }
+      }
+    }
+  });
+  const permit = createApprovedProviderExecutionPermit({
+    plan: alteredExecutorPlan,
+    manifest: fixture.provider.manifest,
+    permitId: `permit-${alteredExecutorPlan.planId}-approval`,
+    issuedAt: now
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    executorPlan: alteredExecutorPlan,
+    permit,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_executor_plan_requires_approval_policy_never:on-request"
+    )
+  );
   assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
   assert.equal(fixture.provider.calls.execute, 0);
 });
@@ -192,8 +647,12 @@ type Fixture = {
   taskEnvelope: TaskEnvelope;
 };
 
-function createFixture(): Fixture {
-  const provider = createFakeCodexCliProvider();
+function createFixture(options: {
+  manifest?: ProviderManifest;
+} = {}): Fixture {
+  const provider = createFakeCodexCliProvider({
+    ...(options.manifest !== undefined ? { manifest: options.manifest } : {})
+  });
   const providerRegistry = createRegistry(provider);
   const task = createTask();
   const principal = PrincipalSchema.parse(validPrincipal);
@@ -467,14 +926,19 @@ function createFakeCodexCliProvider(options: {
   };
 }
 
-function createFakeCodexCliManifest(): ProviderManifest {
+function createFakeCodexCliManifest(overrides: Partial<ProviderManifest> = {}): ProviderManifest {
   return parseProviderManifest({
     schemaVersion: "provider-manifest.v1",
     providerId: "codex-cli",
     kind: "executor",
     displayName: "Fake Codex CLI",
     version: "0.1.0",
-    capabilities: ["execution.plan", "execution.validate", "execution.execute"],
+    capabilities: [
+      "execution.plan",
+      "execution.validate",
+      "execution.execute",
+      "fs.read:workspace/**"
+    ],
     requiredConfig: {
       keys: [],
       optionalKeys: []
@@ -489,7 +953,8 @@ function createFakeCodexCliManifest(): ProviderManifest {
     supportedSandboxProfiles: [createReadOnlySandboxProfile()],
     supportedSideEffectClasses: ["read_only"],
     enabled: true,
-    metadata: {}
+    metadata: {},
+    ...overrides
   });
 }
 

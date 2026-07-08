@@ -51,6 +51,7 @@ test("codex cli provider manifest is valid", () => {
 
   assert.equal(manifest.providerId, "codex-cli");
   assert.equal(manifest.kind, "executor");
+  assert.equal(manifest.capabilities.includes("fs.read:workspace/**"), true);
   assert.equal(providerSupportsSideEffectClass(manifest, "read_only"), true);
   assert.equal(providerSupportsSideEffectClass(manifest, "workspace_write"), true);
   assert.equal(providerSupportsSideEffectClass(manifest, "local_command"), true);

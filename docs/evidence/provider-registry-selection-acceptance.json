@@ -22,8 +22,8 @@
   "summary": {
     "providerId": "codex-cli",
     "kind": "executor",
-    "manifestHash": "fb6c7a17b6da1986983a06a3c8e7d4fc2992674baab0ce84ee5816b988b4012b",
-    "capabilityCount": 3,
+    "manifestHash": "c20adb087ee6a1d5c6aa53ccf43bd9e3fe57512cd7f8acfc3550702b29cb65a2",
+    "capabilityCount": 4,
     "sandboxProfileCount": 2,
     "sideEffectClassCount": 3
   },

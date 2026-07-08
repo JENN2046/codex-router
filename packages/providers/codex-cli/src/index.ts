@@ -208,7 +208,8 @@ export const codexCliProviderManifest = parseProviderManifest({
   capabilities: [
     "execution.plan",
     "execution.validate",
-    "codex-cli-host.plan"
+    "codex-cli-host.plan",
+    "fs.read:workspace/**"
   ],
   requiredConfig: {
     keys: [],

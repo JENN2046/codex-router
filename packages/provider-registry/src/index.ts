@@ -561,7 +561,8 @@ export function selectProviderFromRegistry(
   registry: ProviderRegistry,
   request: ProviderSelectionRequest
 ): ProviderSelectionResult {
-  const entry = registry.get(request.providerId);
+  const entry = registry.get(request.providerId)
+    ?? providerAttestationEntryFromRegistryProvider(registry, request.providerId);
   if (entry === undefined) {
     return {
       selected: false,
@@ -751,6 +752,42 @@ function collectProviderSelectionRejectionReasons(
   }
 
   return uniqueStrings(reasons);
+}
+
+function providerAttestationEntryFromRegistryProvider(
+  registry: ProviderRegistry,
+  providerId: string
+): ProviderRegistryAttestationEntry | undefined {
+  const providerEntry = registry.getProvider(providerId);
+  if (providerEntry === undefined) {
+    return undefined;
+  }
+
+  return providerAttestationEntryFromManifest(
+    providerEntry.manifest,
+    "provider-registry-runtime-entry"
+  );
+}
+
+function providerAttestationEntryFromManifest(
+  manifest: ProviderManifest,
+  registeredAt: string
+): ProviderRegistryAttestationEntry {
+  const attestation = createProviderAttestation(manifest, registeredAt);
+  return {
+    providerId: manifest.providerId,
+    kind: manifest.kind,
+    displayName: manifest.displayName,
+    version: manifest.version,
+    enabled: manifest.enabled,
+    manifestHash: attestation.manifestHash,
+    capabilities: [...attestation.capabilities],
+    securityBoundary: structuredClone(attestation.securityBoundary) as ProviderSecurityBoundary,
+    supportedSandboxProfiles: structuredClone(attestation.supportedSandboxProfiles) as SandboxProfile[],
+    supportedSideEffectClasses: [...attestation.supportedSideEffectClasses],
+    attestation: structuredClone(attestation) as ProviderAttestation,
+    registeredAt
+  };
 }
 
 function manifestFromAttestationEntry(entry: ProviderRegistryAttestationEntry): ProviderManifest {
