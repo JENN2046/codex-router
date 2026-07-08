@@ -612,6 +612,22 @@ test("state sync audit accepts policy v2 local main content attestations", async
   assert.equal(review.checks.structuredTransitionAllowed, true);
 });
 
+test("state sync audit accepts policy v2 local main content attestations without observed repository id", async () => {
+  const review = reviewStateSyncAudit(await createPolicyV2LocalMainInput({
+    repositoryId: "",
+    stateSyncClaimText: stateSyncPolicyV2ClaimText({
+      repositoryId: "123456"
+    })
+  }));
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+  assert.equal(review.summary.claimSource, "structured");
+  assert.equal(review.summary.observation.eventName, "local");
+  assert.equal(review.summary.observation.repositoryId, "");
+  assert.equal(review.checks.structuredTransitionAllowed, true);
+});
+
 test("state sync audit accepts policy v2 pull request head attestations", async () => {
   const review = reviewStateSyncAudit(await createPolicyV2PullRequestInput());
 
