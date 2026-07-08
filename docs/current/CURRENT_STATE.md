@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `46d7eda47423b44d8371ad36a8fb3ddf8344e75f8c0d99035cd1782c018d18a7`
+  `9896b7a300611a73c013784ed15d3b955eea881996f3ed1e43c686e7865cc485`
 
 Source digest excluded paths:
 
@@ -60,7 +60,14 @@ Source digest excluded paths:
 - Governance docs map: `docs/governance/README.md`
 - Validation policy: `docs/validation-tiers.md`
 - Current state audit: `npm run governance -- audit state-sync`
+- Execution boundary current surface:
+  `npm run governance -- audit execution-boundary-current-surface`
+- Source/release package boundary:
+  `npm run governance -- audit source-release-package-boundary`
 - Governance runner discovery: `npm run governance -- list`
+
+Run the execution-boundary current surface before claiming source/release
+package separation.
 
 ## Current Scope
 
@@ -203,6 +210,17 @@ Current repository governance status:
 - Controlled read-only execution evidence binding is recorded in
   `docs/governance/PR_23C_EXECUTION_EVIDENCE_BINDING.md`; it strengthens
   sanitized refs and hashes without authorizing broader execution.
+- The execution-boundary current surface records
+  `narrow_readonly_provider_dispatch_without_boundary_inheritance`: read-only
+  provider dispatch does not inherit into host executor authorization, read-only
+  provider dispatch does not inherit into sub-agent runtime authorization,
+  read-only provider dispatch does not inherit into workspace-write
+  authorization, and read-only provider dispatch does not inherit into release
+  authorization. The same lattice does not promote real Codex CLI
+  authorization or external-write authorization.
+  Codex CLI host does not authorize host executor or sub-agent runtime;
+  sub-agent runtime does not invoke Codex CLI or provider execution; host
+  executor does not execute provider or sub-agent runtime.
 - Phase 6 read-only provider permit lifecycle hardening is recorded in
   `docs/governance/PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md`;
   the current controlled read-only acceptance covers expiration, nonce, replay,
@@ -222,12 +240,12 @@ Validation recorded for source commit `content digest only`:
 Current validation posture:
 
 - non-`main` PR branch validation should use `npm run validate:daily`,
-  targeted `npm test` / `npm run build` when warranted, display sync checks,
-  and GitHub CI's `pull_request` State Sync Audit or an explicit local
-  pull-request context simulation;
-- bare `npm run validate:pr` includes the local state-sync audit tier and is
-  only appropriate on local `main` or when the state-sync audit has an explicit
-  PR event context;
+  targeted `npm test` / `npm run build` when warranted, the execution-boundary
+  current surface audit, display sync checks, and GitHub CI's `pull_request`
+  State Sync Audit or an explicit local pull-request context simulation;
+- bare `npm run validate:pr` includes the local execution-boundary audit and
+  local state-sync audit tier, and is only appropriate on local `main` or when
+  the state-sync audit has an explicit PR event context;
 - runtime, package, workflow, dependency, or provider changes require their
   own targeted tests and broader validation.
 
@@ -252,7 +270,29 @@ Current allowed-by-default behavior is local and non-executing unless a specific
 task and approval gate says otherwise. The controlled provider execution
 baseline remains documented at
 `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`, with the
-current audit entry point `npm run governance -- audit controlled-provider-execution-taskbook-review`.
+current static boundary entry point
+`npm run governance -- audit controlled-provider-execution-taskbook-review-boundary`.
+The deeper `controlled-provider-execution-taskbook-review` audit remains an
+explicit main/clean-context review gate.
+The state-sync current static boundary entry point is
+`npm run governance -- audit state-sync-boundary`. The deeper `state-sync`
+audit remains the PR/local state consistency gate and observes branch, commit,
+divergence, clean-worktree, repository identity, source-tree digest, and
+structured record facts at runtime; it does not authorize provider execute,
+real Codex CLI, workspace-write, host executor, sub-agent runtime, external
+write, evidence refresh, push, or release.
+The capability taxonomy escalation policy current static boundary entry point is
+`npm run governance -- audit capability-taxonomy-escalation-policy-boundary`.
+The deeper `capability-taxonomy-escalation-policy` audit remains an explicit
+main/clean-context taxonomy and evidence review gate.
+The approval consumption dispatch matrix current static boundary entry point is
+`npm run governance -- audit approval-consumption-dispatch-matrix-boundary`.
+The deeper `approval-consumption-dispatch-matrix` audit remains an explicit
+main/clean-context matrix review gate.
+The read-only productization current static boundary entry point is
+`npm run governance -- audit readonly-productization-boundary`. The deeper
+`readonly-productization` audit remains an explicit main/clean-context
+productization acceptance gate.
 Phase 6 now records the PR-23A runtime-hardening baseline at
 `docs/governance/PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md`;
 that baseline sequences future work but does not authorize real provider,

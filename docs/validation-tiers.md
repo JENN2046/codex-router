@@ -24,6 +24,7 @@ npm run typecheck
 npm test
 npm run build
 npm run docs:governance
+npm run governance -- audit execution-boundary-current-surface
 ```
 
 State-sync for non-`main` PR branches should run through GitHub CI's
@@ -43,13 +44,21 @@ npm run validate:pr
 - `npm test`
 - `npm run build`
 - `npm run docs:governance`
+- `npm run governance -- audit execution-boundary-current-surface`
 - `npm run governance -- audit state-sync`
 
-`validate:pr` includes the local state-sync audit. On an ordinary non-`main` PR
-branch, run typecheck/tests/build locally and let GitHub CI run the
-`pull_request` State Sync Audit, or run an explicit local pull-request context
-simulation. Do not treat a bare local state-sync audit on a non-`main` branch as
-the PR state-sync gate.
+`validate:pr` includes the local execution-boundary current surface audit and
+the local state-sync audit. On an ordinary non-`main` PR branch, run
+typecheck/tests/build and the execution-boundary audit locally, then let GitHub
+CI run the `pull_request` State Sync Audit, or run an explicit local
+pull-request context simulation. Do not treat a bare local state-sync audit on a
+non-`main` branch as the PR state-sync gate.
+
+The execution-boundary current surface audit records
+`narrow_readonly_provider_dispatch_without_boundary_inheritance`: read-only provider dispatch does not inherit into host executor authorization, read-only provider dispatch does not inherit into sub-agent runtime authorization, read-only provider dispatch does not inherit into workspace-write authorization, and read-only provider dispatch does not inherit into release authorization.
+Codex CLI host does not authorize host executor or sub-agent runtime; sub-agent
+runtime does not invoke Codex CLI or provider execution; host executor does not
+execute provider or sub-agent runtime.
 
 See [Release Gate Matrix](governance/RELEASE_GATE_MATRIX.md) for the current
 branch/main/release split.
@@ -81,6 +90,7 @@ operator checks without scanning the full `package.json` script list.
 ```bash
 npm run governance -- list
 npm run governance -- list --all
+npm run governance -- audit execution-boundary-current-surface
 npm run governance -- audit state-sync
 npm run governance -- acceptance readonly-chain --check
 npm run governance -- acceptance controlled-readonly-provider-execution --check

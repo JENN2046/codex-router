@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import {
+  MCP_TOOL_PROVIDER_INVOKE_DISABLED,
   McpServerRefSchema,
   createFakeMcpToolProvider,
   createMcpToolProviderSkeleton,
@@ -339,7 +340,7 @@ test("protocol-mcp provider skeleton invoke is disabled", async () => {
   assert.equal(await provider.getTool(manifest.toolId), undefined);
   await assert.rejects(
     async () => provider.invoke(plan, {}),
-    /mcp_tool_provider_invoke_disabled/
+    new RegExp(MCP_TOOL_PROVIDER_INVOKE_DISABLED)
   );
 });
 
@@ -398,7 +399,7 @@ test("protocol-mcp fake server exposes descriptors for local integration without
   assert.equal((plan.metadata.mcp as Record<string, unknown>).liveServerConnection, false);
   await assert.rejects(
     async () => provider.invoke(plan, { dryRun: true }),
-    /mcp_tool_provider_invoke_disabled/
+    new RegExp(MCP_TOOL_PROVIDER_INVOKE_DISABLED)
   );
 });
 

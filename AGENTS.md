@@ -51,6 +51,14 @@ Out of scope unless Jenn explicitly authorizes:
 
 "Real Codex CLI execution" means invoking Codex CLI as a runtime target or provider under test. It does not prohibit the current coding agent from editing, testing, committing, or safely delivering repository changes.
 
+Current execution-boundary invariant:
+
+* "Here, you can do anything" means initiative, judgment, and local repository delivery. It does not mean bypassing execution boundaries.
+* Codex CLI host does not authorize host executor or sub-agent runtime.
+* sub-agent runtime does not invoke Codex CLI or provider execution.
+* host executor does not execute provider or sub-agent runtime.
+* read-only provider dispatch does not inherit into host executor authorization, sub-agent runtime authorization, workspace-write authorization, or release authorization.
+
 ---
 
 ## 2. Applicable Global Protocol

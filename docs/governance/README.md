@@ -185,7 +185,74 @@ npm run governance -- list
 npm run governance -- list --all
 npm run docs:governance
 npm run governance -- audit state-sync
+npm run governance -- audit state-sync-boundary
+npm run governance -- audit controlled-provider-execution-taskbook-boundary
+npm run governance -- audit controlled-provider-execution-taskbook-review-boundary
 npm run governance -- audit controlled-provider-execution-taskbook-review
+npm run governance -- audit strategy-router-execution-boundary
+npm run governance -- audit execution-profiles-boundary
+npm run governance -- audit policy-config-boundary
+npm run governance -- audit capability-taxonomy-boundary
+npm run governance -- audit capability-taxonomy-escalation-policy-boundary
+npm run governance -- audit routing-engine-boundary
+npm run governance -- audit recovery-control-orchestration-boundary
+npm run governance -- audit runtime-control-boundary
+npm run governance -- audit operator-action-executor-gate-boundary
+npm run governance -- audit codex-cli-host-boundary
+npm run governance -- audit public-api-execution-boundary
+npm run governance -- audit agent-os-local-runtime-boundary
+npm run governance -- audit agent-os-mcp-server-manifest-boundary
+npm run governance -- audit protocol-mcp-provider-skeleton-boundary
+npm run governance -- audit protocol-a2a-remote-provider-skeleton-boundary
+npm run governance -- audit agent-os-sdk-boundary
+npm run governance -- audit agent-os-cli-boundary
+npm run governance -- audit agent-os-app-server-boundary
+npm run governance -- audit agent-os-public-surfaces-boundary
+npm run governance -- audit codex-provider-execution-boundary
+npm run governance -- audit preflight-boundary
+npm run governance -- audit approval-permit-boundary
+npm run governance -- audit approval-gate-boundary
+npm run governance -- audit approval-consumption-dispatch-matrix-boundary
+npm run governance -- audit approval-consumption-dispatch-boundary
+npm run governance -- audit readonly-productization-boundary
+npm run governance -- audit admission-control-boundary
+npm run governance -- audit delegation-policy-boundary
+npm run governance -- audit execution-eligibility-boundary
+npm run governance -- audit execution-observation-boundary
+npm run governance -- audit governance-failure-reducer-boundary
+npm run governance -- audit task-graph-boundary
+npm run governance -- audit scheduler-boundary
+npm run governance -- audit execution-planner-boundary
+npm run governance -- audit provider-registry-boundary
+npm run governance -- audit provider-execution-runner-boundary
+npm run governance -- audit provider-core-execution-primitives-boundary
+npm run governance -- audit tool-invocation-planner-boundary
+npm run governance -- audit desktop-agent-strategy-boundary
+npm run governance -- audit desktop-decision-runner-boundary
+npm run governance -- audit final-host-locator-boundary
+npm run governance -- audit host-dispatcher-provider-boundary
+npm run governance -- audit codex-desktop-bridge-boundary
+npm run governance -- audit codex-desktop-live-host-boundary
+npm run governance -- audit codex-memory-mcp-client-boundary
+npm run governance -- audit codex-memory-host-client-boundary
+npm run governance -- audit desktop-host-client-boundary
+npm run governance -- audit desktop-live-adapter-dispatch-boundary
+npm run governance -- audit host-client-example-boundary
+npm run governance -- audit target-host-embedding-boundary
+npm run governance -- audit host-executor-boundary
+npm run governance -- audit host-executor-taskbook-boundary
+npm run governance -- audit host-client-executor-review-boundary
+npm run governance -- audit host-executor-receipt-boundary
+npm run governance -- audit agent-backed-recovery-executor-boundary
+npm run governance -- audit agent-executor-adapter-taskbook-boundary
+npm run governance -- audit agent-executor-adapter-review-boundary
+npm run governance -- audit agent-executor-adapter-sandbox-boundary
+npm run governance -- audit agent-task-control-taskbook-boundary
+npm run governance -- audit agent-task-control-review-boundary
+npm run governance -- audit agent-task-control-sandbox-boundary
+npm run governance -- audit sub-agent-runtime-boundary
+npm run governance -- audit execution-boundary-current-surface
+npm run governance -- audit source-release-package-boundary
 npm run governance -- acceptance readonly-chain --check
 npm run governance -- acceptance controlled-readonly-provider-execution --check
 npm run governance -- operator readonly
@@ -195,6 +262,12 @@ Default `list` output stays focused on current/core checks. Use `--all` only
 when deliberately browsing archived one-off audit and acceptance commands.
 Acceptance checks refresh their committed evidence by default when they pass;
 use `--check` for a no-write local review pass.
+
+The `execution-boundary-current-surface` audit also records
+`narrow_readonly_provider_dispatch_without_boundary_inheritance`: read-only provider dispatch does not inherit into host executor authorization, read-only provider dispatch does not inherit into sub-agent runtime authorization, read-only provider dispatch does not inherit into workspace-write authorization, and read-only provider dispatch does not inherit into release authorization.
+Codex CLI host does not authorize host executor or sub-agent runtime; sub-agent
+runtime does not invoke Codex CLI or provider execution; host executor does not
+execute provider or sub-agent runtime.
 
 ## Historical Evidence
 
