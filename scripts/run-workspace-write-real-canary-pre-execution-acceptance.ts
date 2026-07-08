@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { SandboxProfileSchema, type SandboxProfile } from "../packages/kernel-contracts/src/index.js";
 import {
-  createApprovedWorkspaceWriteProviderExecutionPermit,
+  createApprovedWorkspaceWriteProviderExecutionPermitV2,
   ExecutorExecutionPlanSchema,
   hashProviderManifest,
   ProviderManifestSchema,
@@ -21,7 +21,9 @@ import {
   evaluateWorkspaceWriteCanaryReadiness,
   evaluateWorkspaceWritePatchGuard,
   evaluateWorkspaceWriteRealCanaryAuthorization,
+  evaluateWorkspaceWriteRealCanaryAuthorizationPacket,
   evaluateWorkspaceWriteRealCanaryPreExecutionGate,
+  type WorkspaceWriteRealCanaryAuthorizationPacketV1,
   type WorkspaceWriteRealCanaryConfig,
   type WorkspaceWriteRealCanaryConfigEnv,
   type WorkspaceWriteRealCanaryConfigInput
@@ -44,8 +46,15 @@ export interface WorkspaceWriteRealCanaryPreExecutionAcceptanceEvidence {
   taskId: string;
   checks: {
     authorizationAccepted: boolean;
+    authorizationPacketAccepted: boolean;
+    permitV2Accepted: boolean;
+    permitV2Approved: boolean;
+    permitV2Validated: boolean;
+    packetActionBoundToConfig: boolean;
+    packetPermitBindingAccepted: boolean;
     canaryReadinessReady: boolean;
     preExecutionGateReady: boolean;
+    authorizationPacketFailureBlocksGate: boolean;
     authorizationFailureBlocksGate: boolean;
     readinessFailureBlocksGate: boolean;
     existingCanaryFileBlocksGate: boolean;
@@ -61,10 +70,13 @@ export interface WorkspaceWriteRealCanaryPreExecutionAcceptanceEvidence {
     manifestHash: string;
     planId: string;
     permitId: string;
+    packetSchemaVersion: "workspace-write-real-canary-authorization-packet.v1";
+    permitSchemaVersion: "provider-workspace-write-execution-permit.v2";
     targetFile: string;
     sideEffectClass: "workspace_write";
     sandbox: "workspace-write";
     authorizationStatus: "authorized" | "blocked";
+    authorizationPacketStatus: "accepted" | "blocked";
     readinessStatus: "ready" | "blocked";
     gateStatus: "ready" | "blocked";
     pushDisallowed: boolean;
@@ -91,24 +103,30 @@ export async function runWorkspaceWriteRealCanaryPreExecutionAcceptance(
   const generatedAt = options.generatedAt ?? DEFAULT_GENERATED_AT;
   const canaryConfig = resolveCanaryConfig(options);
   const manifest = createProviderManifest();
-  const plan = createWorkspaceWriteCanaryPlan(canaryConfig);
+  const plan = createWorkspaceWriteCanaryPlan(canaryConfig, manifest);
   const canaryFileExistsBefore = existsSync(canaryConfig.targetFile);
-  const permit = createApprovedWorkspaceWriteProviderExecutionPermit({
+  const operatorAuthorizationId = "operator_auth_workspace_write_real_canary_pre_execution_acceptance";
+  const beforeCommit = "abc123def456";
+  const authorizationPacket = createAuthorizationPacket(operatorAuthorizationId);
+  const permit = createApprovedWorkspaceWriteProviderExecutionPermitV2({
     plan,
     manifest,
     approvalStatus: "approved",
-    operatorAuthorizationId: "operator_auth_workspace_write_real_canary_pre_execution_acceptance",
+    operatorAuthorizationId,
     targetFiles: [canaryConfig.targetFile],
     maxChangedFiles: 1,
     maxDiffLines: 2,
     rollbackRequired: true,
+    rollback: {
+      beforeCommit
+    },
     protectedBranchForbidden: true,
     dirtyWorktreeForbidden: true,
     repositoryState: {
-      branch: canaryConfig.branch,
+      branch: "codex/workspace-write-real-canary-pre-execution",
       protectedBranch: false,
       worktreeClean: true,
-      headCommit: "abc123def456"
+      headCommit: beforeCommit
     },
     issuedAt: generatedAt
   });
@@ -119,7 +137,7 @@ export async function runWorkspaceWriteRealCanaryPreExecutionAcceptance(
   const rollbackEvidence = createWorkspaceWriteRollbackPlanEvidence({
     permit,
     guardResult,
-    beforeCommit: "abc123def456",
+    beforeCommit,
     generatedAt
   });
   const readinessReady = evaluateWorkspaceWriteCanaryReadiness({
@@ -160,24 +178,53 @@ export async function runWorkspaceWriteRealCanaryPreExecutionAcceptance(
     rollbackRequired: true,
     pushAuthorized: false
   });
+  const authorizationPacketReady = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket,
+    permit,
+    plan,
+    manifest,
+    now: generatedAt,
+    canaryConfig
+  });
+  const authorizationPacketBlocked = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: {
+      ...authorizationPacket,
+      pushAuthorized: true
+    },
+    permit,
+    plan,
+    manifest,
+    now: generatedAt,
+    canaryConfig
+  });
   const gateReady = evaluateWorkspaceWriteRealCanaryPreExecutionGate({
     authorization: authorizationReady,
     readiness: readinessReady,
+    authorizationPacket: authorizationPacketReady,
+    canaryFileExists: false
+  });
+  const authorizationPacketBlockedGate = evaluateWorkspaceWriteRealCanaryPreExecutionGate({
+    authorization: authorizationReady,
+    readiness: readinessReady,
+    authorizationPacket: authorizationPacketBlocked,
     canaryFileExists: false
   });
   const authorizationBlockedGate = evaluateWorkspaceWriteRealCanaryPreExecutionGate({
     authorization: authorizationBlocked,
     readiness: readinessReady,
+    authorizationPacket: authorizationPacketReady,
     canaryFileExists: false
   });
   const readinessBlockedGate = evaluateWorkspaceWriteRealCanaryPreExecutionGate({
     authorization: authorizationReady,
     readiness: readinessBlocked,
+    authorizationPacket: authorizationPacketReady,
     canaryFileExists: false
   });
   const existingFileBlockedGate = evaluateWorkspaceWriteRealCanaryPreExecutionGate({
     authorization: authorizationReady,
     readiness: readinessReady,
+    authorizationPacket: authorizationPacketReady,
     canaryFileExists: true
   });
   const counters = {
@@ -202,8 +249,18 @@ export async function runWorkspaceWriteRealCanaryPreExecutionAcceptance(
     taskId: "workspace-write-real-canary-pre-execution-acceptance",
     checks: {
       authorizationAccepted: authorizationReady.status === "authorized",
+      authorizationPacketAccepted: authorizationPacketReady.status === "accepted",
+      permitV2Accepted: authorizationPacketReady.summary.permitV2Accepted,
+      permitV2Approved: authorizationPacketReady.summary.permitApproved,
+      permitV2Validated: authorizationPacketReady.summary.permitV2ValidationPassed,
+      packetActionBoundToConfig: authorizationPacketReady.summary.allowedActionMatched,
+      packetPermitBindingAccepted: gateReady.summary.packetPermitBindingAccepted,
       canaryReadinessReady: readinessReady.status === "ready",
       preExecutionGateReady: gateReady.status === "ready",
+      authorizationPacketFailureBlocksGate: authorizationPacketBlockedGate.status === "blocked"
+        && authorizationPacketBlockedGate.reasons.includes(
+          "workspace_write_real_canary_pre_execution_authorization_packet_blocked"
+        ),
       authorizationFailureBlocksGate: authorizationBlockedGate.status === "blocked"
         && authorizationBlockedGate.reasons.includes(
           "workspace_write_real_canary_pre_execution_authorization_blocked"
@@ -227,10 +284,13 @@ export async function runWorkspaceWriteRealCanaryPreExecutionAcceptance(
       manifestHash: hashProviderManifest(manifest),
       planId: plan.planId,
       permitId: permit.permitId,
+      packetSchemaVersion: authorizationPacket.schemaVersion,
+      permitSchemaVersion: permit.schemaVersion,
       targetFile: canaryConfig.targetFile,
       sideEffectClass: "workspace_write",
       sandbox: "workspace-write",
       authorizationStatus: authorizationReady.status,
+      authorizationPacketStatus: authorizationPacketReady.status,
       readinessStatus: readinessReady.status,
       gateStatus: gateReady.status,
       pushDisallowed: gateReady.summary.pushDisallowed,
@@ -238,6 +298,7 @@ export async function runWorkspaceWriteRealCanaryPreExecutionAcceptance(
     },
     counters,
     blockingReasons: uniqueStrings([
+      ...authorizationPacketBlockedGate.reasons,
       ...authorizationBlockedGate.reasons,
       ...readinessBlockedGate.reasons,
       ...existingFileBlockedGate.reasons
@@ -312,7 +373,8 @@ function createProviderManifest(): ProviderManifest {
 }
 
 function createWorkspaceWriteCanaryPlan(
-  canaryConfig: WorkspaceWriteRealCanaryConfig
+  canaryConfig: WorkspaceWriteRealCanaryConfig,
+  manifest: ProviderManifest
 ): ExecutorExecutionPlan {
   return ExecutorExecutionPlanSchema.parse({
     schemaVersion: "executor-execution-plan.v1",
@@ -322,7 +384,11 @@ function createWorkspaceWriteCanaryPlan(
     taskId: "workspace-write-real-canary-pre-execution-acceptance",
     providerId: "codex-cli",
     inputHash: "a".repeat(64),
+    providerExecutionPlanHash: "c".repeat(64),
+    providerManifestHash: hashProviderManifest(manifest),
     policyDecisionHash: "policy_hash_workspace_write_real_canary_pre_execution_acceptance",
+    principalId: "principal_workspace_write_real_canary_pre_execution_acceptance",
+    principalHash: "d".repeat(64),
     requiredCapabilities: [`fs.write:${canaryConfig.targetFile}`],
     approvalRequired: true,
     sandboxProfile: createSandboxProfile(
@@ -336,6 +402,39 @@ function createWorkspaceWriteCanaryPlan(
       preExecutionOnly: true
     }
   });
+}
+
+function createAuthorizationPacket(
+  operatorAuthorizationId: string
+): WorkspaceWriteRealCanaryAuthorizationPacketV1 {
+  return {
+    schemaVersion: "workspace-write-real-canary-authorization-packet.v1",
+    authorizationIntent: "workspace_write_real_canary",
+    authorizationScope: "single_local_canary_write_only",
+    operatorAuthorizationId,
+    providerId: "codex-cli",
+    targetFile: "tmp/codex-cli-write-canary.txt",
+    allowedAction: "one bounded local canary write",
+    sideEffectClass: "workspace_write",
+    sandbox: "workspace-write",
+    maxChangedFiles: 1,
+    maxDiffLines: 2,
+    rollbackRequired: true,
+    canaryFileAbsentBeforeExecution: true,
+    branchPolicy: "non_main_non_protected_branch_only",
+    worktreeCleanRequired: true,
+    beforeCommitRequired: true,
+    permitV2Required: true,
+    fakeCanaryV2Required: true,
+    releaseGateRequired: true,
+    pushAuthorized: false,
+    releaseAuthorized: false,
+    tagAuthorized: false,
+    deploymentAuthorized: false,
+    packagePublishAuthorized: false,
+    externalWriteAuthorized: false,
+    secretMutationAuthorized: false
+  };
 }
 
 function createSandboxProfile(
@@ -416,6 +515,8 @@ async function main(): Promise<void> {
 
   console.log("Workspace-write real canary pre-execution acceptance");
   console.log(`authorization accepted: ${evidence.checks.authorizationAccepted}`);
+  console.log(`authorization packet accepted: ${evidence.checks.authorizationPacketAccepted}`);
+  console.log(`permit v2 accepted: ${evidence.checks.permitV2Accepted}`);
   console.log(`readiness ready: ${evidence.checks.canaryReadinessReady}`);
   console.log(`pre-execution gate ready: ${evidence.checks.preExecutionGateReady}`);
   console.log(`workspace-write execute: ${evidence.counters.workspaceWriteExecuteCalls}`);

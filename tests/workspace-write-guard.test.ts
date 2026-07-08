@@ -20,10 +20,12 @@ import {
   PR_12B_REAL_CANARY_BRANCH,
   PR_12B_REAL_CANARY_WORKSPACE,
   WORKSPACE_WRITE_REAL_CANARY_CONFIG_ENV,
+  WorkspaceWriteRealCanaryAuthorizationPacketV1Schema,
   createWorkspaceWriteRealCanaryConfigFromEnv,
   createWorkspaceWriteRollbackPlanEvidence,
   evaluateWorkspaceWriteCanaryReadiness,
   evaluateWorkspaceWriteRealCanaryAuthorization,
+  evaluateWorkspaceWriteRealCanaryAuthorizationPacket,
   evaluateWorkspaceWriteRealCanaryPreExecutionGate,
   evaluateWorkspaceWritePatchGuard,
   inspectWorkspaceWriteUnifiedDiff
@@ -601,12 +603,200 @@ test("workspace-write real canary authorization result stays sanitized", () => {
   assert.equal(serialized.includes("general unbounded write"), false);
 });
 
-test("workspace-write real canary pre-execution gate becomes ready without executing", () => {
-  const permit = createWorkspaceWritePermit({
+test("workspace-write real canary authorization packet accepts only packet schema bound to permit v2", () => {
+  const fixture = createWorkspaceWritePermitV2Fixture({
     targetFiles: [DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE],
     maxChangedFiles: 1,
     maxDiffLines: 2
   });
+  const { permit, plan, manifest } = fixture;
+  const packet = createRealCanaryAuthorizationPacket();
+  const result = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: packet,
+    permit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.deepEqual(WorkspaceWriteRealCanaryAuthorizationPacketV1Schema.parse(packet), packet);
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "accepted");
+  assert.deepEqual(result.reasons, []);
+  assert.equal(result.summary.packetSchemaAccepted, true);
+  assert.equal(result.summary.permitSchemaVersion, "provider-workspace-write-execution-permit.v2");
+  assert.equal(result.summary.permitV2Accepted, true);
+  assert.equal(result.summary.permitApproved, true);
+  assert.equal(result.summary.permitV2ValidationPassed, true);
+  assert.equal(result.summary.operatorAuthorizationMatched, true);
+  assert.equal(result.summary.allowedActionMatched, true);
+  assert.equal(result.summary.fixedTargetMatched, true);
+  assert.equal(result.summary.boundedCapsMatched, true);
+  assert.equal(result.summary.rollbackBindingMatched, true);
+  assert.equal(result.summary.branchPolicyMatched, true);
+  assert.equal(result.summary.worktreeCleanMatched, true);
+  assert.equal(result.summary.beforeCommitRecorded, true);
+  assert.equal(result.summary.permitUnconsumed, true);
+  assert.equal(result.summary.noBundledRemoteOrExternalAuthority, true);
+  assert.equal(result.summary.providerExecuteCalls, 0);
+  assert.equal(result.summary.realCodexCliCalls, 0);
+  assert.equal(result.summary.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.summary.canaryFileWrites, 0);
+});
+
+test("workspace-write real canary authorization packet blocks packet and permit drift", () => {
+  const fixture = createWorkspaceWritePermitV2Fixture({
+    targetFiles: [DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE],
+    maxChangedFiles: 1,
+    maxDiffLines: 2
+  });
+  const { permit, plan, manifest } = fixture;
+  const mismatchedOperator = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket("operator_auth_mismatch"),
+    permit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
+  const broadenedPacket = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: {
+      ...createRealCanaryAuthorizationPacket(),
+      pushAuthorized: true
+    },
+    permit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
+  const nonCanaryFixture = createWorkspaceWritePermitV2Fixture({
+    targetFiles: ["tmp/not-the-canary.txt"],
+    maxChangedFiles: 1,
+    maxDiffLines: 2
+  });
+  const nonCanaryPermit = nonCanaryFixture.permit;
+  const mainBranchPermit = {
+    ...permit,
+    repositoryState: {
+      ...permit.repositoryState,
+      branch: "main"
+    }
+  };
+  const consumedPermit = {
+    ...permit,
+    consumedAt: "2026-06-14T00:01:00.000Z"
+  };
+  const pendingApprovalPermit = {
+    ...permit,
+    approvalStatus: "pending" as const
+  };
+  const forgedNoncePermit = {
+    ...permit,
+    nonce: "forged_nonce"
+  };
+  const expiredPermitResult = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket(),
+    permit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:10:00.000Z"
+  });
+  const forgedNonceResult = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket(),
+    permit: forgedNoncePermit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
+  const actionDriftResult = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket(),
+    permit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z",
+    canaryConfig: {
+      allowedAction: "one configured pre canary write"
+    }
+  });
+  const nonCanaryResult = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket(),
+    permit: nonCanaryPermit,
+    plan: nonCanaryFixture.plan,
+    manifest: nonCanaryFixture.manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
+  const mainBranchResult = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket(),
+    permit: mainBranchPermit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
+  const consumedResult = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket(),
+    permit: consumedPermit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
+  const pendingApprovalResult = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket(),
+    permit: pendingApprovalPermit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
+
+  assert.equal(mismatchedOperator.ok, false);
+  assert.ok(mismatchedOperator.reasons.includes(
+    "workspace_write_real_canary_authorization_packet_operator_permit_mismatch"
+  ));
+  assert.equal(broadenedPacket.ok, false);
+  assert.ok(broadenedPacket.reasons.some((reason) =>
+    reason.startsWith("workspace_write_real_canary_authorization_packet_invalid:")
+  ));
+  assert.equal(expiredPermitResult.ok, false);
+  assert.equal(expiredPermitResult.summary.permitV2ValidationPassed, false);
+  assert.ok(expiredPermitResult.reasons.includes(
+    "workspace_write_real_canary_authorization_packet_permit_v2_validation_failed"
+  ));
+  assert.ok(expiredPermitResult.reasons.includes(
+    "workspace_write_real_canary_authorization_packet_permit_v2_expired"
+  ));
+  assert.equal(forgedNonceResult.ok, false);
+  assert.equal(forgedNonceResult.summary.permitV2ValidationPassed, false);
+  assert.ok(forgedNonceResult.reasons.includes(
+    "workspace_write_real_canary_authorization_packet_permit_v2_nonce_mismatch"
+  ));
+  assert.equal(actionDriftResult.ok, false);
+  assert.equal(actionDriftResult.summary.allowedActionMatched, false);
+  assert.ok(actionDriftResult.reasons.includes(
+    "workspace_write_real_canary_authorization_packet_allowed_action_config_mismatch"
+  ));
+  assert.equal(nonCanaryResult.ok, false);
+  assert.ok(nonCanaryResult.reasons.includes(
+    "workspace_write_real_canary_authorization_packet_fixed_target_required"
+  ));
+  assert.equal(mainBranchResult.ok, false);
+  assert.ok(mainBranchResult.reasons.includes(
+    "workspace_write_real_canary_authorization_packet_non_main_non_protected_branch_required"
+  ));
+  assert.equal(consumedResult.ok, false);
+  assert.ok(consumedResult.reasons.includes(
+    "workspace_write_real_canary_authorization_packet_permit_must_be_unconsumed"
+  ));
+  assert.equal(pendingApprovalResult.ok, false);
+  assert.ok(pendingApprovalResult.reasons.includes(
+    "workspace_write_real_canary_authorization_packet_permit_must_be_approved"
+  ));
+});
+
+test("workspace-write real canary pre-execution gate becomes ready without executing", () => {
+  const fixture = createWorkspaceWritePermitV2Fixture({
+    targetFiles: [DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE],
+    maxChangedFiles: 1,
+    maxDiffLines: 2
+  });
+  const { permit, plan, manifest } = fixture;
   const guardResult = evaluateWorkspaceWritePatchGuard({
     permit,
     unifiedDiff: createCanaryDiff()
@@ -634,9 +824,17 @@ test("workspace-write real canary pre-execution gate becomes ready without execu
     rollbackRequired: true,
     pushAuthorized: false
   });
+  const authorizationPacket = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket(),
+    permit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
   const gate = evaluateWorkspaceWriteRealCanaryPreExecutionGate({
     authorization,
     readiness,
+    authorizationPacket,
     canaryFileExists: false
   });
 
@@ -647,6 +845,9 @@ test("workspace-write real canary pre-execution gate becomes ready without execu
   assert.equal(gate.summary.canaryReadinessReady, true);
   assert.equal(gate.summary.canaryFileAbsent, true);
   assert.equal(gate.summary.fixedTargetMatched, true);
+  assert.equal(gate.summary.authorizationPacketAccepted, true);
+  assert.equal(gate.summary.permitV2Accepted, true);
+  assert.equal(gate.summary.packetPermitBindingAccepted, true);
   assert.equal(gate.summary.pushDisallowed, true);
   assert.equal(gate.summary.rollbackReady, true);
   assert.equal(gate.summary.providerExecuteCalls, 0);
@@ -656,11 +857,12 @@ test("workspace-write real canary pre-execution gate becomes ready without execu
 });
 
 test("workspace-write real canary pre-execution gate blocks before execution", () => {
-  const permit = createWorkspaceWritePermit({
+  const fixture = createWorkspaceWritePermitV2Fixture({
     targetFiles: [DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE],
     maxChangedFiles: 1,
     maxDiffLines: 2
   });
+  const { permit, plan, manifest } = fixture;
   const guardResult = evaluateWorkspaceWritePatchGuard({
     permit,
     unifiedDiff: createCanaryDiff()
@@ -688,9 +890,17 @@ test("workspace-write real canary pre-execution gate blocks before execution", (
     rollbackRequired: true,
     pushAuthorized: false
   });
+  const authorizationPacket = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket(),
+    permit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
   const gate = evaluateWorkspaceWriteRealCanaryPreExecutionGate({
     authorization,
     readiness,
+    authorizationPacket,
     canaryFileExists: true
   });
 
@@ -714,6 +924,7 @@ test("workspace-write real canary pre-execution gate blocks before execution", (
   assert.equal(gate.summary.authorizationAccepted, false);
   assert.equal(gate.summary.canaryReadinessReady, false);
   assert.equal(gate.summary.canaryFileAbsent, false);
+  assert.equal(gate.summary.authorizationPacketAccepted, true);
   assert.equal(gate.summary.providerExecuteCalls, 0);
   assert.equal(gate.summary.realCodexCliCalls, 0);
   assert.equal(gate.summary.workspaceWriteExecuteCalls, 0);
@@ -721,11 +932,12 @@ test("workspace-write real canary pre-execution gate blocks before execution", (
 });
 
 test("workspace-write real canary pre-execution gate result stays sanitized", () => {
-  const permit = createWorkspaceWritePermit({
+  const fixture = createWorkspaceWritePermitV2Fixture({
     targetFiles: ["tmp/not-the-canary.txt"],
     maxChangedFiles: 1,
     maxDiffLines: 8
   });
+  const { permit, plan, manifest } = fixture;
   const guardResult = evaluateWorkspaceWritePatchGuard({
     permit,
     unifiedDiff: [
@@ -759,9 +971,17 @@ test("workspace-write real canary pre-execution gate result stays sanitized", ()
     rollbackRequired: true,
     pushAuthorized: false
   });
+  const authorizationPacket = evaluateWorkspaceWriteRealCanaryAuthorizationPacket({
+    authorizationPacket: createRealCanaryAuthorizationPacket(),
+    permit,
+    plan,
+    manifest,
+    now: "2026-06-14T00:00:00.000Z"
+  });
   const gate = evaluateWorkspaceWriteRealCanaryPreExecutionGate({
     authorization,
     readiness,
+    authorizationPacket,
     canaryFileExists: false
   });
   const serialized = JSON.stringify(gate);
@@ -773,6 +993,39 @@ test("workspace-write real canary pre-execution gate result stays sanitized", ()
   assert.equal(serialized.includes("general unbounded write"), false);
   assert.equal(serialized.includes("canary=wrong-target"), false);
 });
+
+function createRealCanaryAuthorizationPacket(
+  operatorAuthorizationId = "operator_auth_workspace_write_guard_v2_001"
+) {
+  return {
+    schemaVersion: "workspace-write-real-canary-authorization-packet.v1" as const,
+    authorizationIntent: "workspace_write_real_canary" as const,
+    authorizationScope: "single_local_canary_write_only" as const,
+    operatorAuthorizationId,
+    providerId: "codex-cli" as const,
+    targetFile: DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE,
+    allowedAction: PR_12B_REAL_CANARY_ALLOWED_ACTION,
+    sideEffectClass: "workspace_write" as const,
+    sandbox: "workspace-write" as const,
+    maxChangedFiles: 1 as const,
+    maxDiffLines: 2 as const,
+    rollbackRequired: true as const,
+    canaryFileAbsentBeforeExecution: true as const,
+    branchPolicy: "non_main_non_protected_branch_only" as const,
+    worktreeCleanRequired: true as const,
+    beforeCommitRequired: true as const,
+    permitV2Required: true as const,
+    fakeCanaryV2Required: true as const,
+    releaseGateRequired: true as const,
+    pushAuthorized: false as const,
+    releaseAuthorized: false as const,
+    tagAuthorized: false as const,
+    deploymentAuthorized: false as const,
+    packagePublishAuthorized: false as const,
+    externalWriteAuthorized: false as const,
+    secretMutationAuthorized: false as const
+  };
+}
 
 function createSafeDiff(): string {
   return [
@@ -837,9 +1090,22 @@ function createWorkspaceWritePermitV2(options: {
   maxChangedFiles: number;
   maxDiffLines: number;
 }): WorkspaceWriteProviderExecutionPermitV2 {
+  return createWorkspaceWritePermitV2Fixture(options).permit;
+}
+
+function createWorkspaceWritePermitV2Fixture(options: {
+  targetFiles: string[];
+  maxChangedFiles: number;
+  maxDiffLines: number;
+}): {
+  permit: WorkspaceWriteProviderExecutionPermitV2;
+  plan: ExecutorExecutionPlan;
+  manifest: ProviderManifest;
+} {
   const manifest = createProviderManifest();
   const plan = createExecutorPlan({
     approvalRequired: true,
+    providerId: "codex-cli",
     sandboxProfile: createSandboxProfile("workspace-write"),
     sideEffectClass: "workspace_write",
     providerExecutionPlanHash: "c".repeat(64),
@@ -848,7 +1114,7 @@ function createWorkspaceWritePermitV2(options: {
     principalHash: "d".repeat(64)
   });
 
-  return createApprovedWorkspaceWriteProviderExecutionPermitV2({
+  const permit = createApprovedWorkspaceWriteProviderExecutionPermitV2({
     plan,
     manifest,
     approvalStatus: "approved",
@@ -870,6 +1136,12 @@ function createWorkspaceWritePermitV2(options: {
     },
     issuedAt: "2026-06-14T00:00:00.000Z"
   });
+
+  return {
+    permit,
+    plan,
+    manifest
+  };
 }
 
 function createProviderManifest(): ProviderManifest {
