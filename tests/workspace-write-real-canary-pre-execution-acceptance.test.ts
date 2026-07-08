@@ -51,8 +51,15 @@ test("workspace-write real canary pre-execution acceptance stays local-only", as
   assert.equal(evidence.taskId, "workspace-write-real-canary-pre-execution-acceptance");
   assert.deepEqual(evidence.checks, {
     authorizationAccepted: true,
+    authorizationPacketAccepted: true,
+    permitV2Accepted: true,
+    permitV2Approved: true,
+    permitV2Validated: true,
+    packetActionBoundToConfig: true,
+    packetPermitBindingAccepted: true,
     canaryReadinessReady: true,
     preExecutionGateReady: true,
+    authorizationPacketFailureBlocksGate: true,
     authorizationFailureBlocksGate: true,
     readinessFailureBlocksGate: true,
     existingCanaryFileBlocksGate: true,
@@ -65,10 +72,19 @@ test("workspace-write real canary pre-execution acceptance stays local-only", as
   });
   assert.equal(evidence.summary.providerId, "codex-cli");
   assert.match(evidence.summary.manifestHash, /^[a-f0-9]{64}$/);
+  assert.equal(
+    evidence.summary.packetSchemaVersion,
+    "workspace-write-real-canary-authorization-packet.v1"
+  );
+  assert.equal(
+    evidence.summary.permitSchemaVersion,
+    "provider-workspace-write-execution-permit.v2"
+  );
   assert.equal(evidence.summary.targetFile, "tmp/codex-cli-write-canary.txt");
   assert.equal(evidence.summary.sideEffectClass, "workspace_write");
   assert.equal(evidence.summary.sandbox, "workspace-write");
   assert.equal(evidence.summary.authorizationStatus, "authorized");
+  assert.equal(evidence.summary.authorizationPacketStatus, "accepted");
   assert.equal(evidence.summary.readinessStatus, "ready");
   assert.equal(evidence.summary.gateStatus, "ready");
   assert.equal(evidence.summary.pushDisallowed, true);
@@ -79,6 +95,12 @@ test("workspace-write real canary pre-execution acceptance stays local-only", as
     workspaceWriteExecuteCalls: 0,
     canaryFileWrites: 0
   });
+  assert.ok(evidence.blockingReasons.includes(
+    "workspace_write_real_canary_pre_execution_authorization_packet_blocked"
+  ));
+  assert.ok(evidence.blockingReasons.some((reason) =>
+    reason.startsWith("workspace_write_real_canary_authorization_packet_invalid:")
+  ));
   assert.ok(evidence.blockingReasons.includes(
     "workspace_write_real_canary_pre_execution_authorization_blocked"
   ));
@@ -118,7 +140,7 @@ test("workspace-write real canary pre-execution acceptance writer persists safe 
   assertSafeEvidence(parsed);
 });
 
-test("workspace-write real canary pre-execution acceptance reads canary config from env", async () => {
+test("workspace-write real canary pre-execution acceptance blocks env config drift from packet schema", async () => {
   const evidence = await runWorkspaceWriteRealCanaryPreExecutionAcceptance({
     generatedAt: now,
     env: {
@@ -131,9 +153,22 @@ test("workspace-write real canary pre-execution acceptance reads canary config f
   const serialized = JSON.stringify(evidence);
 
   assert.equal(evidence.checks.authorizationAccepted, true);
+  assert.equal(evidence.checks.authorizationPacketAccepted, false);
   assert.equal(evidence.checks.canaryReadinessReady, true);
-  assert.equal(evidence.checks.preExecutionGateReady, true);
+  assert.equal(evidence.checks.preExecutionGateReady, false);
+  assert.equal(evidence.checks.authorizationPacketFailureBlocksGate, true);
   assert.equal(evidence.summary.targetFile, "tmp/configured-pre-canary.txt");
+  assert.equal(evidence.summary.authorizationPacketStatus, "blocked");
+  assert.equal(evidence.summary.gateStatus, "blocked");
+  assert.ok(evidence.blockingReasons.includes(
+    "workspace_write_real_canary_authorization_packet_target_config_mismatch"
+  ));
+  assert.ok(evidence.blockingReasons.includes(
+    "workspace_write_real_canary_authorization_packet_allowed_action_config_mismatch"
+  ));
+  assert.ok(evidence.blockingReasons.includes(
+    "workspace_write_real_canary_authorization_packet_fixed_target_required"
+  ));
   assert.equal(serialized.includes("D:/configured/pre-repo"), false);
   assert.equal(serialized.includes("one configured pre canary write"), false);
 });
