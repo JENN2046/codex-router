@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `32c09630925f166268d58bc2ddc03e90513af4afabee5af16321e86914605f6d`
+  `067a97e0f73b9b6abdf791008383101c4002aaad90720f65c4e1858eafbe9fcf`
 
 Source digest excluded paths:
 
@@ -60,6 +60,10 @@ Source digest excluded paths:
 - Governance docs map: `docs/governance/README.md`
 - Validation policy: `docs/validation-tiers.md`
 - Current state audit: `npm run governance -- audit state-sync`
+- Execution boundary current surface:
+  `npm run governance -- audit execution-boundary-current-surface`
+- Source/release package boundary:
+  `npm run governance -- audit source-release-package-boundary`
 - Governance runner discovery: `npm run governance -- list`
 
 ## Current Scope

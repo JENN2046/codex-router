@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   checkGovernanceDocs,
+  CURRENT_STATE_RUNNER_ENTRY_MARKERS,
   GOVERNANCE_README_RUNNER_ENTRY_MARKERS,
+  missingCurrentStateRunnerEntryMarkers,
   missingGovernanceReadmeRunnerEntryMarkers,
   missingReleaseGateExecutionBoundaryMarkers
 } from "../scripts/check-governance-docs.js";
@@ -59,6 +61,28 @@ test("governance README records current runner entries", async () => {
       )
     ),
     ["npm run governance -- audit source-release-package-boundary"]
+  );
+});
+
+test("current state records current runner entries", async () => {
+  const text = await readFile(
+    new URL("../docs/current/CURRENT_STATE.md", import.meta.url),
+    "utf8"
+  );
+
+  for (const marker of CURRENT_STATE_RUNNER_ENTRY_MARKERS) {
+    assert.match(text, new RegExp(escapeRegExp(marker)));
+  }
+
+  assert.deepEqual(missingCurrentStateRunnerEntryMarkers(text), []);
+  assert.deepEqual(
+    missingCurrentStateRunnerEntryMarkers(
+      text.replaceAll(
+        "npm run governance -- audit execution-boundary-current-surface",
+        "npm run governance -- audit execution-boundary"
+      )
+    ),
+    ["npm run governance -- audit execution-boundary-current-surface"]
   );
 });
 

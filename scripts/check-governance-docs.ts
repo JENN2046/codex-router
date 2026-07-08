@@ -94,6 +94,11 @@ export const GOVERNANCE_README_RUNNER_ENTRY_MARKERS = [
   "npm run governance -- audit source-release-package-boundary"
 ] as const;
 
+export const CURRENT_STATE_RUNNER_ENTRY_MARKERS = [
+  "npm run governance -- audit execution-boundary-current-surface",
+  "npm run governance -- audit source-release-package-boundary"
+] as const;
+
 export async function checkGovernanceDocs(
   cwd = process.cwd()
 ): Promise<GovernanceDocsCheckResult> {
@@ -108,6 +113,7 @@ export async function checkGovernanceDocs(
   await checkReleaseGateCommands(cwd, issues, checkedFiles);
   await checkReleaseGateExecutionBoundaryMarkers(cwd, issues, checkedFiles);
   await checkGovernanceReadmeRunnerEntries(cwd, issues, checkedFiles);
+  await checkCurrentStateRunnerEntries(cwd, issues, checkedFiles);
   await checkMarkdownLinks(cwd, issues, checkedFiles);
 
   return {
@@ -261,6 +267,27 @@ async function checkReleaseGateExecutionBoundaryMarkers(
   }
 }
 
+async function checkCurrentStateRunnerEntries(
+  cwd: string,
+  issues: GovernanceDocsIssue[],
+  checkedFiles: Set<string>
+): Promise<void> {
+  const filePath = "docs/current/CURRENT_STATE.md";
+  const text = await readOptional(cwd, filePath);
+  if (text === undefined) {
+    return;
+  }
+  checkedFiles.add(filePath);
+
+  for (const marker of missingCurrentStateRunnerEntryMarkers(text)) {
+    issues.push(issue(
+      "current_state_runner_entry_missing",
+      filePath,
+      `Current state must list runner entry: ${marker}`
+    ));
+  }
+}
+
 async function checkGovernanceReadmeRunnerEntries(
   cwd: string,
   issues: GovernanceDocsIssue[],
@@ -284,6 +311,12 @@ async function checkGovernanceReadmeRunnerEntries(
 
 export function missingGovernanceReadmeRunnerEntryMarkers(text: string): string[] {
   return GOVERNANCE_README_RUNNER_ENTRY_MARKERS.filter((marker) =>
+    !text.includes(marker)
+  );
+}
+
+export function missingCurrentStateRunnerEntryMarkers(text: string): string[] {
+  return CURRENT_STATE_RUNNER_ENTRY_MARKERS.filter((marker) =>
     !text.includes(marker)
   );
 }
