@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `8eecc1daae9ea9a0877c79dadfde1228fe64c15df2d2bbef318775c7a2b46d94`
+  `12515b3d6c923f7e678b2eda2201bccc2d936644fc97c924a66ac6ed50d14b56`
 
 Source digest excluded paths:
 
@@ -329,6 +329,14 @@ The controlled provider execution dispatch preflight matrix is recorded at
 exposed through
 `npm run governance -- audit controlled-provider-execution-dispatch-preflight-boundary`;
 it is a pre-runner matrix only and does not authorize provider execute.
+The controlled provider execution dispatcher boundary is implemented at
+`packages/governance-internal-controlled-provider-dispatcher/src/index.ts` and
+exposed through
+`npm run governance -- audit controlled-provider-execution-dispatcher-boundary`;
+it consumes the dispatch preflight schema, provider registry selection, permit,
+executor plan, environment preflight artifact binding, and governance stop
+checks before handing off to the provider execution runner boundary. It does
+not call `provider.execute` directly and does not authorize workspace-write.
 The Phase 6 read-only provider permit lifecycle line is recorded at
 `docs/governance/PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md`;
 it keeps the same acceptance entry point while adding expiration, nonce, replay,
