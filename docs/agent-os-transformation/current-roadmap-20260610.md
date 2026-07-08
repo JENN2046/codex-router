@@ -157,7 +157,8 @@ These matrices are local-only. They do not authorize provider execute,
 workspace-write, real CLI invocation, push, release, or tag.
 The productization acceptance entry point is
 `npm run governance -- audit readonly-productization`; it is also local-only and does not
-authorize evidence refresh or any real execution path.
+authorize evidence refresh or any real execution path. It does not authorize
+real Codex CLI, provider execution, workspace-write, or evidence refresh.
 
 ## Current Reviewable Slice
 

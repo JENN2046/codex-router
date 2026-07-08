@@ -116,9 +116,10 @@ Result:
 
 - `READONLY_PRODUCTIZATION_ACCEPTANCE_RECORDED`
 
-The read-only productization package is a local acceptance layer only. It closes
-the current evidence chain for review; it does not convert recorded real
-read-only evidence into a default execution capability.
+The read-only productization package is a local acceptance layer only and is
+not a release gate by itself. It closes the current evidence chain for review;
+it does not convert recorded real read-only evidence into a default execution
+capability.
 
 ## 10. Final Closeout Record
 

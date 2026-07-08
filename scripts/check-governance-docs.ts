@@ -78,6 +78,17 @@ const CLOSEOUT_REQUIRED_MARKERS = [
   "## Remaining Risks"
 ] as const;
 
+export const RELEASE_GATE_EXECUTION_BOUNDARY_MARKERS = [
+  "narrow_readonly_provider_dispatch_without_boundary_inheritance",
+  "read-only provider dispatch does not inherit into host executor authorization",
+  "read-only provider dispatch does not inherit into sub-agent runtime authorization",
+  "read-only provider dispatch does not inherit into workspace-write authorization",
+  "read-only provider dispatch does not inherit into release authorization",
+  "Codex CLI host does not authorize host executor or sub-agent runtime",
+  "sub-agent runtime does not invoke Codex CLI or provider execution",
+  "host executor does not execute provider or sub-agent runtime"
+] as const;
+
 export async function checkGovernanceDocs(
   cwd = process.cwd()
 ): Promise<GovernanceDocsCheckResult> {
@@ -90,6 +101,7 @@ export async function checkGovernanceDocs(
   await checkAdrs(cwd, issues, checkedFiles);
   await checkCloseoutTemplate(cwd, issues, checkedFiles);
   await checkReleaseGateCommands(cwd, issues, checkedFiles);
+  await checkReleaseGateExecutionBoundaryMarkers(cwd, issues, checkedFiles);
   await checkMarkdownLinks(cwd, issues, checkedFiles);
 
   return {
@@ -220,6 +232,39 @@ async function checkReleaseGateCommands(
       ));
     }
   }
+}
+
+async function checkReleaseGateExecutionBoundaryMarkers(
+  cwd: string,
+  issues: GovernanceDocsIssue[],
+  checkedFiles: Set<string>
+): Promise<void> {
+  const filePath = "docs/governance/RELEASE_GATE_MATRIX.md";
+  const text = await readOptional(cwd, filePath);
+  if (text === undefined) {
+    return;
+  }
+  checkedFiles.add(filePath);
+
+  for (const marker of missingReleaseGateExecutionBoundaryMarkers(text)) {
+    issues.push(issue(
+      "release_gate_execution_boundary_marker_missing",
+      filePath,
+      `Release gate matrix must record execution boundary marker: ${marker}`
+    ));
+  }
+}
+
+export function missingReleaseGateExecutionBoundaryMarkers(text: string): string[] {
+  const normalizedText = normalizeDocTextForMarkerSearch(text);
+
+  return RELEASE_GATE_EXECUTION_BOUNDARY_MARKERS.filter((marker) =>
+    !normalizedText.includes(normalizeDocTextForMarkerSearch(marker))
+  );
+}
+
+function normalizeDocTextForMarkerSearch(text: string): string {
+  return text.replace(/\s+/g, " ");
 }
 
 async function checkMarkdownLinks(

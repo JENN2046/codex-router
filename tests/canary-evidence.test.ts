@@ -136,7 +136,7 @@ test("CI uploads node-scoped canary evidence before collecting the manifest", as
   assert.equal(evidenceDownload?.with?.["merge-multiple"], true);
 });
 
-test("CI runs real state-sync audit for PR and main push before evidence collection", async () => {
+test("CI runs governance audits before evidence collection", async () => {
   const workflow = parse(
     await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf-8")
   ) as {
@@ -150,6 +150,11 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
         needs: string;
         steps: WorkflowStep[];
       };
+      "execution-boundary": {
+        if?: string;
+        needs: string;
+        steps: WorkflowStep[];
+      };
       evidence: {
         needs: string[];
       };
@@ -157,6 +162,7 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
   };
 
   const stateSyncJob = workflow.jobs["state-sync"];
+  const executionBoundaryJob = workflow.jobs["execution-boundary"];
   const checkoutStep = stateSyncJob.steps.find((step) =>
     step.uses === "actions/checkout@v4"
   );
@@ -193,7 +199,14 @@ test("CI runs real state-sync audit for PR and main push before evidence collect
   assert.equal(npmCiStep?.if, "steps.state-sync-gate.outputs.run_audit == 'true'");
   assert.equal(auditStep?.if, "steps.state-sync-gate.outputs.run_audit == 'true'");
   assert.ok(auditStep);
+  assert.equal(executionBoundaryJob.needs, "test");
+  assert.equal(executionBoundaryJob.if, undefined);
+  assert.ok(executionBoundaryJob.steps.some((step) => step.run === "npm ci"));
+  assert.ok(executionBoundaryJob.steps.some(
+    (step) => step.run === "npm run governance -- audit execution-boundary-current-surface"
+  ));
   assert.ok(workflow.jobs.evidence.needs.includes("state-sync"));
+  assert.ok(workflow.jobs.evidence.needs.includes("execution-boundary"));
 });
 
 test("state-sync reanchor workflow is a manual legacy fallback", async () => {

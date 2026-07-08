@@ -5,6 +5,7 @@ import {
   A2AEndpointReferenceSchema,
   A2AAgentCardSkeletonSchema,
   A2A_FAKE_TRANSPORT_SUBMIT_DISABLED,
+  A2A_REMOTE_AGENT_PROVIDER_DISABLED,
   a2aStatusToRunStatus,
   agentManifestToA2AAgentCard,
   artifactToA2AArtifactSkeleton,
@@ -210,11 +211,11 @@ test("protocol-a2a remote provider is disabled by default", async () => {
       task,
       run
     }),
-    /a2a_remote_agent_provider_disabled/
+    new RegExp(A2A_REMOTE_AGENT_PROVIDER_DISABLED)
   );
   await assert.rejects(
     async () => provider.cancelRemoteTask("remote_task_missing"),
-    /a2a_remote_agent_provider_disabled/
+    new RegExp(A2A_REMOTE_AGENT_PROVIDER_DISABLED)
   );
 });
 

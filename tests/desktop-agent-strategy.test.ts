@@ -85,3 +85,61 @@ test("desktop agent strategy disables write parallelism without ownership", () =
   assert.equal(plan.parallel, false);
   assert.ok(plan.reasons.includes("write_scope_needs_explicit_ownership"));
 });
+
+test("desktop agent strategy bounds write ownership assignments to files and max agents", () => {
+  const plan = planAgentStrategy(
+    {
+      schemaVersion: "routing-decision.v1",
+      decisionId: "engineering-owned:test",
+      taskId: "engineering-owned",
+      policyVersion: "test",
+      classification: {
+        taskClass: "engineering",
+        riskLevel: "medium",
+        ambiguityScore: 0,
+        clarificationRequired: false,
+        riskFactors: []
+      },
+      execution: {
+        selectedModel: "gpt-5.3-codex",
+        toolAccess: "engineering_write",
+        executionProfile: "engineering",
+        reasoningEffort: "medium"
+      },
+      approval: {
+        required: false,
+        reasons: []
+      },
+      parallelism: {
+        allowed: true,
+        maxAgents: 2,
+        mode: "owned_write"
+      },
+      hostRoute: "desktop"
+    },
+    {
+      availableAgents: 4,
+      explicitOwnership: true,
+      fileTargets: [
+        "packages/contracts/src/index.ts",
+        "packages/routing-engine/src/index.ts",
+        "packages/scheduler/src/index.ts"
+      ]
+    }
+  );
+
+  assert.equal(plan.parallel, true);
+  assert.equal(plan.maxAgents, 2);
+  assert.equal(plan.assignments.length, 2);
+  assert.deepEqual(plan.assignments[0], {
+    role: "worker",
+    mode: "write",
+    ownership: ["packages/contracts/src/index.ts"]
+  });
+  assert.deepEqual(plan.assignments[1], {
+    role: "worker",
+    mode: "write",
+    ownership: ["packages/routing-engine/src/index.ts"]
+  });
+  assert.ok(plan.reasons.includes("write_parallelism_allowed_with_ownership"));
+});
