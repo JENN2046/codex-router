@@ -1,11 +1,11 @@
 # Agent OS Current Roadmap
 
-Date: 2026-06-16
-Current base: `main` and `origin/main` at `89ec579`
+Date: 2026-07-09
+Current base: `content digest only`
 Status: local governance foundation, approval issuance, approval consumption,
 read-only formal integration evidence, and approval consumption dispatch audit
-matrix evidence are merged and locally validated. A fresh real read-only Codex
-CLI smoke has passed on current local `main`. The future Codex CLI canary
+matrix evidence are merged and locally validated. The real read-only Codex
+CLI smoke path has historical evidence. The future Codex CLI canary
 execution authorization packet draft/review, post-merge anchors, and post-push
 anchors are pushed to `origin/main`. The final execution gate design for a
 future real workspace-write canary, its post-merge anchors, and its post-push
@@ -19,9 +19,11 @@ and the temporary canary file has been removed. The post-canary receipt plus
 rollback verification gate is pushed to `origin/main`, and its clean-main audit
 passed without running another workspace-write canary. The Codex CLI taskbook,
 configuration, user-posture, and source and release package boundary fixes are
-present on current `main`. The read-only productization acceptance package is
-now closed on current `main`. The PR-22A controlled provider execution
-taskbook is the next gated planning layer.
+present on current mainline. The read-only productization acceptance package,
+controlled provider execution taskbook boundary, taskbook review boundary, and
+provider execution runner boundary are current. The controlled provider
+execution dispatch preflight matrix is the next gated planning layer before any
+new pre-runner dispatcher implementation.
 
 ## Current Position
 
@@ -166,9 +168,12 @@ Current local closeout slice:
 
 - Keep the read-only productization acceptance package green on clean aligned
   `main`.
-- Review the PR-22A controlled provider execution taskbook before any
-  implementation:
+- Keep the PR-22A controlled provider execution taskbook and review boundary
+  green:
   `docs/governance/PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md`
+- Review the controlled provider execution dispatch preflight matrix before any
+  pre-runner dispatcher implementation:
+  `docs/governance/CONTROLLED_PROVIDER_EXECUTION_DISPATCH_PREFLIGHT_MATRIX.md`
 - Preserve the current boundary: source and release package boundary fixes are
   local governance hardening, not authorization to publish or release.
 - Preserve the current boundary: the recorded canary proves one bounded local
@@ -194,15 +199,20 @@ Current local closeout slice:
   `npm run governance -- audit readonly-productization`
 - Current controlled provider execution taskbook:
   `PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_RECORDED`
+- Current controlled provider execution dispatch preflight matrix:
+  `CONTROLLED_PROVIDER_EXECUTION_DISPATCH_PREFLIGHT_MATRIX_RECORDED`
 
 ## Following Phases
 
 After local review/evidence hardening:
 
 1. Controlled provider execution.
-   - Review PR-22A first.
-   - Add explicit execution mode separate from dry-run mode.
-   - Require valid permits and runner invariant checks.
+   - Keep PR-22A taskbook and review boundary green.
+   - Keep the controlled provider execution dispatch preflight matrix green
+     before any pre-runner dispatcher implementation.
+   - Keep explicit execution mode separate from dry-run mode.
+   - Require valid permits, plan hash binding, registry selection, preflight
+     artifact binding, and runner invariant checks.
    - Keep provider execution disabled by default.
 
 2. Codex CLI execution opt-in.
@@ -229,67 +239,33 @@ After local review/evidence hardening:
 
 ## Validation Baseline
 
-Latest local validation on 2026-06-15 through `main` / `origin/main` at
-`5566777`:
+Current portable validation baseline: `content digest only`.
 
-- `npm run governance -- audit approval-consumption-dispatch-matrix` passed on clean `main`.
-- `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real` passed.
-- read-only real smoke chain audits passed on clean `main`.
-- `npm run governance -- audit controlled-execution-gate-design` passed on clean `main`.
-- `npm run governance -- audit future-codex-cli-canary-packet-checklist` passed on clean
-  `main`.
-- `npx tsx --test tests\future-codex-cli-canary-authorization-packet-audit.test.ts`
-  passed on `docs/future-canary-authorization-packet`.
-- `npm run governance -- audit future-codex-cli-canary-authorization-packet` passed on clean
-  local `main` at `57ae4a7`.
-- `git push origin main` succeeded after one retry, pushing `4db8174..c73fa1b`.
-- `git push origin main` pushed `c73fa1b..19b3a5e`.
-- `npx tsx --test tests\future-codex-cli-canary-execution-gate-audit.test.ts`
-  passed on `docs/future-canary-execution-gate`.
-- `npm run governance -- audit future-codex-cli-canary-execution-gate` passed on clean local
-  `main` at `6d05762`.
-- `git push origin main` pushed `19b3a5e..c679c58`.
-- `git push origin main` pushed `c679c58..fe181cb`.
-- `npx tsx --test tests\future-codex-cli-canary-pre-execution-review-audit.test.ts`
-  passed on `docs/future-canary-pre-execution-review`.
-- `npm run governance -- audit future-codex-cli-canary-pre-execution-review` blocked on clean
-  local `main` only because local `main` is not aligned with `origin/main`.
-- `git push origin main` pushed `fe181cb..3a71acc`.
-- `npm run governance -- audit future-codex-cli-canary-pre-execution-review` passed on
-  aligned clean `main`.
-- `npm run governance -- audit workspace-write-real-canary-final-local` passed after the
-  clean-main gate alignment fix.
-- `npm test` passed: `1027 / 1027`.
-- `git push origin main` pushed `3a71acc..590dbd4`.
-- Bounded real Codex CLI workspace-write canary passed:
-  - target file: `tmp/codex-cli-write-canary.txt`
-  - evidence:
-    `docs/evidence/codex-cli-workspace-write-real-canary-latest.json`
-  - execution status: `completed`
-  - exit code: `0`
-  - blocking reasons: `[]`
-- Post-canary `Test-Path tmp\codex-cli-write-canary.txt` returned `False`.
-- `git push origin main` pushed `590dbd4..5e24281`.
-- `git push origin main` pushed `5e24281..5642b43`.
-- `npx tsx --test tests\post-canary-receipt-rollback-verification-gate-audit.test.ts`
-  passed: `5 / 5`.
-- `npm run typecheck` passed after adding the post-canary receipt rollback gate
-  audit.
-- `npm test` passed: `1032 / 1032`.
-- `npm run build` passed.
-- `git push origin main` pushed `5642b43..5566777`.
-- `npm run governance -- audit post-canary-receipt-rollback-gate` passed on clean aligned
-  `main`:
-  - provider execute calls during review: `0`
-  - real Codex CLI calls during review: `0`
-  - workspace-write execute calls during review: `0`
-  - canary file writes during review: `0`
-  - additional canary runs during review: `0`
-- `npm run typecheck` passed.
-- `npm test` passed: `1032 / 1032`.
-- `npm run build` passed.
+The roadmap no longer records local absolute paths, Windows-only shell probes,
+old branch names, push ranges, or single-machine commit anchors as current
+validation authority. Machine authority lives in
+`docs/current/state-sync-record.json`; operator display lives in
+`docs/current/CURRENT_STATE.md`. PR branches should use GitHub CI's
+`pull_request` State Sync Audit or an explicit local pull-request context
+simulation for state-sync. Bare local state-sync is a main-context check unless
+the event context is simulated.
 
-For docs-only roadmap updates, inspect the diff and keep the worktree clean.
+Portable validation for roadmap, validation-policy, and governance-boundary
+changes should prefer repository-relative commands:
+
+- `git diff --check`
+- `npm run docs:governance`
+- `node --import tsx scripts/sync-state-sync-display.ts --check`
+- `npm run governance -- list`
+- `npm run governance -- audit execution-boundary-current-surface`
+- `npm run governance -- audit controlled-provider-execution-dispatch-preflight-boundary`
+
+For the controlled provider execution dispatch preflight matrix, targeted local
+validation is:
+
+- `npx tsx --test tests/controlled-provider-execution-dispatch-preflight-boundary-audit.test.ts`
+- `npm run governance -- audit controlled-provider-execution-dispatch-preflight-boundary`
+
 For runtime changes, run targeted tests plus:
 
 - `npm run typecheck`

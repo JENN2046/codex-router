@@ -724,6 +724,27 @@ test("execution boundary current surface audit passes for current evidence", asy
     review.summary.totalWorkspaceWriteReleaseGateEvidenceWritesDuringAudit,
     0
   );
+  assert.ok(
+    review.summary.currentAudits.includes(
+      "controlled-provider-execution-dispatch-preflight-boundary"
+    )
+  );
+  assert.equal(
+    review.summary.controlledProviderExecutionDispatchPreflightMode,
+    "controlled_readonly_dispatch_preflight_matrix_only"
+  );
+  assert.equal(
+    review.summary.controlledProviderExecutionDispatchPreflightIsProviderExecuteAuthorization,
+    false
+  );
+  assert.equal(
+    review.summary.controlledProviderExecutionDispatchPreflightRunnerRemainsFinalProviderExecuteGate,
+    true
+  );
+  assert.equal(
+    review.summary.totalControlledProviderExecutionDispatchPreflightProviderExecuteCallsDuringAudit,
+    0
+  );
   assert.equal(
     review.summary.admissionControlMode,
     "admission_status_and_requirement_derivation_only"

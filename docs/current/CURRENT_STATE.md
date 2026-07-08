@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `c9e01ae1570d47ac9948a7ec30ac9172ed4da07bdd40824e503fae422252128f`
+  `8eecc1daae9ea9a0877c79dadfde1228fe64c15df2d2bbef318775c7a2b46d94`
 
 Source digest excluded paths:
 
@@ -324,6 +324,11 @@ The PR-23C evidence-binding line is recorded at
 `docs/governance/PR_23C_EXECUTION_EVIDENCE_BINDING.md`; it binds controlled
 read-only evidence to preflight, registry, permit, plan, policy, principal, and
 report refs/hashes.
+The controlled provider execution dispatch preflight matrix is recorded at
+`docs/governance/CONTROLLED_PROVIDER_EXECUTION_DISPATCH_PREFLIGHT_MATRIX.md` and
+exposed through
+`npm run governance -- audit controlled-provider-execution-dispatch-preflight-boundary`;
+it is a pre-runner matrix only and does not authorize provider execute.
 The Phase 6 read-only provider permit lifecycle line is recorded at
 `docs/governance/PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md`;
 it keeps the same acceptance entry point while adding expiration, nonce, replay,
