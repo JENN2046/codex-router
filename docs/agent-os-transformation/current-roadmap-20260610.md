@@ -22,9 +22,8 @@ configuration, user-posture, and source and release package boundary fixes are
 present on current mainline. The read-only productization acceptance package,
 controlled provider execution taskbook boundary, taskbook review boundary, and
 provider execution runner boundary are current. The controlled provider
-execution dispatch preflight matrix and controlled provider execution
-dispatcher boundary are current. The dispatcher is the gated pre-runner handoff
-layer before the provider execution runner boundary.
+execution dispatch preflight matrix is the next gated planning layer before any
+new pre-runner dispatcher implementation.
 
 ## Current Position
 
@@ -202,8 +201,6 @@ Current local closeout slice:
   `PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK_RECORDED`
 - Current controlled provider execution dispatch preflight matrix:
   `CONTROLLED_PROVIDER_EXECUTION_DISPATCH_PREFLIGHT_MATRIX_RECORDED`
-- Current controlled provider execution dispatcher boundary:
-  `controlled_readonly_pre_runner_dispatcher`
 
 ## Following Phases
 
@@ -211,9 +208,8 @@ After local review/evidence hardening:
 
 1. Controlled provider execution.
    - Keep PR-22A taskbook and review boundary green.
-   - Keep the controlled provider execution dispatch preflight matrix and
-     controlled provider execution dispatcher boundary green before any deeper
-     Codex CLI execution opt-in or worker-loop integration.
+   - Keep the controlled provider execution dispatch preflight matrix green
+     before any pre-runner dispatcher implementation.
    - Keep explicit execution mode separate from dry-run mode.
    - Require valid permits, plan hash binding, registry selection, preflight
      artifact binding, and runner invariant checks.
@@ -263,19 +259,12 @@ changes should prefer repository-relative commands:
 - `npm run governance -- list`
 - `npm run governance -- audit execution-boundary-current-surface`
 - `npm run governance -- audit controlled-provider-execution-dispatch-preflight-boundary`
-- `npm run governance -- audit controlled-provider-execution-dispatcher-boundary`
 
 For the controlled provider execution dispatch preflight matrix, targeted local
 validation is:
 
 - `npx tsx --test tests/controlled-provider-execution-dispatch-preflight-boundary-audit.test.ts`
 - `npm run governance -- audit controlled-provider-execution-dispatch-preflight-boundary`
-
-For the controlled provider execution dispatcher boundary, targeted local
-validation is:
-
-- `npx tsx --test tests/controlled-provider-dispatcher.test.ts tests/controlled-provider-execution-dispatcher-boundary-audit.test.ts`
-- `npm run governance -- audit controlled-provider-execution-dispatcher-boundary`
 
 For runtime changes, run targeted tests plus:
 
