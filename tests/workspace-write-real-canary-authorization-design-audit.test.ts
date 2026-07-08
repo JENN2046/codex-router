@@ -103,6 +103,30 @@ test("workspace-write real canary authorization design audit blocks release-side
   }
 });
 
+test("workspace-write real canary authorization design audit blocks missing required packet fields", async () => {
+  const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
+
+  for (const field of [
+    "worktreeCleanRequired",
+    "beforeCommitRequired"
+  ]) {
+    const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
+      ...input,
+      designDocText: input.designDocText.replace(
+        `\`${field}\`: \`true\``,
+        `\`${field}\`: \`false\``
+      )
+    });
+
+    assert.equal(review.status, "blocked", `${field} must stay true`);
+    assert.ok(
+      review.reasons.includes(
+        "workspace_write_real_canary_authorization_design_designDocRecorded"
+      )
+    );
+  }
+});
+
 test("workspace-write real canary authorization design audit blocks missing permit v2", async () => {
   const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
   const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
@@ -140,6 +164,42 @@ test("workspace-write real canary authorization design audit blocks missing pref
   assert.ok(
     review.reasons.includes(
       "workspace_write_real_canary_authorization_design_threatModelAligned"
+    )
+  );
+});
+
+test("workspace-write real canary authorization design audit blocks missing stale-base preflight", async () => {
+  const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
+  const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
+    ...input,
+    designDocText: input.designDocText.replace(
+      "- local branch is not behind its reviewed base;\n",
+      ""
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(
+    review.reasons.includes(
+      "workspace_write_real_canary_authorization_design_preExecutionChecksRecorded"
+    )
+  );
+});
+
+test("workspace-write real canary authorization design audit requires release gate packet link", async () => {
+  const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
+  const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
+    ...input,
+    releaseGateText: input.releaseGateText.replace(
+      "[workspace-write real canary authorization packet](WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET.md),\n",
+      ""
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(
+    review.reasons.includes(
+      "workspace_write_real_canary_authorization_design_releaseGateBindingRecorded"
     )
   );
 });

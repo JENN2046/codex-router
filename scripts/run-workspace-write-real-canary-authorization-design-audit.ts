@@ -45,6 +45,8 @@ const REQUIRED_DESIGN_MARKERS = [
   "`rollbackRequired`: `true`",
   "`canaryFileAbsentBeforeExecution`: `true`",
   "`branchPolicy`: `non_main_non_protected_branch_only`",
+  "`worktreeCleanRequired`: `true`",
+  "`beforeCommitRequired`: `true`",
   "`permitV2Required`: `true`",
   "`fakeCanaryV2Required`: `true`",
   "`releaseGateRequired`: `true`",
@@ -66,6 +68,7 @@ const REQUIRED_PREFLIGHT_MARKERS = [
   "current branch is not `main`",
   "current branch is not protected",
   "worktree is clean",
+  "local branch is not behind its reviewed base",
   "canary target file is absent before execution",
   "`beforeCommit` is recorded",
   "rollback command identity is recorded",
@@ -116,6 +119,7 @@ const REQUIRED_FORBIDDEN_EVIDENCE_MARKERS = [
 const REQUIRED_RELEASE_BINDING_MARKERS = [
   "Workspace-write real canary | Experimental and blocked by default.",
   "Real workspace-write execution requires the exact",
+  "WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET.md",
   "and a fresh explicit authorization packet."
 ] as const;
 
