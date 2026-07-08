@@ -77,6 +77,7 @@ Release validation runs the PR tier plus:
 - `npm run canary`
 - `npm run canary:write`
 - `npm run smoke:contract`
+- `npm run governance -- audit workspace-write-release-gate`
 - `npm run evidence:collect`
 
 Real Codex CLI smoke, workspace-write telemetry smoke, and external canary

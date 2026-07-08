@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `e8c34e8c4f9ced57f8b1c8e3c4d87c9939b8d0d213e2b30924429223d525f0db`
+  `dbbfaf43863d91b1559d1f7a513cdfb5b8e6ff236bc097420a3af1da60b78db5`
 
 Source digest excluded paths:
 
@@ -62,6 +62,8 @@ Source digest excluded paths:
 - Current state audit: `npm run governance -- audit state-sync`
 - Execution boundary current surface:
   `npm run governance -- audit execution-boundary-current-surface`
+- Workspace-write release gate:
+  `npm run governance -- audit workspace-write-release-gate`
 - Source/release package boundary:
   `npm run governance -- audit source-release-package-boundary`
 - Governance runner discovery: `npm run governance -- list`
@@ -229,6 +231,10 @@ Current repository governance status:
   single-use consumption helper are recorded in
   `docs/governance/PR_23D_WORKSPACE_WRITE_PERMIT_V2.md`; this is readiness
   infrastructure only, not workspace-write execution authorization.
+- Workspace-write release-gate alignment is now machine-checkable with
+  `npm run governance -- audit workspace-write-release-gate`; the gate is a
+  promotion review only and keeps real/general workspace-write blocked by
+  default.
 - Real provider execution, real Codex CLI execution, secret changes, dependency
   changes, workflow changes, and direct `main` pushes remain outside normal
   display-only pruning work.

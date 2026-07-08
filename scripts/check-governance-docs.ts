@@ -91,11 +91,13 @@ export const RELEASE_GATE_EXECUTION_BOUNDARY_MARKERS = [
 
 export const GOVERNANCE_README_RUNNER_ENTRY_MARKERS = [
   "npm run governance -- audit execution-boundary-current-surface",
+  "npm run governance -- audit workspace-write-release-gate",
   "npm run governance -- audit source-release-package-boundary"
 ] as const;
 
 export const CURRENT_STATE_RUNNER_ENTRY_MARKERS = [
   "npm run governance -- audit execution-boundary-current-surface",
+  "npm run governance -- audit workspace-write-release-gate",
   "npm run governance -- audit source-release-package-boundary",
   "Run the execution-boundary current surface before claiming source/release\npackage separation."
 ] as const;

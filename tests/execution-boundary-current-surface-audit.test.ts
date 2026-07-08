@@ -61,6 +61,7 @@ test("execution boundary current surface audit passes for current evidence", asy
     true
   );
   assert.equal(review.checks.stateSyncBoundaryConstrained, true);
+  assert.equal(review.checks.workspaceWriteReleaseGateBoundaryConstrained, true);
   assert.equal(review.checks.admissionControlBoundaryConstrained, true);
   assert.equal(review.checks.delegationPolicyBoundaryConstrained, true);
   assert.equal(review.checks.executionEligibilityBoundaryConstrained, true);
@@ -692,6 +693,37 @@ test("execution boundary current surface audit passes for current evidence", asy
   );
   assert.equal(review.summary.totalStateSyncBoundaryStateWritesDuringAudit, 0);
   assert.equal(review.summary.totalStateSyncBoundaryRemoteWritesDuringAudit, 0);
+  assert.ok(
+    review.summary.currentAudits.includes("workspace-write-release-gate")
+  );
+  assert.equal(
+    review.summary.workspaceWriteReleaseGateMode,
+    "promotion_review_gate_only"
+  );
+  assert.equal(
+    review.summary.workspaceWriteReleaseGateIsWorkspaceWriteAuthorization,
+    false
+  );
+  assert.equal(
+    review.summary.workspaceWriteReleaseGateIsProviderExecutionAuthorization,
+    false
+  );
+  assert.equal(
+    review.summary.workspaceWriteReleaseGateIsReleaseAuthorization,
+    false
+  );
+  assert.equal(
+    review.summary.totalWorkspaceWriteReleaseGateProviderExecuteCallsDuringAudit,
+    0
+  );
+  assert.equal(
+    review.summary.totalWorkspaceWriteReleaseGateWorkspaceWriteCallsDuringAudit,
+    0
+  );
+  assert.equal(
+    review.summary.totalWorkspaceWriteReleaseGateEvidenceWritesDuringAudit,
+    0
+  );
   assert.equal(
     review.summary.admissionControlMode,
     "admission_status_and_requirement_derivation_only"
@@ -3051,6 +3083,19 @@ test("execution boundary current surface audit output stays summarized", async (
   assert.match(text, /state-sync is release authorization: false/);
   assert.match(text, /state-sync boundary state writes during audit: 0/);
   assert.match(text, /state-sync boundary remote writes during audit: 0/);
+  assert.match(text, /workspace-write release gate mode: promotion_review_gate_only/);
+  assert.match(
+    text,
+    /workspace-write release gate is workspace-write authorization: false/
+  );
+  assert.match(
+    text,
+    /workspace-write release gate provider execute calls during audit: 0/
+  );
+  assert.match(
+    text,
+    /workspace-write release gate workspace-write calls during audit: 0/
+  );
   assert.match(text, /Admission control provider execute calls during audit: 0/);
   assert.match(text, /Delegation policy provider execute calls during audit: 0/);
   assert.match(text, /execution eligibility calls during audit: 0/);

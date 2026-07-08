@@ -62,6 +62,15 @@ test("governance README records current runner entries", async () => {
     ),
     ["npm run governance -- audit source-release-package-boundary"]
   );
+  assert.deepEqual(
+    missingGovernanceReadmeRunnerEntryMarkers(
+      text.replaceAll(
+        "npm run governance -- audit workspace-write-release-gate",
+        "npm run governance -- audit workspace-write-gate"
+      )
+    ),
+    ["npm run governance -- audit workspace-write-release-gate"]
+  );
 });
 
 test("current state records current runner entries", async () => {
@@ -94,6 +103,15 @@ test("current state records current runner entries", async () => {
     [
       "Run the execution-boundary current surface before claiming source/release\npackage separation."
     ]
+  );
+  assert.deepEqual(
+    missingCurrentStateRunnerEntryMarkers(
+      text.replaceAll(
+        "npm run governance -- audit workspace-write-release-gate",
+        "npm run governance -- audit workspace-write-gate"
+      )
+    ),
+    ["npm run governance -- audit workspace-write-release-gate"]
   );
 });
 
