@@ -50,6 +50,10 @@ as historical evidence unless a current authority document links them.
 - [PR-22A controlled provider execution taskbook](PR_22A_CONTROLLED_PROVIDER_EXECUTION_TASKBOOK.md):
   local-only planning line for the next controlled provider execution slice;
   this is not execution authorization.
+- [Controlled provider execution dispatch preflight matrix](CONTROLLED_PROVIDER_EXECUTION_DISPATCH_PREFLIGHT_MATRIX.md):
+  current pre-runner dispatch matrix for controlled read-only provider
+  execution; this does not authorize provider execute and leaves final execute
+  gating with the provider execution runner boundary.
 - [Phase 6 controlled execution runtime hardening baseline](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md):
   current baseline for PR-23A through PR-23F; this records the next runtime
   hardening sequence and is not workspace-write authorization.
@@ -224,6 +228,7 @@ npm run governance -- audit task-graph-boundary
 npm run governance -- audit scheduler-boundary
 npm run governance -- audit execution-planner-boundary
 npm run governance -- audit provider-registry-boundary
+npm run governance -- audit controlled-provider-execution-dispatch-preflight-boundary
 npm run governance -- audit provider-execution-runner-boundary
 npm run governance -- audit provider-core-execution-primitives-boundary
 npm run governance -- audit tool-invocation-planner-boundary

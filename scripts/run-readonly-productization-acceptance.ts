@@ -299,7 +299,10 @@ const REQUIRED_PRODUCTIZATION_DOC_MARKERS = [
 const REQUIRED_ROADMAP_MARKERS = [
   "READONLY_PRODUCTIZATION_ACCEPTANCE_RECORDED",
   "npm run governance -- audit readonly-productization",
-  "source and release package boundary fixes"
+  "source and release package boundary fixes",
+  "Current portable validation baseline: `content digest only`.",
+  "controlled provider execution dispatch preflight matrix",
+  "npm run governance -- audit controlled-provider-execution-dispatch-preflight-boundary"
 ] as const;
 
 const FORBIDDEN_SANITIZED_MARKERS = [
@@ -462,10 +465,8 @@ export function reviewReadonlyProductizationAcceptance(
     );
   const roadmapUpdated =
     input.roadmapText !== null
-    && roadmapText.includes("Date: 2026-06-16")
-    && /Current base: `main` and `origin\/main` at `[0-9a-f]{7,}`/.test(
-      roadmapText
-    )
+    && roadmapText.includes("Date: 2026-07-09")
+    && roadmapText.includes("Current base: `content digest only`")
     && REQUIRED_ROADMAP_MARKERS.every((marker) => roadmapText.includes(marker));
   const docsNonAuthorizing =
     productizationNonAuthorizing(productizationDocText)

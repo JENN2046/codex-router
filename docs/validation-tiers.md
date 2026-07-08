@@ -54,6 +54,12 @@ CI run the `pull_request` State Sync Audit, or run an explicit local
 pull-request context simulation. Do not treat a bare local state-sync audit on a
 non-`main` branch as the PR state-sync gate.
 
+Portable validation records should cite repository-relative commands and the
+machine-authoritative state-sync content digest. Do not use local absolute
+paths, machine-only shell probes, stale branch names, push ranges, or local-only
+commit anchors as PR or release authority unless the record explicitly scopes
+them as non-portable operator notes.
+
 The execution-boundary current surface audit records
 `narrow_readonly_provider_dispatch_without_boundary_inheritance`: read-only provider dispatch does not inherit into host executor authorization, read-only provider dispatch does not inherit into sub-agent runtime authorization, read-only provider dispatch does not inherit into workspace-write authorization, and read-only provider dispatch does not inherit into release authorization.
 Codex CLI host does not authorize host executor or sub-agent runtime; sub-agent
