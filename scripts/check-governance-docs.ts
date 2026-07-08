@@ -273,15 +273,19 @@ async function checkGovernanceReadmeRunnerEntries(
   }
   checkedFiles.add(filePath);
 
-  for (const marker of GOVERNANCE_README_RUNNER_ENTRY_MARKERS) {
-    if (!text.includes(marker)) {
-      issues.push(issue(
-        "governance_readme_runner_entry_missing",
-        filePath,
-        `Governance README must list runner entry: ${marker}`
-      ));
-    }
+  for (const marker of missingGovernanceReadmeRunnerEntryMarkers(text)) {
+    issues.push(issue(
+      "governance_readme_runner_entry_missing",
+      filePath,
+      `Governance README must list runner entry: ${marker}`
+    ));
   }
+}
+
+export function missingGovernanceReadmeRunnerEntryMarkers(text: string): string[] {
+  return GOVERNANCE_README_RUNNER_ENTRY_MARKERS.filter((marker) =>
+    !text.includes(marker)
+  );
 }
 
 export function missingReleaseGateExecutionBoundaryMarkers(text: string): string[] {

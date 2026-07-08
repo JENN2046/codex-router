@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import {
   checkGovernanceDocs,
   GOVERNANCE_README_RUNNER_ENTRY_MARKERS,
+  missingGovernanceReadmeRunnerEntryMarkers,
   missingReleaseGateExecutionBoundaryMarkers
 } from "../scripts/check-governance-docs.js";
 
@@ -48,6 +49,17 @@ test("governance README records current runner entries", async () => {
   for (const marker of GOVERNANCE_README_RUNNER_ENTRY_MARKERS) {
     assert.match(text, new RegExp(escapeRegExp(marker)));
   }
+
+  assert.deepEqual(missingGovernanceReadmeRunnerEntryMarkers(text), []);
+  assert.deepEqual(
+    missingGovernanceReadmeRunnerEntryMarkers(
+      text.replaceAll(
+        "npm run governance -- audit source-release-package-boundary",
+        "npm run governance -- audit source-release-package"
+      )
+    ),
+    ["npm run governance -- audit source-release-package-boundary"]
+  );
 });
 
 function escapeRegExp(value: string): string {
