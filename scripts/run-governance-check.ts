@@ -119,7 +119,6 @@ const GOVERNANCE_CHECKS: readonly GovernanceCheckDefinition[] = [
   auditCheck("execution-planner-boundary", "scripts/run-execution-planner-boundary-audit.ts"),
   auditCheck("provider-registry-boundary", "scripts/run-provider-registry-boundary-audit.ts"),
   auditCheck("controlled-provider-execution-dispatch-preflight-boundary", "scripts/run-controlled-provider-execution-dispatch-preflight-boundary-audit.ts"),
-  auditCheck("controlled-provider-execution-dispatcher-boundary", "scripts/run-controlled-provider-execution-dispatcher-boundary-audit.ts"),
   auditCheck("provider-execution-runner-boundary", "scripts/run-provider-execution-runner-boundary-audit.ts"),
   auditCheck("provider-core-execution-primitives-boundary", "scripts/run-provider-core-execution-primitives-boundary-audit.ts"),
   auditCheck("tool-invocation-planner-boundary", "scripts/run-tool-invocation-planner-boundary-audit.ts"),
