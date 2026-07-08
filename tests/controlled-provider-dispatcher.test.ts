@@ -131,6 +131,30 @@ test("controlled provider dispatcher blocks permit drift before runner", () => {
   assert.equal(fixture.provider.calls.execute, 0);
 });
 
+test("controlled provider dispatcher blocks stale task content before runner", async () => {
+  const fixture = createFixture();
+  const replacedTask = TaskSchema.parse({
+    ...fixture.task,
+    requestedAction: "Inspect a different repository state with the same task id."
+  });
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    task: replacedTask,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes("controlled_readonly_dispatch_task_hash_mismatch")
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
 test("controlled provider dispatcher blocks governance recovery before runner", () => {
   const fixture = createFixture();
   const review = reviewControlledReadOnlyProviderDispatch({

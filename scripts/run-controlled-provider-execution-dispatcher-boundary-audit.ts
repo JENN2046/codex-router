@@ -31,6 +31,8 @@ const REQUIRED_SOURCE_MARKERS = [
   "controlled_readonly_dispatch_governance_strategy_blocked",
   "controlled_readonly_dispatch_governance_phase_blocked",
   "controlled_readonly_dispatch_environment_preflight_artifact_hash_mismatch",
+  "controlled_readonly_dispatch_task_hash_required",
+  "controlled_readonly_dispatch_task_hash_mismatch",
   "controlled_readonly_dispatch_requires_read_only_side_effect",
   "controlled_readonly_dispatch_provider_execution_plan_hash_mismatch",
   "runnerInvoked: false",
@@ -41,6 +43,7 @@ const REQUIRED_TEST_MARKERS = [
   "controlled provider dispatcher gates the runner with exact dispatch preflight",
   "controlled provider dispatcher blocks preflight artifact drift before runner",
   "controlled provider dispatcher blocks permit drift before runner",
+  "controlled provider dispatcher blocks stale task content before runner",
   "controlled provider dispatcher blocks governance recovery before runner",
   "controlled provider dispatcher blocks broad provider plans before runner",
   "runnerInvoked, false",
@@ -49,6 +52,7 @@ const REQUIRED_TEST_MARKERS = [
   "execute, 0",
   "controlled_readonly_dispatch_environment_preflight_artifact_hash_mismatch",
   "controlled_readonly_dispatch_permit_provider_plan_hash_mismatch",
+  "controlled_readonly_dispatch_task_hash_mismatch",
   "controlled_readonly_dispatch_governance_phase_blocked:recovery",
   "controlled_readonly_dispatch_requires_read_only_side_effect:workspace_write"
 ] as const;

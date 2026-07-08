@@ -401,6 +401,12 @@ function collectPlanReasons(input: {
   if (providerExecutionPlan.taskId !== task.taskId) {
     reasons.push(`controlled_readonly_dispatch_task_mismatch:${providerExecutionPlan.taskId}:${task.taskId}`);
   }
+  const expectedTaskHash = hashProviderExecutionPlannerObject(task);
+  if (providerExecutionPlan.taskHash === undefined) {
+    reasons.push("controlled_readonly_dispatch_task_hash_required");
+  } else if (providerExecutionPlan.taskHash !== expectedTaskHash) {
+    reasons.push("controlled_readonly_dispatch_task_hash_mismatch");
+  }
   if (providerExecutionPlan.runId !== run.runId || run.taskId !== task.taskId) {
     reasons.push("controlled_readonly_dispatch_run_binding_mismatch");
   }
