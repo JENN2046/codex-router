@@ -195,6 +195,80 @@ test("workspace-write real canary authorization design audit blocks runtime mark
   );
 });
 
+test("workspace-write real canary authorization design audit blocks runtime markers in linked authority docs", async () => {
+  const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
+  const authorityMutations = [
+    {
+      name: "release gate",
+      input: {
+        ...input,
+        releaseGateText: `${input.releaseGateText}\n\nprovider.execute({});\n`
+      }
+    },
+    {
+      name: "runbook",
+      input: {
+        ...input,
+        runbookText: `${input.runbookText}\n\nprovider.execute({});\n`
+      }
+    },
+    {
+      name: "evidence policy",
+      input: {
+        ...input,
+        evidencePolicyText: `${input.evidencePolicyText}\n\nprovider.execute({});\n`
+      }
+    },
+    {
+      name: "threat model",
+      input: {
+        ...input,
+        threatModelText: `${input.threatModelText}\n\nprovider.execute({});\n`
+      }
+    }
+  ];
+
+  for (const mutation of authorityMutations) {
+    const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit(
+      mutation.input
+    );
+
+    assert.equal(review.status, "blocked", mutation.name);
+    assert.ok(
+      review.reasons.includes(
+        "workspace_write_real_canary_authorization_design_noRuntimeInvocationSurface"
+      )
+    );
+  }
+});
+
+test("workspace-write real canary authorization design audit enforces forbidden evidence section", async () => {
+  const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
+  const allowedRawEvidence = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
+    ...input,
+    designDocText: input.designDocText.replace(
+      "- patch digest;",
+      "- patch digest;\n- raw patch body;"
+    )
+  });
+  const renamedForbiddenSection = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
+    ...input,
+    designDocText: input.designDocText.replace(
+      "Forbidden evidence:",
+      "Disallowed evidence:"
+    )
+  });
+
+  for (const review of [allowedRawEvidence, renamedForbiddenSection]) {
+    assert.equal(review.status, "blocked");
+    assert.ok(
+      review.reasons.includes(
+        "workspace_write_real_canary_authorization_design_evidencePolicyAligned"
+      )
+    );
+  }
+});
+
 test("workspace-write real canary authorization design audit output stays summarized", async () => {
   const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit(
     await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput()

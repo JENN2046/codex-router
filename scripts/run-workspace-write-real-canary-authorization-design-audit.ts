@@ -93,17 +93,24 @@ const REQUIRED_PERMIT_MARKERS = [
   "dirty worktree forbidden"
 ] as const;
 
-const REQUIRED_EVIDENCE_MARKERS = [
+const REQUIRED_ALLOWED_EVIDENCE_MARKERS = [
   "authorization packet id",
   "operator authorization id",
   "permit id and consumption status",
   "patch digest",
   "rollback command identity and rollback result",
+  "sanitized reason codes and summaries"
+] as const;
+
+const REQUIRED_FORBIDDEN_EVIDENCE_MARKERS = [
   "raw patch body",
   "raw stdout/stderr transcript",
+  "raw prompt",
   "raw provider payload",
+  "raw command arguments",
   "env values",
-  "tokens, cookies, credentials, API keys, or auth headers"
+  "tokens, cookies, credentials, API keys, or auth headers",
+  "private memory or browser login state"
 ] as const;
 
 const REQUIRED_RELEASE_BINDING_MARKERS = [
@@ -354,7 +361,7 @@ export function reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit(
     preExecutionChecksRecorded:
       markersPresent(input.designDocText, REQUIRED_PREFLIGHT_MARKERS),
     evidencePolicyAligned:
-      markersPresent(input.designDocText, REQUIRED_EVIDENCE_MARKERS)
+      evidenceContractAligned(input.designDocText)
       && input.evidencePolicyText.includes(
         "Workspace-write evidence must prove scope without storing raw write material."
       ),
@@ -370,7 +377,7 @@ export function reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit(
     noBroadAuthorizationText:
       !containsForbidden(authorityText, FORBIDDEN_AUTHORIZATION_MARKERS),
     noRuntimeInvocationSurface:
-      !containsForbidden(input.designDocText, FORBIDDEN_RUNTIME_MARKERS),
+      !containsForbidden(authorityText, FORBIDDEN_RUNTIME_MARKERS),
     outputSanitized: outputSanitized()
   };
   const reasons = collectReasons(checks);
@@ -453,6 +460,43 @@ function markersPresent(text: string, markers: readonly string[]): boolean {
 
 function containsForbidden(text: string, markers: readonly string[]): boolean {
   return markers.some((marker) => text.includes(marker));
+}
+
+function evidenceContractAligned(text: string): boolean {
+  const allowedEvidence = textBetween(
+    text,
+    "Allowed evidence:",
+    "Forbidden evidence:"
+  );
+  const forbiddenEvidence = textBetween(
+    text,
+    "Forbidden evidence:",
+    "## Non-actions"
+  );
+
+  return allowedEvidence !== undefined
+    && forbiddenEvidence !== undefined
+    && markersPresent(allowedEvidence, REQUIRED_ALLOWED_EVIDENCE_MARKERS)
+    && markersPresent(forbiddenEvidence, REQUIRED_FORBIDDEN_EVIDENCE_MARKERS)
+    && !containsForbidden(allowedEvidence, REQUIRED_FORBIDDEN_EVIDENCE_MARKERS);
+}
+
+function textBetween(
+  text: string,
+  startMarker: string,
+  endMarker: string
+): string | undefined {
+  const start = text.indexOf(startMarker);
+  if (start === -1) {
+    return undefined;
+  }
+  const contentStart = start + startMarker.length;
+  const end = text.indexOf(endMarker, contentStart);
+  if (end === -1) {
+    return undefined;
+  }
+
+  return text.slice(contentStart, end);
 }
 
 function outputSanitized(): boolean {
