@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `46d7eda47423b44d8371ad36a8fb3ddf8344e75f8c0d99035cd1782c018d18a7`
+  `8c229fad2e92c3083dc8b08aaa145504d32dd2c9ae3300180bcf8adf69f64aa2`
 
 Source digest excluded paths:
 
@@ -257,12 +257,6 @@ Current structured state-sync audit status:
   optional operator-facing views derived from `docs/current/state-sync-record.json`.
 - Display drift is informational; branch-head audit reads the structured
   record directly and does not require display sync.
-The state-sync current static boundary entry point is
-`npm run governance -- audit state-sync-boundary`. The deeper `state-sync`
-audit remains the PR/local state consistency gate and observes branch, commit,
-divergence, clean-worktree, and structured record facts at runtime; it does not
-authorize provider execute, real Codex CLI, workspace-write, host executor,
-sub-agent runtime, external write, evidence refresh, push, or release.
 ## Execution Boundary
 
 Current allowed-by-default behavior is local and non-executing unless a specific
@@ -273,6 +267,13 @@ current static boundary entry point
 `npm run governance -- audit controlled-provider-execution-taskbook-review-boundary`.
 The deeper `controlled-provider-execution-taskbook-review` audit remains an
 explicit main/clean-context review gate.
+The state-sync current static boundary entry point is
+`npm run governance -- audit state-sync-boundary`. The deeper `state-sync`
+audit remains the PR/local state consistency gate and observes branch, commit,
+divergence, clean-worktree, repository identity, source-tree digest, and
+structured record facts at runtime; it does not authorize provider execute,
+real Codex CLI, workspace-write, host executor, sub-agent runtime, external
+write, evidence refresh, push, or release.
 The capability taxonomy escalation policy current static boundary entry point is
 `npm run governance -- audit capability-taxonomy-escalation-policy-boundary`.
 The deeper `capability-taxonomy-escalation-policy` audit remains an explicit

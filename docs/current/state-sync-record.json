@@ -2,12 +2,13 @@
   "schemaVersion": 2,
   "policyVersion": "state-sync-policy.v2",
   "repository": {
+    "id": "1220937060",
     "fullName": "JENN2046/codex-router"
   },
   "source": {
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "46d7eda47423b44d8371ad36a8fb3ddf8344e75f8c0d99035cd1782c018d18a7",
+      "value": "8c229fad2e92c3083dc8b08aaa145504d32dd2c9ae3300180bcf8adf69f64aa2",
       "excludedPaths": [
         "docs/current/state-sync-record.json",
         "docs/current/CURRENT_STATE.md",
