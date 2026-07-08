@@ -19,6 +19,11 @@ test("governance docs check passes for current repository docs", async () => {
   assert.ok(result.checkedFiles.includes("docs/governance/WORKSPACE_WRITE_RELEASE_GATE.md"));
   assert.ok(
     result.checkedFiles.includes(
+      "docs/governance/WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET.md"
+    )
+  );
+  assert.ok(
+    result.checkedFiles.includes(
       "docs/governance/decisions/ADR_005_WORKSPACE_WRITE_PERMIT_V2.md"
     )
   );
@@ -71,6 +76,15 @@ test("governance README records current runner entries", async () => {
     ),
     ["npm run governance -- audit workspace-write-release-gate"]
   );
+  assert.deepEqual(
+    missingGovernanceReadmeRunnerEntryMarkers(
+      text.replaceAll(
+        "npm run governance -- audit workspace-write-real-canary-authorization-design",
+        "npm run governance -- audit workspace-write-real-canary-design"
+      )
+    ),
+    ["npm run governance -- audit workspace-write-real-canary-authorization-design"]
+  );
 });
 
 test("current state records current runner entries", async () => {
@@ -112,6 +126,15 @@ test("current state records current runner entries", async () => {
       )
     ),
     ["npm run governance -- audit workspace-write-release-gate"]
+  );
+  assert.deepEqual(
+    missingCurrentStateRunnerEntryMarkers(
+      text.replaceAll(
+        "npm run governance -- audit workspace-write-real-canary-authorization-design",
+        "npm run governance -- audit workspace-write-real-canary-design"
+      )
+    ),
+    ["npm run governance -- audit workspace-write-real-canary-authorization-design"]
   );
 });
 

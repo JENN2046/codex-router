@@ -74,6 +74,7 @@ test("governance check runner default list shows current checks only", () => {
   assert.ok(checks.audit.includes("state-sync-boundary"));
   assert.ok(checks.audit.includes("readonly-productization-boundary"));
   assert.ok(checks.audit.includes("workspace-write-release-gate"));
+  assert.ok(checks.audit.includes("workspace-write-real-canary-authorization-design"));
   assert.ok(checks.audit.includes("strategy-router-execution-boundary"));
   assert.ok(checks.audit.includes("execution-profiles-boundary"));
   assert.ok(checks.audit.includes("policy-config-boundary"));

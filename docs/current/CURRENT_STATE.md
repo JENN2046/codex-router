@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `dbbfaf43863d91b1559d1f7a513cdfb5b8e6ff236bc097420a3af1da60b78db5`
+  `a1c56dd781fb50a75f6be714c0bcc411dbbdcdb37b8b22084699377f1573aaa1`
 
 Source digest excluded paths:
 
@@ -64,6 +64,8 @@ Source digest excluded paths:
   `npm run governance -- audit execution-boundary-current-surface`
 - Workspace-write release gate:
   `npm run governance -- audit workspace-write-release-gate`
+- Workspace-write real canary authorization design:
+  `npm run governance -- audit workspace-write-real-canary-authorization-design`
 - Source/release package boundary:
   `npm run governance -- audit source-release-package-boundary`
 - Governance runner discovery: `npm run governance -- list`
@@ -235,6 +237,11 @@ Current repository governance status:
   `npm run governance -- audit workspace-write-release-gate`; the gate is a
   promotion review only and keeps real/general workspace-write blocked by
   default.
+- Workspace-write real canary authorization packet design is now
+  machine-checkable with
+  `npm run governance -- audit workspace-write-real-canary-authorization-design`;
+  it is design/pre-execution review only and does not authorize real
+  workspace-write execution.
 - Real provider execution, real Codex CLI execution, secret changes, dependency
   changes, workflow changes, and direct `main` pushes remain outside normal
   display-only pruning work.
