@@ -65,6 +65,7 @@ const REQUIRED_PREFLIGHT_MARKERS = [
   "authorization packet design audit passed",
   "fake canary v2 acceptance passed with permit v2 and replay blocking",
   "pre-execution acceptance evidence is fresh, local-only, and sanitized",
+  "exact target allowlist contains only `tmp/codex-cli-write-canary.txt`",
   "current branch is not `main`",
   "current branch is not protected",
   "worktree is clean",
@@ -353,6 +354,7 @@ export function reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit(
       && input.designDocText.includes("Workspace-write Release Gate"),
     runbookBindingRecorded:
       input.runbookText.includes("Workspace-write Release Gate")
+      && input.runbookText.includes("WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET.md")
       && input.designDocText.includes(
         "docs/governance/runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md"
       ),

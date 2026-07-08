@@ -168,6 +168,24 @@ test("workspace-write real canary authorization design audit blocks missing pref
   );
 });
 
+test("workspace-write real canary authorization design audit blocks missing target allowlist preflight", async () => {
+  const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
+  const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
+    ...input,
+    designDocText: input.designDocText.replace(
+      "- exact target allowlist contains only `tmp/codex-cli-write-canary.txt`;\n",
+      ""
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(
+    review.reasons.includes(
+      "workspace_write_real_canary_authorization_design_preExecutionChecksRecorded"
+    )
+  );
+});
+
 test("workspace-write real canary authorization design audit blocks missing stale-base preflight", async () => {
   const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
   const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
@@ -182,6 +200,24 @@ test("workspace-write real canary authorization design audit blocks missing stal
   assert.ok(
     review.reasons.includes(
       "workspace_write_real_canary_authorization_design_preExecutionChecksRecorded"
+    )
+  );
+});
+
+test("workspace-write real canary authorization design audit requires runbook packet link", async () => {
+  const input = await collectWorkspaceWriteRealCanaryAuthorizationDesignAuditInput();
+  const review = reviewWorkspaceWriteRealCanaryAuthorizationDesignAudit({
+    ...input,
+    runbookText: input.runbookText.replace(
+      "[workspace-write real canary authorization packet](../WORKSPACE_WRITE_REAL_CANARY_AUTHORIZATION_PACKET.md)",
+      "workspace-write real canary authorization packet"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(
+    review.reasons.includes(
+      "workspace_write_real_canary_authorization_design_runbookBindingRecorded"
     )
   );
 });
