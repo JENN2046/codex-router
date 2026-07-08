@@ -84,6 +84,17 @@ test("current state records current runner entries", async () => {
     ),
     ["npm run governance -- audit execution-boundary-current-surface"]
   );
+  assert.deepEqual(
+    missingCurrentStateRunnerEntryMarkers(
+      text.replaceAll(
+        "Run the execution-boundary current surface before claiming source/release\npackage separation.",
+        "Run source and release package checks from the current entrypoint list."
+      )
+    ),
+    [
+      "Run the execution-boundary current surface before claiming source/release\npackage separation."
+    ]
+  );
 });
 
 function escapeRegExp(value: string): string {

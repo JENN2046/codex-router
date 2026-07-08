@@ -96,7 +96,8 @@ export const GOVERNANCE_README_RUNNER_ENTRY_MARKERS = [
 
 export const CURRENT_STATE_RUNNER_ENTRY_MARKERS = [
   "npm run governance -- audit execution-boundary-current-surface",
-  "npm run governance -- audit source-release-package-boundary"
+  "npm run governance -- audit source-release-package-boundary",
+  "Run the execution-boundary current surface before claiming source/release\npackage separation."
 ] as const;
 
 export async function checkGovernanceDocs(
@@ -316,8 +317,10 @@ export function missingGovernanceReadmeRunnerEntryMarkers(text: string): string[
 }
 
 export function missingCurrentStateRunnerEntryMarkers(text: string): string[] {
+  const normalizedText = normalizeDocTextForMarkerSearch(text);
+
   return CURRENT_STATE_RUNNER_ENTRY_MARKERS.filter((marker) =>
-    !text.includes(marker)
+    !normalizedText.includes(normalizeDocTextForMarkerSearch(marker))
   );
 }
 

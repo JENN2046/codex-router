@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `067a97e0f73b9b6abdf791008383101c4002aaad90720f65c4e1858eafbe9fcf`
+  `9896b7a300611a73c013784ed15d3b955eea881996f3ed1e43c686e7865cc485`
 
 Source digest excluded paths:
 
@@ -65,6 +65,9 @@ Source digest excluded paths:
 - Source/release package boundary:
   `npm run governance -- audit source-release-package-boundary`
 - Governance runner discovery: `npm run governance -- list`
+
+Run the execution-boundary current surface before claiming source/release
+package separation.
 
 ## Current Scope
 
