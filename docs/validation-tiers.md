@@ -45,6 +45,7 @@ npm run validate:pr
 - `npm run build`
 - `npm run docs:governance`
 - `npm run governance -- audit execution-boundary-current-surface`
+- `npm run governance -- audit controlled-provider-execution-dispatcher-boundary`
 - `npm run governance -- audit state-sync`
 
 `validate:pr` includes the local execution-boundary current surface audit and

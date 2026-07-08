@@ -54,6 +54,12 @@ as historical evidence unless a current authority document links them.
   current pre-runner dispatch matrix for controlled read-only provider
   execution; this does not authorize provider execute and leaves final execute
   gating with the provider execution runner boundary.
+- Controlled provider execution dispatcher boundary:
+  `packages/governance-internal-controlled-provider-dispatcher` consumes the
+  dispatch preflight schema, provider registry selection, permit, executor plan,
+  environment preflight artifact binding, and governance stop checks before
+  handing off to the provider execution runner boundary; it does not call
+  `provider.execute` directly and does not authorize workspace-write.
 - [Phase 6 controlled execution runtime hardening baseline](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md):
   current baseline for PR-23A through PR-23F; this records the next runtime
   hardening sequence and is not workspace-write authorization.
@@ -229,6 +235,7 @@ npm run governance -- audit scheduler-boundary
 npm run governance -- audit execution-planner-boundary
 npm run governance -- audit provider-registry-boundary
 npm run governance -- audit controlled-provider-execution-dispatch-preflight-boundary
+npm run governance -- audit controlled-provider-execution-dispatcher-boundary
 npm run governance -- audit provider-execution-runner-boundary
 npm run governance -- audit provider-core-execution-primitives-boundary
 npm run governance -- audit tool-invocation-planner-boundary
