@@ -66,6 +66,8 @@ Source digest excluded paths:
   `npm run governance -- audit workspace-write-release-gate`
 - Controlled generic workspace-write acceptance:
   `npm run governance -- acceptance controlled-generic-workspace-write -- --check`
+- Controlled generic workspace-write completion audit:
+  `npm run governance -- audit controlled-generic-workspace-write-completion`
 - Workspace-write real canary authorization design:
   `npm run governance -- audit workspace-write-real-canary-authorization-design`
 - Source/release package boundary:
@@ -246,6 +248,11 @@ Current repository governance status:
   it executes and rolls back create/update/delete operations only inside a
   temporary local git repository and proves replay blocking, sanitized evidence,
   zero provider `execute`, zero real Codex CLI, and zero external writes.
+- Controlled generic workspace-write completion is now machine-checkable with
+  `npm run governance -- audit controlled-generic-workspace-write-completion`;
+  it ties executor, provider runner, controlled dispatcher, host/desktop
+  routing, Agent OS SDK/CLI/app-server prepare surfaces, committed acceptance
+  evidence, and release gate posture into a single read-only completion matrix.
 - Workspace-write real canary authorization packet design is now
   machine-checkable with
   `npm run governance -- audit workspace-write-real-canary-authorization-design`;
