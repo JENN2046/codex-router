@@ -34,7 +34,6 @@ const GOVERNANCE_CHECK_CATEGORIES: readonly GovernanceCheckCategory[] = [
   "acceptance",
   "operator"
 ];
-const TSX_CLI_PATH = "node_modules/tsx/dist/cli.mjs";
 const DEFAULT_LIST_SURFACE = "current";
 
 const GOVERNANCE_CHECKS: readonly GovernanceCheckDefinition[] = [
@@ -304,19 +303,10 @@ function tsxCommand(
   args: readonly string[],
   description: string
 ): CommandSpec {
-  if (process.platform === "win32") {
-    return {
-      id,
-      command: process.execPath,
-      args: [TSX_CLI_PATH, ...args],
-      description
-    };
-  }
-
   return {
     id,
-    command: "tsx",
-    args: [...args],
+    command: process.execPath,
+    args: ["--import", "tsx", ...args],
     description
   };
 }

@@ -18,7 +18,7 @@ const PRODUCTIZATION_DOC =
 const ROADMAP_DOC = "docs/agent-os-transformation/current-roadmap-20260610.md";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_EVIDENCE = [

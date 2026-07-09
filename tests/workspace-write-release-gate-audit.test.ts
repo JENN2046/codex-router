@@ -96,8 +96,8 @@ test("workspace-write release gate audit blocks release validation drift", async
   const review = reviewWorkspaceWriteReleaseGateAudit({
     ...input,
     packageJsonText: input.packageJsonText.replace(
-      "\"canary:write\": \"tsx scripts/run-canary-test.ts --risk medium\"",
-      "\"canary:write\": \"tsx scripts/run-canary-test.ts --risk low\""
+      "\"canary:write\": \"node --import tsx scripts/run-canary-test.ts --risk medium\"",
+      "\"canary:write\": \"node --import tsx scripts/run-canary-test.ts --risk low\""
     )
   });
 

@@ -10,7 +10,7 @@ import {
 } from "./run-readonly-real-smoke-chain-local-candidate-consistency.js";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const PR20C_DOC =

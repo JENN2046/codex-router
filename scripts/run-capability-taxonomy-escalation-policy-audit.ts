@@ -20,7 +20,7 @@ const REAL_CANARY_EVIDENCE =
   "docs/evidence/codex-cli-workspace-write-real-canary-latest.json";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_CAPABILITY_CLASSES = [

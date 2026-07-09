@@ -28,7 +28,7 @@ const WORKSPACE_WRITE_PRE_EXECUTION_EVIDENCE =
   "docs/evidence/workspace-write-real-canary-pre-execution-acceptance.json";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_GATE_FIELDS = [

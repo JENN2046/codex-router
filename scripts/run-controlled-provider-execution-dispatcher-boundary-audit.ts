@@ -21,6 +21,16 @@ const REQUIRED_SOURCE_MARKERS = [
   "providerRegistrySelectionRequired",
   "permitRequired",
   "preflightArtifactBindingRequired",
+  "recordControlledReadOnlyProviderDispatchPreflightArtifact",
+  "controlled-provider-execution-dispatch-preflight-artifact.v1",
+  "collectDispatchPreflightArtifactStoreReasons",
+  "artifactStore.verifyArtifact",
+  "controlled_readonly_dispatch_preflight_artifact_store_missing",
+  "controlled_readonly_dispatch_preflight_artifact_store_verification_failed",
+  "controlled_readonly_dispatch_preflight_artifact_hash_mismatch",
+  "controlled_readonly_dispatch_preflight_artifact_executor_plan_hash_mismatch",
+  "controlled_readonly_dispatch_preflight_artifact_provider_manifest_hash_mismatch",
+  "controlled_readonly_dispatch_preflight_artifact_policy_decision_hash_mismatch",
   "dryRunDefaultPreserved",
   "reviewControlledReadOnlyProviderDispatch",
   "dispatchControlledReadOnlyProviderExecution",
@@ -61,6 +71,10 @@ const REQUIRED_SOURCE_MARKERS = [
 
 const REQUIRED_TEST_MARKERS = [
   "controlled provider dispatcher gates the runner with exact dispatch preflight",
+  "controlled provider dispatcher requires stored preflight artifact before runner",
+  "controlled provider dispatcher verifies stored preflight artifact payload before runner",
+  "controlled provider dispatcher binds stored preflight artifact metadata before runner",
+  "controlled provider dispatcher binds stored preflight artifact authorization context before runner",
   "controlled provider dispatcher blocks preflight artifact drift before runner",
   "controlled provider dispatcher blocks unsafe preflight metadata before runner",
   "controlled provider dispatcher blocks permit drift before runner",
@@ -83,6 +97,12 @@ const REQUIRED_TEST_MARKERS = [
   "validateExecutionPlan, 0",
   "execute, 0",
   "controlled_readonly_dispatch_environment_preflight_artifact_hash_mismatch",
+  "controlled_readonly_dispatch_preflight_artifact_store_missing",
+  "controlled_readonly_dispatch_preflight_artifact_store_verification_failed:sha256_mismatch",
+  "controlled_readonly_dispatch_preflight_artifact_hash_mismatch",
+  "controlled_readonly_dispatch_preflight_artifact_executor_plan_hash_mismatch",
+  "controlled_readonly_dispatch_preflight_artifact_provider_manifest_hash_mismatch",
+  "controlled_readonly_dispatch_preflight_artifact_policy_decision_hash_mismatch",
   "controlled_readonly_dispatch_preflight_metadata_not_sanitized",
   "controlled_readonly_dispatch_permit_provider_plan_hash_mismatch",
   "controlled_readonly_dispatch_task_hash_mismatch",
@@ -162,6 +182,8 @@ export interface ControlledProviderExecutionDispatcherBoundaryAuditResult {
     providerRegistrySelectionRequired: true;
     permitValidationRequired: true;
     preflightArtifactBindingRequired: true;
+    preflightArtifactStoreVerificationRequired: true;
+    preflightArtifactAuthorizationContextBindingRequired: true;
     governanceStrategyStopRequired: true;
     runnerInvocationsDuringAudit: 0;
     providerExecuteCallsDuringAudit: 0;
@@ -259,6 +281,8 @@ export function reviewControlledProviderExecutionDispatcherBoundaryAudit(
       providerRegistrySelectionRequired: true,
       permitValidationRequired: true,
       preflightArtifactBindingRequired: true,
+      preflightArtifactStoreVerificationRequired: true,
+      preflightArtifactAuthorizationContextBindingRequired: true,
       governanceStrategyStopRequired: true,
       runnerInvocationsDuringAudit: 0,
       providerExecuteCallsDuringAudit: 0,
@@ -297,6 +321,8 @@ export function formatControlledProviderExecutionDispatcherBoundaryAuditResult(
     `provider registry selection required: ${review.summary.providerRegistrySelectionRequired}`,
     `permit validation required: ${review.summary.permitValidationRequired}`,
     `preflight artifact binding required: ${review.summary.preflightArtifactBindingRequired}`,
+    `preflight artifact store verification required: ${review.summary.preflightArtifactStoreVerificationRequired}`,
+    `preflight artifact authorization context binding required: ${review.summary.preflightArtifactAuthorizationContextBindingRequired}`,
     `governance strategy stop required: ${review.summary.governanceStrategyStopRequired}`,
     `runner invocations during audit: ${review.summary.runnerInvocationsDuringAudit}`,
     `provider execute calls during audit: ${review.summary.providerExecuteCallsDuringAudit}`,
@@ -343,6 +369,8 @@ function outputSanitized(
       providerRegistrySelectionRequired: true,
       permitValidationRequired: true,
       preflightArtifactBindingRequired: true,
+      preflightArtifactStoreVerificationRequired: true,
+      preflightArtifactAuthorizationContextBindingRequired: true,
       governanceStrategyStopRequired: true,
       runnerInvocationsDuringAudit: 0,
       providerExecuteCallsDuringAudit: 0,

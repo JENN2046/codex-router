@@ -9,7 +9,7 @@ const AGENT_BOARD_STATE_FILES = [
 ] as const;
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const STRICT_STATE_RECORD_PATHS = new Set([

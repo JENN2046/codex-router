@@ -14,7 +14,7 @@ const APPROVAL_CLOSEOUT_DOC =
   "docs/governance/APPROVAL_CONSUMPTION_HARDENING_LOCAL_CLOSEOUT.md";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_MATRIX_MARKERS = [

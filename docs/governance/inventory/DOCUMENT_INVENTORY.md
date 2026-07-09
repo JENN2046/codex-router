@@ -179,22 +179,22 @@ renaming. Phase 0 does not move evidence files.
 |---|---|---|---|
 | `build` | `tsc -p tsconfig.json` | README validation section | documented |
 | `typecheck` | `tsc -p tsconfig.json --noEmit` | README validation section | documented |
-| `test` | `tsx --test tests/*.test.ts` | README validation section | documented |
-| `governance` | `tsx scripts/run-governance-check.ts` | README and `docs/governance/README.md` | documented |
-| `validate:daily` | `tsx scripts/run-governance-check.ts tier daily` | README validation tiers | documented |
-| `validate:pr` | `tsx scripts/run-governance-check.ts tier pr` | README validation tiers | documented |
-| `validate:release` | `tsx scripts/run-governance-check.ts tier release` | README validation tiers | documented |
-| `demo:runtime-governance` | `tsx scripts/run-runtime-governance-demo.ts` | README and `docs/end-to-end-host-client-example.md` | documented |
-| `model:check` | `tsx scripts/check-codex-cli-models.ts` | model-check evidence docs | needs Phase 1 mapping |
-| `preflight:codex-cli-env` | `tsx scripts/run-codex-cli-environment-preflight.ts` | Codex CLI preflight docs | needs Phase 1 mapping |
-| `smoke:contract` | `tsx scripts/run-codex-cli-contract-smoke.ts` | README release validation and host smoke docs | documented |
-| `smoke:readonly:real` | `tsx scripts/run-codex-cli-real-readonly-smoke.ts` | `docs/codex-cli-real-host-smoke-release-checklist.md` | documented |
-| `smoke:telemetry` | `tsx scripts/run-codex-cli-readonly-smoke-telemetry.ts` | `docs/codex-cli-real-host-smoke-release-checklist.md` | documented |
-| `smoke:workspace-write:telemetry` | `tsx scripts/run-codex-cli-workspace-write-smoke-telemetry.ts` | `docs/codex-cli-real-host-smoke-release-checklist.md` | documented |
-| `canary` | `tsx scripts/run-canary-test.ts` | README release validation | documented |
-| `canary:write` | `tsx scripts/run-canary-test.ts --risk medium` | README release validation | documented |
-| `canary:external` | `tsx scripts/run-canary-test.ts --risk high` | README release validation | documented |
-| `evidence:collect` | `tsx scripts/collect-evidence.ts` | README release validation and evidence manifest | documented |
+| `test` | `node --import tsx --test tests/*.test.ts` | README validation section | documented |
+| `governance` | `node --import tsx scripts/run-governance-check.ts` | README and `docs/governance/README.md` | documented |
+| `validate:daily` | `node --import tsx scripts/run-governance-check.ts tier daily` | README validation tiers | documented |
+| `validate:pr` | `node --import tsx scripts/run-governance-check.ts tier pr` | README validation tiers | documented |
+| `validate:release` | `node --import tsx scripts/run-governance-check.ts tier release` | README validation tiers | documented |
+| `demo:runtime-governance` | `node --import tsx scripts/run-runtime-governance-demo.ts` | README and `docs/end-to-end-host-client-example.md` | documented |
+| `model:check` | `node --import tsx scripts/check-codex-cli-models.ts` | model-check evidence docs | needs Phase 1 mapping |
+| `preflight:codex-cli-env` | `node --import tsx scripts/run-codex-cli-environment-preflight.ts` | Codex CLI preflight docs | needs Phase 1 mapping |
+| `smoke:contract` | `node --import tsx scripts/run-codex-cli-contract-smoke.ts` | README release validation and host smoke docs | documented |
+| `smoke:readonly:real` | `node --import tsx scripts/run-codex-cli-real-readonly-smoke.ts` | `docs/codex-cli-real-host-smoke-release-checklist.md` | documented |
+| `smoke:telemetry` | `node --import tsx scripts/run-codex-cli-readonly-smoke-telemetry.ts` | `docs/codex-cli-real-host-smoke-release-checklist.md` | documented |
+| `smoke:workspace-write:telemetry` | `node --import tsx scripts/run-codex-cli-workspace-write-smoke-telemetry.ts` | `docs/codex-cli-real-host-smoke-release-checklist.md` | documented |
+| `canary` | `node --import tsx scripts/run-canary-test.ts` | README release validation | documented |
+| `canary:write` | `node --import tsx scripts/run-canary-test.ts --risk medium` | README release validation | documented |
+| `canary:external` | `node --import tsx scripts/run-canary-test.ts --risk high` | README release validation | documented |
+| `evidence:collect` | `node --import tsx scripts/collect-evidence.ts` | README release validation and evidence manifest | documented |
 
 ## README Entry Check
 

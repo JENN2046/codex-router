@@ -15,7 +15,7 @@ const DEFAULT_EVIDENCE_PATH = join(
 const DEFAULT_GENERATED_AT = "2026-06-15T00:00:00.000Z";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const FORBIDDEN_EVIDENCE_MARKERS = [

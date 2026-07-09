@@ -1,10 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryArtifactStore } from "../packages/artifact-store/src/index.js";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  FileSystemArtifactStore,
+  InMemoryArtifactStore,
+  type ArtifactStore
+} from "../packages/artifact-store/src/index.js";
 import { hashApprovalScope } from "../packages/governance-internal-approval-permit/src/index.js";
 import {
   createControlledReadOnlyProviderDispatchPreflight,
   dispatchControlledReadOnlyProviderExecution,
+  recordControlledReadOnlyProviderDispatchPreflightArtifact,
   reviewControlledReadOnlyProviderDispatch
 } from "../packages/governance-internal-controlled-provider-dispatcher/src/index.js";
 import type { GovernanceState } from "../packages/governance-internal-state-manager/src/index.js";
@@ -52,10 +60,11 @@ const now = "2026-07-09T01:00:00.000Z";
 
 test("controlled provider dispatcher gates the runner with exact dispatch preflight", async () => {
   const fixture = createFixture();
+  const artifactStore = await createArtifactStoreWithPreflight(fixture);
   const result = await dispatchControlledReadOnlyProviderExecution({
     ...fixture,
     kernelStore: new InMemoryKernelStore(),
-    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    artifactStore,
     now: createClock()
   });
 
@@ -74,6 +83,183 @@ test("controlled provider dispatcher gates the runner with exact dispatch prefli
     result.runnerResult.executionEvidence?.bindings.environmentPreflight.artifactHash,
     fixture.dispatchPreflight.environmentPreflight.artifactHash
   );
+});
+
+test("controlled provider dispatcher requires stored preflight artifact before runner", async () => {
+  const fixture = createFixture();
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_preflight_artifact_store_missing"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher verifies stored preflight artifact payload before runner", async () => {
+  const fixture = createFixture();
+  await withTamperedPreflightArtifactStore(fixture, async (artifactStore) => {
+    const result = await dispatchControlledReadOnlyProviderExecution({
+      ...fixture,
+      kernelStore: new InMemoryKernelStore(),
+      artifactStore,
+      now: createClock()
+    });
+
+    assert.equal(result.status, "dispatch_blocked");
+    assert.equal(result.runnerInvoked, false);
+    assert.equal(result.executeInvoked, false);
+    assert.ok(
+      result.reasons.includes(
+        "controlled_readonly_dispatch_preflight_artifact_store_verification_failed:sha256_mismatch"
+      )
+    );
+    assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+    assert.equal(fixture.provider.calls.execute, 0);
+  });
+});
+
+test("controlled provider dispatcher binds stored preflight artifact metadata before runner", async () => {
+  const fixture = createFixture();
+  const artifactStore = await createArtifactStoreWithPreflight(fixture);
+  const artifactId = (await artifactStore.listArtifacts({
+    taskId: fixture.task.taskId,
+    runId: fixture.run.runId,
+    type: "json"
+  }))[0]?.artifactId;
+  if (artifactId === undefined) {
+    throw new Error("preflight_artifact_fixture_missing");
+  }
+  await artifactStore.putArtifact({
+    artifactId,
+    taskId: fixture.task.taskId,
+    runId: fixture.run.runId,
+    type: "json",
+    payload: {
+      ok: true,
+      note: "metadata drift fixture"
+    },
+    metadata: {
+      controlledReadOnlyDispatchPreflight: {
+        schemaVersion:
+          "controlled-provider-execution-dispatch-preflight-artifact-binding.v1",
+        artifactRef: fixture.dispatchPreflight.environmentPreflight.artifactRef,
+        artifactHash: "0".repeat(64),
+        providerExecutionPlanHash: hashProviderExecutionPlannerObject(
+          fixture.providerExecutionPlan
+        ),
+        executorPlanHash: hashProviderExecutionPlannerObject(fixture.executorPlan),
+        providerManifestHash:
+          fixture.providerExecutionPlan.providerManifestHash ?? "",
+        policyDecisionHash: hashProviderExecutionPlannerObject(
+          fixture.policyDecision
+        ),
+        providerId: fixture.providerExecutionPlan.providerId,
+        taskId: fixture.task.taskId,
+        runId: fixture.run.runId
+      }
+    },
+    allowOverwrite: true,
+    alreadyRedacted: true
+  });
+
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore,
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_preflight_artifact_hash_mismatch"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
+test("controlled provider dispatcher binds stored preflight artifact authorization context before runner", async () => {
+  const fixture = createFixture();
+  const artifactStore = await createArtifactStoreWithPreflight(fixture);
+  const artifactId = (await artifactStore.listArtifacts({
+    taskId: fixture.task.taskId,
+    runId: fixture.run.runId,
+    type: "json"
+  }))[0]?.artifactId;
+  if (artifactId === undefined) {
+    throw new Error("preflight_artifact_fixture_missing");
+  }
+  await artifactStore.putArtifact({
+    artifactId,
+    taskId: fixture.task.taskId,
+    runId: fixture.run.runId,
+    type: "json",
+    payload: {
+      ok: true,
+      note: "authorization context drift fixture"
+    },
+    metadata: {
+      controlledReadOnlyDispatchPreflight: {
+        schemaVersion:
+          "controlled-provider-execution-dispatch-preflight-artifact-binding.v1",
+        artifactRef: fixture.dispatchPreflight.environmentPreflight.artifactRef,
+        artifactHash: fixture.dispatchPreflight.environmentPreflight.artifactHash,
+        providerExecutionPlanHash: hashProviderExecutionPlannerObject(
+          fixture.providerExecutionPlan
+        ),
+        executorPlanHash: "0".repeat(64),
+        providerManifestHash: "1".repeat(64),
+        policyDecisionHash: "2".repeat(64),
+        providerId: fixture.providerExecutionPlan.providerId,
+        taskId: fixture.task.taskId,
+        runId: fixture.run.runId
+      }
+    },
+    allowOverwrite: true,
+    alreadyRedacted: true
+  });
+
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore,
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_preflight_artifact_executor_plan_hash_mismatch"
+    )
+  );
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_preflight_artifact_provider_manifest_hash_mismatch"
+    )
+  );
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_preflight_artifact_policy_decision_hash_mismatch"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
 });
 
 test("controlled provider dispatcher blocks preflight artifact drift before runner", () => {
@@ -386,11 +572,12 @@ test("controlled provider dispatcher accepts runtime provider entries without du
   const fixture = createFixture();
   const providerRegistry = new ProviderRegistry();
   providerRegistry.registerProvider(fixture.provider.manifest, fixture.provider);
+  const artifactStore = await createArtifactStoreWithPreflight(fixture);
   const result = await dispatchControlledReadOnlyProviderExecution({
     ...fixture,
     providerRegistry,
     kernelStore: new InMemoryKernelStore(),
-    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    artifactStore,
     now: createClock()
   });
 
@@ -963,6 +1150,51 @@ function createRegistry(provider: ExecutorProvider): ProviderRegistry {
   registry.register(provider.manifest, { registeredAt: now });
   registry.registerProvider(provider.manifest, provider);
   return registry;
+}
+
+async function createArtifactStoreWithPreflight(
+  fixture: Fixture
+): Promise<ArtifactStore> {
+  const artifactStore = new InMemoryArtifactStore({ now: createClock() });
+  await recordControlledReadOnlyProviderDispatchPreflightArtifact({
+    artifactStore,
+    dispatchPreflight: fixture.dispatchPreflight,
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    executorPlan: fixture.executorPlan,
+    policyDecision: fixture.policyDecision,
+    task: fixture.task,
+    run: fixture.run,
+    now: createClock()
+  });
+  return artifactStore;
+}
+
+async function withTamperedPreflightArtifactStore(
+  fixture: Fixture,
+  callback: (artifactStore: ArtifactStore) => Promise<void>
+): Promise<void> {
+  const baseDir = await mkdtemp(join(tmpdir(), "codex-router-dispatcher-"));
+  const artifactStore = new FileSystemArtifactStore({
+    baseDir,
+    now: createClock()
+  });
+
+  try {
+    const artifact = await recordControlledReadOnlyProviderDispatchPreflightArtifact({
+      artifactStore,
+      dispatchPreflight: fixture.dispatchPreflight,
+      providerExecutionPlan: fixture.providerExecutionPlan,
+      executorPlan: fixture.executorPlan,
+      policyDecision: fixture.policyDecision,
+      task: fixture.task,
+      run: fixture.run,
+      now: createClock()
+    });
+    await writeFile(join(baseDir, artifact.artifactId, "payload"), "tampered", "utf8");
+    await callback(artifactStore);
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
 }
 
 function createLowRiskGovernanceState(taskId: string): GovernanceState {
