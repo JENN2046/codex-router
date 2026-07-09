@@ -75,6 +75,31 @@ npm run canary:write
 `npm run canary:write` is the deterministic medium-risk canary script. It does
 not by itself authorize a real Codex CLI workspace-write execution.
 
+Local real workspace-write canary entrypoint:
+
+```bash
+npm run canary:workspace-write:real
+```
+
+Without `--execute`, the command records only a pre-execution result. A real
+local canary write requires all of these at the same time:
+
+- current branch is non-protected and not `main`, `master`, `production`, or
+  `release`;
+- worktree is clean before the canary;
+- fixed target `tmp/codex-cli-write-canary.txt` is absent;
+- exact authorization is supplied through
+  `WORKSPACE_WRITE_REAL_CANARY_EXECUTE_AUTHORIZATION`;
+- the command is invoked with `--execute`;
+- permit v2, authorization packet, patch guard, rollback evidence, and
+  pre-execution gate all pass.
+
+The local real canary writes only the fixed target, verifies the post-write
+patch summary, removes the target, verifies the target is absent and clean in
+git status, and records sanitized evidence. It does not invoke Codex CLI,
+provider execution, push, release, tag, deployment, package publish, external
+write, or secret mutation.
+
 ## Procedure
 
 1. Classify the requested action as fake canary, real bounded canary, or broader
@@ -101,7 +126,10 @@ not by itself authorize a real Codex CLI workspace-write execution.
 
 - Fake canary validates governance flow without real host execution.
 - Real canary, when explicitly authorized, writes only the named target and
-  leaves rollback evidence.
+  leaves rollback evidence. The local implementation writes
+  `tmp/codex-cli-write-canary.txt` with fixed canary content, verifies the
+  resulting one-file/one-line patch summary, then removes the file and verifies
+  rollback before evidence is written.
 - General workspace-write remains blocked.
 
 ## Blocking Conditions
@@ -123,6 +151,8 @@ Stop when any of these are true:
   mutation is bundled into the same action;
 - evidence requires raw prompt, raw provider payload, raw stdout/stderr, env,
   token, cookie, or credential storage.
+- the local real canary target remains present after rollback or is still shown
+  by `git status --short -- tmp/codex-cli-write-canary.txt`.
 
 ## Evidence Produced
 
@@ -140,6 +170,9 @@ Allowed evidence:
 - rollback status;
 - canary status;
 - sanitized reason codes and summaries.
+- local real canary counters: `workspaceWriteExecuteCalls`,
+  `canaryFileWrites`, `providerExecuteCalls`, `realCodexCliCalls`, and
+  `remoteWrites`.
 
 Do not store raw patches, raw execution transcripts, secrets, tokens, cookies,
 credentials, provider payloads, or env values.
