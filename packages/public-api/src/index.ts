@@ -7,6 +7,7 @@ export type {
   AgentOsSdkCallOptions,
   AgentOsSdkCancelRunInput,
   AgentOsSdkCreateTaskInput,
+  AgentOsSdkDispatchWorkspaceWriteInput,
   AgentOsSdkGetArtifactInput,
   AgentOsSdkGetRunInput,
   AgentOsSdkListArtifactsInput,
@@ -21,6 +22,7 @@ export {
   AgentOsCliCommandSchema,
   parseAgentOsCliArgv,
   runAgentOsCliCommand,
+  runAgentOsCliCommandAsync,
   sanitizeAgentOsCliArgv
 } from "../../agent-os-cli/src/index.js";
 export type {
@@ -33,6 +35,7 @@ export type {
 export {
   AgentOsAppServerMethodSchema,
   handleAgentOsAppServerRequest,
+  handleAgentOsAppServerRequestAsync,
   routeAgentOsAppServerRequest
 } from "../../agent-os-app-server/src/index.js";
 export type {

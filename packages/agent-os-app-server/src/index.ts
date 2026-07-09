@@ -60,6 +60,27 @@ const AGENT_OS_RUNTIME_INVALID_CURSOR_PREFIXES = [
 export function handleAgentOsAppServerRequest(
   input: HandleAgentOsAppServerRequestInput
 ): AgentOsAppServerResponse {
+  return handleAgentOsAppServerRequestWithRuntime(input, "sync");
+}
+
+export async function handleAgentOsAppServerRequestAsync(
+  input: HandleAgentOsAppServerRequestInput
+): Promise<AgentOsAppServerResponse> {
+  return handleAgentOsAppServerRequestWithRuntime(input, "async");
+}
+
+function handleAgentOsAppServerRequestWithRuntime(
+  input: HandleAgentOsAppServerRequestInput,
+  mode: "async"
+): Promise<AgentOsAppServerResponse>;
+function handleAgentOsAppServerRequestWithRuntime(
+  input: HandleAgentOsAppServerRequestInput,
+  mode: "sync"
+): AgentOsAppServerResponse;
+function handleAgentOsAppServerRequestWithRuntime(
+  input: HandleAgentOsAppServerRequestInput,
+  mode: "sync" | "async"
+): AgentOsAppServerResponse | Promise<AgentOsAppServerResponse> {
   const { request, ...trustedRuntimeOptions } = input;
   const routeResult = routeAgentOsAppServerRequestSafely(request);
   if (routeResult.status === "invalid") {
@@ -79,12 +100,28 @@ export function handleAgentOsAppServerRequest(
     publicSurface: "app_server"
   });
 
+  const call = {
+    toolName: route.toolName,
+    input: route.input
+  };
+
+  if (mode === "async") {
+    return runtime.handleToolCallAsync(call)
+      .then((result) => createAppServerResponse(statusCodeForRuntimeResult(result), {
+        result
+      }))
+      .catch((error: unknown) => {
+        const badRequestReason = appServerRuntimeBadRequestReason(error);
+        if (badRequestReason !== undefined) {
+          return createBadRequestResponse(badRequestReason);
+        }
+        throw error;
+      });
+  }
+
   let result: AgentOsMcpLocalRuntimeResult;
   try {
-    result = runtime.handleToolCall({
-      toolName: route.toolName,
-      input: route.input
-    });
+    result = runtime.handleToolCall(call);
   } catch (error) {
     const badRequestReason = appServerRuntimeBadRequestReason(error);
     if (badRequestReason !== undefined) {
@@ -111,6 +148,13 @@ export function routeAgentOsAppServerRequest(
   if (method === "POST" && path === "/agent-os/tasks") {
     return {
       toolName: "agentos.create_task",
+      input: parseBodyRecord(request.body)
+    };
+  }
+
+  if (method === "POST" && path === "/agent-os/workspace-write/dispatch") {
+    return {
+      toolName: "agentos.dispatch_workspace_write",
       input: parseBodyRecord(request.body)
     };
   }

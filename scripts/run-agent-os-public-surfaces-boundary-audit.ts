@@ -20,8 +20,13 @@ const REQUIRED_SOURCE_MARKERS = [
   "publicSurface: \"app_server\"",
   "createAgentOsMcpLocalRuntime",
   "this.runtime.handleToolCall(call)",
+  "this.runtime.handleToolCallAsync(call)",
   "runtime.handleToolCall(call)",
-  "runtime.handleToolCall({",
+  "runtime.handleToolCallAsync(call)",
+  "dispatchWorkspaceWrite",
+  "dispatch-workspace-write",
+  "/agent-os/workspace-write/dispatch",
+  "agentos.dispatch_workspace_write",
   "sanitizeAgentOsCliArgv",
   "approvedMutatingTools",
   "allowLocalMutations",
@@ -36,10 +41,13 @@ const REQUIRED_SOURCE_MARKERS = [
 const REQUIRED_TEST_MARKERS = [
   "Agent OS SDK blocks mutating task creation by default",
   "Agent OS SDK creates a local run and provider plan without real execution",
+  "Agent OS SDK delegates controlled workspace-write dispatch through async wrapper",
   "Agent OS CLI parser maps create-task argv to a governed tool call",
   "Agent OS CLI wrapper creates a local run and provider plan without spawning CLI",
+  "Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchronously",
   "Agent OS CLI wrapper blocks local mutation by default",
   "Agent OS App Server router maps HTTP-like routes to governed tool calls",
+  "Agent OS App Server wrapper delegates controlled workspace-write dispatch asynchronously without network",
   "Agent OS App Server wrapper ignores client-supplied gate fields",
   "Agent OS App Server wrapper blocks mutating requests by default"
 ] as const;
@@ -114,6 +122,9 @@ export interface AgentOsPublicSurfacesBoundaryAuditResult {
     appServerRouteIsNetworkServer: false;
     appServerStatusCodeIsExecutionReceipt: false;
     approvalPermitIssueIsProviderExecutionAuthorization: false;
+    controlledWorkspaceWriteDispatchAllowed: true;
+    generalWorkspaceWriteExecutionAllowed: false;
+    workspaceWriteProviderExecuteAllowed: false;
     agentOsPublicSurfaceCallsDuringAudit: 0;
     localRuntimeCallsDuringAudit: 0;
     providerExecuteCallsDuringAudit: 0;
@@ -218,6 +229,9 @@ export function reviewAgentOsPublicSurfacesBoundaryAudit(
       appServerRouteIsNetworkServer: false,
       appServerStatusCodeIsExecutionReceipt: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       agentOsPublicSurfaceCallsDuringAudit: 0,
       localRuntimeCallsDuringAudit: 0,
       providerExecuteCallsDuringAudit: 0,
@@ -256,6 +270,9 @@ export function formatAgentOsPublicSurfacesBoundaryAuditResult(
     `app server route is network server: ${review.summary.appServerRouteIsNetworkServer}`,
     `app server status code is execution receipt: ${review.summary.appServerStatusCodeIsExecutionReceipt}`,
     `approval permit issue is provider execution authorization: ${review.summary.approvalPermitIssueIsProviderExecutionAuthorization}`,
+    `controlled workspace-write dispatch allowed: ${review.summary.controlledWorkspaceWriteDispatchAllowed}`,
+    `general workspace-write execution allowed: ${review.summary.generalWorkspaceWriteExecutionAllowed}`,
+    `workspace-write provider.execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
     `agent OS public surface calls during audit: ${review.summary.agentOsPublicSurfaceCallsDuringAudit}`,
     `local runtime calls during audit: ${review.summary.localRuntimeCallsDuringAudit}`,
     `provider execute calls during audit: ${review.summary.providerExecuteCallsDuringAudit}`,
@@ -285,7 +302,9 @@ function controlPlaneAuthorityRecorded(text: string): boolean {
     && text.includes("preferred provider is not Codex CLI invocation")
     && text.includes("app-server request envelopes are not capability grants")
     && text.includes("HTTP-like routes are not live network servers")
-    && text.includes("status codes are not host executor receipts");
+    && text.includes("status codes are not host executor receipts")
+    && text.includes("controlled workspace-write dispatch")
+    && text.includes("workspace-write through `provider.execute`");
 }
 
 function noDirectExecutionSurface(text: string): boolean {
@@ -317,6 +336,9 @@ function outputSanitized(input: AgentOsPublicSurfacesBoundaryAuditInput): boolea
       appServerRouteIsNetworkServer: false,
       appServerStatusCodeIsExecutionReceipt: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       agentOsPublicSurfaceCallsDuringAudit: 0,
       localRuntimeCallsDuringAudit: 0,
       providerExecuteCallsDuringAudit: 0,

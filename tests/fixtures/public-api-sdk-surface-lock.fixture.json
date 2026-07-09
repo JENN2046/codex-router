@@ -4,8 +4,10 @@
   "AgentOsSdk",
   "createAgentOsSdk",
   "handleAgentOsAppServerRequest",
+  "handleAgentOsAppServerRequestAsync",
   "parseAgentOsCliArgv",
   "routeAgentOsAppServerRequest",
   "runAgentOsCliCommand",
+  "runAgentOsCliCommandAsync",
   "sanitizeAgentOsCliArgv"
 ]

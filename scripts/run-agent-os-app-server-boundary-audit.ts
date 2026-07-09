@@ -17,9 +17,13 @@ const REQUIRED_SOURCE_MARKERS = [
   "never in the client-controlled request envelope",
   "routeAgentOsAppServerRequest",
   "routeAgentOsAppServerRequestSafely",
+  "handleAgentOsAppServerRequestAsync",
   "createAgentOsMcpLocalRuntime",
   "publicSurface: \"app_server\"",
-  "runtime.handleToolCall({",
+  "runtime.handleToolCall(call)",
+  "runtime.handleToolCallAsync(call)",
+  "/agent-os/workspace-write/dispatch",
+  "agentos.dispatch_workspace_write",
   "liveHttpServerStarted: false",
   "networkAccessed: false",
   "realProviderExecutionInvoked: false",
@@ -35,6 +39,7 @@ const REQUIRED_SOURCE_MARKERS = [
 
 const REQUIRED_TEST_MARKERS = [
   "Agent OS App Server router maps HTTP-like routes to governed tool calls",
+  "Agent OS App Server wrapper delegates controlled workspace-write dispatch asynchronously without network",
   "Agent OS App Server wrapper blocks mutating requests by default",
   "Agent OS App Server wrapper ignores client-supplied gate fields",
   "Agent OS App Server wrapper returns audited bad requests for invalid client input",
@@ -110,6 +115,9 @@ export interface AgentOsAppServerBoundaryAuditResult {
     localRuntimeCallIsProviderExecutionAuthorization: false;
     approvalPermitIssueIsProviderExecutionAuthorization: false;
     approvalPermitConsumptionIsProviderExecutionAuthorization: false;
+    controlledWorkspaceWriteDispatchAllowed: true;
+    generalWorkspaceWriteExecutionAllowed: false;
+    workspaceWriteProviderExecuteAllowed: false;
     liveHttpServerStarted: false;
     networkAccessed: false;
     realProviderExecutionInvoked: false;
@@ -196,6 +204,9 @@ export function reviewAgentOsAppServerBoundaryAudit(
       localRuntimeCallIsProviderExecutionAuthorization: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
       approvalPermitConsumptionIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       liveHttpServerStarted: false,
       networkAccessed: false,
       realProviderExecutionInvoked: false,
@@ -237,6 +248,9 @@ export function formatAgentOsAppServerBoundaryAuditResult(
     `local runtime call is provider execution authorization: ${review.summary.localRuntimeCallIsProviderExecutionAuthorization}`,
     `approval permit issue is provider execution authorization: ${review.summary.approvalPermitIssueIsProviderExecutionAuthorization}`,
     `approval permit consumption is provider execution authorization: ${review.summary.approvalPermitConsumptionIsProviderExecutionAuthorization}`,
+    `controlled workspace-write dispatch allowed: ${review.summary.controlledWorkspaceWriteDispatchAllowed}`,
+    `general workspace-write execution allowed: ${review.summary.generalWorkspaceWriteExecutionAllowed}`,
+    `workspace-write provider.execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
     `live HTTP server started: ${review.summary.liveHttpServerStarted}`,
     `network accessed: ${review.summary.networkAccessed}`,
     `real provider execution invoked: ${review.summary.realProviderExecutionInvoked}`,
@@ -269,6 +283,8 @@ function controlPlaneAuthorityRecorded(text: string): boolean {
     && text.includes("client-supplied gate fields remain ignored")
     && text.includes("status codes are not host executor receipts")
     && text.includes("approval permit issue and consumption are not provider execution")
+    && text.includes("controlled workspace-write dispatch")
+    && text.includes("workspace-write through `provider.execute`")
     && text.includes("live HTTP servers remain unimplemented")
     && text.includes("network access remains absent")
     && text.includes("real provider execution remains uninvoked");
@@ -300,6 +316,9 @@ function outputSanitized(input: AgentOsAppServerBoundaryAuditInput): boolean {
       localRuntimeCallIsProviderExecutionAuthorization: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
       approvalPermitConsumptionIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       liveHttpServerStarted: false,
       networkAccessed: false,
       realProviderExecutionInvoked: false,

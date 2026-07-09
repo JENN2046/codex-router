@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   handleAgentOsAppServerRequest,
+  handleAgentOsAppServerRequestAsync,
   routeAgentOsAppServerRequest,
   type AgentOsAppServerRequest
 } from "../packages/agent-os-app-server/src/index.js";
@@ -29,6 +30,7 @@ import {
   AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING,
+  AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC,
   type AgentOsMcpToolName
 } from "../packages/protocol-mcp/src/index.js";
 import {
@@ -66,6 +68,23 @@ test("Agent OS App Server router maps HTTP-like routes to governed tool calls", 
     toolName: "agentos.get_run",
     input: {
       runId: "run_001"
+    }
+  });
+
+  assert.deepEqual(routeAgentOsAppServerRequest({
+    method: "POST",
+    path: "/agent-os/workspace-write/dispatch",
+    body: {
+      dispatchInput: {
+        schemaVersion: "agent-os-app-server-workspace-write-dispatch-test.v1"
+      }
+    }
+  }), {
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      dispatchInput: {
+        schemaVersion: "agent-os-app-server-workspace-write-dispatch-test.v1"
+      }
     }
   });
 
@@ -163,6 +182,83 @@ test("Agent OS App Server router maps HTTP-like routes to governed tool calls", 
       cursor: "agentos-search-events:2"
     }
   });
+});
+
+test("Agent OS App Server wrapper delegates controlled workspace-write dispatch asynchronously without network", async () => {
+  const dispatchInputs: unknown[] = [];
+  const dispatchInput = {
+    schemaVersion: "agent-os-app-server-workspace-write-dispatch-test.v1"
+  };
+  const runtimeInput = {
+    ...createRuntimeInput(new InMemoryKernelStore()),
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"] as AgentOsMcpToolName[],
+    allowLocalMutations: true,
+    controlledWorkspaceWriteProviderDispatcher(input: unknown) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_app_server_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:agent-os-app-server-provider-plan",
+        executorPlanHash: "sha256:agent-os-app-server-executor-plan",
+        operationManifestHash: "sha256:agent-os-app-server-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-agent-os-app-server-workspace-write"
+        }
+      } as never;
+    },
+    request: {
+      method: "POST",
+      path: "/agent-os/workspace-write/dispatch",
+      body: {
+        dispatchInput
+      }
+    }
+  };
+
+  const syncResponse = handleAgentOsAppServerRequest(runtimeInput);
+  const syncResult = syncResponse.body.result as {
+    status: string;
+    reasons: string[];
+  };
+  assert.equal(syncResponse.statusCode, 403);
+  assert.equal(syncResult.status, "blocked");
+  assert.deepEqual(syncResult.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC
+  ]);
+  assert.equal(dispatchInputs.length, 0);
+
+  const response = await handleAgentOsAppServerRequestAsync(runtimeInput);
+  const result = response.body.result as {
+    status: string;
+    output: Record<string, unknown>;
+    audit: {
+      publicSurface: string;
+      realProviderExecutionInvoked: boolean;
+      localMutationAttempted: boolean;
+      localMutationApplied: boolean;
+    };
+  };
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(dispatchInputs[0], dispatchInput);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.audit.liveHttpServerStarted, false);
+  assert.equal(response.audit.networkAccessed, false);
+  assert.equal(result.status, "succeeded");
+  assert.equal(result.audit.publicSurface, "app_server");
+  assert.equal(result.audit.realProviderExecutionInvoked, false);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
+  );
 });
 
 test("Agent OS App Server wrapper blocks mutating requests by default", () => {

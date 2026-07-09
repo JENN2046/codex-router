@@ -44,6 +44,9 @@ test("Agent OS app-server boundary audit passes for current evidence", async () 
     review.summary.approvalPermitConsumptionIsProviderExecutionAuthorization,
     false
   );
+  assert.equal(review.summary.controlledWorkspaceWriteDispatchAllowed, true);
+  assert.equal(review.summary.generalWorkspaceWriteExecutionAllowed, false);
+  assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
   assert.equal(review.summary.liveHttpServerStarted, false);
   assert.equal(review.summary.networkAccessed, false);
   assert.equal(review.summary.realProviderExecutionInvoked, false);

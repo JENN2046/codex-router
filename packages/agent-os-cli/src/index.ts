@@ -14,6 +14,7 @@ export const AgentOsCliCommandSchema = z.enum([
   "list-runs",
   "cancel-run",
   "approve-run",
+  "dispatch-workspace-write",
   "list-artifacts",
   "get-artifact",
   "search-events"
@@ -52,6 +53,35 @@ type ArgCursor = {
 export function runAgentOsCliCommand(
   input: RunAgentOsCliCommandInput
 ): AgentOsCliCommandResult {
+  const { runtime, parsed, call, argv } = createCliRuntimeAndCall(input);
+  const result = runtime.handleToolCall(call);
+  return {
+    ...result,
+    surface: "cli",
+    command: parsed.command,
+    sanitizedArgv: sanitizeAgentOsCliArgv(argv)
+  };
+}
+
+export async function runAgentOsCliCommandAsync(
+  input: RunAgentOsCliCommandInput
+): Promise<AgentOsCliCommandResult> {
+  const { runtime, parsed, call, argv } = createCliRuntimeAndCall(input);
+  const result = await runtime.handleToolCallAsync(call);
+  return {
+    ...result,
+    surface: "cli",
+    command: parsed.command,
+    sanitizedArgv: sanitizeAgentOsCliArgv(argv)
+  };
+}
+
+function createCliRuntimeAndCall(input: RunAgentOsCliCommandInput): {
+  runtime: ReturnType<typeof createAgentOsMcpLocalRuntime>;
+  parsed: AgentOsCliParsedCommand;
+  call: AgentOsMcpLocalToolCall;
+  argv: string[];
+} {
   const { argv, ...runtimeOptions } = input;
   const parsed = parseAgentOsCliArgv(argv);
   const runtime = createAgentOsMcpLocalRuntime({
@@ -79,12 +109,11 @@ export function runAgentOsCliCommand(
     call.preferredProviderId = parsed.preferredProviderId;
   }
 
-  const result = runtime.handleToolCall(call);
   return {
-    ...result,
-    surface: "cli",
-    command: parsed.command,
-    sanitizedArgv: sanitizeAgentOsCliArgv(argv)
+    runtime,
+    parsed,
+    call,
+    argv
   };
 }
 
@@ -135,7 +164,7 @@ export function sanitizeAgentOsCliArgv(argv: string[]): string[] {
     }
 
     sanitized.push(arg);
-    if (isSecretLikeFlag(arg) || arg === "--metadata-json") {
+    if (shouldRedactNextArg(arg)) {
       redactNext = true;
     }
   }
@@ -159,6 +188,8 @@ function parseCommandOptions(
       return parseCancelRunOptions(cursor, common);
     case "approve-run":
       return parseApproveRunOptions(cursor, common);
+    case "dispatch-workspace-write":
+      return parseDispatchWorkspaceWriteOptions(cursor, common);
     case "list-artifacts":
       return parseListArtifactsOptions(cursor, common);
     case "get-artifact":
@@ -375,6 +406,37 @@ function parseApproveRunOptions(
   };
 }
 
+function parseDispatchWorkspaceWriteOptions(
+  cursor: ArgCursor,
+  common: CommonCliOptions
+): Record<string, unknown> {
+  const input: {
+    dispatchInput?: Record<string, unknown>;
+  } = {};
+
+  while (cursor.index < cursor.args.length) {
+    const arg = nextArg(cursor, "option");
+    if (parseCommonOption(arg, cursor, common)) {
+      continue;
+    }
+    switch (arg) {
+      case "--dispatch-input-json":
+        input.dispatchInput = parseJsonObjectOption(nextArg(cursor, arg), arg);
+        break;
+      default:
+        throw new Error(`agent_os_cli_unknown_option:${arg}`);
+    }
+  }
+
+  if (input.dispatchInput === undefined) {
+    throw new Error("agent_os_cli_missing_required_option:--dispatch-input-json");
+  }
+
+  return {
+    dispatchInput: input.dispatchInput
+  };
+}
+
 function parseListArtifactsOptions(
   cursor: ArgCursor,
   common: CommonCliOptions
@@ -536,6 +598,8 @@ function commandToToolName(command: AgentOsCliCommand): AgentOsMcpToolName {
       return "agentos.cancel_run";
     case "approve-run":
       return "agentos.approve_run";
+    case "dispatch-workspace-write":
+      return "agentos.dispatch_workspace_write";
     case "list-artifacts":
       return "agentos.list_artifacts";
     case "get-artifact":
@@ -577,10 +641,16 @@ function redactInlineSecretLikeArg(arg: string): string | undefined {
   }
 
   const flag = arg.slice(0, separatorIndex);
-  if (!isSecretLikeFlag(flag) && flag !== "--metadata-json") {
+  if (!shouldRedactNextArg(flag)) {
     return undefined;
   }
   return `${flag}=<REDACTED>`;
+}
+
+function shouldRedactNextArg(arg: string): boolean {
+  return isSecretLikeFlag(arg)
+    || arg === "--metadata-json"
+    || arg === "--dispatch-input-json";
 }
 
 function isSecretLikeFlag(arg: string): boolean {
