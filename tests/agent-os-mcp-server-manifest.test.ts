@@ -182,10 +182,20 @@ test("Agent OS MCP dispatch_workspace_write declares controlled dispatch only", 
 
   assert.equal(inputSchema.additionalProperties, false);
   assert.ok("dispatchInput" in (inputSchema.properties ?? {}));
+  assert.ok("prepare" in (inputSchema.properties ?? {}));
   assert.equal(outputSchema.additionalProperties, false);
+  assert.ok("preparedDispatch" in (outputSchema.properties ?? {}));
   assert.ok("dispatchResult" in (outputSchema.properties ?? {}));
   assert.equal(
+    agentOsDispatchWorkspaceWriteMcpToolManifest.metadata.controlledWorkspaceWritePrepare,
+    true
+  );
+  assert.equal(
     agentOsDispatchWorkspaceWriteMcpToolManifest.metadata.controlledWorkspaceWriteDispatch,
+    true
+  );
+  assert.equal(
+    agentOsDispatchWorkspaceWriteMcpToolManifest.metadata.preflightArtifactBindingRequired,
     true
   );
   assert.equal(

@@ -12,9 +12,17 @@ import {
   type Run,
   type Task
 } from "../../kernel-contracts/src/index.js";
+import type { ArtifactStore } from "../../artifact-store/src/index.js";
+import {
+  parseTaskEnvelope,
+  TaskClassSchema,
+  type TaskClass,
+  type TaskEnvelope
+} from "../../contracts/src/index.js";
 import type { ExecutionEligibilityDecision } from "../../execution-eligibility/src/index.js";
 import type { KernelStore } from "../../kernel-store/src/index.js";
 import {
+  hashProviderExecutionPlannerObject,
   planProviderExecution,
   type ProviderExecutionPlan,
   type ProviderExecutionPlanStore
@@ -33,15 +41,24 @@ import {
 } from "../../capability/src/index.js";
 import type { ProviderRegistry } from "../../provider-registry/src/index.js";
 import { RunManager } from "../../governance-internal-run-manager/src/index.js";
+import type { WorkspaceWriteOperation } from "../../governance-internal-workspace-write-executor/src/index.js";
+import type { GovernanceState } from "../../governance-internal-state-manager/src/index.js";
+import {
+  createApprovedWorkspaceWriteProviderExecutionPermitV2,
+  parseExecutorExecutionPlan,
+  type ExecutorProvider,
+  type ExecutionPlanInput
+} from "../../provider-core/src/index.js";
 import {
   AgentOsMcpToolNameSchema,
   agentOsMcpToolManifests,
   type AgentOsMcpToolManifest,
   type AgentOsMcpToolName
 } from "./agent-os-server-manifest.js";
-import type {
-  ControlledWorkspaceWriteHostProviderDispatchInput,
-  ControlledWorkspaceWriteHostProviderDispatchResult
+import {
+  prepareControlledWorkspaceWriteHostProviderDispatch,
+  type ControlledWorkspaceWriteHostProviderDispatchInput,
+  type ControlledWorkspaceWriteHostProviderDispatchResult
 } from "../../host-dispatcher/src/index.js";
 
 export const AGENT_OS_MCP_LOCAL_MUTATION_DISABLED =
@@ -68,6 +85,22 @@ export const AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED =
   "agent_os_mcp_workspace_write_dispatcher_not_configured";
 export const AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC =
   "agent_os_mcp_workspace_write_dispatch_requires_async";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_ARTIFACT_STORE_NOT_CONFIGURED =
+  "agent_os_mcp_workspace_write_prepare_artifact_store_not_configured";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_CONTEXT_MISSING =
+  "agent_os_mcp_workspace_write_prepare_context_missing";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TASK_NOT_FOUND =
+  "agent_os_mcp_workspace_write_prepare_task_not_found";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PLAN_NOT_FOUND =
+  "agent_os_mcp_workspace_write_prepare_plan_not_found";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PLAN_NOT_READY =
+  "agent_os_mcp_workspace_write_prepare_plan_not_ready";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PROVIDER_NOT_FOUND =
+  "agent_os_mcp_workspace_write_prepare_provider_not_found";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PROVIDER_NOT_EXECUTOR =
+  "agent_os_mcp_workspace_write_prepare_provider_not_executor";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_FAILED =
+  "agent_os_mcp_workspace_write_prepare_failed";
 export const AGENT_OS_MCP_RUN_NOT_FOUND =
   "agent_os_run_not_found";
 export const AGENT_OS_MCP_ARTIFACT_NOT_FOUND =
@@ -87,6 +120,7 @@ const AGENT_OS_SEARCH_EVENTS_CURSOR = {
 
 export type AgentOsMcpLocalRuntimeOptions = {
   kernelStore: KernelStore;
+  artifactStore?: ArtifactStore;
   providerExecutionPlanStore?: ProviderExecutionPlanStore;
   approvalPermitStore?: ApprovalPermitStore;
   providerRegistry?: ProviderRegistry;
@@ -183,11 +217,57 @@ const AgentOsApproveRunInputSchema = z.object({
   reason: z.string().min(1)
 });
 
+const WorkspaceWriteOperationSchema: z.ZodType<WorkspaceWriteOperation> = z.union([
+  z.object({
+    kind: z.literal("write"),
+    path: z.string().min(1),
+    content: z.string()
+  }),
+  z.object({
+    kind: z.literal("delete"),
+    path: z.string().min(1)
+  })
+]);
+
+const AgentOsDispatchWorkspaceWritePrepareInputSchema = z.object({
+  runId: z.string().min(1),
+  workspaceRoot: z.string().min(1),
+  operations: z.array(WorkspaceWriteOperationSchema).min(1),
+  executionAuthorizationId: z.string().min(1),
+  governanceState: z.custom<GovernanceState>(
+    (value) => typeof value === "object" && value !== null && !Array.isArray(value),
+    "governanceState must be an object"
+  ),
+  repositoryState: z.object({
+    branch: z.string().min(1),
+    protectedBranch: z.boolean(),
+    worktreeClean: z.boolean(),
+    headCommit: z.string().min(1)
+  }),
+  rollback: z.object({
+    beforeCommit: z.string().min(1).optional(),
+    affectedFiles: z.array(z.string().min(1)).optional()
+  }).optional(),
+  maxChangedFiles: z.number().int().min(1).optional(),
+  maxDiffLines: z.number().int().min(1).optional(),
+  permitId: z.string().min(1).optional(),
+  expiresAt: z.string().min(1).optional(),
+  proposedInput: z.unknown().optional()
+});
+
 const AgentOsDispatchWorkspaceWriteInputSchema = z.object({
   dispatchInput: z.custom<ControlledWorkspaceWriteHostProviderDispatchInput>(
     (value) => typeof value === "object" && value !== null && !Array.isArray(value),
     "dispatchInput must be an object"
-  )
+  ).optional(),
+  prepare: AgentOsDispatchWorkspaceWritePrepareInputSchema.optional()
+}).superRefine((input, ctx) => {
+  if ((input.dispatchInput === undefined) === (input.prepare === undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "provide exactly one of dispatchInput or prepare"
+    });
+  }
 });
 
 const AgentOsListArtifactsInputSchema = z.object({
@@ -213,6 +293,8 @@ const AgentOsSearchEventsInputSchema = z.object({
 
 export type AgentOsCreateTaskInput = z.infer<typeof AgentOsCreateTaskInputSchema>;
 export type AgentOsApproveRunInput = z.infer<typeof AgentOsApproveRunInputSchema>;
+export type AgentOsDispatchWorkspaceWritePrepareInput =
+  z.infer<typeof AgentOsDispatchWorkspaceWritePrepareInputSchema>;
 
 export type AgentOsApproveRunPermitIdContext = {
   issuedAt: string;
@@ -221,6 +303,7 @@ export type AgentOsApproveRunPermitIdContext = {
 
 export class AgentOsMcpLocalRuntime {
   private readonly kernelStore: KernelStore;
+  private readonly artifactStore: ArtifactStore | undefined;
   private readonly providerExecutionPlanStore: ProviderExecutionPlanStore | undefined;
   private readonly approvalPermitStore: ApprovalPermitStore | undefined;
   private readonly providerRegistry: ProviderRegistry | undefined;
@@ -249,6 +332,7 @@ export class AgentOsMcpLocalRuntime {
 
   constructor(options: AgentOsMcpLocalRuntimeOptions) {
     this.kernelStore = options.kernelStore;
+    this.artifactStore = options.artifactStore;
     this.providerExecutionPlanStore = options.providerExecutionPlanStore;
     this.approvalPermitStore = options.approvalPermitStore;
     this.providerRegistry = options.providerRegistry;
@@ -720,9 +804,34 @@ export class AgentOsMcpLocalRuntime {
     }
 
     const input = AgentOsDispatchWorkspaceWriteInputSchema.parse(call.input ?? {});
-    const dispatchResult = await dispatcher(input.dispatchInput);
+    if (input.dispatchInput !== undefined) {
+      const dispatchResult = await dispatcher(input.dispatchInput);
+
+      return this.createResult("agentos.dispatch_workspace_write", [], {
+        dispatchResult
+      }, {
+        localMutationAttempted: true,
+        localMutationApplied: dispatchResult.status === "runner_completed"
+          && dispatchResult.executeInvoked === true,
+        gate
+      });
+    }
+
+    const prepared = await this.prepareWorkspaceWriteDispatch(call, input.prepare);
+    if (prepared.status === "blocked") {
+      return this.createResult("agentos.dispatch_workspace_write", prepared.reasons, {
+        status: "blocked"
+      }, {
+        localMutationAttempted: true,
+        localMutationApplied: false,
+        gate
+      });
+    }
+
+    const dispatchResult = await dispatcher(prepared.dispatchInput);
 
     return this.createResult("agentos.dispatch_workspace_write", [], {
+      preparedDispatch: prepared.summary,
       dispatchResult
     }, {
       localMutationAttempted: true,
@@ -730,6 +839,189 @@ export class AgentOsMcpLocalRuntime {
         && dispatchResult.executeInvoked === true,
       gate
     });
+  }
+
+  private async prepareWorkspaceWriteDispatch(
+    call: AgentOsMcpLocalToolCall,
+    input: AgentOsDispatchWorkspaceWritePrepareInput | undefined
+  ): Promise<AgentOsPreparedWorkspaceWriteDispatchResult> {
+    if (input === undefined) {
+      return {
+        status: "blocked",
+        reasons: [`${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_FAILED}:prepare_input_missing`]
+      };
+    }
+
+    const artifactStore = this.artifactStore;
+    if (artifactStore === undefined) {
+      return {
+        status: "blocked",
+        reasons: [AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_ARTIFACT_STORE_NOT_CONFIGURED]
+      };
+    }
+
+    const providerExecutionPlanStore = this.providerExecutionPlanStore;
+    const providerRegistry = this.providerRegistry;
+    const policyDecision = this.resolvePolicyDecision(call);
+    if (
+      providerExecutionPlanStore === undefined
+      || providerRegistry === undefined
+      || policyDecision === undefined
+    ) {
+      return {
+        status: "blocked",
+        reasons: [AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_CONTEXT_MISSING]
+      };
+    }
+
+    const run = this.kernelStore.getRun(input.runId);
+    if (run === undefined) {
+      return {
+        status: "blocked",
+        reasons: [`${AGENT_OS_MCP_RUN_NOT_FOUND}:${input.runId}`]
+      };
+    }
+
+    const task = this.kernelStore.getTask(run.taskId);
+    if (task === undefined) {
+      return {
+        status: "blocked",
+        reasons: [`${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TASK_NOT_FOUND}:${run.taskId}`]
+      };
+    }
+
+    const providerExecutionPlan = providerExecutionPlanStore
+      .listPlans({ runId: run.runId })
+      .at(-1);
+    if (providerExecutionPlan === undefined) {
+      return {
+        status: "blocked",
+        reasons: [`${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PLAN_NOT_FOUND}:${run.runId}`]
+      };
+    }
+    if (providerExecutionPlan.status !== "planned") {
+      return {
+        status: "blocked",
+        reasons: [
+          `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PLAN_NOT_READY}:${providerExecutionPlan.status}`
+        ]
+      };
+    }
+
+    const providerEntry = providerRegistry.getProvider(providerExecutionPlan.providerId);
+    if (providerEntry === undefined) {
+      return {
+        status: "blocked",
+        reasons: [
+          `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PROVIDER_NOT_FOUND}:${providerExecutionPlan.providerId}`
+        ]
+      };
+    }
+    if (
+      providerEntry.manifest.kind !== "executor"
+      || !isExecutorProviderLike(providerEntry.provider)
+    ) {
+      return {
+        status: "blocked",
+        reasons: [
+          `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PROVIDER_NOT_EXECUTOR}:${providerExecutionPlan.providerId}`
+        ]
+      };
+    }
+
+    try {
+      const principal = this.resolvePrincipal(call);
+      const executionPlanInput: ExecutionPlanInput = {
+        task,
+        run,
+        policyDecision,
+        sandboxProfile: providerExecutionPlan.sandboxProfile,
+        inputHash: providerExecutionPlan.inputHash,
+        ...(providerExecutionPlan.taskHash !== undefined
+          ? { taskHash: providerExecutionPlan.taskHash }
+          : {}),
+        ...(providerExecutionPlan.principalId !== undefined
+          ? { principalId: providerExecutionPlan.principalId }
+          : {}),
+        ...(providerExecutionPlan.principalHash !== undefined
+          ? { principalHash: providerExecutionPlan.principalHash }
+          : {}),
+        providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+        ...(providerExecutionPlan.providerManifestHash !== undefined
+          ? { providerManifestHash: providerExecutionPlan.providerManifestHash }
+          : {}),
+        ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
+        now: this.now()
+      };
+      const executorPlan = parseExecutorExecutionPlan(
+        await providerEntry.provider.planExecution(executionPlanInput)
+      );
+      const targetFiles = uniqueWorkspaceWriteOperationTargets(input.operations);
+      const permit = createApprovedWorkspaceWriteProviderExecutionPermitV2({
+        ...(input.permitId !== undefined ? { permitId: input.permitId } : {}),
+        plan: executorPlan,
+        manifest: providerEntry.manifest,
+        approvalStatus: "approved",
+        operatorAuthorizationId: input.executionAuthorizationId,
+        targetFiles,
+        maxChangedFiles: input.maxChangedFiles ?? targetFiles.length,
+        maxDiffLines: input.maxDiffLines ?? Math.max(targetFiles.length, 1),
+        rollbackRequired: true,
+        rollback: {
+          beforeCommit: input.rollback?.beforeCommit ?? input.repositoryState.headCommit,
+          ...(input.rollback?.affectedFiles !== undefined
+            ? { affectedFiles: input.rollback.affectedFiles }
+            : {})
+        },
+        protectedBranchForbidden: true,
+        dirtyWorktreeForbidden: true,
+        repositoryState: input.repositoryState,
+        issuedAt: this.now(),
+        ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {})
+      });
+      const taskEnvelope = createTaskEnvelopeFromKernelTask(task);
+      const prepared = await prepareControlledWorkspaceWriteHostProviderDispatch({
+        artifactStore,
+        providerRegistry,
+        kernelStore: this.kernelStore,
+        providerExecutionPlan,
+        executorPlan,
+        permit,
+        task,
+        taskEnvelope,
+        run,
+        principal,
+        policyDecision,
+        governanceState: input.governanceState,
+        operations: input.operations,
+        workspaceRoot: input.workspaceRoot,
+        executionAuthorizationId: input.executionAuthorizationId,
+        ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
+        now: this.now
+      });
+
+      return {
+        status: "prepared",
+        dispatchInput: prepared.dispatchInput,
+        summary: {
+          schemaVersion: prepared.schemaVersion,
+          providerPlanId: providerExecutionPlan.planId,
+          executorPlanId: executorPlan.planId,
+          permitId: permit.permitId,
+          preflightArtifactId: prepared.preflightArtifact.artifactId,
+          preflightArtifactRef:
+            prepared.dispatchPreflight.environmentPreflight.artifactRef,
+          targetFiles
+        }
+      };
+    } catch (error) {
+      return {
+        status: "blocked",
+        reasons: [
+          `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_FAILED}:${normalizeRuntimeError(error)}`
+        ]
+      };
+    }
   }
 
   private maybeConsumeApprovalPermit(input: {
@@ -1114,6 +1406,25 @@ type AgentOsMcpLocalRuntimeGate = {
   approved: boolean;
 };
 
+type AgentOsPreparedWorkspaceWriteDispatchResult =
+  | {
+      status: "prepared";
+      dispatchInput: ControlledWorkspaceWriteHostProviderDispatchInput;
+      summary: {
+        schemaVersion: "prepared-controlled-workspace-write-provider-dispatch.v1";
+        providerPlanId: string;
+        executorPlanId: string;
+        permitId: string;
+        preflightArtifactId: string;
+        preflightArtifactRef: string;
+        targetFiles: string[];
+      };
+    }
+  | {
+      status: "blocked";
+      reasons: string[];
+    };
+
 function requireAgentOsMcpTool(toolName: AgentOsMcpToolName): AgentOsMcpToolManifest {
   const tool = agentOsMcpToolManifests.find((candidate) => candidate.name === toolName);
   if (tool === undefined) {
@@ -1183,6 +1494,79 @@ function approvalPermitSaveBlockedReason(error: unknown, permitId: string): stri
   }
 
   return undefined;
+}
+
+function isExecutorProviderLike(
+  provider: unknown
+): provider is ExecutorProvider {
+  return typeof provider === "object"
+    && provider !== null
+    && "planExecution" in provider
+    && typeof provider.planExecution === "function"
+    && "validateExecutionPlan" in provider
+    && typeof provider.validateExecutionPlan === "function"
+    && "execute" in provider
+    && typeof provider.execute === "function";
+}
+
+function uniqueWorkspaceWriteOperationTargets(operations: WorkspaceWriteOperation[]): string[] {
+  return [...new Set(operations.map((operation) => operation.path))];
+}
+
+function createTaskEnvelopeFromKernelTask(task: Task): TaskEnvelope {
+  const taskClassHint = toTaskEnvelopeTaskClassHint(task.hints.taskClass);
+
+  return parseTaskEnvelope({
+    taskId: task.taskId,
+    source: task.source,
+    intent: {
+      summary: task.intent?.summary ?? task.title,
+      requestedAction: task.intent?.requestedAction ?? task.requestedAction,
+      successCriteria: task.successCriteria,
+      outOfScope: task.outOfScope
+    },
+    repoContext: {
+      ...(task.repo.root !== undefined ? { repoRoot: task.repo.root } : {}),
+      ...(task.repo.branch !== undefined ? { branch: task.repo.branch } : {}),
+      ...(task.repo.worktreeClean !== undefined
+        ? { worktreeClean: task.repo.worktreeClean }
+        : {}),
+      ...(task.repo.protectedBranch !== undefined
+        ? { protectedBranch: task.repo.protectedBranch }
+        : {})
+    },
+    target: task.target,
+    constraints: {
+      ...(typeof task.constraints.requiresNetwork === "boolean"
+        ? { requiresNetwork: task.constraints.requiresNetwork }
+        : {}),
+      ...(typeof task.constraints.explicitOwnership === "boolean"
+        ? { explicitOwnership: task.constraints.explicitOwnership }
+        : {}),
+      ...(typeof task.constraints.allowBackgroundAutomation === "boolean"
+        ? { allowBackgroundAutomation: task.constraints.allowBackgroundAutomation }
+        : {})
+    },
+    hints: {
+      ...(taskClassHint !== undefined ? { taskClassHint } : {}),
+      riskHints: task.hints.riskHints,
+      tags: task.hints.tags,
+      provenance: []
+    }
+  });
+}
+
+function toTaskEnvelopeTaskClassHint(taskClass: string | undefined): TaskClass | undefined {
+  const parsed = TaskClassSchema.safeParse(taskClass);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function normalizeRuntimeError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  return raw
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9:_.,-]+/g, "_")
+    .slice(0, 240) || "unknown_runtime_error";
 }
 
 type AgentOsOffsetCursorConfig = {

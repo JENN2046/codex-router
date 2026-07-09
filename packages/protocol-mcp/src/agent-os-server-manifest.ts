@@ -402,13 +402,74 @@ export const agentOsListArtifactsMcpToolManifest = defineAgentOsMcpTool({
 export const agentOsDispatchWorkspaceWriteMcpToolManifest = defineAgentOsMcpTool({
   toolId: "agentos.dispatch_workspace_write",
   name: "agentos.dispatch_workspace_write",
-  description: "Dispatch a pre-authorized controlled workspace-write provider plan through an explicitly configured local dispatcher.",
+  description: "Prepare or dispatch a pre-authorized controlled workspace-write provider plan through an explicitly configured local dispatcher.",
   inputSchema: {
     type: "object",
-    required: ["dispatchInput"],
     additionalProperties: false,
     properties: {
-      dispatchInput: { type: "object" }
+      dispatchInput: { type: "object" },
+      prepare: {
+        type: "object",
+        required: [
+          "runId",
+          "workspaceRoot",
+          "operations",
+          "executionAuthorizationId",
+          "governanceState",
+          "repositoryState"
+        ],
+        additionalProperties: false,
+        properties: {
+          runId: { type: "string", minLength: 1 },
+          workspaceRoot: { type: "string", minLength: 1 },
+          operations: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "object",
+              required: ["kind", "path"],
+              additionalProperties: false,
+              properties: {
+                kind: {
+                  type: "string",
+                  enum: ["write", "delete"]
+                },
+                path: { type: "string", minLength: 1 },
+                content: { type: "string" }
+              }
+            }
+          },
+          executionAuthorizationId: { type: "string", minLength: 1 },
+          governanceState: { type: "object" },
+          repositoryState: {
+            type: "object",
+            required: ["branch", "protectedBranch", "worktreeClean", "headCommit"],
+            additionalProperties: false,
+            properties: {
+              branch: { type: "string", minLength: 1 },
+              protectedBranch: { type: "boolean" },
+              worktreeClean: { type: "boolean" },
+              headCommit: { type: "string", minLength: 1 }
+            }
+          },
+          rollback: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              beforeCommit: { type: "string", minLength: 1 },
+              affectedFiles: {
+                type: "array",
+                items: { type: "string", minLength: 1 }
+              }
+            }
+          },
+          maxChangedFiles: { type: "integer", minimum: 1 },
+          maxDiffLines: { type: "integer", minimum: 1 },
+          permitId: { type: "string", minLength: 1 },
+          expiresAt: { type: "string", minLength: 1 },
+          proposedInput: {}
+        }
+      }
     }
   },
   outputSchema: {
@@ -416,6 +477,7 @@ export const agentOsDispatchWorkspaceWriteMcpToolManifest = defineAgentOsMcpTool
     required: ["dispatchResult"],
     additionalProperties: false,
     properties: {
+      preparedDispatch: { type: "object" },
       dispatchResult: { type: "object" }
     }
   },
@@ -426,7 +488,9 @@ export const agentOsDispatchWorkspaceWriteMcpToolManifest = defineAgentOsMcpTool
   metadata: {
     policyGated: true,
     runtimeImplemented: false,
+    controlledWorkspaceWritePrepare: true,
     controlledWorkspaceWriteDispatch: true,
+    preflightArtifactBindingRequired: true,
     providerExecuteForbidden: true,
     generalWorkspaceWriteForbidden: true
   }

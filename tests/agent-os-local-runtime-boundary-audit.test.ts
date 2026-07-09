@@ -37,6 +37,7 @@ test("Agent OS local runtime boundary audit passes for current evidence", async 
   assert.equal(review.summary.codexCliInvocationAllowed, false);
   assert.equal(review.summary.subAgentRuntimeInvocationAllowed, false);
   assert.equal(review.summary.hostExecutorInvocationAllowed, false);
+  assert.equal(review.summary.controlledWorkspaceWritePrepareAllowed, true);
   assert.equal(review.summary.controlledWorkspaceWriteDispatchAllowed, true);
   assert.equal(review.summary.generalWorkspaceWriteExecutionAllowed, false);
   assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
