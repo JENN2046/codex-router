@@ -29,6 +29,7 @@ test("controlled generic workspace-write completion audit passes for current evi
     dispatcherBindsPreflightAndOperations: true,
     hostAndDesktopSurfacesRouteControlledDispatch: true,
     agentOsPublicSurfacesExposePrepareAndDispatch: true,
+    publicApiExposesStableWorkspaceWriteTypes: true,
     acceptanceEvidenceProvesCreateUpdateDeleteRollback: true,
     releaseGateRecordsGuardedControlledGenericReadiness: true,
     governanceSurfacesRegistered: true,
@@ -100,6 +101,24 @@ test("controlled generic workspace-write completion audit blocks stale acceptanc
   assert.ok(
     review.reasons.includes(
       "controlled_generic_workspace_write_completion_acceptanceEvidenceProvesCreateUpdateDeleteRollback"
+    )
+  );
+});
+
+test("controlled generic workspace-write completion audit blocks missing public API types", async () => {
+  const input = await collectControlledGenericWorkspaceWriteCompletionAuditInput();
+  const review = reviewControlledGenericWorkspaceWriteCompletionAudit({
+    ...input,
+    publicApiHostText: input.publicApiHostText.replaceAll(
+      "export interface DesktopHostControlledWorkspaceWriteProviderDispatchInput",
+      "export type DesktopHostControlledWorkspaceWriteProviderDispatchInput = unknown"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(
+    review.reasons.includes(
+      "controlled_generic_workspace_write_completion_publicApiExposesStableWorkspaceWriteTypes"
     )
   );
 });

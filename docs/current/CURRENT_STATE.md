@@ -251,8 +251,9 @@ Current repository governance status:
 - Controlled generic workspace-write completion is now machine-checkable with
   `npm run governance -- audit controlled-generic-workspace-write-completion`;
   it ties executor, provider runner, controlled dispatcher, host/desktop
-  routing, Agent OS SDK/CLI/app-server prepare surfaces, committed acceptance
-  evidence, and release gate posture into a single read-only completion matrix.
+  routing, Agent OS SDK/CLI/app-server prepare surfaces, public host facade
+  structural dispatch types, committed acceptance evidence, and release gate
+  posture into a single read-only completion matrix.
 - Workspace-write real canary authorization packet design is now
   machine-checkable with
   `npm run governance -- audit workspace-write-real-canary-authorization-design`;

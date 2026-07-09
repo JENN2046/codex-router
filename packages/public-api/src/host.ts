@@ -347,8 +347,83 @@ export interface DesktopHostTelemetrySink {
   record(event: DesktopHostLogEvent): Promise<void> | void;
 }
 
-export type DesktopHostControlledWorkspaceWriteProviderDispatchInput = unknown;
-export type DesktopHostControlledWorkspaceWriteProviderDispatchResult = unknown;
+export type DesktopHostWorkspaceWriteOperation =
+  | {
+      kind: "write";
+      path: string;
+      content: string;
+    }
+  | {
+      kind: "delete";
+      path: string;
+    };
+
+export interface DesktopHostControlledWorkspaceWriteDispatchPreflightChecks {
+  cleanWorktreeConfirmed: true;
+  targetAllowlistConfirmed: true;
+  rollbackRequired: true;
+  noProviderExecute: true;
+  noRealCodexCli: true;
+  noExternalWrite: true;
+  versionProbe: string;
+}
+
+export interface DesktopHostControlledWorkspaceWriteDispatchEnvironmentPreflight {
+  status: "ready";
+  artifactRef: string;
+  artifactHash: string;
+  checks: DesktopHostControlledWorkspaceWriteDispatchPreflightChecks;
+  blockingReasons: string[];
+}
+
+export interface DesktopHostControlledWorkspaceWriteProviderDispatchPreflight {
+  schemaVersion: "controlled-workspace-write-provider-dispatch-preflight.v1";
+  mode: "controlled-workspace-write";
+  providerExecutionPlanHash: string;
+  providerRegistrySelectionRequired: true;
+  permitRequired: true;
+  operationManifestRequired: true;
+  preflightArtifactBindingRequired: true;
+  providerExecuteForbidden: true;
+  realCodexCliForbidden: true;
+  environmentPreflight: DesktopHostControlledWorkspaceWriteDispatchEnvironmentPreflight;
+}
+
+export interface DesktopHostControlledWorkspaceWriteProviderDispatchInput {
+  providerExecutionPlan: unknown;
+  task: unknown;
+  run: unknown;
+  principal: unknown;
+  policyDecision: unknown;
+  providerRegistry: unknown;
+  kernelStore: unknown;
+  artifactStore: unknown;
+  workspaceRoot: string;
+  permit: unknown;
+  executorPlan: unknown;
+  operations: DesktopHostWorkspaceWriteOperation[];
+  executionAuthorizationId: string;
+  dispatchPreflight: DesktopHostControlledWorkspaceWriteProviderDispatchPreflight;
+  governanceState: unknown;
+  taskEnvelope: DesktopHostTaskEnvelopeInput;
+  proposedInput?: unknown;
+  now: () => string;
+}
+
+export interface DesktopHostControlledWorkspaceWriteProviderDispatchResult
+  extends DesktopHostUnknownRecord {
+  schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1";
+  status: "dispatch_blocked" | "runner_completed";
+  runnerInvoked: boolean;
+  executeInvoked: boolean;
+  providerExecuteInvoked: false;
+  reasons: string[];
+  providerExecutionPlanHash?: string;
+  executorPlanHash?: string;
+  operationManifestHash?: string;
+  providerRegistrySelection?: unknown;
+  runnerResult?: unknown;
+}
 export type DesktopHostControlledWorkspaceWriteProviderDispatcher = (
   input: DesktopHostControlledWorkspaceWriteProviderDispatchInput
 ) =>

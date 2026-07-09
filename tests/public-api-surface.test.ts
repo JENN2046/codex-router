@@ -40,6 +40,9 @@ import type {
   DesktopHostCheckpointRecallAdapter,
   DesktopHostCheckpointRef,
   DesktopHostCheckpointStore,
+  DesktopHostControlledWorkspaceWriteProviderDispatchInput,
+  DesktopHostControlledWorkspaceWriteProviderDispatchResult,
+  DesktopHostWorkspaceWriteOperation,
   DesktopHostAgentStrategyPlan,
   DesktopHostExecutionPlan,
   DesktopHostMemoryAdapter,
@@ -505,19 +508,78 @@ test("public-api host facade delegates through declaration-safe wrappers", async
   });
 
   assert.equal(client instanceof DesktopHostClient, true);
-  const controlledWorkspaceWriteInput = {
-    schemaVersion: "public-host-controlled-workspace-write-test.v1"
+  const controlledWorkspaceWriteInput: DesktopHostControlledWorkspaceWriteProviderDispatchInput = {
+    providerExecutionPlan: {
+      schemaVersion: "provider-execution-plan.v1"
+    },
+    task: {
+      taskId: "task-public-host-workspace-write"
+    },
+    run: {
+      runId: "run-public-host-workspace-write"
+    },
+    principal: {
+      principalId: "principal-public-host-workspace-write"
+    },
+    policyDecision: {
+      decisionId: "decision-public-host-workspace-write"
+    },
+    providerRegistry: {},
+    kernelStore: {},
+    artifactStore: {},
+    workspaceRoot: "/tmp/public-host-workspace-write",
+    permit: {
+      schemaVersion: "provider-workspace-write-execution-permit.v2"
+    },
+    executorPlan: {
+      schemaVersion: "executor-execution-plan.v1"
+    },
+    operations: [{
+      kind: "write",
+      path: "docs/public-host-workspace-write.txt",
+      content: "public host controlled workspace-write\n"
+    }],
+    executionAuthorizationId: "auth-public-host-workspace-write",
+    dispatchPreflight: {
+      schemaVersion: "controlled-workspace-write-provider-dispatch-preflight.v1",
+      mode: "controlled-workspace-write",
+      providerExecutionPlanHash: "a".repeat(64),
+      providerRegistrySelectionRequired: true,
+      permitRequired: true,
+      operationManifestRequired: true,
+      preflightArtifactBindingRequired: true,
+      providerExecuteForbidden: true,
+      realCodexCliForbidden: true,
+      environmentPreflight: {
+        status: "ready",
+        artifactRef: "artifact-public-host-workspace-write",
+        artifactHash: "b".repeat(64),
+        checks: {
+          cleanWorktreeConfirmed: true,
+          targetAllowlistConfirmed: true,
+          rollbackRequired: true,
+          noProviderExecute: true,
+          noRealCodexCli: true,
+          noExternalWrite: true,
+          versionProbe: "public-host-test"
+        },
+        blockingReasons: []
+      }
+    },
+    governanceState: {},
+    taskEnvelope: {
+      taskId: "task-public-host-workspace-write",
+      intent: {
+        summary: "Verify public host workspace-write dispatch type",
+        requestedAction: "Dispatch controlled workspace-write through the public host facade"
+      }
+    },
+    now: () => "2026-07-10T00:00:00.000Z"
   };
   const controlledWorkspaceWriteResult =
     await client.dispatchControlledWorkspaceWriteProviderPlan(
       controlledWorkspaceWriteInput
-    ) as {
-      status: string;
-      runnerInvoked: boolean;
-      executeInvoked: boolean;
-      providerExecuteInvoked: boolean;
-      reasons: string[];
-    };
+    ) as DesktopHostControlledWorkspaceWriteProviderDispatchResult;
   assert.equal(controlledWorkspaceWriteDispatchInputs.length, 1);
   assert.equal(
     controlledWorkspaceWriteDispatchInputs[0],
@@ -900,6 +962,11 @@ test("public-api host facade preserves concrete runtime handler contracts", asyn
     const malformedBindingOptions: CodexDesktopBindingOptions = { session: {} };
     // @ts-expect-error bridge bindings use snake-case desktop primitive keys.
     const malformedBridgeBindings: DesktopHostBindings = { spawnAgent: () => ({ ok: true }) };
+    // @ts-expect-error write operations require explicit content.
+    const malformedWorkspaceWriteOperation: DesktopHostWorkspaceWriteOperation = {
+      kind: "write",
+      path: "docs/missing-content.txt"
+    };
     // @ts-expect-error preflight helper input availableTools must be a string array.
     const malformedPreflightHelperInput: ResolveLiveHostPreflightInput = { availableTools: {} };
     // @ts-expect-error from-host preflight helper input availableTools must be a string array.
@@ -913,6 +980,7 @@ test("public-api host facade preserves concrete runtime handler contracts", asyn
     void malformedDirectiveResolvers;
     void malformedBindingOptions;
     void malformedBridgeBindings;
+    void malformedWorkspaceWriteOperation;
     void malformedPreflightHelperInput;
     void malformedFromHostPreflightInput;
   };

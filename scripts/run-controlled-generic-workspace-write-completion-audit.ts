@@ -25,6 +25,8 @@ const AGENT_OS_SDK_TEST = "tests/agent-os-sdk.test.ts";
 const AGENT_OS_CLI = "packages/agent-os-cli/src/index.ts";
 const AGENT_OS_CLI_TEST = "tests/agent-os-cli.test.ts";
 const AGENT_OS_APP_SERVER_TEST = "tests/agent-os-app-server.test.ts";
+const PUBLIC_API_HOST = "packages/public-api/src/host.ts";
+const PUBLIC_API_TEST = "tests/public-api-surface.test.ts";
 const ACCEPTANCE_SCRIPT =
   "scripts/run-controlled-generic-workspace-write-acceptance.ts";
 const ACCEPTANCE_TEST = "tests/controlled-generic-workspace-write-acceptance.test.ts";
@@ -105,6 +107,23 @@ const REQUIRED_AGENT_OS_MARKERS = [
   "Agent OS SDK prepares workspace-write dispatch through typed input",
   "Agent OS CLI wrapper prepares controlled workspace-write dispatch asynchronously",
   "Agent OS App Server wrapper prepares controlled workspace-write dispatch asynchronously without network"
+] as const;
+
+const REQUIRED_PUBLIC_API_MARKERS = [
+  "export type DesktopHostWorkspaceWriteOperation",
+  "export interface DesktopHostControlledWorkspaceWriteProviderDispatchPreflight",
+  "export interface DesktopHostControlledWorkspaceWriteProviderDispatchInput",
+  "export interface DesktopHostControlledWorkspaceWriteProviderDispatchResult",
+  "controlledWorkspaceWriteProviderDispatchInput?: DesktopHostControlledWorkspaceWriteProviderDispatchInput",
+  "dispatchControlledWorkspaceWriteProviderPlan("
+] as const;
+
+const REQUIRED_PUBLIC_API_TEST_MARKERS = [
+  "DesktopHostControlledWorkspaceWriteProviderDispatchInput",
+  "DesktopHostControlledWorkspaceWriteProviderDispatchResult",
+  "DesktopHostWorkspaceWriteOperation",
+  "write operations require explicit content",
+  "Verify public host workspace-write dispatch type"
 ] as const;
 
 const REQUIRED_ACCEPTANCE_MARKERS = [
@@ -209,6 +228,8 @@ export interface ControlledGenericWorkspaceWriteCompletionAuditInput {
   agentOsCliText: string;
   agentOsCliTestText: string;
   agentOsAppServerTestText: string;
+  publicApiHostText: string;
+  publicApiTestText: string;
   acceptanceScriptText: string;
   acceptanceTestText: string;
   acceptanceEvidenceText: string;
@@ -228,6 +249,7 @@ export interface ControlledGenericWorkspaceWriteCompletionAuditResult {
     dispatcherBindsPreflightAndOperations: boolean;
     hostAndDesktopSurfacesRouteControlledDispatch: boolean;
     agentOsPublicSurfacesExposePrepareAndDispatch: boolean;
+    publicApiExposesStableWorkspaceWriteTypes: boolean;
     acceptanceEvidenceProvesCreateUpdateDeleteRollback: boolean;
     releaseGateRecordsGuardedControlledGenericReadiness: boolean;
     governanceSurfacesRegistered: boolean;
@@ -276,6 +298,8 @@ export async function collectControlledGenericWorkspaceWriteCompletionAuditInput
     agentOsCliText,
     agentOsCliTestText,
     agentOsAppServerTestText,
+    publicApiHostText,
+    publicApiTestText,
     acceptanceScriptText,
     acceptanceTestText,
     acceptanceEvidenceText,
@@ -303,6 +327,8 @@ export async function collectControlledGenericWorkspaceWriteCompletionAuditInput
     read(cwd, AGENT_OS_CLI),
     read(cwd, AGENT_OS_CLI_TEST),
     read(cwd, AGENT_OS_APP_SERVER_TEST),
+    read(cwd, PUBLIC_API_HOST),
+    read(cwd, PUBLIC_API_TEST),
     read(cwd, ACCEPTANCE_SCRIPT),
     read(cwd, ACCEPTANCE_TEST),
     read(cwd, ACCEPTANCE_EVIDENCE),
@@ -332,6 +358,8 @@ export async function collectControlledGenericWorkspaceWriteCompletionAuditInput
     agentOsCliText,
     agentOsCliTestText,
     agentOsAppServerTestText,
+    publicApiHostText,
+    publicApiTestText,
     acceptanceScriptText,
     acceptanceTestText,
     acceptanceEvidenceText,
@@ -392,6 +420,9 @@ export function reviewControlledGenericWorkspaceWriteCompletionAudit(
       markersPresent(hostAndDesktopText, REQUIRED_HOST_DESKTOP_MARKERS),
     agentOsPublicSurfacesExposePrepareAndDispatch:
       markersPresent(agentOsText, REQUIRED_AGENT_OS_MARKERS),
+    publicApiExposesStableWorkspaceWriteTypes:
+      markersPresent(input.publicApiHostText, REQUIRED_PUBLIC_API_MARKERS)
+      && markersPresent(input.publicApiTestText, REQUIRED_PUBLIC_API_TEST_MARKERS),
     acceptanceEvidenceProvesCreateUpdateDeleteRollback:
       markersPresent(input.acceptanceScriptText, REQUIRED_ACCEPTANCE_MARKERS)
       && markersPresent(input.acceptanceTestText, REQUIRED_ACCEPTANCE_TEST_MARKERS)

@@ -92,8 +92,8 @@ as historical evidence unless a current authority document links them.
 - Controlled generic workspace-write completion audit:
   `npm run governance -- audit controlled-generic-workspace-write-completion`
   ties executor, runner, dispatcher, host/desktop routing, Agent OS public
-  surfaces, committed acceptance evidence, and release gate posture into one
-  read-only completion matrix.
+  surfaces, public host facade structural dispatch types, committed acceptance
+  evidence, and release gate posture into one read-only completion matrix.
 - [Phase 7 runtime operator actionability closeout](PHASE_7_RUNTIME_OPERATOR_ACTIONABILITY_CLOSEOUT.md):
   current closeout for preflight governance blocks, operator action envelopes,
   summaries, host-client surfaces, and sanitized evidence resolution; this is
