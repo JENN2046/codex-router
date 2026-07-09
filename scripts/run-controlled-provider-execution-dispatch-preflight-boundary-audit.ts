@@ -73,14 +73,15 @@ const REQUIRED_MATRIX_ROWS = [
 
 const REQUIRED_RUNNER_MARKERS = [
   "Provider execution runner boundary audit",
-  "controlled_readonly_provider_execute_gate",
+  "controlled_readonly_and_workspace_write_gate",
   "provider.execute",
   "controlledReadOnlyProviderId: \"codex-cli\"",
   "controlledReadOnlySideEffectClass: \"read_only\"",
   "controlledReadOnlySandbox: \"read-only\"",
   "permitRequired: true",
   "preflightArtifactBindingRequired: true",
-  "realExecutionGuardRequired: true"
+  "realExecutionGuardRequired: true",
+  "workspaceWriteProviderExecuteAllowed: false"
 ] as const;
 
 const FORBIDDEN_AUTHORIZATION_MARKERS = [

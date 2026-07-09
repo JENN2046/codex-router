@@ -997,10 +997,14 @@ test("execution boundary current surface audit passes for current evidence", asy
   assert.equal(review.summary.totalProviderRegistryProviderExecuteCallsDuringAudit, 0);
   assert.equal(
     review.summary.providerExecutionRunnerMode,
-    "controlled_readonly_provider_execute_gate"
+    "controlled_readonly_and_workspace_write_gate"
   );
   assert.equal(review.summary.controlledReadOnlyProviderExecutionAllowed, true);
-  assert.equal(review.summary.providerExecutionRunnerWorkspaceWriteAllowed, false);
+  assert.equal(review.summary.providerExecutionRunnerWorkspaceWriteAllowed, true);
+  assert.equal(
+    review.summary.providerExecutionRunnerWorkspaceWriteProviderExecuteAllowed,
+    false
+  );
   assert.equal(
     review.summary.providerExecutionRunnerDefaultRealCodexCliAllowed,
     false
@@ -1890,7 +1894,7 @@ test("execution boundary current surface audit blocks broadened execution summar
       ...input.providerExecutionRunnerReview,
       summary: {
         ...input.providerExecutionRunnerReview.summary,
-        workspaceWriteAllowedByRunner: true as false
+        workspaceWriteProviderExecuteAllowed: true as false
       }
     },
     providerCorePrimitivesReview: {

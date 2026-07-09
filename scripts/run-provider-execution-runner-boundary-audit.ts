@@ -14,8 +14,10 @@ const GOVERNANCE_RUNNER = "scripts/run-governance-check.ts";
 const REQUIRED_RUNNER_SOURCE_MARKERS = [
   "export async function runProviderExecutionPlanDryRun",
   "export async function runProviderExecutionPlanControlledReadOnly",
+  "export async function runProviderExecutionPlanControlledWorkspaceWrite",
   "providerEntry.provider.execute(executorPlan",
   "executeInvoked: true",
+  "providerExecuteInvoked: false",
   "controlled_readonly_requires_codex_cli_provider",
   "controlled_readonly_requires_read_only_side_effect",
   "controlled_readonly_requires_read_only_sandbox",
@@ -27,12 +29,18 @@ const REQUIRED_RUNNER_SOURCE_MARKERS = [
   "controlled_readonly_environment_preflight_artifact_hash_required",
   "controlled_readonly_provider_governance_state_strategy_blocked",
   "controlled_readonly_provider_governance_state_phase_blocked",
+  "controlled_workspace_write_requires_workspace_write_side_effect",
+  "controlled_workspace_write_requires_workspace_write_sandbox",
+  "runWorkspaceWriteExecution",
   "strategyDecision.agentBudget.executor === 0"
 ] as const;
 
 const REQUIRED_RUNNER_TEST_MARKERS = [
   "provider execution runner dry-runs executor plans and records audit evidence",
   "provider execution runner validates codex-cli dry-runs without invoking execute",
+  "provider execution runner executes controlled workspace-write operations through local executor only",
+  "provider execution runner blocks non workspace-write plans before local write execution",
+  "provider execution runner reports workspace-write executor failures without provider execute",
   "provider execution runner executes controlled read-only codex-cli plans with explicit permit and guard",
   "provider execution runner blocks controlled read-only execution without metadata before spawn",
   "provider execution runner blocks controlled read-only execution without a provider permit before spawn",
@@ -75,7 +83,7 @@ export interface ProviderExecutionRunnerBoundaryAuditResult {
     outputSanitized: boolean;
   };
   summary: {
-    runnerMode: "controlled_readonly_provider_execute_gate";
+    runnerMode: "controlled_readonly_and_workspace_write_gate";
     dryRunExecuteInvoked: false;
     controlledReadOnlyExecuteAllowed: true;
     controlledReadOnlyProviderId: "codex-cli";
@@ -89,7 +97,8 @@ export interface ProviderExecutionRunnerBoundaryAuditResult {
     simulateBlocksBeforeProviderHooks: true;
     recoveryPhaseBlocksBeforeProviderHooks: true;
     nonCodexProviderExecutionAllowed: false;
-    workspaceWriteAllowedByRunner: false;
+    workspaceWriteAllowedByRunner: true;
+    workspaceWriteProviderExecuteAllowed: false;
     defaultRealCodexCliAllowed: false;
     subAgentRuntimeInvocationAllowed: false;
     hostExecutorInvocationAllowed: false;
@@ -168,7 +177,7 @@ export function reviewProviderExecutionRunnerBoundaryAudit(
     status: reasons.length === 0 ? "passed" : "blocked",
     checks,
     summary: {
-      runnerMode: "controlled_readonly_provider_execute_gate",
+      runnerMode: "controlled_readonly_and_workspace_write_gate",
       dryRunExecuteInvoked: false,
       controlledReadOnlyExecuteAllowed: true,
       controlledReadOnlyProviderId: "codex-cli",
@@ -182,7 +191,8 @@ export function reviewProviderExecutionRunnerBoundaryAudit(
       simulateBlocksBeforeProviderHooks: true,
       recoveryPhaseBlocksBeforeProviderHooks: true,
       nonCodexProviderExecutionAllowed: false,
-      workspaceWriteAllowedByRunner: false,
+      workspaceWriteAllowedByRunner: true,
+      workspaceWriteProviderExecuteAllowed: false,
       defaultRealCodexCliAllowed: false,
       subAgentRuntimeInvocationAllowed: false,
       hostExecutorInvocationAllowed: false,
@@ -222,6 +232,7 @@ export function formatProviderExecutionRunnerBoundaryAuditResult(
     `real execution guard required: ${review.summary.realExecutionGuardRequired}`,
     `non-codex provider execution allowed: ${review.summary.nonCodexProviderExecutionAllowed}`,
     `workspace-write allowed by runner: ${review.summary.workspaceWriteAllowedByRunner}`,
+    `workspace-write provider execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
     `provider runner calls during audit: ${review.summary.providerRunnerCallsDuringAudit}`,
     `provider planExecution calls during audit: ${review.summary.providerPlanExecutionCallsDuringAudit}`,
     `provider validateExecutionPlan calls during audit: ${review.summary.providerValidateExecutionPlanCallsDuringAudit}`,
@@ -241,8 +252,8 @@ async function read(cwd: string, filePath: string): Promise<string> {
 
 function controlPlaneCapabilityRecorded(text: string): boolean {
   return text.includes("Provider execution runner boundary")
-    && text.includes("controlled read-only provider execute gate")
-    && text.includes("codex-cli + read_only + read-only")
+    && text.includes("controlled read-only")
+    && text.includes("controlled workspace-write")
     && text.includes("provider.execute");
 }
 
@@ -270,7 +281,7 @@ function noBroadExecutionAuthorization(
     input.governanceRunnerText
   ].join("\n");
 
-  return !text.includes("provider execution runner workspace-write allowed: true")
+  return !text.includes("provider execution runner workspace-write provider execute allowed: true")
     && !text.includes("provider execution runner default real Codex CLI allowed: true")
     && !text.includes("provider execution runner non-codex provider execution allowed: true")
     && !text.includes("provider execution runner sub-agent runtime invocation allowed: true")
@@ -293,7 +304,7 @@ function outputSanitized(
       outputSanitized: true
     },
     summary: {
-      runnerMode: "controlled_readonly_provider_execute_gate",
+      runnerMode: "controlled_readonly_and_workspace_write_gate",
       dryRunExecuteInvoked: false,
       controlledReadOnlyExecuteAllowed: true,
       controlledReadOnlyProviderId: "codex-cli",
@@ -307,7 +318,8 @@ function outputSanitized(
       simulateBlocksBeforeProviderHooks: true,
       recoveryPhaseBlocksBeforeProviderHooks: true,
       nonCodexProviderExecutionAllowed: false,
-      workspaceWriteAllowedByRunner: false,
+      workspaceWriteAllowedByRunner: true,
+      workspaceWriteProviderExecuteAllowed: false,
       defaultRealCodexCliAllowed: false,
       subAgentRuntimeInvocationAllowed: false,
       hostExecutorInvocationAllowed: false,

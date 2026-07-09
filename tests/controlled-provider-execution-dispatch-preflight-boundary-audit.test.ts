@@ -81,7 +81,7 @@ test("controlled provider execution dispatch preflight requires runner boundary"
   const review = reviewControlledProviderExecutionDispatchPreflightBoundaryAudit({
     ...input,
     providerRunnerAuditText: input.providerRunnerAuditText.replaceAll(
-      "controlled_readonly_provider_execute_gate",
+      "controlled_readonly_and_workspace_write_gate",
       "general_provider_execute_gate"
     )
   });

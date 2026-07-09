@@ -52,13 +52,15 @@ import {
   hashExecutorExecutionPlan,
   hashProviderManifest,
   validateProviderExecutionPermitForPlan,
+  WorkspaceWriteProviderExecutionPermitV2Schema,
   type ExecutionValidationResult,
   type ExecutorExecutionPlan,
   type ExecutorProvider,
   type ProviderAttestation,
   type ProviderExecutionPermit,
   type ProviderExecutionResult,
-  type ProviderSideEffectClass
+  type ProviderSideEffectClass,
+  type WorkspaceWriteProviderExecutionPermitV2
 } from "../../provider-core/src/index.js";
 import type {
   ProviderRegistry
@@ -84,6 +86,11 @@ import {
   type AnomalyRecord,
   type GovernanceState
 } from "../../governance-internal-state-manager/src/index.js";
+import {
+  runWorkspaceWriteExecution,
+  type WorkspaceWriteExecutionEvidence,
+  type WorkspaceWriteOperation
+} from "../../governance-internal-workspace-write-executor/src/index.js";
 
 export {
   summarizeGovernanceOperatorActionEnvelope
@@ -117,6 +124,17 @@ export const ControlledReadOnlyProviderExecutionRunnerStatusSchema = z.enum([
 
 export type ControlledReadOnlyProviderExecutionRunnerStatus =
   z.infer<typeof ControlledReadOnlyProviderExecutionRunnerStatusSchema>;
+
+export const ControlledWorkspaceWriteProviderExecutionRunnerStatusSchema = z.enum([
+  "controlled_workspace_write_succeeded",
+  "blocked",
+  "provider_plan_failed",
+  "validation_failed",
+  "execution_failed"
+]);
+
+export type ControlledWorkspaceWriteProviderExecutionRunnerStatus =
+  z.infer<typeof ControlledWorkspaceWriteProviderExecutionRunnerStatusSchema>;
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 const NullableSha256Schema = z.union([Sha256Schema, z.null()]);
@@ -277,6 +295,25 @@ export type RunProviderExecutionPlanControlledReadOnlyInput = {
   mode: "controlled-read-only";
 };
 
+export type RunProviderExecutionPlanControlledWorkspaceWriteInput = {
+  providerExecutionPlan: ProviderExecutionPlan;
+  task: Task;
+  run: Run;
+  principal: Principal;
+  policyDecision: PolicyDecision;
+  providerRegistry: ProviderRegistry;
+  kernelStore: KernelStore;
+  artifactStore: ArtifactStore;
+  workspaceRoot: string;
+  permit: WorkspaceWriteProviderExecutionPermitV2;
+  operations: WorkspaceWriteOperation[];
+  executionAuthorizationId: string;
+  executorPlan?: ExecutorExecutionPlan;
+  proposedInput?: unknown;
+  now: () => string;
+  mode: "controlled-workspace-write";
+};
+
 export type ProviderExecutionRunnerResult = {
   schemaVersion: "provider-execution-runner-result.v1";
   status: ProviderExecutionRunnerStatus;
@@ -324,6 +361,30 @@ export type ControlledReadOnlyProviderExecutionRunnerResult = {
   governance?: ControlledReadOnlyProviderExecutionGovernance;
   operatorActionEnvelope?: GovernanceOperatorActionEnvelope;
   operatorActionSummary: GovernanceOperatorActionSummary;
+  reportArtifact?: StoredArtifact;
+  kernelArtifact?: Artifact;
+};
+
+export type ControlledWorkspaceWriteProviderExecutionRunnerResult = {
+  schemaVersion: "provider-execution-controlled-workspace-write-runner-result.v1";
+  status: ControlledWorkspaceWriteProviderExecutionRunnerStatus;
+  planId: string;
+  taskId: string;
+  runId: string;
+  providerId: string;
+  providerKind: ProviderExecutionPlan["providerKind"];
+  dryRun: false;
+  executeInvoked: boolean;
+  providerExecuteInvoked: false;
+  reasons: string[];
+  eventIds: string[];
+  artifactIds: string[];
+  createdAt: string;
+  completedAt: string;
+  providerAttestation?: ProviderAttestation;
+  executorPlan?: Record<string, unknown>;
+  validation?: ExecutionValidationResult;
+  workspaceWriteEvidence?: WorkspaceWriteExecutionEvidence;
   reportArtifact?: StoredArtifact;
   kernelArtifact?: Artifact;
 };
@@ -794,6 +855,220 @@ export async function runProviderExecutionPlanControlledReadOnly(
     executorPlan,
     validation,
     providerResultSummary
+  });
+}
+
+export async function runProviderExecutionPlanControlledWorkspaceWrite(
+  input: RunProviderExecutionPlanControlledWorkspaceWriteInput
+): Promise<ControlledWorkspaceWriteProviderExecutionRunnerResult> {
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse(input.providerExecutionPlan);
+  const task = TaskSchema.parse(input.task);
+  const run = RunSchema.parse(input.run);
+  const principal = PrincipalSchema.parse(input.principal);
+  const policyDecision = PolicyDecisionSchema.parse(input.policyDecision);
+  const permit = WorkspaceWriteProviderExecutionPermitV2Schema.parse(input.permit);
+  const createdAt = input.now();
+  const eventIds: string[] = [];
+  const artifactIds: string[] = [];
+  const providerEntry = input.providerRegistry.getProvider(providerExecutionPlan.providerId);
+  const providerAttestation = providerEntry === undefined
+    ? undefined
+    : createProviderAttestation(providerEntry.manifest, createdAt);
+  const preflightReasons = collectControlledWorkspaceWritePreflightReasons({
+    mode: input.mode,
+    providerExecutionPlan,
+    task,
+    run,
+    principal,
+    policyDecision,
+    providerRegistry: input.providerRegistry,
+    permit
+  });
+
+  if (preflightReasons.length > 0) {
+    return finalizeControlledWorkspaceWriteRunnerResult({
+      input,
+      providerExecutionPlan,
+      status: "blocked",
+      executeInvoked: false,
+      reasons: preflightReasons,
+      eventIds,
+      artifactIds,
+      createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {})
+    });
+  }
+
+  if (providerEntry === undefined || !isExecutorProvider(providerEntry.provider)) {
+    return finalizeControlledWorkspaceWriteRunnerResult({
+      input,
+      providerExecutionPlan,
+      status: "blocked",
+      executeInvoked: false,
+      reasons: [`provider_not_executable:${providerExecutionPlan.providerId}`],
+      eventIds,
+      artifactIds,
+      createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {})
+    });
+  }
+
+  const startedEvent = appendRunnerEvent(input.kernelStore, {
+    providerExecutionPlan,
+    task,
+    run,
+    principal,
+    createdAt: input.now(),
+    eventType: "kernel.provider.execution.controlled_workspace_write.started",
+    eventIds,
+    payload: {
+      status: "started",
+      dryRun: false,
+      executeInvoked: false,
+      providerExecuteInvoked: false,
+      control: "controlled-workspace-write"
+    }
+  });
+  eventIds.push(startedEvent.eventId);
+
+  let executorPlan: ExecutorExecutionPlan;
+  try {
+    executorPlan = input.executorPlan === undefined
+      ? ExecutorExecutionPlanSchema.parse(await providerEntry.provider.planExecution({
+          task,
+          run,
+          policyDecision,
+          sandboxProfile: providerExecutionPlan.sandboxProfile,
+          inputHash: providerExecutionPlan.inputHash,
+          ...(providerExecutionPlan.taskHash !== undefined ? { taskHash: providerExecutionPlan.taskHash } : {}),
+          ...(providerExecutionPlan.principalId !== undefined ? { principalId: providerExecutionPlan.principalId } : {}),
+          ...(providerExecutionPlan.principalHash !== undefined
+            ? { principalHash: providerExecutionPlan.principalHash }
+            : {}),
+          providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+          ...(providerExecutionPlan.providerManifestHash !== undefined
+            ? { providerManifestHash: providerExecutionPlan.providerManifestHash }
+            : {}),
+          ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
+          now: input.now()
+        }))
+      : ExecutorExecutionPlanSchema.parse(input.executorPlan);
+  } catch (error) {
+    return finalizeControlledWorkspaceWriteRunnerResult({
+      input,
+      providerExecutionPlan,
+      status: "provider_plan_failed",
+      executeInvoked: false,
+      reasons: [`provider_plan_failed:${normalizeErrorMessage(error)}`],
+      eventIds,
+      artifactIds,
+      createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {})
+    });
+  }
+
+  const executorPlanInvariantReasons = [
+    ...collectExecutorPlanInvariantReasons({
+      providerExecutionPlan,
+      executorPlan
+    }),
+    ...collectControlledWorkspaceWriteExecutorPlanReasons(executorPlan)
+  ];
+  if (executorPlanInvariantReasons.length > 0) {
+    const validation = {
+      valid: false,
+      reasons: uniqueStrings(executorPlanInvariantReasons)
+    };
+
+    return finalizeControlledWorkspaceWriteRunnerResult({
+      input,
+      providerExecutionPlan,
+      status: "validation_failed",
+      executeInvoked: false,
+      reasons: uniqueStrings([
+        "executor_plan_invariant_mismatch",
+        ...executorPlanInvariantReasons
+      ]),
+      eventIds,
+      artifactIds,
+      createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+      executorPlan,
+      validation
+    });
+  }
+
+  let validation: ExecutionValidationResult;
+  try {
+    validation = await providerEntry.provider.validateExecutionPlan(executorPlan);
+  } catch (error) {
+    validation = {
+      valid: false,
+      reasons: [`provider_validation_failed:${normalizeSafeErrorMessage(error)}`]
+    };
+  }
+
+  if (!validation.valid) {
+    return finalizeControlledWorkspaceWriteRunnerResult({
+      input,
+      providerExecutionPlan,
+      status: "validation_failed",
+      executeInvoked: false,
+      reasons: uniqueStrings(["provider_validation_failed", ...validation.reasons]),
+      eventIds,
+      artifactIds,
+      createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+      executorPlan,
+      validation
+    });
+  }
+
+  const workspaceWriteEvidence = await runWorkspaceWriteExecution({
+    cwd: input.workspaceRoot,
+    permit,
+    plan: executorPlan,
+    manifest: providerEntry.manifest,
+    operations: input.operations,
+    executionAuthorizationId: input.executionAuthorizationId,
+    execute: true,
+    now: input.now
+  });
+
+  if (workspaceWriteEvidence.status !== "passed") {
+    return finalizeControlledWorkspaceWriteRunnerResult({
+      input,
+      providerExecutionPlan,
+      status: workspaceWriteEvidence.status === "blocked" ? "validation_failed" : "execution_failed",
+      executeInvoked: workspaceWriteEvidence.counters.workspaceWriteExecuteCalls > 0,
+      reasons: uniqueStrings([
+        `workspace_write_execution_${workspaceWriteEvidence.status}`,
+        ...workspaceWriteEvidence.reasons
+      ]),
+      eventIds,
+      artifactIds,
+      createdAt,
+      ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+      executorPlan,
+      validation,
+      workspaceWriteEvidence,
+      failureClass: `workspace_write_execution_${workspaceWriteEvidence.status}`
+    });
+  }
+
+  return finalizeControlledWorkspaceWriteRunnerResult({
+    input,
+    providerExecutionPlan,
+    status: "controlled_workspace_write_succeeded",
+    executeInvoked: true,
+    reasons: ["controlled_workspace_write_execution_succeeded"],
+    eventIds,
+    artifactIds,
+    createdAt,
+    ...(providerAttestation !== undefined ? { providerAttestation } : {}),
+    executorPlan,
+    validation,
+    workspaceWriteEvidence
   });
 }
 
@@ -1473,6 +1748,82 @@ function collectControlledReadOnlyPreflightReasons(input: {
   return uniqueStrings(reasons);
 }
 
+function collectControlledWorkspaceWritePreflightReasons(input: {
+  mode: unknown;
+  providerExecutionPlan: ProviderExecutionPlan;
+  task: Task;
+  run: Run;
+  principal: Principal;
+  policyDecision: PolicyDecision;
+  providerRegistry: ProviderRegistry;
+  permit: WorkspaceWriteProviderExecutionPermitV2;
+}): string[] {
+  const reasons = collectRunnerPreflightReasons({
+    mode: "dry-run",
+    providerExecutionPlan: input.providerExecutionPlan,
+    task: input.task,
+    run: input.run,
+    principal: input.principal,
+    policyDecision: input.policyDecision,
+    providerRegistry: input.providerRegistry
+  });
+  const providerEntry = input.providerRegistry.getProvider(input.providerExecutionPlan.providerId);
+
+  if (input.mode !== "controlled-workspace-write") {
+    reasons.push(`controlled_workspace_write_mode_required:${String(input.mode)}`);
+  }
+
+  if (input.providerExecutionPlan.sideEffectClass !== "workspace_write") {
+    reasons.push(
+      `controlled_workspace_write_requires_workspace_write_side_effect:${input.providerExecutionPlan.sideEffectClass}`
+    );
+  }
+
+  if (input.providerExecutionPlan.sandboxProfile.mode !== "workspace-write") {
+    reasons.push(
+      `controlled_workspace_write_requires_workspace_write_sandbox:${input.providerExecutionPlan.sandboxProfile.mode}`
+    );
+  }
+
+  if (input.providerExecutionPlan.sandboxProfile.writableRoots.length === 0) {
+    reasons.push("controlled_workspace_write_requires_writable_roots");
+  }
+
+  if (input.policyDecision.approval.required !== true) {
+    reasons.push("controlled_workspace_write_requires_explicit_approval");
+  }
+
+  if (providerEntry !== undefined) {
+    const manifestHash = hashProviderManifest(providerEntry.manifest);
+    if (input.providerExecutionPlan.providerManifestHash !== manifestHash) {
+      reasons.push("controlled_workspace_write_provider_manifest_mismatch");
+    }
+    if (providerEntry.manifest.securityBoundary.filesystemAccess !== "workspace-write") {
+      reasons.push("controlled_workspace_write_provider_manifest_requires_workspace_write_fs");
+    }
+    if (!providerEntry.manifest.supportedSideEffectClasses.includes("workspace_write")) {
+      reasons.push("controlled_workspace_write_provider_manifest_side_effect_unsupported");
+    }
+    if (!providerEntry.manifest.supportedSandboxProfiles.some((profile) =>
+      profile.mode === "workspace-write"
+    )) {
+      reasons.push("controlled_workspace_write_provider_manifest_sandbox_unsupported");
+    }
+  }
+
+  if (input.permit.sideEffectClass !== "workspace_write") {
+    reasons.push(`controlled_workspace_write_permit_side_effect_mismatch:${input.permit.sideEffectClass}`);
+  }
+  if (input.permit.sandboxMode !== "workspace-write") {
+    reasons.push(`controlled_workspace_write_permit_sandbox_mismatch:${input.permit.sandboxMode}`);
+  }
+  if (input.permit.providerId !== input.providerExecutionPlan.providerId) {
+    reasons.push("controlled_workspace_write_permit_provider_mismatch");
+  }
+
+  return uniqueStrings(reasons);
+}
+
 function collectProviderPlanPolicyInvariantReasons(input: {
   providerExecutionPlan: ProviderExecutionPlan;
   policyDecision: PolicyDecision;
@@ -1536,6 +1887,34 @@ function collectControlledReadOnlyExecutorPlanReasons(
         ? "controlled_readonly_executor_plan_approval_policy_missing"
         : `controlled_readonly_executor_plan_requires_approval_policy_never:${approvalPolicy}`
     );
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function collectControlledWorkspaceWriteExecutorPlanReasons(
+  executorPlan: ExecutorExecutionPlan
+): string[] {
+  const reasons: string[] = [];
+
+  if (executorPlan.approvalRequired !== true) {
+    reasons.push("controlled_workspace_write_executor_plan_requires_approval");
+  }
+
+  if (executorPlan.sideEffectClass !== "workspace_write") {
+    reasons.push(
+      `controlled_workspace_write_executor_plan_requires_workspace_write_side_effect:${executorPlan.sideEffectClass}`
+    );
+  }
+
+  if (executorPlan.sandboxProfile.mode !== "workspace-write") {
+    reasons.push(
+      `controlled_workspace_write_executor_plan_requires_workspace_write_sandbox:${executorPlan.sandboxProfile.mode}`
+    );
+  }
+
+  if (executorPlan.sandboxProfile.writableRoots.length === 0) {
+    reasons.push("controlled_workspace_write_executor_plan_requires_writable_roots");
   }
 
   return uniqueStrings(reasons);
@@ -1944,6 +2323,188 @@ async function writeRunnerReportArtifact(input: {
   });
 }
 
+async function finalizeControlledWorkspaceWriteRunnerResult(input: {
+  input: RunProviderExecutionPlanControlledWorkspaceWriteInput;
+  providerExecutionPlan: ProviderExecutionPlan;
+  status: ControlledWorkspaceWriteProviderExecutionRunnerStatus;
+  executeInvoked: boolean;
+  reasons: string[];
+  eventIds: string[];
+  artifactIds: string[];
+  createdAt: string;
+  providerAttestation?: ProviderAttestation;
+  executorPlan?: ExecutorExecutionPlan;
+  validation?: ExecutionValidationResult;
+  workspaceWriteEvidence?: WorkspaceWriteExecutionEvidence;
+  failureClass?: string;
+}): Promise<ControlledWorkspaceWriteProviderExecutionRunnerResult> {
+  const completedAt = input.input.now();
+  const reasons = sanitizeProviderFailureReasons(input.reasons);
+  const failureClass = input.failureClass === undefined
+    ? undefined
+    : sanitizeProviderFailureClass(input.failureClass);
+  const validation = input.validation === undefined
+    ? undefined
+    : sanitizeExecutionValidationResult(input.validation);
+  const executorPlanSummary = input.executorPlan === undefined
+    ? undefined
+    : summarizeExecutorPlan(input.executorPlan);
+  const reportArtifactId = createArtifactId(
+    input.providerExecutionPlan.planId,
+    input.status,
+    completedAt
+  );
+  const reportArtifact = await writeControlledWorkspaceWriteRunnerReportArtifact({
+    input: input.input,
+    providerExecutionPlan: input.providerExecutionPlan,
+    status: input.status,
+    executeInvoked: input.executeInvoked,
+    reasons,
+    eventIds: input.eventIds,
+    createdAt: input.createdAt,
+    completedAt,
+    artifactId: reportArtifactId,
+    ...(input.providerAttestation !== undefined
+      ? { providerAttestation: input.providerAttestation }
+      : {}),
+    ...(executorPlanSummary !== undefined ? { executorPlan: executorPlanSummary } : {}),
+    ...(validation !== undefined ? { validation } : {}),
+    ...(input.workspaceWriteEvidence !== undefined
+      ? { workspaceWriteEvidence: input.workspaceWriteEvidence }
+      : {}),
+    ...(failureClass !== undefined ? { failureClass } : {})
+  });
+  input.artifactIds.push(reportArtifact.artifactId);
+
+  const kernelArtifact = createKernelArtifactForReport({
+    input: input.input,
+    providerExecutionPlan: input.providerExecutionPlan,
+    reportArtifact,
+    dryRun: false
+  });
+  const completedEvent = appendRunnerEvent(input.input.kernelStore, {
+    providerExecutionPlan: input.providerExecutionPlan,
+    task: input.input.task,
+    run: input.input.run,
+    principal: input.input.principal,
+    createdAt: completedAt,
+    eventType: `kernel.provider.execution.controlled_workspace_write.${eventStatusSuffix(input.status)}`,
+    eventIds: input.eventIds,
+    payload: {
+      status: input.status,
+      dryRun: false,
+      executeInvoked: input.executeInvoked,
+      providerExecuteInvoked: false,
+      reasons,
+      artifactIds: input.artifactIds,
+      control: "controlled-workspace-write",
+      ...(input.providerAttestation !== undefined
+        ? { providerAttestation: summarizeProviderAttestation(input.providerAttestation) }
+        : {}),
+      ...(validation !== undefined ? { validation } : {}),
+      ...(executorPlanSummary !== undefined
+        ? { executorPlan: executorPlanSummary }
+        : {}),
+      ...(input.workspaceWriteEvidence !== undefined
+        ? { workspaceWriteEvidence: summarizeWorkspaceWriteExecutionEvidence(input.workspaceWriteEvidence) }
+        : {}),
+      ...(failureClass !== undefined ? { failureClass } : {})
+    }
+  });
+  input.eventIds.push(completedEvent.eventId);
+
+  return {
+    schemaVersion: "provider-execution-controlled-workspace-write-runner-result.v1",
+    status: input.status,
+    planId: input.providerExecutionPlan.planId,
+    taskId: input.providerExecutionPlan.taskId,
+    runId: input.providerExecutionPlan.runId,
+    providerId: input.providerExecutionPlan.providerId,
+    providerKind: input.providerExecutionPlan.providerKind,
+    dryRun: false,
+    executeInvoked: input.executeInvoked,
+    providerExecuteInvoked: false,
+    reasons,
+    eventIds: [...input.eventIds],
+    artifactIds: [...input.artifactIds],
+    createdAt: input.createdAt,
+    completedAt,
+    reportArtifact,
+    kernelArtifact,
+    ...(input.providerAttestation !== undefined
+      ? { providerAttestation: input.providerAttestation }
+      : {}),
+    ...(executorPlanSummary !== undefined ? { executorPlan: executorPlanSummary } : {}),
+    ...(validation !== undefined ? { validation } : {}),
+    ...(input.workspaceWriteEvidence !== undefined
+      ? { workspaceWriteEvidence: input.workspaceWriteEvidence }
+      : {}),
+    ...(failureClass !== undefined ? { failureClass } : {})
+  };
+}
+
+async function writeControlledWorkspaceWriteRunnerReportArtifact(input: {
+  input: RunProviderExecutionPlanControlledWorkspaceWriteInput;
+  providerExecutionPlan: ProviderExecutionPlan;
+  status: ControlledWorkspaceWriteProviderExecutionRunnerStatus;
+  executeInvoked: boolean;
+  reasons: string[];
+  eventIds: string[];
+  createdAt: string;
+  completedAt: string;
+  artifactId: string;
+  providerAttestation?: ProviderAttestation;
+  executorPlan?: Record<string, unknown>;
+  validation?: ExecutionValidationResult;
+  workspaceWriteEvidence?: WorkspaceWriteExecutionEvidence;
+  failureClass?: string;
+}): Promise<StoredArtifact> {
+  return input.input.artifactStore.putArtifact({
+    artifactId: input.artifactId,
+    taskId: input.providerExecutionPlan.taskId,
+    runId: input.providerExecutionPlan.runId,
+    type: "report",
+    payload: {
+      schemaVersion: "provider-execution-controlled-workspace-write-report.v1",
+      status: input.status,
+      dryRun: false,
+      executeInvoked: input.executeInvoked,
+      providerExecuteInvoked: false,
+      reasons: input.reasons,
+      eventIds: input.eventIds,
+      providerExecutionPlan: summarizeProviderExecutionPlan(input.providerExecutionPlan),
+      ...(input.providerAttestation !== undefined
+        ? { providerAttestation: summarizeProviderAttestation(input.providerAttestation) }
+        : {}),
+      ...(input.executorPlan !== undefined ? { executorPlan: input.executorPlan } : {}),
+      ...(input.validation !== undefined ? { validation: input.validation } : {}),
+      ...(input.workspaceWriteEvidence !== undefined
+        ? { workspaceWriteEvidence: input.workspaceWriteEvidence }
+        : {}),
+      ...(input.failureClass !== undefined ? { failureClass: input.failureClass } : {})
+    },
+    metadata: {
+      providerId: input.providerExecutionPlan.providerId,
+      providerKind: input.providerExecutionPlan.providerKind,
+      status: input.status,
+      dryRun: false,
+      control: "controlled-workspace-write",
+      providerExecuteInvoked: false,
+      ...(input.providerAttestation !== undefined
+        ? { providerAttestationManifestHash: input.providerAttestation.manifestHash }
+        : {}),
+      ...(input.failureClass !== undefined ? { failureClass: input.failureClass } : {})
+    },
+    provenance: {
+      principalId: input.input.principal.principalId,
+      source: "provider-execution-runner",
+      planId: input.providerExecutionPlan.planId
+    },
+    createdAt: input.completedAt,
+    alreadyRedacted: true
+  });
+}
+
 async function writeControlledReadOnlyRunnerReportArtifact(input: {
   input: RunProviderExecutionPlanControlledReadOnlyInput;
   providerExecutionPlan: ProviderExecutionPlan;
@@ -2336,6 +2897,29 @@ function summarizeControlledReadOnlyExecutionEvidence(
   };
 }
 
+function summarizeWorkspaceWriteExecutionEvidence(
+  evidence: WorkspaceWriteExecutionEvidence
+): Record<string, unknown> {
+  return {
+    schemaVersion: "workspace-write-execution-evidence-summary.v1",
+    status: evidence.status,
+    permitId: evidence.summary.permitId,
+    planId: evidence.summary.planId,
+    providerId: evidence.summary.providerId,
+    targetFiles: evidence.summary.targetFiles,
+    operationCount: evidence.summary.operationCount,
+    changedFileCount: evidence.summary.changedFileCount,
+    diffLineCount: evidence.summary.diffLineCount,
+    expectedPatchHash: evidence.summary.expectedPatchHash,
+    actualPatchHash: evidence.summary.actualPatchHash,
+    workspaceWriteExecuteCalls: evidence.counters.workspaceWriteExecuteCalls,
+    fileWriteCalls: evidence.counters.fileWriteCalls,
+    fileDeleteCalls: evidence.counters.fileDeleteCalls,
+    rollbackVerified: evidence.checks.rollbackVerified,
+    evidenceSanitized: evidence.checks.evidenceSanitized
+  };
+}
+
 function readProviderRegistrySelection(
   metadata: Record<string, unknown> | undefined
 ): Record<string, unknown> | undefined {
@@ -2460,11 +3044,15 @@ function readStringArrayField(
 }
 
 function eventStatusSuffix(
-  status: ProviderExecutionRunnerStatus | ControlledReadOnlyProviderExecutionRunnerStatus
+  status:
+    | ProviderExecutionRunnerStatus
+    | ControlledReadOnlyProviderExecutionRunnerStatus
+    | ControlledWorkspaceWriteProviderExecutionRunnerStatus
 ): string {
   switch (status) {
     case "dry_run_succeeded":
     case "controlled_readonly_succeeded":
+    case "controlled_workspace_write_succeeded":
       return "succeeded";
     case "blocked":
       return "blocked";
@@ -2494,7 +3082,10 @@ function createEventId(
 
 function createArtifactId(
   planId: string,
-  status: ProviderExecutionRunnerStatus | ControlledReadOnlyProviderExecutionRunnerStatus,
+  status:
+    | ProviderExecutionRunnerStatus
+    | ControlledReadOnlyProviderExecutionRunnerStatus
+    | ControlledWorkspaceWriteProviderExecutionRunnerStatus,
   completedAt: string
 ): string {
   return `artifact_${toSafeIdPart(planId)}_${status}_${shortHash({ planId, status, completedAt })}`;

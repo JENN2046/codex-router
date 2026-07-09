@@ -637,7 +637,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     controlledProviderExecutionTaskbookReviewBoundaryMode: "git_state_and_artifact_review_gate_only";
     controlledProviderExecutionDispatchPreflightMode: "controlled_readonly_dispatch_preflight_matrix_only";
     controlledProviderExecutionDispatcherMode: "controlled_readonly_pre_runner_dispatcher";
-    providerExecutionRunnerMode: "controlled_readonly_provider_execute_gate";
+    providerExecutionRunnerMode: "controlled_readonly_and_workspace_write_gate";
     providerCorePrimitiveMode: "manifest_permit_plan_only";
     toolInvocationPlannerMode: "tool_manifest_and_invocation_plan_only";
     desktopAgentStrategyMode: "agent_assignment_and_ownership_plan_only";
@@ -1012,7 +1012,8 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     controlledProviderExecutionDispatcherAuthorizesSubAgentRuntime: false;
     controlledProviderExecutionDispatcherCallsRunnerBoundary: true;
     controlledProviderExecutionDispatcherDefaultDryRunPreserved: true;
-    providerExecutionRunnerWorkspaceWriteAllowed: false;
+    providerExecutionRunnerWorkspaceWriteAllowed: true;
+    providerExecutionRunnerWorkspaceWriteProviderExecuteAllowed: false;
     providerExecutionRunnerDefaultRealCodexCliAllowed: false;
     providerExecutionRunnerNonCodexProviderExecutionAllowed: false;
     providerCorePrimitivesExecutionAllowed: false;
@@ -2148,7 +2149,7 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
         input.controlledProviderExecutionDispatchPreflightReview.summary.dispatchPreflightMode,
       controlledProviderExecutionDispatcherMode:
         input.controlledProviderExecutionDispatcherReview.summary.dispatcherMode,
-      providerExecutionRunnerMode: "controlled_readonly_provider_execute_gate",
+      providerExecutionRunnerMode: "controlled_readonly_and_workspace_write_gate",
       providerCorePrimitiveMode: "manifest_permit_plan_only",
       toolInvocationPlannerMode: "tool_manifest_and_invocation_plan_only",
       desktopAgentStrategyMode: "agent_assignment_and_ownership_plan_only",
@@ -2831,7 +2832,10 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
         input.controlledProviderExecutionDispatcherReview.summary.callsRunnerBoundary,
       controlledProviderExecutionDispatcherDefaultDryRunPreserved:
         input.controlledProviderExecutionDispatcherReview.summary.defaultDryRunPreserved,
-      providerExecutionRunnerWorkspaceWriteAllowed: false,
+      providerExecutionRunnerWorkspaceWriteAllowed:
+        input.providerExecutionRunnerReview.summary.workspaceWriteAllowedByRunner,
+      providerExecutionRunnerWorkspaceWriteProviderExecuteAllowed:
+        input.providerExecutionRunnerReview.summary.workspaceWriteProviderExecuteAllowed,
       providerExecutionRunnerDefaultRealCodexCliAllowed: false,
       providerExecutionRunnerNonCodexProviderExecutionAllowed: false,
       providerCorePrimitivesExecutionAllowed: false,
@@ -4171,6 +4175,7 @@ export function formatExecutionBoundaryCurrentSurfaceAuditResult(
     `controlled provider execution dispatcher calls runner boundary: ${review.summary.controlledProviderExecutionDispatcherCallsRunnerBoundary}`,
     `controlled provider execution dispatcher default dry-run preserved: ${review.summary.controlledProviderExecutionDispatcherDefaultDryRunPreserved}`,
     `provider execution runner workspace-write allowed: ${review.summary.providerExecutionRunnerWorkspaceWriteAllowed}`,
+    `provider execution runner workspace-write provider execute allowed: ${review.summary.providerExecutionRunnerWorkspaceWriteProviderExecuteAllowed}`,
     `provider execution runner default real Codex CLI allowed: ${review.summary.providerExecutionRunnerDefaultRealCodexCliAllowed}`,
     `provider execution runner non-codex provider execution allowed: ${review.summary.providerExecutionRunnerNonCodexProviderExecutionAllowed}`,
     `provider-core primitives execution allowed: ${review.summary.providerCorePrimitivesExecutionAllowed}`,
@@ -6337,7 +6342,7 @@ function providerExecutionRunnerBoundaryConstrained(
   const summary = input.providerExecutionRunnerReview.summary;
 
   return input.providerExecutionRunnerReview.status === "passed"
-    && summary.runnerMode === "controlled_readonly_provider_execute_gate"
+    && summary.runnerMode === "controlled_readonly_and_workspace_write_gate"
     && summary.dryRunExecuteInvoked === false
     && summary.controlledReadOnlyExecuteAllowed === true
     && summary.controlledReadOnlyProviderId === "codex-cli"
@@ -6351,7 +6356,8 @@ function providerExecutionRunnerBoundaryConstrained(
     && summary.simulateBlocksBeforeProviderHooks === true
     && summary.recoveryPhaseBlocksBeforeProviderHooks === true
     && summary.nonCodexProviderExecutionAllowed === false
-    && summary.workspaceWriteAllowedByRunner === false
+    && summary.workspaceWriteAllowedByRunner === true
+    && summary.workspaceWriteProviderExecuteAllowed === false
     && summary.defaultRealCodexCliAllowed === false
     && summary.subAgentRuntimeInvocationAllowed === false
     && summary.hostExecutorInvocationAllowed === false
@@ -8721,7 +8727,8 @@ function auditItselfIsNonExecuting(
     && providerRunner.workspaceWriteCallsDuringAudit === 0
     && providerRunner.externalWriteCallsDuringAudit === 0
     && providerRunner.nonCodexProviderExecutionAllowed === false
-    && providerRunner.workspaceWriteAllowedByRunner === false
+    && providerRunner.workspaceWriteAllowedByRunner === true
+    && providerRunner.workspaceWriteProviderExecuteAllowed === false
     && providerRunner.defaultRealCodexCliAllowed === false
     && providerRunner.subAgentRuntimeInvocationAllowed === false
     && providerRunner.hostExecutorInvocationAllowed === false
@@ -9141,13 +9148,14 @@ function executionAuthorityLatticeConstrained(
     && dispatcher.authorizesHostExecutor === false
     && dispatcher.authorizesSubAgentRuntime === false
     && dispatcher.defaultDryRunPreserved === true
-    && providerRunner.runnerMode === "controlled_readonly_provider_execute_gate"
+    && providerRunner.runnerMode === "controlled_readonly_and_workspace_write_gate"
     && providerRunner.controlledReadOnlyExecuteAllowed === true
     && providerRunner.controlledReadOnlyProviderId === "codex-cli"
     && providerRunner.controlledReadOnlySideEffectClass === "read_only"
     && providerRunner.controlledReadOnlySandbox === "read-only"
     && providerRunner.nonCodexProviderExecutionAllowed === false
-    && providerRunner.workspaceWriteAllowedByRunner === false
+    && providerRunner.workspaceWriteAllowedByRunner === true
+    && providerRunner.workspaceWriteProviderExecuteAllowed === false
     && providerRunner.defaultRealCodexCliAllowed === false
     && providerRunner.hostExecutorInvocationAllowed === false
     && providerRunner.subAgentRuntimeInvocationAllowed === false
@@ -9374,7 +9382,7 @@ function outputSanitized(): boolean {
         "controlled_readonly_dispatch_preflight_matrix_only",
       controlledProviderExecutionDispatcherMode:
         "controlled_readonly_pre_runner_dispatcher",
-      providerExecutionRunnerMode: "controlled_readonly_provider_execute_gate",
+      providerExecutionRunnerMode: "controlled_readonly_and_workspace_write_gate",
       providerCorePrimitiveMode: "manifest_permit_plan_only",
       toolInvocationPlannerMode: "tool_manifest_and_invocation_plan_only",
       desktopAgentStrategyMode: "agent_assignment_and_ownership_plan_only",
@@ -9752,7 +9760,8 @@ function outputSanitized(): boolean {
       controlledProviderExecutionDispatcherAuthorizesSubAgentRuntime: false,
       controlledProviderExecutionDispatcherCallsRunnerBoundary: true,
       controlledProviderExecutionDispatcherDefaultDryRunPreserved: true,
-      providerExecutionRunnerWorkspaceWriteAllowed: false,
+      providerExecutionRunnerWorkspaceWriteAllowed: true,
+      providerExecutionRunnerWorkspaceWriteProviderExecuteAllowed: false,
       providerExecutionRunnerDefaultRealCodexCliAllowed: false,
       providerExecutionRunnerNonCodexProviderExecutionAllowed: false,
       providerCorePrimitivesExecutionAllowed: false,
