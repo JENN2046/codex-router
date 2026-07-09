@@ -100,6 +100,18 @@ git status, and records sanitized evidence. It does not invoke Codex CLI,
 provider execution, push, release, tag, deployment, package publish, external
 write, or secret mutation.
 
+The generic local workspace-write execution core is
+`packages/governance-internal-workspace-write-executor`. It accepts only an
+approved workspace-write permit v2, an executor plan, a provider manifest, an
+explicit execution authorization id, and an operation list whose paths are all
+declared in the permit target allowlist. It supports create/update/delete file
+operations for explicit repository-relative targets, verifies a synthetic
+pre-execution patch with the workspace-write guard, consumes the permit, applies
+the operations, verifies the actual post-write patch summary, rolls back each
+target to the recorded `beforeCommit`, and returns sanitized evidence. This is a
+local execution primitive, not Codex CLI execution and not default provider
+execution.
+
 ## Procedure
 
 1. Classify the requested action as fake canary, real bounded canary, or broader
@@ -130,6 +142,9 @@ write, or secret mutation.
   `tmp/codex-cli-write-canary.txt` with fixed canary content, verifies the
   resulting one-file/one-line patch summary, then removes the file and verifies
   rollback before evidence is written.
+- Generic local workspace-write, when explicitly authorized by permit v2 and
+  operation target allowlist, can create, update, or delete declared files and
+  must restore them to `beforeCommit` before reporting success.
 - General workspace-write remains blocked.
 
 ## Blocking Conditions
