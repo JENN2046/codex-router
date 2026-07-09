@@ -331,6 +331,23 @@ function createReadTask(taskId: string): TaskEnvelopeInput {
   };
 }
 
+function createSmallEditTask(taskId: string): TaskEnvelopeInput {
+  return {
+    taskId,
+    source: "desktop-thread",
+    intent: {
+      summary: "apply a small fix",
+      requestedAction: "make a small fix in a single file",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
+    target: { branches: [], files: ["README.md"], modules: [] },
+    constraints: {},
+    hints: { riskHints: ["workspace-write"], tags: [] }
+  };
+}
+
 function createEngineeringTask(taskId: string): TaskEnvelopeInput {
   return {
     taskId,
@@ -857,6 +874,61 @@ test("desktop host client delegates controlled workspace-write provider plans", 
   assert.deepEqual(result.reasons, [
     "desktop_host_client_controlled_workspace_write_dispatch_test"
   ]);
+});
+
+test("desktop host client forwards per-run controlled workspace-write dispatch input", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const dispatchInputs: unknown[] = [];
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    bridgeBindings: createHostBindings(),
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["desktop_host_client_run_controlled_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:desktop-host-client-run-provider-plan",
+        executorPlanHash: "sha256:desktop-host-client-run-executor-plan",
+        operationManifestHash: "sha256:desktop-host-client-run-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-desktop-host-run-workspace-write"
+        }
+      } as never;
+    },
+    codexCliOptions: {
+      skipExecutionModelProbe: true,
+      spawn: () => {
+        throw new Error("codex cli spawn must not run");
+      }
+    },
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+  const input = {
+    schemaVersion: "desktop-host-client-run-controlled-workspace-write-test.v1"
+  };
+
+  const result = await client.run(
+    createSmallEditTask("desktop-host-run-controlled-workspace-write"),
+    {
+      controlledWorkspaceWriteProviderDispatchInput: input as never
+    }
+  );
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(dispatchInputs[0], input);
+  assert.equal(result.hostDispatch, undefined);
+  assert.equal(result.controlledWorkspaceWriteDispatch?.status, "dispatch_blocked");
+  assert.equal(result.controlledWorkspaceWriteDispatch?.providerExecuteInvoked, false);
+  assert.equal(result.executionResult.status, "failed");
 });
 
 test("desktop host client blocks replayed operator action receipts", async () => {

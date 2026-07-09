@@ -5,6 +5,7 @@ import {
   type DesktopHostOperatorActionHostExecutorAuthorizationReviewInput as InternalDesktopHostOperatorActionHostExecutorAuthorizationReviewInput,
   type DesktopHostOperatorActionHostExecutorDispatchInput as InternalDesktopHostOperatorActionHostExecutorDispatchInput,
   type DesktopHostOperatorActionReceiptInput as InternalDesktopHostOperatorActionReceiptInput,
+  type DesktopHostRunOptions as InternalDesktopHostRunOptions,
   type DesktopHostResumeOptions as InternalDesktopHostResumeOptions
 } from "../../desktop-host-client/src/index.js";
 import {
@@ -459,6 +460,11 @@ export interface DesktopHostResumeOptions {
   preferredSource?: "memory" | "checkpoint";
   memoryRecall?: DesktopHostCheckpointRecallAdapter;
   checkpointStore?: DesktopHostCheckpointLookup;
+  controlledWorkspaceWriteProviderDispatchInput?: DesktopHostControlledWorkspaceWriteProviderDispatchInput;
+}
+
+export interface DesktopHostRunOptions {
+  controlledWorkspaceWriteProviderDispatchInput?: DesktopHostControlledWorkspaceWriteProviderDispatchInput;
 }
 
 export type DesktopHostOperatorActionReceiptDecision =
@@ -516,6 +522,7 @@ export interface DesktopHostRunResult extends DesktopHostUnknownRecord {
   operatorActionEnvelope?: unknown;
   operatorActionSummary: unknown;
   hostDispatch?: unknown;
+  controlledWorkspaceWriteDispatch?: unknown;
 }
 
 export interface DesktopHostOperatorActionReceiptCreation {
@@ -577,8 +584,14 @@ export class DesktopHostClient {
     this.bridge = this.inner.bridge as unknown as DesktopHostBridge;
   }
 
-  async run(task: DesktopHostTaskEnvelopeInput): Promise<DesktopHostRunResult> {
-    return this.inner.run(task as never) as Promise<DesktopHostRunResult>;
+  async run(
+    task: DesktopHostTaskEnvelopeInput,
+    options: DesktopHostRunOptions = {}
+  ): Promise<DesktopHostRunResult> {
+    return this.inner.run(
+      task as never,
+      options as unknown as InternalDesktopHostRunOptions
+    ) as Promise<DesktopHostRunResult>;
   }
 
   async resume(

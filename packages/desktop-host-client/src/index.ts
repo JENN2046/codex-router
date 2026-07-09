@@ -90,6 +90,11 @@ export interface DesktopHostResumeOptions {
   preferredSource?: ResumeSource;
   memoryRecall?: CheckpointRecallAdapter;
   checkpointStore?: CheckpointLookup;
+  controlledWorkspaceWriteProviderDispatchInput?: DesktopHostControlledWorkspaceWriteProviderDispatchInput;
+}
+
+export interface DesktopHostRunOptions {
+  controlledWorkspaceWriteProviderDispatchInput?: DesktopHostControlledWorkspaceWriteProviderDispatchInput;
 }
 
 export interface DesktopHostOperatorActionReceiptInput {
@@ -148,7 +153,10 @@ export class DesktopHostClient {
     this.currentGovernanceState = options.governanceState;
   }
 
-  async run(task: TaskEnvelopeInput): Promise<RunDesktopTaskResult> {
+  async run(
+    task: TaskEnvelopeInput,
+    options: DesktopHostRunOptions = {}
+  ): Promise<RunDesktopTaskResult> {
     const result = await runDesktopTask({
       task,
       policy: this.options.policy,
@@ -165,6 +173,18 @@ export class DesktopHostClient {
         : {}),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
+        : {}),
+      ...(options.controlledWorkspaceWriteProviderDispatchInput !== undefined
+        ? {
+            controlledWorkspaceWriteProviderDispatchInput:
+              options.controlledWorkspaceWriteProviderDispatchInput
+          }
+        : {}),
+      ...(this.options.controlledWorkspaceWriteProviderDispatcher !== undefined
+        ? {
+            controlledWorkspaceWriteProviderDispatcher:
+              this.options.controlledWorkspaceWriteProviderDispatcher
+          }
         : {}),
       ...(this.options.observationBus !== undefined
         ? { observationBus: this.options.observationBus }
@@ -209,6 +229,18 @@ export class DesktopHostClient {
         : {}),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
+        : {}),
+      ...(options.controlledWorkspaceWriteProviderDispatchInput !== undefined
+        ? {
+            controlledWorkspaceWriteProviderDispatchInput:
+              options.controlledWorkspaceWriteProviderDispatchInput
+          }
+        : {}),
+      ...(this.options.controlledWorkspaceWriteProviderDispatcher !== undefined
+        ? {
+            controlledWorkspaceWriteProviderDispatcher:
+              this.options.controlledWorkspaceWriteProviderDispatcher
+          }
         : {}),
       ...(this.options.observationBus !== undefined
         ? { observationBus: this.options.observationBus }

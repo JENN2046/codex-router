@@ -14,7 +14,9 @@ const GOVERNANCE_RUNNER = "scripts/run-governance-check.ts";
 
 const REQUIRED_CLIENT_SOURCE_MARKERS = [
   "export class DesktopHostClient",
-  "async run(task: TaskEnvelopeInput)",
+  "async run(",
+  "options: DesktopHostRunOptions = {}",
+  "controlledWorkspaceWriteProviderDispatchInput",
   "runDesktopTask({",
   "async resume(",
   "resumeDesktopTask({",
@@ -34,7 +36,8 @@ const REQUIRED_CLIENT_SOURCE_MARKERS = [
 
 const REQUIRED_PUBLIC_API_MARKERS = [
   "class DesktopHostClient",
-  "return this.inner.run(task as never)",
+  "DesktopHostRunOptions",
+  "return this.inner.run(",
   "return this.inner.resume(",
   "return this.inner.dispatchControlledWorkspaceWriteProviderPlan(input as never)",
   "return this.inner.reviewCurrentOperatorActionHostExecutorAuthorization(",
@@ -52,6 +55,8 @@ const REQUIRED_CLIENT_TEST_MARKERS = [
   "operator_action_host_executor_lifecycle_action_missing",
   "desktop host client delegates controlled workspace-write provider plans",
   "desktop_host_client_controlled_workspace_write_dispatch_test",
+  "desktop host client forwards per-run controlled workspace-write dispatch input",
+  "desktop_host_client_run_controlled_workspace_write_dispatch_test",
   "desktop host client persists updated governance state between run and resume",
   "desktop host client rejects stale governance state before bridge execution",
   "desktop host client resumes from memory recall when the memory adapter supports it",

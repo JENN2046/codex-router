@@ -168,6 +168,7 @@ export type {
   DesktopHostToolAccessLevel,
   DesktopHostUnknownRecord,
   DesktopPrimitiveInvocation,
+  DesktopHostRunOptions,
   DesktopHostResumeOptions
 } from "./host.js";
 

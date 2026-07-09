@@ -21,13 +21,21 @@ const REQUIRED_LIVE_ADAPTER_SOURCE_MARKERS = [
   "executeDesktopTaskFromDecision",
   "decisionResult.status === \"ready\" && decisionResult.decision.hostRoute === \"codex-cli\"",
   "dispatchToHost({",
+  "dispatchControlledWorkspaceWriteProviderPlan",
+  "controlledWorkspaceWriteProviderDispatchInput",
+  "controlled_workspace_write_provider_dispatcher",
   "createHostDispatchExecutionResult",
+  "createControlledWorkspaceWriteDispatchExecutionResult",
   "host_dispatch_governance",
   "dispatchTarget: \"host_dispatcher\"",
+  "dispatchTarget: \"controlled_workspace_write_provider_dispatcher\"",
   "hostDispatch.cliRun?.inspection.status",
   "collectHostDispatchBlockingReasons",
+  "collectControlledWorkspaceWriteDispatchBlockingReasons",
   "applyHostDispatchFailureToGovernance",
+  "applyControlledWorkspaceWriteDispatchFailureToGovernance",
   "primitiveId = `host_dispatch:${input.hostDispatch.hostRoute}`",
+  "primitiveId = \"host_dispatch:controlled_workspace_write\"",
   "normalizeHostDispatchBlockingReason",
   "unknown_execution_error",
   "resolvePrimitiveHandlers(input.handlers, input.bridge)",
@@ -46,6 +54,7 @@ const REQUIRED_HOST_CLIENT_SOURCE_MARKERS = [
 const REQUIRED_LIVE_ADAPTER_TEST_MARKERS = [
   "runDesktopTask composes decision runner and live adapter",
   "runDesktopTask dispatches codex-cli small edits instead of executing desktop primitives",
+  "runDesktopTask routes controlled workspace-write dispatch before Codex CLI spawn",
   "runDesktopTask returns blocked codex-cli decisions without desktop handlers",
   "runDesktopTask preserves blocked_preflight results without executing handlers",
   "runDesktopTask accepts a host bridge instead of raw handlers",
@@ -111,9 +120,13 @@ export interface DesktopLiveAdapterDispatchBoundaryAuditResult {
     handlersOrBridgeRequiredForDesktopRoute: true;
     governanceStateTaskScopeRequiredBeforeExecution: true;
     hostDispatchFailureCreatesExecutionObservation: true;
+    controlledWorkspaceWriteDispatchAllowedWhenReadyAndLocalWrite: true;
+    controlledWorkspaceWriteDispatchFailureCreatesExecutionObservation: true;
     codexCliInvocationAllowedByDesktopRoute: false;
     bridgeInvocationAllowedByCodexCliRoute: false;
     providerInvocationAllowedByDesktopLiveAdapter: false;
+    generalWorkspaceWriteExecutionAllowed: false;
+    workspaceWriteProviderExecuteAllowed: false;
     subAgentRuntimeInvocationAllowed: false;
     hostExecutorInvocationAllowed: false;
     liveAdapterCallsDuringAudit: 0;
@@ -210,9 +223,13 @@ export function reviewDesktopLiveAdapterDispatchBoundaryAudit(
       handlersOrBridgeRequiredForDesktopRoute: true,
       governanceStateTaskScopeRequiredBeforeExecution: true,
       hostDispatchFailureCreatesExecutionObservation: true,
+      controlledWorkspaceWriteDispatchAllowedWhenReadyAndLocalWrite: true,
+      controlledWorkspaceWriteDispatchFailureCreatesExecutionObservation: true,
       codexCliInvocationAllowedByDesktopRoute: false,
       bridgeInvocationAllowedByCodexCliRoute: false,
       providerInvocationAllowedByDesktopLiveAdapter: false,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       subAgentRuntimeInvocationAllowed: false,
       hostExecutorInvocationAllowed: false,
       liveAdapterCallsDuringAudit: 0,
@@ -247,9 +264,13 @@ export function formatDesktopLiveAdapterDispatchBoundaryAuditResult(
     `handlers or bridge required for desktop route: ${review.summary.handlersOrBridgeRequiredForDesktopRoute}`,
     `governance state task scope required before execution: ${review.summary.governanceStateTaskScopeRequiredBeforeExecution}`,
     `host dispatch failure creates execution observation: ${review.summary.hostDispatchFailureCreatesExecutionObservation}`,
+    `controlled workspace-write dispatch allowed when ready and local-write: ${review.summary.controlledWorkspaceWriteDispatchAllowedWhenReadyAndLocalWrite}`,
+    `controlled workspace-write dispatch failure creates execution observation: ${review.summary.controlledWorkspaceWriteDispatchFailureCreatesExecutionObservation}`,
     `Codex CLI invocation allowed by desktop route: ${review.summary.codexCliInvocationAllowedByDesktopRoute}`,
     `bridge invocation allowed by codex-cli route: ${review.summary.bridgeInvocationAllowedByCodexCliRoute}`,
     `provider invocation allowed by desktop live adapter: ${review.summary.providerInvocationAllowedByDesktopLiveAdapter}`,
+    `general workspace-write execution allowed: ${review.summary.generalWorkspaceWriteExecutionAllowed}`,
+    `workspace-write provider.execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
     `sub-agent runtime invocation allowed: ${review.summary.subAgentRuntimeInvocationAllowed}`,
     `host executor invocation allowed: ${review.summary.hostExecutorInvocationAllowed}`,
     `live adapter calls during audit: ${review.summary.liveAdapterCallsDuringAudit}`,
@@ -273,6 +294,8 @@ function controlPlaneBoundaryRecorded(text: string): boolean {
   return text.includes("| Desktop live adapter dispatch boundary |")
     && text.includes("route-separated host dispatch or desktop bridge")
     && text.includes("codex-cli routes do not invoke desktop bridge handlers")
+    && text.includes("controlled workspace-write dispatch")
+    && text.includes("workspace-write through `provider.execute`")
     && text.includes("blocked decisions do not execute")
     && text.includes("General provider execution | blocked | No");
 }
@@ -318,9 +341,13 @@ function outputSanitized(): boolean {
       handlersOrBridgeRequiredForDesktopRoute: true,
       governanceStateTaskScopeRequiredBeforeExecution: true,
       hostDispatchFailureCreatesExecutionObservation: true,
+      controlledWorkspaceWriteDispatchAllowedWhenReadyAndLocalWrite: true,
+      controlledWorkspaceWriteDispatchFailureCreatesExecutionObservation: true,
       codexCliInvocationAllowedByDesktopRoute: false,
       bridgeInvocationAllowedByCodexCliRoute: false,
       providerInvocationAllowedByDesktopLiveAdapter: false,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       subAgentRuntimeInvocationAllowed: false,
       hostExecutorInvocationAllowed: false,
       liveAdapterCallsDuringAudit: 0,

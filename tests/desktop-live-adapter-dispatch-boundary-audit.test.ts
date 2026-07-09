@@ -37,8 +37,18 @@ test("desktop live adapter dispatch boundary audit passes for current evidence",
   assert.equal(review.summary.blockedDecisionExecutionAllowed, false);
   assert.equal(review.summary.handlersOrBridgeRequiredForDesktopRoute, true);
   assert.equal(review.summary.governanceStateTaskScopeRequiredBeforeExecution, true);
+  assert.equal(
+    review.summary.controlledWorkspaceWriteDispatchAllowedWhenReadyAndLocalWrite,
+    true
+  );
+  assert.equal(
+    review.summary.controlledWorkspaceWriteDispatchFailureCreatesExecutionObservation,
+    true
+  );
   assert.equal(review.summary.bridgeInvocationAllowedByCodexCliRoute, false);
   assert.equal(review.summary.providerInvocationAllowedByDesktopLiveAdapter, false);
+  assert.equal(review.summary.generalWorkspaceWriteExecutionAllowed, false);
+  assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
   assert.equal(review.summary.liveAdapterCallsDuringAudit, 0);
   assert.equal(review.summary.dispatchToHostCallsDuringAudit, 0);
 });
@@ -116,6 +126,7 @@ test("desktop live adapter dispatch boundary audit output stays summarized", asy
   const parsed = JSON.parse(json) as typeof review;
 
   assert.match(text, /status: passed/);
+  assert.match(text, /controlled workspace-write dispatch allowed when ready and local-write: true/);
   assert.match(text, /dispatchToHost calls during audit: 0/);
   assert.equal(parsed.status, "passed");
 
