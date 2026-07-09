@@ -98,6 +98,7 @@ export async function runProviderRegistrySelectionAcceptance(
     providerId: "codex-cli",
     kind: "executor",
     expectedManifestHash: expectedHash,
+    requiredCapabilities: ["fs.read:workspace/**"],
     requiredSandboxProfile: readOnlySandbox,
     requiredSideEffectClass: "read_only"
   });

@@ -441,6 +441,29 @@ test("provider-registry registers, gets, lists, and unregisters providers", () =
   assert.equal(registry.getProvider("mcp.local-dev"), undefined);
 });
 
+test("provider-registry selection accepts providers registered through registerProvider", () => {
+  const registry = createProviderRegistry();
+  const provider = createCodexProvider();
+  const sandbox = provider.manifest.supportedSandboxProfiles[0];
+
+  assert.notEqual(sandbox, undefined);
+
+  registry.registerProvider(provider.manifest, provider);
+  const result = registry.select({
+    providerId: provider.manifest.providerId,
+    kind: "executor",
+    expectedManifestHash: hashProviderManifest(provider.manifest),
+    requiredCapabilities: ["execution.plan"],
+    ...(sandbox !== undefined ? { requiredSandboxProfile: sandbox } : {}),
+    requiredSideEffectClass: "read_only"
+  });
+
+  assert.equal(result.selected, true);
+  assert.equal(result.provider?.providerId, provider.manifest.providerId);
+  assert.equal(result.provider?.manifestHash, hashProviderManifest(provider.manifest));
+  assert.deepEqual(result.reasons, []);
+});
+
 test("provider-registry rejects duplicate provider ids", () => {
   const registry = new ProviderRegistry();
   const provider = createCodexProvider();

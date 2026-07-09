@@ -184,6 +184,11 @@ import {
   type ControlledProviderExecutionDispatchPreflightBoundaryAuditResult
 } from "./run-controlled-provider-execution-dispatch-preflight-boundary-audit.js";
 import {
+  collectControlledProviderExecutionDispatcherBoundaryAuditInput,
+  reviewControlledProviderExecutionDispatcherBoundaryAudit,
+  type ControlledProviderExecutionDispatcherBoundaryAuditResult
+} from "./run-controlled-provider-execution-dispatcher-boundary-audit.js";
+import {
   collectCodexCliHostBoundaryAuditInput,
   reviewCodexCliHostBoundaryAudit,
   type CodexCliHostBoundaryAuditResult
@@ -387,6 +392,7 @@ const REQUIRED_CURRENT_AUDITS = [
   "controlled-provider-execution-taskbook-boundary",
   "controlled-provider-execution-taskbook-review-boundary",
   "controlled-provider-execution-dispatch-preflight-boundary",
+  "controlled-provider-execution-dispatcher-boundary",
   "provider-execution-runner-boundary",
   "provider-core-execution-primitives-boundary",
   "tool-invocation-planner-boundary",
@@ -469,6 +475,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditInput {
   controlledProviderExecutionTaskbookReview: ControlledProviderExecutionTaskbookBoundaryAuditResult;
   controlledProviderExecutionTaskbookReviewBoundaryReview: ControlledProviderExecutionTaskbookReviewBoundaryAuditResult;
   controlledProviderExecutionDispatchPreflightReview: ControlledProviderExecutionDispatchPreflightBoundaryAuditResult;
+  controlledProviderExecutionDispatcherReview: ControlledProviderExecutionDispatcherBoundaryAuditResult;
   providerExecutionRunnerReview: ProviderExecutionRunnerBoundaryAuditResult;
   providerCorePrimitivesReview: ProviderCoreExecutionPrimitivesBoundaryAuditResult;
   toolInvocationPlannerReview: ToolInvocationPlannerBoundaryAuditResult;
@@ -548,6 +555,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     controlledProviderExecutionTaskbookBoundaryConstrained: boolean;
     controlledProviderExecutionTaskbookReviewBoundaryConstrained: boolean;
     controlledProviderExecutionDispatchPreflightBoundaryConstrained: boolean;
+    controlledProviderExecutionDispatcherBoundaryConstrained: boolean;
     providerExecutionRunnerBoundaryConstrained: boolean;
     providerCorePrimitivesBoundaryConstrained: boolean;
     toolInvocationPlannerBoundaryConstrained: boolean;
@@ -628,6 +636,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     controlledProviderExecutionTaskbookMode: "local_only_minimal_slice_taskbook";
     controlledProviderExecutionTaskbookReviewBoundaryMode: "git_state_and_artifact_review_gate_only";
     controlledProviderExecutionDispatchPreflightMode: "controlled_readonly_dispatch_preflight_matrix_only";
+    controlledProviderExecutionDispatcherMode: "controlled_readonly_pre_runner_dispatcher";
     providerExecutionRunnerMode: "controlled_readonly_provider_execute_gate";
     providerCorePrimitiveMode: "manifest_permit_plan_only";
     toolInvocationPlannerMode: "tool_manifest_and_invocation_plan_only";
@@ -996,6 +1005,13 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     controlledProviderExecutionDispatchPreflightIsReleaseAuthorization: false;
     controlledProviderExecutionDispatchPreflightRunnerRemainsFinalProviderExecuteGate: true;
     controlledProviderExecutionDispatchPreflightDryRunDefaultPreserved: true;
+    controlledProviderExecutionDispatcherCallsProviderExecuteDirectly: false;
+    controlledProviderExecutionDispatcherCallsRealCodexCliDirectly: false;
+    controlledProviderExecutionDispatcherAuthorizesWorkspaceWrite: false;
+    controlledProviderExecutionDispatcherAuthorizesHostExecutor: false;
+    controlledProviderExecutionDispatcherAuthorizesSubAgentRuntime: false;
+    controlledProviderExecutionDispatcherCallsRunnerBoundary: true;
+    controlledProviderExecutionDispatcherDefaultDryRunPreserved: true;
     providerExecutionRunnerWorkspaceWriteAllowed: false;
     providerExecutionRunnerDefaultRealCodexCliAllowed: false;
     providerExecutionRunnerNonCodexProviderExecutionAllowed: false;
@@ -1168,6 +1184,14 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     totalControlledProviderExecutionDispatchPreflightShellProcessCallsDuringAudit: 0;
     totalControlledProviderExecutionDispatchPreflightExternalWriteCallsDuringAudit: 0;
     totalControlledProviderExecutionDispatchPreflightEvidenceWritesDuringAudit: 0;
+    totalControlledProviderExecutionDispatcherRunnerInvocationsDuringAudit: 0;
+    totalControlledProviderExecutionDispatcherProviderExecuteCallsDuringAudit: 0;
+    totalControlledProviderExecutionDispatcherRealCodexCliCallsDuringAudit: 0;
+    totalControlledProviderExecutionDispatcherWorkspaceWriteCallsDuringAudit: 0;
+    totalControlledProviderExecutionDispatcherHostExecutorCallsDuringAudit: 0;
+    totalControlledProviderExecutionDispatcherSubAgentRuntimeCallsDuringAudit: 0;
+    totalControlledProviderExecutionDispatcherShellProcessCallsDuringAudit: 0;
+    totalControlledProviderExecutionDispatcherExternalWriteCallsDuringAudit: 0;
     totalRoutingEngineCallsDuringAudit: 0;
     totalRoutingEngineProviderGrantCreationsDuringAudit: 0;
     totalRoutingEngineProviderExecuteCallsDuringAudit: 0;
@@ -1621,6 +1645,7 @@ export async function collectExecutionBoundaryCurrentSurfaceAuditInput(
     controlledProviderExecutionTaskbookInput,
     controlledProviderExecutionTaskbookReviewBoundaryInput,
     controlledProviderExecutionDispatchPreflightInput,
+    controlledProviderExecutionDispatcherInput,
     providerExecutionRunnerInput,
     providerCorePrimitivesInput,
     toolInvocationPlannerInput,
@@ -1695,6 +1720,7 @@ export async function collectExecutionBoundaryCurrentSurfaceAuditInput(
     collectControlledProviderExecutionTaskbookBoundaryAuditInput(cwd),
     collectControlledProviderExecutionTaskbookReviewBoundaryAuditInput(cwd),
     collectControlledProviderExecutionDispatchPreflightBoundaryAuditInput(cwd),
+    collectControlledProviderExecutionDispatcherBoundaryAuditInput(cwd),
     collectProviderExecutionRunnerBoundaryAuditInput(cwd),
     collectProviderCoreExecutionPrimitivesBoundaryAuditInput(cwd),
     collectToolInvocationPlannerBoundaryAuditInput(cwd),
@@ -1820,6 +1846,10 @@ export async function collectExecutionBoundaryCurrentSurfaceAuditInput(
     controlledProviderExecutionDispatchPreflightReview:
       reviewControlledProviderExecutionDispatchPreflightBoundaryAudit(
         controlledProviderExecutionDispatchPreflightInput
+      ),
+    controlledProviderExecutionDispatcherReview:
+      reviewControlledProviderExecutionDispatcherBoundaryAudit(
+        controlledProviderExecutionDispatcherInput
       ),
     providerExecutionRunnerReview:
       reviewProviderExecutionRunnerBoundaryAudit(providerExecutionRunnerInput),
@@ -1981,6 +2011,8 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
       controlledProviderExecutionTaskbookReviewBoundaryConstrained(input),
     controlledProviderExecutionDispatchPreflightBoundaryConstrained:
       controlledProviderExecutionDispatchPreflightBoundaryConstrained(input),
+    controlledProviderExecutionDispatcherBoundaryConstrained:
+      controlledProviderExecutionDispatcherBoundaryConstrained(input),
     providerExecutionRunnerBoundaryConstrained:
       providerExecutionRunnerBoundaryConstrained(input),
     providerCorePrimitivesBoundaryConstrained:
@@ -2114,6 +2146,8 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
         input.controlledProviderExecutionTaskbookReviewBoundaryReview.summary.reviewBoundaryMode,
       controlledProviderExecutionDispatchPreflightMode:
         input.controlledProviderExecutionDispatchPreflightReview.summary.dispatchPreflightMode,
+      controlledProviderExecutionDispatcherMode:
+        input.controlledProviderExecutionDispatcherReview.summary.dispatcherMode,
       providerExecutionRunnerMode: "controlled_readonly_provider_execute_gate",
       providerCorePrimitiveMode: "manifest_permit_plan_only",
       toolInvocationPlannerMode: "tool_manifest_and_invocation_plan_only",
@@ -2783,6 +2817,20 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
         input.controlledProviderExecutionDispatchPreflightReview.summary.runnerRemainsFinalProviderExecuteGate,
       controlledProviderExecutionDispatchPreflightDryRunDefaultPreserved:
         input.controlledProviderExecutionDispatchPreflightReview.summary.dryRunDefaultPreserved,
+      controlledProviderExecutionDispatcherCallsProviderExecuteDirectly:
+        input.controlledProviderExecutionDispatcherReview.summary.callsProviderExecuteDirectly,
+      controlledProviderExecutionDispatcherCallsRealCodexCliDirectly:
+        input.controlledProviderExecutionDispatcherReview.summary.callsRealCodexCliDirectly,
+      controlledProviderExecutionDispatcherAuthorizesWorkspaceWrite:
+        input.controlledProviderExecutionDispatcherReview.summary.authorizesWorkspaceWrite,
+      controlledProviderExecutionDispatcherAuthorizesHostExecutor:
+        input.controlledProviderExecutionDispatcherReview.summary.authorizesHostExecutor,
+      controlledProviderExecutionDispatcherAuthorizesSubAgentRuntime:
+        input.controlledProviderExecutionDispatcherReview.summary.authorizesSubAgentRuntime,
+      controlledProviderExecutionDispatcherCallsRunnerBoundary:
+        input.controlledProviderExecutionDispatcherReview.summary.callsRunnerBoundary,
+      controlledProviderExecutionDispatcherDefaultDryRunPreserved:
+        input.controlledProviderExecutionDispatcherReview.summary.defaultDryRunPreserved,
       providerExecutionRunnerWorkspaceWriteAllowed: false,
       providerExecutionRunnerDefaultRealCodexCliAllowed: false,
       providerExecutionRunnerNonCodexProviderExecutionAllowed: false,
@@ -3571,6 +3619,22 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
         input.controlledProviderExecutionDispatchPreflightReview.summary.externalWriteCallsDuringAudit,
       totalControlledProviderExecutionDispatchPreflightEvidenceWritesDuringAudit:
         input.controlledProviderExecutionDispatchPreflightReview.summary.evidenceWritesDuringAudit,
+      totalControlledProviderExecutionDispatcherRunnerInvocationsDuringAudit:
+        input.controlledProviderExecutionDispatcherReview.summary.runnerInvocationsDuringAudit,
+      totalControlledProviderExecutionDispatcherProviderExecuteCallsDuringAudit:
+        input.controlledProviderExecutionDispatcherReview.summary.providerExecuteCallsDuringAudit,
+      totalControlledProviderExecutionDispatcherRealCodexCliCallsDuringAudit:
+        input.controlledProviderExecutionDispatcherReview.summary.realCodexCliCallsDuringAudit,
+      totalControlledProviderExecutionDispatcherWorkspaceWriteCallsDuringAudit:
+        input.controlledProviderExecutionDispatcherReview.summary.workspaceWriteCallsDuringAudit,
+      totalControlledProviderExecutionDispatcherHostExecutorCallsDuringAudit:
+        input.controlledProviderExecutionDispatcherReview.summary.hostExecutorCallsDuringAudit,
+      totalControlledProviderExecutionDispatcherSubAgentRuntimeCallsDuringAudit:
+        input.controlledProviderExecutionDispatcherReview.summary.subAgentRuntimeCallsDuringAudit,
+      totalControlledProviderExecutionDispatcherShellProcessCallsDuringAudit:
+        input.controlledProviderExecutionDispatcherReview.summary.shellProcessCallsDuringAudit,
+      totalControlledProviderExecutionDispatcherExternalWriteCallsDuringAudit:
+        input.controlledProviderExecutionDispatcherReview.summary.externalWriteCallsDuringAudit,
       totalProviderExecutionRunnerCallsDuringAudit: 0,
       totalProviderExecutionRunnerPlanExecutionCallsDuringAudit: 0,
       totalProviderExecutionRunnerValidateExecutionPlanCallsDuringAudit: 0,
@@ -3742,6 +3806,7 @@ export function formatExecutionBoundaryCurrentSurfaceAuditResult(
     `controlled provider execution taskbook mode: ${review.summary.controlledProviderExecutionTaskbookMode}`,
     `controlled provider execution taskbook review boundary mode: ${review.summary.controlledProviderExecutionTaskbookReviewBoundaryMode}`,
     `controlled provider execution dispatch preflight mode: ${review.summary.controlledProviderExecutionDispatchPreflightMode}`,
+    `controlled provider execution dispatcher mode: ${review.summary.controlledProviderExecutionDispatcherMode}`,
     `provider execution runner mode: ${review.summary.providerExecutionRunnerMode}`,
     `provider-core primitive mode: ${review.summary.providerCorePrimitiveMode}`,
     `Tool invocation planner mode: ${review.summary.toolInvocationPlannerMode}`,
@@ -4098,6 +4163,13 @@ export function formatExecutionBoundaryCurrentSurfaceAuditResult(
     `controlled provider execution dispatch preflight is release authorization: ${review.summary.controlledProviderExecutionDispatchPreflightIsReleaseAuthorization}`,
     `controlled provider execution dispatch preflight runner remains final provider execute gate: ${review.summary.controlledProviderExecutionDispatchPreflightRunnerRemainsFinalProviderExecuteGate}`,
     `controlled provider execution dispatch preflight dry-run default preserved: ${review.summary.controlledProviderExecutionDispatchPreflightDryRunDefaultPreserved}`,
+    `controlled provider execution dispatcher calls provider execute directly: ${review.summary.controlledProviderExecutionDispatcherCallsProviderExecuteDirectly}`,
+    `controlled provider execution dispatcher calls real Codex CLI directly: ${review.summary.controlledProviderExecutionDispatcherCallsRealCodexCliDirectly}`,
+    `controlled provider execution dispatcher authorizes workspace-write: ${review.summary.controlledProviderExecutionDispatcherAuthorizesWorkspaceWrite}`,
+    `controlled provider execution dispatcher authorizes host executor: ${review.summary.controlledProviderExecutionDispatcherAuthorizesHostExecutor}`,
+    `controlled provider execution dispatcher authorizes sub-agent runtime: ${review.summary.controlledProviderExecutionDispatcherAuthorizesSubAgentRuntime}`,
+    `controlled provider execution dispatcher calls runner boundary: ${review.summary.controlledProviderExecutionDispatcherCallsRunnerBoundary}`,
+    `controlled provider execution dispatcher default dry-run preserved: ${review.summary.controlledProviderExecutionDispatcherDefaultDryRunPreserved}`,
     `provider execution runner workspace-write allowed: ${review.summary.providerExecutionRunnerWorkspaceWriteAllowed}`,
     `provider execution runner default real Codex CLI allowed: ${review.summary.providerExecutionRunnerDefaultRealCodexCliAllowed}`,
     `provider execution runner non-codex provider execution allowed: ${review.summary.providerExecutionRunnerNonCodexProviderExecutionAllowed}`,
@@ -4579,6 +4651,14 @@ export function formatExecutionBoundaryCurrentSurfaceAuditResult(
     `controlled provider execution dispatch preflight shell/process calls during audit: ${review.summary.totalControlledProviderExecutionDispatchPreflightShellProcessCallsDuringAudit}`,
     `controlled provider execution dispatch preflight external write calls during audit: ${review.summary.totalControlledProviderExecutionDispatchPreflightExternalWriteCallsDuringAudit}`,
     `controlled provider execution dispatch preflight evidence writes during audit: ${review.summary.totalControlledProviderExecutionDispatchPreflightEvidenceWritesDuringAudit}`,
+    `controlled provider execution dispatcher runner invocations during audit: ${review.summary.totalControlledProviderExecutionDispatcherRunnerInvocationsDuringAudit}`,
+    `controlled provider execution dispatcher provider execute calls during audit: ${review.summary.totalControlledProviderExecutionDispatcherProviderExecuteCallsDuringAudit}`,
+    `controlled provider execution dispatcher real Codex CLI calls during audit: ${review.summary.totalControlledProviderExecutionDispatcherRealCodexCliCallsDuringAudit}`,
+    `controlled provider execution dispatcher workspace-write calls during audit: ${review.summary.totalControlledProviderExecutionDispatcherWorkspaceWriteCallsDuringAudit}`,
+    `controlled provider execution dispatcher host executor calls during audit: ${review.summary.totalControlledProviderExecutionDispatcherHostExecutorCallsDuringAudit}`,
+    `controlled provider execution dispatcher sub-agent runtime calls during audit: ${review.summary.totalControlledProviderExecutionDispatcherSubAgentRuntimeCallsDuringAudit}`,
+    `controlled provider execution dispatcher shell/process calls during audit: ${review.summary.totalControlledProviderExecutionDispatcherShellProcessCallsDuringAudit}`,
+    `controlled provider execution dispatcher external write calls during audit: ${review.summary.totalControlledProviderExecutionDispatcherExternalWriteCallsDuringAudit}`,
     `provider execution runner calls during audit: ${review.summary.totalProviderExecutionRunnerCallsDuringAudit}`,
     `provider execution runner planExecution calls during audit: ${review.summary.totalProviderExecutionRunnerPlanExecutionCallsDuringAudit}`,
     `provider execution runner validateExecutionPlan calls during audit: ${review.summary.totalProviderExecutionRunnerValidateExecutionPlanCallsDuringAudit}`,
@@ -4730,6 +4810,7 @@ function allComponentAuditsPassed(
     && input.controlledProviderExecutionTaskbookReview.status === "passed"
     && input.controlledProviderExecutionTaskbookReviewBoundaryReview.status === "passed"
     && input.controlledProviderExecutionDispatchPreflightReview.status === "passed"
+    && input.controlledProviderExecutionDispatcherReview.status === "passed"
     && input.providerExecutionRunnerReview.status === "passed"
     && input.providerCorePrimitivesReview.status === "passed"
     && input.toolInvocationPlannerReview.status === "passed"
@@ -6218,6 +6299,36 @@ function controlledProviderExecutionDispatchPreflightBoundaryConstrained(
     && summary.shellProcessCallsDuringAudit === 0
     && summary.externalWriteCallsDuringAudit === 0
     && summary.evidenceWritesDuringAudit === 0;
+}
+
+function controlledProviderExecutionDispatcherBoundaryConstrained(
+  input: ExecutionBoundaryCurrentSurfaceAuditInput
+): boolean {
+  const summary = input.controlledProviderExecutionDispatcherReview.summary;
+
+  return input.controlledProviderExecutionDispatcherReview.status === "passed"
+    && summary.dispatcherMode === "controlled_readonly_pre_runner_dispatcher"
+    && summary.consumesDispatchPreflightSchema === true
+    && summary.callsRunnerBoundary === true
+    && summary.callsProviderExecuteDirectly === false
+    && summary.callsRealCodexCliDirectly === false
+    && summary.authorizesWorkspaceWrite === false
+    && summary.authorizesHostExecutor === false
+    && summary.authorizesSubAgentRuntime === false
+    && summary.defaultDryRunPreserved === true
+    && summary.providerExecutionPlanHashRequired === true
+    && summary.providerRegistrySelectionRequired === true
+    && summary.permitValidationRequired === true
+    && summary.preflightArtifactBindingRequired === true
+    && summary.governanceStrategyStopRequired === true
+    && summary.runnerInvocationsDuringAudit === 0
+    && summary.providerExecuteCallsDuringAudit === 0
+    && summary.realCodexCliCallsDuringAudit === 0
+    && summary.workspaceWriteCallsDuringAudit === 0
+    && summary.hostExecutorCallsDuringAudit === 0
+    && summary.subAgentRuntimeCallsDuringAudit === 0
+    && summary.shellProcessCallsDuringAudit === 0
+    && summary.externalWriteCallsDuringAudit === 0;
 }
 
 function providerExecutionRunnerBoundaryConstrained(
@@ -7788,6 +7899,8 @@ function auditItselfIsNonExecuting(
     input.controlledProviderExecutionTaskbookReviewBoundaryReview.summary;
   const controlledProviderDispatchPreflight =
     input.controlledProviderExecutionDispatchPreflightReview.summary;
+  const controlledProviderDispatcher =
+    input.controlledProviderExecutionDispatcherReview.summary;
   const providerRunner = input.providerExecutionRunnerReview.summary;
   const providerCore = input.providerCorePrimitivesReview.summary;
   const toolInvocationPlanner = input.toolInvocationPlannerReview.summary;
@@ -8584,6 +8697,19 @@ function auditItselfIsNonExecuting(
     && controlledProviderDispatchPreflight.dispatchPreflightIsShellProcessAuthorization === false
     && controlledProviderDispatchPreflight.dispatchPreflightIsExternalWriteAuthorization === false
     && controlledProviderDispatchPreflight.dispatchPreflightIsReleaseAuthorization === false
+    && controlledProviderDispatcher.runnerInvocationsDuringAudit === 0
+    && controlledProviderDispatcher.providerExecuteCallsDuringAudit === 0
+    && controlledProviderDispatcher.realCodexCliCallsDuringAudit === 0
+    && controlledProviderDispatcher.workspaceWriteCallsDuringAudit === 0
+    && controlledProviderDispatcher.hostExecutorCallsDuringAudit === 0
+    && controlledProviderDispatcher.subAgentRuntimeCallsDuringAudit === 0
+    && controlledProviderDispatcher.shellProcessCallsDuringAudit === 0
+    && controlledProviderDispatcher.externalWriteCallsDuringAudit === 0
+    && controlledProviderDispatcher.callsProviderExecuteDirectly === false
+    && controlledProviderDispatcher.callsRealCodexCliDirectly === false
+    && controlledProviderDispatcher.authorizesWorkspaceWrite === false
+    && controlledProviderDispatcher.authorizesHostExecutor === false
+    && controlledProviderDispatcher.authorizesSubAgentRuntime === false
     && providerRunner.providerRunnerCallsDuringAudit === 0
     && providerRunner.providerPlanExecutionCallsDuringAudit === 0
     && providerRunner.providerValidateExecutionPlanCallsDuringAudit === 0
@@ -8975,6 +9101,8 @@ function executionAuthorityLatticeConstrained(
 ): boolean {
   const dispatchPreflight =
     input.controlledProviderExecutionDispatchPreflightReview.summary;
+  const dispatcher =
+    input.controlledProviderExecutionDispatcherReview.summary;
   const providerRunner = input.providerExecutionRunnerReview.summary;
   const hostDispatcher = input.hostDispatcherProviderReview.summary;
   const toolPlanner = input.toolInvocationPlannerReview.summary;
@@ -9005,6 +9133,14 @@ function executionAuthorityLatticeConstrained(
     && dispatchPreflight.dispatchPreflightIsReleaseAuthorization === false
     && dispatchPreflight.runnerRemainsFinalProviderExecuteGate === true
     && dispatchPreflight.dryRunDefaultPreserved === true
+    && dispatcher.dispatcherMode === "controlled_readonly_pre_runner_dispatcher"
+    && dispatcher.callsRunnerBoundary === true
+    && dispatcher.callsProviderExecuteDirectly === false
+    && dispatcher.callsRealCodexCliDirectly === false
+    && dispatcher.authorizesWorkspaceWrite === false
+    && dispatcher.authorizesHostExecutor === false
+    && dispatcher.authorizesSubAgentRuntime === false
+    && dispatcher.defaultDryRunPreserved === true
     && providerRunner.runnerMode === "controlled_readonly_provider_execute_gate"
     && providerRunner.controlledReadOnlyExecuteAllowed === true
     && providerRunner.controlledReadOnlyProviderId === "codex-cli"
@@ -9145,6 +9281,7 @@ function outputSanitized(): boolean {
       controlledProviderExecutionTaskbookBoundaryConstrained: true,
       controlledProviderExecutionTaskbookReviewBoundaryConstrained: true,
       controlledProviderExecutionDispatchPreflightBoundaryConstrained: true,
+      controlledProviderExecutionDispatcherBoundaryConstrained: true,
       providerExecutionRunnerBoundaryConstrained: true,
       providerCorePrimitivesBoundaryConstrained: true,
       toolInvocationPlannerBoundaryConstrained: true,
@@ -9235,6 +9372,8 @@ function outputSanitized(): boolean {
         "git_state_and_artifact_review_gate_only",
       controlledProviderExecutionDispatchPreflightMode:
         "controlled_readonly_dispatch_preflight_matrix_only",
+      controlledProviderExecutionDispatcherMode:
+        "controlled_readonly_pre_runner_dispatcher",
       providerExecutionRunnerMode: "controlled_readonly_provider_execute_gate",
       providerCorePrimitiveMode: "manifest_permit_plan_only",
       toolInvocationPlannerMode: "tool_manifest_and_invocation_plan_only",
@@ -9606,6 +9745,13 @@ function outputSanitized(): boolean {
       controlledProviderExecutionDispatchPreflightIsReleaseAuthorization: false,
       controlledProviderExecutionDispatchPreflightRunnerRemainsFinalProviderExecuteGate: true,
       controlledProviderExecutionDispatchPreflightDryRunDefaultPreserved: true,
+      controlledProviderExecutionDispatcherCallsProviderExecuteDirectly: false,
+      controlledProviderExecutionDispatcherCallsRealCodexCliDirectly: false,
+      controlledProviderExecutionDispatcherAuthorizesWorkspaceWrite: false,
+      controlledProviderExecutionDispatcherAuthorizesHostExecutor: false,
+      controlledProviderExecutionDispatcherAuthorizesSubAgentRuntime: false,
+      controlledProviderExecutionDispatcherCallsRunnerBoundary: true,
+      controlledProviderExecutionDispatcherDefaultDryRunPreserved: true,
       providerExecutionRunnerWorkspaceWriteAllowed: false,
       providerExecutionRunnerDefaultRealCodexCliAllowed: false,
       providerExecutionRunnerNonCodexProviderExecutionAllowed: false,
@@ -10078,6 +10224,14 @@ function outputSanitized(): boolean {
       totalControlledProviderExecutionDispatchPreflightShellProcessCallsDuringAudit: 0,
       totalControlledProviderExecutionDispatchPreflightExternalWriteCallsDuringAudit: 0,
       totalControlledProviderExecutionDispatchPreflightEvidenceWritesDuringAudit: 0,
+      totalControlledProviderExecutionDispatcherRunnerInvocationsDuringAudit: 0,
+      totalControlledProviderExecutionDispatcherProviderExecuteCallsDuringAudit: 0,
+      totalControlledProviderExecutionDispatcherRealCodexCliCallsDuringAudit: 0,
+      totalControlledProviderExecutionDispatcherWorkspaceWriteCallsDuringAudit: 0,
+      totalControlledProviderExecutionDispatcherHostExecutorCallsDuringAudit: 0,
+      totalControlledProviderExecutionDispatcherSubAgentRuntimeCallsDuringAudit: 0,
+      totalControlledProviderExecutionDispatcherShellProcessCallsDuringAudit: 0,
+      totalControlledProviderExecutionDispatcherExternalWriteCallsDuringAudit: 0,
       totalProviderExecutionRunnerCallsDuringAudit: 0,
       totalProviderExecutionRunnerPlanExecutionCallsDuringAudit: 0,
       totalProviderExecutionRunnerValidateExecutionPlanCallsDuringAudit: 0,
