@@ -811,6 +811,54 @@ test("desktop host client exposes non-executing host executor review for current
   assert.ok(blocked.reasons.includes("operator_action_host_executor_lifecycle_action_missing"));
 });
 
+test("desktop host client delegates controlled workspace-write provider plans", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const dispatchInputs: unknown[] = [];
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    bridgeBindings: createHostBindings(),
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["desktop_host_client_controlled_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:desktop-host-client-provider-plan",
+        executorPlanHash: "sha256:desktop-host-client-executor-plan",
+        operationManifestHash: "sha256:desktop-host-client-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-desktop-host-workspace-write"
+        }
+      } as never;
+    }
+  });
+  const input = {
+    schemaVersion: "desktop-host-client-controlled-workspace-write-test.v1"
+  };
+
+  const result = await client.dispatchControlledWorkspaceWriteProviderPlan(
+    input as never
+  );
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(dispatchInputs[0], input);
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.providerExecuteInvoked, false);
+  assert.deepEqual(result.reasons, [
+    "desktop_host_client_controlled_workspace_write_dispatch_test"
+  ]);
+});
+
 test("desktop host client blocks replayed operator action receipts", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const store = createInMemoryGovernanceOperatorActionReceiptStore();

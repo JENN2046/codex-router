@@ -484,15 +484,52 @@ test("public-api host facade delegates through declaration-safe wrappers", async
   } = await import("../packages/public-api/src/host.js");
 
   const resolvedPreflight = resolveLiveHostPreflight();
+  const controlledWorkspaceWriteDispatchInputs: unknown[] = [];
   const client = createDesktopHostClient({
     policy: publicHostPolicy,
     preflight: resolvedPreflight,
     bridge: {
       invokePrimitive: () => ({ ok: true })
+    },
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      controlledWorkspaceWriteDispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["public_host_controlled_workspace_write_dispatch_test"]
+      };
     }
   });
 
   assert.equal(client instanceof DesktopHostClient, true);
+  const controlledWorkspaceWriteInput = {
+    schemaVersion: "public-host-controlled-workspace-write-test.v1"
+  };
+  const controlledWorkspaceWriteResult =
+    await client.dispatchControlledWorkspaceWriteProviderPlan(
+      controlledWorkspaceWriteInput
+    ) as {
+      status: string;
+      runnerInvoked: boolean;
+      executeInvoked: boolean;
+      providerExecuteInvoked: boolean;
+      reasons: string[];
+    };
+  assert.equal(controlledWorkspaceWriteDispatchInputs.length, 1);
+  assert.equal(
+    controlledWorkspaceWriteDispatchInputs[0],
+    controlledWorkspaceWriteInput
+  );
+  assert.equal(controlledWorkspaceWriteResult.status, "dispatch_blocked");
+  assert.equal(controlledWorkspaceWriteResult.runnerInvoked, false);
+  assert.equal(controlledWorkspaceWriteResult.executeInvoked, false);
+  assert.equal(controlledWorkspaceWriteResult.providerExecuteInvoked, false);
+  assert.deepEqual(controlledWorkspaceWriteResult.reasons, [
+    "public_host_controlled_workspace_write_dispatch_test"
+  ]);
 
   const inspection = inspectCodexDesktopLiveHostObject({});
   assert.equal(inspection.ready, false);

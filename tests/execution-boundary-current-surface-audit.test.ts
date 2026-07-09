@@ -1991,7 +1991,8 @@ test("execution boundary current surface audit blocks broadened execution summar
       ...input.desktopHostClientReview,
       summary: {
         ...input.desktopHostClientReview.summary,
-        defaultHostExecutorLookupAllowed: true as false
+        defaultHostExecutorLookupAllowed: true as false,
+        workspaceWriteProviderExecuteAllowedByClient: true as false
       }
     },
     desktopLiveAdapterDispatchReview: {
@@ -3121,6 +3122,18 @@ test("execution boundary current surface audit output stays summarized", async (
   assert.match(text, /operator action executor gate invocations during audit: 0/);
   assert.match(text, /Codex CLI host process spawns during audit: 0/);
   assert.match(text, /public API calls during audit: 0/);
+  assert.match(
+    text,
+    /desktop host client controlled workspace-write dispatch allowed: true/
+  );
+  assert.match(
+    text,
+    /desktop host client general workspace-write allowed: false/
+  );
+  assert.match(
+    text,
+    /desktop host client workspace-write provider execute allowed: false/
+  );
   assert.match(text, /protocol MCP tool runtime calls during audit: 0/);
   assert.match(text, /protocol A2A remote agent runtime calls during audit: 0/);
   assert.match(text, /Agent OS SDK Codex CLI calls during audit: 0/);

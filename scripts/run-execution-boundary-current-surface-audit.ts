@@ -1085,6 +1085,9 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     desktopHostClientDefaultHostExecutorLookupAllowed: false;
     desktopHostClientDirectDispatchToHostAllowed: false;
     desktopHostClientExecuteInjectedDispatchAllowed: true;
+    desktopHostClientControlledWorkspaceWriteDispatchAllowed: true;
+    desktopHostClientGeneralWorkspaceWriteAllowed: false;
+    desktopHostClientWorkspaceWriteProviderExecuteAllowed: false;
     desktopLiveAdapterBlockedDecisionExecutionAllowed: false;
     hostClientExampleRealShellProcessAllowed: false;
     hostClientExampleHostExecutorDispatchSurfacePresent: false;
@@ -2923,6 +2926,14 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
       desktopHostClientDefaultHostExecutorLookupAllowed: false,
       desktopHostClientDirectDispatchToHostAllowed: false,
       desktopHostClientExecuteInjectedDispatchAllowed: true,
+      desktopHostClientControlledWorkspaceWriteDispatchAllowed:
+        input.desktopHostClientReview.summary
+          .controlledWorkspaceWriteDispatchAllowedByClient,
+      desktopHostClientGeneralWorkspaceWriteAllowed:
+        input.desktopHostClientReview.summary.generalWorkspaceWriteAllowedByClient,
+      desktopHostClientWorkspaceWriteProviderExecuteAllowed:
+        input.desktopHostClientReview.summary
+          .workspaceWriteProviderExecuteAllowedByClient,
       desktopLiveAdapterBlockedDecisionExecutionAllowed: false,
       hostClientExampleRealShellProcessAllowed: false,
       hostClientExampleHostExecutorDispatchSurfacePresent: false,
@@ -4260,6 +4271,9 @@ export function formatExecutionBoundaryCurrentSurfaceAuditResult(
     `desktop host client default host executor lookup allowed: ${review.summary.desktopHostClientDefaultHostExecutorLookupAllowed}`,
     `desktop host client direct dispatchToHost allowed: ${review.summary.desktopHostClientDirectDispatchToHostAllowed}`,
     `desktop host client execute-injected dispatch allowed: ${review.summary.desktopHostClientExecuteInjectedDispatchAllowed}`,
+    `desktop host client controlled workspace-write dispatch allowed: ${review.summary.desktopHostClientControlledWorkspaceWriteDispatchAllowed}`,
+    `desktop host client general workspace-write allowed: ${review.summary.desktopHostClientGeneralWorkspaceWriteAllowed}`,
+    `desktop host client workspace-write provider execute allowed: ${review.summary.desktopHostClientWorkspaceWriteProviderExecuteAllowed}`,
     `desktop live adapter blocked decision execution allowed: ${review.summary.desktopLiveAdapterBlockedDecisionExecutionAllowed}`,
     `host client example real shell/process allowed: ${review.summary.hostClientExampleRealShellProcessAllowed}`,
     `host client example host executor dispatch surface present: ${review.summary.hostClientExampleHostExecutorDispatchSurfacePresent}`,
@@ -5058,6 +5072,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("Codex memory MCP client boundary")
     && text.includes("Codex memory host client boundary")
     && text.includes("Desktop host client boundary")
+    && text.includes("may delegate controlled workspace-write provider plans to the host dispatcher")
+    && text.includes("workspace-write through `provider.execute`")
     && text.includes("Desktop live adapter dispatch boundary")
     && text.includes("Host client example boundary")
     && text.includes("Target host embedding boundary")
@@ -6827,9 +6843,11 @@ function desktopHostClientBoundaryConstrained(
     && summary.directDispatchToHostAllowedByClient === false
     && summary.codexCliInvocationAllowedByClient === false
     && summary.providerInvocationAllowedByClient === false
+    && summary.controlledWorkspaceWriteDispatchAllowedByClient === true
+    && summary.generalWorkspaceWriteAllowedByClient === false
+    && summary.workspaceWriteProviderExecuteAllowedByClient === false
     && summary.subAgentRuntimeInvocationAllowed === false
     && summary.shellProcessAllowed === false
-    && summary.workspaceWriteAllowedByClient === false
     && summary.externalWriteAllowed === false
     && summary.clientCallsDuringAudit === 0
     && summary.liveAdapterCallsDuringAudit === 0
@@ -8956,9 +8974,11 @@ function auditItselfIsNonExecuting(
     && desktopHostClient.directDispatchToHostAllowedByClient === false
     && desktopHostClient.codexCliInvocationAllowedByClient === false
     && desktopHostClient.providerInvocationAllowedByClient === false
+    && desktopHostClient.controlledWorkspaceWriteDispatchAllowedByClient === true
+    && desktopHostClient.generalWorkspaceWriteAllowedByClient === false
+    && desktopHostClient.workspaceWriteProviderExecuteAllowedByClient === false
     && desktopHostClient.subAgentRuntimeInvocationAllowed === false
     && desktopHostClient.shellProcessAllowed === false
-    && desktopHostClient.workspaceWriteAllowedByClient === false
     && desktopHostClient.externalWriteAllowed === false
     && desktopLiveAdapterDispatch.liveAdapterCallsDuringAudit === 0
     && desktopLiveAdapterDispatch.dispatchToHostCallsDuringAudit === 0
@@ -9867,6 +9887,9 @@ function outputSanitized(): boolean {
       desktopHostClientDefaultHostExecutorLookupAllowed: false,
       desktopHostClientDirectDispatchToHostAllowed: false,
       desktopHostClientExecuteInjectedDispatchAllowed: true,
+      desktopHostClientControlledWorkspaceWriteDispatchAllowed: true,
+      desktopHostClientGeneralWorkspaceWriteAllowed: false,
+      desktopHostClientWorkspaceWriteProviderExecuteAllowed: false,
       desktopLiveAdapterBlockedDecisionExecutionAllowed: false,
       hostClientExampleRealShellProcessAllowed: false,
       hostClientExampleHostExecutorDispatchSurfacePresent: false,

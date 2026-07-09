@@ -346,6 +346,14 @@ export interface DesktopHostTelemetrySink {
   record(event: DesktopHostLogEvent): Promise<void> | void;
 }
 
+export type DesktopHostControlledWorkspaceWriteProviderDispatchInput = unknown;
+export type DesktopHostControlledWorkspaceWriteProviderDispatchResult = unknown;
+export type DesktopHostControlledWorkspaceWriteProviderDispatcher = (
+  input: DesktopHostControlledWorkspaceWriteProviderDispatchInput
+) =>
+  | Promise<DesktopHostControlledWorkspaceWriteProviderDispatchResult>
+  | DesktopHostControlledWorkspaceWriteProviderDispatchResult;
+
 export interface DesktopHostClientPersistence {
   checkpointStore?: DesktopHostCheckpointStore & Partial<DesktopHostCheckpointLookup>;
   auditStore?: DesktopHostAuditStore;
@@ -368,6 +376,7 @@ export interface DesktopHostClientOptions {
   operatorActionReceiptStore?: unknown;
   governanceState?: unknown;
   onGovernanceUpdate?: (state: unknown, strategy: unknown) => Promise<void> | void;
+  controlledWorkspaceWriteProviderDispatcher?: DesktopHostControlledWorkspaceWriteProviderDispatcher;
   now?: () => string;
 }
 
@@ -616,6 +625,12 @@ export class DesktopHostClient {
     return this.inner.dispatchCurrentOperatorActionHostExecutor(
       input as unknown as InternalDesktopHostOperatorActionHostExecutorDispatchInput
     );
+  }
+
+  async dispatchControlledWorkspaceWriteProviderPlan(
+    input: DesktopHostControlledWorkspaceWriteProviderDispatchInput
+  ): Promise<DesktopHostControlledWorkspaceWriteProviderDispatchResult> {
+    return this.inner.dispatchControlledWorkspaceWriteProviderPlan(input as never);
   }
 }
 
