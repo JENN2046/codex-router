@@ -27,11 +27,16 @@ test("controlled provider execution dispatcher boundary audit passes", async () 
   assert.equal(review.checks.dispatcherSourceRecorded, true);
   assert.equal(review.checks.dispatcherRegressionCoverageRecorded, true);
   assert.equal(review.checks.noDirectRuntimeInvocation, true);
-  assert.equal(review.summary.dispatcherMode, "controlled_readonly_pre_runner_dispatcher");
+  assert.equal(
+    review.summary.dispatcherMode,
+    "controlled_readonly_and_workspace_write_pre_runner_dispatcher"
+  );
   assert.equal(review.summary.consumesDispatchPreflightSchema, true);
   assert.equal(review.summary.callsRunnerBoundary, true);
   assert.equal(review.summary.callsProviderExecuteDirectly, false);
-  assert.equal(review.summary.authorizesWorkspaceWrite, false);
+  assert.equal(review.summary.controlledWorkspaceWriteDispatchAllowed, true);
+  assert.equal(review.summary.authorizesGeneralWorkspaceWrite, false);
+  assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
   assert.equal(review.summary.providerExecutionPlanHashRequired, true);
   assert.equal(review.summary.providerRegistrySelectionRequired, true);
   assert.equal(review.summary.permitValidationRequired, true);
@@ -145,6 +150,8 @@ test("controlled provider execution dispatcher boundary audit output stays sanit
 
   assert.match(text, /status: passed/);
   assert.match(text, /provider execute calls during audit: 0/);
+  assert.match(text, /controlled workspace-write dispatch allowed: true/);
+  assert.match(text, /workspace-write provider execute allowed: false/);
   assert.equal(parsed.status, "passed");
 
   for (const marker of forbiddenOutputMarkers) {

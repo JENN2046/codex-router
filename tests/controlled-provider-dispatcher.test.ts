@@ -1,8 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 import {
   FileSystemArtifactStore,
   InMemoryArtifactStore,
@@ -11,8 +14,11 @@ import {
 import { hashApprovalScope } from "../packages/governance-internal-approval-permit/src/index.js";
 import {
   createControlledReadOnlyProviderDispatchPreflight,
+  createControlledWorkspaceWriteProviderDispatchPreflight,
   dispatchControlledReadOnlyProviderExecution,
+  dispatchControlledWorkspaceWriteProviderExecution,
   recordControlledReadOnlyProviderDispatchPreflightArtifact,
+  recordControlledWorkspaceWriteProviderDispatchPreflightArtifact,
   reviewControlledReadOnlyProviderDispatch
 } from "../packages/governance-internal-controlled-provider-dispatcher/src/index.js";
 import type { GovernanceState } from "../packages/governance-internal-state-manager/src/index.js";
@@ -39,8 +45,10 @@ import {
 } from "../packages/execution-planner/src/index.js";
 import {
   createApprovedProviderExecutionPermit,
+  createApprovedWorkspaceWriteProviderExecutionPermitV2,
   parseExecutorExecutionPlan,
   parseProviderManifest,
+  type WorkspaceWriteProviderExecutionPermitV2,
   type ExecutionPlanInput,
   type ExecutionValidationResult,
   type ExecutorExecutionPlan,
@@ -49,6 +57,9 @@ import {
   type ProviderExecutionResult,
   type ProviderManifest
 } from "../packages/provider-core/src/index.js";
+import type {
+  WorkspaceWriteOperation
+} from "../packages/governance-internal-workspace-write-executor/src/index.js";
 import { ProviderRegistry } from "../packages/provider-registry/src/index.js";
 import { parseTaskEnvelope, type TaskEnvelope } from "../packages/contracts/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
@@ -57,6 +68,9 @@ import { validRun } from "../packages/kernel-contracts/test-fixtures/valid-run.j
 import { validTask } from "../packages/kernel-contracts/test-fixtures/valid-task.js";
 
 const now = "2026-07-09T01:00:00.000Z";
+const execFileAsync = promisify(execFile);
+const workspaceWriteAuthorizationId =
+  "operator_auth_controlled_provider_dispatcher_workspace_write";
 
 test("controlled provider dispatcher gates the runner with exact dispatch preflight", async () => {
   const fixture = createFixture();
@@ -935,6 +949,86 @@ test("controlled provider dispatcher blocks broad provider plans before runner",
   assert.equal(fixture.provider.calls.execute, 0);
 });
 
+test("controlled provider dispatcher routes workspace-write through local runner without provider execute", async () => {
+  const cwd = await createGitRepo("controlled-provider-dispatcher/workspace-write-success");
+  const fixture = await createWorkspaceWriteFixture(cwd, ["tmp/dispatch.txt"]);
+  const artifactStore = await createWorkspaceWriteArtifactStoreWithPreflight(fixture);
+
+  const result = await dispatchControlledWorkspaceWriteProviderExecution({
+    ...fixture,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore,
+    now: constantClock()
+  });
+
+  assert.equal(result.status, "runner_completed", result.reasons.join(","));
+  assert.equal(result.runnerInvoked, true);
+  assert.equal(result.executeInvoked, true);
+  assert.equal(result.providerExecuteInvoked, false);
+  assert.equal(result.runnerResult.status, "controlled_workspace_write_succeeded");
+  assert.equal(result.runnerResult.providerExecuteInvoked, false);
+  assert.equal(result.runnerResult.workspaceWriteEvidence?.status, "passed");
+  assert.equal(result.runnerResult.workspaceWriteEvidence?.checks.rollbackVerified, true);
+  assert.equal(fixture.provider.calls.planExecution, 1);
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 1);
+  assert.equal(fixture.provider.calls.execute, 0);
+  assert.equal(existsSync(join(cwd, "tmp/dispatch.txt")), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+});
+
+test("controlled provider dispatcher requires workspace-write preflight artifact before runner", async () => {
+  const cwd = await createGitRepo("controlled-provider-dispatcher/workspace-write-missing-artifact");
+  const fixture = await createWorkspaceWriteFixture(cwd, ["tmp/dispatch.txt"]);
+
+  const result = await dispatchControlledWorkspaceWriteProviderExecution({
+    ...fixture,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    now: constantClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.providerExecuteInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_workspace_write_dispatch_preflight_artifact_store_missing"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+  assert.equal(existsSync(join(cwd, "tmp/dispatch.txt")), false);
+});
+
+test("controlled provider dispatcher binds workspace-write operation manifest before runner", async () => {
+  const cwd = await createGitRepo("controlled-provider-dispatcher/workspace-write-operation-drift");
+  const fixture = await createWorkspaceWriteFixture(cwd, ["tmp/dispatch.txt"]);
+  const artifactStore = await createWorkspaceWriteArtifactStoreWithPreflight(fixture);
+
+  const result = await dispatchControlledWorkspaceWriteProviderExecution({
+    ...fixture,
+    operations: [
+      { kind: "write", path: "tmp/dispatch.txt", content: "drift\n" }
+    ],
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore,
+    now: constantClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.providerExecuteInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_workspace_write_dispatch_preflight_artifact_operation_manifest_hash_mismatch"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+  assert.equal(existsSync(join(cwd, "tmp/dispatch.txt")), false);
+});
+
 type Fixture = {
   provider: FakeExecutorProvider;
   providerRegistry: ProviderRegistry;
@@ -948,6 +1042,24 @@ type Fixture = {
   dispatchPreflight: ReturnType<typeof createControlledReadOnlyProviderDispatchPreflight>;
   governanceState: GovernanceState;
   taskEnvelope: TaskEnvelope;
+};
+
+type WorkspaceWriteFixture = {
+  provider: FakeExecutorProvider;
+  providerRegistry: ProviderRegistry;
+  task: Task;
+  run: Run;
+  principal: Principal;
+  policyDecision: PolicyDecision;
+  providerExecutionPlan: ReturnType<typeof planProviderExecution>;
+  executorPlan: ExecutorExecutionPlan;
+  permit: WorkspaceWriteProviderExecutionPermitV2;
+  dispatchPreflight: ReturnType<typeof createControlledWorkspaceWriteProviderDispatchPreflight>;
+  governanceState: GovernanceState;
+  taskEnvelope: TaskEnvelope;
+  workspaceRoot: string;
+  operations: WorkspaceWriteOperation[];
+  executionAuthorizationId: string;
 };
 
 function createFixture(options: {
@@ -1024,6 +1136,108 @@ function createFixture(options: {
   };
 }
 
+async function createWorkspaceWriteFixture(
+  cwd: string,
+  targetFiles: string[]
+): Promise<WorkspaceWriteFixture> {
+  const provider = createFakeWorkspaceWriteProvider(targetFiles);
+  const providerRegistry = createRegistry(provider);
+  const task = createWorkspaceWriteTask(targetFiles);
+  const principal = PrincipalSchema.parse(validPrincipal);
+  const policyDecision = createWorkspaceWritePolicyDecision(task, targetFiles);
+  const run = createRun(task, policyDecision);
+  const providerExecutionPlan = planProviderExecution(createPlannerInput({
+    task,
+    run,
+    principal,
+    policyDecision,
+    executionEligibility: {
+      status: "eligible",
+      taskId: task.taskId,
+      runId: run.runId,
+      policyDecisionHash: hashApprovalScope(policyDecision),
+      reasons: ["capability_grants_satisfied", "valid_approval_permit"],
+      missingCapabilities: [],
+      requiredApprovals: [],
+      acceptedPermits: ["permit_controlled_provider_dispatcher_workspace_write"],
+      rejectedPermits: [],
+      createdAt: now
+    },
+    providerRegistry,
+    preferredProviderId: provider.manifest.providerId
+  }));
+  const executorPlan = parseExecutorExecutionPlan(provider.planExecution({
+    task,
+    run,
+    policyDecision,
+    sandboxProfile: providerExecutionPlan.sandboxProfile,
+    inputHash: providerExecutionPlan.inputHash,
+    ...(providerExecutionPlan.taskHash !== undefined
+      ? { taskHash: providerExecutionPlan.taskHash }
+      : {}),
+    ...(providerExecutionPlan.principalId !== undefined
+      ? { principalId: providerExecutionPlan.principalId }
+      : {}),
+    ...(providerExecutionPlan.principalHash !== undefined
+      ? { principalHash: providerExecutionPlan.principalHash }
+      : {}),
+    providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+    ...(providerExecutionPlan.providerManifestHash !== undefined
+      ? { providerManifestHash: providerExecutionPlan.providerManifestHash }
+      : {}),
+    now
+  } as ExecutionPlanInput) as ExecutorExecutionPlan);
+  const branch = (await git(["branch", "--show-current"], cwd)).trim();
+  const headCommit = (await git(["rev-parse", "HEAD"], cwd)).trim();
+  const permit = createApprovedWorkspaceWriteProviderExecutionPermitV2({
+    plan: executorPlan,
+    manifest: provider.manifest,
+    approvalStatus: "approved",
+    operatorAuthorizationId: workspaceWriteAuthorizationId,
+    targetFiles,
+    maxChangedFiles: targetFiles.length,
+    maxDiffLines: Math.max(targetFiles.length, 1),
+    rollbackRequired: true,
+    rollback: {
+      beforeCommit: headCommit
+    },
+    protectedBranchForbidden: true,
+    dirtyWorktreeForbidden: true,
+    repositoryState: {
+      branch,
+      protectedBranch: false,
+      worktreeClean: true,
+      headCommit
+    },
+    issuedAt: now
+  });
+  const operations = targetFiles.map((path): WorkspaceWriteOperation => ({
+    kind: "write",
+    path,
+    content: "controlled dispatcher workspace write\n"
+  }));
+
+  return {
+    provider,
+    providerRegistry,
+    task,
+    run,
+    principal,
+    policyDecision,
+    providerExecutionPlan,
+    executorPlan,
+    permit,
+    dispatchPreflight: createControlledWorkspaceWriteProviderDispatchPreflight({
+      providerExecutionPlan
+    }),
+    governanceState: createLowRiskGovernanceState(task.taskId),
+    taskEnvelope: createTaskEnvelope(task),
+    workspaceRoot: cwd,
+    operations,
+    executionAuthorizationId: workspaceWriteAuthorizationId
+  };
+}
+
 function createPlannerInput(
   overrides: Partial<PlanProviderExecutionInput> = {}
 ): PlanProviderExecutionInput {
@@ -1085,6 +1299,33 @@ function createTask(options: {
   });
 }
 
+function createWorkspaceWriteTask(targetFiles: string[]): Task {
+  return TaskSchema.parse({
+    ...validTask,
+    taskId: "task_controlled_provider_dispatcher_workspace_write",
+    requestedAction: "Apply a bounded workspace-write through controlled provider dispatch.",
+    successCriteria: ["controlled dispatcher gates workspace-write runner"],
+    outOfScope: ["provider.execute", "real Codex CLI", "external writes"],
+    repo: {
+      root: "workspace",
+      branch: "agent/controlled-provider-dispatcher-workspace-write",
+      worktreeClean: true,
+      protectedBranch: false
+    },
+    target: {
+      branches: [],
+      files: targetFiles,
+      modules: ["governance"]
+    },
+    hints: {
+      taskClass: "small_edit",
+      riskHints: ["workspace-write"],
+      tags: ["controlled-provider-dispatcher", "workspace-write"],
+      provenance: []
+    }
+  });
+}
+
 function createPolicyDecision(task: Task, options: {
   decisionId?: string;
 } = {}): PolicyDecision {
@@ -1122,6 +1363,44 @@ function createPolicyDecision(task: Task, options: {
   });
 }
 
+function createWorkspaceWritePolicyDecision(
+  task: Task,
+  targetFiles: string[]
+): PolicyDecision {
+  return PolicyDecisionSchema.parse({
+    ...validPolicyDecision,
+    decisionId: "decision_controlled_provider_dispatcher_workspace_write",
+    taskId: task.taskId,
+    risk: {
+      level: "medium",
+      factors: ["workspace_write"],
+      ambiguityScore: 0,
+      clarificationRequired: false
+    },
+    execution: {
+      executor: "codex-cli",
+      model: "gpt-5.4-mini",
+      profile: "workspace-write",
+      reasoningEffort: "low",
+      sandbox: createWorkspaceWriteSandboxProfile()
+    },
+    capabilities: targetFiles.map(createWriteScope),
+    approval: {
+      required: true,
+      reasons: ["workspace_write_requires_operator_authorization"]
+    },
+    parallelism: {
+      allowed: false,
+      maxAgents: 1,
+      mode: "disabled"
+    },
+    legacy: {
+      taskClass: "small_edit",
+      toolAccess: "workspace_write"
+    }
+  });
+}
+
 function createRun(task: Task, policyDecision: PolicyDecision, options: {
   runId?: string;
 } = {}): Run {
@@ -1150,11 +1429,33 @@ function createReadOnlySandboxProfile(): SandboxProfile {
   });
 }
 
+function createWorkspaceWriteSandboxProfile(): SandboxProfile {
+  return SandboxProfileSchema.parse({
+    schemaVersion: "sandbox-profile.v1",
+    sandboxId: "sandbox_controlled_provider_dispatcher_workspace_write",
+    mode: "workspace-write",
+    networkAccess: "none",
+    writableRoots: ["workspace"],
+    envPolicy: {
+      inheritProcessEnv: false,
+      allowlist: []
+    }
+  });
+}
+
 function createReadScope(): CapabilityScope {
   return CapabilityScopeSchema.parse({
     kind: "file",
     resource: "workspace/**",
     access: "read"
+  });
+}
+
+function createWriteScope(path: string): CapabilityScope {
+  return CapabilityScopeSchema.parse({
+    kind: "file",
+    resource: path,
+    access: "write"
   });
 }
 
@@ -1244,6 +1545,66 @@ function createFakeCodexCliProvider(options: {
   };
 }
 
+function createFakeWorkspaceWriteProvider(targetFiles: string[]): FakeExecutorProvider {
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const manifest = createFakeWorkspaceWriteManifest(targetFiles);
+
+  return {
+    manifest,
+    calls,
+    planExecution(input: ExecutionPlanInput): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return parseExecutorExecutionPlan({
+        schemaVersion: "executor-execution-plan.v1",
+        kind: "executor",
+        planId: `executor_${input.run.runId}`,
+        runId: input.run.runId,
+        taskId: input.task.taskId,
+        ...(input.taskHash !== undefined ? { taskHash: input.taskHash } : {}),
+        ...(input.principalId !== undefined ? { principalId: input.principalId } : {}),
+        ...(input.principalHash !== undefined
+          ? { principalHash: input.principalHash }
+          : {}),
+        ...(input.providerExecutionPlanHash !== undefined
+          ? { providerExecutionPlanHash: input.providerExecutionPlanHash }
+          : {}),
+        ...(input.providerManifestHash !== undefined
+          ? { providerManifestHash: input.providerManifestHash }
+          : {}),
+        providerId: manifest.providerId,
+        inputHash: input.inputHash ?? "1".repeat(64),
+        policyDecisionHash: hashProviderExecutionPlannerObject(input.policyDecision),
+        requiredCapabilities: targetFiles.map((path) => `fs.write:${path}`),
+        approvalRequired: true,
+        sandboxProfile: input.sandboxProfile,
+        sideEffectClass: "workspace_write",
+        createdAt: input.now,
+        metadata: {
+          controlledWorkspaceWrite: true
+        }
+      });
+    },
+    validateExecutionPlan(_plan: ExecutorExecutionPlan): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(
+      _plan: ExecutorExecutionPlan,
+      _context: ProviderExecutionContext
+    ): ProviderExecutionResult {
+      calls.execute += 1;
+      throw new Error("workspace_write_provider_execute_should_not_be_called");
+    }
+  };
+}
+
 function createFakeCodexCliManifest(overrides: Partial<ProviderManifest> = {}): ProviderManifest {
   return parseProviderManifest({
     schemaVersion: "provider-manifest.v1",
@@ -1276,6 +1637,36 @@ function createFakeCodexCliManifest(overrides: Partial<ProviderManifest> = {}): 
   });
 }
 
+function createFakeWorkspaceWriteManifest(targetFiles: string[]): ProviderManifest {
+  return parseProviderManifest({
+    schemaVersion: "provider-manifest.v1",
+    providerId: "fake-workspace-write-dispatcher",
+    kind: "executor",
+    displayName: "Fake Workspace Write Dispatcher Provider",
+    version: "0.1.0",
+    capabilities: [
+      "execution.plan",
+      "execution.validate",
+      ...targetFiles.map((path) => `fs.write:${path}`)
+    ],
+    requiredConfig: {
+      keys: [],
+      optionalKeys: []
+    },
+    securityBoundary: {
+      isolation: "process",
+      networkAccess: "none",
+      filesystemAccess: "workspace-write",
+      secretAccess: "none",
+      notes: ["test fixture"]
+    },
+    supportedSandboxProfiles: [createWorkspaceWriteSandboxProfile()],
+    supportedSideEffectClasses: ["workspace_write"],
+    enabled: true,
+    metadata: {}
+  });
+}
+
 function createRegistry(provider: ExecutorProvider): ProviderRegistry {
   const registry = new ProviderRegistry();
   registry.register(provider.manifest, { registeredAt: now });
@@ -1295,6 +1686,24 @@ async function createArtifactStoreWithPreflight(
     policyDecision: fixture.policyDecision,
     task: fixture.task,
     run: fixture.run,
+    now: createClock()
+  });
+  return artifactStore;
+}
+
+async function createWorkspaceWriteArtifactStoreWithPreflight(
+  fixture: WorkspaceWriteFixture
+): Promise<ArtifactStore> {
+  const artifactStore = new InMemoryArtifactStore({ now: createClock() });
+  await recordControlledWorkspaceWriteProviderDispatchPreflightArtifact({
+    artifactStore,
+    dispatchPreflight: fixture.dispatchPreflight,
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    executorPlan: fixture.executorPlan,
+    policyDecision: fixture.policyDecision,
+    task: fixture.task,
+    run: fixture.run,
+    operations: fixture.operations,
     now: createClock()
   });
   return artifactStore;
@@ -1386,7 +1795,9 @@ function createTaskEnvelope(task: Task): TaskEnvelope {
         : {})
     },
     hints: {
-      taskClassHint: "read_only",
+      ...(toTaskEnvelopeTaskClassHint(task.hints.taskClass) !== undefined
+        ? { taskClassHint: toTaskEnvelopeTaskClassHint(task.hints.taskClass) }
+        : {}),
       riskHints: task.hints.riskHints,
       tags: task.hints.tags,
       provenance: []
@@ -1401,4 +1812,53 @@ function createClock(): () => string {
     index += 1;
     return timestamp;
   };
+}
+
+function toTaskEnvelopeTaskClassHint(value: string | undefined) {
+  if (
+    value === "read_only" ||
+    value === "small_edit" ||
+    value === "engineering" ||
+    value === "high_risk" ||
+    value === "release_external_action"
+  ) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function constantClock(): () => string {
+  return () => now;
+}
+
+async function createGitRepo(
+  branch: string,
+  files: Record<string, string> = {}
+): Promise<string> {
+  const cwd = await mkdtemp(join(tmpdir(), "controlled-provider-dispatcher-workspace-write-"));
+  await git(["init"], cwd);
+  await git(["config", "user.email", "controlled-provider-dispatcher@example.invalid"], cwd);
+  await git(["config", "user.name", "Controlled Provider Dispatcher Test"], cwd);
+  await writeFile(join(cwd, "README.md"), "fixture\n", "utf8");
+  for (const [path, content] of Object.entries(files)) {
+    await mkdir(dirname(join(cwd, path)), { recursive: true });
+    await writeFile(join(cwd, path), content, "utf8");
+  }
+  await git(["add", "."], cwd);
+  await git(["commit", "-m", "initial"], cwd);
+  await git(["branch", "-M", "main"], cwd);
+  if (branch !== "main") {
+    await git(["switch", "-c", branch], cwd);
+  }
+  return cwd;
+}
+
+async function git(args: string[], cwd: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", args, {
+    cwd,
+    encoding: "utf8",
+    windowsHide: true
+  });
+  return stdout;
 }

@@ -335,8 +335,11 @@ exposed through
 `npm run governance -- audit controlled-provider-execution-dispatcher-boundary`;
 it consumes the dispatch preflight schema, provider registry selection, permit,
 executor plan, environment preflight artifact binding, and governance stop
-checks before handing off to the provider execution runner boundary. It does
-not call `provider.execute` directly and does not authorize workspace-write.
+checks before handing off to the provider execution runner boundary. It
+supports controlled read-only dispatch and controlled workspace-write dispatch
+to the local runner, but does not call `provider.execute` directly for
+workspace-write, does not spawn Codex CLI, and does not authorize general
+workspace-write.
 The Phase 6 read-only provider permit lifecycle line is recorded at
 `docs/governance/PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md`;
 it keeps the same acceptance entry point while adding expiration, nonce, replay,

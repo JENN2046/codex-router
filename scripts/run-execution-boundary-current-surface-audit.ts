@@ -636,7 +636,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     controlledProviderExecutionTaskbookMode: "local_only_minimal_slice_taskbook";
     controlledProviderExecutionTaskbookReviewBoundaryMode: "git_state_and_artifact_review_gate_only";
     controlledProviderExecutionDispatchPreflightMode: "controlled_readonly_dispatch_preflight_matrix_only";
-    controlledProviderExecutionDispatcherMode: "controlled_readonly_pre_runner_dispatcher";
+    controlledProviderExecutionDispatcherMode: "controlled_readonly_and_workspace_write_pre_runner_dispatcher";
     providerExecutionRunnerMode: "controlled_readonly_and_workspace_write_gate";
     providerCorePrimitiveMode: "manifest_permit_plan_only";
     toolInvocationPlannerMode: "tool_manifest_and_invocation_plan_only";
@@ -1007,7 +1007,9 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     controlledProviderExecutionDispatchPreflightDryRunDefaultPreserved: true;
     controlledProviderExecutionDispatcherCallsProviderExecuteDirectly: false;
     controlledProviderExecutionDispatcherCallsRealCodexCliDirectly: false;
-    controlledProviderExecutionDispatcherAuthorizesWorkspaceWrite: false;
+    controlledProviderExecutionDispatcherControlledWorkspaceWriteDispatchAllowed: true;
+    controlledProviderExecutionDispatcherAuthorizesGeneralWorkspaceWrite: false;
+    controlledProviderExecutionDispatcherWorkspaceWriteProviderExecuteAllowed: false;
     controlledProviderExecutionDispatcherAuthorizesHostExecutor: false;
     controlledProviderExecutionDispatcherAuthorizesSubAgentRuntime: false;
     controlledProviderExecutionDispatcherCallsRunnerBoundary: true;
@@ -2822,8 +2824,15 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
         input.controlledProviderExecutionDispatcherReview.summary.callsProviderExecuteDirectly,
       controlledProviderExecutionDispatcherCallsRealCodexCliDirectly:
         input.controlledProviderExecutionDispatcherReview.summary.callsRealCodexCliDirectly,
-      controlledProviderExecutionDispatcherAuthorizesWorkspaceWrite:
-        input.controlledProviderExecutionDispatcherReview.summary.authorizesWorkspaceWrite,
+      controlledProviderExecutionDispatcherControlledWorkspaceWriteDispatchAllowed:
+        input.controlledProviderExecutionDispatcherReview.summary
+          .controlledWorkspaceWriteDispatchAllowed,
+      controlledProviderExecutionDispatcherAuthorizesGeneralWorkspaceWrite:
+        input.controlledProviderExecutionDispatcherReview.summary
+          .authorizesGeneralWorkspaceWrite,
+      controlledProviderExecutionDispatcherWorkspaceWriteProviderExecuteAllowed:
+        input.controlledProviderExecutionDispatcherReview.summary
+          .workspaceWriteProviderExecuteAllowed,
       controlledProviderExecutionDispatcherAuthorizesHostExecutor:
         input.controlledProviderExecutionDispatcherReview.summary.authorizesHostExecutor,
       controlledProviderExecutionDispatcherAuthorizesSubAgentRuntime:
@@ -4169,7 +4178,9 @@ export function formatExecutionBoundaryCurrentSurfaceAuditResult(
     `controlled provider execution dispatch preflight dry-run default preserved: ${review.summary.controlledProviderExecutionDispatchPreflightDryRunDefaultPreserved}`,
     `controlled provider execution dispatcher calls provider execute directly: ${review.summary.controlledProviderExecutionDispatcherCallsProviderExecuteDirectly}`,
     `controlled provider execution dispatcher calls real Codex CLI directly: ${review.summary.controlledProviderExecutionDispatcherCallsRealCodexCliDirectly}`,
-    `controlled provider execution dispatcher authorizes workspace-write: ${review.summary.controlledProviderExecutionDispatcherAuthorizesWorkspaceWrite}`,
+    `controlled provider execution dispatcher controlled workspace-write dispatch allowed: ${review.summary.controlledProviderExecutionDispatcherControlledWorkspaceWriteDispatchAllowed}`,
+    `controlled provider execution dispatcher authorizes general workspace-write: ${review.summary.controlledProviderExecutionDispatcherAuthorizesGeneralWorkspaceWrite}`,
+    `controlled provider execution dispatcher workspace-write provider execute allowed: ${review.summary.controlledProviderExecutionDispatcherWorkspaceWriteProviderExecuteAllowed}`,
     `controlled provider execution dispatcher authorizes host executor: ${review.summary.controlledProviderExecutionDispatcherAuthorizesHostExecutor}`,
     `controlled provider execution dispatcher authorizes sub-agent runtime: ${review.summary.controlledProviderExecutionDispatcherAuthorizesSubAgentRuntime}`,
     `controlled provider execution dispatcher calls runner boundary: ${review.summary.controlledProviderExecutionDispatcherCallsRunnerBoundary}`,
@@ -6312,12 +6323,14 @@ function controlledProviderExecutionDispatcherBoundaryConstrained(
   const summary = input.controlledProviderExecutionDispatcherReview.summary;
 
   return input.controlledProviderExecutionDispatcherReview.status === "passed"
-    && summary.dispatcherMode === "controlled_readonly_pre_runner_dispatcher"
+    && summary.dispatcherMode === "controlled_readonly_and_workspace_write_pre_runner_dispatcher"
     && summary.consumesDispatchPreflightSchema === true
     && summary.callsRunnerBoundary === true
     && summary.callsProviderExecuteDirectly === false
     && summary.callsRealCodexCliDirectly === false
-    && summary.authorizesWorkspaceWrite === false
+    && summary.controlledWorkspaceWriteDispatchAllowed === true
+    && summary.authorizesGeneralWorkspaceWrite === false
+    && summary.workspaceWriteProviderExecuteAllowed === false
     && summary.authorizesHostExecutor === false
     && summary.authorizesSubAgentRuntime === false
     && summary.defaultDryRunPreserved === true
@@ -8713,7 +8726,9 @@ function auditItselfIsNonExecuting(
     && controlledProviderDispatcher.externalWriteCallsDuringAudit === 0
     && controlledProviderDispatcher.callsProviderExecuteDirectly === false
     && controlledProviderDispatcher.callsRealCodexCliDirectly === false
-    && controlledProviderDispatcher.authorizesWorkspaceWrite === false
+    && controlledProviderDispatcher.controlledWorkspaceWriteDispatchAllowed === true
+    && controlledProviderDispatcher.authorizesGeneralWorkspaceWrite === false
+    && controlledProviderDispatcher.workspaceWriteProviderExecuteAllowed === false
     && controlledProviderDispatcher.authorizesHostExecutor === false
     && controlledProviderDispatcher.authorizesSubAgentRuntime === false
     && providerRunner.providerRunnerCallsDuringAudit === 0
@@ -9140,11 +9155,13 @@ function executionAuthorityLatticeConstrained(
     && dispatchPreflight.dispatchPreflightIsReleaseAuthorization === false
     && dispatchPreflight.runnerRemainsFinalProviderExecuteGate === true
     && dispatchPreflight.dryRunDefaultPreserved === true
-    && dispatcher.dispatcherMode === "controlled_readonly_pre_runner_dispatcher"
+    && dispatcher.dispatcherMode === "controlled_readonly_and_workspace_write_pre_runner_dispatcher"
     && dispatcher.callsRunnerBoundary === true
     && dispatcher.callsProviderExecuteDirectly === false
     && dispatcher.callsRealCodexCliDirectly === false
-    && dispatcher.authorizesWorkspaceWrite === false
+    && dispatcher.controlledWorkspaceWriteDispatchAllowed === true
+    && dispatcher.authorizesGeneralWorkspaceWrite === false
+    && dispatcher.workspaceWriteProviderExecuteAllowed === false
     && dispatcher.authorizesHostExecutor === false
     && dispatcher.authorizesSubAgentRuntime === false
     && dispatcher.defaultDryRunPreserved === true
@@ -9381,7 +9398,7 @@ function outputSanitized(): boolean {
       controlledProviderExecutionDispatchPreflightMode:
         "controlled_readonly_dispatch_preflight_matrix_only",
       controlledProviderExecutionDispatcherMode:
-        "controlled_readonly_pre_runner_dispatcher",
+        "controlled_readonly_and_workspace_write_pre_runner_dispatcher",
       providerExecutionRunnerMode: "controlled_readonly_and_workspace_write_gate",
       providerCorePrimitiveMode: "manifest_permit_plan_only",
       toolInvocationPlannerMode: "tool_manifest_and_invocation_plan_only",
@@ -9755,7 +9772,11 @@ function outputSanitized(): boolean {
       controlledProviderExecutionDispatchPreflightDryRunDefaultPreserved: true,
       controlledProviderExecutionDispatcherCallsProviderExecuteDirectly: false,
       controlledProviderExecutionDispatcherCallsRealCodexCliDirectly: false,
-      controlledProviderExecutionDispatcherAuthorizesWorkspaceWrite: false,
+      controlledProviderExecutionDispatcherControlledWorkspaceWriteDispatchAllowed:
+        true,
+      controlledProviderExecutionDispatcherAuthorizesGeneralWorkspaceWrite: false,
+      controlledProviderExecutionDispatcherWorkspaceWriteProviderExecuteAllowed:
+        false,
       controlledProviderExecutionDispatcherAuthorizesHostExecutor: false,
       controlledProviderExecutionDispatcherAuthorizesSubAgentRuntime: false,
       controlledProviderExecutionDispatcherCallsRunnerBoundary: true,

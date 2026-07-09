@@ -740,7 +740,7 @@ test("execution boundary current surface audit passes for current evidence", asy
   );
   assert.equal(
     review.summary.controlledProviderExecutionDispatcherMode,
-    "controlled_readonly_pre_runner_dispatcher"
+    "controlled_readonly_and_workspace_write_pre_runner_dispatcher"
   );
   assert.equal(
     review.summary.controlledProviderExecutionDispatchPreflightIsProviderExecuteAuthorization,
@@ -748,6 +748,18 @@ test("execution boundary current surface audit passes for current evidence", asy
   );
   assert.equal(
     review.summary.controlledProviderExecutionDispatcherCallsProviderExecuteDirectly,
+    false
+  );
+  assert.equal(
+    review.summary.controlledProviderExecutionDispatcherControlledWorkspaceWriteDispatchAllowed,
+    true
+  );
+  assert.equal(
+    review.summary.controlledProviderExecutionDispatcherAuthorizesGeneralWorkspaceWrite,
+    false
+  );
+  assert.equal(
+    review.summary.controlledProviderExecutionDispatcherWorkspaceWriteProviderExecuteAllowed,
     false
   );
   assert.equal(
