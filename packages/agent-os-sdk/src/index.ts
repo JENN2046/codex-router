@@ -4,6 +4,7 @@ import {
   type AgentOsMcpLocalRuntimeOptions,
   type AgentOsMcpLocalRuntimeResult,
   type AgentOsMcpLocalToolCall,
+  type AgentOsDispatchWorkspaceWritePrepareInput,
   type AgentOsMcpToolName
 } from "../../protocol-mcp/src/index.js";
 import type {
@@ -79,9 +80,15 @@ export type AgentOsSdkApproveRunInput = {
   reason: string;
 };
 
-export type AgentOsSdkDispatchWorkspaceWriteInput = {
-  dispatchInput: ControlledWorkspaceWriteHostProviderDispatchInput;
-};
+export type AgentOsSdkDispatchWorkspaceWriteInput =
+  | {
+      dispatchInput: ControlledWorkspaceWriteHostProviderDispatchInput;
+      prepare?: never;
+    }
+  | {
+      prepare: AgentOsDispatchWorkspaceWritePrepareInput;
+      dispatchInput?: never;
+    };
 
 export type AgentOsSdkListArtifactsInput = {
   taskId?: string;

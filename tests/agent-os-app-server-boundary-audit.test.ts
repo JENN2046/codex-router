@@ -44,6 +44,7 @@ test("Agent OS app-server boundary audit passes for current evidence", async () 
     review.summary.approvalPermitConsumptionIsProviderExecutionAuthorization,
     false
   );
+  assert.equal(review.summary.controlledWorkspaceWritePrepareAllowed, true);
   assert.equal(review.summary.controlledWorkspaceWriteDispatchAllowed, true);
   assert.equal(review.summary.generalWorkspaceWriteExecutionAllowed, false);
   assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
@@ -150,6 +151,8 @@ test("Agent OS app-server boundary audit formats sanitized text and json", async
 
   assert.match(text, /Agent OS app-server boundary audit/);
   assert.match(text, /route is live network server: false/);
+  assert.match(text, /controlled workspace-write prepare allowed: true/);
+  assert.match(text, /controlled workspace-write dispatch allowed: true/);
   assert.match(text, /live HTTP server starts during audit: 0/);
   assert.equal(JSON.parse(json).status, "passed");
   for (const marker of forbiddenOutputMarkers) {

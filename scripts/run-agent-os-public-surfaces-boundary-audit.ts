@@ -25,6 +25,7 @@ const REQUIRED_SOURCE_MARKERS = [
   "runtime.handleToolCallAsync(call)",
   "dispatchWorkspaceWrite",
   "dispatch-workspace-write",
+  "--prepare-json",
   "/agent-os/workspace-write/dispatch",
   "agentos.dispatch_workspace_write",
   "sanitizeAgentOsCliArgv",
@@ -42,12 +43,15 @@ const REQUIRED_TEST_MARKERS = [
   "Agent OS SDK blocks mutating task creation by default",
   "Agent OS SDK creates a local run and provider plan without real execution",
   "Agent OS SDK delegates controlled workspace-write dispatch through async wrapper",
+  "Agent OS SDK prepares workspace-write dispatch through typed input",
   "Agent OS CLI parser maps create-task argv to a governed tool call",
   "Agent OS CLI wrapper creates a local run and provider plan without spawning CLI",
   "Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchronously",
+  "Agent OS CLI wrapper prepares controlled workspace-write dispatch asynchronously",
   "Agent OS CLI wrapper blocks local mutation by default",
   "Agent OS App Server router maps HTTP-like routes to governed tool calls",
   "Agent OS App Server wrapper delegates controlled workspace-write dispatch asynchronously without network",
+  "Agent OS App Server wrapper prepares controlled workspace-write dispatch asynchronously without network",
   "Agent OS App Server wrapper ignores client-supplied gate fields",
   "Agent OS App Server wrapper blocks mutating requests by default"
 ] as const;
@@ -122,6 +126,7 @@ export interface AgentOsPublicSurfacesBoundaryAuditResult {
     appServerRouteIsNetworkServer: false;
     appServerStatusCodeIsExecutionReceipt: false;
     approvalPermitIssueIsProviderExecutionAuthorization: false;
+    controlledWorkspaceWritePrepareAllowed: true;
     controlledWorkspaceWriteDispatchAllowed: true;
     generalWorkspaceWriteExecutionAllowed: false;
     workspaceWriteProviderExecuteAllowed: false;
@@ -229,6 +234,7 @@ export function reviewAgentOsPublicSurfacesBoundaryAudit(
       appServerRouteIsNetworkServer: false,
       appServerStatusCodeIsExecutionReceipt: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWritePrepareAllowed: true,
       controlledWorkspaceWriteDispatchAllowed: true,
       generalWorkspaceWriteExecutionAllowed: false,
       workspaceWriteProviderExecuteAllowed: false,
@@ -270,6 +276,7 @@ export function formatAgentOsPublicSurfacesBoundaryAuditResult(
     `app server route is network server: ${review.summary.appServerRouteIsNetworkServer}`,
     `app server status code is execution receipt: ${review.summary.appServerStatusCodeIsExecutionReceipt}`,
     `approval permit issue is provider execution authorization: ${review.summary.approvalPermitIssueIsProviderExecutionAuthorization}`,
+    `controlled workspace-write prepare allowed: ${review.summary.controlledWorkspaceWritePrepareAllowed}`,
     `controlled workspace-write dispatch allowed: ${review.summary.controlledWorkspaceWriteDispatchAllowed}`,
     `general workspace-write execution allowed: ${review.summary.generalWorkspaceWriteExecutionAllowed}`,
     `workspace-write provider.execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
@@ -336,6 +343,7 @@ function outputSanitized(input: AgentOsPublicSurfacesBoundaryAuditInput): boolea
       appServerRouteIsNetworkServer: false,
       appServerStatusCodeIsExecutionReceipt: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWritePrepareAllowed: true,
       controlledWorkspaceWriteDispatchAllowed: true,
       generalWorkspaceWriteExecutionAllowed: false,
       workspaceWriteProviderExecuteAllowed: false,

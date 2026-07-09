@@ -34,6 +34,7 @@ test("Agent OS SDK boundary audit passes for current evidence", async () => {
   assert.equal(review.summary.sdkAllowLocalMutationIsWorkspaceWriteExecution, false);
   assert.equal(review.summary.preferredProviderIsCodexCliInvocation, false);
   assert.equal(review.summary.localRuntimeCallIsProviderExecutionAuthorization, false);
+  assert.equal(review.summary.controlledWorkspaceWritePrepareAllowed, true);
   assert.equal(review.summary.controlledWorkspaceWriteDispatchAllowed, true);
   assert.equal(review.summary.generalWorkspaceWriteExecutionAllowed, false);
   assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
@@ -137,6 +138,7 @@ test("Agent OS SDK boundary audit formats sanitized text and json", async () => 
 
   assert.match(text, /Agent OS SDK boundary audit/);
   assert.match(text, /preferred provider is Codex CLI invocation: false/);
+  assert.match(text, /controlled workspace-write prepare allowed: true/);
   assert.match(text, /controlled workspace-write dispatch allowed: true/);
   assert.match(text, /general workspace-write execution allowed: false/);
   assert.match(text, /workspace-write provider execute allowed: false/);

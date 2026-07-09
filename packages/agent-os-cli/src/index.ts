@@ -412,6 +412,7 @@ function parseDispatchWorkspaceWriteOptions(
 ): Record<string, unknown> {
   const input: {
     dispatchInput?: Record<string, unknown>;
+    prepare?: Record<string, unknown>;
   } = {};
 
   while (cursor.index < cursor.args.length) {
@@ -423,18 +424,21 @@ function parseDispatchWorkspaceWriteOptions(
       case "--dispatch-input-json":
         input.dispatchInput = parseJsonObjectOption(nextArg(cursor, arg), arg);
         break;
+      case "--prepare-json":
+        input.prepare = parseJsonObjectOption(nextArg(cursor, arg), arg);
+        break;
       default:
         throw new Error(`agent_os_cli_unknown_option:${arg}`);
     }
   }
 
-  if (input.dispatchInput === undefined) {
-    throw new Error("agent_os_cli_missing_required_option:--dispatch-input-json");
+  if ((input.dispatchInput === undefined) === (input.prepare === undefined)) {
+    throw new Error("agent_os_cli_requires_exactly_one_workspace_write_input");
   }
 
-  return {
-    dispatchInput: input.dispatchInput
-  };
+  return input.dispatchInput !== undefined
+    ? { dispatchInput: input.dispatchInput }
+    : { prepare: input.prepare };
 }
 
 function parseListArtifactsOptions(
@@ -650,7 +654,8 @@ function redactInlineSecretLikeArg(arg: string): string | undefined {
 function shouldRedactNextArg(arg: string): boolean {
   return isSecretLikeFlag(arg)
     || arg === "--metadata-json"
-    || arg === "--dispatch-input-json";
+    || arg === "--dispatch-input-json"
+    || arg === "--prepare-json";
 }
 
 function isSecretLikeFlag(arg: string): boolean {

@@ -19,6 +19,7 @@ const REQUIRED_SOURCE_MARKERS = [
   "createTask(",
   "approveRun(",
   "dispatchWorkspaceWrite(",
+  "AgentOsDispatchWorkspaceWritePrepareInput",
   "callTool(",
   "this.runtime.handleToolCall(call)",
   "this.runtime.handleToolCallAsync(call)",
@@ -34,6 +35,7 @@ const REQUIRED_TEST_MARKERS = [
   "Agent OS SDK blocks mutating task creation by default",
   "Agent OS SDK creates a local run and provider plan without real execution",
   "Agent OS SDK delegates controlled workspace-write dispatch through async wrapper",
+  "Agent OS SDK prepares workspace-write dispatch through typed input",
   "Agent OS SDK issues an approval permit through the shared local runtime",
   "Agent OS SDK consumes approval permits through the shared local runtime",
   "Agent OS SDK preserves rejected permit audit during approval consumption",
@@ -107,6 +109,7 @@ export interface AgentOsSdkBoundaryAuditResult {
     sdkAllowLocalMutationIsWorkspaceWriteExecution: false;
     preferredProviderIsCodexCliInvocation: false;
     localRuntimeCallIsProviderExecutionAuthorization: false;
+    controlledWorkspaceWritePrepareAllowed: true;
     controlledWorkspaceWriteDispatchAllowed: true;
     generalWorkspaceWriteExecutionAllowed: false;
     workspaceWriteProviderExecuteAllowed: false;
@@ -193,6 +196,7 @@ export function reviewAgentOsSdkBoundaryAudit(
       sdkAllowLocalMutationIsWorkspaceWriteExecution: false,
       preferredProviderIsCodexCliInvocation: false,
       localRuntimeCallIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWritePrepareAllowed: true,
       controlledWorkspaceWriteDispatchAllowed: true,
       generalWorkspaceWriteExecutionAllowed: false,
       workspaceWriteProviderExecuteAllowed: false,
@@ -234,6 +238,7 @@ export function formatAgentOsSdkBoundaryAuditResult(
     `SDK allow-local-mutation is workspace-write execution: ${review.summary.sdkAllowLocalMutationIsWorkspaceWriteExecution}`,
     `preferred provider is Codex CLI invocation: ${review.summary.preferredProviderIsCodexCliInvocation}`,
     `local runtime call is provider execution authorization: ${review.summary.localRuntimeCallIsProviderExecutionAuthorization}`,
+    `controlled workspace-write prepare allowed: ${review.summary.controlledWorkspaceWritePrepareAllowed}`,
     `controlled workspace-write dispatch allowed: ${review.summary.controlledWorkspaceWriteDispatchAllowed}`,
     `general workspace-write execution allowed: ${review.summary.generalWorkspaceWriteExecutionAllowed}`,
     `workspace-write provider execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
@@ -298,6 +303,7 @@ function outputSanitized(input: AgentOsSdkBoundaryAuditInput): boolean {
       sdkAllowLocalMutationIsWorkspaceWriteExecution: false,
       preferredProviderIsCodexCliInvocation: false,
       localRuntimeCallIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWritePrepareAllowed: true,
       controlledWorkspaceWriteDispatchAllowed: true,
       generalWorkspaceWriteExecutionAllowed: false,
       workspaceWriteProviderExecuteAllowed: false,

@@ -39,6 +39,7 @@ test("Agent OS CLI boundary audit passes for current evidence", async () => {
     review.summary.approvalPermitConsumptionIsProviderExecutionAuthorization,
     false
   );
+  assert.equal(review.summary.controlledWorkspaceWritePrepareAllowed, true);
   assert.equal(review.summary.controlledWorkspaceWriteDispatchAllowed, true);
   assert.equal(review.summary.generalWorkspaceWriteExecutionAllowed, false);
   assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
@@ -136,6 +137,7 @@ test("Agent OS CLI boundary audit formats sanitized text and json", async () => 
 
   assert.match(text, /Agent OS CLI boundary audit/);
   assert.match(text, /preferred provider is Codex CLI invocation: false/);
+  assert.match(text, /controlled workspace-write prepare allowed: true/);
   assert.match(text, /controlled workspace-write dispatch allowed: true/);
   assert.match(text, /Codex CLI calls during audit: 0/);
   assert.equal(JSON.parse(json).status, "passed");

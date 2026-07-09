@@ -24,6 +24,7 @@ const REQUIRED_SOURCE_MARKERS = [
   "dispatch-workspace-write",
   "agentos.dispatch_workspace_write",
   "--dispatch-input-json",
+  "--prepare-json",
   "call.grantedCapabilities = parsed.grantedCapabilities",
   "call.approvedMutatingTools = parsed.approvedMutatingTools",
   "call.allowLocalMutations = parsed.allowLocalMutations",
@@ -42,9 +43,11 @@ const REQUIRED_TEST_MARKERS = [
   "Agent OS CLI parser maps create-task argv to a governed tool call",
   "Agent OS CLI parser maps approve-run argv to a governed tool call",
   "Agent OS CLI parser maps workspace-write dispatch argv to a governed tool call",
+  "Agent OS CLI parser maps workspace-write prepare argv to a governed tool call",
   "Agent OS CLI wrapper blocks local mutation by default",
   "Agent OS CLI wrapper creates a local run and provider plan without spawning CLI",
   "Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchronously",
+  "Agent OS CLI wrapper prepares controlled workspace-write dispatch asynchronously",
   "Agent OS CLI wrapper issues an approval permit without spawning CLI",
   "Agent OS CLI wrapper consumes approval permits without spawning CLI",
   "Agent OS CLI wrapper preserves rejected permit audit without spawning CLI",
@@ -119,6 +122,7 @@ export interface AgentOsCliBoundaryAuditResult {
     localRuntimeCallIsProviderExecutionAuthorization: false;
     approvalPermitIssueIsProviderExecutionAuthorization: false;
     approvalPermitConsumptionIsProviderExecutionAuthorization: false;
+    controlledWorkspaceWritePrepareAllowed: true;
     controlledWorkspaceWriteDispatchAllowed: true;
     generalWorkspaceWriteExecutionAllowed: false;
     workspaceWriteProviderExecuteAllowed: false;
@@ -205,6 +209,7 @@ export function reviewAgentOsCliBoundaryAudit(
       localRuntimeCallIsProviderExecutionAuthorization: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
       approvalPermitConsumptionIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWritePrepareAllowed: true,
       controlledWorkspaceWriteDispatchAllowed: true,
       generalWorkspaceWriteExecutionAllowed: false,
       workspaceWriteProviderExecuteAllowed: false,
@@ -246,6 +251,7 @@ export function formatAgentOsCliBoundaryAuditResult(
     `local runtime call is provider execution authorization: ${review.summary.localRuntimeCallIsProviderExecutionAuthorization}`,
     `approval permit issue is provider execution authorization: ${review.summary.approvalPermitIssueIsProviderExecutionAuthorization}`,
     `approval permit consumption is provider execution authorization: ${review.summary.approvalPermitConsumptionIsProviderExecutionAuthorization}`,
+    `controlled workspace-write prepare allowed: ${review.summary.controlledWorkspaceWritePrepareAllowed}`,
     `controlled workspace-write dispatch allowed: ${review.summary.controlledWorkspaceWriteDispatchAllowed}`,
     `general workspace-write execution allowed: ${review.summary.generalWorkspaceWriteExecutionAllowed}`,
     `workspace-write provider.execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
@@ -311,6 +317,7 @@ function outputSanitized(input: AgentOsCliBoundaryAuditInput): boolean {
       localRuntimeCallIsProviderExecutionAuthorization: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
       approvalPermitConsumptionIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWritePrepareAllowed: true,
       controlledWorkspaceWriteDispatchAllowed: true,
       generalWorkspaceWriteExecutionAllowed: false,
       workspaceWriteProviderExecuteAllowed: false,

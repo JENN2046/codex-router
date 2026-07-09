@@ -336,7 +336,8 @@ exposed through
 it consumes the dispatch preflight schema, provider registry selection, permit,
 executor plan, environment preflight artifact binding, and governance stop
 checks before handing off to the provider execution runner boundary. It
-supports controlled read-only dispatch and controlled workspace-write dispatch
+supports controlled read-only dispatch and controlled workspace-write
+prepare / dispatch
 to the local runner, but does not call `provider.execute` directly for
 workspace-write, does not spawn Codex CLI, and does not authorize general
 workspace-write.
