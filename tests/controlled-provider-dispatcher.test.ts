@@ -192,6 +192,55 @@ test("controlled provider dispatcher binds stored preflight artifact metadata be
   assert.equal(fixture.provider.calls.execute, 0);
 });
 
+test("controlled provider dispatcher validates stored preflight artifact payload hash before runner", async () => {
+  const fixture = createFixture();
+  const artifactStore = await createArtifactStoreWithPreflight(fixture);
+  const artifact = (await artifactStore.listArtifacts({
+    taskId: fixture.task.taskId,
+    runId: fixture.run.runId,
+    type: "json"
+  }))[0];
+  if (artifact === undefined) {
+    throw new Error("preflight_artifact_fixture_missing");
+  }
+  await artifactStore.putArtifact({
+    artifactId: artifact.artifactId,
+    taskId: fixture.task.taskId,
+    runId: fixture.run.runId,
+    type: "json",
+    payload: {
+      schemaVersion: "controlled-provider-execution-dispatch-preflight-artifact.v1",
+      note: "copied metadata with arbitrary payload"
+    },
+    metadata: {
+      controlledReadOnlyDispatchPreflight:
+        artifact.metadata.controlledReadOnlyDispatchPreflight
+    },
+    allowOverwrite: true,
+    alreadyRedacted: true
+  });
+  const verification = await artifactStore.verifyArtifact(artifact.artifactId);
+  assert.equal(verification.ok, true);
+
+  const result = await dispatchControlledReadOnlyProviderExecution({
+    ...fixture,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore,
+    now: createClock()
+  });
+
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.ok(
+    result.reasons.includes(
+      "controlled_readonly_dispatch_preflight_artifact_payload_hash_mismatch"
+    )
+  );
+  assert.equal(fixture.provider.calls.validateExecutionPlan, 0);
+  assert.equal(fixture.provider.calls.execute, 0);
+});
+
 test("controlled provider dispatcher binds stored preflight artifact authorization context before runner", async () => {
   const fixture = createFixture();
   const artifactStore = await createArtifactStoreWithPreflight(fixture);

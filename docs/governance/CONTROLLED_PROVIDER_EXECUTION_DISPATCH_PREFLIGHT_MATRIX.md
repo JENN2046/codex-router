@@ -35,6 +35,8 @@ host process, does not write evidence, and does not refresh acceptance files.
 - environment preflight artifact is present in the artifact store
 - environment preflight artifact payload verification passes in the artifact
   store
+- environment preflight artifact stored payload hash matches the expected
+  sanitized dispatch preflight artifact payload
 - environment preflight artifact metadata binds the expected artifact ref,
   artifact hash, provider execution plan hash, task id, and run id
 - environment preflight artifact metadata binds the expected executor plan hash,
@@ -66,6 +68,8 @@ conditions are true:
 - environment preflight artifact is missing from the artifact store
 - environment preflight artifact payload verification fails in the artifact
   store
+- environment preflight artifact stored payload hash differs from the expected
+  sanitized dispatch preflight artifact payload
 - environment preflight artifact metadata is missing, stale, or bound to a
   different artifact ref, artifact hash, provider execution plan hash, task id,
   or run id
@@ -91,7 +95,7 @@ conditions are true:
 | sandbox mismatch | sandbox differs from `read-only` | stop before runner |
 | approval mismatch | approval policy differs from `never` | stop before runner |
 | permit invalid | permit missing, stale, mismatched, revoked, expired, or replayed | stop before runner |
-| preflight invalid | preflight artifact ref/hash missing or mismatched, artifact-store verification fails, or stored artifact metadata is not bound to the exact plan/executor/policy/manifest/task/run | stop before runner |
+| preflight invalid | preflight artifact ref/hash missing or mismatched, artifact-store verification fails, stored artifact payload hash differs from the expected payload, or stored artifact metadata is not bound to the exact plan/executor/policy/manifest/task/run | stop before runner |
 | governance stop | strategy is `step_back` or `simulate`, or phase is `recovery` | stop before runner |
 | broad scope | workspace-write, shell/process, protected remote, external write, release, deployment, or secret change appears | stop before runner |
 

@@ -7,6 +7,9 @@ import {
   ProviderExecutionPlanSchema,
   type ProviderExecutionPlan
 } from "../../execution-planner/src/index.js";
+import {
+  hashArtifactPayload
+} from "../../artifact-store/src/index.js";
 import type {
   ArtifactStore,
   StoredArtifact
@@ -256,6 +259,10 @@ export async function recordControlledReadOnlyProviderDispatchPreflightArtifact(
     task,
     run
   });
+  const payload = createDispatchPreflightArtifactPayload({
+    dispatchPreflight,
+    binding
+  });
   const artifactId = dispatchPreflightArtifactId({
     artifactRef: dispatchPreflight.environmentPreflight.artifactRef,
     taskId: task.taskId,
@@ -268,13 +275,7 @@ export async function recordControlledReadOnlyProviderDispatchPreflightArtifact(
     taskId: task.taskId,
     runId: run.runId,
     type: "json",
-    payload: {
-      schemaVersion: "controlled-provider-execution-dispatch-preflight-artifact.v1",
-      binding,
-      checks: dispatchPreflight.environmentPreflight.checks,
-      blockingReasonCount:
-        dispatchPreflight.environmentPreflight.blockingReasons.length
-    },
+    payload,
     metadata: {
       controlledReadOnlyDispatchPreflight: binding
     },
@@ -883,6 +884,19 @@ function createDispatchPreflightArtifactBinding(input: {
   };
 }
 
+function createDispatchPreflightArtifactPayload(input: {
+  dispatchPreflight: ControlledReadOnlyProviderDispatchPreflight;
+  binding: Record<string, string>;
+}): Record<string, unknown> {
+  return {
+    schemaVersion: "controlled-provider-execution-dispatch-preflight-artifact.v1",
+    binding: input.binding,
+    checks: input.dispatchPreflight.environmentPreflight.checks,
+    blockingReasonCount:
+      input.dispatchPreflight.environmentPreflight.blockingReasons.length
+  };
+}
+
 function readDispatchPreflightArtifactBinding(
   artifact: StoredArtifact
 ): Record<string, string> | undefined {
@@ -1029,6 +1043,14 @@ async function collectDispatchPreflightArtifactStoreReasons(input: {
   }
   if (binding.runId !== expectedBinding.runId) {
     reasons.push("controlled_readonly_dispatch_preflight_artifact_run_binding_mismatch");
+  }
+  const expectedPayload = createDispatchPreflightArtifactPayload({
+    dispatchPreflight,
+    binding: expectedBinding
+  });
+  const expectedPayloadHash = hashArtifactPayload(expectedPayload, "json");
+  if (artifact.sha256 !== expectedPayloadHash) {
+    reasons.push("controlled_readonly_dispatch_preflight_artifact_payload_hash_mismatch");
   }
 
   return uniqueStrings(reasons);
