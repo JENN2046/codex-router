@@ -69,6 +69,17 @@ and delete file operations for declared repository-relative targets. It is not
 default workspace-write authorization, not Codex CLI execution authorization,
 not provider `execute` authorization, and not external-write authorization.
 
+Current local acceptance:
+
+```bash
+npm run governance -- acceptance controlled-generic-workspace-write -- --check
+```
+
+The acceptance uses a temporary local git repository to preflight, execute, roll
+back, and replay-block explicit create/update/delete operations. It does not
+write the current repository, call provider `execute`, spawn Codex CLI, or
+perform external writes.
+
 ## Required Review Questions
 
 | Question | Required answer |

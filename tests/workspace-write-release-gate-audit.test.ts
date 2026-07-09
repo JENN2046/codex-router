@@ -29,6 +29,7 @@ test("workspace-write release gate audit passes for current evidence", async () 
     permitV2Recorded: true,
     fakeCanaryV2Recorded: true,
     controlledGenericLocalWorkspaceWriteRecorded: true,
+    controlledGenericWorkspaceWriteAcceptanceRegistered: true,
     evidencePolicySanitized: true,
     threatModelStopsRecorded: true,
     implementationCoverageRecorded: true,
@@ -43,6 +44,10 @@ test("workspace-write release gate audit passes for current evidence", async () 
   assert.equal(
     review.summary.controlledGenericLocalWorkspaceWriteStatus,
     "guarded_explicit_permit_local_runner_with_rollback"
+  );
+  assert.equal(
+    review.summary.controlledGenericWorkspaceWriteAcceptanceStatus,
+    "current_local_temp_repo_execute_and_rollback"
   );
   assert.equal(review.summary.realWorkspaceWriteDefault, "blocked");
   assert.equal(review.summary.generalWorkspaceWriteDefault, "blocked");
@@ -187,6 +192,48 @@ test("workspace-write release gate audit blocks generic local workspace-write dr
   );
 });
 
+test("workspace-write release gate audit blocks missing controlled generic acceptance", async () => {
+  const input = await collectWorkspaceWriteReleaseGateAuditInput();
+  const review = reviewWorkspaceWriteReleaseGateAudit({
+    ...input,
+    governanceRunnerText: input.governanceRunnerText.replaceAll(
+      "controlled-generic-workspace-write",
+      "controlled-generic-workspace-write-missing"
+    ),
+    controlledGenericWorkspaceWriteAcceptanceTestText:
+      input.controlledGenericWorkspaceWriteAcceptanceTestText.replaceAll(
+        "controlled generic workspace-write acceptance covers local runner execution",
+        "controlled generic workspace-write acceptance skips local runner execution"
+      )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(
+    review.reasons.includes(
+      "workspace_write_release_gate_controlledGenericWorkspaceWriteAcceptanceRegistered"
+    )
+  );
+});
+
+test("workspace-write release gate audit blocks stale controlled generic evidence", async () => {
+  const input = await collectWorkspaceWriteReleaseGateAuditInput();
+  const review = reviewWorkspaceWriteReleaseGateAudit({
+    ...input,
+    controlledGenericWorkspaceWriteAcceptanceEvidenceText:
+      input.controlledGenericWorkspaceWriteAcceptanceEvidenceText.replace(
+        "\"executionWorkspaceWriteExecuteCalls\": 1",
+        "\"executionWorkspaceWriteExecuteCalls\": 0"
+      )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(
+    review.reasons.includes(
+      "workspace_write_release_gate_controlledGenericWorkspaceWriteAcceptanceRegistered"
+    )
+  );
+});
+
 test("workspace-write release gate audit blocks evidence policy drift", async () => {
   const input = await collectWorkspaceWriteReleaseGateAuditInput();
   const review = reviewWorkspaceWriteReleaseGateAudit({
@@ -250,6 +297,10 @@ test("workspace-write release gate audit output stays summarized", async () => {
   assert.match(
     text,
     /controlled generic local workspace-write status: guarded_explicit_permit_local_runner_with_rollback/
+  );
+  assert.match(
+    text,
+    /controlled generic workspace-write acceptance status: current_local_temp_repo_execute_and_rollback/
   );
   assert.match(text, /real workspace-write default: blocked/);
   assert.match(text, /release gate is workspace-write authorization: false/);

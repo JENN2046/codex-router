@@ -64,6 +64,8 @@ Source digest excluded paths:
   `npm run governance -- audit execution-boundary-current-surface`
 - Workspace-write release gate:
   `npm run governance -- audit workspace-write-release-gate`
+- Controlled generic workspace-write acceptance:
+  `npm run governance -- acceptance controlled-generic-workspace-write -- --check`
 - Workspace-write real canary authorization design:
   `npm run governance -- audit workspace-write-real-canary-authorization-design`
 - Source/release package boundary:
@@ -239,6 +241,11 @@ Current repository governance status:
   guarded behind permit v2, exact operation target allowlist, local runner,
   sanitized evidence, and rollback verification, while keeping real
   workspace-write and general / unbounded workspace-write blocked by default.
+- Controlled generic workspace-write acceptance is now machine-checkable with
+  `npm run governance -- acceptance controlled-generic-workspace-write -- --check`;
+  it executes and rolls back create/update/delete operations only inside a
+  temporary local git repository and proves replay blocking, sanitized evidence,
+  zero provider `execute`, zero real Codex CLI, and zero external writes.
 - Workspace-write real canary authorization packet design is now
   machine-checkable with
   `npm run governance -- audit workspace-write-real-canary-authorization-design`;

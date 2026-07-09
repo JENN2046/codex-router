@@ -24,12 +24,18 @@ const WORKSPACE_WRITE_GUARD =
   "packages/governance-internal-workspace-write-guard/src/index.ts";
 const WORKSPACE_WRITE_EXECUTOR =
   "packages/governance-internal-workspace-write-executor/src/index.ts";
+const CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE =
+  "scripts/run-controlled-generic-workspace-write-acceptance.ts";
+const CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE_EVIDENCE =
+  "docs/evidence/controlled-generic-workspace-write-acceptance.json";
 const FAKE_CANARY_ACCEPTANCE =
   "scripts/run-workspace-write-fake-canary-acceptance.ts";
 const PROVIDER_CORE_TEST = "tests/provider-core.test.ts";
 const WORKSPACE_WRITE_GUARD_TEST = "tests/workspace-write-guard.test.ts";
 const WORKSPACE_WRITE_EXECUTOR_TEST = "tests/workspace-write-executor.test.ts";
 const PROVIDER_EXECUTION_RUNNER_TEST = "tests/provider-execution-runner.test.ts";
+const CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE_TEST =
+  "tests/controlled-generic-workspace-write-acceptance.test.ts";
 const FAKE_CANARY_TEST = "tests/workspace-write-fake-canary-acceptance.test.ts";
 
 const REQUIRED_WORKSPACE_GATE_MARKERS = [
@@ -72,6 +78,48 @@ const REQUIRED_GENERIC_LOCAL_WORKSPACE_WRITE_TEST_MARKERS = [
   "workspace-write executor consumes permit once and blocks replay",
   "provider execution runner executes controlled workspace-write operations through local executor only",
   "providerExecuteInvoked, false"
+] as const;
+
+const REQUIRED_CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE_MARKERS = [
+  "controlled-generic-workspace-write-acceptance.v1",
+  "controlled-generic-workspace-write-local-runner",
+  "preflightReadyWithoutMutation",
+  "createUpdateDeleteCovered",
+  "permitConsumedOnce",
+  "replayBlocked",
+  "rollbackVerified",
+  "noProviderExecute",
+  "noRealCodexCli",
+  "noExternalWrite",
+  "--check"
+] as const;
+
+const REQUIRED_CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE_TEST_MARKERS = [
+  "controlled generic workspace-write acceptance covers local runner execution",
+  "controlled generic workspace-write acceptance check mode does not write evidence",
+  "controlled generic workspace-write acceptance writer persists safe json",
+  "createUpdateDeleteCovered",
+  "replayBlocked",
+  "rollbackVerified"
+] as const;
+
+const REQUIRED_CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE_EVIDENCE_MARKERS = [
+  "\"schemaVersion\": \"controlled-generic-workspace-write-acceptance.v1\"",
+  "\"mode\": \"controlled-generic-workspace-write-local-runner\"",
+  "\"preflightReadyWithoutMutation\": true",
+  "\"executeSucceeded\": true",
+  "\"createUpdateDeleteCovered\": true",
+  "\"permitConsumedOnce\": true",
+  "\"replayBlocked\": true",
+  "\"rollbackVerified\": true",
+  "\"noProviderExecute\": true",
+  "\"noRealCodexCli\": true",
+  "\"noExternalWrite\": true",
+  "\"evidenceSanitized\": true",
+  "\"executionWorkspaceWriteExecuteCalls\": 1",
+  "\"providerExecuteCalls\": 0",
+  "\"realCodexCliCalls\": 0",
+  "\"externalWriteCalls\": 0"
 ] as const;
 
 const REQUIRED_PERMIT_V2_MARKERS = [
@@ -218,11 +266,14 @@ export interface WorkspaceWriteReleaseGateAuditInput {
   providerCoreText: string;
   workspaceWriteGuardText: string;
   workspaceWriteExecutorText: string;
+  controlledGenericWorkspaceWriteAcceptanceText: string;
+  controlledGenericWorkspaceWriteAcceptanceEvidenceText: string;
   fakeCanaryAcceptanceText: string;
   providerCoreTestText: string;
   workspaceWriteGuardTestText: string;
   workspaceWriteExecutorTestText: string;
   providerExecutionRunnerTestText: string;
+  controlledGenericWorkspaceWriteAcceptanceTestText: string;
   fakeCanaryTestText: string;
 }
 
@@ -238,6 +289,7 @@ export interface WorkspaceWriteReleaseGateAuditResult {
     permitV2Recorded: boolean;
     fakeCanaryV2Recorded: boolean;
     controlledGenericLocalWorkspaceWriteRecorded: boolean;
+    controlledGenericWorkspaceWriteAcceptanceRegistered: boolean;
     evidencePolicySanitized: boolean;
     threatModelStopsRecorded: boolean;
     implementationCoverageRecorded: boolean;
@@ -250,6 +302,7 @@ export interface WorkspaceWriteReleaseGateAuditResult {
     permitV2Status: "schema_validation_consumption_only";
     fakeCanaryStatus: "guarded_non_executing_validation_only";
     controlledGenericLocalWorkspaceWriteStatus: "guarded_explicit_permit_local_runner_with_rollback";
+    controlledGenericWorkspaceWriteAcceptanceStatus: "current_local_temp_repo_execute_and_rollback";
     realWorkspaceWriteDefault: "blocked";
     generalWorkspaceWriteDefault: "blocked";
     workspaceWriteReleaseGateIsWorkspaceWriteAuthorization: false;
@@ -294,11 +347,14 @@ export async function collectWorkspaceWriteReleaseGateAuditInput(
     providerCoreText,
     workspaceWriteGuardText,
     workspaceWriteExecutorText,
+    controlledGenericWorkspaceWriteAcceptanceText,
+    controlledGenericWorkspaceWriteAcceptanceEvidenceText,
     fakeCanaryAcceptanceText,
     providerCoreTestText,
     workspaceWriteGuardTestText,
     workspaceWriteExecutorTestText,
     providerExecutionRunnerTestText,
+    controlledGenericWorkspaceWriteAcceptanceTestText,
     fakeCanaryTestText
   ] = await Promise.all([
     read(cwd, PACKAGE_JSON),
@@ -316,11 +372,14 @@ export async function collectWorkspaceWriteReleaseGateAuditInput(
     read(cwd, PROVIDER_CORE),
     read(cwd, WORKSPACE_WRITE_GUARD),
     read(cwd, WORKSPACE_WRITE_EXECUTOR),
+    read(cwd, CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE),
+    read(cwd, CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE_EVIDENCE),
     read(cwd, FAKE_CANARY_ACCEPTANCE),
     read(cwd, PROVIDER_CORE_TEST),
     read(cwd, WORKSPACE_WRITE_GUARD_TEST),
     read(cwd, WORKSPACE_WRITE_EXECUTOR_TEST),
     read(cwd, PROVIDER_EXECUTION_RUNNER_TEST),
+    read(cwd, CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE_TEST),
     read(cwd, FAKE_CANARY_TEST)
   ]);
 
@@ -340,11 +399,14 @@ export async function collectWorkspaceWriteReleaseGateAuditInput(
     providerCoreText,
     workspaceWriteGuardText,
     workspaceWriteExecutorText,
+    controlledGenericWorkspaceWriteAcceptanceText,
+    controlledGenericWorkspaceWriteAcceptanceEvidenceText,
     fakeCanaryAcceptanceText,
     providerCoreTestText,
     workspaceWriteGuardTestText,
     workspaceWriteExecutorTestText,
     providerExecutionRunnerTestText,
+    controlledGenericWorkspaceWriteAcceptanceTestText,
     fakeCanaryTestText
   };
 }
@@ -428,6 +490,22 @@ export function reviewWorkspaceWriteReleaseGateAudit(
         ].join("\n"),
         REQUIRED_GENERIC_LOCAL_WORKSPACE_WRITE_TEST_MARKERS
       ),
+    controlledGenericWorkspaceWriteAcceptanceRegistered:
+      input.governanceRunnerText.includes(
+        "acceptanceCheck(\"controlled-generic-workspace-write\""
+      )
+      && markersPresent(
+        input.controlledGenericWorkspaceWriteAcceptanceText,
+        REQUIRED_CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE_MARKERS
+      )
+      && markersPresent(
+        input.controlledGenericWorkspaceWriteAcceptanceTestText,
+        REQUIRED_CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE_TEST_MARKERS
+      )
+      && markersPresent(
+        input.controlledGenericWorkspaceWriteAcceptanceEvidenceText,
+        REQUIRED_CONTROLLED_GENERIC_WORKSPACE_WRITE_ACCEPTANCE_EVIDENCE_MARKERS
+      ),
     evidencePolicySanitized:
       markersPresent(input.evidencePolicyText, REQUIRED_EVIDENCE_POLICY_MARKERS),
     threatModelStopsRecorded:
@@ -457,6 +535,7 @@ export function reviewWorkspaceWriteReleaseGateAudit(
       permitV2Status: "schema_validation_consumption_only",
       fakeCanaryStatus: "guarded_non_executing_validation_only",
       controlledGenericLocalWorkspaceWriteStatus: "guarded_explicit_permit_local_runner_with_rollback",
+      controlledGenericWorkspaceWriteAcceptanceStatus: "current_local_temp_repo_execute_and_rollback",
       realWorkspaceWriteDefault: "blocked",
       generalWorkspaceWriteDefault: "blocked",
       workspaceWriteReleaseGateIsWorkspaceWriteAuthorization: false,
@@ -496,6 +575,7 @@ export function formatWorkspaceWriteReleaseGateAuditResult(
     `permit v2 status: ${result.summary.permitV2Status}`,
     `fake canary status: ${result.summary.fakeCanaryStatus}`,
     `controlled generic local workspace-write status: ${result.summary.controlledGenericLocalWorkspaceWriteStatus}`,
+    `controlled generic workspace-write acceptance status: ${result.summary.controlledGenericWorkspaceWriteAcceptanceStatus}`,
     `real workspace-write default: ${result.summary.realWorkspaceWriteDefault}`,
     `general workspace-write default: ${result.summary.generalWorkspaceWriteDefault}`,
     `release validation includes fake canary: ${result.summary.releaseValidationIncludesFakeCanary}`,
