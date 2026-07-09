@@ -763,7 +763,7 @@ test("governance check runner resolves registered checks with passthrough args",
   );
 });
 
-test("governance check runner avoids Windows command shims for tsx", () => {
+test("governance check runner uses node import instead of Windows tsx shims", () => {
   withPlatform("win32", () => {
     const daily = getValidationTierPlan("daily", {
       targetedTests: ["tests/governance-check.test.ts"]
@@ -777,7 +777,8 @@ test("governance check runner avoids Windows command shims for tsx", () => {
     assert.equal(daily[0]?.command, expectedNpmCommand);
     assert.equal(daily[1]?.command, process.execPath);
     assert.deepEqual(daily[1]?.args, [
-      "node_modules/tsx/dist/cli.mjs",
+      "--import",
+      "tsx",
       "--test",
       "tests/governance-check.test.ts"
     ]);
@@ -788,7 +789,8 @@ test("governance check runner avoids Windows command shims for tsx", () => {
     assert.equal(pr[4]?.command, process.execPath);
     assert.equal(audit.command, process.execPath);
     assert.deepEqual(audit.args, [
-      "node_modules/tsx/dist/cli.mjs",
+      "--import",
+      "tsx",
       "scripts/run-state-sync-audit.ts"
     ]);
   });
@@ -811,7 +813,5 @@ function withPlatform<T>(platform: NodeJS.Platform, callback: () => T): T {
 }
 
 function expectedTsxArgs(args: string[]): string[] {
-  return process.platform === "win32"
-    ? ["node_modules/tsx/dist/cli.mjs", ...args]
-    : args;
+  return ["--import", "tsx", ...args];
 }

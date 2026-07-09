@@ -391,7 +391,7 @@ function createConsistentInput(
     packageJsonText: JSON.stringify({
       scripts: {
         typecheck: "tsc -p tsconfig.json --noEmit",
-        governance: "tsx scripts/run-governance-check.ts"
+        governance: "node --import tsx scripts/run-governance-check.ts"
       }
     }),
     authorizationEvidenceText: createEvidenceText(

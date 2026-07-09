@@ -13,7 +13,7 @@ const GOVERNANCE_RUNNER = "scripts/run-governance-check.ts";
 const ROOT_AGENT_INSTRUCTION = "AGENTS.md";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const SOURCE_REVIEW_ROOT_FILES = [

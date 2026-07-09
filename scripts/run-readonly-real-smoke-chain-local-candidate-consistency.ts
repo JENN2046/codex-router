@@ -10,7 +10,7 @@ import {
 } from "./run-readonly-real-smoke-chain-index-audit.js";
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_EVIDENCE = {

@@ -2243,7 +2243,7 @@ test("state sync audit collector does not require display or handoff surfaces", 
     join(cwd, "package.json"),
     JSON.stringify({
       scripts: {
-        governance: "tsx scripts/run-governance-check.ts"
+        governance: "node --import tsx scripts/run-governance-check.ts"
       }
     }, null, 2)
   );
@@ -3728,7 +3728,7 @@ async function writeMinimalWorkspace(
     join(cwd, "package.json"),
     JSON.stringify({
       scripts: {
-        governance: "tsx scripts/run-governance-check.ts"
+        governance: "node --import tsx scripts/run-governance-check.ts"
       }
     }, null, 2)
   );

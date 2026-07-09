@@ -35,7 +35,7 @@ The guard tests confirm that the PR-13A taskbook still records:
 - exact future command shape:
   `ALLOW_REAL_CODEX_CLI_READONLY_SMOKE=1 npm run smoke:readonly:real`
 - `smoke:readonly:real` script still points to
-  `tsx scripts/run-codex-cli-real-readonly-smoke.ts`
+  `node --import tsx scripts/run-codex-cli-real-readonly-smoke.ts`
 - taskbook remains non-authorizing
 - future smoke remains read-only only
 - approval policy remains `never`

@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_DOCS = {

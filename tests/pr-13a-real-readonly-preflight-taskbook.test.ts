@@ -21,11 +21,11 @@ test("PR-13A real read-only preflight taskbook keeps the exact future authorizat
   );
   assert.equal(
     packageJson.scripts?.["smoke:readonly:real"],
-    "tsx scripts/run-codex-cli-real-readonly-smoke.ts"
+    "node --import tsx scripts/run-codex-cli-real-readonly-smoke.ts"
   );
   assert.equal(
     packageJson.scripts?.governance,
-    "tsx scripts/run-governance-check.ts"
+    "node --import tsx scripts/run-governance-check.ts"
   );
 });
 

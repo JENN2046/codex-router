@@ -8,7 +8,8 @@ import {
   type ProviderExecutionPlan
 } from "../../execution-planner/src/index.js";
 import type {
-  ArtifactStore
+  ArtifactStore,
+  StoredArtifact
 } from "../../artifact-store/src/index.js";
 import type {
   ExecutionObservationBus
@@ -172,6 +173,17 @@ export type ControlledReadOnlyProviderDispatchResult =
   | ControlledReadOnlyProviderDispatchBlocked
   | ControlledReadOnlyProviderDispatchCompleted;
 
+export type RecordControlledReadOnlyProviderDispatchPreflightArtifactInput = {
+  artifactStore: ArtifactStore;
+  dispatchPreflight: ControlledReadOnlyProviderDispatchPreflight;
+  providerExecutionPlan: ProviderExecutionPlan;
+  executorPlan: ExecutorExecutionPlan;
+  policyDecision: PolicyDecision;
+  task: Task;
+  run: Run;
+  now?: () => string;
+};
+
 export function createControlledReadOnlyProviderDispatchPreflight(input: {
   providerExecutionPlan: ProviderExecutionPlan;
   environmentChecks?: Partial<ControlledReadOnlyDispatchPreflightChecks> & {
@@ -212,6 +224,65 @@ export function createControlledReadOnlyProviderDispatchPreflight(input: {
     preflightArtifactBindingRequired: true,
     dryRunDefaultPreserved: true,
     environmentPreflight
+  });
+}
+
+export async function recordControlledReadOnlyProviderDispatchPreflightArtifact(
+  input: RecordControlledReadOnlyProviderDispatchPreflightArtifactInput
+): Promise<StoredArtifact> {
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse(
+    input.providerExecutionPlan
+  );
+  const executorPlan = ExecutorExecutionPlanSchema.parse(input.executorPlan);
+  const policyDecision = PolicyDecisionSchema.parse(input.policyDecision);
+  const task = TaskSchema.parse(input.task);
+  const run = RunSchema.parse(input.run);
+  const dispatchPreflight = ControlledReadOnlyProviderDispatchPreflightSchema.parse(
+    input.dispatchPreflight
+  );
+  if (containsForbiddenExecutionMaterial(dispatchPreflight.environmentPreflight)) {
+    throw new Error("controlled_readonly_dispatch_preflight_metadata_not_sanitized");
+  }
+  const providerExecutionPlanHash =
+    hashProviderExecutionPlannerObject(providerExecutionPlan);
+  const executorPlanHash = hashProviderExecutionPlannerObject(executorPlan);
+  const policyDecisionHash = hashProviderExecutionPlannerObject(policyDecision);
+  const binding = createDispatchPreflightArtifactBinding({
+    dispatchPreflight,
+    providerExecutionPlan,
+    providerExecutionPlanHash,
+    executorPlanHash,
+    policyDecisionHash,
+    task,
+    run
+  });
+  const artifactId = dispatchPreflightArtifactId({
+    artifactRef: dispatchPreflight.environmentPreflight.artifactRef,
+    taskId: task.taskId,
+    runId: run.runId,
+    providerExecutionPlanHash
+  });
+
+  return input.artifactStore.putArtifact({
+    artifactId,
+    taskId: task.taskId,
+    runId: run.runId,
+    type: "json",
+    payload: {
+      schemaVersion: "controlled-provider-execution-dispatch-preflight-artifact.v1",
+      binding,
+      checks: dispatchPreflight.environmentPreflight.checks,
+      blockingReasonCount:
+        dispatchPreflight.environmentPreflight.blockingReasons.length
+    },
+    metadata: {
+      controlledReadOnlyDispatchPreflight: binding
+    },
+    provenance: {
+      source: "controlled-provider-dispatcher"
+    },
+    ...(input.now !== undefined ? { createdAt: input.now() } : {}),
+    alreadyRedacted: true
   });
 }
 
@@ -345,6 +416,30 @@ export async function dispatchControlledReadOnlyProviderExecution(
   const review = reviewControlledReadOnlyProviderDispatch(input);
   if (review.status === "dispatch_blocked") {
     return review;
+  }
+
+  const artifactStoreReasons = await collectDispatchPreflightArtifactStoreReasons({
+    artifactStore: input.artifactStore,
+    dispatchPreflight: input.dispatchPreflight,
+    providerExecutionPlan: input.providerExecutionPlan,
+    executorPlan: input.executorPlan,
+    policyDecision: input.policyDecision,
+    task: input.task,
+    run: input.run,
+    providerExecutionPlanHash: review.providerExecutionPlanHash,
+    executorPlanHash: review.executorPlanHash
+  });
+  if (artifactStoreReasons.length > 0) {
+    return {
+      schemaVersion: "controlled-provider-execution-dispatch-result.v1",
+      status: "dispatch_blocked",
+      runnerInvoked: false,
+      executeInvoked: false,
+      reasons: artifactStoreReasons,
+      providerExecutionPlanHash: review.providerExecutionPlanHash,
+      executorPlanHash: review.executorPlanHash,
+      providerRegistrySelection: review.providerRegistrySelection
+    };
   }
 
   const runnerResult = await runProviderExecutionPlanControlledReadOnly({
@@ -765,6 +860,180 @@ function createEnvironmentPreflight(input: {
   });
 }
 
+function createDispatchPreflightArtifactBinding(input: {
+  dispatchPreflight: ControlledReadOnlyProviderDispatchPreflight;
+  providerExecutionPlan: ProviderExecutionPlan;
+  providerExecutionPlanHash: string;
+  executorPlanHash: string;
+  policyDecisionHash: string;
+  task: Task;
+  run: Run;
+}): Record<string, string> {
+  return {
+    schemaVersion: "controlled-provider-execution-dispatch-preflight-artifact-binding.v1",
+    artifactRef: input.dispatchPreflight.environmentPreflight.artifactRef,
+    artifactHash: input.dispatchPreflight.environmentPreflight.artifactHash,
+    providerExecutionPlanHash: input.providerExecutionPlanHash,
+    executorPlanHash: input.executorPlanHash,
+    providerManifestHash: input.providerExecutionPlan.providerManifestHash ?? "",
+    policyDecisionHash: input.policyDecisionHash,
+    providerId: input.providerExecutionPlan.providerId,
+    taskId: input.task.taskId,
+    runId: input.run.runId
+  };
+}
+
+function readDispatchPreflightArtifactBinding(
+  artifact: StoredArtifact
+): Record<string, string> | undefined {
+  const value = artifact.metadata.controlledReadOnlyDispatchPreflight;
+  if (!isStringRecord(value)) {
+    return undefined;
+  }
+
+  return value;
+}
+
+function dispatchPreflightArtifactId(input: {
+  artifactRef: string;
+  taskId: string;
+  runId: string;
+  providerExecutionPlanHash: string;
+}): string {
+  return [
+    "artifact",
+    toSafeArtifactIdPart(input.artifactRef),
+    toSafeArtifactIdPart(input.taskId),
+    toSafeArtifactIdPart(input.runId),
+    input.providerExecutionPlanHash
+  ].join("_");
+}
+
+function toSafeArtifactIdPart(value: string): string {
+  const safe = value
+    .trim()
+    .toLowerCase()
+    .replace(/^artifact:\/\//, "")
+    .replace(/[^a-z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return safe || "unnamed";
+}
+
+async function collectDispatchPreflightArtifactStoreReasons(input: {
+  artifactStore: ArtifactStore;
+  dispatchPreflight: ControlledReadOnlyProviderDispatchPreflight;
+  providerExecutionPlan: ProviderExecutionPlan;
+  executorPlan: ExecutorExecutionPlan;
+  policyDecision: PolicyDecision;
+  task: Task;
+  run: Run;
+  providerExecutionPlanHash: string;
+  executorPlanHash: string;
+}): Promise<string[]> {
+  const dispatchPreflight = ControlledReadOnlyProviderDispatchPreflightSchema.parse(
+    input.dispatchPreflight
+  );
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse(
+    input.providerExecutionPlan
+  );
+  const executorPlan = ExecutorExecutionPlanSchema.parse(input.executorPlan);
+  const policyDecision = PolicyDecisionSchema.parse(input.policyDecision);
+  const task = TaskSchema.parse(input.task);
+  const run = RunSchema.parse(input.run);
+  const artifactId = dispatchPreflightArtifactId({
+    artifactRef: dispatchPreflight.environmentPreflight.artifactRef,
+    taskId: task.taskId,
+    runId: run.runId,
+    providerExecutionPlanHash: input.providerExecutionPlanHash
+  });
+  const artifact = await input.artifactStore.getArtifact(artifactId);
+  if (artifact === undefined) {
+    return ["controlled_readonly_dispatch_preflight_artifact_store_missing"];
+  }
+
+  const verification = await input.artifactStore.verifyArtifact(artifactId);
+  const reasons: string[] = [];
+  if (verification.ok !== true) {
+    reasons.push(
+      `controlled_readonly_dispatch_preflight_artifact_store_verification_failed:${verification.reason ?? "unknown"}`
+    );
+  }
+
+  if (artifact.taskId !== task.taskId) {
+    reasons.push("controlled_readonly_dispatch_preflight_artifact_task_mismatch");
+  }
+  if (artifact.runId !== run.runId) {
+    reasons.push("controlled_readonly_dispatch_preflight_artifact_run_mismatch");
+  }
+  if (artifact.type !== "json") {
+    reasons.push(`controlled_readonly_dispatch_preflight_artifact_type_mismatch:${artifact.type}`);
+  }
+
+  const binding = readDispatchPreflightArtifactBinding(artifact);
+  if (binding === undefined) {
+    reasons.push("controlled_readonly_dispatch_preflight_artifact_binding_missing");
+    return uniqueStrings(reasons);
+  }
+
+  const expectedBinding = createDispatchPreflightArtifactBinding({
+    dispatchPreflight,
+    providerExecutionPlan,
+    providerExecutionPlanHash: input.providerExecutionPlanHash,
+    executorPlanHash: input.executorPlanHash,
+    policyDecisionHash: hashProviderExecutionPlannerObject(policyDecision),
+    task,
+    run
+  });
+  const actualExecutorPlanHash = hashProviderExecutionPlannerObject(executorPlan);
+
+  if (binding.schemaVersion !== expectedBinding.schemaVersion) {
+    reasons.push("controlled_readonly_dispatch_preflight_artifact_schema_mismatch");
+  }
+  if (binding.artifactRef !== expectedBinding.artifactRef) {
+    reasons.push("controlled_readonly_dispatch_preflight_artifact_ref_mismatch");
+  }
+  if (binding.artifactHash !== expectedBinding.artifactHash) {
+    reasons.push("controlled_readonly_dispatch_preflight_artifact_hash_mismatch");
+  }
+  if (binding.providerExecutionPlanHash !== expectedBinding.providerExecutionPlanHash) {
+    reasons.push(
+      "controlled_readonly_dispatch_preflight_artifact_provider_execution_plan_hash_mismatch"
+    );
+  }
+  if (binding.executorPlanHash !== expectedBinding.executorPlanHash) {
+    reasons.push(
+      "controlled_readonly_dispatch_preflight_artifact_executor_plan_hash_mismatch"
+    );
+  }
+  if (binding.executorPlanHash !== actualExecutorPlanHash) {
+    reasons.push(
+      "controlled_readonly_dispatch_preflight_artifact_executor_plan_current_hash_mismatch"
+    );
+  }
+  if (binding.providerManifestHash !== expectedBinding.providerManifestHash) {
+    reasons.push(
+      "controlled_readonly_dispatch_preflight_artifact_provider_manifest_hash_mismatch"
+    );
+  }
+  if (binding.policyDecisionHash !== expectedBinding.policyDecisionHash) {
+    reasons.push(
+      "controlled_readonly_dispatch_preflight_artifact_policy_decision_hash_mismatch"
+    );
+  }
+  if (binding.providerId !== expectedBinding.providerId) {
+    reasons.push("controlled_readonly_dispatch_preflight_artifact_provider_mismatch");
+  }
+  if (binding.taskId !== expectedBinding.taskId) {
+    reasons.push("controlled_readonly_dispatch_preflight_artifact_task_binding_mismatch");
+  }
+  if (binding.runId !== expectedBinding.runId) {
+    reasons.push("controlled_readonly_dispatch_preflight_artifact_run_binding_mismatch");
+  }
+
+  return uniqueStrings(reasons);
+}
+
 function createControlledReadOnlyDispatchTaskEnvelope(task: Task) {
   const repoContext = task.workspace ?? task.repo;
   const taskClassHint = resolveGovernanceTaskClassHint(task);
@@ -930,6 +1199,11 @@ function containsForbiddenExecutionMaterial(value: unknown): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isRecord(value)
+    && Object.values(value).every((entry) => typeof entry === "string");
 }
 
 function uniqueStrings(values: string[]): string[] {

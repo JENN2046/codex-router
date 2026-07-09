@@ -36,6 +36,11 @@ test("controlled provider execution dispatcher boundary audit passes", async () 
   assert.equal(review.summary.providerRegistrySelectionRequired, true);
   assert.equal(review.summary.permitValidationRequired, true);
   assert.equal(review.summary.preflightArtifactBindingRequired, true);
+  assert.equal(review.summary.preflightArtifactStoreVerificationRequired, true);
+  assert.equal(
+    review.summary.preflightArtifactAuthorizationContextBindingRequired,
+    true
+  );
   assert.equal(review.summary.governanceStrategyStopRequired, true);
   assert.equal(review.summary.runnerInvocationsDuringAudit, 0);
   assert.equal(review.summary.providerExecuteCallsDuringAudit, 0);

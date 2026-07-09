@@ -314,11 +314,11 @@ export function reviewWorkspaceWriteReleaseGateAudit(
   const releaseValidationIncludesFakeCanary =
     input.governanceRunnerText.includes("npmScript(\"canary\", \"canary\"")
     && input.governanceRunnerText.includes("npmScript(\"canary:write\", \"canary:write\"")
-    && packageScripts.get("canary") === "tsx scripts/run-canary-test.ts"
-    && packageScripts.get("canary:write") === "tsx scripts/run-canary-test.ts --risk medium";
+    && packageScripts.get("canary") === "node --import tsx scripts/run-canary-test.ts"
+    && packageScripts.get("canary:write") === "node --import tsx scripts/run-canary-test.ts --risk medium";
   const releaseValidationIncludesEvidenceCollection =
     input.governanceRunnerText.includes("npmScript(\"evidence:collect\", \"evidence:collect\"")
-    && packageScripts.get("evidence:collect") === "tsx scripts/collect-evidence.ts";
+    && packageScripts.get("evidence:collect") === "node --import tsx scripts/collect-evidence.ts";
   const releaseTierAligned =
     releaseValidationIncludesFakeCanary
     && releaseValidationIncludesEvidenceCollection

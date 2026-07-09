@@ -72,7 +72,7 @@ const REQUIRED_DOC_FILES = [
 ] as const;
 
 const REQUIRED_PACKAGE_SCRIPTS = {
-  governance: "tsx scripts/run-governance-check.ts"
+  governance: "node --import tsx scripts/run-governance-check.ts"
 } as const;
 
 const REQUIRED_AUDIT_FIELD_DOCS = [
