@@ -32,7 +32,10 @@ const REQUIRED_RUNTIME_MARKERS = [
   "providerExecutionPlanStore.savePlan(plan)",
   "provider_execution_plan_stored",
   "evaluateExecutionEligibilityWithPermitStore",
-  "createApprovalPermit"
+  "createApprovalPermit",
+  "handleToolCallAsync",
+  "controlledWorkspaceWriteProviderDispatcher",
+  "AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED"
 ] as const;
 
 const REQUIRED_SDK_MARKERS = [
@@ -68,8 +71,10 @@ const REQUIRED_TEST_MARKERS = [
   "Agent OS MCP local runtime blocks mutating task creation by default",
   "Agent OS MCP local runtime creates a governed run and provider plan without execution",
   "Agent OS MCP local runtime consumes approval permits into a planned provider plan",
+  "Agent OS MCP local runtime delegates controlled workspace-write dispatch asynchronously",
   "Agent OS MCP local runtime issues an approval permit for a planned run scope",
   "Agent OS SDK creates a local run and provider plan without real execution",
+  "Agent OS SDK delegates controlled workspace-write dispatch through async wrapper",
   "Agent OS SDK issues an approval permit through the shared local runtime",
   "Agent OS CLI wrapper creates a local run and provider plan without spawning CLI",
   "Agent OS CLI wrapper issues an approval permit without spawning CLI",
@@ -137,7 +142,9 @@ export interface AgentOsLocalRuntimeBoundaryAuditResult {
     codexCliInvocationAllowed: false;
     subAgentRuntimeInvocationAllowed: false;
     hostExecutorInvocationAllowed: false;
-    workspaceWriteExecutionAllowed: false;
+    controlledWorkspaceWriteDispatchAllowed: true;
+    generalWorkspaceWriteExecutionAllowed: false;
+    workspaceWriteProviderExecuteAllowed: false;
     localMutationRequiresApprovalAndAllowance: true;
     localRuntimeCallsDuringAudit: 0;
     providerExecuteCallsDuringAudit: 0;
@@ -247,7 +254,9 @@ export function reviewAgentOsLocalRuntimeBoundaryAudit(
       codexCliInvocationAllowed: false,
       subAgentRuntimeInvocationAllowed: false,
       hostExecutorInvocationAllowed: false,
-      workspaceWriteExecutionAllowed: false,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       localMutationRequiresApprovalAndAllowance: true,
       localRuntimeCallsDuringAudit: 0,
       providerExecuteCallsDuringAudit: 0,
@@ -282,7 +291,9 @@ export function formatAgentOsLocalRuntimeBoundaryAuditResult(
     `Codex CLI invocation allowed: ${review.summary.codexCliInvocationAllowed}`,
     `sub-agent runtime invocation allowed: ${review.summary.subAgentRuntimeInvocationAllowed}`,
     `host executor invocation allowed: ${review.summary.hostExecutorInvocationAllowed}`,
-    `workspace-write execution allowed: ${review.summary.workspaceWriteExecutionAllowed}`,
+    `controlled workspace-write dispatch allowed: ${review.summary.controlledWorkspaceWriteDispatchAllowed}`,
+    `general workspace-write execution allowed: ${review.summary.generalWorkspaceWriteExecutionAllowed}`,
+    `workspace-write provider execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
     `local mutation requires approval and allowance: ${review.summary.localMutationRequiresApprovalAndAllowance}`,
     `local runtime calls during audit: ${review.summary.localRuntimeCallsDuringAudit}`,
     `provider execute calls during audit: ${review.summary.providerExecuteCallsDuringAudit}`,
@@ -298,8 +309,9 @@ export function formatAgentOsLocalRuntimeBoundaryAuditResult(
 function controlPlaneCapabilityRecorded(text: string): boolean {
   return text.includes("Agent OS local runtime boundary")
     && text.includes("local state and provider-plan runtime")
+    && text.includes("may delegate controlled workspace-write provider plans")
     && text.includes("does not authorize provider execute, Codex CLI")
-    && text.includes("host executor, sub-agent runtime, workspace-write")
+    && text.includes("host executor, sub-agent runtime, general workspace-write")
     && text.includes("npm run governance -- audit agent-os-local-runtime-boundary");
 }
 
@@ -357,7 +369,9 @@ function outputSanitized(input: AgentOsLocalRuntimeBoundaryAuditInput): boolean 
       codexCliInvocationAllowed: false,
       subAgentRuntimeInvocationAllowed: false,
       hostExecutorInvocationAllowed: false,
-      workspaceWriteExecutionAllowed: false,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       localMutationRequiresApprovalAndAllowance: true,
       localRuntimeCallsDuringAudit: 0,
       providerExecuteCallsDuringAudit: 0,

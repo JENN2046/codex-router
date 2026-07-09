@@ -6,6 +6,7 @@ import {
   AgentOsMcpToolManifestSchema,
   agentOsApproveRunMcpToolManifest,
   agentOsCreateTaskMcpToolManifest,
+  agentOsDispatchWorkspaceWriteMcpToolManifest,
   agentOsMcpServerManifest,
   agentOsMcpToolManifests,
   listAgentOsMcpToolManifests
@@ -20,6 +21,7 @@ const expectedToolNames = [
   "agentos.list_runs",
   "agentos.cancel_run",
   "agentos.approve_run",
+  "agentos.dispatch_workspace_write",
   "agentos.list_artifacts",
   "agentos.get_artifact",
   "agentos.search_events"
@@ -52,11 +54,17 @@ test("Agent OS MCP mutating tools have required capabilities and approval gates"
     tool.name === "agentos.create_task"
     || tool.name === "agentos.cancel_run"
     || tool.name === "agentos.approve_run"
+    || tool.name === "agentos.dispatch_workspace_write"
   ));
 
   assert.deepEqual(
     mutatingTools.map((tool) => tool.name),
-    ["agentos.create_task", "agentos.cancel_run", "agentos.approve_run"]
+    [
+      "agentos.create_task",
+      "agentos.cancel_run",
+      "agentos.approve_run",
+      "agentos.dispatch_workspace_write"
+    ]
   );
 
   for (const tool of mutatingTools) {
@@ -71,6 +79,11 @@ test("Agent OS MCP mutating tools have required capabilities and approval gates"
   assert.ok(getTool("agentos.create_task").requiredCapabilities.includes("task.create"));
   assert.ok(getTool("agentos.cancel_run").requiredCapabilities.includes("run.cancel"));
   assert.ok(getTool("agentos.approve_run").requiredCapabilities.includes("approval.issue"));
+  assert.ok(
+    getTool("agentos.dispatch_workspace_write").requiredCapabilities.includes(
+      "workspace_write.dispatch"
+    )
+  );
 });
 
 test("Agent OS MCP create_task output schema declares provider planning fields", () => {
@@ -155,6 +168,34 @@ test("Agent OS MCP approve_run output schema declares permit and blocked result 
       }
     }
   ]);
+});
+
+test("Agent OS MCP dispatch_workspace_write declares controlled dispatch only", () => {
+  const inputSchema = agentOsDispatchWorkspaceWriteMcpToolManifest.inputSchema as {
+    additionalProperties?: unknown;
+    properties?: Record<string, unknown>;
+  };
+  const outputSchema = agentOsDispatchWorkspaceWriteMcpToolManifest.outputSchema as {
+    additionalProperties?: unknown;
+    properties?: Record<string, unknown>;
+  };
+
+  assert.equal(inputSchema.additionalProperties, false);
+  assert.ok("dispatchInput" in (inputSchema.properties ?? {}));
+  assert.equal(outputSchema.additionalProperties, false);
+  assert.ok("dispatchResult" in (outputSchema.properties ?? {}));
+  assert.equal(
+    agentOsDispatchWorkspaceWriteMcpToolManifest.metadata.controlledWorkspaceWriteDispatch,
+    true
+  );
+  assert.equal(
+    agentOsDispatchWorkspaceWriteMcpToolManifest.metadata.providerExecuteForbidden,
+    true
+  );
+  assert.equal(
+    agentOsDispatchWorkspaceWriteMcpToolManifest.metadata.generalWorkspaceWriteForbidden,
+    true
+  );
 });
 
 test("Agent OS MCP list, get, and search tools are read side effect", () => {

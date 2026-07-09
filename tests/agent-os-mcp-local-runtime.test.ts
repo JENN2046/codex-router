@@ -9,6 +9,8 @@ import {
   AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING,
+  AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED,
+  AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC,
   createAgentOsMcpLocalRuntime
 } from "../packages/protocol-mcp/src/index.js";
 import {
@@ -156,6 +158,96 @@ test("Agent OS MCP local runtime creates a governed run and provider plan withou
     (searchEvents.output.events as Array<{ eventType: string }>).map((event) => event.eventType),
     ["kernel.public_surface.mcp.create_task"]
   );
+});
+
+test("Agent OS MCP local runtime delegates controlled workspace-write dispatch asynchronously", async () => {
+  const dispatchInputs: unknown[] = [];
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_mcp_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:agent-os-mcp-provider-plan",
+        executorPlanHash: "sha256:agent-os-mcp-executor-plan",
+        operationManifestHash: "sha256:agent-os-mcp-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-agent-os-mcp-workspace-write"
+        }
+      } as never;
+    },
+    now: () => now
+  });
+  const dispatchInput = {
+    schemaVersion: "agent-os-mcp-workspace-write-dispatch-test.v1"
+  };
+
+  const syncResult = runtime.handleToolCall({
+    toolName: "agentos.dispatch_workspace_write",
+    input: { dispatchInput },
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+  assert.equal(syncResult.status, "blocked");
+  assert.deepEqual(syncResult.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC
+  ]);
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: { dispatchInput },
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(dispatchInputs[0], dispatchInput);
+  assert.equal(result.status, "succeeded");
+  assert.equal(result.audit.realProviderExecutionInvoked, false);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
+  );
+});
+
+test("Agent OS MCP local runtime blocks workspace-write dispatch without configured dispatcher", async () => {
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    now: () => now
+  });
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      dispatchInput: {
+        schemaVersion: "agent-os-mcp-workspace-write-dispatch-test.v1"
+      }
+    }
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED
+  ]);
+  assert.equal(result.audit.localMutationApplied, false);
 });
 
 test("Agent OS MCP local runtime consumes approval permits into a planned provider plan", () => {

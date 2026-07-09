@@ -5497,7 +5497,9 @@ function agentOsLocalRuntimeBoundaryConstrained(
     && summary.codexCliInvocationAllowed === false
     && summary.subAgentRuntimeInvocationAllowed === false
     && summary.hostExecutorInvocationAllowed === false
-    && summary.workspaceWriteExecutionAllowed === false
+    && summary.controlledWorkspaceWriteDispatchAllowed === true
+    && summary.generalWorkspaceWriteExecutionAllowed === false
+    && summary.workspaceWriteProviderExecuteAllowed === false
     && summary.localMutationRequiresApprovalAndAllowance === true
     && summary.localRuntimeCallsDuringAudit === 0
     && summary.providerExecuteCallsDuringAudit === 0
@@ -8183,7 +8185,9 @@ function auditItselfIsNonExecuting(
     && agentOsLocalRuntime.codexCliInvocationAllowed === false
     && agentOsLocalRuntime.subAgentRuntimeInvocationAllowed === false
     && agentOsLocalRuntime.hostExecutorInvocationAllowed === false
-    && agentOsLocalRuntime.workspaceWriteExecutionAllowed === false
+    && agentOsLocalRuntime.controlledWorkspaceWriteDispatchAllowed === true
+    && agentOsLocalRuntime.generalWorkspaceWriteExecutionAllowed === false
+    && agentOsLocalRuntime.workspaceWriteProviderExecuteAllowed === false
     && agentOsMcpServerManifest.agentOsMcpServerManifestCallsDuringAudit === 0
     && agentOsMcpServerManifest.liveMcpServerStartsDuringAudit === 0
     && agentOsMcpServerManifest.localRuntimeCallsDuringAudit === 0

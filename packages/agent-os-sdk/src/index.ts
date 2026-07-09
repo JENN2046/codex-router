@@ -6,6 +6,9 @@ import {
   type AgentOsMcpLocalToolCall,
   type AgentOsMcpToolName
 } from "../../protocol-mcp/src/index.js";
+import type {
+  ControlledWorkspaceWriteHostProviderDispatchInput
+} from "../../host-dispatcher/src/index.js";
 import type { ExecutionEligibilityDecision } from "../../execution-eligibility/src/index.js";
 import type {
   Artifact,
@@ -32,6 +35,7 @@ export type AgentOsSdkOperation =
   | "listRuns"
   | "cancelRun"
   | "approveRun"
+  | "dispatchWorkspaceWrite"
   | "listArtifacts"
   | "getArtifact"
   | "searchEvents";
@@ -73,6 +77,10 @@ export type AgentOsSdkApproveRunInput = {
   capabilityScopes: string[];
   expiresAt?: string;
   reason: string;
+};
+
+export type AgentOsSdkDispatchWorkspaceWriteInput = {
+  dispatchInput: ControlledWorkspaceWriteHostProviderDispatchInput;
 };
 
 export type AgentOsSdkListArtifactsInput = {
@@ -141,6 +149,18 @@ export class AgentOsSdk {
     return this.callRuntime("approveRun", "agentos.approve_run", input, options);
   }
 
+  async dispatchWorkspaceWrite(
+    input: AgentOsSdkDispatchWorkspaceWriteInput,
+    options?: AgentOsSdkCallOptions
+  ): Promise<AgentOsSdkResult> {
+    return this.callRuntimeAsync(
+      "dispatchWorkspaceWrite",
+      "agentos.dispatch_workspace_write",
+      input,
+      options
+    );
+  }
+
   listArtifacts(
     input: AgentOsSdkListArtifactsInput = {},
     options?: AgentOsSdkCallOptions
@@ -183,6 +203,21 @@ export class AgentOsSdk {
   ): AgentOsSdkResult {
     const call = createRuntimeCall(toolName, input, options);
     const result = this.runtime.handleToolCall(call);
+    return {
+      ...result,
+      surface: "sdk",
+      operation
+    };
+  }
+
+  private async callRuntimeAsync(
+    operation: AgentOsSdkOperation,
+    toolName: AgentOsMcpToolName,
+    input: unknown,
+    options?: AgentOsSdkCallOptions
+  ): Promise<AgentOsSdkResult> {
+    const call = createRuntimeCall(toolName, input, options);
+    const result = await this.runtime.handleToolCallAsync(call);
     return {
       ...result,
       surface: "sdk",
@@ -256,6 +291,8 @@ function operationForToolName(toolName: AgentOsMcpToolName): AgentOsSdkOperation
       return "cancelRun";
     case "agentos.approve_run":
       return "approveRun";
+    case "agentos.dispatch_workspace_write":
+      return "dispatchWorkspaceWrite";
     case "agentos.list_artifacts":
       return "listArtifacts";
     case "agentos.get_artifact":

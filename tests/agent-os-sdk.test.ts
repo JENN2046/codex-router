@@ -136,6 +136,56 @@ test("Agent OS SDK creates a local run and provider plan without real execution"
   );
 });
 
+test("Agent OS SDK delegates controlled workspace-write dispatch through async wrapper", async () => {
+  const dispatchInputs: unknown[] = [];
+  const sdk = createAgentOsSdk({
+    ...createRuntimeInput(new InMemoryKernelStore()),
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_sdk_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:agent-os-sdk-provider-plan",
+        executorPlanHash: "sha256:agent-os-sdk-executor-plan",
+        operationManifestHash: "sha256:agent-os-sdk-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-agent-os-sdk-workspace-write"
+        }
+      } as never;
+    }
+  });
+  const dispatchInput = {
+    schemaVersion: "agent-os-sdk-workspace-write-dispatch-test.v1"
+  };
+
+  const result = await sdk.dispatchWorkspaceWrite({
+    dispatchInput: dispatchInput as never
+  }, {
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(dispatchInputs[0], dispatchInput);
+  assert.equal(result.status, "succeeded");
+  assert.equal(result.surface, "sdk");
+  assert.equal(result.operation, "dispatchWorkspaceWrite");
+  assert.equal(result.audit.publicSurface, "sdk");
+  assert.equal(result.audit.realProviderExecutionInvoked, false);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
+  );
+});
+
 test("Agent OS SDK issues an approval permit through the shared local runtime", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();

@@ -18,8 +18,10 @@ const REQUIRED_SOURCE_MARKERS = [
   "publicSurface: \"sdk\"",
   "createTask(",
   "approveRun(",
+  "dispatchWorkspaceWrite(",
   "callTool(",
   "this.runtime.handleToolCall(call)",
+  "this.runtime.handleToolCallAsync(call)",
   "createRuntimeCall(toolName, input, options)",
   "call.grantedCapabilities = options.grantedCapabilities",
   "call.approvedMutatingTools = options.approvedMutatingTools",
@@ -31,6 +33,7 @@ const REQUIRED_SOURCE_MARKERS = [
 const REQUIRED_TEST_MARKERS = [
   "Agent OS SDK blocks mutating task creation by default",
   "Agent OS SDK creates a local run and provider plan without real execution",
+  "Agent OS SDK delegates controlled workspace-write dispatch through async wrapper",
   "Agent OS SDK issues an approval permit through the shared local runtime",
   "Agent OS SDK consumes approval permits through the shared local runtime",
   "Agent OS SDK preserves rejected permit audit during approval consumption",
@@ -104,6 +107,9 @@ export interface AgentOsSdkBoundaryAuditResult {
     sdkAllowLocalMutationIsWorkspaceWriteExecution: false;
     preferredProviderIsCodexCliInvocation: false;
     localRuntimeCallIsProviderExecutionAuthorization: false;
+    controlledWorkspaceWriteDispatchAllowed: true;
+    generalWorkspaceWriteExecutionAllowed: false;
+    workspaceWriteProviderExecuteAllowed: false;
     approvalPermitIssueIsProviderExecutionAuthorization: false;
     approvalPermitConsumptionIsProviderExecutionAuthorization: false;
     realProviderExecutionInvoked: false;
@@ -187,6 +193,9 @@ export function reviewAgentOsSdkBoundaryAudit(
       sdkAllowLocalMutationIsWorkspaceWriteExecution: false,
       preferredProviderIsCodexCliInvocation: false,
       localRuntimeCallIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
       approvalPermitConsumptionIsProviderExecutionAuthorization: false,
       realProviderExecutionInvoked: false,
@@ -225,6 +234,9 @@ export function formatAgentOsSdkBoundaryAuditResult(
     `SDK allow-local-mutation is workspace-write execution: ${review.summary.sdkAllowLocalMutationIsWorkspaceWriteExecution}`,
     `preferred provider is Codex CLI invocation: ${review.summary.preferredProviderIsCodexCliInvocation}`,
     `local runtime call is provider execution authorization: ${review.summary.localRuntimeCallIsProviderExecutionAuthorization}`,
+    `controlled workspace-write dispatch allowed: ${review.summary.controlledWorkspaceWriteDispatchAllowed}`,
+    `general workspace-write execution allowed: ${review.summary.generalWorkspaceWriteExecutionAllowed}`,
+    `workspace-write provider execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
     `approval permit issue is provider execution authorization: ${review.summary.approvalPermitIssueIsProviderExecutionAuthorization}`,
     `approval permit consumption is provider execution authorization: ${review.summary.approvalPermitConsumptionIsProviderExecutionAuthorization}`,
     `real provider execution invoked: ${review.summary.realProviderExecutionInvoked}`,
@@ -256,6 +268,8 @@ function controlPlaneAuthorityRecorded(text: string): boolean {
     && text.includes("allow-local-mutation is not workspace-write execution")
     && text.includes("preferred provider is not Codex CLI invocation")
     && text.includes("local runtime calls are not provider execution authorization")
+    && text.includes("may delegate controlled workspace-write provider plans")
+    && text.includes("general workspace-write remains blocked")
     && text.includes("approval permit issue and consumption are not provider execution")
     && text.includes("real provider execution remains uninvoked");
 }
@@ -284,6 +298,9 @@ function outputSanitized(input: AgentOsSdkBoundaryAuditInput): boolean {
       sdkAllowLocalMutationIsWorkspaceWriteExecution: false,
       preferredProviderIsCodexCliInvocation: false,
       localRuntimeCallIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
       approvalPermitConsumptionIsProviderExecutionAuthorization: false,
       realProviderExecutionInvoked: false,

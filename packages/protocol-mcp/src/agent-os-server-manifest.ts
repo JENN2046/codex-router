@@ -12,6 +12,7 @@ export const AgentOsMcpToolNameSchema = z.enum([
   "agentos.list_runs",
   "agentos.cancel_run",
   "agentos.approve_run",
+  "agentos.dispatch_workspace_write",
   "agentos.list_artifacts",
   "agentos.get_artifact",
   "agentos.search_events"
@@ -23,6 +24,7 @@ const requiredCapabilitiesByToolName = {
   "agentos.list_runs": ["run.read"],
   "agentos.cancel_run": ["run.cancel"],
   "agentos.approve_run": ["approval.issue"],
+  "agentos.dispatch_workspace_write": ["workspace_write.dispatch"],
   "agentos.list_artifacts": ["artifact.read"],
   "agentos.get_artifact": ["artifact.read"],
   "agentos.search_events": ["event.read"]
@@ -92,7 +94,7 @@ export const AgentOsMcpServerManifestSchema = z.object({
   serverId: z.literal("agent-os"),
   description: z.string().min(1),
   runtimeImplemented: z.literal(false),
-  tools: z.array(AgentOsMcpToolManifestSchema).length(8)
+  tools: z.array(AgentOsMcpToolManifestSchema).length(9)
 }).superRefine((manifest, ctx) => {
   const toolIds = manifest.tools.map((tool) => tool.toolId);
   const duplicateToolIds = findDuplicates(toolIds);
@@ -397,6 +399,39 @@ export const agentOsListArtifactsMcpToolManifest = defineAgentOsMcpTool({
   }
 });
 
+export const agentOsDispatchWorkspaceWriteMcpToolManifest = defineAgentOsMcpTool({
+  toolId: "agentos.dispatch_workspace_write",
+  name: "agentos.dispatch_workspace_write",
+  description: "Dispatch a pre-authorized controlled workspace-write provider plan through an explicitly configured local dispatcher.",
+  inputSchema: {
+    type: "object",
+    required: ["dispatchInput"],
+    additionalProperties: false,
+    properties: {
+      dispatchInput: { type: "object" }
+    }
+  },
+  outputSchema: {
+    type: "object",
+    required: ["dispatchResult"],
+    additionalProperties: false,
+    properties: {
+      dispatchResult: { type: "object" }
+    }
+  },
+  sideEffectClass: "local_write",
+  requiredCapabilities: ["workspace_write.dispatch"],
+  approvalRequired: true,
+  auditPolicy: writeAuditPolicy(),
+  metadata: {
+    policyGated: true,
+    runtimeImplemented: false,
+    controlledWorkspaceWriteDispatch: true,
+    providerExecuteForbidden: true,
+    generalWorkspaceWriteForbidden: true
+  }
+});
+
 export const agentOsGetArtifactMcpToolManifest = defineAgentOsMcpTool({
   toolId: "agentos.get_artifact",
   name: "agentos.get_artifact",
@@ -477,6 +512,7 @@ export const agentOsMcpToolManifests = [
   agentOsListRunsMcpToolManifest,
   agentOsCancelRunMcpToolManifest,
   agentOsApproveRunMcpToolManifest,
+  agentOsDispatchWorkspaceWriteMcpToolManifest,
   agentOsListArtifactsMcpToolManifest,
   agentOsGetArtifactMcpToolManifest,
   agentOsSearchEventsMcpToolManifest
@@ -533,7 +569,8 @@ function isReadOnlyAgentOsTool(name: AgentOsMcpToolName): boolean {
 function isMutatingAgentOsTool(name: AgentOsMcpToolName): boolean {
   return name === "agentos.create_task"
     || name === "agentos.cancel_run"
-    || name === "agentos.approve_run";
+    || name === "agentos.approve_run"
+    || name === "agentos.dispatch_workspace_write";
 }
 
 function findDuplicates(values: string[]): string[] {

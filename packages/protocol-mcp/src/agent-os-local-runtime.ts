@@ -39,6 +39,10 @@ import {
   type AgentOsMcpToolManifest,
   type AgentOsMcpToolName
 } from "./agent-os-server-manifest.js";
+import type {
+  ControlledWorkspaceWriteHostProviderDispatchInput,
+  ControlledWorkspaceWriteHostProviderDispatchResult
+} from "../../host-dispatcher/src/index.js";
 
 export const AGENT_OS_MCP_LOCAL_MUTATION_DISABLED =
   "agent_os_mcp_local_mutation_disabled";
@@ -60,6 +64,10 @@ export const AGENT_OS_MCP_APPROVAL_SCOPE_OUTSIDE_PLAN =
   "agent_os_mcp_approval_scope_outside_plan";
 export const AGENT_OS_MCP_APPROVAL_PERMIT_DUPLICATE =
   "agent_os_mcp_approval_permit_duplicate";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED =
+  "agent_os_mcp_workspace_write_dispatcher_not_configured";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC =
+  "agent_os_mcp_workspace_write_dispatch_requires_async";
 export const AGENT_OS_MCP_RUN_NOT_FOUND =
   "agent_os_run_not_found";
 export const AGENT_OS_MCP_ARTIFACT_NOT_FOUND =
@@ -90,6 +98,7 @@ export type AgentOsMcpLocalRuntimeOptions = {
   approvedMutatingTools?: AgentOsMcpToolName[];
   allowLocalMutations?: boolean;
   preferredProviderId?: string;
+  controlledWorkspaceWriteProviderDispatcher?: AgentOsControlledWorkspaceWriteProviderDispatcher;
   publicSurface?: AgentOsPublicSurface;
   now?: () => string;
   createTaskId?: (input: AgentOsCreateTaskInput) => string;
@@ -113,6 +122,12 @@ export type AgentOsMcpLocalToolCall = {
   allowLocalMutations?: boolean;
   preferredProviderId?: string;
 };
+
+export type AgentOsControlledWorkspaceWriteProviderDispatcher = (
+  input: ControlledWorkspaceWriteHostProviderDispatchInput
+) =>
+  | Promise<ControlledWorkspaceWriteHostProviderDispatchResult>
+  | ControlledWorkspaceWriteHostProviderDispatchResult;
 
 export type AgentOsMcpLocalRuntimeResult = {
   toolName: AgentOsMcpToolName;
@@ -168,6 +183,13 @@ const AgentOsApproveRunInputSchema = z.object({
   reason: z.string().min(1)
 });
 
+const AgentOsDispatchWorkspaceWriteInputSchema = z.object({
+  dispatchInput: z.custom<ControlledWorkspaceWriteHostProviderDispatchInput>(
+    (value) => typeof value === "object" && value !== null && !Array.isArray(value),
+    "dispatchInput must be an object"
+  )
+});
+
 const AgentOsListArtifactsInputSchema = z.object({
   taskId: z.string().min(1).optional(),
   runId: z.string().min(1).optional(),
@@ -210,6 +232,9 @@ export class AgentOsMcpLocalRuntime {
   private readonly approvedMutatingTools: AgentOsMcpToolName[];
   private readonly allowLocalMutations: boolean;
   private readonly preferredProviderId: string | undefined;
+  private readonly controlledWorkspaceWriteProviderDispatcher:
+    | AgentOsControlledWorkspaceWriteProviderDispatcher
+    | undefined;
   private readonly publicSurface: AgentOsPublicSurface;
   private readonly now: () => string;
   private readonly createTaskId: (input: AgentOsCreateTaskInput) => string;
@@ -239,6 +264,8 @@ export class AgentOsMcpLocalRuntime {
     this.approvedMutatingTools = [...(options.approvedMutatingTools ?? [])];
     this.allowLocalMutations = options.allowLocalMutations ?? false;
     this.preferredProviderId = options.preferredProviderId;
+    this.controlledWorkspaceWriteProviderDispatcher =
+      options.controlledWorkspaceWriteProviderDispatcher;
     this.publicSurface = options.publicSurface ?? "mcp";
     this.now = options.now ?? (() => new Date().toISOString());
     this.createTaskId = options.createTaskId ?? ((input) => this.createDefaultTaskId(input));
@@ -249,6 +276,10 @@ export class AgentOsMcpLocalRuntime {
   }
 
   handleToolCall(call: AgentOsMcpLocalToolCall): AgentOsMcpLocalRuntimeResult {
+    return this.handleToolCallSync(call);
+  }
+
+  async handleToolCallAsync(call: AgentOsMcpLocalToolCall): Promise<AgentOsMcpLocalRuntimeResult> {
     const toolName = AgentOsMcpToolNameSchema.parse(call.toolName);
     const tool = requireAgentOsMcpTool(toolName);
     const gate = this.evaluateGate(tool, call);
@@ -256,6 +287,53 @@ export class AgentOsMcpLocalRuntime {
     if (gate.status === "blocked") {
       return this.createResult(toolName, gate.reasons, {}, {
         localMutationAttempted: isMutatingTool(toolName),
+        localMutationApplied: false,
+        gate
+      });
+    }
+
+    switch (toolName) {
+      case "agentos.create_task":
+        return this.handleCreateTask(call, gate);
+      case "agentos.get_run":
+        return this.handleGetRun(call, gate);
+      case "agentos.list_runs":
+        return this.handleListRuns(call, gate);
+      case "agentos.cancel_run":
+        return this.handleCancelRun(call, gate);
+      case "agentos.approve_run":
+        return this.handleApproveRun(call, gate);
+      case "agentos.dispatch_workspace_write":
+        return this.handleDispatchWorkspaceWrite(call, gate);
+      case "agentos.list_artifacts":
+        return this.handleListArtifacts(call, gate);
+      case "agentos.get_artifact":
+        return this.handleGetArtifact(call, gate);
+      case "agentos.search_events":
+        return this.handleSearchEvents(call, gate);
+    }
+  }
+
+  private handleToolCallSync(call: AgentOsMcpLocalToolCall): AgentOsMcpLocalRuntimeResult {
+    const toolName = AgentOsMcpToolNameSchema.parse(call.toolName);
+    const tool = requireAgentOsMcpTool(toolName);
+    const gate = this.evaluateGate(tool, call);
+
+    if (gate.status === "blocked") {
+      return this.createResult(toolName, gate.reasons, {}, {
+        localMutationAttempted: isMutatingTool(toolName),
+        localMutationApplied: false,
+        gate
+      });
+    }
+
+    if (toolName === "agentos.dispatch_workspace_write") {
+      return this.createResult(toolName, [
+        AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC
+      ], {
+        status: "blocked"
+      }, {
+        localMutationAttempted: true,
         localMutationApplied: false,
         gate
       });
@@ -620,6 +698,36 @@ export class AgentOsMcpLocalRuntime {
     }, {
       localMutationAttempted: true,
       localMutationApplied: true,
+      gate
+    });
+  }
+
+  private async handleDispatchWorkspaceWrite(
+    call: AgentOsMcpLocalToolCall,
+    gate: AgentOsMcpLocalRuntimeGate
+  ): Promise<AgentOsMcpLocalRuntimeResult> {
+    const dispatcher = this.controlledWorkspaceWriteProviderDispatcher;
+    if (dispatcher === undefined) {
+      return this.createResult("agentos.dispatch_workspace_write", [
+        AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED
+      ], {
+        status: "blocked"
+      }, {
+        localMutationAttempted: true,
+        localMutationApplied: false,
+        gate
+      });
+    }
+
+    const input = AgentOsDispatchWorkspaceWriteInputSchema.parse(call.input ?? {});
+    const dispatchResult = await dispatcher(input.dispatchInput);
+
+    return this.createResult("agentos.dispatch_workspace_write", [], {
+      dispatchResult
+    }, {
+      localMutationAttempted: true,
+      localMutationApplied: dispatchResult.status === "runner_completed"
+        && dispatchResult.executeInvoked === true,
       gate
     });
   }
@@ -1017,7 +1125,8 @@ function requireAgentOsMcpTool(toolName: AgentOsMcpToolName): AgentOsMcpToolMani
 function isMutatingTool(toolName: AgentOsMcpToolName): boolean {
   return toolName === "agentos.create_task"
     || toolName === "agentos.cancel_run"
-    || toolName === "agentos.approve_run";
+    || toolName === "agentos.approve_run"
+    || toolName === "agentos.dispatch_workspace_write";
 }
 
 function eventMatchesQuery(event: Event, query: string): boolean {

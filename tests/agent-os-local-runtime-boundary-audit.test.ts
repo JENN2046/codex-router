@@ -37,7 +37,9 @@ test("Agent OS local runtime boundary audit passes for current evidence", async 
   assert.equal(review.summary.codexCliInvocationAllowed, false);
   assert.equal(review.summary.subAgentRuntimeInvocationAllowed, false);
   assert.equal(review.summary.hostExecutorInvocationAllowed, false);
-  assert.equal(review.summary.workspaceWriteExecutionAllowed, false);
+  assert.equal(review.summary.controlledWorkspaceWriteDispatchAllowed, true);
+  assert.equal(review.summary.generalWorkspaceWriteExecutionAllowed, false);
+  assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
   assert.equal(review.summary.localMutationRequiresApprovalAndAllowance, true);
   assert.equal(review.summary.localRuntimeCallsDuringAudit, 0);
   assert.equal(review.summary.providerExecuteCallsDuringAudit, 0);
@@ -127,6 +129,9 @@ test("Agent OS local runtime boundary audit output stays summarized", async () =
 
   assert.match(text, /status: passed/);
   assert.match(text, /local runtime calls during audit: 0/);
+  assert.match(text, /controlled workspace-write dispatch allowed: true/);
+  assert.match(text, /general workspace-write execution allowed: false/);
+  assert.match(text, /workspace-write provider execute allowed: false/);
   assert.equal(parsed.status, "passed");
 
   for (const marker of forbiddenOutputMarkers) {
