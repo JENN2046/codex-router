@@ -315,6 +315,20 @@ export type RecordControlledWorkspaceWriteProviderDispatchPreflightArtifactInput
   now?: () => string;
 };
 
+export type PrepareControlledWorkspaceWriteProviderDispatchInput =
+  Omit<RunControlledWorkspaceWriteProviderDispatchInput, "dispatchPreflight"> & {
+    environmentChecks?: Partial<ControlledWorkspaceWriteDispatchPreflightChecks> & {
+      versionProbe?: string;
+    };
+  };
+
+export type PreparedControlledWorkspaceWriteProviderDispatch = {
+  schemaVersion: "prepared-controlled-workspace-write-provider-dispatch.v1";
+  dispatchInput: RunControlledWorkspaceWriteProviderDispatchInput;
+  dispatchPreflight: ControlledWorkspaceWriteProviderDispatchPreflight;
+  preflightArtifact: StoredArtifact;
+};
+
 export function createControlledReadOnlyProviderDispatchPreflight(input: {
   providerExecutionPlan: ProviderExecutionPlan;
   environmentChecks?: Partial<ControlledReadOnlyDispatchPreflightChecks> & {
@@ -516,6 +530,56 @@ export async function recordControlledWorkspaceWriteProviderDispatchPreflightArt
     ...(input.now !== undefined ? { createdAt: input.now() } : {}),
     alreadyRedacted: true
   });
+}
+
+export async function prepareControlledWorkspaceWriteProviderDispatchInput(
+  input: PrepareControlledWorkspaceWriteProviderDispatchInput
+): Promise<PreparedControlledWorkspaceWriteProviderDispatch> {
+  const dispatchPreflight = createControlledWorkspaceWriteProviderDispatchPreflight({
+    providerExecutionPlan: input.providerExecutionPlan,
+    ...(input.environmentChecks !== undefined
+      ? { environmentChecks: input.environmentChecks }
+      : {})
+  });
+  const preflightArtifact =
+    await recordControlledWorkspaceWriteProviderDispatchPreflightArtifact({
+      artifactStore: input.artifactStore,
+      dispatchPreflight,
+      providerExecutionPlan: input.providerExecutionPlan,
+      executorPlan: input.executorPlan,
+      policyDecision: input.policyDecision,
+      task: input.task,
+      run: input.run,
+      operations: input.operations,
+      now: input.now
+    });
+  const dispatchInput: RunControlledWorkspaceWriteProviderDispatchInput = {
+    providerExecutionPlan: input.providerExecutionPlan,
+    task: input.task,
+    run: input.run,
+    principal: input.principal,
+    policyDecision: input.policyDecision,
+    providerRegistry: input.providerRegistry,
+    kernelStore: input.kernelStore,
+    artifactStore: input.artifactStore,
+    workspaceRoot: input.workspaceRoot,
+    permit: input.permit,
+    executorPlan: input.executorPlan,
+    operations: input.operations,
+    executionAuthorizationId: input.executionAuthorizationId,
+    dispatchPreflight,
+    governanceState: input.governanceState,
+    taskEnvelope: input.taskEnvelope,
+    ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
+    now: input.now
+  };
+
+  return {
+    schemaVersion: "prepared-controlled-workspace-write-provider-dispatch.v1",
+    dispatchInput,
+    dispatchPreflight,
+    preflightArtifact
+  };
 }
 
 export function reviewControlledReadOnlyProviderDispatch(

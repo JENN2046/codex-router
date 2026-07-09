@@ -736,7 +736,7 @@ test("execution boundary current surface audit passes for current evidence", asy
   );
   assert.equal(
     review.summary.controlledProviderExecutionDispatchPreflightMode,
-    "controlled_readonly_dispatch_preflight_matrix_only"
+    "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only"
   );
   assert.equal(
     review.summary.controlledProviderExecutionDispatcherMode,

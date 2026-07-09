@@ -31,7 +31,7 @@ test("controlled provider execution dispatch preflight boundary passes", async (
   assert.equal(review.checks.noBroadAuthorization, true);
   assert.equal(
     review.summary.dispatchPreflightMode,
-    "controlled_readonly_dispatch_preflight_matrix_only"
+    "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only"
   );
   assert.equal(review.summary.dispatchPreflightIsProviderExecuteAuthorization, false);
   assert.equal(review.summary.runnerRemainsFinalProviderExecuteGate, true);

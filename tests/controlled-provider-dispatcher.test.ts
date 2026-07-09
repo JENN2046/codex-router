@@ -17,6 +17,7 @@ import {
   createControlledWorkspaceWriteProviderDispatchPreflight,
   dispatchControlledReadOnlyProviderExecution,
   dispatchControlledWorkspaceWriteProviderExecution,
+  prepareControlledWorkspaceWriteProviderDispatchInput,
   recordControlledReadOnlyProviderDispatchPreflightArtifact,
   recordControlledWorkspaceWriteProviderDispatchPreflightArtifact,
   reviewControlledReadOnlyProviderDispatch
@@ -973,6 +974,45 @@ test("controlled provider dispatcher routes workspace-write through local runner
   assert.equal(fixture.provider.calls.validateExecutionPlan, 1);
   assert.equal(fixture.provider.calls.execute, 0);
   assert.equal(existsSync(join(cwd, "tmp/dispatch.txt")), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+});
+
+test("controlled provider dispatcher prepares workspace-write dispatch input with preflight artifact", async () => {
+  const cwd = await createGitRepo("controlled-provider-dispatcher/workspace-write-prepare");
+  const fixture = await createWorkspaceWriteFixture(cwd, ["tmp/prepared.txt"]);
+  const artifactStore = new InMemoryArtifactStore({ now: createClock() });
+  const prepared = await prepareControlledWorkspaceWriteProviderDispatchInput({
+    ...fixture,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore,
+    now: constantClock()
+  });
+
+  assert.equal(
+    prepared.schemaVersion,
+    "prepared-controlled-workspace-write-provider-dispatch.v1"
+  );
+  assert.equal(
+    prepared.dispatchPreflight.schemaVersion,
+    "controlled-workspace-write-provider-dispatch-preflight.v1"
+  );
+  assert.equal(prepared.preflightArtifact.taskId, fixture.task.taskId);
+  assert.equal(prepared.preflightArtifact.runId, fixture.run.runId);
+  assert.equal(
+    prepared.dispatchInput.dispatchPreflight.environmentPreflight.artifactHash,
+    prepared.dispatchPreflight.environmentPreflight.artifactHash
+  );
+
+  const result = await dispatchControlledWorkspaceWriteProviderExecution(
+    prepared.dispatchInput
+  );
+
+  assert.equal(result.status, "runner_completed", result.reasons.join(","));
+  assert.equal(result.runnerInvoked, true);
+  assert.equal(result.executeInvoked, true);
+  assert.equal(result.providerExecuteInvoked, false);
+  assert.equal(fixture.provider.calls.execute, 0);
+  assert.equal(existsSync(join(cwd, "tmp/prepared.txt")), false);
   assert.equal((await git(["status", "--short"], cwd)).trim(), "");
 });
 

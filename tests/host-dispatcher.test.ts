@@ -20,7 +20,8 @@ import {
   dispatchFormalReadOnlyRunnerResultToProvider,
   dispatchReadOnlyProviderPlan,
   dispatchReadOnlyRunnerResultToProvider,
-  dispatchToHost
+  dispatchToHost,
+  prepareControlledWorkspaceWriteHostProviderDispatch
 } from "../packages/host-dispatcher/src/index.js";
 import { runDesktopDecision } from "../packages/desktop-decision-runner/src/index.js";
 import {
@@ -388,6 +389,37 @@ test("host dispatcher routes controlled workspace-write through local runner", a
   assert.equal(fixture.provider.calls.validateExecutionPlan, 1);
   assert.equal(fixture.provider.calls.execute, 0);
   assert.equal(existsSync(join(cwd, "tmp/host-dispatch.txt")), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+});
+
+test("host dispatcher prepares controlled workspace-write dispatch input", async () => {
+  const cwd = await createHostDispatcherGitRepo(
+    "host-dispatcher/workspace-write-prepare"
+  );
+  const fixture = await createHostWorkspaceWriteFixture(cwd, ["tmp/host-prepared.txt"]);
+  const artifactStore = new InMemoryArtifactStore({ now: constantClock() });
+  const prepared = await prepareControlledWorkspaceWriteHostProviderDispatch({
+    ...fixture,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore,
+    now: constantClock()
+  });
+
+  assert.equal(
+    prepared.schemaVersion,
+    "prepared-controlled-workspace-write-provider-dispatch.v1"
+  );
+  assert.equal(prepared.preflightArtifact.taskId, fixture.task.taskId);
+  assert.equal(prepared.preflightArtifact.runId, fixture.run.runId);
+
+  const result = await dispatchControlledWorkspaceWriteProviderPlan(
+    prepared.dispatchInput
+  );
+
+  assert.equal(result.status, "runner_completed", result.reasons.join(","));
+  assert.equal(result.providerExecuteInvoked, false);
+  assert.equal(fixture.provider.calls.execute, 0);
+  assert.equal(existsSync(join(cwd, "tmp/host-prepared.txt")), false);
   assert.equal((await git(["status", "--short"], cwd)).trim(), "");
 });
 

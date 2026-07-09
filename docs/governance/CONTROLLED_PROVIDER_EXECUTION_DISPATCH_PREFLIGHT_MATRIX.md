@@ -3,20 +3,25 @@
 Marker: `CONTROLLED_PROVIDER_EXECUTION_DISPATCH_PREFLIGHT_MATRIX_RECORDED`
 
 This matrix is a dispatch preflight boundary for controlled provider execution.
-It is not provider execute authorization. It is not real Codex CLI authorization.
-It is not workspace-write authorization. It is not host executor
-authorization. It is not sub-agent runtime authorization. It is not
+It is not general provider execute authorization. It is not real Codex CLI authorization.
+It is not general workspace-write authorization. It is not host
+executor authorization. It is not sub-agent runtime authorization. It is not
 shell/process authorization. It is not external-write authorization. It is not
 push, release, tag, publish, deployment, or secret-change authorization.
 
 ## Scope
 
 The matrix may describe only the preconditions that must be satisfied before a
-caller may hand a controlled read-only request to the provider execution runner.
-It does not call `provider.execute`, does not invoke Codex CLI, does not spawn a
-host process, does not write evidence, and does not refresh acceptance files.
+caller may hand a controlled read-only request or a controlled workspace-write
+request to the provider execution runner boundary. The dispatcher may record a
+sanitized workspace-write preflight artifact while preparing dispatch input. It
+does not call `provider.execute` for workspace-write, does not invoke Codex CLI,
+does not spawn a host process, does not write raw evidence, and does not refresh
+acceptance files.
 
 ## Required Dispatch Preconditions
+
+For controlled read-only dispatch:
 
 - provider id is exactly `codex-cli`
 - side effect class is exactly `read_only`
@@ -47,6 +52,29 @@ host process, does not write evidence, and does not refresh acceptance files.
 - governance strategy is not `simulate`
 - governance phase is not `recovery`
 - sanitized observation and evidence refs are planned before dispatch
+
+For controlled workspace-write dispatch:
+
+- provider id is exactly `codex-cli`
+- side effect class is exactly `workspace_write`
+- sandbox is exactly `workspace-write`
+- workspace-write permit v2 is approved and bound to the exact executor plan
+- operation manifest is declared and hashed
+- execution authorization id matches the permit and runner input
+- dispatcher preparation records a sanitized controlled workspace-write
+  preflight artifact
+- environment preflight artifact ref and hash are present
+- environment preflight artifact is present in the artifact store
+- artifact metadata binds the provider plan hash, executor plan hash, operation
+  manifest hash, provider manifest hash, policy decision hash, task id, and run
+  id
+- provider execute is forbidden
+- real Codex CLI is forbidden
+- external write is forbidden
+- rollback is required
+- governance strategy is not `step_back`
+- governance strategy is not `simulate`
+- governance phase is not `recovery`
 
 ## Stop Matrix
 
@@ -90,6 +118,8 @@ conditions are true:
 | --- | --- | --- |
 | dry-run default | controlled mode not explicitly selected | stay in dry-run or disabled path; no provider execute |
 | controlled read-only candidate | exact provider, permit, plan, registry, preflight, guard, and governance checks pass | may hand off to the provider execution runner boundary |
+| controlled workspace-write prepare | exact provider, workspace-write permit v2, executor plan, operation manifest, registry, environment checks, authorization id, and governance inputs are present | record sanitized preflight artifact and return prepared dispatch input |
+| controlled workspace-write candidate | exact provider, workspace-write permit v2, plan, registry, operation manifest, preflight artifact binding, authorization id, and governance checks pass | may hand off to the provider execution runner boundary without provider execute or real Codex CLI |
 | provider mismatch | provider id differs from `codex-cli` | stop before runner |
 | side-effect mismatch | side effect class differs from `read_only` | stop before runner |
 | sandbox mismatch | sandbox differs from `read-only` | stop before runner |
@@ -97,7 +127,7 @@ conditions are true:
 | permit invalid | permit missing, stale, mismatched, revoked, expired, or replayed | stop before runner |
 | preflight invalid | preflight artifact ref/hash missing or mismatched, artifact-store verification fails, stored artifact payload hash differs from the expected payload, or stored artifact metadata is not bound to the exact plan/executor/policy/manifest/task/run | stop before runner |
 | governance stop | strategy is `step_back` or `simulate`, or phase is `recovery` | stop before runner |
-| broad scope | workspace-write, shell/process, protected remote, external write, release, deployment, or secret change appears | stop before runner |
+| broad scope | unprepared workspace-write, shell/process, protected remote, external write, release, deployment, or secret change appears | stop before runner |
 
 ## Current Boundary
 

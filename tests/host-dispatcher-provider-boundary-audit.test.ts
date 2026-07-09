@@ -76,11 +76,11 @@ test("host dispatcher provider boundary audit blocks broadened control plane", a
         "Host dispatcher provider boundary | active | Yes"
       )
       .replaceAll(
-        "may delegate controlled workspace-write inputs to `governance-internal-controlled-provider-dispatcher`",
+        "may delegate controlled workspace-write input preparation and dispatch to `governance-internal-controlled-provider-dispatcher`",
         "may execute all workspace-write inputs directly"
       )
       .replaceAll(
-        "Controlled workspace-write may run only through `runWorkspaceWriteExecution`",
+        "controlled workspace-write requires permit v2, preflight artifact binding, declared operations, exact authorization id, and the local runner",
         "Controlled workspace-write may run through provider.execute"
       )
   });

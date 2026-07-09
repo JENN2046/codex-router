@@ -28,7 +28,10 @@ import {
 } from "../../provider-registry/src/index.js";
 import {
   dispatchControlledWorkspaceWriteProviderExecution,
+  prepareControlledWorkspaceWriteProviderDispatchInput,
   type ControlledWorkspaceWriteProviderDispatchResult,
+  type PreparedControlledWorkspaceWriteProviderDispatch,
+  type PrepareControlledWorkspaceWriteProviderDispatchInput,
   type RunControlledWorkspaceWriteProviderDispatchInput
 } from "../../governance-internal-controlled-provider-dispatcher/src/index.js";
 
@@ -103,6 +106,12 @@ export type ControlledWorkspaceWriteHostProviderDispatchInput =
 
 export type ControlledWorkspaceWriteHostProviderDispatchResult =
   ControlledWorkspaceWriteProviderDispatchResult;
+
+export type PrepareControlledWorkspaceWriteHostProviderDispatchInput =
+  PrepareControlledWorkspaceWriteProviderDispatchInput;
+
+export type PreparedControlledWorkspaceWriteHostProviderDispatch =
+  PreparedControlledWorkspaceWriteProviderDispatch;
 
 export async function dispatchToHost(
   input: HostDispatcherInput
@@ -297,6 +306,12 @@ export async function dispatchControlledWorkspaceWriteProviderPlan(
   input: ControlledWorkspaceWriteHostProviderDispatchInput
 ): Promise<ControlledWorkspaceWriteHostProviderDispatchResult> {
   return dispatchControlledWorkspaceWriteProviderExecution(input);
+}
+
+export async function prepareControlledWorkspaceWriteHostProviderDispatch(
+  input: PrepareControlledWorkspaceWriteHostProviderDispatchInput
+): Promise<PreparedControlledWorkspaceWriteHostProviderDispatch> {
+  return prepareControlledWorkspaceWriteProviderDispatchInput(input);
 }
 
 async function dispatchToCliHost(

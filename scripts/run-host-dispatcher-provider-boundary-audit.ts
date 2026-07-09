@@ -15,6 +15,8 @@ const REQUIRED_HOST_DISPATCHER_SOURCE_MARKERS = [
   "dispatchReadOnlyRunnerResultToProvider",
   "dispatchFormalReadOnlyRunnerResultToProvider",
   "dispatchControlledWorkspaceWriteProviderPlan",
+  "prepareControlledWorkspaceWriteHostProviderDispatch",
+  "prepareControlledWorkspaceWriteProviderDispatchInput",
   "dispatchControlledWorkspaceWriteProviderExecution",
   "ControlledWorkspaceWriteHostProviderDispatchInput",
   "host_dispatcher_read_only_provider_dispatch_requires_codex_cli",
@@ -41,6 +43,7 @@ const REQUIRED_HOST_DISPATCHER_TEST_MARKERS = [
   "host dispatcher read-only provider dry run does not spawn",
   "host dispatcher rejects workspace-write provider dispatch before spawn",
   "host dispatcher routes controlled workspace-write through local runner",
+  "host dispatcher prepares controlled workspace-write dispatch input",
   "host dispatcher requires controlled workspace-write preflight artifact",
   "controlled_workspace_write_dispatch_preflight_artifact_store_missing",
   "providerExecuteInvoked, false",
@@ -233,8 +236,8 @@ async function read(cwd: string, filePath: string): Promise<string> {
 function controlPlaneBoundaryRecorded(text: string): boolean {
   return text.includes("| Host dispatcher provider boundary |")
     && text.includes("controlled read-only and controlled workspace-write provider dispatch")
-    && text.includes("may delegate controlled workspace-write inputs to `governance-internal-controlled-provider-dispatcher`")
-    && text.includes("Controlled workspace-write may run only through `runWorkspaceWriteExecution`")
+    && text.includes("may delegate controlled workspace-write input preparation and dispatch to `governance-internal-controlled-provider-dispatcher`")
+    && text.includes("controlled workspace-write requires permit v2, preflight artifact binding, declared operations, exact authorization id, and the local runner")
     && text.includes("Formal read-only dispatch requires registry and metadata")
     && text.includes("General provider execution | blocked | No");
 }

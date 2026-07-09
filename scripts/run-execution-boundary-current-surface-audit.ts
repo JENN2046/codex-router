@@ -635,7 +635,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     providerRegistryMode: "catalog_selection_attestation_and_manifest_store_only";
     controlledProviderExecutionTaskbookMode: "local_only_minimal_slice_taskbook";
     controlledProviderExecutionTaskbookReviewBoundaryMode: "git_state_and_artifact_review_gate_only";
-    controlledProviderExecutionDispatchPreflightMode: "controlled_readonly_dispatch_preflight_matrix_only";
+    controlledProviderExecutionDispatchPreflightMode: "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only";
     controlledProviderExecutionDispatcherMode: "controlled_readonly_and_workspace_write_pre_runner_dispatcher";
     providerExecutionRunnerMode: "controlled_readonly_and_workspace_write_gate";
     providerCorePrimitiveMode: "manifest_permit_plan_only";
@@ -5127,8 +5127,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("high-risk signals are not Codex CLI authorization")
     && text.includes("remote-agent, tool, and workspace-write primitives are not runtime authorization")
     && text.includes("permits only `codex-cli + read_only + read-only` controlled read-only execution")
-    && text.includes("may delegate controlled workspace-write inputs to `governance-internal-controlled-provider-dispatcher`")
-    && text.includes("Controlled workspace-write may run only through `runWorkspaceWriteExecution`")
+    && text.includes("may delegate controlled workspace-write input preparation and dispatch to `governance-internal-controlled-provider-dispatcher`")
+    && text.includes("controlled workspace-write requires permit v2, preflight artifact binding, declared operations, exact authorization id, and the local runner")
     && text.includes("explicit Codex CLI host execution surface")
     && text.includes("workspace-write smoke requires explicit allowance and confirmation")
     && text.includes("governance step-back blocks write sandbox before spawn")
@@ -6322,7 +6322,7 @@ function controlledProviderExecutionDispatchPreflightBoundaryConstrained(
     input.controlledProviderExecutionDispatchPreflightReview.summary;
 
   return input.controlledProviderExecutionDispatchPreflightReview.status === "passed"
-    && summary.dispatchPreflightMode === "controlled_readonly_dispatch_preflight_matrix_only"
+    && summary.dispatchPreflightMode === "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only"
     && summary.dispatchPreflightIsProviderExecuteAuthorization === false
     && summary.dispatchPreflightIsRealCodexCliAuthorization === false
     && summary.dispatchPreflightIsWorkspaceWriteAuthorization === false
@@ -9181,7 +9181,7 @@ function executionAuthorityLatticeConstrained(
   return codexCliHostDoesNotAuthorizeHostExecutorOrSubAgentRuntime(input)
     && subAgentRuntimeDoesNotInvokeCodexCliOrProviderExecution(input)
     && hostExecutorDoesNotExecuteProviderOrSubAgentRuntime(input)
-    && dispatchPreflight.dispatchPreflightMode === "controlled_readonly_dispatch_preflight_matrix_only"
+    && dispatchPreflight.dispatchPreflightMode === "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only"
     && dispatchPreflight.dispatchPreflightIsProviderExecuteAuthorization === false
     && dispatchPreflight.dispatchPreflightIsRealCodexCliAuthorization === false
     && dispatchPreflight.dispatchPreflightIsWorkspaceWriteAuthorization === false
@@ -9435,7 +9435,7 @@ function outputSanitized(): boolean {
       controlledProviderExecutionTaskbookReviewBoundaryMode:
         "git_state_and_artifact_review_gate_only",
       controlledProviderExecutionDispatchPreflightMode:
-        "controlled_readonly_dispatch_preflight_matrix_only",
+        "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only",
       controlledProviderExecutionDispatcherMode:
         "controlled_readonly_and_workspace_write_pre_runner_dispatcher",
       providerExecutionRunnerMode: "controlled_readonly_and_workspace_write_gate",
