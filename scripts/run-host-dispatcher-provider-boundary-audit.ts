@@ -14,6 +14,9 @@ const REQUIRED_HOST_DISPATCHER_SOURCE_MARKERS = [
   "dispatchReadOnlyProviderPlan",
   "dispatchReadOnlyRunnerResultToProvider",
   "dispatchFormalReadOnlyRunnerResultToProvider",
+  "dispatchControlledWorkspaceWriteProviderPlan",
+  "dispatchControlledWorkspaceWriteProviderExecution",
+  "ControlledWorkspaceWriteHostProviderDispatchInput",
   "host_dispatcher_read_only_provider_dispatch_requires_codex_cli",
   "plan.sideEffectClass !== \"read_only\"",
   "plan.sandboxProfile.mode !== \"read-only\"",
@@ -37,6 +40,10 @@ const REQUIRED_HOST_DISPATCHER_TEST_MARKERS = [
   "host dispatcher read-only provider dispatch creates permit and uses fake in-memory execution",
   "host dispatcher read-only provider dry run does not spawn",
   "host dispatcher rejects workspace-write provider dispatch before spawn",
+  "host dispatcher routes controlled workspace-write through local runner",
+  "host dispatcher requires controlled workspace-write preflight artifact",
+  "controlled_workspace_write_dispatch_preflight_artifact_store_missing",
+  "providerExecuteInvoked, false",
   "host dispatcher rejects invalid provider plans before permit issuance",
   "host dispatcher dispatches ready read-only runner results through provider permits",
   "host dispatcher validates provider registry selection before read-only runner dispatch",
@@ -81,15 +88,17 @@ export interface HostDispatcherProviderBoundaryAuditResult {
     outputSanitized: boolean;
   };
   summary: {
-    dispatchMode: "controlled_read_only_provider_dispatch";
+    dispatchMode: "controlled_read_only_and_workspace_write_provider_dispatch";
     permittedProviderId: "codex-cli";
     permittedSideEffectClass: "read_only";
     permittedSandbox: "read-only";
     readOnlyProviderDispatchAllowed: true;
+    controlledWorkspaceWriteDispatchAllowed: true;
     formalDispatchRequiresRegistry: true;
     formalDispatchRequiresMetadata: true;
     generalProviderExecutionAllowed: false;
-    workspaceWriteAllowedByHostDispatcher: false;
+    generalWorkspaceWriteAllowedByHostDispatcher: false;
+    workspaceWriteProviderExecuteAllowed: false;
     defaultRealCodexCliAllowed: false;
     subAgentRuntimeInvocationAllowed: false;
     hostExecutorInvocationAllowed: false;
@@ -159,15 +168,17 @@ export function reviewHostDispatcherProviderBoundaryAudit(
     status: reasons.length === 0 ? "passed" : "blocked",
     checks,
     summary: {
-      dispatchMode: "controlled_read_only_provider_dispatch",
+      dispatchMode: "controlled_read_only_and_workspace_write_provider_dispatch",
       permittedProviderId: "codex-cli",
       permittedSideEffectClass: "read_only",
       permittedSandbox: "read-only",
       readOnlyProviderDispatchAllowed: true,
+      controlledWorkspaceWriteDispatchAllowed: true,
       formalDispatchRequiresRegistry: true,
       formalDispatchRequiresMetadata: true,
       generalProviderExecutionAllowed: false,
-      workspaceWriteAllowedByHostDispatcher: false,
+      generalWorkspaceWriteAllowedByHostDispatcher: false,
+      workspaceWriteProviderExecuteAllowed: false,
       defaultRealCodexCliAllowed: false,
       subAgentRuntimeInvocationAllowed: false,
       hostExecutorInvocationAllowed: false,
@@ -197,10 +208,12 @@ export function formatHostDispatcherProviderBoundaryAuditResult(
     `permitted side-effect class: ${review.summary.permittedSideEffectClass}`,
     `permitted sandbox: ${review.summary.permittedSandbox}`,
     `read-only provider dispatch allowed: ${review.summary.readOnlyProviderDispatchAllowed}`,
+    `controlled workspace-write dispatch allowed: ${review.summary.controlledWorkspaceWriteDispatchAllowed}`,
     `formal dispatch requires registry: ${review.summary.formalDispatchRequiresRegistry}`,
     `formal dispatch requires metadata: ${review.summary.formalDispatchRequiresMetadata}`,
     `general provider execution allowed: ${review.summary.generalProviderExecutionAllowed}`,
-    `workspace-write allowed by host dispatcher: ${review.summary.workspaceWriteAllowedByHostDispatcher}`,
+    `general workspace-write allowed by host dispatcher: ${review.summary.generalWorkspaceWriteAllowedByHostDispatcher}`,
+    `workspace-write provider execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
     `default real Codex CLI allowed: ${review.summary.defaultRealCodexCliAllowed}`,
     `sub-agent runtime invocation allowed: ${review.summary.subAgentRuntimeInvocationAllowed}`,
     `host executor invocation allowed: ${review.summary.hostExecutorInvocationAllowed}`,
@@ -219,9 +232,10 @@ async function read(cwd: string, filePath: string): Promise<string> {
 
 function controlPlaneBoundaryRecorded(text: string): boolean {
   return text.includes("| Host dispatcher provider boundary |")
-    && text.includes("controlled read-only provider dispatch")
-    && text.includes("codex-cli + read_only + read-only only")
-    && text.includes("formal dispatch requires registry and metadata")
+    && text.includes("controlled read-only and controlled workspace-write provider dispatch")
+    && text.includes("may delegate controlled workspace-write inputs to `governance-internal-controlled-provider-dispatcher`")
+    && text.includes("Controlled workspace-write may run only through `runWorkspaceWriteExecution`")
+    && text.includes("Formal read-only dispatch requires registry and metadata")
     && text.includes("General provider execution | blocked | No");
 }
 
@@ -239,7 +253,8 @@ function noBroadExecutionAuthorization(
     && !/Host dispatcher provider boundary\s*\|\s*active\s*\|\s*Yes/i.test(combined)
     && !/General provider execution\s*\|\s*active\s*\|\s*Yes/i.test(combined)
     && !/General workspace write\s*\|\s*active\s*\|\s*Yes/i.test(combined)
-    && !/workspace-write allowed by host dispatcher:\s*true/i.test(combined);
+    && !/general workspace-write allowed by host dispatcher:\s*true/i.test(combined)
+    && !/workspace-write provider execute allowed:\s*true/i.test(combined);
 }
 
 function outputSanitized(): boolean {
@@ -255,15 +270,17 @@ function outputSanitized(): boolean {
       outputSanitized: true
     },
     summary: {
-      dispatchMode: "controlled_read_only_provider_dispatch",
+      dispatchMode: "controlled_read_only_and_workspace_write_provider_dispatch",
       permittedProviderId: "codex-cli",
       permittedSideEffectClass: "read_only",
       permittedSandbox: "read-only",
       readOnlyProviderDispatchAllowed: true,
+      controlledWorkspaceWriteDispatchAllowed: true,
       formalDispatchRequiresRegistry: true,
       formalDispatchRequiresMetadata: true,
       generalProviderExecutionAllowed: false,
-      workspaceWriteAllowedByHostDispatcher: false,
+      generalWorkspaceWriteAllowedByHostDispatcher: false,
+      workspaceWriteProviderExecuteAllowed: false,
       defaultRealCodexCliAllowed: false,
       subAgentRuntimeInvocationAllowed: false,
       hostExecutorInvocationAllowed: false,

@@ -26,6 +26,11 @@ import {
   type ProviderRegistry,
   type ProviderSelectionSummary
 } from "../../provider-registry/src/index.js";
+import {
+  dispatchControlledWorkspaceWriteProviderExecution,
+  type ControlledWorkspaceWriteProviderDispatchResult,
+  type RunControlledWorkspaceWriteProviderDispatchInput
+} from "../../governance-internal-controlled-provider-dispatcher/src/index.js";
 
 export type { HostRoute };
 
@@ -92,6 +97,12 @@ export interface FormalReadOnlyRunnerProviderDispatchInput {
   dryRun?: boolean;
   providerExecutionMetadata: Record<string, unknown>;
 }
+
+export type ControlledWorkspaceWriteHostProviderDispatchInput =
+  RunControlledWorkspaceWriteProviderDispatchInput;
+
+export type ControlledWorkspaceWriteHostProviderDispatchResult =
+  ControlledWorkspaceWriteProviderDispatchResult;
 
 export async function dispatchToHost(
   input: HostDispatcherInput
@@ -280,6 +291,12 @@ export async function dispatchFormalReadOnlyRunnerResultToProvider(
     ...(input.dryRun === true ? { dryRun: true } : {}),
     providerExecutionMetadata: looseInput.providerExecutionMetadata
   });
+}
+
+export async function dispatchControlledWorkspaceWriteProviderPlan(
+  input: ControlledWorkspaceWriteHostProviderDispatchInput
+): Promise<ControlledWorkspaceWriteHostProviderDispatchResult> {
+  return dispatchControlledWorkspaceWriteProviderExecution(input);
 }
 
 async function dispatchToCliHost(

@@ -1108,7 +1108,7 @@ test("execution boundary current surface audit passes for current evidence", asy
   );
   assert.equal(
     review.summary.hostDispatcherProviderMode,
-    "controlled_read_only_provider_dispatch"
+    "controlled_read_only_and_workspace_write_provider_dispatch"
   );
   assert.equal(
     review.summary.codexDesktopBridgeMode,
@@ -1282,8 +1282,16 @@ test("execution boundary current surface audit passes for current evidence", asy
   );
   assert.equal(review.summary.desktopLiveAdapterProviderInvocationAllowed, false);
   assert.equal(review.summary.hostDispatcherReadOnlyProviderDispatchAllowed, true);
+  assert.equal(
+    review.summary.hostDispatcherControlledWorkspaceWriteDispatchAllowed,
+    true
+  );
   assert.equal(review.summary.hostDispatcherGeneralProviderExecutionAllowed, false);
-  assert.equal(review.summary.hostDispatcherWorkspaceWriteAllowed, false);
+  assert.equal(review.summary.hostDispatcherGeneralWorkspaceWriteAllowed, false);
+  assert.equal(
+    review.summary.hostDispatcherWorkspaceWriteProviderExecuteAllowed,
+    false
+  );
   assert.equal(review.summary.hostExecutorDefaultRealExecutionAllowed, false);
   assert.equal(review.summary.hostExecutorTaskbookExecutionAllowed, false);
   assert.equal(review.summary.hostClientExecutorReviewDispatchAllowed, false);

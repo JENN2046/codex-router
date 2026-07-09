@@ -643,7 +643,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     desktopAgentStrategyMode: "agent_assignment_and_ownership_plan_only";
     desktopDecisionRunnerMode: "decision_package_only";
     finalHostLocatorMode: "source_candidate_pre_mapping_only";
-    hostDispatcherProviderMode: "controlled_read_only_provider_dispatch";
+    hostDispatcherProviderMode: "controlled_read_only_and_workspace_write_provider_dispatch";
     codexDesktopBridgeMode: "explicit_injected_desktop_host_bridge";
     codexDesktopLiveHostMode: "explicit_current_host_runtime_and_memory_bundle";
     codexMemoryMcpClientMode: "explicit_mcp_http_memory_transport_only";
@@ -1104,8 +1104,10 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     desktopLiveAdapterBridgeInvocationAllowedByCodexCliRoute: false;
     desktopLiveAdapterProviderInvocationAllowed: false;
     hostDispatcherReadOnlyProviderDispatchAllowed: true;
+    hostDispatcherControlledWorkspaceWriteDispatchAllowed: true;
     hostDispatcherGeneralProviderExecutionAllowed: false;
-    hostDispatcherWorkspaceWriteAllowed: false;
+    hostDispatcherGeneralWorkspaceWriteAllowed: false;
+    hostDispatcherWorkspaceWriteProviderExecuteAllowed: false;
     hostExecutorDefaultRealExecutionAllowed: false;
     hostExecutorTaskbookExecutionAllowed: false;
     hostClientExecutorReviewDispatchAllowed: false;
@@ -2157,7 +2159,7 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
       desktopAgentStrategyMode: "agent_assignment_and_ownership_plan_only",
       desktopDecisionRunnerMode: "decision_package_only",
       finalHostLocatorMode: "source_candidate_pre_mapping_only",
-      hostDispatcherProviderMode: "controlled_read_only_provider_dispatch",
+      hostDispatcherProviderMode: "controlled_read_only_and_workspace_write_provider_dispatch",
       codexDesktopBridgeMode: "explicit_injected_desktop_host_bridge",
       codexDesktopLiveHostMode: "explicit_current_host_runtime_and_memory_bundle",
       codexMemoryMcpClientMode: "explicit_mcp_http_memory_transport_only",
@@ -2940,8 +2942,10 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
       desktopLiveAdapterBridgeInvocationAllowedByCodexCliRoute: false,
       desktopLiveAdapterProviderInvocationAllowed: false,
       hostDispatcherReadOnlyProviderDispatchAllowed: true,
+      hostDispatcherControlledWorkspaceWriteDispatchAllowed: true,
       hostDispatcherGeneralProviderExecutionAllowed: false,
-      hostDispatcherWorkspaceWriteAllowed: false,
+      hostDispatcherGeneralWorkspaceWriteAllowed: false,
+      hostDispatcherWorkspaceWriteProviderExecuteAllowed: false,
       hostExecutorDefaultRealExecutionAllowed: false,
       hostExecutorTaskbookExecutionAllowed: false,
       hostClientExecutorReviewDispatchAllowed: false,
@@ -4275,8 +4279,10 @@ export function formatExecutionBoundaryCurrentSurfaceAuditResult(
     `desktop live adapter bridge invocation allowed by codex-cli route: ${review.summary.desktopLiveAdapterBridgeInvocationAllowedByCodexCliRoute}`,
     `desktop live adapter provider invocation allowed: ${review.summary.desktopLiveAdapterProviderInvocationAllowed}`,
     `host dispatcher read-only provider dispatch allowed: ${review.summary.hostDispatcherReadOnlyProviderDispatchAllowed}`,
+    `host dispatcher controlled workspace-write dispatch allowed: ${review.summary.hostDispatcherControlledWorkspaceWriteDispatchAllowed}`,
     `host dispatcher general provider execution allowed: ${review.summary.hostDispatcherGeneralProviderExecutionAllowed}`,
-    `host dispatcher workspace-write allowed: ${review.summary.hostDispatcherWorkspaceWriteAllowed}`,
+    `host dispatcher general workspace-write allowed: ${review.summary.hostDispatcherGeneralWorkspaceWriteAllowed}`,
+    `host dispatcher workspace-write provider execute allowed: ${review.summary.hostDispatcherWorkspaceWriteProviderExecuteAllowed}`,
     `host executor default real execution allowed: ${review.summary.hostExecutorDefaultRealExecutionAllowed}`,
     `host executor taskbook execution allowed: ${review.summary.hostExecutorTaskbookExecutionAllowed}`,
     `host-client executor review dispatch allowed: ${review.summary.hostClientExecutorReviewDispatchAllowed}`,
@@ -5104,7 +5110,9 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("context pressure is not sub-agent runtime authorization")
     && text.includes("high-risk signals are not Codex CLI authorization")
     && text.includes("remote-agent, tool, and workspace-write primitives are not runtime authorization")
-    && text.includes("codex-cli + read_only + read-only only")
+    && text.includes("permits only `codex-cli + read_only + read-only` controlled read-only execution")
+    && text.includes("may delegate controlled workspace-write inputs to `governance-internal-controlled-provider-dispatcher`")
+    && text.includes("Controlled workspace-write may run only through `runWorkspaceWriteExecution`")
     && text.includes("explicit Codex CLI host execution surface")
     && text.includes("workspace-write smoke requires explicit allowance and confirmation")
     && text.includes("governance step-back blocks write sandbox before spawn")
@@ -6655,15 +6663,17 @@ function hostDispatcherProviderBoundaryConstrained(
   const summary = input.hostDispatcherProviderReview.summary;
 
   return input.hostDispatcherProviderReview.status === "passed"
-    && summary.dispatchMode === "controlled_read_only_provider_dispatch"
+    && summary.dispatchMode === "controlled_read_only_and_workspace_write_provider_dispatch"
     && summary.permittedProviderId === "codex-cli"
     && summary.permittedSideEffectClass === "read_only"
     && summary.permittedSandbox === "read-only"
     && summary.readOnlyProviderDispatchAllowed === true
+    && summary.controlledWorkspaceWriteDispatchAllowed === true
     && summary.formalDispatchRequiresRegistry === true
     && summary.formalDispatchRequiresMetadata === true
     && summary.generalProviderExecutionAllowed === false
-    && summary.workspaceWriteAllowedByHostDispatcher === false
+    && summary.generalWorkspaceWriteAllowedByHostDispatcher === false
+    && summary.workspaceWriteProviderExecuteAllowed === false
     && summary.defaultRealCodexCliAllowed === false
     && summary.subAgentRuntimeInvocationAllowed === false
     && summary.hostExecutorInvocationAllowed === false
@@ -7861,7 +7871,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("desktop live adapter bridge invocation allowed by codex-cli route: true")
     && !text.includes("desktop live adapter provider invocation allowed: true")
     && !text.includes("host dispatcher general provider execution allowed: true")
-    && !text.includes("host dispatcher workspace-write allowed: true")
+    && !text.includes("host dispatcher general workspace-write allowed: true")
+    && !text.includes("host dispatcher workspace-write provider execute allowed: true")
     && !text.includes("remote agent execution allowed: true")
     && !text.includes("tool runtime invocation allowed: true")
     && !text.includes("host executor default real execution allowed: true")
@@ -8851,7 +8862,9 @@ function auditItselfIsNonExecuting(
     && hostDispatcherProvider.workspaceWriteCallsDuringAudit === 0
     && hostDispatcherProvider.externalWriteCallsDuringAudit === 0
     && hostDispatcherProvider.generalProviderExecutionAllowed === false
-    && hostDispatcherProvider.workspaceWriteAllowedByHostDispatcher === false
+    && hostDispatcherProvider.controlledWorkspaceWriteDispatchAllowed === true
+    && hostDispatcherProvider.generalWorkspaceWriteAllowedByHostDispatcher === false
+    && hostDispatcherProvider.workspaceWriteProviderExecuteAllowed === false
     && hostDispatcherProvider.defaultRealCodexCliAllowed === false
     && hostDispatcherProvider.subAgentRuntimeInvocationAllowed === false
     && hostDispatcherProvider.hostExecutorInvocationAllowed === false
@@ -9176,13 +9189,15 @@ function executionAuthorityLatticeConstrained(
     && providerRunner.defaultRealCodexCliAllowed === false
     && providerRunner.hostExecutorInvocationAllowed === false
     && providerRunner.subAgentRuntimeInvocationAllowed === false
-    && hostDispatcher.dispatchMode === "controlled_read_only_provider_dispatch"
+    && hostDispatcher.dispatchMode === "controlled_read_only_and_workspace_write_provider_dispatch"
     && hostDispatcher.readOnlyProviderDispatchAllowed === true
     && hostDispatcher.permittedProviderId === "codex-cli"
     && hostDispatcher.permittedSideEffectClass === "read_only"
     && hostDispatcher.permittedSandbox === "read-only"
     && hostDispatcher.generalProviderExecutionAllowed === false
-    && hostDispatcher.workspaceWriteAllowedByHostDispatcher === false
+    && hostDispatcher.controlledWorkspaceWriteDispatchAllowed === true
+    && hostDispatcher.generalWorkspaceWriteAllowedByHostDispatcher === false
+    && hostDispatcher.workspaceWriteProviderExecuteAllowed === false
     && hostDispatcher.defaultRealCodexCliAllowed === false
     && hostDispatcher.hostExecutorInvocationAllowed === false
     && hostDispatcher.subAgentRuntimeInvocationAllowed === false
@@ -9405,7 +9420,7 @@ function outputSanitized(): boolean {
       desktopAgentStrategyMode: "agent_assignment_and_ownership_plan_only",
       desktopDecisionRunnerMode: "decision_package_only",
       finalHostLocatorMode: "source_candidate_pre_mapping_only",
-      hostDispatcherProviderMode: "controlled_read_only_provider_dispatch",
+      hostDispatcherProviderMode: "controlled_read_only_and_workspace_write_provider_dispatch",
       codexDesktopBridgeMode: "explicit_injected_desktop_host_bridge",
       codexDesktopLiveHostMode: "explicit_current_host_runtime_and_memory_bundle",
       codexMemoryMcpClientMode: "explicit_mcp_http_memory_transport_only",
@@ -9871,8 +9886,10 @@ function outputSanitized(): boolean {
       desktopLiveAdapterBridgeInvocationAllowedByCodexCliRoute: false,
       desktopLiveAdapterProviderInvocationAllowed: false,
       hostDispatcherReadOnlyProviderDispatchAllowed: true,
+      hostDispatcherControlledWorkspaceWriteDispatchAllowed: true,
       hostDispatcherGeneralProviderExecutionAllowed: false,
-      hostDispatcherWorkspaceWriteAllowed: false,
+      hostDispatcherGeneralWorkspaceWriteAllowed: false,
+      hostDispatcherWorkspaceWriteProviderExecuteAllowed: false,
       hostExecutorDefaultRealExecutionAllowed: false,
       hostExecutorTaskbookExecutionAllowed: false,
       hostClientExecutorReviewDispatchAllowed: false,
