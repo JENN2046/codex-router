@@ -360,6 +360,32 @@ test("controlled provider dispatcher blocks unsafe preflight metadata before run
   assert.equal(fixture.provider.calls.execute, 0);
 });
 
+test("controlled provider dispatcher refuses to store unsafe preflight artifacts", async () => {
+  const fixture = createFixture();
+  const artifactStore = new InMemoryArtifactStore({ now: createClock() });
+  const dispatchPreflight = createControlledReadOnlyProviderDispatchPreflight({
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    environmentChecks: {
+      versionProbe: "raw stdout contained OPENAI_API_KEY"
+    }
+  });
+
+  await assert.rejects(
+    recordControlledReadOnlyProviderDispatchPreflightArtifact({
+      artifactStore,
+      dispatchPreflight,
+      providerExecutionPlan: fixture.providerExecutionPlan,
+      executorPlan: fixture.executorPlan,
+      policyDecision: fixture.policyDecision,
+      task: fixture.task,
+      run: fixture.run,
+      now: createClock()
+    }),
+    /controlled_readonly_dispatch_preflight_metadata_not_sanitized/
+  );
+  assert.deepEqual(await artifactStore.listArtifacts(), []);
+});
+
 test("controlled provider dispatcher blocks permit drift before runner", () => {
   const fixture = createFixture();
   const review = reviewControlledReadOnlyProviderDispatch({

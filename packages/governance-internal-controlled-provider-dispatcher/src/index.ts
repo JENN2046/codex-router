@@ -240,6 +240,9 @@ export async function recordControlledReadOnlyProviderDispatchPreflightArtifact(
   const dispatchPreflight = ControlledReadOnlyProviderDispatchPreflightSchema.parse(
     input.dispatchPreflight
   );
+  if (containsForbiddenExecutionMaterial(dispatchPreflight.environmentPreflight)) {
+    throw new Error("controlled_readonly_dispatch_preflight_metadata_not_sanitized");
+  }
   const providerExecutionPlanHash =
     hashProviderExecutionPlannerObject(providerExecutionPlan);
   const executorPlanHash = hashProviderExecutionPlannerObject(executorPlan);
