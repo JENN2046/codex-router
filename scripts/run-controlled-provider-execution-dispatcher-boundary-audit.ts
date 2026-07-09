@@ -75,6 +75,7 @@ const REQUIRED_TEST_MARKERS = [
   "controlled provider dispatcher verifies stored preflight artifact payload before runner",
   "controlled provider dispatcher binds stored preflight artifact metadata before runner",
   "controlled provider dispatcher binds stored preflight artifact authorization context before runner",
+  "controlled provider dispatcher stores distinct preflight artifacts for same provider runs",
   "controlled provider dispatcher blocks preflight artifact drift before runner",
   "controlled provider dispatcher blocks unsafe preflight metadata before runner",
   "controlled provider dispatcher blocks permit drift before runner",

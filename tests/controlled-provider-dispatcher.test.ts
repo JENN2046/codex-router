@@ -262,6 +262,47 @@ test("controlled provider dispatcher binds stored preflight artifact authorizati
   assert.equal(fixture.provider.calls.execute, 0);
 });
 
+test("controlled provider dispatcher stores distinct preflight artifacts for same provider runs", async () => {
+  const artifactStore = new InMemoryArtifactStore({ now: createClock() });
+  const first = createFixture();
+  const second = createFixture({
+    taskId: "task_controlled_provider_dispatcher_002",
+    runId: "run_controlled_provider_dispatcher_002",
+    decisionId: "decision_controlled_provider_dispatcher_002"
+  });
+
+  await recordControlledReadOnlyProviderDispatchPreflightArtifact({
+    artifactStore,
+    dispatchPreflight: first.dispatchPreflight,
+    providerExecutionPlan: first.providerExecutionPlan,
+    executorPlan: first.executorPlan,
+    policyDecision: first.policyDecision,
+    task: first.task,
+    run: first.run,
+    now: createClock()
+  });
+  await recordControlledReadOnlyProviderDispatchPreflightArtifact({
+    artifactStore,
+    dispatchPreflight: second.dispatchPreflight,
+    providerExecutionPlan: second.providerExecutionPlan,
+    executorPlan: second.executorPlan,
+    policyDecision: second.policyDecision,
+    task: second.task,
+    run: second.run,
+    now: createClock()
+  });
+
+  const artifacts = await artifactStore.listArtifacts({ type: "json" });
+  assert.equal(artifacts.length, 2);
+  assert.equal(new Set(artifacts.map((artifact) => artifact.artifactId)).size, 2);
+  assert.equal(
+    artifacts.filter((artifact) =>
+      artifact.metadata.controlledReadOnlyDispatchPreflight !== undefined
+    ).length,
+    2
+  );
+});
+
 test("controlled provider dispatcher blocks preflight artifact drift before runner", () => {
   const fixture = createFixture();
   const review = reviewControlledReadOnlyProviderDispatch({
@@ -836,15 +877,24 @@ type Fixture = {
 
 function createFixture(options: {
   manifest?: ProviderManifest;
+  taskId?: string;
+  runId?: string;
+  decisionId?: string;
 } = {}): Fixture {
   const provider = createFakeCodexCliProvider({
     ...(options.manifest !== undefined ? { manifest: options.manifest } : {})
   });
   const providerRegistry = createRegistry(provider);
-  const task = createTask();
+  const task = createTask({
+    ...(options.taskId !== undefined ? { taskId: options.taskId } : {})
+  });
   const principal = PrincipalSchema.parse(validPrincipal);
-  const policyDecision = createPolicyDecision(task);
-  const run = createRun(task, policyDecision);
+  const policyDecision = createPolicyDecision(task, {
+    ...(options.decisionId !== undefined ? { decisionId: options.decisionId } : {})
+  });
+  const run = createRun(task, policyDecision, {
+    ...(options.runId !== undefined ? { runId: options.runId } : {})
+  });
   const providerExecutionPlan = planProviderExecution(createPlannerInput({
     task,
     run,
@@ -931,10 +981,12 @@ function createPlannerInput(
   };
 }
 
-function createTask(): Task {
+function createTask(options: {
+  taskId?: string;
+} = {}): Task {
   return TaskSchema.parse({
     ...validTask,
-    taskId: "task_controlled_provider_dispatcher_001",
+    taskId: options.taskId ?? "task_controlled_provider_dispatcher_001",
     requestedAction: "Inspect repository state through controlled provider dispatch.",
     successCriteria: ["controlled dispatcher gates runner"],
     outOfScope: ["workspace-write", "external writes"],
@@ -958,10 +1010,12 @@ function createTask(): Task {
   });
 }
 
-function createPolicyDecision(task: Task): PolicyDecision {
+function createPolicyDecision(task: Task, options: {
+  decisionId?: string;
+} = {}): PolicyDecision {
   return PolicyDecisionSchema.parse({
     ...validPolicyDecision,
-    decisionId: "decision_controlled_provider_dispatcher_001",
+    decisionId: options.decisionId ?? "decision_controlled_provider_dispatcher_001",
     taskId: task.taskId,
     risk: {
       level: "low",
@@ -993,10 +1047,12 @@ function createPolicyDecision(task: Task): PolicyDecision {
   });
 }
 
-function createRun(task: Task, policyDecision: PolicyDecision): Run {
+function createRun(task: Task, policyDecision: PolicyDecision, options: {
+  runId?: string;
+} = {}): Run {
   return RunSchema.parse({
     ...validRun,
-    runId: "run_controlled_provider_dispatcher_001",
+    runId: options.runId ?? "run_controlled_provider_dispatcher_001",
     taskId: task.taskId,
     policyDecisionId: policyDecision.decisionId,
     status: "running",

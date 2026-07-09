@@ -244,9 +244,6 @@ export async function recordControlledReadOnlyProviderDispatchPreflightArtifact(
     hashProviderExecutionPlannerObject(providerExecutionPlan);
   const executorPlanHash = hashProviderExecutionPlannerObject(executorPlan);
   const policyDecisionHash = hashProviderExecutionPlannerObject(policyDecision);
-  const artifactId = dispatchPreflightArtifactId(
-    dispatchPreflight.environmentPreflight.artifactRef
-  );
   const binding = createDispatchPreflightArtifactBinding({
     dispatchPreflight,
     providerExecutionPlan,
@@ -255,6 +252,12 @@ export async function recordControlledReadOnlyProviderDispatchPreflightArtifact(
     policyDecisionHash,
     task,
     run
+  });
+  const artifactId = dispatchPreflightArtifactId({
+    artifactRef: dispatchPreflight.environmentPreflight.artifactRef,
+    taskId: task.taskId,
+    runId: run.runId,
+    providerExecutionPlanHash
   });
 
   return input.artifactStore.putArtifact({
@@ -888,8 +891,19 @@ function readDispatchPreflightArtifactBinding(
   return value;
 }
 
-function dispatchPreflightArtifactId(artifactRef: string): string {
-  return `artifact_${toSafeArtifactIdPart(artifactRef)}`;
+function dispatchPreflightArtifactId(input: {
+  artifactRef: string;
+  taskId: string;
+  runId: string;
+  providerExecutionPlanHash: string;
+}): string {
+  return [
+    "artifact",
+    toSafeArtifactIdPart(input.artifactRef),
+    toSafeArtifactIdPart(input.taskId),
+    toSafeArtifactIdPart(input.runId),
+    input.providerExecutionPlanHash
+  ].join("_");
 }
 
 function toSafeArtifactIdPart(value: string): string {
@@ -924,9 +938,12 @@ async function collectDispatchPreflightArtifactStoreReasons(input: {
   const policyDecision = PolicyDecisionSchema.parse(input.policyDecision);
   const task = TaskSchema.parse(input.task);
   const run = RunSchema.parse(input.run);
-  const artifactId = dispatchPreflightArtifactId(
-    dispatchPreflight.environmentPreflight.artifactRef
-  );
+  const artifactId = dispatchPreflightArtifactId({
+    artifactRef: dispatchPreflight.environmentPreflight.artifactRef,
+    taskId: task.taskId,
+    runId: run.runId,
+    providerExecutionPlanHash: input.providerExecutionPlanHash
+  });
   const artifact = await input.artifactStore.getArtifact(artifactId);
   if (artifact === undefined) {
     return ["controlled_readonly_dispatch_preflight_artifact_store_missing"];
