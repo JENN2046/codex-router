@@ -28,6 +28,7 @@ test("workspace-write release gate audit passes for current evidence", async () 
     workspaceGateRecordsBlockedPosture: true,
     permitV2Recorded: true,
     fakeCanaryV2Recorded: true,
+    controlledGenericLocalWorkspaceWriteRecorded: true,
     evidencePolicySanitized: true,
     threatModelStopsRecorded: true,
     implementationCoverageRecorded: true,
@@ -38,6 +39,10 @@ test("workspace-write release gate audit passes for current evidence", async () 
   assert.equal(
     review.summary.workspaceWriteReleaseGateMode,
     "promotion_review_gate_only"
+  );
+  assert.equal(
+    review.summary.controlledGenericLocalWorkspaceWriteStatus,
+    "guarded_explicit_permit_local_runner_with_rollback"
   );
   assert.equal(review.summary.realWorkspaceWriteDefault, "blocked");
   assert.equal(review.summary.generalWorkspaceWriteDefault, "blocked");
@@ -164,6 +169,24 @@ test("workspace-write release gate audit blocks fake canary drift", async () => 
   );
 });
 
+test("workspace-write release gate audit blocks generic local workspace-write drift", async () => {
+  const input = await collectWorkspaceWriteReleaseGateAuditInput();
+  const review = reviewWorkspaceWriteReleaseGateAudit({
+    ...input,
+    workspaceWriteExecutorTestText: input.workspaceWriteExecutorTestText.replaceAll(
+      "workspace-write executor supports update and delete operations with rollback",
+      "workspace-write executor skips update and delete coverage"
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(
+    review.reasons.includes(
+      "workspace_write_release_gate_controlledGenericLocalWorkspaceWriteRecorded"
+    )
+  );
+});
+
 test("workspace-write release gate audit blocks evidence policy drift", async () => {
   const input = await collectWorkspaceWriteReleaseGateAuditInput();
   const review = reviewWorkspaceWriteReleaseGateAudit({
@@ -224,6 +247,10 @@ test("workspace-write release gate audit output stays summarized", async () => {
   const parsed = JSON.parse(json) as typeof review;
 
   assert.match(text, /release gate mode: promotion_review_gate_only/);
+  assert.match(
+    text,
+    /controlled generic local workspace-write status: guarded_explicit_permit_local_runner_with_rollback/
+  );
   assert.match(text, /real workspace-write default: blocked/);
   assert.match(text, /release gate is workspace-write authorization: false/);
   assert.match(text, /workspace-write calls during audit: 0/);

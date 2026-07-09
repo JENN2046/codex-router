@@ -235,8 +235,10 @@ Current repository governance status:
   infrastructure only, not workspace-write execution authorization.
 - Workspace-write release-gate alignment is now machine-checkable with
   `npm run governance -- audit workspace-write-release-gate`; the gate is a
-  promotion review only and keeps real/general workspace-write blocked by
-  default.
+  promotion review only. It records controlled generic local workspace-write as
+  guarded behind permit v2, exact operation target allowlist, local runner,
+  sanitized evidence, and rollback verification, while keeping real
+  workspace-write and general / unbounded workspace-write blocked by default.
 - Workspace-write real canary authorization packet design is now
   machine-checkable with
   `npm run governance -- audit workspace-write-real-canary-authorization-design`;

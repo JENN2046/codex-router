@@ -27,7 +27,8 @@ Current posture:
 | Workspace-write permit v2 | Schema, validators, rollback binding, and single-use consumption helper implemented; not execution authorization. |
 | Workspace-write fake canary | Guarded with permit v2, patch guard, rollback evidence, and replay blocking; no real host write. |
 | Workspace-write real canary | Experimental and blocked by default. |
-| General workspace-write | Blocked. |
+| Controlled generic local workspace-write | Guarded behind permit v2, exact operation target allowlist, local runner, sanitized evidence, and rollback verification; not default authorization. |
+| General / unbounded workspace-write | Blocked. |
 | External write, protected remote action, release, publish, deploy, tag | Blocked unless separately authorized. |
 
 ## Promotion Requirement
@@ -58,6 +59,15 @@ when all of these controls exist and pass:
 
 If any control is missing, the real canary remains blocked and only fake/dry-run
 validation is allowed.
+
+Controlled generic local workspace-write may be treated as guarded only when the
+caller supplies an approved workspace-write permit v2, exact operation target
+allowlist, provider execution plan hash binding, operator authorization id,
+clean non-protected repository state, a local runner, patch guard, sanitized
+evidence, and rollback verification. This applies to explicit create, update,
+and delete file operations for declared repository-relative targets. It is not
+default workspace-write authorization, not Codex CLI execution authorization,
+not provider `execute` authorization, and not external-write authorization.
 
 ## Required Review Questions
 
