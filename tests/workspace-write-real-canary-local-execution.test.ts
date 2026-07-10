@@ -69,6 +69,7 @@ test("workspace-write real canary local execution writes exactly one target and 
   assert.match(evidence.summary.contentHash ?? "", /^[a-f0-9]{64}$/);
   assert.match(evidence.summary.postWritePatchHash ?? "", /^[a-f0-9]{64}$/);
   assert.equal(existsSync(targetPath), false);
+  assert.equal(existsSync(join(cwd, "tmp")), false);
   assert.equal(targetStatus.trim(), "");
   assertSafeEvidence(evidence);
 });

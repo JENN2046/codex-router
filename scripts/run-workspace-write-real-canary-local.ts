@@ -2,7 +2,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -342,9 +342,14 @@ export async function runWorkspaceWriteRealCanaryLocalExecution(
   let rollbackVerified = false;
   let targetAbsentAfterRollback = false;
   let targetWorktreeCleanAfterRollback = false;
+  let createdParentDirectoriesAbsentAfterRollback = false;
+  const createdParentDirectories = new Set<string>();
   const executionReasons: string[] = [];
 
   try {
+    for (const path of collectMissingWorkspaceParentDirectories(cwd, targetFile)) {
+      createdParentDirectories.add(path);
+    }
     await mkdir(dirname(targetPath), { recursive: true });
     await writeFile(targetPath, CANARY_CONTENT, { encoding: "utf8", flag: "wx" });
     const actualContent = await readFile(targetPath, "utf8");
@@ -375,10 +380,15 @@ export async function runWorkspaceWriteRealCanaryLocalExecution(
     rollbackAttempted = true;
     try {
       await rm(targetPath, { force: true });
+      await removeWorkspaceCreatedParentDirectories(cwd, createdParentDirectories);
       targetAbsentAfterRollback = !existsSync(targetPath);
       const targetStatus = await git(["status", "--short", "--", targetFile], cwd);
       targetWorktreeCleanAfterRollback = targetStatus.trim() === "";
-      rollbackVerified = targetAbsentAfterRollback && targetWorktreeCleanAfterRollback;
+      createdParentDirectoriesAbsentAfterRollback =
+        workspaceCreatedParentDirectoriesAbsent(cwd, createdParentDirectories);
+      rollbackVerified = targetAbsentAfterRollback
+        && targetWorktreeCleanAfterRollback
+        && createdParentDirectoriesAbsentAfterRollback;
     } catch {
       executionReasons.push("workspace_write_real_canary_rollback_failed");
     }
@@ -668,6 +678,50 @@ function createCanaryDiffFromContent(targetFile: string, content: string): strin
 
 function collectReasons(checks: Array<[boolean, string]>): string[] {
   return checks.flatMap(([ok, reason]) => ok ? [] : [reason]);
+}
+
+function collectMissingWorkspaceParentDirectories(cwd: string, targetPath: string): string[] {
+  const directories: string[] = [];
+  let current = dirname(targetPath);
+  while (current !== "." && current !== "") {
+    if (!existsSync(join(cwd, current))) {
+      directories.push(current);
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return directories;
+}
+
+async function removeWorkspaceCreatedParentDirectories(
+  cwd: string,
+  directories: Set<string>
+): Promise<void> {
+  const deepestFirst = [...directories].sort((a, b) => pathDepth(b) - pathDepth(a));
+  for (const path of deepestFirst) {
+    try {
+      await rmdir(join(cwd, path));
+    } catch (error) {
+      if (!isErrnoException(error) || error.code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+}
+
+function workspaceCreatedParentDirectoriesAbsent(cwd: string, directories: Set<string>): boolean {
+  return [...directories].every((path) => !existsSync(join(cwd, path)));
+}
+
+function pathDepth(path: string): number {
+  return path.split("/").length;
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return typeof error === "object" && error !== null && "code" in error;
 }
 
 function evidenceIsSanitized(evidence: unknown): boolean {
