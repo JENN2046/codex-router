@@ -46,7 +46,6 @@ import type { WorkspaceWriteOperation } from "../../governance-internal-workspac
 import type { GovernanceState } from "../../governance-internal-state-manager/src/index.js";
 import {
   createApprovedWorkspaceWriteProviderExecutionPermitV2,
-  InMemoryProviderExecutionPermitConsumptionStore,
   parseExecutorExecutionPlan,
   type ExecutorExecutionPlan,
   type ExecutorProvider,
@@ -89,6 +88,8 @@ export const AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED =
   "agent_os_mcp_workspace_write_dispatcher_not_configured";
 export const AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC =
   "agent_os_mcp_workspace_write_dispatch_requires_async";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED =
+  "agent_os_mcp_workspace_write_consumption_store_required";
 export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_ARTIFACT_STORE_NOT_CONFIGURED =
   "agent_os_mcp_workspace_write_prepare_artifact_store_not_configured";
 export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_CONTEXT_MISSING =
@@ -329,7 +330,7 @@ export class AgentOsMcpLocalRuntime {
   private readonly controlledWorkspaceWriteProviderDispatcher:
     | AgentOsControlledWorkspaceWriteProviderDispatcher
     | undefined;
-  private readonly workspaceWriteConsumptionStore: ProviderExecutionPermitConsumptionStore;
+  private readonly workspaceWriteConsumptionStore: ProviderExecutionPermitConsumptionStore | undefined;
   private readonly publicSurface: AgentOsPublicSurface;
   private readonly now: () => string;
   private readonly createTaskId: (input: AgentOsCreateTaskInput) => string;
@@ -362,9 +363,7 @@ export class AgentOsMcpLocalRuntime {
     this.preferredProviderId = options.preferredProviderId;
     this.controlledWorkspaceWriteProviderDispatcher =
       options.controlledWorkspaceWriteProviderDispatcher;
-    this.workspaceWriteConsumptionStore =
-      options.workspaceWriteConsumptionStore
-      ?? new InMemoryProviderExecutionPermitConsumptionStore();
+    this.workspaceWriteConsumptionStore = options.workspaceWriteConsumptionStore;
     this.publicSurface = options.publicSurface ?? "mcp";
     this.now = options.now ?? (() => new Date().toISOString());
     this.createTaskId = options.createTaskId ?? ((input) => this.createDefaultTaskId(input));
@@ -817,6 +816,18 @@ export class AgentOsMcpLocalRuntime {
         gate
       });
     }
+    const consumptionStore = this.workspaceWriteConsumptionStore;
+    if (consumptionStore === undefined) {
+      return this.createResult("agentos.dispatch_workspace_write", [
+        AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED
+      ], {
+        status: "blocked"
+      }, {
+        localMutationAttempted: true,
+        localMutationApplied: false,
+        gate
+      });
+    }
 
     const input = AgentOsDispatchWorkspaceWriteInputSchema.parse(call.input ?? {});
     if (input.dispatchInput !== undefined) {
@@ -876,6 +887,13 @@ export class AgentOsMcpLocalRuntime {
       return {
         status: "blocked",
         reasons: [AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_ARTIFACT_STORE_NOT_CONFIGURED]
+      };
+    }
+    const consumptionStore = this.workspaceWriteConsumptionStore;
+    if (consumptionStore === undefined) {
+      return {
+        status: "blocked",
+        reasons: [AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED]
       };
     }
 
@@ -1027,7 +1045,7 @@ export class AgentOsMcpLocalRuntime {
         operations: input.operations,
         workspaceRoot: input.workspaceRoot,
         executionAuthorizationId: input.executionAuthorizationId,
-        consumptionStore: this.workspaceWriteConsumptionStore,
+        consumptionStore,
         ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
         now: this.now
       });

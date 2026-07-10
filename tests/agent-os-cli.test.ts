@@ -42,6 +42,9 @@ import {
 import type {
   ControlledWorkspaceWriteHostProviderDispatchInput
 } from "../packages/host-dispatcher/src/index.js";
+import {
+  InMemoryProviderExecutionPermitConsumptionStore
+} from "../packages/provider-core/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
 import {
@@ -302,6 +305,7 @@ test("Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchr
   ];
   const runtimeInput = {
     ...createRuntimeInput(new InMemoryKernelStore()),
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     controlledWorkspaceWriteProviderDispatcher(input: unknown) {
       dispatchInputs.push(input);
       return {
@@ -382,6 +386,7 @@ test("Agent OS CLI wrapper prepares controlled workspace-write dispatch asynchro
   const runtimeInput = {
     ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
     artifactStore,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     executionEligibility: createAgentOsWorkspaceWriteEligibility({
       policyDecision,
       taskId,

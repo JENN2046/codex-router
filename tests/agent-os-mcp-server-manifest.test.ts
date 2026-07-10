@@ -183,6 +183,39 @@ test("Agent OS MCP dispatch_workspace_write declares controlled dispatch only", 
   assert.equal(inputSchema.additionalProperties, false);
   assert.ok("dispatchInput" in (inputSchema.properties ?? {}));
   assert.ok("prepare" in (inputSchema.properties ?? {}));
+  const prepare = inputSchema.properties?.prepare as {
+    properties?: Record<string, unknown>;
+  };
+  const operations = prepare.properties?.operations as {
+    items?: { oneOf?: unknown };
+  };
+  assert.deepEqual(operations.items?.oneOf, [
+    {
+      type: "object",
+      required: ["kind", "path", "content"],
+      additionalProperties: false,
+      properties: {
+        kind: {
+          type: "string",
+          enum: ["write"]
+        },
+        path: { type: "string", minLength: 1 },
+        content: { type: "string" }
+      }
+    },
+    {
+      type: "object",
+      required: ["kind", "path"],
+      additionalProperties: false,
+      properties: {
+        kind: {
+          type: "string",
+          enum: ["delete"]
+        },
+        path: { type: "string", minLength: 1 }
+      }
+    }
+  ]);
   assert.equal(outputSchema.additionalProperties, false);
   assert.ok("preparedDispatch" in (outputSchema.properties ?? {}));
   assert.ok("dispatchResult" in (outputSchema.properties ?? {}));

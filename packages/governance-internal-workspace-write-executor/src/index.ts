@@ -736,15 +736,12 @@ async function rollbackWorkspaceTargets(
   beforeCommit: string,
   targetFiles: string[]
 ): Promise<void> {
-  const beforeContents = await readCommitContents(cwd, beforeCommit, targetFiles);
   for (const path of targetFiles) {
-    const absolutePath = join(cwd, path);
-    const content = beforeContents.get(path) ?? null;
-    if (content === null) {
-      await rm(absolutePath, { force: true });
+    if (await commitPathExists(cwd, beforeCommit, path)) {
+      await mkdir(dirname(join(cwd, path)), { recursive: true });
+      await git(["restore", "--source", beforeCommit, "--", path], cwd);
     } else {
-      await mkdir(dirname(absolutePath), { recursive: true });
-      await writeFile(absolutePath, content, "utf8");
+      await rm(join(cwd, path), { force: true });
     }
   }
 }
@@ -800,6 +797,22 @@ async function readCommitContents(
     }
   }
   return contents;
+}
+
+async function commitPathExists(
+  cwd: string,
+  commit: string,
+  path: string
+): Promise<boolean> {
+  try {
+    await execFileAsync("git", ["cat-file", "-e", `${commit}:${path}`], {
+      cwd,
+      windowsHide: true
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function readContentHashes(

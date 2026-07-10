@@ -426,17 +426,33 @@ export const agentOsDispatchWorkspaceWriteMcpToolManifest = defineAgentOsMcpTool
             type: "array",
             minItems: 1,
             items: {
-              type: "object",
-              required: ["kind", "path"],
-              additionalProperties: false,
-              properties: {
-                kind: {
-                  type: "string",
-                  enum: ["write", "delete"]
+              oneOf: [
+                {
+                  type: "object",
+                  required: ["kind", "path", "content"],
+                  additionalProperties: false,
+                  properties: {
+                    kind: {
+                      type: "string",
+                      enum: ["write"]
+                    },
+                    path: { type: "string", minLength: 1 },
+                    content: { type: "string" }
+                  }
                 },
-                path: { type: "string", minLength: 1 },
-                content: { type: "string" }
-              }
+                {
+                  type: "object",
+                  required: ["kind", "path"],
+                  additionalProperties: false,
+                  properties: {
+                    kind: {
+                      type: "string",
+                      enum: ["delete"]
+                    },
+                    path: { type: "string", minLength: 1 }
+                  }
+                }
+              ]
             }
           },
           executionAuthorizationId: { type: "string", minLength: 1 },

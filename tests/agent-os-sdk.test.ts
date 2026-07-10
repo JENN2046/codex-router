@@ -38,6 +38,9 @@ import {
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
 import {
+  InMemoryProviderExecutionPermitConsumptionStore
+} from "../packages/provider-core/src/index.js";
+import {
   createAgentOsWorkspaceWriteEligibility,
   createAgentOsWorkspaceWriteGovernanceState,
   createAgentOsWorkspaceWritePolicyDecision,
@@ -151,6 +154,7 @@ test("Agent OS SDK delegates controlled workspace-write dispatch through async w
   const dispatchInputs: unknown[] = [];
   const sdk = createAgentOsSdk({
     ...createRuntimeInput(new InMemoryKernelStore()),
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     controlledWorkspaceWriteProviderDispatcher(input) {
       dispatchInputs.push(input);
       return {
@@ -225,6 +229,7 @@ test("Agent OS SDK prepares workspace-write dispatch through typed input", async
   const sdk = createAgentOsSdk({
     ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
     artifactStore,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     executionEligibility: createAgentOsWorkspaceWriteEligibility({
       policyDecision,
       taskId,

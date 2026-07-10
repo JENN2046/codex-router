@@ -34,6 +34,7 @@ import {
   AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING,
+  AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED,
   AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC,
   type AgentOsMcpToolName
 } from "../packages/protocol-mcp/src/index.js";
@@ -45,6 +46,9 @@ import {
 import type {
   ControlledWorkspaceWriteHostProviderDispatchInput
 } from "../packages/host-dispatcher/src/index.js";
+import {
+  InMemoryProviderExecutionPermitConsumptionStore
+} from "../packages/provider-core/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
 import {
@@ -205,6 +209,7 @@ test("Agent OS App Server wrapper delegates controlled workspace-write dispatch 
   };
   const runtimeInput = {
     ...createRuntimeInput(new InMemoryKernelStore()),
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     grantedCapabilities: ["workspace_write.dispatch"],
     approvedMutatingTools: ["agentos.dispatch_workspace_write"] as AgentOsMcpToolName[],
     allowLocalMutations: true,
@@ -280,6 +285,48 @@ test("Agent OS App Server wrapper delegates controlled workspace-write dispatch 
   );
 });
 
+test("Agent OS App Server wrapper blocks workspace-write dispatch without shared consumption store", async () => {
+  let dispatcherInvoked = false;
+  const response = await handleAgentOsAppServerRequestAsync({
+    ...createRuntimeInput(new InMemoryKernelStore()),
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"] as AgentOsMcpToolName[],
+    allowLocalMutations: true,
+    controlledWorkspaceWriteProviderDispatcher() {
+      dispatcherInvoked = true;
+      throw new Error("dispatcher should not run without shared consumption store");
+    },
+    request: {
+      method: "POST",
+      path: "/agent-os/workspace-write/dispatch",
+      body: {
+        dispatchInput: {
+          schemaVersion: "agent-os-app-server-workspace-write-dispatch-test.v1"
+        }
+      }
+    }
+  });
+  const result = response.body.result as {
+    status: string;
+    reasons: string[];
+    audit: {
+      localMutationAttempted: boolean;
+      localMutationApplied: boolean;
+    };
+  };
+
+  assert.equal(dispatcherInvoked, false);
+  assert.equal(response.statusCode, 403);
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED
+  ]);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+  assert.equal(response.audit.liveHttpServerStarted, false);
+  assert.equal(response.audit.networkAccessed, false);
+});
+
 test("Agent OS App Server wrapper prepares controlled workspace-write dispatch asynchronously without network", async () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
@@ -304,6 +351,7 @@ test("Agent OS App Server wrapper prepares controlled workspace-write dispatch a
   const runtimeInput = {
     ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
     artifactStore,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     executionEligibility: createAgentOsWorkspaceWriteEligibility({
       policyDecision,
       taskId,

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -137,6 +137,39 @@ test("workspace-write executor supports update and delete operations with rollba
   assert.equal(result.summary.diffLineCount, 3);
   assert.equal(await readFile(join(cwd, "tmp/edit.txt"), "utf8"), "old\n");
   assert.equal(await readFile(join(cwd, "tmp/delete.txt"), "utf8"), "remove\n");
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
+test("workspace-write executor restores tracked executable metadata during rollback", async () => {
+  const cwd = await createGitRepo("workspace-write/general-executable");
+  const executablePath = join(cwd, "tmp/executable.sh");
+  await mkdir(dirname(executablePath), { recursive: true });
+  await writeFile(executablePath, "#!/bin/sh\necho executable\n", "utf8");
+  await chmod(executablePath, 0o755);
+  await git(["add", "tmp/executable.sh"], cwd);
+  await git(["commit", "-m", "add executable"], cwd);
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: ["tmp/executable.sh"],
+    maxChangedFiles: 1,
+    maxDiffLines: 3
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "delete", path: "tmp/executable.sh" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "passed");
+  assert.equal(await readFile(executablePath, "utf8"), "#!/bin/sh\necho executable\n");
+  assert.equal((await stat(executablePath)).mode & 0o111, 0o111);
   assert.equal((await git(["status", "--short"], cwd)).trim(), "");
   assertSafeEvidence(result);
 });

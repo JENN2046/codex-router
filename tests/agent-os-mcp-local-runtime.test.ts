@@ -11,6 +11,7 @@ import {
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING,
   AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED,
   AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC,
+  AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED,
   AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_ARTIFACT_STORE_NOT_CONFIGURED,
   AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_EXECUTOR_PLAN,
   AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_POLICY,
@@ -55,6 +56,7 @@ import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import {
   parseExecutorExecutionPlan,
+  InMemoryProviderExecutionPermitConsumptionStore,
   parseProviderManifest,
   type ExecutionPlanInput,
   type ExecutionValidationResult,
@@ -187,6 +189,7 @@ test("Agent OS MCP local runtime delegates controlled workspace-write dispatch a
     grantedCapabilities: ["workspace_write.dispatch"],
     approvedMutatingTools: ["agentos.dispatch_workspace_write"],
     allowLocalMutations: true,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     controlledWorkspaceWriteProviderDispatcher(input) {
       dispatchInputs.push(input);
       return {
@@ -247,6 +250,43 @@ test("Agent OS MCP local runtime delegates controlled workspace-write dispatch a
   );
 });
 
+test("Agent OS MCP local runtime blocks workspace-write dispatch without shared consumption store", async () => {
+  let dispatcherInvoked = false;
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    controlledWorkspaceWriteProviderDispatcher() {
+      dispatcherInvoked = true;
+      throw new Error("dispatcher should not run without shared consumption store");
+    },
+    now: () => now
+  });
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      dispatchInput: {
+        schemaVersion: "agent-os-mcp-workspace-write-dispatch-test.v1"
+      }
+    },
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+
+  assert.equal(dispatcherInvoked, false);
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED
+  ]);
+  assert.equal(result.audit.realProviderExecutionInvoked, false);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+});
+
 test("Agent OS MCP local runtime blocks completed workspace-write dispatches when runner failed", async () => {
   const runtime = createAgentOsMcpLocalRuntime({
     kernelStore: new InMemoryKernelStore(),
@@ -254,6 +294,7 @@ test("Agent OS MCP local runtime blocks completed workspace-write dispatches whe
     grantedCapabilities: ["workspace_write.dispatch"],
     approvedMutatingTools: ["agentos.dispatch_workspace_write"],
     allowLocalMutations: true,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     controlledWorkspaceWriteProviderDispatcher() {
       return {
         schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
@@ -326,6 +367,7 @@ test("Agent OS MCP local runtime prepares workspace-write dispatch from run cont
     approvedMutatingTools: ["agentos.create_task", "agentos.dispatch_workspace_write"],
     allowLocalMutations: true,
     preferredProviderId: provider.manifest.providerId,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     controlledWorkspaceWriteProviderDispatcher(input) {
       dispatchInputs.push(input);
       return {
@@ -453,6 +495,7 @@ test("Agent OS MCP local runtime blocks workspace-write prepare outside task and
     approvedMutatingTools: ["agentos.create_task", "agentos.dispatch_workspace_write"],
     allowLocalMutations: true,
     preferredProviderId: provider.manifest.providerId,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     controlledWorkspaceWriteProviderDispatcher(input) {
       dispatchInputs.push(input);
       throw new Error("dispatcher should not run for out-of-scope workspace-write target");
@@ -533,6 +576,7 @@ test("Agent OS MCP local runtime blocks workspace-write prepare without artifact
     approvedMutatingTools: ["agentos.create_task", "agentos.dispatch_workspace_write"],
     allowLocalMutations: true,
     preferredProviderId: provider.manifest.providerId,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     controlledWorkspaceWriteProviderDispatcher() {
       throw new Error("dispatcher should not run without artifact store");
     },
