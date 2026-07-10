@@ -133,6 +133,31 @@ function createDesktopShellRuntime(
   };
 }
 
+function createLowRiskGovernanceState(taskId: string): GovernanceState {
+  return {
+    schemaVersion: "governance-state.v1",
+    taskId,
+    branchId: "main",
+    phase: "execution",
+    trustBalance: { centralOrder: 0.5, distributedVitality: 0.5 },
+    risk: {
+      entanglement: 0.2,
+      entropy: 0.2,
+      failureCost: 0.2,
+      reversibility: 0.8,
+      contextPressure: 0.2,
+      historicalTrust: 0.5,
+      globalCoherence: 0.9,
+      finalRiskLevel: "low"
+    },
+    anomalies: [],
+    approvals: [],
+    taskGraphRef: `task-graph:${taskId}`,
+    createdAt: "2026-06-11T00:00:00.000Z",
+    updatedAt: "2026-06-11T00:00:00.000Z"
+  };
+}
+
 test("desktop live adapter does not execute blocked runner results", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const blocked = await runDesktopDecision({
@@ -721,6 +746,115 @@ test("runDesktopTask routes controlled workspace-write dispatch before Codex CLI
   assert.ok(result.executionResult.blockingReasons.includes(
     "desktop_live_controlled_workspace_write_dispatch_test"
   ));
+});
+
+test("runDesktopTask treats controlled workspace-write success reasons as non-blocking", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const taskId = "run-desktop-task-controlled-workspace-write-success";
+  const dispatchInput = {
+    schemaVersion: "desktop-live-controlled-workspace-write-success-test.v1"
+  };
+  const persistedCheckpoints: { stage: string; summary: string }[] = [];
+  let spawned = false;
+  let governanceUpdated = false;
+
+  const result = await runDesktopTask({
+    task: {
+      taskId,
+      source: "desktop-thread",
+      intent: {
+        summary: "apply a controlled workspace write",
+        requestedAction: "make a small controlled workspace-write in a single file",
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
+      target: { branches: [], files: ["README.md"], modules: [] },
+      constraints: {},
+      hints: { riskHints: ["workspace-write"], tags: [] }
+    },
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: ["read_thread_terminal", "send_input"]
+    },
+    handlers: {
+      read_thread_terminal: () => "thread context",
+      send_input: () => ({ accepted: true })
+    },
+    codexCliOptions: {
+      allowWriteSandbox: true,
+      workspaceWritePreflight: TEST_README_WORKSPACE_WRITE_PREFLIGHT,
+      skipExecutionModelProbe: true,
+      spawn: () => {
+        spawned = true;
+        throw new Error("spawn sentinel");
+      }
+    },
+    persistence: {
+      checkpointStore: {
+        async record(checkpoint) {
+          persistedCheckpoints.push({
+            stage: checkpoint.stage,
+            summary: checkpoint.summary
+          });
+        }
+      }
+    },
+    controlledWorkspaceWriteProviderDispatchInput: dispatchInput as never,
+    controlledWorkspaceWriteProviderDispatcher() {
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "runner_completed",
+        runnerInvoked: true,
+        executeInvoked: true,
+        providerExecuteInvoked: false,
+        reasons: [
+          "controlled_workspace_write_provider_dispatch_runner_completed",
+          "controlled_workspace_write_execution_succeeded"
+        ],
+        providerExecutionPlanHash: "sha256:desktop-live-provider-plan",
+        executorPlanHash: "sha256:desktop-live-executor-plan",
+        operationManifestHash: "sha256:desktop-live-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-desktop-live-workspace-write"
+        },
+        runnerResult: {
+          status: "controlled_workspace_write_succeeded",
+          reasons: ["controlled_workspace_write_execution_succeeded"]
+        }
+      } as never;
+    },
+    governanceState: createLowRiskGovernanceState(taskId),
+    onGovernanceUpdate: async () => {
+      governanceUpdated = true;
+    },
+    now: () => "2026-06-11T00:03:00.000Z"
+  });
+
+  assert.equal(result.decisionResult.status, "ready");
+  assert.equal(result.decisionResult.decision.hostRoute, "codex-cli");
+  assert.equal(result.controlledWorkspaceWriteDispatch?.status, "runner_completed");
+  assert.equal(result.executionResult.status, "completed");
+  assert.deepEqual(result.executionResult.blockingReasons, []);
+  assert.equal(result.executionResult.governance, undefined);
+  assert.equal(governanceUpdated, false);
+  assert.equal(spawned, false);
+  assert.ok(
+    result.executionResult.auditEvents.some((event) => event.type === "task_completed")
+  );
+  assert.ok(
+    persistedCheckpoints.some((checkpoint) =>
+      checkpoint.stage === "controlled-workspace-write-dispatch-completed" &&
+      checkpoint.summary === "controlled workspace-write dispatch completed routed execution"
+    )
+  );
+  assert.ok(
+    !persistedCheckpoints.some((checkpoint) =>
+      checkpoint.stage === "controlled-workspace-write-dispatch-failed"
+    )
+  );
 });
 
 test("runDesktopTask returns blocked codex-cli decisions without desktop handlers", async () => {

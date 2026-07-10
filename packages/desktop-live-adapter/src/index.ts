@@ -865,7 +865,7 @@ function collectControlledWorkspaceWriteDispatchBlockingReasons(
   dispatch: ControlledWorkspaceWriteHostProviderDispatchResult
 ): string[] {
   const reasons = dispatch.reasons
-    .map(normalizeHostDispatchBlockingReason)
+    .map(normalizeControlledWorkspaceWriteDispatchBlockingReason)
     .filter((reason): reason is string => reason !== undefined);
 
   if (dispatch.status !== "runner_completed") {
@@ -875,6 +875,20 @@ function collectControlledWorkspaceWriteDispatchBlockingReasons(
   }
 
   return [...new Set(reasons)];
+}
+
+function normalizeControlledWorkspaceWriteDispatchBlockingReason(
+  reason: string | undefined
+): string | undefined {
+  const normalized = normalizeHostDispatchBlockingReason(reason);
+  if (
+    normalized === "controlled_workspace_write_provider_dispatch_runner_completed" ||
+    normalized === "controlled_workspace_write_execution_succeeded"
+  ) {
+    return undefined;
+  }
+
+  return normalized;
 }
 
 function createControlledWorkspaceWriteDispatchErrorClass(
