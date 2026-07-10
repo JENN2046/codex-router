@@ -47,6 +47,7 @@ import {
 import {
   createApprovedProviderExecutionPermit,
   createApprovedWorkspaceWriteProviderExecutionPermitV2,
+  InMemoryProviderExecutionPermitConsumptionStore,
   parseExecutorExecutionPlan,
   parseProviderManifest,
   type WorkspaceWriteProviderExecutionPermitV2,
@@ -977,14 +978,55 @@ test("controlled provider dispatcher routes workspace-write through local runner
   assert.equal((await git(["status", "--short"], cwd)).trim(), "");
 });
 
+test("controlled provider dispatcher blocks workspace-write replay with shared consumption store", async () => {
+  const cwd = await createGitRepo("controlled-provider-dispatcher/workspace-write-replay");
+  const fixture = await createWorkspaceWriteFixture(cwd, ["tmp/replay.txt"]);
+  const artifactStore = await createWorkspaceWriteArtifactStoreWithPreflight(fixture);
+  const consumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
+  const sharedInput = {
+    ...fixture,
+    artifactStore,
+    consumptionStore,
+    now: constantClock()
+  };
+
+  const first = await dispatchControlledWorkspaceWriteProviderExecution({
+    ...sharedInput,
+    kernelStore: new InMemoryKernelStore()
+  });
+  const second = await dispatchControlledWorkspaceWriteProviderExecution({
+    ...sharedInput,
+    kernelStore: new InMemoryKernelStore()
+  });
+
+  assert.equal(first.status, "runner_completed", first.reasons.join(","));
+  assert.equal(first.executeInvoked, true);
+  assert.equal(first.runnerResult.status, "controlled_workspace_write_succeeded");
+  assert.equal(second.status, "runner_completed", second.reasons.join(","));
+  assert.equal(second.executeInvoked, false);
+  assert.equal(second.providerExecuteInvoked, false);
+  assert.equal(second.runnerResult.status, "validation_failed");
+  assert.equal(second.runnerResult.workspaceWriteEvidence?.status, "blocked");
+  assert.equal(second.runnerResult.workspaceWriteEvidence?.counters.workspaceWriteExecuteCalls, 0);
+  assert.ok(second.runnerResult.reasons.includes("workspace_write_execution_blocked"));
+  assert.ok(second.runnerResult.reasons.includes(
+    "workspace_write_execution_permit_v2_already_consumed_by_store"
+  ));
+  assert.equal(fixture.provider.calls.execute, 0);
+  assert.equal(existsSync(join(cwd, "tmp/replay.txt")), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+});
+
 test("controlled provider dispatcher prepares workspace-write dispatch input with preflight artifact", async () => {
   const cwd = await createGitRepo("controlled-provider-dispatcher/workspace-write-prepare");
   const fixture = await createWorkspaceWriteFixture(cwd, ["tmp/prepared.txt"]);
   const artifactStore = new InMemoryArtifactStore({ now: createClock() });
+  const consumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
   const prepared = await prepareControlledWorkspaceWriteProviderDispatchInput({
     ...fixture,
     kernelStore: new InMemoryKernelStore(),
     artifactStore,
+    consumptionStore,
     now: constantClock()
   });
 
@@ -1002,6 +1044,7 @@ test("controlled provider dispatcher prepares workspace-write dispatch input wit
     prepared.dispatchInput.dispatchPreflight.environmentPreflight.artifactHash,
     prepared.dispatchPreflight.environmentPreflight.artifactHash
   );
+  assert.equal(prepared.dispatchInput.consumptionStore, consumptionStore);
 
   const result = await dispatchControlledWorkspaceWriteProviderExecution(
     prepared.dispatchInput

@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, normalize } from "node:path";
+import { lstat, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, normalize, relative } from "node:path";
 import { promisify } from "node:util";
 import {
   InMemoryProviderExecutionPermitConsumptionStore,
@@ -129,6 +129,9 @@ export async function runWorkspaceWriteExecution(
     && operationTargets.every((path) => targetFiles.includes(path));
   const operationTargetsUnique = new Set(operationTargets).size === operationTargets.length;
   const operationTargetsSafe = operationTargets.every(isSafeWorkspaceRelativePath);
+  const operationTargetPathReasons = operationTargetsSafe
+    ? await collectWorkspaceTargetPathReasons(input.cwd, operationTargets)
+    : [];
   const branchMatched = permit.repositoryState.branch === branch;
   const branchNonProtected = !permit.repositoryState.protectedBranch;
   const headCommitMatched = permit.repositoryState.headCommit === headCommit
@@ -163,7 +166,8 @@ export async function runWorkspaceWriteExecution(
     ...(worktreeCleanBefore ? [] : ["workspace_write_execution_dirty_worktree_forbidden"]),
     ...(operationTargetsDeclared ? [] : ["workspace_write_execution_operation_target_not_declared"]),
     ...(operationTargetsUnique ? [] : ["workspace_write_execution_duplicate_operation_target"]),
-    ...(operationTargetsSafe ? [] : ["workspace_write_execution_unsafe_operation_target"])
+    ...(operationTargetsSafe ? [] : ["workspace_write_execution_unsafe_operation_target"]),
+    ...operationTargetPathReasons
   ];
 
   if (normalizedOperations.length > 0 && operationTargetsSafe) {
@@ -341,6 +345,11 @@ export async function runWorkspaceWriteExecution(
 
   try {
     for (const operation of normalizedOperations) {
+      const operationPathReasons = await collectWorkspaceTargetPathReasons(input.cwd, [operation.path]);
+      if (operationPathReasons.length > 0) {
+        executionReasons.push(...operationPathReasons);
+        break;
+      }
       const absolutePath = join(input.cwd, operation.path);
       if (operation.kind === "write") {
         await mkdir(dirname(absolutePath), { recursive: true });
@@ -715,6 +724,62 @@ function isSafeWorkspaceRelativePath(path: string): boolean {
     && !path.includes("\0")
     && !path.includes("\n")
     && !path.includes("\r");
+}
+
+async function collectWorkspaceTargetPathReasons(
+  cwd: string,
+  targetPaths: string[]
+): Promise<string[]> {
+  const workspaceRoot = await realpath(cwd);
+  const reasons: string[] = [];
+
+  for (const targetPath of targetPaths) {
+    if (!isSafeWorkspaceRelativePath(targetPath)) {
+      reasons.push("workspace_write_execution_unsafe_operation_target");
+      continue;
+    }
+
+    const parts = normalize(targetPath).split("/").filter((part) => part.length > 0);
+    let currentPath = cwd;
+
+    for (const part of parts) {
+      currentPath = join(currentPath, part);
+      try {
+        const stats = await lstat(currentPath);
+        if (stats.isSymbolicLink()) {
+          reasons.push(`workspace_write_execution_symlink_target_forbidden:${targetPath}`);
+          break;
+        }
+
+        const resolvedPath = await realpath(currentPath);
+        if (!isWorkspaceContainedPath(workspaceRoot, resolvedPath)) {
+          reasons.push(`workspace_write_execution_target_outside_workspace:${targetPath}`);
+          break;
+        }
+      } catch (error) {
+        if (isNodeErrorCode(error, "ENOENT")) {
+          break;
+        }
+        reasons.push(`workspace_write_execution_target_path_check_failed:${targetPath}`);
+        break;
+      }
+    }
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function isWorkspaceContainedPath(workspaceRoot: string, resolvedPath: string): boolean {
+  const pathRelativeToWorkspace = relative(workspaceRoot, resolvedPath);
+  return pathRelativeToWorkspace === ""
+    || (!pathRelativeToWorkspace.startsWith("..") && !isAbsolute(pathRelativeToWorkspace));
+}
+
+function isNodeErrorCode(error: unknown, code: string): boolean {
+  return typeof error === "object"
+    && error !== null
+    && "code" in error
+    && (error as { code?: unknown }).code === code;
 }
 
 async function git(args: string[], cwd: string): Promise<string> {

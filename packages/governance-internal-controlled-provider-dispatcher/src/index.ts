@@ -61,6 +61,7 @@ import {
   validateWorkspaceWriteProviderExecutionPermitV2ForPlan,
   type ExecutorExecutionPlan,
   type ProviderExecutionPermit,
+  type ProviderExecutionPermitConsumptionStore,
   type ProviderManifest,
   type ProviderSideEffectClass,
   type WorkspaceWriteProviderExecutionPermitV2
@@ -202,6 +203,7 @@ export type RunControlledWorkspaceWriteProviderDispatchInput = {
   executorPlan: ExecutorExecutionPlan;
   operations: WorkspaceWriteOperation[];
   executionAuthorizationId: string;
+  consumptionStore?: ProviderExecutionPermitConsumptionStore;
   dispatchPreflight: ControlledWorkspaceWriteProviderDispatchPreflight;
   governanceState: GovernanceState;
   taskEnvelope: TaskEnvelopeInput;
@@ -570,6 +572,7 @@ export async function prepareControlledWorkspaceWriteProviderDispatchInput(
     dispatchPreflight,
     governanceState: input.governanceState,
     taskEnvelope: input.taskEnvelope,
+    ...(input.consumptionStore !== undefined ? { consumptionStore: input.consumptionStore } : {}),
     ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
     now: input.now
   };
@@ -942,6 +945,7 @@ export async function dispatchControlledWorkspaceWriteProviderExecution(
     executorPlan: input.executorPlan,
     operations: input.operations,
     executionAuthorizationId: input.executionAuthorizationId,
+    ...(input.consumptionStore !== undefined ? { consumptionStore: input.consumptionStore } : {}),
     ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
     now: input.now,
     mode: "controlled-workspace-write"

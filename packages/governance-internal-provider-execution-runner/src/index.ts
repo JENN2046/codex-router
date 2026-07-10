@@ -57,6 +57,7 @@ import {
   type ExecutorExecutionPlan,
   type ExecutorProvider,
   type ProviderAttestation,
+  type ProviderExecutionPermitConsumptionStore,
   type ProviderExecutionPermit,
   type ProviderExecutionResult,
   type ProviderSideEffectClass,
@@ -308,6 +309,7 @@ export type RunProviderExecutionPlanControlledWorkspaceWriteInput = {
   permit: WorkspaceWriteProviderExecutionPermitV2;
   operations: WorkspaceWriteOperation[];
   executionAuthorizationId: string;
+  consumptionStore?: ProviderExecutionPermitConsumptionStore;
   executorPlan?: ExecutorExecutionPlan;
   proposedInput?: unknown;
   now: () => string;
@@ -1031,6 +1033,7 @@ export async function runProviderExecutionPlanControlledWorkspaceWrite(
     manifest: providerEntry.manifest,
     operations: input.operations,
     executionAuthorizationId: input.executionAuthorizationId,
+    ...(input.consumptionStore !== undefined ? { consumptionStore: input.consumptionStore } : {}),
     execute: true,
     now: input.now
   });

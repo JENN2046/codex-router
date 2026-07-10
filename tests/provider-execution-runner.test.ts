@@ -47,6 +47,7 @@ import {
   createApprovedProviderExecutionPermit,
   createApprovedWorkspaceWriteProviderExecutionPermitV2,
   hashExecutorExecutionPlan,
+  InMemoryProviderExecutionPermitConsumptionStore,
   parseExecutorExecutionPlan,
   parseProviderManifest,
   hashProviderManifest,
@@ -614,6 +615,57 @@ test("provider execution runner executes controlled workspace-write operations t
   assert.equal((await artifactStore.listArtifacts({ runId: fixture.run.runId })).length, 1);
   assert.equal(kernelStore.listArtifacts({ runId: fixture.run.runId }).length, 1);
   assertWorkspaceWriteRunnerEvidenceSafe(result);
+});
+
+test("provider execution runner blocks controlled workspace-write replay with shared consumption store", async () => {
+  const cwd = await createProviderRunnerGitRepo("provider-runner/workspace-write-replay");
+  const fixture = await createControlledWorkspaceWriteFixture(cwd, ["tmp/replay.txt"]);
+  const consumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
+  const operations: WorkspaceWriteOperation[] = [
+    { kind: "write", path: "tmp/replay.txt", content: "runner-replay-content\n" }
+  ];
+  const sharedInput = {
+    providerExecutionPlan: fixture.providerExecutionPlan,
+    task: fixture.task,
+    run: fixture.run,
+    principal: validPrincipal,
+    policyDecision: fixture.policyDecision,
+    providerRegistry: fixture.registry,
+    workspaceRoot: cwd,
+    permit: fixture.permit,
+    operations,
+    executionAuthorizationId: workspaceWriteAuthorizationId,
+    consumptionStore,
+    now: constantClock(),
+    mode: "controlled-workspace-write" as const
+  };
+
+  const first = await runProviderExecutionPlanControlledWorkspaceWrite({
+    ...sharedInput,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() })
+  });
+  const second = await runProviderExecutionPlanControlledWorkspaceWrite({
+    ...sharedInput,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore: new InMemoryArtifactStore({ now: createClock() })
+  });
+
+  assert.equal(first.status, "controlled_workspace_write_succeeded");
+  assert.equal(first.executeInvoked, true);
+  assert.equal(second.status, "validation_failed");
+  assert.equal(second.executeInvoked, false);
+  assert.equal(second.providerExecuteInvoked, false);
+  assert.equal(second.workspaceWriteEvidence?.status, "blocked");
+  assert.equal(second.workspaceWriteEvidence?.counters.workspaceWriteExecuteCalls, 0);
+  assert.ok(second.reasons.includes("workspace_write_execution_blocked"));
+  assert.ok(second.reasons.includes(
+    "workspace_write_execution_permit_v2_already_consumed_by_store"
+  ));
+  assert.equal(existsSync(join(cwd, "tmp/replay.txt")), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertWorkspaceWriteRunnerEvidenceSafe(first);
+  assertWorkspaceWriteRunnerEvidenceSafe(second);
 });
 
 test("provider execution runner blocks non workspace-write plans before local write execution", async () => {
@@ -3627,6 +3679,7 @@ function assertWorkspaceWriteRunnerEvidenceSafe(value: unknown): void {
   const serialized = JSON.stringify(value);
   for (const marker of [
     "runner-content",
+    "runner-replay-content",
     "blocked-content",
     "denied-content",
     "stdout",

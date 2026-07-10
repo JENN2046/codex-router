@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -237,6 +237,48 @@ test("workspace-write executor consumes permit once and blocks replay", async ()
   assertSafeEvidence(second);
 });
 
+test("workspace-write executor blocks symlink targets before mutating outside workspace", async () => {
+  const cwd = await createGitRepo("workspace-write/general-symlink-target");
+  const outsideDir = await mkdtemp(join(tmpdir(), "workspace-write-executor-outside-"));
+  const outsideFile = join(outsideDir, "outside.txt");
+  const symlinkPath = join(cwd, "tmp/link.txt");
+  await writeFile(outsideFile, "outside-original\n", "utf8");
+  await mkdir(dirname(symlinkPath), { recursive: true });
+  await symlink(outsideFile, symlinkPath);
+  await git(["add", "tmp/link.txt"], cwd);
+  await git(["commit", "-m", "add symlink target"], cwd);
+
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: ["tmp/link.txt"],
+    maxChangedFiles: 1,
+    maxDiffLines: 2
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [
+      { kind: "write", path: "tmp/link.txt", content: "outside-mutated\n" }
+    ],
+    executionAuthorizationId: authorizationId,
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes(
+    "workspace_write_execution_symlink_target_forbidden:tmp/link.txt"
+  ));
+  assert.equal(await readFile(outsideFile, "utf8"), "outside-original\n");
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
 async function createGitRepo(
   branch: string,
   files: Record<string, string> = {}
@@ -392,6 +434,7 @@ function assertSafeEvidence(value: unknown): void {
     "denied-content",
     "dirty-content",
     "first",
+    "outside-mutated",
     "stdout",
     "stderr",
     "raw command",

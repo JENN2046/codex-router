@@ -403,6 +403,7 @@ export interface DesktopHostControlledWorkspaceWriteProviderDispatchInput {
   executorPlan: unknown;
   operations: DesktopHostWorkspaceWriteOperation[];
   executionAuthorizationId: string;
+  consumptionStore?: unknown;
   dispatchPreflight: DesktopHostControlledWorkspaceWriteProviderDispatchPreflight;
   governanceState: unknown;
   taskEnvelope: DesktopHostTaskEnvelopeInput;
