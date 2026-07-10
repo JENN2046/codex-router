@@ -348,6 +348,45 @@ function createSmallEditTask(taskId: string): TaskEnvelopeInput {
   };
 }
 
+function createControlledWorkspaceWriteDispatchInputForTask(
+  taskId: string,
+  targetFiles: string[] = ["README.md"]
+): unknown {
+  return {
+    task: {
+      taskId,
+      target: { branches: [], files: targetFiles, modules: [] }
+    },
+    taskEnvelope: {
+      taskId,
+      target: { branches: [], files: targetFiles, modules: [] }
+    },
+    run: {
+      runId: `run_${taskId}`,
+      taskId
+    },
+    providerExecutionPlan: {
+      providerId: "fake-desktop-host-run-workspace-write",
+      providerKind: "executor",
+      taskId
+    },
+    executorPlan: {
+      providerId: "fake-desktop-host-run-workspace-write",
+      taskId
+    },
+    permit: {
+      taskId,
+      targetFiles
+    },
+    governanceState: createHighRiskStateWithTwoExecutionFailures(taskId),
+    operations: targetFiles.map((path) => ({
+      kind: "write",
+      path,
+      content: "test content\n"
+    }))
+  };
+}
+
 function createEngineeringTask(taskId: string): TaskEnvelopeInput {
   return {
     taskId,
@@ -912,12 +951,11 @@ test("desktop host client forwards per-run controlled workspace-write dispatch i
     },
     now: () => "2026-04-28T12:00:00.000Z"
   });
-  const input = {
-    schemaVersion: "desktop-host-client-run-controlled-workspace-write-test.v1"
-  };
+  const taskId = "desktop-host-run-controlled-workspace-write";
+  const input = createControlledWorkspaceWriteDispatchInputForTask(taskId);
 
   const result = await client.run(
-    createSmallEditTask("desktop-host-run-controlled-workspace-write"),
+    createSmallEditTask(taskId),
     {
       controlledWorkspaceWriteProviderDispatchInput: input as never
     }

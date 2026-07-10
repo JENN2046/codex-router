@@ -6,6 +6,7 @@ import type {
   RoutingDecision,
   TaskEnvelope
 } from "../../contracts/src/index.js";
+import { normalize } from "node:path";
 import type { AuditEvent, MemoryAdapter } from "../../audit-memory/src/index.js";
 import type { AgentStrategyPlan, } from "../../desktop-agent-strategy/src/index.js";
 import {
@@ -23,6 +24,9 @@ import {
   type ControlledWorkspaceWriteHostProviderDispatchResult,
   type HostDispatcherResult
 } from "../../host-dispatcher/src/index.js";
+import {
+  hashProviderExecutionPlannerObject
+} from "../../execution-planner/src/index.js";
 import type { MemoryCheckpointFrequency } from "../../policy-config/src/index.js";
 import {
   emitTelemetryEvents,
@@ -531,12 +535,19 @@ async function executeDesktopTaskFromDecision(
       controlledWorkspaceWriteDispatchInput !== undefined &&
       shouldDispatchControlledWorkspaceWrite(decisionResult)
     ) {
-      const dispatcher =
-        input.controlledWorkspaceWriteProviderDispatcher
-        ?? dispatchControlledWorkspaceWriteProviderPlan;
-      const controlledWorkspaceWriteDispatch = await dispatcher(
+      const inputBindingReasons = collectControlledWorkspaceWriteDispatchInputBindingReasons(
+        decisionResult,
         controlledWorkspaceWriteDispatchInput
       );
+      const controlledWorkspaceWriteDispatch = inputBindingReasons.length > 0
+        ? createBlockedControlledWorkspaceWriteDispatchForInputBinding(
+            controlledWorkspaceWriteDispatchInput,
+            inputBindingReasons
+          )
+        : await (
+            input.controlledWorkspaceWriteProviderDispatcher
+            ?? dispatchControlledWorkspaceWriteProviderPlan
+          )(controlledWorkspaceWriteDispatchInput);
       const executionResult = await createControlledWorkspaceWriteDispatchExecutionResult({
         runnerResult: decisionResult,
         controlledWorkspaceWriteDispatch,
@@ -634,6 +645,85 @@ function shouldDispatchControlledWorkspaceWrite(
   decisionResult: DesktopDecisionRunnerResult
 ): boolean {
   return decisionResult.decision.execution.toolAccess === "local_write";
+}
+
+function collectControlledWorkspaceWriteDispatchInputBindingReasons(
+  runnerResult: DesktopDecisionRunnerResult,
+  dispatchInput: ControlledWorkspaceWriteHostProviderDispatchInput
+): string[] {
+  const expectedTaskId = runnerResult.task.taskId;
+  const reasons: string[] = [];
+
+  if (dispatchInput.task.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_task_mismatch");
+  }
+  if (dispatchInput.taskEnvelope.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_task_envelope_mismatch");
+  }
+  if (dispatchInput.run.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_run_task_mismatch");
+  }
+  if (dispatchInput.providerExecutionPlan.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_provider_plan_task_mismatch");
+  }
+  if (dispatchInput.executorPlan.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_executor_plan_task_mismatch");
+  }
+  if (dispatchInput.permit.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_permit_task_mismatch");
+  }
+  if (dispatchInput.governanceState.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_governance_task_mismatch");
+  }
+
+  const targetFiles = runnerResult.task.target.files.map(normalizeWorkspaceTargetPath);
+  if (targetFiles.length > 0) {
+    const allowedTargets = new Set(targetFiles);
+    const operationTargets = dispatchInput.operations.map((operation) =>
+      normalizeWorkspaceTargetPath(operation.path)
+    );
+    if (!operationTargets.every((target) => allowedTargets.has(target))) {
+      reasons.push("controlled_workspace_write_dispatch_input_target_scope_mismatch");
+    }
+  }
+
+  return [...new Set(reasons)];
+}
+
+function createBlockedControlledWorkspaceWriteDispatchForInputBinding(
+  dispatchInput: ControlledWorkspaceWriteHostProviderDispatchInput,
+  reasons: string[]
+): ControlledWorkspaceWriteHostProviderDispatchResult {
+  return {
+    schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+    status: "dispatch_blocked",
+    runnerInvoked: false,
+    executeInvoked: false,
+    providerExecuteInvoked: false,
+    reasons,
+    providerExecutionPlanHash: safeHashProviderDispatchObject(
+      dispatchInput.providerExecutionPlan
+    ),
+    executorPlanHash: safeHashProviderDispatchObject(dispatchInput.executorPlan),
+    operationManifestHash: safeHashProviderDispatchObject(dispatchInput.operations),
+    providerRegistrySelection: {
+      selected: false,
+      providerId: dispatchInput.providerExecutionPlan.providerId,
+      reasons
+    }
+  };
+}
+
+function safeHashProviderDispatchObject(value: unknown): string {
+  try {
+    return hashProviderExecutionPlannerObject(value);
+  } catch {
+    return "0".repeat(64);
+  }
+}
+
+function normalizeWorkspaceTargetPath(path: string): string {
+  return normalize(path).replace(/\\/g, "/");
 }
 
 async function createHostDispatchExecutionResult(input: {

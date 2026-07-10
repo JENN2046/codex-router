@@ -167,6 +167,39 @@ test("workspace-write executor blocks undeclared targets before writing", async 
   assertSafeEvidence(result);
 });
 
+test("workspace-write executor blocks targets outside sandbox writable roots before writing", async () => {
+  const cwd = await createGitRepo("workspace-write/general-sandbox-root");
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: ["README.md"],
+    maxChangedFiles: 1,
+    maxDiffLines: 2,
+    writableRoots: ["tmp"]
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "write", path: "README.md", content: "outside sandbox\n" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes(
+    "workspace_write_execution_target_outside_writable_roots:README.md"
+  ));
+  assert.equal(await readFile(join(cwd, "README.md"), "utf8"), "fixture\n");
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
 test("workspace-write executor blocks missing authorization and dirty worktrees", async () => {
   const cwd = await createGitRepo("workspace-write/general-dirty");
   const fixture = await createWorkspaceWriteFixture(cwd, {
@@ -343,6 +376,7 @@ async function createWorkspaceWriteFixture(
     maxChangedFiles: number;
     maxDiffLines: number;
     worktreeClean?: boolean;
+    writableRoots?: string[];
   }
 ): Promise<{
   manifest: ProviderManifest;
@@ -351,8 +385,9 @@ async function createWorkspaceWriteFixture(
 }> {
   const branch = (await git(["branch", "--show-current"], cwd)).trim();
   const headCommit = (await git(["rev-parse", "HEAD"], cwd)).trim();
-  const manifest = createProviderManifest();
-  const plan = createExecutorPlan(manifest, options.targetFiles);
+  const writableRoots = options.writableRoots ?? ["tmp"];
+  const manifest = createProviderManifest(writableRoots);
+  const plan = createExecutorPlan(manifest, options.targetFiles, writableRoots);
   const permit = createApprovedWorkspaceWriteProviderExecutionPermitV2({
     plan,
     manifest,
@@ -379,7 +414,7 @@ async function createWorkspaceWriteFixture(
   return { manifest, plan, permit };
 }
 
-function createProviderManifest(): ProviderManifest {
+function createProviderManifest(writableRoots: string[] = ["tmp"]): ProviderManifest {
   return ProviderManifestSchema.parse({
     schemaVersion: "provider-manifest.v1",
     providerId: "local-workspace-write-executor",
@@ -398,7 +433,7 @@ function createProviderManifest(): ProviderManifest {
       secretAccess: "none",
       notes: ["test fixture"]
     },
-    supportedSandboxProfiles: [createSandboxProfile(["tmp"])],
+    supportedSandboxProfiles: [createSandboxProfile(writableRoots)],
     supportedSideEffectClasses: ["workspace_write"],
     metadata: {}
   });
@@ -406,7 +441,8 @@ function createProviderManifest(): ProviderManifest {
 
 function createExecutorPlan(
   manifest: ProviderManifest,
-  targetFiles: string[]
+  targetFiles: string[],
+  writableRoots: string[] = ["tmp"]
 ): ExecutorExecutionPlan {
   return ExecutorExecutionPlanSchema.parse({
     schemaVersion: "executor-execution-plan.v1",
@@ -423,7 +459,7 @@ function createExecutorPlan(
     principalHash: "c".repeat(64),
     requiredCapabilities: targetFiles.map((path) => `fs.write:${path}`),
     approvalRequired: true,
-    sandboxProfile: createSandboxProfile(["tmp"]),
+    sandboxProfile: createSandboxProfile(writableRoots),
     sideEffectClass: "workspace_write",
     createdAt: now,
     metadata: {

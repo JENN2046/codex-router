@@ -131,6 +131,12 @@ export async function runWorkspaceWriteExecution(
   const operationTargetPathReasons = operationTargetsSafe
     ? await collectWorkspaceTargetPathReasons(input.cwd, operationTargets)
     : [];
+  const operationWritableRootReasons = operationTargetsSafe
+    ? collectWorkspaceWritableRootReasons(
+        input.plan.sandboxProfile.writableRoots,
+        operationTargets
+      )
+    : [];
   const branchMatched = permit.repositoryState.branch === branch;
   const branchNonProtected = !permit.repositoryState.protectedBranch;
   const headCommitMatched = permit.repositoryState.headCommit === headCommit
@@ -166,7 +172,8 @@ export async function runWorkspaceWriteExecution(
     ...(operationTargetsDeclared ? [] : ["workspace_write_execution_operation_target_not_declared"]),
     ...(operationTargetsUnique ? [] : ["workspace_write_execution_duplicate_operation_target"]),
     ...(operationTargetsSafe ? [] : ["workspace_write_execution_unsafe_operation_target"]),
-    ...operationTargetPathReasons
+    ...operationTargetPathReasons,
+    ...operationWritableRootReasons
   ];
 
   if (normalizedOperations.length > 0 && operationTargetsSafe) {
@@ -762,6 +769,65 @@ function isSafeWorkspaceRelativePath(path: string): boolean {
     && !path.includes("\0")
     && !path.includes("\n")
     && !path.includes("\r");
+}
+
+function collectWorkspaceWritableRootReasons(
+  writableRoots: string[],
+  targetPaths: string[]
+): string[] {
+  if (targetPaths.length === 0) {
+    return [];
+  }
+
+  return targetPaths
+    .filter((targetPath) => (
+      !writableRoots.some((writableRoot) =>
+        writableRootAllowsTarget(writableRoot, targetPath)
+      )
+    ))
+    .map((targetPath) =>
+      `workspace_write_execution_target_outside_writable_roots:${targetPath}`
+    );
+}
+
+function writableRootAllowsTarget(
+  writableRoot: string,
+  targetPath: string
+): boolean {
+  const normalizedRoot = normalizeWorkspaceWritableRoot(writableRoot);
+  const normalizedTarget = normalizeWorkspacePath(targetPath);
+
+  if (
+    !isSafeWorkspaceRelativePath(normalizedRoot) ||
+    !isSafeWorkspaceRelativePath(normalizedTarget)
+  ) {
+    return false;
+  }
+
+  if (normalizedRoot === "*") {
+    return true;
+  }
+
+  if (normalizedRoot.endsWith("/**")) {
+    const rootPrefix = normalizedRoot.slice(0, -3);
+    return normalizedTarget === rootPrefix || normalizedTarget.startsWith(`${rootPrefix}/`);
+  }
+
+  const rootPrefix = normalizedRoot.endsWith("/")
+    ? normalizedRoot.slice(0, -1)
+    : normalizedRoot;
+  return normalizedTarget === rootPrefix || normalizedTarget.startsWith(`${rootPrefix}/`);
+}
+
+function normalizeWorkspaceWritableRoot(writableRoot: string): string {
+  const normalizedRoot = normalizeWorkspacePath(writableRoot);
+  if (normalizedRoot === "workspace" || normalizedRoot === "workspace/**") {
+    return "*";
+  }
+
+  return normalizedRoot.startsWith("workspace/")
+    ? normalizedRoot.slice("workspace/".length)
+    : normalizedRoot;
 }
 
 async function collectWorkspaceTargetPathReasons(

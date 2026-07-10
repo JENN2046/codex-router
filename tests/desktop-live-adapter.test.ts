@@ -158,6 +158,45 @@ function createLowRiskGovernanceState(taskId: string): GovernanceState {
   };
 }
 
+function createControlledWorkspaceWriteDispatchInputForTask(
+  taskId: string,
+  targetFiles: string[] = ["README.md"]
+): unknown {
+  return {
+    task: {
+      taskId,
+      target: { branches: [], files: targetFiles, modules: [] }
+    },
+    taskEnvelope: {
+      taskId,
+      target: { branches: [], files: targetFiles, modules: [] }
+    },
+    run: {
+      runId: `run_${taskId}`,
+      taskId
+    },
+    providerExecutionPlan: {
+      providerId: "fake-desktop-live-workspace-write",
+      providerKind: "executor",
+      taskId
+    },
+    executorPlan: {
+      providerId: "fake-desktop-live-workspace-write",
+      taskId
+    },
+    permit: {
+      taskId,
+      targetFiles
+    },
+    governanceState: createLowRiskGovernanceState(taskId),
+    operations: targetFiles.map((path) => ({
+      kind: "write",
+      path,
+      content: "test content\n"
+    }))
+  };
+}
+
 test("desktop live adapter does not execute blocked runner results", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const blocked = await runDesktopDecision({
@@ -663,16 +702,15 @@ test("runDesktopTask dispatches codex-cli small edits instead of executing deskt
 
 test("runDesktopTask routes controlled workspace-write dispatch before Codex CLI spawn", async () => {
   const policy = await loadPolicyFromFile(policyPath);
+  const taskId = "run-desktop-task-controlled-workspace-write";
   const dispatchInputs: unknown[] = [];
   let spawned = false;
   let desktopPrimitiveInvoked = false;
-  const dispatchInput = {
-    schemaVersion: "desktop-live-controlled-workspace-write-dispatch-test.v1"
-  };
+  const dispatchInput = createControlledWorkspaceWriteDispatchInputForTask(taskId);
 
   const result = await runDesktopTask({
     task: {
-      taskId: "run-desktop-task-controlled-workspace-write",
+      taskId,
       source: "desktop-thread",
       intent: {
         summary: "apply a controlled workspace write",
@@ -748,12 +786,70 @@ test("runDesktopTask routes controlled workspace-write dispatch before Codex CLI
   ));
 });
 
+test("runDesktopTask blocks controlled workspace-write dispatch inputs scoped to another task", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  let spawned = false;
+  let dispatchInvoked = false;
+
+  const result = await runDesktopTask({
+    task: {
+      taskId: "run-desktop-task-controlled-workspace-write-current",
+      source: "desktop-thread",
+      intent: {
+        summary: "apply a controlled workspace write",
+        requestedAction: "make a small controlled workspace-write in a single file",
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
+      target: { branches: [], files: ["README.md"], modules: [] },
+      constraints: {},
+      hints: { riskHints: ["workspace-write"], tags: [] }
+    },
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: ["read_thread_terminal", "send_input"]
+    },
+    handlers: {
+      read_thread_terminal: () => "thread context",
+      send_input: () => ({ accepted: true })
+    },
+    codexCliOptions: {
+      allowWriteSandbox: true,
+      workspaceWritePreflight: TEST_README_WORKSPACE_WRITE_PREFLIGHT,
+      skipExecutionModelProbe: true,
+      spawn: () => {
+        spawned = true;
+        throw new Error("spawn sentinel");
+      }
+    },
+    controlledWorkspaceWriteProviderDispatchInput:
+      createControlledWorkspaceWriteDispatchInputForTask(
+        "run-desktop-task-controlled-workspace-write-stale"
+      ) as never,
+    controlledWorkspaceWriteProviderDispatcher() {
+      dispatchInvoked = true;
+      throw new Error("dispatcher should not run");
+    },
+    now: () => "2026-06-11T00:02:30.000Z"
+  });
+
+  assert.equal(result.decisionResult.status, "ready");
+  assert.equal(result.controlledWorkspaceWriteDispatch?.status, "dispatch_blocked");
+  assert.equal(result.controlledWorkspaceWriteDispatch?.runnerInvoked, false);
+  assert.equal(result.executionResult.status, "failed");
+  assert.ok(result.executionResult.blockingReasons.includes(
+    "controlled_workspace_write_dispatch_input_task_mismatch"
+  ));
+  assert.equal(dispatchInvoked, false);
+  assert.equal(spawned, false);
+});
+
 test("runDesktopTask treats controlled workspace-write success reasons as non-blocking", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const taskId = "run-desktop-task-controlled-workspace-write-success";
-  const dispatchInput = {
-    schemaVersion: "desktop-live-controlled-workspace-write-success-test.v1"
-  };
+  const dispatchInput = createControlledWorkspaceWriteDispatchInputForTask(taskId);
   const persistedCheckpoints: { stage: string; summary: string }[] = [];
   let spawned = false;
   let governanceUpdated = false;
