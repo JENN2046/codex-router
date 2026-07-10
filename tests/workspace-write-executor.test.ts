@@ -200,6 +200,39 @@ test("workspace-write executor blocks targets outside sandbox writable roots bef
   assertSafeEvidence(result);
 });
 
+test("workspace-write executor returns blocked evidence for git probe failures", async () => {
+  const fixtureCwd = await createGitRepo("workspace-write/general-git-probe-fixture");
+  const nonGitCwd = await mkdtemp(join(tmpdir(), "workspace-write-executor-non-git-"));
+  const fixture = await createWorkspaceWriteFixture(fixtureCwd, {
+    targetFiles: ["tmp/git-probe.txt"],
+    maxChangedFiles: 1,
+    maxDiffLines: 1
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd: nonGitCwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "write", path: "tmp/git-probe.txt", content: "blocked\n" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.checks.worktreeCleanBefore, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.equal(result.summary.branch, "unknown");
+  assert.equal(result.summary.beforeCommit, "unknown");
+  assert.ok(result.reasons.includes("workspace_write_execution_git_probe_failed"));
+  assert.equal(existsSync(join(nonGitCwd, "tmp/git-probe.txt")), false);
+  assertSafeEvidence(result);
+});
+
 test("workspace-write executor blocks missing authorization and dirty worktrees", async () => {
   const cwd = await createGitRepo("workspace-write/general-dirty");
   const fixture = await createWorkspaceWriteFixture(cwd, {

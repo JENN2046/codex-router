@@ -118,9 +118,6 @@ export async function runWorkspaceWriteExecution(
 ): Promise<WorkspaceWriteExecutionEvidence> {
   const generatedAt = input.now();
   const permit = WorkspaceWriteProviderExecutionPermitV2Schema.parse(input.permit);
-  const branch = (await git(["branch", "--show-current"], input.cwd)).trim();
-  const headCommit = (await git(["rev-parse", "HEAD"], input.cwd)).trim();
-  const statusBefore = await git(["status", "--short"], input.cwd);
   const normalizedOperations = normalizeOperations(input.operations);
   const targetFiles = [...permit.targetFiles];
   const operationTargets = normalizedOperations.map((operation) => operation.path);
@@ -128,6 +125,69 @@ export async function runWorkspaceWriteExecution(
     && operationTargets.every((path) => targetFiles.includes(path));
   const operationTargetsUnique = new Set(operationTargets).size === operationTargets.length;
   const operationTargetsSafe = operationTargets.every(isSafeWorkspaceRelativePath);
+  const executionAuthorizationMatched = input.executionAuthorizationId !== undefined
+    && input.executionAuthorizationId === permit.operatorAuthorizationId;
+  const permitValidationReasons = validateWorkspaceWriteProviderExecutionPermitV2ForPlan(
+    permit,
+    input.plan,
+    input.manifest,
+    {
+      now: generatedAt,
+      reasonPrefix: "workspace_write_execution_permit_v2"
+    }
+  );
+  const gitProbe = await probeWorkspaceGitState(input.cwd);
+  if (gitProbe.status === "blocked") {
+    return createEvidence({
+      generatedAt,
+      status: "blocked",
+      executeRequested: input.execute === true,
+      executionAuthorizationMatched,
+      permitValidForPlan: permitValidationReasons.length === 0,
+      permitConsumed: false,
+      branch: "unknown",
+      beforeCommit: "unknown",
+      afterCommit: "unknown",
+      permit,
+      operationTargets,
+      operations: normalizedOperations,
+      branchMatched: false,
+      branchNonProtected: false,
+      headCommitMatched: false,
+      worktreeCleanBefore: false,
+      operationTargetsDeclared,
+      operationTargetsUnique,
+      operationTargetsSafe,
+      preExecutionPatchGuardPassed: false,
+      rollbackReady: false,
+      wroteOnlyPermittedTargets: false,
+      postExecutionPatchGuardPassed: false,
+      rollbackAttempted: false,
+      rollbackVerified: false,
+      expectedGuard: undefined,
+      actualGuard: undefined,
+      contentHashes: [],
+      counters: {
+        workspaceWriteExecuteCalls: 0,
+        fileWriteCalls: 0,
+        fileDeleteCalls: 0
+      },
+      reasons: uniqueStrings([
+        ...(executionAuthorizationMatched
+          ? []
+          : ["workspace_write_execution_authorization_id_required"]),
+        ...(permitValidationReasons.length === 0
+          ? []
+          : [
+              "workspace_write_execution_permit_invalid",
+              ...permitValidationReasons
+            ]),
+        "workspace_write_execution_git_probe_failed"
+      ])
+    });
+  }
+
+  const { branch, headCommit, statusBefore } = gitProbe;
   const operationTargetPathReasons = operationTargetsSafe
     ? await collectWorkspaceTargetPathReasons(input.cwd, operationTargets)
     : [];
@@ -142,17 +202,6 @@ export async function runWorkspaceWriteExecution(
   const headCommitMatched = permit.repositoryState.headCommit === headCommit
     && permit.rollback.beforeCommit === headCommit;
   const worktreeCleanBefore = statusBefore.trim() === "";
-  const executionAuthorizationMatched = input.executionAuthorizationId !== undefined
-    && input.executionAuthorizationId === permit.operatorAuthorizationId;
-  const permitValidationReasons = validateWorkspaceWriteProviderExecutionPermitV2ForPlan(
-    permit,
-    input.plan,
-    input.manifest,
-    {
-      now: generatedAt,
-      reasonPrefix: "workspace_write_execution_permit_v2"
-    }
-  );
   let expectedGuard: WorkspaceWritePatchGuardResult | undefined;
   let rollbackEvidence: WorkspaceWriteRollbackPlanEvidence | undefined;
   const gateReasons: string[] = [
@@ -703,6 +752,32 @@ async function rollbackWorkspaceTargets(
 async function targetsClean(cwd: string, targetFiles: string[]): Promise<boolean> {
   const status = await git(["status", "--short", "--", ...targetFiles], cwd);
   return status.trim() === "";
+}
+
+async function probeWorkspaceGitState(cwd: string): Promise<
+  | {
+      status: "ready";
+      branch: string;
+      headCommit: string;
+      statusBefore: string;
+    }
+  | {
+      status: "blocked";
+    }
+> {
+  try {
+    const branch = (await git(["branch", "--show-current"], cwd)).trim();
+    const headCommit = (await git(["rev-parse", "HEAD"], cwd)).trim();
+    const statusBefore = await git(["status", "--short"], cwd);
+    return {
+      status: "ready",
+      branch,
+      headCommit,
+      statusBefore
+    };
+  } catch {
+    return { status: "blocked" };
+  }
 }
 
 async function readCommitContents(

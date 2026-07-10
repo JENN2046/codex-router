@@ -980,6 +980,41 @@ test("controlled provider dispatcher routes workspace-write through local runner
   assert.equal((await git(["status", "--short"], cwd)).trim(), "");
 });
 
+test("controlled provider dispatcher returns blocked evidence for workspace-write git probe failures", async () => {
+  const cwd = await createGitRepo("controlled-provider-dispatcher/workspace-write-git-probe");
+  const nonGitCwd = await mkdtemp(join(tmpdir(), "controlled-provider-dispatcher-non-git-"));
+  const fixture = await createWorkspaceWriteFixture(cwd, ["tmp/git-probe.txt"]);
+  const artifactStore = await createWorkspaceWriteArtifactStoreWithPreflight({
+    ...fixture,
+    workspaceRoot: nonGitCwd
+  });
+  const consumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
+
+  const result = await dispatchControlledWorkspaceWriteProviderExecution({
+    ...fixture,
+    workspaceRoot: nonGitCwd,
+    kernelStore: new InMemoryKernelStore(),
+    artifactStore,
+    consumptionStore,
+    now: constantClock()
+  });
+
+  assert.equal(result.status, "runner_completed", result.reasons.join(","));
+  assert.equal(result.runnerInvoked, true);
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.providerExecuteInvoked, false);
+  assert.equal(result.runnerResult.status, "validation_failed");
+  assert.equal(result.runnerResult.workspaceWriteEvidence?.status, "blocked");
+  assert.equal(
+    result.runnerResult.workspaceWriteEvidence?.counters.workspaceWriteExecuteCalls,
+    0
+  );
+  assert.ok(result.runnerResult.reasons.includes("workspace_write_execution_blocked"));
+  assert.ok(result.runnerResult.reasons.includes("workspace_write_execution_git_probe_failed"));
+  assert.equal(fixture.provider.calls.execute, 0);
+  assert.equal(existsSync(join(nonGitCwd, "tmp/git-probe.txt")), false);
+});
+
 test("controlled provider dispatcher blocks workspace-write replay with shared consumption store", async () => {
   const cwd = await createGitRepo("controlled-provider-dispatcher/workspace-write-replay");
   const fixture = await createWorkspaceWriteFixture(cwd, ["tmp/replay.txt"]);
