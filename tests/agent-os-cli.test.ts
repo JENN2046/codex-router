@@ -339,7 +339,11 @@ test("Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchr
 
   assert.equal(dispatchInputs.length, 1);
   assert.deepEqual(dispatchInputs[0], dispatchInput);
-  assert.equal(result.status, "succeeded");
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_cli_workspace_write_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
   assert.equal(result.surface, "cli");
   assert.equal(result.command, "dispatch-workspace-write");
   assert.equal(result.audit.publicSurface, "cli");
@@ -474,7 +478,11 @@ test("Agent OS CLI wrapper prepares controlled workspace-write dispatch asynchro
   assert.equal(dispatchInputs.length, 1);
   assert.equal(provider.calls.planExecution, 1);
   assert.equal(provider.calls.execute, 0);
-  assert.equal(result.status, "succeeded");
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_cli_workspace_write_prepare_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
   assert.equal(result.surface, "cli");
   assert.equal(result.command, "dispatch-workspace-write");
   assert.equal(preparedDispatch.providerPlanId, create.output.providerPlanId);

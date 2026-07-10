@@ -250,6 +250,7 @@ test("Agent OS App Server wrapper delegates controlled workspace-write dispatch 
   const response = await handleAgentOsAppServerRequestAsync(runtimeInput);
   const result = response.body.result as {
     status: string;
+    reasons: string[];
     output: Record<string, unknown>;
     audit: {
       publicSurface: string;
@@ -261,10 +262,14 @@ test("Agent OS App Server wrapper delegates controlled workspace-write dispatch 
 
   assert.equal(dispatchInputs.length, 1);
   assert.equal(dispatchInputs[0], dispatchInput);
-  assert.equal(response.statusCode, 200);
+  assert.equal(response.statusCode, 403);
   assert.equal(response.audit.liveHttpServerStarted, false);
   assert.equal(response.audit.networkAccessed, false);
-  assert.equal(result.status, "succeeded");
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_app_server_workspace_write_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
   assert.equal(result.audit.publicSurface, "app_server");
   assert.equal(result.audit.realProviderExecutionInvoked, false);
   assert.equal(result.audit.localMutationAttempted, true);
@@ -386,6 +391,7 @@ test("Agent OS App Server wrapper prepares controlled workspace-write dispatch a
   });
   const result = response.body.result as {
     status: string;
+    reasons: string[];
     output: Record<string, unknown>;
     audit: {
       publicSurface: string;
@@ -403,10 +409,14 @@ test("Agent OS App Server wrapper prepares controlled workspace-write dispatch a
   assert.equal(dispatchInputs.length, 1);
   assert.equal(provider.calls.planExecution, 1);
   assert.equal(provider.calls.execute, 0);
-  assert.equal(response.statusCode, 200);
+  assert.equal(response.statusCode, 403);
   assert.equal(response.audit.liveHttpServerStarted, false);
   assert.equal(response.audit.networkAccessed, false);
-  assert.equal(result.status, "succeeded");
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_app_server_workspace_write_prepare_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
   assert.equal(result.audit.publicSurface, "app_server");
   assert.equal(result.audit.realProviderExecutionInvoked, false);
   assert.equal(result.audit.localMutationAttempted, true);

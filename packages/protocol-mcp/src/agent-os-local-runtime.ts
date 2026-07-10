@@ -821,8 +821,10 @@ export class AgentOsMcpLocalRuntime {
     const input = AgentOsDispatchWorkspaceWriteInputSchema.parse(call.input ?? {});
     if (input.dispatchInput !== undefined) {
       const dispatchResult = await dispatcher(input.dispatchInput);
+      const dispatchBlockingReasons =
+        collectWorkspaceWriteDispatchBlockingReasons(dispatchResult);
 
-      return this.createResult("agentos.dispatch_workspace_write", [], {
+      return this.createResult("agentos.dispatch_workspace_write", dispatchBlockingReasons, {
         dispatchResult
       }, {
         localMutationAttempted: true,
@@ -844,8 +846,10 @@ export class AgentOsMcpLocalRuntime {
     }
 
     const dispatchResult = await dispatcher(prepared.dispatchInput);
+    const dispatchBlockingReasons =
+      collectWorkspaceWriteDispatchBlockingReasons(dispatchResult);
 
-    return this.createResult("agentos.dispatch_workspace_write", [], {
+    return this.createResult("agentos.dispatch_workspace_write", dispatchBlockingReasons, {
       preparedDispatch: prepared.summary,
       dispatchResult
     }, {
@@ -1574,6 +1578,39 @@ function collectWorkspaceWritePrepareTargetReasons(input: {
   }
 
   return [...new Set(reasons)];
+}
+
+function collectWorkspaceWriteDispatchBlockingReasons(
+  dispatch: ControlledWorkspaceWriteHostProviderDispatchResult
+): string[] {
+  const reasons = dispatch.reasons
+    .map(normalizeWorkspaceWriteDispatchBlockingReason)
+    .filter((reason): reason is string => reason !== undefined);
+
+  if (dispatch.status !== "runner_completed") {
+    reasons.push(`controlled_workspace_write_dispatch_status:${dispatch.status}`);
+  } else if (dispatch.runnerResult.status !== "controlled_workspace_write_succeeded") {
+    reasons.push(`controlled_workspace_write_runner_status:${dispatch.runnerResult.status}`);
+  }
+
+  return [...new Set(reasons)];
+}
+
+function normalizeWorkspaceWriteDispatchBlockingReason(
+  reason: string | undefined
+): string | undefined {
+  if (reason === undefined || reason.trim().length === 0) {
+    return undefined;
+  }
+
+  if (
+    reason === "controlled_workspace_write_provider_dispatch_runner_completed" ||
+    reason === "controlled_workspace_write_execution_succeeded"
+  ) {
+    return undefined;
+  }
+
+  return reason;
 }
 
 function createTaskEnvelopeFromKernelTask(task: Task): TaskEnvelope {

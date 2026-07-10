@@ -233,7 +233,11 @@ test("Agent OS MCP local runtime delegates controlled workspace-write dispatch a
 
   assert.equal(dispatchInputs.length, 1);
   assert.equal(dispatchInputs[0], dispatchInput);
-  assert.equal(result.status, "succeeded");
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_mcp_workspace_write_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
   assert.equal(result.audit.realProviderExecutionInvoked, false);
   assert.equal(result.audit.localMutationAttempted, true);
   assert.equal(result.audit.localMutationApplied, false);
@@ -241,6 +245,64 @@ test("Agent OS MCP local runtime delegates controlled workspace-write dispatch a
     (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
     false
   );
+});
+
+test("Agent OS MCP local runtime blocks completed workspace-write dispatches when runner failed", async () => {
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    controlledWorkspaceWriteProviderDispatcher() {
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "runner_completed",
+        runnerInvoked: true,
+        executeInvoked: true,
+        providerExecuteInvoked: false,
+        reasons: [
+          "controlled_workspace_write_provider_dispatch_runner_completed",
+          "workspace_write_execution_target_outside_writable_roots:README.md"
+        ],
+        providerExecutionPlanHash: "sha256:agent-os-mcp-provider-plan",
+        executorPlanHash: "sha256:agent-os-mcp-executor-plan",
+        operationManifestHash: "sha256:agent-os-mcp-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-agent-os-mcp-workspace-write"
+        },
+        runnerResult: {
+          status: "controlled_workspace_write_blocked"
+        }
+      } as never;
+    },
+    now: () => now
+  });
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      dispatchInput: {
+        schemaVersion: "agent-os-mcp-workspace-write-dispatch-test.v1"
+      }
+    },
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.ok(!result.reasons.includes(
+    "controlled_workspace_write_provider_dispatch_runner_completed"
+  ));
+  assert.ok(result.reasons.includes(
+    "workspace_write_execution_target_outside_writable_roots:README.md"
+  ));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_runner_status:controlled_workspace_write_blocked"
+  ));
+  assert.equal(result.audit.localMutationApplied, true);
 });
 
 test("Agent OS MCP local runtime prepares workspace-write dispatch from run context", async () => {
@@ -346,7 +408,11 @@ test("Agent OS MCP local runtime prepares workspace-write dispatch from run cont
     };
   };
 
-  assert.equal(result.status, "succeeded");
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_mcp_workspace_write_prepare_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
   assert.equal(dispatchInputs.length, 1);
   assert.equal(provider.calls.planExecution, 1);
   assert.equal(provider.calls.execute, 0);

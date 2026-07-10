@@ -184,7 +184,11 @@ test("Agent OS SDK delegates controlled workspace-write dispatch through async w
 
   assert.equal(dispatchInputs.length, 1);
   assert.equal(dispatchInputs[0], dispatchInput);
-  assert.equal(result.status, "succeeded");
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_sdk_workspace_write_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
   assert.equal(result.surface, "sdk");
   assert.equal(result.operation, "dispatchWorkspaceWrite");
   assert.equal(result.audit.publicSurface, "sdk");
@@ -298,7 +302,11 @@ test("Agent OS SDK prepares workspace-write dispatch through typed input", async
   assert.equal(dispatchInputs.length, 1);
   assert.equal(provider.calls.planExecution, 1);
   assert.equal(provider.calls.execute, 0);
-  assert.equal(result.status, "succeeded");
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_sdk_workspace_write_prepare_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
   assert.equal(result.surface, "sdk");
   assert.equal(result.operation, "dispatchWorkspaceWrite");
   assert.equal(preparedDispatch.providerPlanId, create.output.providerPlanId);
