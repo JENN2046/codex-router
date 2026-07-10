@@ -831,7 +831,10 @@ export class AgentOsMcpLocalRuntime {
 
     const input = AgentOsDispatchWorkspaceWriteInputSchema.parse(call.input ?? {});
     if (input.dispatchInput !== undefined) {
-      const dispatchResult = await dispatcher(input.dispatchInput);
+      const dispatchResult = await dispatcher({
+        ...input.dispatchInput,
+        consumptionStore
+      });
       const dispatchBlockingReasons =
         collectWorkspaceWriteDispatchBlockingReasons(dispatchResult);
 

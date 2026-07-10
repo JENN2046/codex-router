@@ -233,6 +233,44 @@ test("workspace-write executor blocks targets outside sandbox writable roots bef
   assertSafeEvidence(result);
 });
 
+test("workspace-write executor blocks existing ignored targets before writing", async () => {
+  const cwd = await createGitRepo("workspace-write/general-ignored-target");
+  await writeFile(join(cwd, ".gitignore"), "tmp/ignored.txt\n", "utf8");
+  await git(["add", ".gitignore"], cwd);
+  await git(["commit", "-m", "ignore local target"], cwd);
+  await mkdir(join(cwd, "tmp"), { recursive: true });
+  await writeFile(join(cwd, "tmp/ignored.txt"), "local ignored data\n", "utf8");
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: ["tmp/ignored.txt"],
+    maxChangedFiles: 1,
+    maxDiffLines: 1
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "write", path: "tmp/ignored.txt", content: "overwrite\n" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes(
+    "workspace_write_execution_existing_commit_absent_target_forbidden:tmp/ignored.txt"
+  ));
+  assert.equal(await readFile(join(cwd, "tmp/ignored.txt"), "utf8"), "local ignored data\n");
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
 test("workspace-write executor returns blocked evidence for git probe failures", async () => {
   const fixtureCwd = await createGitRepo("workspace-write/general-git-probe-fixture");
   const nonGitCwd = await mkdtemp(join(tmpdir(), "workspace-write-executor-non-git-"));

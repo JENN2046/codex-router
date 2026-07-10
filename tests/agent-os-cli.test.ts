@@ -290,6 +290,8 @@ test("Agent OS CLI wrapper creates a local run and provider plan without spawnin
 
 test("Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchronously", async () => {
   const dispatchInputs: unknown[] = [];
+  const workspaceWriteConsumptionStore =
+    new InMemoryProviderExecutionPermitConsumptionStore();
   const dispatchInput = {
     schemaVersion: "agent-os-cli-workspace-write-dispatch-test.v1"
   };
@@ -305,7 +307,7 @@ test("Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchr
   ];
   const runtimeInput = {
     ...createRuntimeInput(new InMemoryKernelStore()),
-    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    workspaceWriteConsumptionStore,
     controlledWorkspaceWriteProviderDispatcher(input: unknown) {
       dispatchInputs.push(input);
       return {
@@ -342,7 +344,14 @@ test("Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchr
   });
 
   assert.equal(dispatchInputs.length, 1);
-  assert.deepEqual(dispatchInputs[0], dispatchInput);
+  assert.equal(
+    (dispatchInputs[0] as { schemaVersion?: string }).schemaVersion,
+    dispatchInput.schemaVersion
+  );
+  assert.equal(
+    (dispatchInputs[0] as { consumptionStore?: unknown }).consumptionStore,
+    workspaceWriteConsumptionStore
+  );
   assert.equal(result.status, "blocked");
   assert.ok(result.reasons.includes("agent_os_cli_workspace_write_dispatch_test"));
   assert.ok(result.reasons.includes(

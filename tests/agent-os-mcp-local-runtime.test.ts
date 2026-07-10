@@ -183,13 +183,15 @@ test("Agent OS MCP local runtime creates a governed run and provider plan withou
 
 test("Agent OS MCP local runtime delegates controlled workspace-write dispatch asynchronously", async () => {
   const dispatchInputs: unknown[] = [];
+  const runtimeConsumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
+  const callerConsumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
   const runtime = createAgentOsMcpLocalRuntime({
     kernelStore: new InMemoryKernelStore(),
     principal: validPrincipal,
     grantedCapabilities: ["workspace_write.dispatch"],
     approvedMutatingTools: ["agentos.dispatch_workspace_write"],
     allowLocalMutations: true,
-    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    workspaceWriteConsumptionStore: runtimeConsumptionStore,
     controlledWorkspaceWriteProviderDispatcher(input) {
       dispatchInputs.push(input);
       return {
@@ -211,7 +213,8 @@ test("Agent OS MCP local runtime delegates controlled workspace-write dispatch a
     now: () => now
   });
   const dispatchInput = {
-    schemaVersion: "agent-os-mcp-workspace-write-dispatch-test.v1"
+    schemaVersion: "agent-os-mcp-workspace-write-dispatch-test.v1",
+    consumptionStore: callerConsumptionStore
   };
 
   const syncResult = runtime.handleToolCall({
@@ -235,7 +238,19 @@ test("Agent OS MCP local runtime delegates controlled workspace-write dispatch a
   });
 
   assert.equal(dispatchInputs.length, 1);
-  assert.equal(dispatchInputs[0], dispatchInput);
+  assert.notEqual(dispatchInputs[0], dispatchInput);
+  assert.equal(
+    (dispatchInputs[0] as { schemaVersion?: string }).schemaVersion,
+    dispatchInput.schemaVersion
+  );
+  assert.equal(
+    (dispatchInputs[0] as { consumptionStore?: unknown }).consumptionStore,
+    runtimeConsumptionStore
+  );
+  assert.notEqual(
+    (dispatchInputs[0] as { consumptionStore?: unknown }).consumptionStore,
+    callerConsumptionStore
+  );
   assert.equal(result.status, "blocked");
   assert.ok(result.reasons.includes("agent_os_mcp_workspace_write_dispatch_test"));
   assert.ok(result.reasons.includes(

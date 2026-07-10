@@ -191,6 +191,13 @@ export async function runWorkspaceWriteExecution(
   const operationTargetPathReasons = operationTargetsSafe
     ? await collectWorkspaceTargetPathReasons(input.cwd, operationTargets)
     : [];
+  const existingCommitAbsentTargetReasons = operationTargetsSafe
+    ? await collectWorkspaceExistingCommitAbsentTargetReasons(
+        input.cwd,
+        headCommit,
+        operationTargets
+      )
+    : [];
   const operationWritableRootReasons = operationTargetsSafe
     ? collectWorkspaceWritableRootReasons(
         input.plan.sandboxProfile.writableRoots,
@@ -222,6 +229,7 @@ export async function runWorkspaceWriteExecution(
     ...(operationTargetsUnique ? [] : ["workspace_write_execution_duplicate_operation_target"]),
     ...(operationTargetsSafe ? [] : ["workspace_write_execution_unsafe_operation_target"]),
     ...operationTargetPathReasons,
+    ...existingCommitAbsentTargetReasons,
     ...operationWritableRootReasons
   ];
 
@@ -749,6 +757,23 @@ async function rollbackWorkspaceTargets(
 async function targetsClean(cwd: string, targetFiles: string[]): Promise<boolean> {
   const status = await git(["status", "--short", "--", ...targetFiles], cwd);
   return status.trim() === "";
+}
+
+async function collectWorkspaceExistingCommitAbsentTargetReasons(
+  cwd: string,
+  beforeCommit: string,
+  targetFiles: string[]
+): Promise<string[]> {
+  const reasons: string[] = [];
+  for (const path of targetFiles) {
+    if (
+      existsSync(join(cwd, path))
+      && !(await commitPathExists(cwd, beforeCommit, path))
+    ) {
+      reasons.push(`workspace_write_execution_existing_commit_absent_target_forbidden:${path}`);
+    }
+  }
+  return reasons;
 }
 
 async function probeWorkspaceGitState(cwd: string): Promise<

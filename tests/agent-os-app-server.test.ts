@@ -204,12 +204,14 @@ test("Agent OS App Server router maps HTTP-like routes to governed tool calls", 
 
 test("Agent OS App Server wrapper delegates controlled workspace-write dispatch asynchronously without network", async () => {
   const dispatchInputs: unknown[] = [];
+  const workspaceWriteConsumptionStore =
+    new InMemoryProviderExecutionPermitConsumptionStore();
   const dispatchInput = {
     schemaVersion: "agent-os-app-server-workspace-write-dispatch-test.v1"
   };
   const runtimeInput = {
     ...createRuntimeInput(new InMemoryKernelStore()),
-    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    workspaceWriteConsumptionStore,
     grantedCapabilities: ["workspace_write.dispatch"],
     approvedMutatingTools: ["agentos.dispatch_workspace_write"] as AgentOsMcpToolName[],
     allowLocalMutations: true,
@@ -266,7 +268,15 @@ test("Agent OS App Server wrapper delegates controlled workspace-write dispatch 
   };
 
   assert.equal(dispatchInputs.length, 1);
-  assert.equal(dispatchInputs[0], dispatchInput);
+  assert.notEqual(dispatchInputs[0], dispatchInput);
+  assert.equal(
+    (dispatchInputs[0] as { schemaVersion?: string }).schemaVersion,
+    dispatchInput.schemaVersion
+  );
+  assert.equal(
+    (dispatchInputs[0] as { consumptionStore?: unknown }).consumptionStore,
+    workspaceWriteConsumptionStore
+  );
   assert.equal(response.statusCode, 403);
   assert.equal(response.audit.liveHttpServerStarted, false);
   assert.equal(response.audit.networkAccessed, false);

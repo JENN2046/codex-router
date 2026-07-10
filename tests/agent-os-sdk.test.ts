@@ -152,9 +152,11 @@ test("Agent OS SDK creates a local run and provider plan without real execution"
 
 test("Agent OS SDK delegates controlled workspace-write dispatch through async wrapper", async () => {
   const dispatchInputs: unknown[] = [];
+  const workspaceWriteConsumptionStore =
+    new InMemoryProviderExecutionPermitConsumptionStore();
   const sdk = createAgentOsSdk({
     ...createRuntimeInput(new InMemoryKernelStore()),
-    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    workspaceWriteConsumptionStore,
     controlledWorkspaceWriteProviderDispatcher(input) {
       dispatchInputs.push(input);
       return {
@@ -187,7 +189,15 @@ test("Agent OS SDK delegates controlled workspace-write dispatch through async w
   });
 
   assert.equal(dispatchInputs.length, 1);
-  assert.equal(dispatchInputs[0], dispatchInput);
+  assert.notEqual(dispatchInputs[0], dispatchInput);
+  assert.equal(
+    (dispatchInputs[0] as { schemaVersion?: string }).schemaVersion,
+    dispatchInput.schemaVersion
+  );
+  assert.equal(
+    (dispatchInputs[0] as { consumptionStore?: unknown }).consumptionStore,
+    workspaceWriteConsumptionStore
+  );
   assert.equal(result.status, "blocked");
   assert.ok(result.reasons.includes("agent_os_sdk_workspace_write_dispatch_test"));
   assert.ok(result.reasons.includes(
