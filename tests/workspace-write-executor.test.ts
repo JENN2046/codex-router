@@ -305,6 +305,39 @@ test("workspace-write executor blocks existing ignored targets before writing", 
   assertSafeEvidence(result);
 });
 
+test("workspace-write executor blocks git metadata targets before writing", async () => {
+  const cwd = await createGitRepo("workspace-write/general-git-metadata-target");
+  const targetPath = ".git/hooks/pre-commit";
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: [targetPath],
+    maxChangedFiles: 1,
+    maxDiffLines: 1,
+    writableRoots: ["workspace"]
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "write", path: targetPath, content: "#!/bin/sh\nexit 1\n" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.operationTargetsSafe, false);
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes("workspace_write_execution_unsafe_operation_target"));
+  assert.equal(existsSync(join(cwd, targetPath)), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
 test("workspace-write executor returns blocked evidence for git probe failures", async () => {
   const fixtureCwd = await createGitRepo("workspace-write/general-git-probe-fixture");
   const nonGitCwd = await mkdtemp(join(tmpdir(), "workspace-write-executor-non-git-"));

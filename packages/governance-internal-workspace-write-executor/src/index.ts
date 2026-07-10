@@ -928,10 +928,17 @@ function isSafeWorkspaceRelativePath(path: string): boolean {
     && !isAbsolute(path)
     && !path.startsWith("../")
     && path !== ".."
+    && !hasGitMetadataPathComponent(path)
     && !path.includes("/../")
     && !path.includes("\0")
     && !path.includes("\n")
     && !path.includes("\r");
+}
+
+function hasGitMetadataPathComponent(path: string): boolean {
+  return normalizeWorkspacePath(path)
+    .split("/")
+    .some((part) => part === ".git");
 }
 
 function collectWorkspaceWritableRootReasons(
