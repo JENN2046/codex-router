@@ -309,7 +309,7 @@ export type RunProviderExecutionPlanControlledWorkspaceWriteInput = {
   permit: WorkspaceWriteProviderExecutionPermitV2;
   operations: WorkspaceWriteOperation[];
   executionAuthorizationId: string;
-  consumptionStore?: ProviderExecutionPermitConsumptionStore;
+  consumptionStore: ProviderExecutionPermitConsumptionStore;
   executorPlan?: ExecutorExecutionPlan;
   proposedInput?: unknown;
   now: () => string;
@@ -884,7 +884,8 @@ export async function runProviderExecutionPlanControlledWorkspaceWrite(
     principal,
     policyDecision,
     providerRegistry: input.providerRegistry,
-    permit
+    permit,
+    consumptionStore: input.consumptionStore
   });
 
   if (preflightReasons.length > 0) {
@@ -1033,7 +1034,7 @@ export async function runProviderExecutionPlanControlledWorkspaceWrite(
     manifest: providerEntry.manifest,
     operations: input.operations,
     executionAuthorizationId: input.executionAuthorizationId,
-    ...(input.consumptionStore !== undefined ? { consumptionStore: input.consumptionStore } : {}),
+    consumptionStore: input.consumptionStore,
     execute: true,
     now: input.now
   });
@@ -1760,6 +1761,7 @@ function collectControlledWorkspaceWritePreflightReasons(input: {
   policyDecision: PolicyDecision;
   providerRegistry: ProviderRegistry;
   permit: WorkspaceWriteProviderExecutionPermitV2;
+  consumptionStore?: ProviderExecutionPermitConsumptionStore;
 }): string[] {
   const reasons = collectRunnerPreflightReasons({
     mode: "dry-run",
@@ -1794,6 +1796,10 @@ function collectControlledWorkspaceWritePreflightReasons(input: {
 
   if (input.policyDecision.approval.required !== true) {
     reasons.push("controlled_workspace_write_requires_explicit_approval");
+  }
+
+  if (input.consumptionStore === undefined) {
+    reasons.push("controlled_workspace_write_consumption_store_required");
   }
 
   if (providerEntry !== undefined) {

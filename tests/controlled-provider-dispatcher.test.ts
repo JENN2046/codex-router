@@ -955,11 +955,13 @@ test("controlled provider dispatcher routes workspace-write through local runner
   const cwd = await createGitRepo("controlled-provider-dispatcher/workspace-write-success");
   const fixture = await createWorkspaceWriteFixture(cwd, ["tmp/dispatch.txt"]);
   const artifactStore = await createWorkspaceWriteArtifactStoreWithPreflight(fixture);
+  const consumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
 
   const result = await dispatchControlledWorkspaceWriteProviderExecution({
     ...fixture,
     kernelStore: new InMemoryKernelStore(),
     artifactStore,
+    consumptionStore,
     now: constantClock()
   });
 
@@ -1067,6 +1069,7 @@ test("controlled provider dispatcher requires workspace-write preflight artifact
     ...fixture,
     kernelStore: new InMemoryKernelStore(),
     artifactStore: new InMemoryArtifactStore({ now: createClock() }),
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     now: constantClock()
   });
 
@@ -1096,6 +1099,7 @@ test("controlled provider dispatcher binds workspace-write operation manifest be
     ],
     kernelStore: new InMemoryKernelStore(),
     artifactStore,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     now: constantClock()
   });
 

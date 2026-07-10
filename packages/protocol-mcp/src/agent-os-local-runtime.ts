@@ -37,7 +37,8 @@ import {
   evaluateExecutionEligibilityWithPermitStore
 } from "../../execution-eligibility/src/index.js";
 import {
-  capabilityImplies
+  capabilityImplies,
+  capabilityScopeToCanonicalString
 } from "../../capability/src/index.js";
 import type { ProviderRegistry } from "../../provider-registry/src/index.js";
 import { RunManager } from "../../governance-internal-run-manager/src/index.js";
@@ -45,9 +46,12 @@ import type { WorkspaceWriteOperation } from "../../governance-internal-workspac
 import type { GovernanceState } from "../../governance-internal-state-manager/src/index.js";
 import {
   createApprovedWorkspaceWriteProviderExecutionPermitV2,
+  InMemoryProviderExecutionPermitConsumptionStore,
   parseExecutorExecutionPlan,
+  type ExecutorExecutionPlan,
   type ExecutorProvider,
-  type ExecutionPlanInput
+  type ExecutionPlanInput,
+  type ProviderExecutionPermitConsumptionStore
 } from "../../provider-core/src/index.js";
 import {
   AgentOsMcpToolNameSchema,
@@ -101,6 +105,12 @@ export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PROVIDER_NOT_EXECUTOR =
   "agent_os_mcp_workspace_write_prepare_provider_not_executor";
 export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_FAILED =
   "agent_os_mcp_workspace_write_prepare_failed";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_TASK =
+  "agent_os_mcp_workspace_write_prepare_target_outside_task";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_POLICY =
+  "agent_os_mcp_workspace_write_prepare_target_outside_policy";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_EXECUTOR_PLAN =
+  "agent_os_mcp_workspace_write_prepare_target_outside_executor_plan";
 export const AGENT_OS_MCP_RUN_NOT_FOUND =
   "agent_os_run_not_found";
 export const AGENT_OS_MCP_ARTIFACT_NOT_FOUND =
@@ -134,6 +144,7 @@ export type AgentOsMcpLocalRuntimeOptions = {
   preferredProviderId?: string;
   controlledWorkspaceWriteProviderDispatcher?: AgentOsControlledWorkspaceWriteProviderDispatcher;
   publicSurface?: AgentOsPublicSurface;
+  workspaceWriteConsumptionStore?: ProviderExecutionPermitConsumptionStore;
   now?: () => string;
   createTaskId?: (input: AgentOsCreateTaskInput) => string;
   createRunId?: (task: Task) => string;
@@ -318,6 +329,7 @@ export class AgentOsMcpLocalRuntime {
   private readonly controlledWorkspaceWriteProviderDispatcher:
     | AgentOsControlledWorkspaceWriteProviderDispatcher
     | undefined;
+  private readonly workspaceWriteConsumptionStore: ProviderExecutionPermitConsumptionStore;
   private readonly publicSurface: AgentOsPublicSurface;
   private readonly now: () => string;
   private readonly createTaskId: (input: AgentOsCreateTaskInput) => string;
@@ -350,6 +362,9 @@ export class AgentOsMcpLocalRuntime {
     this.preferredProviderId = options.preferredProviderId;
     this.controlledWorkspaceWriteProviderDispatcher =
       options.controlledWorkspaceWriteProviderDispatcher;
+    this.workspaceWriteConsumptionStore =
+      options.workspaceWriteConsumptionStore
+      ?? new InMemoryProviderExecutionPermitConsumptionStore();
     this.publicSurface = options.publicSurface ?? "mcp";
     this.now = options.now ?? (() => new Date().toISOString());
     this.createTaskId = options.createTaskId ?? ((input) => this.createDefaultTaskId(input));
@@ -957,6 +972,18 @@ export class AgentOsMcpLocalRuntime {
         await providerEntry.provider.planExecution(executionPlanInput)
       );
       const targetFiles = uniqueWorkspaceWriteOperationTargets(input.operations);
+      const targetReasons = collectWorkspaceWritePrepareTargetReasons({
+        targetFiles,
+        task,
+        policyDecision,
+        executorPlan
+      });
+      if (targetReasons.length > 0) {
+        return {
+          status: "blocked",
+          reasons: targetReasons
+        };
+      }
       const permit = createApprovedWorkspaceWriteProviderExecutionPermitV2({
         ...(input.permitId !== undefined ? { permitId: input.permitId } : {}),
         plan: executorPlan,
@@ -996,6 +1023,7 @@ export class AgentOsMcpLocalRuntime {
         operations: input.operations,
         workspaceRoot: input.workspaceRoot,
         executionAuthorizationId: input.executionAuthorizationId,
+        consumptionStore: this.workspaceWriteConsumptionStore,
         ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
         now: this.now
       });
@@ -1511,6 +1539,41 @@ function isExecutorProviderLike(
 
 function uniqueWorkspaceWriteOperationTargets(operations: WorkspaceWriteOperation[]): string[] {
   return [...new Set(operations.map((operation) => operation.path))];
+}
+
+function collectWorkspaceWritePrepareTargetReasons(input: {
+  targetFiles: string[];
+  task: Task;
+  policyDecision: PolicyDecision;
+  executorPlan: ExecutorExecutionPlan;
+}): string[] {
+  const reasons: string[] = [];
+  const taskTargets = new Set(input.task.target.files);
+  const policyCapabilities = input.policyDecision.capabilities.map(
+    capabilityScopeToCanonicalString
+  );
+
+  for (const targetFile of input.targetFiles) {
+    const requiredScope = `fs.write:${targetFile}`;
+
+    if (taskTargets.size > 0 && !taskTargets.has(targetFile)) {
+      reasons.push(`${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_TASK}:${targetFile}`);
+    }
+
+    if (!policyCapabilities.some((scope) => capabilityImpliesSafely(scope, requiredScope))) {
+      reasons.push(`${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_POLICY}:${targetFile}`);
+    }
+
+    if (!input.executorPlan.requiredCapabilities.some((scope) =>
+      capabilityImpliesSafely(scope, requiredScope)
+    )) {
+      reasons.push(
+        `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_EXECUTOR_PLAN}:${targetFile}`
+      );
+    }
+  }
+
+  return [...new Set(reasons)];
 }
 
 function createTaskEnvelopeFromKernelTask(task: Task): TaskEnvelope {

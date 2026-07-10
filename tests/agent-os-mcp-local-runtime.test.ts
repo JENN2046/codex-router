@@ -12,6 +12,9 @@ import {
   AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED,
   AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC,
   AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_ARTIFACT_STORE_NOT_CONFIGURED,
+  AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_EXECUTOR_PLAN,
+  AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_POLICY,
+  AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_TASK,
   createAgentOsMcpLocalRuntime
 } from "../packages/protocol-mcp/src/index.js";
 import {
@@ -360,6 +363,90 @@ test("Agent OS MCP local runtime prepares workspace-write dispatch from run cont
     (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
     false
   );
+});
+
+test("Agent OS MCP local runtime blocks workspace-write prepare outside task and policy targets", async () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const artifactStore = new InMemoryArtifactStore({ now: () => now });
+  const targetFile = "workspace/docs/agent-os-runtime-write.md";
+  const otherFile = "workspace/docs/agent-os-runtime-other.md";
+  const provider = createWorkspaceWriteProvider([targetFile]);
+  const providerRegistry = createWorkspaceWriteProviderRegistry(provider);
+  const policyDecision = createWorkspaceWritePolicyDecision([targetFile]);
+  const dispatchInputs: unknown[] = [];
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    artifactStore,
+    providerExecutionPlanStore: planStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createWorkspaceWriteEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    preferredProviderId: provider.manifest.providerId,
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      throw new Error("dispatcher should not run for out-of-scope workspace-write target");
+    },
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId
+  });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Prepare workspace-write with an out-of-scope target",
+      requestedAction: "Prepare a controlled Agent OS workspace-write dispatch.",
+      repoRoot: "workspace",
+      branch: "agentos/workspace-write",
+      targetFiles: [targetFile]
+    }
+  });
+  assert.equal(create.status, "succeeded");
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      prepare: {
+        runId,
+        workspaceRoot: "/tmp/agent-os-runtime-workspace",
+        operations: [{
+          kind: "write",
+          path: otherFile,
+          content: "agent os runtime out-of-scope workspace-write\n"
+        }],
+        executionAuthorizationId: "operator_auth_agentos_mcp_workspace_write",
+        governanceState: createWorkspaceWriteGovernanceState(),
+        repositoryState: {
+          branch: "agentos/workspace-write",
+          protectedBranch: false,
+          worktreeClean: true,
+          headCommit: "abc123"
+        },
+        permitId: "permit_agentos_mcp_workspace_write_prepare_outside_scope",
+        maxChangedFiles: 1,
+        maxDiffLines: 1
+      }
+    }
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(provider.calls.planExecution, 1);
+  assert.equal(dispatchInputs.length, 0);
+  assert.ok(result.reasons.includes(
+    `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_TASK}:${otherFile}`
+  ));
+  assert.ok(result.reasons.includes(
+    `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_POLICY}:${otherFile}`
+  ));
+  assert.ok(result.reasons.includes(
+    `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_EXECUTOR_PLAN}:${otherFile}`
+  ));
+  assert.equal(result.audit.localMutationApplied, false);
 });
 
 test("Agent OS MCP local runtime blocks workspace-write prepare without artifact store", async () => {

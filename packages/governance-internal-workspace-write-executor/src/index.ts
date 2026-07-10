@@ -5,7 +5,6 @@ import { lstat, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promise
 import { dirname, isAbsolute, join, normalize, relative } from "node:path";
 import { promisify } from "node:util";
 import {
-  InMemoryProviderExecutionPermitConsumptionStore,
   WorkspaceWriteProviderExecutionPermitV2Schema,
   consumeWorkspaceWriteProviderExecutionPermitV2ForPlan,
   validateWorkspaceWriteProviderExecutionPermitV2ForPlan,
@@ -285,11 +284,50 @@ export async function runWorkspaceWriteExecution(
     });
   }
 
+  if (input.consumptionStore === undefined) {
+    return createEvidence({
+      generatedAt,
+      status: "blocked",
+      executeRequested: true,
+      executionAuthorizationMatched,
+      permitValidForPlan: true,
+      permitConsumed: false,
+      branch,
+      beforeCommit: headCommit,
+      afterCommit: headCommit,
+      permit,
+      operationTargets,
+      operations: normalizedOperations,
+      branchMatched,
+      branchNonProtected,
+      headCommitMatched,
+      worktreeCleanBefore,
+      operationTargetsDeclared,
+      operationTargetsUnique,
+      operationTargetsSafe,
+      preExecutionPatchGuardPassed: expectedGuard?.ok ?? false,
+      rollbackReady: rollbackEvidence?.status === "ready",
+      wroteOnlyPermittedTargets: false,
+      postExecutionPatchGuardPassed: false,
+      rollbackAttempted: false,
+      rollbackVerified: false,
+      expectedGuard,
+      actualGuard: undefined,
+      contentHashes: [],
+      counters: {
+        workspaceWriteExecuteCalls: 0,
+        fileWriteCalls: 0,
+        fileDeleteCalls: 0
+      },
+      reasons: ["workspace_write_execution_consumption_store_required"]
+    });
+  }
+
   const consumptionReasons = consumeWorkspaceWriteProviderExecutionPermitV2ForPlan(
     permit,
     input.plan,
     input.manifest,
-    input.consumptionStore ?? new InMemoryProviderExecutionPermitConsumptionStore(),
+    input.consumptionStore,
     {
       now: generatedAt,
       consumedAt: generatedAt,

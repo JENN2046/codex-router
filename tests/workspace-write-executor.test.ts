@@ -37,6 +37,7 @@ test("workspace-write executor preflights generic multi-file writes without muta
     maxChangedFiles: 2,
     maxDiffLines: 2
   });
+  const consumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
 
   const result = await runWorkspaceWriteExecution({
     cwd,
@@ -79,6 +80,7 @@ test("workspace-write executor executes multi-file writes and verifies rollback"
     manifest: fixture.manifest,
     operations,
     executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     execute: true,
     now: clock()
   });
@@ -114,6 +116,7 @@ test("workspace-write executor supports update and delete operations with rollba
     maxChangedFiles: 2,
     maxDiffLines: 3
   });
+  const consumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
 
   const result = await runWorkspaceWriteExecution({
     cwd,
@@ -122,6 +125,7 @@ test("workspace-write executor supports update and delete operations with rollba
     manifest: fixture.manifest,
     operations,
     executionAuthorizationId: authorizationId,
+    consumptionStore,
     execute: true,
     now: clock()
   });
@@ -235,6 +239,37 @@ test("workspace-write executor consumes permit once and blocks replay", async ()
   assert.equal(existsSync(join(cwd, "tmp/replay.txt")), false);
   assertSafeEvidence(first);
   assertSafeEvidence(second);
+});
+
+test("workspace-write executor requires shared consumption store before execution", async () => {
+  const cwd = await createGitRepo("workspace-write/general-consumption-store-required");
+  const operations: WorkspaceWriteOperation[] = [
+    { kind: "write", path: "tmp/store-required.txt", content: "store-required\n" }
+  ];
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: ["tmp/store-required.txt"],
+    maxChangedFiles: 1,
+    maxDiffLines: 1
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations,
+    executionAuthorizationId: authorizationId,
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes("workspace_write_execution_consumption_store_required"));
+  assert.equal(existsSync(join(cwd, "tmp/store-required.txt")), false);
+  assertSafeEvidence(result);
 });
 
 test("workspace-write executor blocks symlink targets before mutating outside workspace", async () => {

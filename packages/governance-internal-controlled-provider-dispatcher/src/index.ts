@@ -203,7 +203,7 @@ export type RunControlledWorkspaceWriteProviderDispatchInput = {
   executorPlan: ExecutorExecutionPlan;
   operations: WorkspaceWriteOperation[];
   executionAuthorizationId: string;
-  consumptionStore?: ProviderExecutionPermitConsumptionStore;
+  consumptionStore: ProviderExecutionPermitConsumptionStore;
   dispatchPreflight: ControlledWorkspaceWriteProviderDispatchPreflight;
   governanceState: GovernanceState;
   taskEnvelope: TaskEnvelopeInput;
@@ -572,7 +572,7 @@ export async function prepareControlledWorkspaceWriteProviderDispatchInput(
     dispatchPreflight,
     governanceState: input.governanceState,
     taskEnvelope: input.taskEnvelope,
-    ...(input.consumptionStore !== undefined ? { consumptionStore: input.consumptionStore } : {}),
+    consumptionStore: input.consumptionStore,
     ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
     now: input.now
   };
@@ -759,7 +759,8 @@ export function reviewControlledWorkspaceWriteProviderDispatch(
       executorPlan,
       operations: input.operations,
       workspaceRoot: input.workspaceRoot,
-      executionAuthorizationId: input.executionAuthorizationId
+      executionAuthorizationId: input.executionAuthorizationId,
+      consumptionStore: input.consumptionStore
     }),
     ...collectWorkspaceWriteExecutorPlanReasons({
       providerExecutionPlan,
@@ -945,7 +946,7 @@ export async function dispatchControlledWorkspaceWriteProviderExecution(
     executorPlan: input.executorPlan,
     operations: input.operations,
     executionAuthorizationId: input.executionAuthorizationId,
-    ...(input.consumptionStore !== undefined ? { consumptionStore: input.consumptionStore } : {}),
+    consumptionStore: input.consumptionStore,
     ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
     now: input.now,
     mode: "controlled-workspace-write"
@@ -1075,6 +1076,7 @@ function collectWorkspaceWritePlanReasons(input: {
   operations: WorkspaceWriteOperation[];
   workspaceRoot: string;
   executionAuthorizationId: string;
+  consumptionStore?: ProviderExecutionPermitConsumptionStore;
 }): string[] {
   const reasons: string[] = [];
   const {
@@ -1119,6 +1121,9 @@ function collectWorkspaceWritePlanReasons(input: {
   }
   if (input.executionAuthorizationId.trim() === "") {
     reasons.push("controlled_workspace_write_dispatch_authorization_id_required");
+  }
+  if (input.consumptionStore === undefined) {
+    reasons.push("controlled_workspace_write_dispatch_consumption_store_required");
   }
   if (providerExecutionPlan.taskId !== task.taskId) {
     reasons.push(`controlled_workspace_write_dispatch_task_mismatch:${providerExecutionPlan.taskId}:${task.taskId}`);

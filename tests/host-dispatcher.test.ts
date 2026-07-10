@@ -48,6 +48,7 @@ import {
 import {
   createApprovedWorkspaceWriteProviderExecutionPermitV2,
   hashProviderManifest,
+  InMemoryProviderExecutionPermitConsumptionStore,
   parseExecutorExecutionPlan,
   parseProviderManifest,
   ProviderManifestSchema,
@@ -372,11 +373,13 @@ test("host dispatcher routes controlled workspace-write through local runner", a
   );
   const fixture = await createHostWorkspaceWriteFixture(cwd, ["tmp/host-dispatch.txt"]);
   const artifactStore = await createHostWorkspaceWriteArtifactStore(fixture);
+  const consumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
 
   const result = await dispatchControlledWorkspaceWriteProviderPlan({
     ...fixture,
     kernelStore: new InMemoryKernelStore(),
     artifactStore,
+    consumptionStore,
     now: constantClock()
   });
 
@@ -398,10 +401,12 @@ test("host dispatcher prepares controlled workspace-write dispatch input", async
   );
   const fixture = await createHostWorkspaceWriteFixture(cwd, ["tmp/host-prepared.txt"]);
   const artifactStore = new InMemoryArtifactStore({ now: constantClock() });
+  const consumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
   const prepared = await prepareControlledWorkspaceWriteHostProviderDispatch({
     ...fixture,
     kernelStore: new InMemoryKernelStore(),
     artifactStore,
+    consumptionStore,
     now: constantClock()
   });
 
@@ -433,6 +438,7 @@ test("host dispatcher requires controlled workspace-write preflight artifact", a
     ...fixture,
     kernelStore: new InMemoryKernelStore(),
     artifactStore: new InMemoryArtifactStore({ now: constantClock() }),
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     now: constantClock()
   });
 

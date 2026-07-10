@@ -569,6 +569,7 @@ test("provider execution runner executes controlled workspace-write operations t
   const fixture = await createControlledWorkspaceWriteFixture(cwd, ["tmp/runner.txt"]);
   const kernelStore = new InMemoryKernelStore();
   const artifactStore = new InMemoryArtifactStore({ now: createClock() });
+  const consumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
   const operations: WorkspaceWriteOperation[] = [
     { kind: "write", path: "tmp/runner.txt", content: "runner-content\n" }
   ];
@@ -586,6 +587,7 @@ test("provider execution runner executes controlled workspace-write operations t
     permit: fixture.permit,
     operations,
     executionAuthorizationId: workspaceWriteAuthorizationId,
+    consumptionStore,
     now: constantClock(),
     mode: "controlled-workspace-write"
   });
@@ -701,6 +703,7 @@ test("provider execution runner blocks non workspace-write plans before local wr
     permit: fixture.permit,
     operations: [{ kind: "write", path: "tmp/runner.txt", content: "blocked-content\n" }],
     executionAuthorizationId: workspaceWriteAuthorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     now: createClock(),
     mode: "controlled-workspace-write"
   });
@@ -734,6 +737,7 @@ test("provider execution runner reports workspace-write executor failures withou
     permit: fixture.permit,
     operations: [{ kind: "write", path: "tmp/denied.txt", content: "denied-content\n" }],
     executionAuthorizationId: workspaceWriteAuthorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
     now: constantClock(),
     mode: "controlled-workspace-write"
   });

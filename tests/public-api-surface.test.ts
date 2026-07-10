@@ -540,6 +540,7 @@ test("public-api host facade delegates through declaration-safe wrappers", async
       content: "public host controlled workspace-write\n"
     }],
     executionAuthorizationId: "auth-public-host-workspace-write",
+    consumptionStore: {},
     dispatchPreflight: {
       schemaVersion: "controlled-workspace-write-provider-dispatch-preflight.v1",
       mode: "controlled-workspace-write",
