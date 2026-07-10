@@ -938,7 +938,7 @@ function isSafeWorkspaceRelativePath(path: string): boolean {
 function hasGitMetadataPathComponent(path: string): boolean {
   return normalizeWorkspacePath(path)
     .split("/")
-    .some((part) => part === ".git");
+    .some((part) => part.toLowerCase() === ".git");
 }
 
 function collectWorkspaceWritableRootReasons(
@@ -1013,7 +1013,9 @@ async function collectWorkspaceTargetPathReasons(
       continue;
     }
 
-    const parts = normalize(targetPath).split("/").filter((part) => part.length > 0);
+    const parts = normalizeWorkspacePath(targetPath)
+      .split("/")
+      .filter((part) => part.length > 0);
     let currentPath = cwd;
 
     for (const part of parts) {

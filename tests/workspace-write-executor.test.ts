@@ -338,6 +338,39 @@ test("workspace-write executor blocks git metadata targets before writing", asyn
   assertSafeEvidence(result);
 });
 
+test("workspace-write executor blocks case-variant git metadata targets before writing", async () => {
+  const cwd = await createGitRepo("workspace-write/general-git-metadata-case-target");
+  const targetPath = ".GIT/hooks/pre-commit";
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: [targetPath],
+    maxChangedFiles: 1,
+    maxDiffLines: 1,
+    writableRoots: ["workspace"]
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "write", path: targetPath, content: "#!/bin/sh\nexit 1\n" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.operationTargetsSafe, false);
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes("workspace_write_execution_unsafe_operation_target"));
+  assert.equal(existsSync(join(cwd, targetPath)), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
 test("workspace-write executor returns blocked evidence for git probe failures", async () => {
   const fixtureCwd = await createGitRepo("workspace-write/general-git-probe-fixture");
   const nonGitCwd = await mkdtemp(join(tmpdir(), "workspace-write-executor-non-git-"));
@@ -514,6 +547,47 @@ test("workspace-write executor blocks symlink targets before mutating outside wo
     "workspace_write_execution_symlink_target_forbidden:tmp/link.txt"
   ));
   assert.equal(await readFile(outsideFile, "utf8"), "outside-original\n");
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
+test("workspace-write executor blocks symlink directory targets before mutating outside workspace", async () => {
+  const cwd = await createGitRepo("workspace-write/general-symlink-directory-target");
+  const outsideDir = await mkdtemp(join(tmpdir(), "workspace-write-executor-outside-"));
+  const outsideFile = join(outsideDir, "child.txt");
+  const symlinkPath = join(cwd, "tmp/link");
+  await mkdir(dirname(symlinkPath), { recursive: true });
+  await symlink(outsideDir, symlinkPath);
+  await git(["add", "tmp/link"], cwd);
+  await git(["commit", "-m", "add symlink directory target"], cwd);
+
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: ["tmp/link/child.txt"],
+    maxChangedFiles: 1,
+    maxDiffLines: 2
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [
+      { kind: "write", path: "tmp/link/child.txt", content: "blocked-symlink\n" }
+    ],
+    executionAuthorizationId: authorizationId,
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes(
+    "workspace_write_execution_symlink_target_forbidden:tmp/link/child.txt"
+  ));
+  assert.equal(existsSync(outsideFile), false);
   assert.equal((await git(["status", "--short"], cwd)).trim(), "");
   assertSafeEvidence(result);
 });
