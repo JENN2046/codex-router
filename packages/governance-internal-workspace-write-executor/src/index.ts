@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, realpath, rm, rmdir, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize, relative } from "node:path";
 import { promisify } from "node:util";
 import {
@@ -444,6 +444,7 @@ export async function runWorkspaceWriteExecution(
   let actualGuard: WorkspaceWritePatchGuardResult | undefined;
   let rollbackAttempted = false;
   let rollbackVerified = false;
+  const createdParentDirectories = new Set<string>();
 
   try {
     for (const operation of normalizedOperations) {
@@ -454,6 +455,9 @@ export async function runWorkspaceWriteExecution(
       }
       const absolutePath = join(input.cwd, operation.path);
       if (operation.kind === "write") {
+        for (const path of collectMissingWorkspaceParentDirectories(input.cwd, operation.path)) {
+          createdParentDirectories.add(path);
+        }
         await mkdir(dirname(absolutePath), { recursive: true });
         await writeFile(absolutePath, operation.content, "utf8");
         fileWriteCalls += 1;
@@ -484,7 +488,9 @@ export async function runWorkspaceWriteExecution(
     rollbackAttempted = true;
     try {
       await rollbackWorkspaceTargets(input.cwd, headCommit, operationTargets);
-      rollbackVerified = await targetsClean(input.cwd, operationTargets);
+      await removeWorkspaceCreatedParentDirectories(input.cwd, createdParentDirectories);
+      rollbackVerified = (await targetsClean(input.cwd, operationTargets))
+        && workspaceCreatedParentDirectoriesAbsent(input.cwd, createdParentDirectories);
     } catch {
       executionReasons.push("workspace_write_execution_rollback_failed");
     }
@@ -752,6 +758,50 @@ async function rollbackWorkspaceTargets(
       await rm(join(cwd, path), { force: true });
     }
   }
+}
+
+function collectMissingWorkspaceParentDirectories(cwd: string, targetPath: string): string[] {
+  const directories: string[] = [];
+  let current = dirname(targetPath);
+  while (current !== "." && current !== "") {
+    if (!existsSync(join(cwd, current))) {
+      directories.push(current);
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return directories;
+}
+
+async function removeWorkspaceCreatedParentDirectories(
+  cwd: string,
+  directories: Set<string>
+): Promise<void> {
+  const deepestFirst = [...directories].sort((a, b) => pathDepth(b) - pathDepth(a));
+  for (const path of deepestFirst) {
+    try {
+      await rmdir(join(cwd, path));
+    } catch (error) {
+      if (!isErrnoException(error) || error.code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+}
+
+function workspaceCreatedParentDirectoriesAbsent(cwd: string, directories: Set<string>): boolean {
+  return [...directories].every((path) => !existsSync(join(cwd, path)));
+}
+
+function pathDepth(path: string): number {
+  return path.split("/").length;
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return typeof error === "object" && error !== null && "code" in error;
 }
 
 async function targetsClean(cwd: string, targetFiles: string[]): Promise<boolean> {

@@ -102,6 +102,40 @@ test("workspace-write executor executes multi-file writes and verifies rollback"
   assertSafeEvidence(result);
 });
 
+test("workspace-write executor removes parent directories created during rollback", async () => {
+  const cwd = await createGitRepo("workspace-write/general-created-parent");
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: ["tmp/created-parent/file.txt"],
+    maxChangedFiles: 1,
+    maxDiffLines: 1
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{
+      kind: "write",
+      path: "tmp/created-parent/file.txt",
+      content: "parent directory content\n"
+    }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "passed");
+  assert.equal(result.checks.rollbackVerified, true);
+  assert.equal(result.counters.fileWriteCalls, 1);
+  assert.equal(existsSync(join(cwd, "tmp/created-parent/file.txt")), false);
+  assert.equal(existsSync(join(cwd, "tmp/created-parent")), false);
+  assert.equal(existsSync(join(cwd, "tmp")), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
 test("workspace-write executor supports update and delete operations with rollback", async () => {
   const cwd = await createGitRepo("workspace-write/general-update-delete", {
     "tmp/edit.txt": "old\n",
