@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { chmod, mkdtemp, mkdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, link, mkdtemp, mkdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -301,6 +301,48 @@ test("workspace-write executor blocks existing ignored targets before writing", 
     "workspace_write_execution_existing_commit_absent_target_forbidden:tmp/ignored.txt"
   ));
   assert.equal(await readFile(join(cwd, "tmp/ignored.txt"), "utf8"), "local ignored data\n");
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
+test("workspace-write executor blocks hard-linked targets before writing", async () => {
+  const cwd = await createGitRepo("workspace-write/general-hardlink-target");
+  const outsideDir = await mkdtemp(join(tmpdir(), "workspace-write-executor-outside-"));
+  const outsideFile = join(outsideDir, "shared.txt");
+  const targetPath = "tmp/hardlink.txt";
+  await writeFile(outsideFile, "external original\n", "utf8");
+  await mkdir(join(cwd, "tmp"), { recursive: true });
+  await link(outsideFile, join(cwd, targetPath));
+  await git(["add", targetPath], cwd);
+  await git(["commit", "-m", "add hard-linked target"], cwd);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: [targetPath],
+    maxChangedFiles: 1,
+    maxDiffLines: 1
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "write", path: targetPath, content: "blocked-hardlink\n" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes(
+    `workspace_write_execution_hardlink_target_forbidden:${targetPath}`
+  ));
+  assert.equal(await readFile(outsideFile, "utf8"), "external original\n");
+  assert.equal(await readFile(join(cwd, targetPath), "utf8"), "external original\n");
   assert.equal((await git(["status", "--short"], cwd)).trim(), "");
   assertSafeEvidence(result);
 });

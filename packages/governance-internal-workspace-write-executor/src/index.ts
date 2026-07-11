@@ -1026,6 +1026,10 @@ async function collectWorkspaceTargetPathReasons(
           reasons.push(`workspace_write_execution_symlink_target_forbidden:${targetPath}`);
           break;
         }
+        if (stats.isFile() && stats.nlink > 1) {
+          reasons.push(`workspace_write_execution_hardlink_target_forbidden:${targetPath}`);
+          break;
+        }
 
         const resolvedPath = await realpath(currentPath);
         if (!isWorkspaceContainedPath(workspaceRoot, resolvedPath)) {
