@@ -175,13 +175,14 @@ test("workspace-write executor supports update and delete operations with rollba
   assertSafeEvidence(result);
 });
 
-test("workspace-write executor restores tracked executable metadata during rollback", async () => {
+test("workspace-write executor restores tracked executable metadata during rollback", async (t) => {
   const cwd = await createGitRepo("workspace-write/general-executable");
   const executablePath = join(cwd, "tmp/executable.sh");
   await mkdir(dirname(executablePath), { recursive: true });
   await writeFile(executablePath, "#!/bin/sh\necho executable\n", "utf8");
   await chmod(executablePath, 0o755);
   await git(["add", "tmp/executable.sh"], cwd);
+  await git(["update-index", "--chmod=+x", "--", "tmp/executable.sh"], cwd);
   await git(["commit", "-m", "add executable"], cwd);
   const fixture = await createWorkspaceWriteFixture(cwd, {
     targetFiles: ["tmp/executable.sh"],
@@ -203,7 +204,18 @@ test("workspace-write executor restores tracked executable metadata during rollb
 
   assert.equal(result.status, "passed");
   assert.equal(await readFile(executablePath, "utf8"), "#!/bin/sh\necho executable\n");
-  assert.equal((await stat(executablePath)).mode & 0o111, 0o111);
+  assert.match(
+    await git(["ls-files", "--stage", "--", "tmp/executable.sh"], cwd),
+    /^100755\s/u
+  );
+  if (process.platform === "win32") {
+    t.diagnostic(
+      "Windows cannot represent or verify POSIX worktree executable-bit restoration; "
+      + "the unchanged Git index mode remains 100755."
+    );
+  } else {
+    assert.equal((await stat(executablePath)).mode & 0o111, 0o111);
+  }
   assert.equal((await git(["status", "--short"], cwd)).trim(), "");
   assertSafeEvidence(result);
 });
@@ -790,6 +802,7 @@ async function createGitRepo(
   await git(["init"], cwd);
   await git(["config", "user.email", "workspace-write@example.invalid"], cwd);
   await git(["config", "user.name", "Workspace Write Test"], cwd);
+  await git(["config", "core.autocrlf", "false"], cwd);
   await writeFile(join(cwd, "README.md"), "fixture\n", "utf8");
   for (const [path, content] of Object.entries(files)) {
     await mkdir(dirname(join(cwd, path)), { recursive: true });
