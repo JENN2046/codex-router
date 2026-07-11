@@ -201,6 +201,7 @@ export interface CodexAdapterOutcome {
 type TurnRecord = {
   lastSequence: number;
   blocked: boolean;
+  blockedReason?: string;
   completedItems: Set<string>;
 };
 
@@ -227,8 +228,11 @@ type ApprovalRecord = {
   itemId: string;
   proposal: CodexApprovalProposal;
   resolved: boolean;
+  deliveryState: "pending" | "in_flight" | "sent" | "uncertain";
   sentDecision?: "accept" | "decline";
 };
+
+type ApprovalSendResult = "sent" | "delivery_uncertain" | "unavailable";
 
 const HumanApprovalInputSchema = z.object({
   requestId: z.string().min(1),
@@ -370,23 +374,48 @@ export class CodexAppServerAdapter {
       return this.quarantinedOutcome({ requestId: input.requestId });
     }
     const approval = this.approvals.get(input.requestId);
+    const item = approval === undefined
+      ? undefined
+      : this.items.get(itemKey(approval.threadId, approval.turnId, approval.itemId));
     if (
       approval === undefined
       || approval.resolved
-      || approval.sentDecision !== undefined
+      || approval.deliveryState !== "pending"
       || this.turn(approval.threadId, approval.turnId).blocked
     ) {
-      return this.outcome("blocked", ["human_approval_request_unavailable"], {
-        requestId: input.requestId
-      });
+      const reconciliationRequired = approval?.deliveryState === "uncertain"
+        || item?.state === "reconciliation_required";
+      return this.outcome(
+        reconciliationRequired ? "reconciliation_required" : "blocked",
+        ["human_approval_request_unavailable"],
+        {
+          requestId: input.requestId,
+          ...(approval === undefined ? {} : { itemId: approval.itemId }),
+          ...(item === undefined ? {} : { lifecycleState: item.state })
+        }
+      );
+    }
+    if (
+      approval.proposal.kind === "file_change"
+      && item !== undefined
+      && item.state !== "awaiting_approval"
+    ) {
+      return this.outcome(
+        item.state === "reconciliation_required" ? "reconciliation_required" : "blocked",
+        ["human_approval_request_unavailable"],
+        {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          lifecycleState: item.state
+        }
+      );
     }
 
     if (input.decision === "decline") {
-      const sent = await this.sendDecision(approval, "decline", "operator_declined");
-      const item = this.items.get(itemKey(approval.threadId, approval.turnId, approval.itemId));
-      if (item !== undefined) {
-        transitionItem(item, "blocked");
-      }
+      const delivery = item === undefined
+        ? await this.sendDecision(approval, "decline", "operator_declined")
+        : await this.declineFileItem(approval, item, "operator_declined");
+      const sent = delivery === "sent";
       return this.outcome(sent ? "blocked" : "reconciliation_required", [
         sent ? "operator_declined" : "approval_response_send_failed"
       ], {
@@ -397,7 +426,8 @@ export class CodexAppServerAdapter {
     }
 
     if (approval.proposal.kind !== "file_change") {
-      const sent = await this.sendDecision(approval, "accept", "operator_approved");
+      const delivery = await this.sendDecision(approval, "accept", "operator_approved");
+      const sent = delivery === "sent";
       return this.outcome(sent ? "accepted" : "reconciliation_required", [
         sent ? `human_${approval.proposal.kind}_approval` : "approval_response_send_failed"
       ], {
@@ -407,33 +437,67 @@ export class CodexAppServerAdapter {
       });
     }
 
-    const item = this.items.get(itemKey(approval.threadId, approval.turnId, approval.itemId));
     if (item === undefined) {
-      await this.sendDecision(approval, "decline", "missing_governance_context");
-      return this.outcome("blocked", ["missing_governance_context"], {
+      const delivery = await this.sendDecision(
+        approval,
+        "decline",
+        "missing_governance_context"
+      );
+      const sent = delivery === "sent";
+      return this.outcome(sent ? "blocked" : "reconciliation_required", [
+        "missing_governance_context",
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
         requestId: input.requestId,
         itemId: approval.itemId
       });
     }
     if (this.mode !== "authorization_enforced") {
-      const sent = await this.sendDecision(approval, "accept", "operator_approved_observe_only");
+      const delivery = await this.sendDecision(
+        approval,
+        "accept",
+        "operator_approved_observe_only"
+      );
+      const sent = delivery === "sent";
+      if (!sent) {
+        await this.markItemReconciliation(item, "approval_response_send_failed");
+      }
       return this.outcome(sent ? "observed" : "reconciliation_required", [
-        "session_observe_only_no_governed_retain_claim"
-      ], { requestId: input.requestId, itemId: approval.itemId });
+        "session_observe_only_no_governed_retain_claim",
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
+        requestId: input.requestId,
+        itemId: approval.itemId,
+        lifecycleState: item.state
+      });
     }
     if (item.authorizationDecision === undefined || item.repoRoot === undefined) {
-      await this.sendDecision(approval, "decline", "missing_governance_context");
-      transitionItem(item, "blocked");
-      return this.outcome("blocked", ["missing_governance_context"], {
+      const delivery = await this.declineFileItem(
+        approval,
+        item,
+        "missing_governance_context"
+      );
+      const sent = delivery === "sent";
+      return this.outcome(sent ? "blocked" : "reconciliation_required", [
+        "missing_governance_context",
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
         requestId: input.requestId,
         itemId: approval.itemId,
         lifecycleState: item.state
       });
     }
     if (item.authorizationDecision.disposition === "blocked") {
-      await this.sendDecision(approval, "decline", "authorization_blocked");
-      transitionItem(item, "blocked");
-      return this.outcome("blocked", ["authorization_blocked"], {
+      const delivery = await this.declineFileItem(
+        approval,
+        item,
+        "authorization_blocked"
+      );
+      const sent = delivery === "sent";
+      return this.outcome(sent ? "blocked" : "reconciliation_required", [
+        "authorization_blocked",
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
         requestId: input.requestId,
         itemId: approval.itemId,
         lifecycleState: item.state,
@@ -476,13 +540,17 @@ export class CodexAppServerAdapter {
         };
   }
 
-  private handleItemStarted(
+  private async handleItemStarted(
     event: Extract<CodexAppServerNormalizedEvent, { eventType: "item_started" }>
-  ): CodexAdapterOutcome {
+  ): Promise<CodexAdapterOutcome> {
     const key = itemKey(event.threadId, event.turnId, event.item.itemId);
     if (this.items.has(key)) {
-      this.turn(event.threadId, event.turnId).blocked = true;
-      return this.outcome("blocked", ["duplicate_item_started"], {
+      await this.markTurnForReconciliation(
+        event.threadId,
+        event.turnId,
+        "duplicate_item_started"
+      );
+      return this.outcome("reconciliation_required", ["duplicate_item_started"], {
         itemId: event.item.itemId
       });
     }
@@ -517,7 +585,9 @@ export class CodexAppServerAdapter {
         lifecycleState: "proposed"
       });
     } catch {
-      this.turn(event.threadId, event.turnId).blocked = true;
+      const turn = this.turn(event.threadId, event.turnId);
+      turn.blocked = true;
+      turn.blockedReason ??= "file_change_canonicalization_failed";
       return this.outcome("blocked", ["file_change_canonicalization_failed"], {
         itemId: event.item.itemId
       });
@@ -540,7 +610,8 @@ export class CodexAppServerAdapter {
       turnId: event.turnId,
       itemId: event.itemId,
       proposal: event.proposal,
-      resolved: false
+      resolved: false,
+      deliveryState: "pending"
     };
     this.approvals.set(event.requestId, approval);
 
@@ -568,9 +639,16 @@ export class CodexAppServerAdapter {
     if (item.changeSet.changes.some((change) => (
       change.kind === "delete" || change.kind === "rename"
     ))) {
-      transitionItem(item, "blocked");
-      await this.sendDecision(approval, "decline", "destructive_file_change_unsupported");
-      return this.outcome("blocked", ["destructive_file_change_unsupported"], {
+      const delivery = await this.declineFileItem(
+        approval,
+        item,
+        "destructive_file_change_unsupported"
+      );
+      const sent = delivery === "sent";
+      return this.outcome(sent ? "blocked" : "reconciliation_required", [
+        "destructive_file_change_unsupported",
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
         requestId: event.requestId,
         itemId: event.itemId,
         lifecycleState: item.state
@@ -581,9 +659,16 @@ export class CodexAppServerAdapter {
       || change.afterHash === null
       || (change.kind === "update" && (change.beforeHash === undefined || change.beforeHash === null))
     ))) {
-      transitionItem(item, "blocked");
-      await this.sendDecision(approval, "decline", "file_change_expected_hash_missing");
-      return this.outcome("blocked", ["file_change_expected_hash_missing"], {
+      const delivery = await this.declineFileItem(
+        approval,
+        item,
+        "file_change_expected_hash_missing"
+      );
+      const sent = delivery === "sent";
+      return this.outcome(sent ? "blocked" : "reconciliation_required", [
+        "file_change_expected_hash_missing",
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
         requestId: event.requestId,
         itemId: event.itemId,
         lifecycleState: item.state
@@ -603,9 +688,16 @@ export class CodexAppServerAdapter {
     try {
       context = await this.workspaceContextProvider.getContext(item.changeSet);
     } catch {
-      transitionItem(item, "blocked");
-      await this.sendDecision(approval, "decline", "workspace_context_unavailable");
-      return this.outcome("blocked", ["workspace_context_unavailable"], {
+      const delivery = await this.declineFileItem(
+        approval,
+        item,
+        "workspace_context_unavailable"
+      );
+      const sent = delivery === "sent";
+      return this.outcome(sent ? "blocked" : "reconciliation_required", [
+        "workspace_context_unavailable",
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
         requestId: event.requestId,
         itemId: event.itemId,
         lifecycleState: item.state
@@ -645,9 +737,16 @@ export class CodexAppServerAdapter {
     item.authorizationDecision = authorization;
     transitionItem(item, "policy_checked");
     if (authorization.disposition === "blocked") {
-      transitionItem(item, "blocked");
-      await this.sendDecision(approval, "decline", "authorization_blocked");
-      return this.outcome("blocked", authorization.reasons, {
+      const delivery = await this.declineFileItem(
+        approval,
+        item,
+        "authorization_blocked"
+      );
+      const sent = delivery === "sent";
+      return this.outcome(sent ? "blocked" : "reconciliation_required", [
+        ...authorization.reasons,
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
         requestId: event.requestId,
         itemId: event.itemId,
         lifecycleState: item.state,
@@ -707,7 +806,7 @@ export class CodexAppServerAdapter {
     if (
       correlates
       && approval !== undefined
-      && approval.sentDecision === undefined
+      && approval.deliveryState === "pending"
       && !approval.resolved
       && event.resolution === "cancelled"
     ) {
@@ -725,7 +824,7 @@ export class CodexAppServerAdapter {
     if (
       correlates
       && approval !== undefined
-      && approval.sentDecision !== undefined
+      && approval.deliveryState === "sent"
       && !approval.resolved
       && event.resolution === "cancelled"
     ) {
@@ -744,6 +843,7 @@ export class CodexAppServerAdapter {
       || approval.itemId !== event.itemId
       || approval.threadId !== event.threadId
       || approval.turnId !== event.turnId
+      || approval.deliveryState !== "sent"
       || approval.sentDecision === undefined
       || approval.resolved
       || (event.resolution !== approval.sentDecision && event.resolution !== "cancelled")
@@ -891,9 +991,16 @@ export class CodexAppServerAdapter {
       await this.journalStore.put(journal);
       this.ownedJournalIds.add(journal.journalId);
     } catch {
-      transitionItem(input.item, "blocked");
-      await this.sendDecision(input.approval, "decline", "pending_journal_persist_failed");
-      return this.outcome("blocked", ["pending_journal_persist_failed"], {
+      const delivery = await this.declineFileItem(
+        input.approval,
+        input.item,
+        "pending_journal_persist_failed"
+      );
+      const sent = delivery === "sent";
+      return this.outcome(sent ? "blocked" : "reconciliation_required", [
+        "pending_journal_persist_failed",
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
         requestId: input.approval.requestId,
         itemId: input.item.itemId,
         lifecycleState: input.item.state,
@@ -911,8 +1018,8 @@ export class CodexAppServerAdapter {
         lifecycleState: input.item.state
       });
     }
-    const sent = await this.sendDecision(input.approval, "accept", input.reasonCode);
-    if (!sent) {
+    const delivery = await this.sendDecision(input.approval, "accept", input.reasonCode);
+    if (delivery !== "sent") {
       await this.markItemReconciliation(input.item, "approval_response_send_failed");
       return this.outcome("reconciliation_required", ["approval_response_send_failed"], {
         requestId: input.approval.requestId,
@@ -944,13 +1051,31 @@ export class CodexAppServerAdapter {
     });
   }
 
+  private async declineFileItem(
+    approval: ApprovalRecord,
+    item: ItemRecord,
+    reasonCode: string
+  ): Promise<ApprovalSendResult> {
+    const delivery = await this.sendDecision(approval, "decline", reasonCode);
+    if (delivery === "sent") {
+      transitionItem(item, "blocked");
+    } else {
+      await this.markItemReconciliation(item, "approval_response_send_failed");
+    }
+    return delivery;
+  }
+
   private async declineInvalidRequest(
     event: Extract<CodexAppServerNormalizedEvent, { eventType: "approval_requested" }>,
     approval: ApprovalRecord,
     reason: string
   ): Promise<CodexAdapterOutcome> {
-    const sent = await this.sendDecision(approval, "decline", reason);
-    return this.outcome(sent ? "blocked" : "reconciliation_required", [reason], {
+    const delivery = await this.sendDecision(approval, "decline", reason);
+    const sent = delivery === "sent";
+    return this.outcome(sent ? "blocked" : "reconciliation_required", [
+      reason,
+      ...(sent ? [] : ["approval_response_send_failed"])
+    ], {
       requestId: event.requestId,
       itemId: event.itemId
     });
@@ -960,9 +1085,9 @@ export class CodexAppServerAdapter {
     approval: ApprovalRecord,
     decision: "accept" | "decline",
     reasonCode: string
-  ): Promise<boolean> {
+  ): Promise<ApprovalSendResult> {
     if (
-      approval.sentDecision !== undefined
+      approval.deliveryState !== "pending"
       || approval.resolved
       || (
         decision === "accept"
@@ -972,7 +1097,7 @@ export class CodexAppServerAdapter {
         )
       )
     ) {
-      return false;
+      return "unavailable";
     }
     const response = CodexAppServerApprovalResponseSchema.parse({
       schemaVersion: "codex-app-server-normalized-response.v1",
@@ -981,25 +1106,34 @@ export class CodexAppServerAdapter {
       decision,
       reasonCode
     });
+    approval.deliveryState = "in_flight";
     try {
       await this.transport.send(response);
+      approval.deliveryState = "sent";
       approval.sentDecision = decision;
-      return true;
+      return "sent";
     } catch {
-      return false;
+      approval.deliveryState = "uncertain";
+      await this.markTurnForReconciliation(
+        approval.threadId,
+        approval.turnId,
+        "approval_response_delivery_uncertain"
+      );
+      return "delivery_uncertain";
     }
   }
 
   private acceptSequence(threadId: string, turnId: string, sequence: number): string | undefined {
     const turn = this.turn(threadId, turnId);
     if (turn.blocked) {
-      return "turn_already_blocked";
+      return turn.blockedReason ?? "turn_already_blocked";
     }
     if (sequence !== turn.lastSequence + 1) {
       turn.blocked = true;
-      return sequence <= turn.lastSequence
+      turn.blockedReason = sequence <= turn.lastSequence
         ? "app_server_event_out_of_order"
         : "app_server_event_gap";
+      return turn.blockedReason;
     }
     turn.lastSequence = sequence;
     return undefined;
@@ -1028,6 +1162,7 @@ export class CodexAppServerAdapter {
     this.sessionCompromisedReason ??= reason;
     for (const turn of this.turns.values()) {
       turn.blocked = true;
+      turn.blockedReason ??= this.sessionCompromisedReason;
     }
     await this.markAllOpenForReconciliation(this.sessionCompromisedReason);
   }
@@ -1084,7 +1219,9 @@ export class CodexAppServerAdapter {
     turnId: string,
     reason: string
   ): Promise<void> {
-    this.turn(threadId, turnId).blocked = true;
+    const turn = this.turn(threadId, turnId);
+    turn.blocked = true;
+    turn.blockedReason ??= reason;
     for (const item of this.items.values()) {
       if (item.threadId === threadId && item.turnId === turnId) {
         await this.markItemReconciliation(item, reason);
