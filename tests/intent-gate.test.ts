@@ -62,6 +62,50 @@ test("intent gate asks for clarification on ambiguous continuation tasks", () =>
   assert.equal(result.recommendedProfile, "clarify-then-plan");
 });
 
+test("intent gate classifies Chinese protected actions conservatively", () => {
+  for (const [requestedAction, expected] of [
+    ["不要删除生产环境的凭证，只是引用这句话", "high_risk"],
+    ["重命名配置并修改权限", "high_risk"],
+    ["把这个变更推送到主分支并发布", "release_external_action"]
+  ] as const) {
+    const result = classifyIntent(parseTaskEnvelope({
+      taskId: `zh-${expected}-${requestedAction.length}`,
+      source: "desktop-thread",
+      intent: {
+        summary: "审查中文保护动作请求",
+        requestedAction,
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: { repoRoot: "A:/codex-router", branch: "feature/safe" },
+      target: { branches: [], files: ["docs/guide.md"], modules: [] },
+      constraints: {},
+      hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
+    }));
+
+    assert.equal(result.taskClass, expected, requestedAction);
+  }
+});
+
+test("intent gate does not match protected ASCII keywords inside unrelated words", () => {
+  const result = classifyIntent(parseTaskEnvelope({
+    taskId: "keyword-boundary-authoring-maintenance",
+    source: "desktop-thread",
+    intent: {
+      summary: "implement receipt authoring maintenance",
+      requestedAction: "add TypeScript authoring helpers to the maintained module",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router", branch: "feature/safe" },
+    target: { branches: [], files: ["packages/example/src/index.ts"], modules: [] },
+    constraints: {},
+    hints: { taskClassHint: "engineering", riskHints: [], tags: [] }
+  }));
+
+  assert.equal(result.taskClass, "engineering");
+});
+
 test("intent gate keeps explicit read-only requests out of clarification", () => {
   const result = classifyIntent(parseTaskEnvelope({
     taskId: "t-2",

@@ -19,6 +19,17 @@ export function evaluateApprovalRequirement(
   ];
   const isWriteCapable = decision.execution.toolAccess !== "read_only";
 
+  if (
+    decision.classification.taskClass === "high_risk"
+    || decision.classification.taskClass === "release_external_action"
+  ) {
+    reasons.push(`risk:${decision.classification.taskClass}`);
+  }
+
+  if (decision.classification.clarificationRequired) {
+    reasons.push("clarification_required");
+  }
+
   if (isWriteCapable && task.repoContext.protectedBranch) {
     reasons.push("repo_context:protected_branch");
   }

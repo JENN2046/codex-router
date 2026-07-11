@@ -76,7 +76,9 @@ const REQUIRED_MANIFEST_MARKERS = [
 const REQUIRED_TEST_MARKERS = [
   "Agent OS MCP local runtime blocks mutating task creation by default",
   "Agent OS MCP local runtime creates a governed run and provider plan without execution",
-  "Agent OS MCP local runtime consumes approval permits into a planned provider plan",
+  "Agent OS MCP local runtime does not let permits expand missing capabilities",
+  "Agent OS MCP local runtime keeps revoked candidates fail closed without capability",
+  "Agent OS MCP local runtime keeps stale candidates fail closed without capability",
   "Agent OS MCP local runtime delegates controlled workspace-write dispatch asynchronously",
   "Agent OS MCP local runtime prepares workspace-write dispatch from run context",
   "Agent OS MCP local runtime blocks workspace-write prepare without artifact store",
@@ -84,9 +86,12 @@ const REQUIRED_TEST_MARKERS = [
   "Agent OS SDK creates a local run and provider plan without real execution",
   "Agent OS SDK delegates controlled workspace-write dispatch through async wrapper",
   "Agent OS SDK issues an approval permit through the shared local runtime",
+  "Agent OS SDK does not let approval permits expand missing capabilities",
   "Agent OS CLI wrapper creates a local run and provider plan without spawning CLI",
   "Agent OS CLI wrapper issues an approval permit without spawning CLI",
+  "Agent OS CLI wrapper does not let permits expand missing capabilities",
   "Agent OS App Server wrapper issues an approval permit without network",
+  "Agent OS App Server wrapper does not let permits expand missing capabilities",
   "liveHttpServerStarted",
   "networkAccessed",
   "realProviderExecutionInvoked"

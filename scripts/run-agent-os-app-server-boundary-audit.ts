@@ -47,7 +47,8 @@ const REQUIRED_TEST_MARKERS = [
   "Agent OS App Server wrapper converts invalid cursors into audited bad requests",
   "Agent OS App Server wrapper creates local run and provider plan without network",
   "Agent OS App Server wrapper issues an approval permit without network",
-  "Agent OS App Server wrapper consumes approval permits without network",
+  "Agent OS App Server wrapper does not let permits expand missing capabilities",
+  "Agent OS App Server wrapper keeps missing-capability candidates fail closed",
   "Agent OS App Server wrapper reports unknown local routes without starting a server"
 ] as const;
 

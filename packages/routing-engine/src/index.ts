@@ -25,13 +25,14 @@ export function routeTask(
   const taskClass = intent.taskClass;
   const risk = scoreRisk(task, taskClass);
   const selectedModel = getTaskValue(policy.models, taskClass, "model");
-  const toolAccess = getTaskValue(policy.toolPolicies, taskClass, "tool policy");
+  const configuredToolAccess = getTaskValue(policy.toolPolicies, taskClass, "tool policy");
+  const toolAccess = intent.clarificationRequired ? "read_only" : configuredToolAccess;
   const executionProfile = intent.clarificationRequired
     ? "clarify-then-plan"
     : getTaskValue(policy.executionProfiles, taskClass, "execution profile");
   const profile = getExecutionProfile(executionProfile);
   const reasoningEffort = chooseReasoningEffort(risk.level, taskClass);
-  const approvalReasons = collectApprovalSignals(task, toolAccess, policy);
+  const approvalReasons = collectApprovalSignals(task, toolAccess, policy, intent);
   const parallelismMode = !profile.allowParallel
     ? "disabled"
     : toolAccess === "read_only"
@@ -180,13 +181,22 @@ function chooseReasoningEffort(
 function collectApprovalSignals(
   task: TaskEnvelope,
   toolAccess: ToolAccessLevel,
-  policy: PolicySnapshot
+  policy: PolicySnapshot,
+  intent: IntentClassification
 ): string[] {
   const reasons: string[] = [];
   const haystack = `${task.intent.summary} ${task.intent.requestedAction}`.toLowerCase();
 
   if (policy.approvalRules.protectedToolAccess.includes(toolAccess)) {
     reasons.push(`tool_access:${toolAccess}`);
+  }
+
+  if (intent.taskClass === "high_risk" || intent.taskClass === "release_external_action") {
+    reasons.push(`risk:${intent.taskClass}`);
+  }
+
+  if (intent.clarificationRequired) {
+    reasons.push("clarification_required");
   }
 
   for (const branch of task.target.branches) {

@@ -911,7 +911,7 @@ test("Agent OS App Server wrapper issues an approval permit without network", ()
   );
 });
 
-test("Agent OS App Server wrapper consumes approval permits without network", () => {
+test("Agent OS App Server wrapper does not let permits expand missing capabilities", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
   const permitStore = new InMemoryApprovalPermitStore();
@@ -974,26 +974,25 @@ test("Agent OS App Server wrapper consumes approval permits without network", ()
   assert.equal(approveResponse.audit.liveHttpServerStarted, false);
   assert.equal(approveResponse.audit.networkAccessed, false);
   assert.equal(approveResult.status, "succeeded");
-  assert.equal(approveResult.output.consumedProviderPlanId, latestPlan?.planId);
+  assert.equal(approveResult.output.consumedProviderPlanId, undefined);
   assert.deepEqual(approveResult.output.approvalConsumptionReasons, [
-    "approval_permit_consumed"
+    "approval_permit_consumption_not_eligible:waiting_approval"
   ]);
-  assert.equal(plans.length, 2);
+  assert.equal(plans.length, 1);
   assert.equal(plans[0]?.status, "waiting_approval");
-  assert.equal(latestPlan?.status, "planned");
+  assert.equal(latestPlan?.status, "waiting_approval");
   assert.equal(approveResult.audit.realProviderExecutionInvoked, false);
   assert.deepEqual(
     kernelStore.listEvents({ runId }).map((event) => event.eventType),
     [
       "kernel.run.created",
       "kernel.public_surface.app_server.create_task",
-      "kernel.approval.permit.issued",
-      "kernel.approval.permit.consumed"
+      "kernel.approval.permit.issued"
     ]
   );
 });
 
-test("Agent OS App Server wrapper preserves rejected permit audit without network", () => {
+test("Agent OS App Server wrapper keeps missing-capability candidates fail closed", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
   const permitStore = new InMemoryApprovalPermitStore();
@@ -1061,30 +1060,24 @@ test("Agent OS App Server wrapper preserves rejected permit audit without networ
   });
   const approveResult = approveResponse.body.result as {
     status: string;
+    output: Record<string, unknown>;
     audit: { realProviderExecutionInvoked: boolean };
   };
   const consumedEvent = kernelStore.listEvents({
     runId,
     type: "kernel.approval.permit.consumed"
   }).at(-1);
-  const payload = consumedEvent?.payload as {
-    acceptedPermits?: string[];
-    rejectedPermits?: string[];
-  } | undefined;
-
   assert.equal(approveResponse.statusCode, 200);
   assert.equal(approveResponse.audit.liveHttpServerStarted, false);
   assert.equal(approveResponse.audit.networkAccessed, false);
   assert.equal(approveResult.status, "succeeded");
-  assert.deepEqual(payload?.acceptedPermits, [
-    "permit_agentos_app_server_valid_after_rejected"
+  assert.equal(consumedEvent, undefined);
+  assert.deepEqual(approveResult.output.approvalConsumptionReasons, [
+    "approval_permit_consumption_not_eligible:waiting_approval"
   ]);
-  assert.ok(payload?.rejectedPermits?.some((reason) => (
-    reason.includes("permit_agentos_app_server_expired_candidate")
-    && reason.includes("permit_expired")
-  )));
   assert.equal(approveResult.audit.realProviderExecutionInvoked, false);
-  assert.equal(planStore.listPlans({ runId }).at(-1)?.status, "planned");
+  assert.equal(planStore.listPlans({ runId }).length, 1);
+  assert.equal(planStore.listPlans({ runId }).at(-1)?.status, "waiting_approval");
 });
 
 test("Agent OS App Server wrapper default approval permit IDs are unique for repeated approvals", () => {

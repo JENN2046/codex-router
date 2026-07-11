@@ -667,7 +667,7 @@ test("Agent OS MCP local runtime blocks workspace-write dispatch without configu
   assert.equal(result.audit.localMutationApplied, false);
 });
 
-test("Agent OS MCP local runtime consumes approval permits into a planned provider plan", () => {
+test("Agent OS MCP local runtime does not let permits expand missing capabilities", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
   const permitStore = new InMemoryApprovalPermitStore();
@@ -714,27 +714,25 @@ test("Agent OS MCP local runtime consumes approval permits into a planned provid
   const plans = planStore.listPlans({ runId });
   const latestPlan = plans.at(-1);
   assert.equal(approve.status, "succeeded");
-  assert.equal(approve.output.consumedProviderPlanId, latestPlan?.planId);
+  assert.equal(approve.output.consumedProviderPlanId, undefined);
   assert.deepEqual(approve.output.approvalConsumptionReasons, [
-    "approval_permit_consumed"
+    "approval_permit_consumption_not_eligible:waiting_approval"
   ]);
-  assert.equal(plans.length, 2);
+  assert.equal(plans.length, 1);
   assert.equal(plans[0]?.status, "waiting_approval");
-  assert.equal(latestPlan?.status, "planned");
-  assert.ok(latestPlan?.reasons.includes("valid_approval_permit"));
+  assert.equal(latestPlan?.status, "waiting_approval");
   assert.equal(approve.audit.realProviderExecutionInvoked, false);
   assert.deepEqual(
     kernelStore.listEvents({ runId }).map((event) => event.eventType),
     [
       "kernel.run.created",
       "kernel.public_surface.mcp.create_task",
-      "kernel.approval.permit.issued",
-      "kernel.approval.permit.consumed"
+      "kernel.approval.permit.issued"
     ]
   );
 });
 
-test("Agent OS MCP local runtime records revoked permits during approval consumption", () => {
+test("Agent OS MCP local runtime keeps revoked candidates fail closed without capability", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
   const permitStore = new InMemoryApprovalPermitStore();
@@ -803,26 +801,18 @@ test("Agent OS MCP local runtime records revoked permits during approval consump
     runId,
     type: "kernel.approval.permit.consumed"
   }).at(-1);
-  const payload = consumedEvent?.payload as {
-    acceptedPermits?: string[];
-    rejectedPermits?: string[];
-  } | undefined;
-
   assert.equal(approve.status, "succeeded");
-  assert.equal(approve.output.consumedProviderPlanId, latestPlan?.planId);
-  assert.equal(plans.length, 2);
-  assert.equal(latestPlan?.status, "planned");
-  assert.deepEqual(payload?.acceptedPermits, [
-    "permit_agentos_mcp_runtime_valid_after_revoked"
+  assert.equal(approve.output.consumedProviderPlanId, undefined);
+  assert.deepEqual(approve.output.approvalConsumptionReasons, [
+    "approval_permit_consumption_not_eligible:waiting_approval"
   ]);
-  assert.ok(payload?.rejectedPermits?.some((reason) => (
-    reason.includes("permit_agentos_mcp_runtime_revoked_candidate")
-    && reason.includes("permit_revoked")
-  )));
+  assert.equal(plans.length, 1);
+  assert.equal(latestPlan?.status, "waiting_approval");
+  assert.equal(consumedEvent, undefined);
   assert.equal(permitStore.listPermits({ runId }).length, 2);
 });
 
-test("Agent OS MCP local runtime rejects stale permits during approval consumption", () => {
+test("Agent OS MCP local runtime keeps stale candidates fail closed without capability", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
   const permitStore = new InMemoryApprovalPermitStore();
@@ -898,26 +888,14 @@ test("Agent OS MCP local runtime rejects stale permits during approval consumpti
     runId,
     type: "kernel.approval.permit.consumed"
   }).at(-1);
-  const payload = consumedEvent?.payload as {
-    acceptedPermits?: string[];
-    rejectedPermits?: string[];
-  } | undefined;
-
   assert.equal(approve.status, "succeeded");
-  assert.equal(approve.output.consumedProviderPlanId, latestPlan?.planId);
-  assert.equal(plans.length, 2);
-  assert.equal(latestPlan?.status, "planned");
-  assert.deepEqual(payload?.acceptedPermits, [
-    "permit_agentos_mcp_runtime_valid_after_stale"
+  assert.equal(approve.output.consumedProviderPlanId, undefined);
+  assert.deepEqual(approve.output.approvalConsumptionReasons, [
+    "approval_permit_consumption_not_eligible:waiting_approval"
   ]);
-  assert.ok(payload?.rejectedPermits?.some((reason) => (
-    reason.includes("permit_agentos_mcp_runtime_expired_candidate")
-    && reason.includes("permit_expired")
-  )));
-  assert.ok(payload?.rejectedPermits?.some((reason) => (
-    reason.includes("permit_agentos_mcp_runtime_plan_mismatch_candidate")
-    && reason.includes("plan_hash_mismatch")
-  )));
+  assert.equal(plans.length, 1);
+  assert.equal(latestPlan?.status, "waiting_approval");
+  assert.equal(consumedEvent, undefined);
   assert.equal(permitStore.listPermits({ runId }).length, 3);
 });
 

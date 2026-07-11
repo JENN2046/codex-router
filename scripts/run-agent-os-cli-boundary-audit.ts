@@ -49,8 +49,8 @@ const REQUIRED_TEST_MARKERS = [
   "Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchronously",
   "Agent OS CLI wrapper prepares controlled workspace-write dispatch asynchronously",
   "Agent OS CLI wrapper issues an approval permit without spawning CLI",
-  "Agent OS CLI wrapper consumes approval permits without spawning CLI",
-  "Agent OS CLI wrapper preserves rejected permit audit without spawning CLI",
+  "Agent OS CLI wrapper does not let permits expand missing capabilities",
+  "Agent OS CLI wrapper keeps missing-capability approval candidates fail closed",
   "Agent OS CLI parser accepts cursors on paginated commands",
   "Agent OS CLI sanitizer redacts secret-like option values"
 ] as const;

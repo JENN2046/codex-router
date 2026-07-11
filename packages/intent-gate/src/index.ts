@@ -9,6 +9,8 @@ import { parseTaskEnvelope } from "../../contracts/src/index.js";
 
 const HIGH_RISK_KEYWORDS = [
   "auth",
+  "authentication",
+  "authorization",
   "permission",
   "billing",
   "payment",
@@ -17,14 +19,70 @@ const HIGH_RISK_KEYWORDS = [
   "production",
   "database",
   "migration",
-  "delete"
+  "delete",
+  "删除",
+  "移除",
+  "重命名",
+  "权限",
+  "凭证",
+  "密钥",
+  "私钥",
+  "环境变量",
+  "生产",
+  "网络",
+  "外部"
 ];
 
-const RELEASE_KEYWORDS = ["release", "merge", "push", "prod/stable", "main"];
-const ENGINEERING_KEYWORDS = ["implement", "multi-file", "refactor"];
-const SMALL_EDIT_KEYWORDS = ["rename", "typo", "copy", "comment", "single file", "small fix"];
-const READ_ONLY_KEYWORDS = ["explain", "review", "summarize", "inspect", "analyze", "read"];
-const AMBIGUOUS_SHORTCUTS = ["continue", "do it", "fix it", "that one", "same as before"];
+const RELEASE_KEYWORDS = [
+  "release",
+  "merge",
+  "push",
+  "prod/stable",
+  "main",
+  "发布",
+  "部署",
+  "上线",
+  "推送",
+  "合并"
+];
+const ENGINEERING_KEYWORDS = ["implement", "multi-file", "refactor", "实现", "重构", "多文件"];
+const SMALL_EDIT_KEYWORDS = [
+  "rename",
+  "typo",
+  "copy",
+  "comment",
+  "single file",
+  "small fix",
+  "单文件",
+  "小修改",
+  "错别字"
+];
+const READ_ONLY_KEYWORDS = [
+  "explain",
+  "review",
+  "summarize",
+  "inspect",
+  "analyze",
+  "read",
+  "解释",
+  "审查",
+  "总结",
+  "检查",
+  "分析",
+  "读取",
+  "只读"
+];
+const AMBIGUOUS_SHORTCUTS = [
+  "continue",
+  "do it",
+  "fix it",
+  "that one",
+  "same as before",
+  "继续",
+  "照做",
+  "就这样",
+  "修一下"
+];
 const TASK_CLASS_RANK: Record<TaskClass, number> = {
   read_only: 0,
   small_edit: 1,
@@ -41,19 +99,19 @@ export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassificati
   let taskClass: TaskClass = "engineering";
   let matchedTaskClass: TaskClass | undefined;
 
-  if (RELEASE_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
+  if (RELEASE_KEYWORDS.some((keyword) => containsKeyword(haystack, keyword))) {
     taskClass = "release_external_action";
     matchedTaskClass = taskClass;
-  } else if (HIGH_RISK_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
+  } else if (HIGH_RISK_KEYWORDS.some((keyword) => containsKeyword(haystack, keyword))) {
     taskClass = "high_risk";
     matchedTaskClass = taskClass;
-  } else if (ENGINEERING_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
+  } else if (ENGINEERING_KEYWORDS.some((keyword) => containsKeyword(haystack, keyword))) {
     taskClass = "engineering";
     matchedTaskClass = taskClass;
-  } else if (SMALL_EDIT_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
+  } else if (SMALL_EDIT_KEYWORDS.some((keyword) => containsKeyword(haystack, keyword))) {
     taskClass = "small_edit";
     matchedTaskClass = taskClass;
-  } else if (READ_ONLY_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
+  } else if (READ_ONLY_KEYWORDS.some((keyword) => containsKeyword(haystack, keyword))) {
     taskClass = "read_only";
     matchedTaskClass = taskClass;
   }
@@ -62,7 +120,7 @@ export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassificati
     ambiguityReasons.push("summary_too_short");
   }
 
-  if (AMBIGUOUS_SHORTCUTS.some((keyword) => haystack.includes(keyword))) {
+  if (AMBIGUOUS_SHORTCUTS.some((keyword) => containsKeyword(haystack, keyword))) {
     ambiguityReasons.push("context_dependent_shortcut");
   }
 
@@ -91,6 +149,14 @@ export function classifyIntent(taskInput: TaskEnvelopeInput): IntentClassificati
   const clarificationRequired = ambiguityScore >= 0.5;
 
   return buildClassification(taskClass, ambiguityScore, ambiguityReasons, clarificationRequired);
+}
+
+function containsKeyword(haystack: string, keyword: string): boolean {
+  if (!/^[a-z0-9_]+$/i.test(keyword)) {
+    return haystack.includes(keyword);
+  }
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9_])${escaped}($|[^a-z0-9_])`, "i").test(haystack);
 }
 
 function classifyTaskClassHintTrust(
