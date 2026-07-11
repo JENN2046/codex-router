@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -113,6 +113,33 @@ test("workspace-write real canary local execution blocks dirty worktrees and exi
   assert.ok(evidence.reasons.includes("workspace_write_real_canary_clean_worktree_required"));
   assert.ok(evidence.reasons.includes("workspace_write_real_canary_target_must_be_absent"));
   assert.equal(await readFile(targetPath, "utf8"), "preexisting\n");
+  assertSafeEvidence(evidence);
+});
+
+test("workspace-write real canary local execution blocks symlinked parents before writing", async () => {
+  const cwd = await createGitRepo("canary/local-symlink-parent");
+  const outsideDir = await mkdtemp(join(tmpdir(), "workspace-write-real-canary-outside-"));
+  await symlink(outsideDir, join(cwd, "tmp"), "dir");
+  await git(["add", "tmp"], cwd);
+  await git(["commit", "-m", "add symlinked canary parent"], cwd);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+
+  const evidence = await runWorkspaceWriteRealCanaryLocalExecution({
+    cwd,
+    execute: true,
+    generatedAt,
+    authorizationPhrase: PR_12B_REAL_CANARY_AUTHORIZATION_PHRASE
+  });
+
+  assert.equal(evidence.status, "blocked");
+  assert.equal(evidence.checks.permitConsumed, false);
+  assert.equal(evidence.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(evidence.counters.canaryFileWrites, 0);
+  assert.ok(evidence.reasons.includes(
+    `workspace_write_real_canary_symlink_target_forbidden:${DEFAULT_WORKSPACE_WRITE_CANARY_TARGET_FILE}`
+  ));
+  assert.equal(existsSync(join(outsideDir, "codex-cli-write-canary.txt")), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
   assertSafeEvidence(evidence);
 });
 

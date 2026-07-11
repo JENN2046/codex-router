@@ -2,8 +2,8 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { lstat, mkdir, readFile, realpath, rm, rmdir, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
@@ -209,16 +209,20 @@ export async function runWorkspaceWriteRealCanaryLocalExecution(
     authorizationPacket: authorizationPacketReview,
     canaryFileExists: !targetAbsentBefore
   });
-  const gateReasons = collectReasons([
-    [exactAuthorizationMatched, "workspace_write_real_canary_exact_authorization_required"],
-    [branchNonProtected, "workspace_write_real_canary_non_protected_branch_required"],
-    [worktreeCleanBefore, "workspace_write_real_canary_clean_worktree_required"],
-    [targetAbsentBefore, "workspace_write_real_canary_target_must_be_absent"],
-    [authorization.ok, "workspace_write_real_canary_authorization_blocked"],
-    [authorizationPacketReview.ok, "workspace_write_real_canary_authorization_packet_blocked"],
-    [readiness.ok, "workspace_write_real_canary_readiness_blocked"],
-    [preExecutionGate.ok, "workspace_write_real_canary_pre_execution_gate_blocked"]
-  ]);
+  const targetPathReasons = await collectCanaryTargetPathReasons(cwd, targetFile);
+  const gateReasons = [
+    ...collectReasons([
+      [exactAuthorizationMatched, "workspace_write_real_canary_exact_authorization_required"],
+      [branchNonProtected, "workspace_write_real_canary_non_protected_branch_required"],
+      [worktreeCleanBefore, "workspace_write_real_canary_clean_worktree_required"],
+      [targetAbsentBefore, "workspace_write_real_canary_target_must_be_absent"],
+      [authorization.ok, "workspace_write_real_canary_authorization_blocked"],
+      [authorizationPacketReview.ok, "workspace_write_real_canary_authorization_packet_blocked"],
+      [readiness.ok, "workspace_write_real_canary_readiness_blocked"],
+      [preExecutionGate.ok, "workspace_write_real_canary_pre_execution_gate_blocked"]
+    ]),
+    ...targetPathReasons
+  ];
   const preflightReasons = executeRequested
     ? gateReasons
     : gateReasons.filter((reason) =>
@@ -696,6 +700,42 @@ function collectMissingWorkspaceParentDirectories(cwd: string, targetPath: strin
   return directories;
 }
 
+async function collectCanaryTargetPathReasons(cwd: string, targetPath: string): Promise<string[]> {
+  const workspaceRoot = await realpath(cwd);
+  const reasons: string[] = [];
+  const parts = targetPath.split(/[\\/]+/).filter((part) => part.length > 0);
+  let currentPath = cwd;
+
+  for (const part of parts) {
+    currentPath = join(currentPath, part);
+    try {
+      const stats = await lstat(currentPath);
+      if (stats.isSymbolicLink()) {
+        reasons.push(`workspace_write_real_canary_symlink_target_forbidden:${targetPath}`);
+        break;
+      }
+      if (stats.isFile() && stats.nlink > 1) {
+        reasons.push(`workspace_write_real_canary_hardlink_target_forbidden:${targetPath}`);
+        break;
+      }
+
+      const resolvedPath = await realpath(currentPath);
+      if (!isWorkspaceContainedPath(workspaceRoot, resolvedPath)) {
+        reasons.push(`workspace_write_real_canary_target_outside_workspace:${targetPath}`);
+        break;
+      }
+    } catch (error) {
+      if (isErrnoException(error) && error.code === "ENOENT") {
+        break;
+      }
+      reasons.push(`workspace_write_real_canary_target_path_check_failed:${targetPath}`);
+      break;
+    }
+  }
+
+  return reasons;
+}
+
 async function removeWorkspaceCreatedParentDirectories(
   cwd: string,
   directories: Set<string>
@@ -718,6 +758,11 @@ function workspaceCreatedParentDirectoriesAbsent(cwd: string, directories: Set<s
 
 function pathDepth(path: string): number {
   return path.split("/").length;
+}
+
+function isWorkspaceContainedPath(workspaceRoot: string, candidatePath: string): boolean {
+  const relativePath = relative(workspaceRoot, candidatePath);
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
 }
 
 function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
