@@ -28,7 +28,9 @@ import {
   createTestOnlyLocalClonePreviewer
 } from "../packages/file-change-preview/src/index.js";
 import {
-  InMemoryPendingApprovalJournalStore
+  InMemoryPendingApprovalJournalStore,
+  type PendingApprovalJournalEntry,
+  type PendingApprovalJournalStore
 } from "../packages/retain-control/src/index.js";
 import type {
   PreviewPolicy
@@ -292,6 +294,50 @@ test("duplicate approval request ids quarantine without consuming pending approv
   assert.equal(lateHuman.status, "reconciliation_required");
   assert.ok(lateHuman.reasons.includes("duplicate_approval_request_id"));
   assert.equal(fixture.transport.messages.length, 0);
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("duplicate approval ids retry durable journal reconciliation failures", async () => {
+  const journal = new OneShotFailingJournalStore();
+  const fixture = await createAdapterFixture({ journal });
+  const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+
+  await fixture.adapter.ingest(events[0]);
+  const accepted = await fixture.adapter.ingest(events[1]);
+  assert.equal(accepted.status, "accepted");
+  assert.equal((await journal.list())[0]?.state, "accepted");
+  assert.equal(fixture.transport.messages.length, 1);
+
+  journal.failNextUpdate();
+  const duplicate = await fixture.adapter.ingest({
+    ...(events[1] as Record<string, unknown>),
+    eventId: "event-approval-requested-duplicate-journal",
+    sequence: 1,
+    threadId: "thread-duplicate-journal",
+    turnId: "turn-duplicate-journal",
+    itemId: "item-duplicate-journal"
+  });
+  assert.equal(duplicate.status, "reconciliation_required");
+  assert.ok(duplicate.reasons.includes("duplicate_approval_request_id"));
+  assert.ok(duplicate.reasons.includes("pending_journal_reconciliation_update_failed"));
+  assert.equal((await journal.list())[0]?.state, "accepted");
+  assert.equal(
+    fixture.adapter.getItemSnapshot("thread-1", "turn-1", "item-1")?.state,
+    "reconciliation_required"
+  );
+
+  const retried = await fixture.adapter.resolveHumanApproval({
+    requestId: "request-1",
+    decision: "accept",
+    operatorId: "operator-jenn"
+  });
+  assert.equal(retried.status, "reconciliation_required");
+  assert.equal(
+    retried.reasons.includes("pending_journal_reconciliation_update_failed"),
+    false
+  );
+  assert.equal((await journal.list())[0]?.state, "reconciliation_required");
+  assert.equal(fixture.transport.messages.length, 1);
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
@@ -678,6 +724,25 @@ class BlockingTransport extends FakeTransport {
   }
 }
 
+class OneShotFailingJournalStore extends InMemoryPendingApprovalJournalStore {
+  private updateFailuresRemaining = 0;
+
+  failNextUpdate(): void {
+    this.updateFailuresRemaining += 1;
+  }
+
+  override async update(
+    journalId: string,
+    update: (current: PendingApprovalJournalEntry) => PendingApprovalJournalEntry
+  ): Promise<PendingApprovalJournalEntry> {
+    if (this.updateFailuresRemaining > 0) {
+      this.updateFailuresRemaining -= 1;
+      throw new Error("injected_pending_journal_update_failure");
+    }
+    return super.update(journalId, update);
+  }
+}
+
 async function createAdapterFixture(options: {
   allowTestProfiles?: boolean;
   approvalPolicy?: AppServerSessionAttestation["effectiveApprovalPolicy"];
@@ -687,7 +752,7 @@ async function createAdapterFixture(options: {
     scope: "test_only" | "live";
     enforcerId: string;
   };
-  journal?: InMemoryPendingApprovalJournalStore;
+  journal?: PendingApprovalJournalStore;
   transport?: FakeTransport;
 } = {}) {
   const tempRoot = await mkdtemp(join(tmpdir(), "codex-adapter-"));

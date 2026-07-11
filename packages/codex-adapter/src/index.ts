@@ -258,6 +258,10 @@ export class CodexAppServerAdapter {
   private readonly items = new Map<string, ItemRecord>();
   private readonly approvals = new Map<string, ApprovalRecord>();
   private readonly ownedJournalIds = new Set<string>();
+  private readonly journalReconciliationFailures = new Map<
+    string,
+    { item: ItemRecord; reasons: string[] }
+  >();
   private serialTail: Promise<void> = Promise.resolve();
   private sessionCompromisedReason?: string;
 
@@ -1044,6 +1048,7 @@ export class CodexAppServerAdapter {
   }
 
   private async ensureJournalContinuity(): Promise<void> {
+    await this.retryJournalReconciliationFailures();
     if (this.sessionCompromisedReason !== undefined) {
       return;
     }
@@ -1088,14 +1093,37 @@ export class CodexAppServerAdapter {
   }
 
   private async markItemReconciliation(item: ItemRecord, ...reasons: string[]): Promise<void> {
-    if (item.state !== "post_checked" && item.state !== "blocked") {
+    if (item.state === "post_checked" || item.state === "blocked") {
+      return;
+    }
+    if (item.state !== "reconciliation_required") {
       transitionItem(item, "reconciliation_required");
     }
-    await this.updateJournalState(
-      item,
-      "reconciliation_required",
-      ...reasons
-    ).catch(() => undefined);
+    try {
+      await this.updateJournalState(item, "reconciliation_required", ...reasons);
+      this.journalReconciliationFailures.delete(item.key);
+    } catch {
+      const previous = this.journalReconciliationFailures.get(item.key);
+      this.journalReconciliationFailures.set(item.key, {
+        item,
+        reasons: uniqueStrings([...(previous?.reasons ?? []), ...reasons])
+      });
+    }
+  }
+
+  private async retryJournalReconciliationFailures(): Promise<void> {
+    for (const [key, failure] of this.journalReconciliationFailures) {
+      try {
+        await this.updateJournalState(
+          failure.item,
+          "reconciliation_required",
+          ...failure.reasons
+        );
+        this.journalReconciliationFailures.delete(key);
+      } catch {
+        // Keep the failure visible and retry it on the next serialized operation.
+      }
+    }
   }
 
   private async updateJournalState(
@@ -1124,7 +1152,15 @@ export class CodexAppServerAdapter {
     return {
       status,
       mode: this.mode,
-      reasons: uniqueStrings(reasons),
+      reasons: uniqueStrings([
+        ...reasons,
+        ...(
+          status === "reconciliation_required"
+          && this.journalReconciliationFailures.size > 0
+            ? ["pending_journal_reconciliation_update_failed"]
+            : []
+        )
+      ]),
       ...details
     };
   }
