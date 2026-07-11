@@ -1927,9 +1927,8 @@ async function createAdapterFixture(options: {
   await git(["init"], repoRoot);
   await git(["config", "user.email", "adapter@example.invalid"], repoRoot);
   await git(["config", "user.name", "Adapter Fixture"], repoRoot);
-  if (options.coreAutocrlf !== undefined) {
-    await git(["config", "core.autocrlf", options.coreAutocrlf], repoRoot);
-  }
+  // Keep checkout bytes deterministic across runner-level Git configuration.
+  await git(["config", "core.autocrlf", options.coreAutocrlf ?? "false"], repoRoot);
   await writeFile(
     join(repoRoot, "docs/guide.md"),
     options.initialWorktreeLineEnding === "crlf" ? "old\r\n" : "old\n",
