@@ -21,6 +21,7 @@ import {
 } from "../../governance-internal-workspace-write-guard/src/index.js";
 
 const execFileAsync = promisify(execFile);
+const PROTECTED_WORKSPACE_WRITE_BRANCHES = new Set(["main", "master", "production", "release"]);
 
 export type WorkspaceWriteOperation =
   | {
@@ -205,7 +206,8 @@ export async function runWorkspaceWriteExecution(
       )
     : [];
   const branchMatched = permit.repositoryState.branch === branch;
-  const branchNonProtected = !permit.repositoryState.protectedBranch;
+  const branchNonProtected =
+    !isProtectedWorkspaceWriteBranch(branch) && !permit.repositoryState.protectedBranch;
   const headCommitMatched = permit.repositoryState.headCommit === headCommit
     && permit.rollback.beforeCommit === headCommit;
   const worktreeCleanBefore = statusBefore.trim() === "";
@@ -939,6 +941,10 @@ function hasGitMetadataPathComponent(path: string): boolean {
   return normalizeWorkspacePath(path)
     .split("/")
     .some((part) => part.toLowerCase() === ".git");
+}
+
+function isProtectedWorkspaceWriteBranch(branch: string): boolean {
+  return PROTECTED_WORKSPACE_WRITE_BRANCHES.has(branch);
 }
 
 function collectWorkspaceWritableRootReasons(

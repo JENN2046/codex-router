@@ -475,6 +475,41 @@ test("workspace-write executor blocks missing authorization and dirty worktrees"
   assertSafeEvidence(result);
 });
 
+test("workspace-write executor derives protected branch status from actual branch", async () => {
+  const cwd = await createGitRepo("main");
+  const targetPath = "tmp/protected.txt";
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: [targetPath],
+    maxChangedFiles: 1,
+    maxDiffLines: 1
+  });
+
+  assert.equal(fixture.permit.repositoryState.protectedBranch, false);
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "write", path: targetPath, content: "blocked protected\n" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.branchMatched, true);
+  assert.equal(result.checks.branchNonProtected, false);
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes("workspace_write_execution_protected_branch_forbidden"));
+  assert.equal(existsSync(join(cwd, targetPath)), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
 test("workspace-write executor consumes permit once and blocks replay", async () => {
   const cwd = await createGitRepo("workspace-write/general-replay");
   const operations: WorkspaceWriteOperation[] = [
