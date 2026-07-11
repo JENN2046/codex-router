@@ -8,7 +8,7 @@
   "source": {
     "sourceTreeDigest": {
       "algorithm": "git-ls-tree-sha256",
-      "value": "bb5a58dfba7d15142c3827ef8c22fd086843acb061d3d6960b74e338063f61b6",
+      "value": "c2934fd445cf3833b091de77716f5d213312dbb2d5ff01bb3c00434bf277b7f2",
       "excludedPaths": [
         "docs/current/state-sync-record.json",
         "docs/current/CURRENT_STATE.md",
