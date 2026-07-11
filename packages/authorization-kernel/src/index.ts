@@ -1,4 +1,4 @@
-import { posix as pathPosix } from "node:path";
+import { isAbsolute, posix as pathPosix } from "node:path";
 import {
   AuthorizationDecisionSchema,
   CapabilityFactsSchema,
@@ -102,6 +102,7 @@ const READ_ONLY_SEMANTIC_MARKERS = [
 ];
 
 const SENSITIVE_PATH_COMPONENTS = new Set([
+  ".git",
   ".env",
   ".netrc",
   ".npmrc",
@@ -121,6 +122,8 @@ const SENSITIVE_PATH_COMPONENTS = new Set([
   "id_ed25519",
   "id_rsa"
 ]);
+
+const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 
 const SENSITIVE_DIFF_MARKERS = [
   "-----begin private key-----",
@@ -162,7 +165,9 @@ export interface AuthorizeCapabilityFactsInput {
 }
 
 export function deriveCapabilityFacts(input: CapabilityFactsInput): CapabilityFacts {
-  const fileChanges = [...(input.fileChanges ?? [])]
+  const inputFileChanges = [...(input.fileChanges ?? [])];
+  const unsafeGovernedPathDetected = inputFileChanges.some(hasUnsafeGovernedPath);
+  const fileChanges = inputFileChanges
     .map((change) => ({
       ...change,
       path: normalizeGovernedPath(change.path),
@@ -185,7 +190,10 @@ export function deriveCapabilityFacts(input: CapabilityFactsInput): CapabilityFa
       .flatMap((change) => [change.path, ...(change.oldPath ? [change.oldPath] : [])])
       .filter(isSensitiveGovernedPath)
   );
-  const unknowns = uniqueStrings(input.unknowns ?? []);
+  const unknowns = uniqueStrings([
+    ...(input.unknowns ?? []),
+    ...(unsafeGovernedPathDetected ? ["unsafe_governed_path"] : [])
+  ]);
 
   return CapabilityFactsSchema.parse({
     subjectId: input.subjectId,
@@ -198,7 +206,8 @@ export function deriveCapabilityFacts(input: CapabilityFactsInput): CapabilityFa
     externalTargets: uniqueStrings(input.externalTargets ?? []),
     sensitivePaths,
     releaseAction: input.releaseAction ?? false,
-    exactTargets: input.exactTargets ?? fileChanges.length > 0,
+    exactTargets: (input.exactTargets ?? fileChanges.length > 0)
+      && !unsafeGovernedPathDetected,
     ambiguous: input.ambiguous ?? false,
     unknowns,
     observedAt: input.observedAt
@@ -271,6 +280,9 @@ export function authorizeCapabilityFacts(
     input.capabilityCeiling
   );
   const sideEffectRequested = input.requestedCapabilities.some(isSideEffectingCapability);
+  const unsafeGovernedPathDetected = facts.fileChanges.some(hasUnsafeGovernedPath)
+    || facts.unknowns.includes("unsafe_governed_path");
+  const unsafeGovernedPathWriteBlocked = sideEffectRequested && unsafeGovernedPathDetected;
   const unknownWriteBlocked = sideEffectRequested && (
     facts.ambiguous
     || !facts.exactTargets
@@ -281,6 +293,7 @@ export function authorizeCapabilityFacts(
   const missingCeiling = ceiling.missing.length > 0;
   const policyAutoEligible = isPolicyAutoCandidate(facts, effectiveRisk)
     && !missingCeiling
+    && !unsafeGovernedPathWriteBlocked
     && !unknownWriteBlocked;
   const reasons = uniqueStrings([
     ...factual.reasons,
@@ -288,9 +301,10 @@ export function authorizeCapabilityFacts(
     `factual_risk:${factual.level}`,
     `effective_risk:${effectiveRisk}`,
     ...ceiling.missing.map((scope) => `capability_ceiling_missing:${scope}`),
+    ...(unsafeGovernedPathWriteBlocked ? ["unsafe_governed_path_forbidden"] : []),
     ...(unknownWriteBlocked ? ["unknown_or_ambiguous_write_forbidden"] : [])
   ]);
-  const blocked = missingCeiling || unknownWriteBlocked;
+  const blocked = missingCeiling || unsafeGovernedPathWriteBlocked || unknownWriteBlocked;
   const approvalMode = blocked
     ? "human_required"
     : !sideEffectRequested && effectiveRisk !== "high" && effectiveRisk !== "critical"
@@ -364,6 +378,12 @@ export function scoreCapabilityFactsRisk(
 
   if (facts.fileChanges.length > 0) {
     raise("medium", "facts:file_changes");
+  }
+  if (
+    facts.fileChanges.some(hasUnsafeGovernedPath)
+    || facts.unknowns.includes("unsafe_governed_path")
+  ) {
+    raise("critical", "facts:unsafe_path");
   }
   for (const change of facts.fileChanges) {
     if (change.kind === "delete") {
@@ -454,6 +474,7 @@ function isPolicyAutoCandidate(
   return (risk === "low" || risk === "medium")
     && facts.fileChanges.length > 0
     && facts.fileChanges.every((change) => change.kind === "create" || change.kind === "update")
+    && facts.fileChanges.every((change) => !hasUnsafeGovernedPath(change))
     && facts.commands.length === 0
     && facts.permissionRequests.length === 0
     && !facts.repository.protectedBranch
@@ -472,6 +493,39 @@ function isPolicyAutoCandidate(
 
 function normalizeGovernedPath(path: string): string {
   return pathPosix.normalize(path.replace(/\\/g, "/"));
+}
+
+function hasUnsafeGovernedPath(change: CapabilityFactFileChange): boolean {
+  return !isSafeGovernedPath(change.path)
+    || (change.oldPath !== undefined && !isSafeGovernedPath(change.oldPath));
+}
+
+function isSafeGovernedPath(input: string): boolean {
+  if (input.normalize("NFC") !== input) {
+    return false;
+  }
+  const slashPath = input.replace(/\\/g, "/");
+  const normalized = pathPosix.normalize(slashPath);
+  const parts = normalized.split("/");
+  return !(
+    input === ""
+    || normalized === "."
+    || normalized === ".."
+    || normalized.startsWith("../")
+    || pathPosix.isAbsolute(normalized)
+    || isAbsolute(input)
+    || /^[a-zA-Z]:/.test(input)
+    || slashPath.startsWith("//")
+    || normalized !== slashPath
+    || input.includes("\0")
+    || input.includes("\n")
+    || input.includes("\r")
+    || parts.some((part) => part === "" || part === "." || part === "..")
+    || parts.some((part) => part.toLocaleLowerCase("en-US") === ".git")
+    || parts.some((part) => part.includes(":"))
+    || parts.some((part) => part.endsWith(".") || part.endsWith(" "))
+    || parts.some((part) => WINDOWS_RESERVED_NAMES.test(part))
+  );
 }
 
 function compareFileChanges(

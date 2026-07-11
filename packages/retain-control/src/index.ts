@@ -475,7 +475,14 @@ export async function verifyRetainedChange(input: {
     if (!sameStringArrays(repository.changedPaths, permit.targetFiles)) {
       reasons.push("retain_outside_or_missing_target_changes");
     }
-    reasons.push(...await collectTargetTopologyReasons(input.cwd, permit.targetFiles));
+    const topologyReasons = await collectTargetTopologyReasons(input.cwd, permit.targetFiles);
+    reasons.push(...topologyReasons);
+    if (topologyReasons.length > 0) {
+      return {
+        status: "reconciliation_required",
+        reasons: uniqueStrings(reasons)
+      };
+    }
     const targetHashes: RetainReceipt["targetHashes"] = [];
     for (const change of changeSet.changes) {
       const before = await readCommitPathHash(input.cwd, permit.headCommit, change.path);

@@ -163,6 +163,68 @@ test("unknown or ambiguous facts never receive write capability", () => {
   assert.ok(decision.reasons.includes("unknown_or_ambiguous_write_forbidden"));
 });
 
+test("unsafe governed paths fail closed before policy auto approval", () => {
+  const unsafeChanges = [
+    { kind: "update" as const, path: "../outside.md" },
+    { kind: "update" as const, path: "/tmp/outside.md" },
+    { kind: "update" as const, path: ".git/config" },
+    { kind: "update" as const, path: "C:\\outside.md" },
+    { kind: "update" as const, path: "docs/../guide.md" },
+    { kind: "update" as const, path: "docs/NUL" },
+    { kind: "rename" as const, path: "docs/new.md", oldPath: "../outside.md" }
+  ];
+
+  for (const change of unsafeChanges) {
+    const facts = deriveFacts(change);
+    assert.equal(facts.exactTargets, false, change.path);
+    assert.ok(facts.unknowns.includes("unsafe_governed_path"), change.path);
+    const score = scoreCapabilityFactsRisk(facts);
+    assert.equal(score.level, "critical", change.path);
+    assert.ok(score.reasons.includes("facts:unsafe_path"), change.path);
+
+    const decision = authorizeCapabilityFacts({
+      surface: "codex_app_server",
+      facts,
+      semanticRisk: "low",
+      requestedCapabilities: [writeScope],
+      capabilityCeiling: [writeCeiling],
+      createdAt: now
+    });
+    assert.equal(decision.approvalMode, "human_required", change.path);
+    assert.equal(decision.disposition, "blocked", change.path);
+    assert.deepEqual(decision.authorizedCapabilities, [], change.path);
+    assert.ok(decision.reasons.includes("unsafe_governed_path_forbidden"), change.path);
+  }
+});
+
+test("authorization revalidates unsafe paths in caller-supplied facts", () => {
+  const safeFacts = deriveFacts({ kind: "update", path: "docs/guide.md" });
+  const forgedFacts = {
+    ...safeFacts,
+    fileChanges: safeFacts.fileChanges.map((change) => ({
+      ...change,
+      path: "../outside.md"
+    })),
+    sensitivePaths: [],
+    exactTargets: true,
+    unknowns: []
+  };
+  const decision = authorizeCapabilityFacts({
+    surface: "desktop",
+    facts: forgedFacts,
+    semanticRisk: "low",
+    requestedCapabilities: [readScope, writeScope],
+    capabilityCeiling: [readScope, writeCeiling],
+    createdAt: now
+  });
+
+  assert.equal(decision.factualRisk, "critical");
+  assert.equal(decision.disposition, "blocked");
+  assert.deepEqual(decision.authorizedCapabilities, [readScope]);
+  assert.ok(decision.reasons.includes("facts:unsafe_path"));
+  assert.ok(decision.reasons.includes("unsafe_governed_path_forbidden"));
+});
+
 test("safe structured create or update is only conditionally policy-auto eligible", () => {
   const facts = deriveFacts({ kind: "update", path: "docs/guide.md" });
   const decision = authorizeCapabilityFacts({

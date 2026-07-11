@@ -754,7 +754,42 @@ test("retain enters reconciliation on partial or outside App Server state", asyn
     assert.fail("expected reconciliation");
   }
   assert.ok(result.reasons.includes("retain_outside_or_missing_target_changes"));
-  assert.ok(result.reasons.includes("retain_after_target_missing:docs/new.md"));
+  assert.ok(result.reasons.includes("target_topology_unreadable:docs/new.md"));
+  assert.equal(result.reasons.includes("retain_after_target_missing:docs/new.md"), false);
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("retain stops before target content reads when topology is unsafe", async (t) => {
+  const fixture = await createRetainFixture();
+  await applyFakeAppServerChanges(fixture.repoRoot);
+  const target = join(fixture.repoRoot, "docs/guide.md");
+  await rm(target);
+  try {
+    await symlink(join(fixture.tempRoot, "missing-private-target.md"), target, "file");
+  } catch (error) {
+    const code = error instanceof Error && "code" in error
+      ? String((error as NodeJS.ErrnoException).code)
+      : "unknown";
+    if (code !== "EPERM" && code !== "EACCES") {
+      throw error;
+    }
+    t.diagnostic(`file symlink capability unavailable:${code}`);
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+    return;
+  }
+
+  const result = await verifyRetainedChange({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet,
+    permit: fixture.permit,
+    now: retainedAt
+  });
+  assert.equal(result.status, "reconciliation_required");
+  if (result.status !== "reconciliation_required") {
+    assert.fail("expected reconciliation");
+  }
+  assert.ok(result.reasons.includes("target_symlink_forbidden:docs/guide.md"));
+  assert.equal(result.reasons.includes("retain_after_target_missing:docs/guide.md"), false);
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
