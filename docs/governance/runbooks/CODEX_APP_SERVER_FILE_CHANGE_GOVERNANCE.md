@@ -6,6 +6,7 @@ created: 2026-07-11
 last_verified: 2026-07-11
 verified_by:
   - node --import tsx --test tests/codex-app-server-adapter.test.ts
+  - node --import tsx --test tests/retain-control.test.ts
   - npm run test:package-consumer
 applies_to:
   - codex-app-server
@@ -123,6 +124,9 @@ Rollback requires a new `RollbackPermit` bound to the `RetainReceipt`. Before
 restore, verify repository identity, HEAD, exact changed-target set, clean index,
 safe topology, and each current after-hash. Use durable permit consumption,
 acquire the coordinator lock, and repeat the checks adjacent to mutation.
+Any effective Git `filter.*.clean`, `filter.*.smudge`, or `filter.*.process`
+configuration blocks rollback before permit consumption and is checked again
+inside the restore primitive; command values are never retained as evidence.
 Any drift blocks rollback; any restore or post-check uncertainty enters
 `reconciliation_required`. Quiesce external editors: the coordinator lock is
 honored by codex-router operations but cannot force an unrelated editor to

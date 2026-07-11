@@ -696,6 +696,11 @@ export interface WorkspaceTargetRestorePrimitive {
   }): Promise<void>;
 }
 
+const rollbackRestoreTestHooks = new WeakMap<
+  GitWorkspaceTargetRestorePrimitive,
+  { beforeFinalFilterCheck(): Promise<void> }
+>();
+
 export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestorePrimitive {
   async restore(input: {
     cwd: string;
@@ -720,6 +725,11 @@ export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestor
       throw new Error(`rollback_restore_precondition_failed:${adjacentPreconditions.join(",")}`);
     }
     if (updatePaths.length > 0) {
+      await rollbackRestoreTestHooks.get(this)?.beforeFinalFilterCheck();
+      const filterReasons = await collectRollbackGitFilterReasons(input.cwd);
+      if (filterReasons.length > 0) {
+        throw new Error(`rollback_restore_precondition_failed:${filterReasons.join(",")}`);
+      }
       await gitText(input.cwd, [
         "restore",
         "--worktree",
@@ -732,6 +742,17 @@ export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestor
       await rm(join(input.cwd, ...path.split("/")), { force: false, recursive: false });
     }
   }
+}
+
+/** Internal deterministic seam; intentionally absent from the public evidence facade. */
+export function createTestOnlyGitWorkspaceTargetRestorePrimitive(input: {
+  beforeFinalFilterCheck(): Promise<void>;
+}): GitWorkspaceTargetRestorePrimitive {
+  const primitive = new GitWorkspaceTargetRestorePrimitive();
+  rollbackRestoreTestHooks.set(primitive, {
+    beforeFinalFilterCheck: input.beforeFinalFilterCheck.bind(input)
+  });
+  return primitive;
 }
 
 export type GovernedRollbackResult =
@@ -863,6 +884,11 @@ async function validateRollbackWorkspaceState(
 ): Promise<string[]> {
   const reasons: string[] = [];
   const targetFiles = receipt.targetHashes.map((target) => target.path).sort(compareCodeUnits);
+  const filterReasons = await collectRollbackGitFilterReasons(cwd);
+  reasons.push(...filterReasons);
+  if (filterReasons.length > 0) {
+    return uniqueStrings(reasons);
+  }
   try {
     const repository = await inspectRepository(cwd);
     if (repository.headCommit !== receipt.headCommit) {
@@ -892,6 +918,25 @@ async function validateRollbackWorkspaceState(
     reasons.push("rollback_repository_inspection_failed");
   }
   return uniqueStrings(reasons);
+}
+
+async function collectRollbackGitFilterReasons(cwd: string): Promise<string[]> {
+  try {
+    const configuredFilterKeys = await gitBuffer(cwd, [
+      "config",
+      "--null",
+      "--name-only",
+      "--get-regexp",
+      "^filter\\..*\\.(clean|smudge|process)$"
+    ]);
+    return configuredFilterKeys.length === 0
+      ? []
+      : ["rollback_git_filters_unsupported"];
+  } catch (error) {
+    return isProcessExitCode(error, 1)
+      ? []
+      : ["rollback_git_filter_inspection_failed"];
+  }
 }
 
 async function acquireRollbackLock(cwd: string): Promise<{
@@ -1286,4 +1331,11 @@ function isErrorCode(error: unknown, code: string): boolean {
     && error !== null
     && "code" in error
     && (error as { code?: unknown }).code === code;
+}
+
+function isProcessExitCode(error: unknown, code: number): boolean {
+  return typeof error === "object"
+    && error !== null
+    && "code" in error
+    && String((error as { code?: unknown }).code) === String(code);
 }

@@ -39,6 +39,7 @@ import {
   InMemoryRollbackPermitConsumptionStore,
   PendingApprovalJournalEntrySchema,
   createPendingApprovalJournalEntry,
+  createTestOnlyGitWorkspaceTargetRestorePrimitive,
   createTestOnlyFileRollbackPermitConsumptionStore,
   createTestOnlyRollbackPermitConsumptionStore,
   issueRetainPermit,
@@ -629,6 +630,193 @@ test("retain verifies App Server post-state and rollback restores exact targets 
     replay.reasons.includes("rollback_outside_or_missing_target_drift")
     || replay.reasons.includes("rollback_after_hash_drift:docs/guide.md")
   );
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("rollback rejects configured Git filters before permit consumption or command execution", async () => {
+  for (const filterKind of ["clean", "smudge", "process"] as const) {
+    const fixture = await createRetainFixture({
+      gitattributes: "docs/guide.md filter=rollback-test\n"
+    });
+    await applyFakeAppServerChanges(fixture.repoRoot);
+    const retained = await verifyRetainedChange({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet,
+      permit: fixture.permit,
+      now: retainedAt
+    });
+    if (retained.status !== "retained") {
+      assert.fail(retained.reasons.join(","));
+    }
+    const permit = issueRollbackPermit({
+      receipt: retained.receipt,
+      operatorId: "operator-jenn",
+      issuedAt: "2026-07-11T00:02:00.000Z",
+      expiresAt: "2026-07-11T00:05:00.000Z",
+      nonce: `rollback-filter-${filterKind}`
+    });
+    const markerPath = await configureRollbackFilterCommand(
+      fixture,
+      filterKind,
+      `configured-${filterKind}`
+    );
+    const consumptionStore = new InMemoryRollbackPermitConsumptionStore();
+
+    const blocked = await runGovernedRollback({
+      cwd: fixture.repoRoot,
+      receipt: retained.receipt,
+      permit,
+      consumptionStore,
+      now: "2026-07-11T00:03:00.000Z"
+    });
+    assert.deepEqual(blocked.reasons, ["rollback_git_filters_unsupported"]);
+    await assert.rejects(() => readFile(markerPath, "utf8"), { code: "ENOENT" });
+
+    await git(["config", "--unset-all", `filter.rollback-test.${filterKind}`], fixture.repoRoot);
+    const retried = await runGovernedRollback({
+      cwd: fixture.repoRoot,
+      receipt: retained.receipt,
+      permit,
+      consumptionStore,
+      now: "2026-07-11T00:03:30.000Z"
+    });
+    assert.equal(retried.status, "rolled_back");
+    await assert.rejects(() => readFile(markerPath, "utf8"), { code: "ENOENT" });
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("create-only rollback rejects Git clean filters before status or permit consumption", async () => {
+  const fixture = await createRetainFixture({
+    changeMode: "create-only",
+    gitattributes: "docs/new.md filter=rollback-test\n"
+  });
+  await writeFile(join(fixture.repoRoot, "docs/new.md"), "created\n", "utf8");
+  const retained = await verifyRetainedChange({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet,
+    permit: fixture.permit,
+    now: retainedAt
+  });
+  if (retained.status !== "retained") {
+    assert.fail(retained.reasons.join(","));
+  }
+  const permit = issueRollbackPermit({
+    receipt: retained.receipt,
+    operatorId: "operator-jenn",
+    issuedAt: "2026-07-11T00:02:00.000Z",
+    expiresAt: "2026-07-11T00:05:00.000Z",
+    nonce: "rollback-create-only-clean-filter"
+  });
+  const markerPath = await configureRollbackFilterCommand(
+    fixture,
+    "clean",
+    "create-only-clean"
+  );
+  const consumptionStore = new InMemoryRollbackPermitConsumptionStore();
+
+  const blocked = await runGovernedRollback({
+    cwd: fixture.repoRoot,
+    receipt: retained.receipt,
+    permit,
+    consumptionStore,
+    now: "2026-07-11T00:03:00.000Z"
+  });
+  assert.deepEqual(blocked.reasons, ["rollback_git_filters_unsupported"]);
+  await assert.rejects(() => readFile(markerPath, "utf8"), { code: "ENOENT" });
+
+  await git(["config", "--unset-all", "filter.rollback-test.clean"], fixture.repoRoot);
+  const retried = await runGovernedRollback({
+    cwd: fixture.repoRoot,
+    receipt: retained.receipt,
+    permit,
+    consumptionStore,
+    now: "2026-07-11T00:03:30.000Z"
+  });
+  assert.equal(retried.status, "rolled_back");
+  await assert.rejects(() => readFile(markerPath, "utf8"), { code: "ENOENT" });
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("rollback rechecks Git filters immediately before Git restore", async () => {
+  const fixture = await createRetainFixture({
+    gitattributes: "docs/guide.md filter=rollback-test\n"
+  });
+  await applyFakeAppServerChanges(fixture.repoRoot);
+  const retained = await verifyRetainedChange({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet,
+    permit: fixture.permit,
+    now: retainedAt
+  });
+  if (retained.status !== "retained") {
+    assert.fail(retained.reasons.join(","));
+  }
+  const permit = issueRollbackPermit({
+    receipt: retained.receipt,
+    operatorId: "operator-jenn",
+    issuedAt: "2026-07-11T00:02:00.000Z",
+    expiresAt: "2026-07-11T00:05:00.000Z",
+    nonce: "rollback-filter-adjacent-recheck"
+  });
+  const consumptionStore = new InMemoryRollbackPermitConsumptionStore();
+  let markerPath = "";
+  const primitive = createTestOnlyGitWorkspaceTargetRestorePrimitive({
+    async beforeFinalFilterCheck(): Promise<void> {
+      markerPath = await configureRollbackFilterCommand(
+        fixture,
+        "smudge",
+        "adjacent-smudge"
+      );
+    }
+  });
+  const result = await runGovernedRollbackWithPrimitive({
+    cwd: fixture.repoRoot,
+    receipt: retained.receipt,
+    permit,
+    consumptionStore,
+    now: "2026-07-11T00:03:00.000Z",
+    restorePrimitive: primitive
+  });
+  assert.deepEqual(result.reasons, ["rollback_restore_failed_or_partial"]);
+  await assert.rejects(() => readFile(markerPath, "utf8"), { code: "ENOENT" });
+
+  await git(["config", "--unset-all", "filter.rollback-test.smudge"], fixture.repoRoot);
+  const replay = await runGovernedRollbackWithPrimitive({
+    cwd: fixture.repoRoot,
+    receipt: retained.receipt,
+    permit,
+    consumptionStore,
+    now: "2026-07-11T00:03:30.000Z",
+    restorePrimitive: primitive
+  });
+  assert.deepEqual(replay.reasons, ["rollback_permit_replay"]);
+  await assert.rejects(() => readFile(markerPath, "utf8"), { code: "ENOENT" });
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("rollback fails closed when Git filter configuration cannot be inspected", async () => {
+  const fixture = await createRetainFixture();
+  await applyFakeAppServerChanges(fixture.repoRoot);
+  const retained = await verifyRetainedChange({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet,
+    permit: fixture.permit,
+    now: retainedAt
+  });
+  if (retained.status !== "retained") {
+    assert.fail(retained.reasons.join(","));
+  }
+  await writeFile(join(fixture.repoRoot, ".git/config"), "[invalid\n", "utf8");
+
+  await assert.rejects(
+    () => new GitWorkspaceTargetRestorePrimitive().restore({
+      cwd: fixture.repoRoot,
+      receipt: retained.receipt
+    }),
+    /rollback_restore_precondition_failed:rollback_git_filter_inspection_failed/
+  );
+  assert.equal(await readFile(join(fixture.repoRoot, "docs/guide.md"), "utf8"), "new\n");
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
@@ -1378,7 +1566,10 @@ test("Git rollback primitive rejects empty, duplicate, unsafe, and wrong-HEAD ta
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
-async function createRetainFixture(): Promise<{
+async function createRetainFixture(options: {
+  changeMode?: "mixed" | "create-only";
+  gitattributes?: string;
+} = {}): Promise<{
   tempRoot: string;
   repoRoot: string;
   head: string;
@@ -1394,11 +1585,35 @@ async function createRetainFixture(): Promise<{
   await git(["config", "user.email", "retain@example.invalid"], repoRoot);
   await git(["config", "user.name", "Retain Fixture"], repoRoot);
   await writeFile(join(repoRoot, "docs/guide.md"), "old\n", "utf8");
+  if (options.gitattributes !== undefined) {
+    await writeFile(join(repoRoot, ".gitattributes"), options.gitattributes, "utf8");
+  }
   await git(["add", "."], repoRoot);
   await git(["commit", "-m", "initial"], repoRoot);
   await git(["switch", "-c", "feature/safe"], repoRoot);
   const head = (await git(["rev-parse", "HEAD"], repoRoot)).trim();
   const before = await readFile(join(repoRoot, "docs/guide.md"));
+  const changes = options.changeMode === "create-only"
+    ? [{
+        path: "docs/new.md",
+        kind: "create" as const,
+        unifiedDiff: createDiff("docs/new.md", "created"),
+        beforeHash: null,
+        afterHash: sha256(Buffer.from("created\n"))
+      }]
+    : [{
+        path: "docs/guide.md",
+        kind: "update" as const,
+        unifiedDiff: updateDiff("docs/guide.md", "old", "new"),
+        beforeHash: sha256(before),
+        afterHash: sha256(Buffer.from("new\n"))
+      }, {
+        path: "docs/new.md",
+        kind: "create" as const,
+        unifiedDiff: createDiff("docs/new.md", "created"),
+        beforeHash: null,
+        afterHash: sha256(Buffer.from("created\n"))
+      }];
   const changeSet = canonicalizeGovernedFileChangeSet({
     changeSetId: "retain-change-set",
     threadId: "thread-1",
@@ -1407,19 +1622,7 @@ async function createRetainFixture(): Promise<{
     baseHead: head,
     proposedAt: issuedAt,
     sourceSchemaProfile: "fake-v2",
-    changes: [{
-      path: "docs/guide.md",
-      kind: "update",
-      unifiedDiff: updateDiff("docs/guide.md", "old", "new"),
-      beforeHash: sha256(before),
-      afterHash: sha256(Buffer.from("new\n"))
-    }, {
-      path: "docs/new.md",
-      kind: "create",
-      unifiedDiff: createDiff("docs/new.md", "created"),
-      beforeHash: null,
-      afterHash: sha256(Buffer.from("created\n"))
-    }]
+    changes
   });
   const facts = deriveCapabilityFactsFromChangeSet(changeSet, {
     repository: {
@@ -1489,6 +1692,34 @@ async function createRetainFixture(): Promise<{
 
 async function createCanonicalTempDirectory(prefix: string): Promise<string> {
   return realpath(await mkdtemp(join(tmpdir(), prefix)));
+}
+
+async function configureRollbackFilterCommand(
+  fixture: { tempRoot: string; repoRoot: string },
+  filterKind: "clean" | "smudge" | "process",
+  name: string
+): Promise<string> {
+  const scriptPath = join(fixture.tempRoot, `${name}.cjs`);
+  const markerPath = join(fixture.tempRoot, `${name}.marker`);
+  await writeFile(
+    scriptPath,
+    [
+      "const fs = require('node:fs');",
+      "fs.writeFileSync(process.argv[2], 'executed\\n');",
+      "process.stdin.pipe(process.stdout);",
+      ""
+    ].join("\n"),
+    "utf8"
+  );
+  const command = [process.execPath, scriptPath, markerPath]
+    .map(quoteGitFilterCommandArgument)
+    .join(" ");
+  await git(["config", `filter.rollback-test.${filterKind}`, command], fixture.repoRoot);
+  return markerPath;
+}
+
+function quoteGitFilterCommandArgument(value: string): string {
+  return `'${value.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`;
 }
 
 async function applyFakeAppServerChanges(repoRoot: string): Promise<void> {
