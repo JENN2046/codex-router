@@ -53,6 +53,29 @@ const execFileAsync = promisify(execFile);
 const issuedAt = "2026-07-11T00:00:00.000Z";
 const expiresAt = "2026-07-11T00:10:00.000Z";
 const retainedAt = "2026-07-11T00:01:00.000Z";
+// Hosted runners may install global Git LFS filters. Keep disposable repository
+// fixtures independent from host policy while exercising repo-local filters below.
+const inheritedGitConfigGlobal = process.env.GIT_CONFIG_GLOBAL;
+const inheritedGitConfigNoSystem = process.env.GIT_CONFIG_NOSYSTEM;
+const isolatedGitConfigRoot = await createCanonicalTempDirectory("retain-git-config-");
+const isolatedGitConfigPath = join(isolatedGitConfigRoot, "global.gitconfig");
+await writeFile(isolatedGitConfigPath, "", "utf8");
+process.env.GIT_CONFIG_GLOBAL = isolatedGitConfigPath;
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
+test.after(async () => {
+  if (inheritedGitConfigGlobal === undefined) {
+    delete process.env.GIT_CONFIG_GLOBAL;
+  } else {
+    process.env.GIT_CONFIG_GLOBAL = inheritedGitConfigGlobal;
+  }
+  if (inheritedGitConfigNoSystem === undefined) {
+    delete process.env.GIT_CONFIG_NOSYSTEM;
+  } else {
+    process.env.GIT_CONFIG_NOSYSTEM = inheritedGitConfigNoSystem;
+  }
+  await rm(isolatedGitConfigRoot, { recursive: true, force: true });
+});
 
 test("pending journal persists sanitized bindings before accept and enforces transitions", async (t) => {
   const fixture = await createRetainFixture();
