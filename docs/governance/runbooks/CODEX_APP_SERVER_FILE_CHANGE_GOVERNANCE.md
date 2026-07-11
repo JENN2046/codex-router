@@ -81,17 +81,20 @@ write command without new operator authorization for that exact command.
    every create target's absence. On drift, confirm the journal becomes
    `blocked` before a decline is sent; topology failures must not read target
    content. Rematerialize base checkout bytes and require every update hash to
-   be restorable. Effective configured filters and tracked submodules must block
-   before status, whose fsmonitor, submodule traversal, lazy fetch, and optional
-   index locks stay off. Partial/promisor clones must block before object reads.
+   be restorable. Paths whose effective filter driver has a configured clean,
+   smudge, or process command, plus tracked submodules, must block before
+   status; an unused global filter driver alone is allowed. Status keeps
+   fsmonitor, submodule traversal, lazy fetch, and optional index locks off.
+   Partial/promisor clones must block before object reads.
 9. Let the fake transport apply the change only in its disposable source repo.
 10. Ingest resolution and completion, then verify the permit-bound pre-accept
     worktree hashes, actual post-state hashes, and no outside changes. Recreate
     base bytes in a disposable alternate index/worktree so EOL and other
-    built-in checkout conversions are exact; configured external filters fail
-    closed before status or checkout. Governed Git paths remain literal and
-    HEAD inputs must be full object IDs. Disable sparse/split-index inheritance
-    in that disposable snapshot and prohibit lazy fetch.
+    built-in checkout conversions are exact; external filter commands active
+    on inspected paths fail closed before status or checkout. Governed Git
+    paths remain literal and HEAD inputs must be full object IDs. Disable
+    sparse/split-index inheritance in that disposable snapshot and prohibit
+    lazy fetch.
 11. Exercise disconnect, event gap/replay, schema drift, failed preview, drift,
     restart with an unresolved journal, concurrent resolution/operator input,
     and rollback conflict/race cases; each must fail closed and a quarantined
@@ -130,8 +133,9 @@ interception from configuration alone.
   capability facts claim `credentialAccess: "none"`;
 - source worktree is dirty, HEAD differs, targets are ambiguous, isolation is
   unsupported/unnamed, a check fails, or cleanup cannot be proven;
-- effective Git filters or tracked submodules are present, or base checkout
-  bytes cannot reproduce a declared update `beforeHash`;
+- an inspected path has an effective filter attribute whose driver configures
+  a clean, smudge, or process command; tracked submodules are present; or base
+  checkout bytes cannot reproduce a declared update `beforeHash`;
 - repository metadata declares a partial/promisor clone or a required object is
   unavailable locally;
 - immediately before acceptance, an update target has hash or topology drift, a

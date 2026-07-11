@@ -1265,6 +1265,43 @@ test("rollback rejects configured Git filters before permit consumption or comma
   }
 });
 
+test("rollback ignores configured filter drivers unused by tracked and target paths", async () => {
+  const fixture = await createRetainFixture();
+  await applyFakeAppServerChanges(fixture.repoRoot);
+  const retained = await verifyRetainedChange({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet,
+    permit: fixture.permit,
+    now: retainedAt
+  });
+  if (retained.status !== "retained") {
+    assert.fail(retained.reasons.join(","));
+  }
+  const permit = issueRollbackPermit({
+    receipt: retained.receipt,
+    operatorId: "operator-jenn",
+    issuedAt: "2026-07-11T00:02:00.000Z",
+    expiresAt: "2026-07-11T00:05:00.000Z",
+    nonce: "rollback-unused-filter-driver"
+  });
+  const markerPath = await configureRollbackFilterCommand(
+    fixture,
+    "smudge",
+    "unused-smudge"
+  );
+
+  const result = await runGovernedRollback({
+    cwd: fixture.repoRoot,
+    receipt: retained.receipt,
+    permit,
+    consumptionStore: new InMemoryRollbackPermitConsumptionStore(),
+    now: "2026-07-11T00:03:00.000Z"
+  });
+  assert.equal(result.status, "rolled_back");
+  await assert.rejects(() => readFile(markerPath, "utf8"), { code: "ENOENT" });
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
 test("create-only rollback rejects Git clean filters before status or permit consumption", async () => {
   const fixture = await createRetainFixture({
     changeMode: "create-only",

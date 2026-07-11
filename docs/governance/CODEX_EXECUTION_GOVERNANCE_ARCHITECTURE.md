@@ -79,8 +79,10 @@ worktree state, source-target topology, and every declared update `beforeHash`
 immediately before transport dispatch. It also rematerializes base checkout
 bytes in an alternate index/worktree and requires every `beforeHash` to be
 restorable under the effective Git configuration. Git status inspection
-disables fsmonitor and submodule traversal; configured effective filters and
-tracked submodules block before status runs. Partial/promisor clones block
+disables fsmonitor and submodule traversal; a path with an effective filter
+attribute whose driver has a configured clean, smudge, or process command, and
+any tracked submodule, blocks before status runs. An installed but unused
+global filter driver is not by itself a blocker. Partial/promisor clones block
 before object reads, and read-only Git commands disable optional index locks
 and lazy fetch.
 Any duplicate file approval or completion without a stored proposal marks the
@@ -196,10 +198,11 @@ matching after bytes, and no outside modification. The receipt's `beforeHash`
 is the pre-accept worktree-byte snapshot already bound by the canonical change
 hash and retain permit; it is not reinterpreted as a normalized Git blob hash.
 Retain recreates the exact base checkout bytes in a disposable alternate Git
-index/worktree and requires the declared hash to match. Configured external
-filters are rejected before status or checkout, so only deterministic built-in
-conversions such as `.gitattributes` EOL handling and `core.autocrlf`
-participate. The alternate index disables split-index and sparse-checkout
+index/worktree and requires the declared hash to match. External filter commands
+whose drivers are active on inspected paths are rejected before status or
+checkout, so only deterministic built-in conversions such as `.gitattributes`
+EOL handling and `core.autocrlf` participate. The alternate index disables
+split-index and sparse-checkout
 inheritance and uses no-lazy-fetch object reads. Tracked submodules,
 partial/promisor clones, non-literal governed paths, and non-object-ID HEAD
 inputs also fail closed before Git worktree operations. Success creates a

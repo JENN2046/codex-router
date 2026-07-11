@@ -1221,6 +1221,11 @@ test("source repository drift signals block before cloning", async () => {
       await git(["config", "core.hooksPath", "custom-hooks"], fixture.repoRoot);
     } else {
       await git(["config", "filter.demo.clean", "node --version"], fixture.repoRoot);
+      await writeFile(
+        join(fixture.repoRoot, ".git", "info", "attributes"),
+        "docs/guide.md filter=demo\n",
+        "utf8"
+      );
     }
     const receipt = await createTestPreviewer(fixture.tempRoot).preview({
       repoRoot: fixture.repoRoot,
@@ -1239,6 +1244,45 @@ test("source repository drift signals block before cloning", async () => {
     }[mode];
     assert.ok(receipt.reasons.includes(expected), `${mode}:${receipt.reasons.join(",")}`);
     await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("preview allows filter declarations that cannot execute a configured driver", async (t) => {
+  for (const scenario of ["attribute_without_command", "different_configured_driver"] as const) {
+    await t.test(scenario, async () => {
+      const fixture = await createRepositoryFixture();
+      try {
+        await writeFile(
+          join(fixture.repoRoot, ".git", "info", "attributes"),
+          "docs/guide.md filter=declared-only\n",
+          "utf8"
+        );
+        if (scenario === "different_configured_driver") {
+          await git([
+            "config",
+            "filter.unused.clean",
+            "command-that-must-not-run"
+          ], fixture.repoRoot);
+        }
+        const changeSet = updateFixtureChangeSet(fixture.head);
+        const receipt = await createTestPreviewer(fixture.tempRoot).preview({
+          repoRoot: fixture.repoRoot,
+          changeSet,
+          facts: safeFacts(changeSet, "feature/safe", fixture.head),
+          policy: policy(["docs/**"]),
+          isolation: testIsolation(),
+          now: () => now
+        });
+
+        assert.equal(receipt.status, "preview_passed", scenario);
+        assert.equal(
+          await readFile(join(fixture.repoRoot, "docs/guide.md"), "utf8"),
+          "old\n"
+        );
+      } finally {
+        await rm(fixture.tempRoot, { recursive: true, force: true });
+      }
+    });
   }
 });
 

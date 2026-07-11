@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import {
   lstat,
   mkdir,
@@ -473,7 +473,7 @@ export async function revalidateBaseCheckoutBeforeAcceptance(input: {
     return ["accept_base_head_object_id_invalid"];
   }
   try {
-    const filterReasons = await collectConfiguredGitFilterReasons(input.cwd, "retain");
+    const filterReasons = await collectActiveConfiguredGitFilterReasons(input.cwd, "retain");
     if (filterReasons.length > 0) {
       return ["accept_source_filters_unsupported"];
     }
@@ -536,7 +536,7 @@ export async function verifyRetainedChange(input: {
       return { status: "reconciliation_required", reasons: uniqueStrings(reasons) };
     }
     const repositoryBoundaryReasons = [
-      ...await collectConfiguredGitFilterReasons(input.cwd, "retain"),
+      ...await collectActiveConfiguredGitFilterReasons(input.cwd, "retain"),
       ...await collectTrackedSubmoduleReasons(input.cwd, "retain"),
       ...await collectPartialCloneReasons(input.cwd, "retain")
     ];
@@ -835,7 +835,9 @@ export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestor
     }
     if (updatePaths.length > 0) {
       await rollbackRestoreTestHooks.get(this)?.beforeFinalFilterCheck();
-      const filterReasons = await collectConfiguredGitFilterReasons(input.cwd, "rollback");
+      const filterReasons = await collectActiveConfiguredGitFilterReasons(input.cwd, "rollback", {
+        paths: updatePaths
+      });
       if (filterReasons.length > 0) {
         throw new Error(`rollback_restore_precondition_failed:${filterReasons.join(",")}`);
       }
@@ -999,7 +1001,7 @@ async function validateRollbackWorkspaceState(
   const reasons: string[] = [];
   const targetFiles = receipt.targetHashes.map((target) => target.path).sort(compareCodeUnits);
   const repositoryBoundaryReasons = [
-    ...await collectConfiguredGitFilterReasons(cwd, "rollback"),
+    ...await collectActiveConfiguredGitFilterReasons(cwd, "rollback", { paths: targetFiles }),
     ...await collectTrackedSubmoduleReasons(cwd, "rollback"),
     ...await collectPartialCloneReasons(cwd, "rollback")
   ];
@@ -1058,25 +1060,72 @@ async function validateRollbackWorkspaceState(
   return uniqueStrings(reasons);
 }
 
-async function collectConfiguredGitFilterReasons(
+async function collectActiveConfiguredGitFilterReasons(
   cwd: string,
-  operation: "retain" | "rollback"
+  operation: "retain" | "rollback",
+  options: {
+    env?: NodeJS.ProcessEnv;
+    paths?: string[];
+  } = {}
 ): Promise<string[]> {
   try {
-    const configuredFilterKeys = await gitBuffer(cwd, [
-      "config",
-      "--null",
-      "--name-only",
-      "--get-regexp",
-      "^filter\\..*\\.(clean|smudge|process)$"
-    ]);
-    return configuredFilterKeys.length === 0
-      ? []
-      : [`${operation}_git_filters_unsupported`];
-  } catch (error) {
-    return isProcessExitCode(error, 1)
-      ? []
-      : [`${operation}_git_filter_inspection_failed`];
+    const env = options.env ?? safeGitEnvironment();
+    const trackedPathInput = await gitBufferWithEnv(cwd, ["ls-files", "-z"], env);
+    const additionalPathInput = options.paths === undefined || options.paths.length === 0
+      ? Buffer.alloc(0)
+      : Buffer.from(`${options.paths.join("\0")}\0`);
+    const pathInput = Buffer.concat([trackedPathInput, additionalPathInput]);
+    if (pathInput.length === 0) {
+      return [];
+    }
+    const attributes = await gitBufferWithInput(
+      cwd,
+      ["check-attr", "--stdin", "-z", "filter"],
+      pathInput,
+      env
+    );
+    const fields = attributes.toString("utf8").split("\0").filter((field) => field !== "");
+    if (fields.length % 3 !== 0) {
+      return [`${operation}_git_filter_inspection_failed`];
+    }
+    const activeDrivers = new Set<string>();
+    for (let index = 2; index < fields.length; index += 3) {
+      const value = fields[index];
+      if (value !== undefined && value !== "unspecified" && value !== "unset") {
+        activeDrivers.add(value.toLocaleLowerCase("en-US"));
+      }
+    }
+    if (activeDrivers.size === 0) {
+      return [];
+    }
+    try {
+      const configuredFilterKeys = await gitBufferWithEnv(cwd, [
+        "config",
+        "--null",
+        "--name-only",
+        "--get-regexp",
+        "^filter\\..*\\.(clean|smudge|process)$"
+      ], env);
+      const configuredDrivers = configuredFilterKeys
+        .toString("utf8")
+        .split("\0")
+        .filter((key) => key !== "")
+        .flatMap((key) => {
+          const match = /^filter\.(.*)\.(?:clean|smudge|process)$/iu.exec(key);
+          return match?.[1] === undefined
+            ? []
+            : [match[1].toLocaleLowerCase("en-US")];
+        });
+      return configuredDrivers.some((driver) => activeDrivers.has(driver))
+        ? [`${operation}_git_filters_unsupported`]
+        : [];
+    } catch (error) {
+      return isProcessExitCode(error, 1)
+        ? []
+        : [`${operation}_git_filter_inspection_failed`];
+    }
+  } catch {
+    return [`${operation}_git_filter_inspection_failed`];
   }
 }
 
@@ -1215,7 +1264,7 @@ async function inspectRepository(
     ? commonDirRaw
     : resolve(cwd, commonDirRaw));
   const headCommit = (await gitText(cwd, ["rev-parse", "HEAD"])).trim();
-  const filterReasons = await collectConfiguredGitFilterReasons(cwd, filterOperation);
+  const filterReasons = await collectActiveConfiguredGitFilterReasons(cwd, filterOperation);
   if (filterReasons.length > 0) {
     throw new Error(filterReasons[0]);
   }
@@ -1344,7 +1393,10 @@ async function readCommitWorktreeHashes(
       "--no-sparse-checkout",
       commit
     ], environment);
-    const filterReasons = await collectConfiguredGitFilterReasons(cwd, "retain");
+    const filterReasons = await collectActiveConfiguredGitFilterReasons(cwd, "retain", {
+      env: environment,
+      paths
+    });
     if (filterReasons.length > 0) {
       throw new Error(filterReasons[0]);
     }
@@ -1602,6 +1654,73 @@ async function gitBufferWithEnv(
     maxBuffer: 20 * 1024 * 1024
   });
   return stdout;
+}
+
+async function gitBufferWithInput(
+  cwd: string,
+  argv: string[],
+  input: Buffer,
+  env: NodeJS.ProcessEnv
+): Promise<Buffer> {
+  const maxBuffer = 20 * 1024 * 1024;
+  if (input.length > maxBuffer) {
+    throw new Error("git_input_buffer_exceeded");
+  }
+  return new Promise((resolveResult, rejectResult) => {
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let stdoutLength = 0;
+    let stderrLength = 0;
+    let settled = false;
+    const child = spawn("git", argv, {
+      cwd,
+      env: safeGitEnvironment(env),
+      shell: false,
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    const rejectOnce = (error: Error): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      child.kill();
+      rejectResult(error);
+    };
+    child.stdout.on("data", (chunk: Buffer | string) => {
+      const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      stdoutLength += value.length;
+      if (stdoutLength > maxBuffer) {
+        rejectOnce(new Error("git_output_buffer_exceeded"));
+        return;
+      }
+      stdout.push(value);
+    });
+    child.stderr.on("data", (chunk: Buffer | string) => {
+      const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      if (stderrLength < maxBuffer) {
+        const remaining = maxBuffer - stderrLength;
+        const bounded = value.subarray(0, remaining);
+        stderr.push(bounded);
+        stderrLength += bounded.length;
+      }
+    });
+    child.on("error", (error) => rejectOnce(error));
+    child.stdin.on("error", (error) => rejectOnce(error));
+    child.on("close", (code) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (code === 0) {
+        resolveResult(Buffer.concat(stdout));
+        return;
+      }
+      const message = Buffer.concat(stderr).toString("utf8").trim();
+      rejectResult(new Error(message === "" ? "git_command_failed" : message));
+    });
+    child.stdin.end(input);
+  });
 }
 
 function safeGitEnvironment(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {

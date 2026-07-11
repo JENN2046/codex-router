@@ -49,6 +49,7 @@ const PROTECTED_BRANCHES = new Set([
 
 const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 const UNSAFE_GOVERNED_PATH_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*\[\]]/;
+const PREVIEW_PROCESS_OUTPUT_LIMIT = 1024 * 1024;
 
 export interface GovernedFileChangeDraft {
   path: string;
@@ -179,15 +180,31 @@ export async function revalidateSourceTargetsBeforeAcceptance(input: {
       return topologyReasons.map(toAcceptancePreflightReason);
     }
     const runner = new SpawnPreviewProcessRunner();
-    if (await hasEffectiveConfiguredGitFilterCommands(input.repoRoot, runner)) {
+    const governedPaths = changeSet.changes.map((change) => change.path);
+    if (await hasActiveConfiguredGitFilters(
+      input.repoRoot,
+      runner,
+      {
+        ...process.env,
+        GIT_NO_LAZY_FETCH: "1",
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_TERMINAL_PROMPT: "0"
+      },
+      governedPaths
+    )) {
       return ["accept_source_filters_unsupported"];
     }
-    const source = await inspectSourceRepository(input.repoRoot, runner, tmpdir());
+    const source = await inspectSourceRepository(
+      input.repoRoot,
+      runner,
+      tmpdir(),
+      governedPaths
+    );
     const sourceReasons = uniqueStrings([
       ...(source.headCommit === changeSet.baseHead ? [] : ["accept_source_head_mismatch"]),
       ...(source.status === "" ? [] : ["accept_source_worktree_not_clean"]),
       ...(source.branch === input.expectedBranch ? [] : ["accept_source_branch_mismatch"]),
-      ...(source.hasLocalFilters ? ["accept_source_filters_unsupported"] : []),
+      ...(source.hasActiveConfiguredFilters ? ["accept_source_filters_unsupported"] : []),
       ...(source.hasSubmodules ? ["accept_source_submodules_unsupported"] : []),
       ...(source.hasPartialClone ? ["accept_source_partial_clone_unsupported"] : [])
     ]);
@@ -358,7 +375,8 @@ export class LocalClonePreviewer implements FileChangePreviewer {
       const sourceBefore = await inspectSourceRepository(
         input.repoRoot,
         this.runner,
-        this.tempRoot
+        this.tempRoot,
+        changeSet.changes.map((change) => change.path)
       );
       reasons.push(...validateSourceState(sourceBefore, changeSet, input.facts));
       if (reasons.length > 0) {
@@ -541,7 +559,8 @@ export class LocalClonePreviewer implements FileChangePreviewer {
       const sourceAfter = await inspectSourceRepository(
         input.repoRoot,
         this.runner,
-        this.tempRoot
+        this.tempRoot,
+        changeSet.changes.map((change) => change.path)
       );
       if (
         sourceAfter.headCommit !== sourceBefore.headCommit
@@ -784,7 +803,7 @@ type SourceRepositoryState = {
   status: string;
   shallow: boolean;
   hasSubmodules: boolean;
-  hasLocalFilters: boolean;
+  hasActiveConfiguredFilters: boolean;
   hasPartialClone: boolean;
   hasCustomHooksPath: boolean;
 };
@@ -792,25 +811,18 @@ type SourceRepositoryState = {
 async function inspectSourceRepository(
   repoRoot: string,
   runner: PreviewProcessRunner,
-  tempRoot: string
+  tempRoot: string,
+  additionalFilterPaths: string[] = []
 ): Promise<SourceRepositoryState> {
   const env = createSanitizedEnv(tempRoot);
   const branch = (await runGit(runner, repoRoot, ["branch", "--show-current"], env)).stdout.trim();
   const headCommit = (await runGit(runner, repoRoot, ["rev-parse", "HEAD"], env)).stdout.trim();
-  const filters = await runGitAllowFailure(
-    runner,
+  const hasActiveConfiguredFilters = await hasActiveConfiguredGitFilters(
     repoRoot,
-    ["config", "--local", "--get-regexp", "^filter\\."],
-    env
+    runner,
+    env,
+    additionalFilterPaths
   );
-  let hasLocalFilters: boolean;
-  if (filters.status === "passed") {
-    hasLocalFilters = filters.stdout.trim() !== "";
-  } else if (filters.status === "failed" && filters.exitCode === 1) {
-    hasLocalFilters = false;
-  } else {
-    throw new Error("preview_filter_inspection_failed");
-  }
   const partialClone = await runGitAllowFailure(
     runner,
     repoRoot,
@@ -830,9 +842,9 @@ async function inspectSourceRepository(
   } else {
     throw new Error("preview_partial_clone_inspection_failed");
   }
-  // `git status` can invoke configured clean/process filters. Reject that
-  // repository shape without asking Git to inspect worktree contents.
-  const status = hasLocalFilters || hasPartialClone
+  // `git status` can invoke clean/process filters when an effective attribute
+  // names a configured driver. Reject that intersection before status runs.
+  const status = hasActiveConfiguredFilters || hasPartialClone
     ? ""
     : (await runGit(
       runner,
@@ -874,17 +886,60 @@ async function inspectSourceRepository(
     hasSubmodules: trackedEntries.some((entry) => (
       entry.startsWith("160000 ") || entry.endsWith("\t.gitmodules")
     )),
-    hasLocalFilters,
+    hasActiveConfiguredFilters,
     hasPartialClone,
     hasCustomHooksPath: hooks.status === "passed" && hooks.stdout.trim() !== ""
   };
 }
 
-async function hasEffectiveConfiguredGitFilterCommands(
+async function hasActiveConfiguredGitFilters(
   repoRoot: string,
-  runner: PreviewProcessRunner
+  runner: PreviewProcessRunner,
+  env: NodeJS.ProcessEnv,
+  additionalPaths: string[] = []
 ): Promise<boolean> {
-  const result = await runGitAllowFailure(
+  const trackedPaths = await runGit(
+    runner,
+    repoRoot,
+    ["ls-files", "-z"],
+    env
+  );
+  if (trackedPaths.stdout.length >= PREVIEW_PROCESS_OUTPUT_LIMIT) {
+    throw new Error("git_filter_path_inventory_exceeded");
+  }
+  const additionalInput = additionalPaths.length === 0
+    ? ""
+    : `${additionalPaths.join("\0")}\0`;
+  const pathInput = `${trackedPaths.stdout}${additionalInput}`;
+  if (pathInput === "") {
+    return false;
+  }
+  const result = await runner.run({
+    executable: "git",
+    argv: ["check-attr", "--stdin", "-z", "filter"],
+    cwd: repoRoot,
+    stdin: pathInput,
+    timeoutMs: 60 * 1000,
+    env
+  });
+  if (result.status !== "passed" || result.stdout.length >= PREVIEW_PROCESS_OUTPUT_LIMIT) {
+    throw new Error("git_filter_attribute_inspection_failed");
+  }
+  const fields = result.stdout.split("\0").filter((field) => field !== "");
+  if (fields.length % 3 !== 0) {
+    throw new Error("git_filter_attribute_schema_drift");
+  }
+  const activeDrivers = new Set<string>();
+  for (let index = 2; index < fields.length; index += 3) {
+    const value = fields[index];
+    if (value !== undefined && value !== "unspecified" && value !== "unset") {
+      activeDrivers.add(value.toLocaleLowerCase("en-US"));
+    }
+  }
+  if (activeDrivers.size === 0) {
+    return false;
+  }
+  const configured = await runGitAllowFailure(
     runner,
     repoRoot,
     [
@@ -894,20 +949,27 @@ async function hasEffectiveConfiguredGitFilterCommands(
       "--get-regexp",
       "^filter\\..*\\.(clean|smudge|process)$"
     ],
-    {
-      ...process.env,
-      GIT_NO_LAZY_FETCH: "1",
-      GIT_OPTIONAL_LOCKS: "0",
-      GIT_TERMINAL_PROMPT: "0"
-    }
+    env
   );
-  if (result.status === "passed") {
-    return result.stdout.length > 0;
-  }
-  if (result.status === "failed" && result.exitCode === 1) {
+  if (configured.status === "failed" && configured.exitCode === 1) {
     return false;
   }
-  throw new Error("accept_filter_inspection_failed");
+  if (
+    configured.status !== "passed"
+    || configured.stdout.length >= PREVIEW_PROCESS_OUTPUT_LIMIT
+  ) {
+    throw new Error("git_filter_command_inspection_failed");
+  }
+  const configuredDrivers = configured.stdout
+    .split("\0")
+    .filter((key) => key !== "")
+    .flatMap((key) => {
+      const match = /^filter\.(.*)\.(?:clean|smudge|process)$/iu.exec(key);
+      return match?.[1] === undefined
+        ? []
+        : [match[1].toLocaleLowerCase("en-US")];
+    });
+  return configuredDrivers.some((driver) => activeDrivers.has(driver));
 }
 
 function validateSourceState(
@@ -922,7 +984,7 @@ function validateSourceState(
     ...(isProtectedBranch(state.branch) ? ["preview_source_protected_branch"] : []),
     ...(state.shallow ? ["preview_source_shallow_repository"] : []),
     ...(state.hasSubmodules ? ["preview_source_submodules_unsupported"] : []),
-    ...(state.hasLocalFilters ? ["preview_source_filters_unsupported"] : []),
+    ...(state.hasActiveConfiguredFilters ? ["preview_source_filters_unsupported"] : []),
     ...(state.hasPartialClone ? ["preview_source_partial_clone_unsupported"] : []),
     ...(state.hasCustomHooksPath ? ["preview_source_hooks_path_unsupported"] : [])
   ]);
@@ -1528,7 +1590,9 @@ async function pathExists(path: string): Promise<boolean> {
 
 function appendBounded(current: string, chunk: Buffer | string): string {
   const next = current + chunk.toString();
-  return next.length > 1024 * 1024 ? next.slice(0, 1024 * 1024) : next;
+  return next.length > PREVIEW_PROCESS_OUTPUT_LIMIT
+    ? next.slice(0, PREVIEW_PROCESS_OUTPUT_LIMIT)
+    : next;
 }
 
 function uniqueStrings(values: string[]): string[] {

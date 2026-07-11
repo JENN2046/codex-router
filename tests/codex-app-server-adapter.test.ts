@@ -656,7 +656,7 @@ test("human file acceptance rechecks repository state, target topology, and befo
   }
 });
 
-test("accept preflight rejects effective global Git filters before App Server apply", async () => {
+test("accept preflight ignores unused global Git filter drivers", async () => {
   const fixture = await createAdapterFixture();
   const globalConfigPath = join(fixture.tempRoot, "global.gitconfig");
   const inheritedGlobalConfig = process.env.GIT_CONFIG_GLOBAL;
@@ -669,6 +669,44 @@ test("accept preflight rejects effective global Git filters before App Server ap
       "filter.global-governance.clean",
       "command-that-must-not-run"
     ], fixture.repoRoot);
+    const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+    await fixture.adapter.ingest(events[0]);
+    const accepted = await fixture.adapter.ingest(events[1]);
+
+    assert.equal(accepted.status, "accepted");
+    assert.deepEqual(
+      fixture.transport.messages.map((message) => message.decision),
+      ["accept"]
+    );
+    assert.equal(await readFile(join(fixture.repoRoot, "docs/guide.md"), "utf8"), "new\n");
+  } finally {
+    if (inheritedGlobalConfig === undefined) {
+      delete process.env.GIT_CONFIG_GLOBAL;
+    } else {
+      process.env.GIT_CONFIG_GLOBAL = inheritedGlobalConfig;
+    }
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("accept preflight rejects active global Git filters before App Server apply", async () => {
+  const fixture = await createAdapterFixture();
+  const globalConfigPath = join(fixture.tempRoot, "global.gitconfig");
+  const inheritedGlobalConfig = process.env.GIT_CONFIG_GLOBAL;
+  await writeFile(globalConfigPath, "", "utf8");
+  process.env.GIT_CONFIG_GLOBAL = globalConfigPath;
+  try {
+    await git([
+      "config",
+      "--global",
+      "filter.global-governance.clean",
+      "command-that-must-not-run"
+    ], fixture.repoRoot);
+    await writeFile(
+      join(fixture.repoRoot, ".git", "info", "attributes"),
+      "docs/guide.md filter=global-governance\n",
+      "utf8"
+    );
     const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
     await fixture.adapter.ingest(events[0]);
     const blocked = await fixture.adapter.ingest(events[1]);
