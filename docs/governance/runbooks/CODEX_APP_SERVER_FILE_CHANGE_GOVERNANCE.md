@@ -85,6 +85,9 @@ write command without new operator authorization for that exact command.
    smudge, or process command, plus tracked submodules, must block before
    status; an unused global filter driver alone is allowed. Status keeps
    fsmonitor, submodule traversal, lazy fetch, and optional index locks off.
+   Keep filter inventories and stdin byte-preserving; unsupported path encoding
+   blocks explicitly. Reject any proposed `.gitattributes` path and any target
+   that aliases an effective in-repository config or attribute source.
    Partial/promisor clones must block before object reads.
 9. Let the fake transport apply the change only in its disposable source repo.
 10. Ingest resolution and completion, then verify the permit-bound pre-accept
@@ -94,7 +97,7 @@ write command without new operator authorization for that exact command.
     on inspected paths fail closed before status or checkout. Governed Git
     paths remain literal and HEAD inputs must be full object IDs. Disable
     sparse/split-index inheritance in that disposable snapshot and prohibit
-    lazy fetch.
+    lazy fetch. Retain filter inspection must include untracked create targets.
 11. Exercise disconnect, event gap/replay, schema drift, failed preview, drift,
     restart with an unresolved journal, concurrent resolution/operator input,
     and rollback conflict/race cases; each must fail closed and a quarantined
@@ -136,6 +139,8 @@ interception from configuration alone.
 - an inspected path has an effective filter attribute whose driver configures
   a clean, smudge, or process command; tracked submodules are present; or base
   checkout bytes cannot reproduce a declared update `beforeHash`;
+- a proposed path is `.gitattributes` at any depth or aliases an effective
+  repository-local Git config/global-attributes source;
 - repository metadata declares a partial/promisor clone or a required object is
   unavailable locally;
 - immediately before acceptance, an update target has hash or topology drift, a
@@ -162,13 +167,19 @@ Rollback requires a new `RollbackPermit` bound to the `RetainReceipt`. Before
 restore, verify repository identity, HEAD, exact changed-target set, clean index,
 safe topology, and each current after-hash. Use durable permit consumption,
 acquire the coordinator lock, and repeat the checks adjacent to mutation.
-Any effective Git `filter.*.clean`, `filter.*.smudge`, or `filter.*.process`
-configuration blocks rollback before permit consumption and is checked again
-inside the restore primitive; command values are never retained as evidence.
+Any `filter.*.clean`, `filter.*.smudge`, or `filter.*.process` command whose
+driver is active on an inspected path blocks rollback before permit consumption
+and is checked again inside the restore primitive; unrelated installed drivers
+do not block. The restore subprocess neutralizes all drivers observed on the
+exact update targets, without expanding unrelated tracked drivers into its
+environment, and command values are never retained as evidence.
 Any drift blocks rollback; any restore or post-check uncertainty enters
 `reconciliation_required`. Quiesce external editors: the coordinator lock is
 honored by codex-router operations but cannot force an unrelated editor to
-participate.
+participate. Quiescence covers worktree targets, `.gitattributes`,
+`.git/info/attributes`, `core.attributesFile`, config include targets, and
+local/global/system Git config; changing an attribute source after inspection
+can select a previously unobserved driver.
 
 ## Incident Handling
 

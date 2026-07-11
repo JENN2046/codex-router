@@ -536,7 +536,9 @@ export async function verifyRetainedChange(input: {
       return { status: "reconciliation_required", reasons: uniqueStrings(reasons) };
     }
     const repositoryBoundaryReasons = [
-      ...await collectActiveConfiguredGitFilterReasons(input.cwd, "retain"),
+      ...await collectActiveConfiguredGitFilterReasons(input.cwd, "retain", {
+        paths: changeSet.changes.map((change) => change.path)
+      }),
       ...await collectTrackedSubmoduleReasons(input.cwd, "retain"),
       ...await collectPartialCloneReasons(input.cwd, "retain")
     ];
@@ -547,7 +549,7 @@ export async function verifyRetainedChange(input: {
         reasons: uniqueStrings(reasons)
       };
     }
-    const repository = await inspectRepository(input.cwd, "retain");
+    const repository = await inspectRepository(input.cwd, "retain", permit.targetFiles);
     if (repository.headCommit !== permit.headCommit) {
       reasons.push("retain_head_mismatch");
     }
@@ -806,7 +808,10 @@ export interface WorkspaceTargetRestorePrimitive {
 
 const rollbackRestoreTestHooks = new WeakMap<
   GitWorkspaceTargetRestorePrimitive,
-  { beforeFinalFilterCheck(): Promise<void> }
+  {
+    beforeFinalFilterCheck(): Promise<void>;
+    beforeRestoreAfterFilterCheck(activeDrivers: readonly string[]): Promise<void>;
+  }
 >();
 
 export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestorePrimitive {
@@ -835,20 +840,85 @@ export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestor
     }
     if (updatePaths.length > 0) {
       await rollbackRestoreTestHooks.get(this)?.beforeFinalFilterCheck();
-      const filterReasons = await collectActiveConfiguredGitFilterReasons(input.cwd, "rollback", {
-        paths: updatePaths
-      });
-      if (filterReasons.length > 0) {
-        throw new Error(`rollback_restore_precondition_failed:${filterReasons.join(",")}`);
+      const restoreIndexRoot = await mkdtemp(join(tmpdir(), "codex-router-rollback-index-"));
+      const restoreEnvironment: NodeJS.ProcessEnv = {
+        ...process.env,
+        GIT_INDEX_FILE: join(restoreIndexRoot, "index"),
+        GIT_WORK_TREE: input.cwd,
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_NO_LAZY_FETCH: "1",
+        GIT_TERMINAL_PROMPT: "0"
+      };
+      try {
+        await gitBufferWithEnv(input.cwd, [
+          "-c",
+          "core.splitIndex=false",
+          "-c",
+          "core.sparseCheckout=false",
+          "-c",
+          "core.sparseCheckoutCone=false",
+          "read-tree",
+          "--no-sparse-checkout",
+          receipt.headCommit
+        ], restoreEnvironment);
+        const activeDrivers = new Set<string>();
+        const worktreeFilterReasons = await collectActiveConfiguredGitFilterReasons(
+          input.cwd,
+          "rollback",
+          {
+            paths: updatePaths,
+            includeTrackedPaths: false,
+            activeDriverSink: activeDrivers
+          }
+        );
+        const cachedFilterReasons = await collectActiveConfiguredGitFilterReasons(
+          input.cwd,
+          "rollback",
+          {
+            env: restoreEnvironment,
+            paths: updatePaths,
+            includeTrackedPaths: false,
+            attributeViews: ["cached"],
+            activeDriverSink: activeDrivers
+          }
+        );
+        const filterReasons = uniqueStrings([
+          ...worktreeFilterReasons,
+          ...cachedFilterReasons
+        ]);
+        if (filterReasons.length > 0) {
+          throw new Error(`rollback_restore_precondition_failed:${filterReasons.join(",")}`);
+        }
+        const sortedActiveDrivers = [...activeDrivers].sort(compareCodeUnits);
+        await rollbackRestoreTestHooks.get(this)?.beforeRestoreAfterFilterCheck(
+          sortedActiveDrivers
+        );
+        const restoreEnvironmentWithOverrides = appendGitConfigEnvironmentOverrides(
+          restoreEnvironment,
+          sortedActiveDrivers.flatMap((driver) => [
+            [`filter.${driver}.clean`, ""] as const,
+            [`filter.${driver}.smudge`, ""] as const,
+            [`filter.${driver}.process`, ""] as const,
+            [`filter.${driver}.required`, "false"] as const
+          ])
+        );
+        await gitBufferWithEnv(input.cwd, [
+          "-c",
+          "core.splitIndex=false",
+          "-c",
+          "core.sparseCheckout=false",
+          "-c",
+          "core.sparseCheckoutCone=false",
+          "--literal-pathspecs",
+          "restore",
+          "--worktree",
+          `--source=${receipt.headCommit}`,
+          "--",
+          ...updatePaths
+        ], restoreEnvironmentWithOverrides);
+      } finally {
+        await rm(restoreIndexRoot, { recursive: true, force: true });
       }
-      await gitText(input.cwd, [
-        "--literal-pathspecs",
-        "restore",
-        "--worktree",
-        `--source=${receipt.headCommit}`,
-        "--",
-        ...updatePaths
-      ]);
     }
     for (const path of createPaths) {
       await rm(join(input.cwd, ...path.split("/")), { force: false, recursive: false });
@@ -859,10 +929,13 @@ export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestor
 /** Internal deterministic seam; intentionally absent from the public evidence facade. */
 export function createTestOnlyGitWorkspaceTargetRestorePrimitive(input: {
   beforeFinalFilterCheck(): Promise<void>;
+  beforeRestoreAfterFilterCheck?(activeDrivers: readonly string[]): Promise<void>;
 }): GitWorkspaceTargetRestorePrimitive {
   const primitive = new GitWorkspaceTargetRestorePrimitive();
   rollbackRestoreTestHooks.set(primitive, {
-    beforeFinalFilterCheck: input.beforeFinalFilterCheck.bind(input)
+    beforeFinalFilterCheck: input.beforeFinalFilterCheck.bind(input),
+    beforeRestoreAfterFilterCheck: input.beforeRestoreAfterFilterCheck?.bind(input)
+      ?? (async () => undefined)
   });
   return primitive;
 }
@@ -1001,7 +1074,10 @@ async function validateRollbackWorkspaceState(
   const reasons: string[] = [];
   const targetFiles = receipt.targetHashes.map((target) => target.path).sort(compareCodeUnits);
   const repositoryBoundaryReasons = [
-    ...await collectActiveConfiguredGitFilterReasons(cwd, "rollback", { paths: targetFiles }),
+    ...await collectActiveConfiguredGitFilterReasons(cwd, "rollback", {
+      paths: targetFiles,
+      attributeViews: ["worktree", "cached"]
+    }),
     ...await collectTrackedSubmoduleReasons(cwd, "rollback"),
     ...await collectPartialCloneReasons(cwd, "rollback")
   ];
@@ -1010,7 +1086,7 @@ async function validateRollbackWorkspaceState(
     return uniqueStrings(reasons);
   }
   try {
-    const repository = await inspectRepository(cwd, "rollback");
+    const repository = await inspectRepository(cwd, "rollback", targetFiles);
     if (repository.headCommit !== receipt.headCommit) {
       reasons.push("rollback_head_drift");
     }
@@ -1066,11 +1142,16 @@ async function collectActiveConfiguredGitFilterReasons(
   options: {
     env?: NodeJS.ProcessEnv;
     paths?: string[];
+    includeTrackedPaths?: boolean;
+    attributeViews?: Array<"worktree" | "cached">;
+    activeDriverSink?: Set<string>;
   } = {}
 ): Promise<string[]> {
   try {
     const env = options.env ?? safeGitEnvironment();
-    const trackedPathInput = await gitBufferWithEnv(cwd, ["ls-files", "-z"], env);
+    const trackedPathInput = options.includeTrackedPaths === false
+      ? Buffer.alloc(0)
+      : await gitBufferWithEnv(cwd, ["ls-files", "-z"], env);
     const additionalPathInput = options.paths === undefined || options.paths.length === 0
       ? Buffer.alloc(0)
       : Buffer.from(`${options.paths.join("\0")}\0`);
@@ -1078,22 +1159,48 @@ async function collectActiveConfiguredGitFilterReasons(
     if (pathInput.length === 0) {
       return [];
     }
-    const attributes = await gitBufferWithInput(
-      cwd,
-      ["check-attr", "--stdin", "-z", "filter"],
-      pathInput,
-      env
-    );
-    const fields = attributes.toString("utf8").split("\0").filter((field) => field !== "");
-    if (fields.length % 3 !== 0) {
-      return [`${operation}_git_filter_inspection_failed`];
-    }
     const activeDrivers = new Set<string>();
-    for (let index = 2; index < fields.length; index += 3) {
-      const value = fields[index];
-      if (value !== undefined && value !== "unspecified" && value !== "unset") {
-        activeDrivers.add(value.toLocaleLowerCase("en-US"));
+    for (const view of options.attributeViews ?? ["worktree"]) {
+      const attributes = await gitBufferWithInput(
+        cwd,
+        ["check-attr", ...(view === "cached" ? ["--cached"] : []), "--stdin", "-z", "filter"],
+        pathInput,
+        env
+      );
+      const fields = splitNullTerminatedBufferFields(
+        attributes,
+        `${operation}_git_filter_inspection_failed`
+      );
+      if (fields.length % 3 !== 0) {
+        return [`${operation}_git_filter_inspection_failed`];
       }
+      for (let index = 2; index < fields.length; index += 3) {
+        const pathField = fields[index - 2];
+        const attributeField = fields[index - 1];
+        const value = fields[index];
+        if (pathField === undefined || attributeField === undefined || value === undefined) {
+          return [`${operation}_git_filter_inspection_failed`];
+        }
+        if (
+          decodeUtf8BufferField(pathField, `${operation}_git_filter_inspection_failed`) === ""
+          || decodeUtf8BufferField(
+            attributeField,
+            `${operation}_git_filter_inspection_failed`
+          ) !== "filter"
+        ) {
+          return [`${operation}_git_filter_inspection_failed`];
+        }
+        // Git renders both the special Unspecified/Unset states and literal
+        // driver names "unspecified"/"unset" with the same strings. Keep the
+        // values and let the configured-driver intersection fail closed.
+        activeDrivers.add(decodeUtf8BufferField(
+          value,
+          `${operation}_git_filter_inspection_failed`
+        ));
+      }
+    }
+    for (const driver of activeDrivers) {
+      options.activeDriverSink?.add(driver);
     }
     if (activeDrivers.size === 0) {
       return [];
@@ -1106,15 +1213,19 @@ async function collectActiveConfiguredGitFilterReasons(
         "--get-regexp",
         "^filter\\..*\\.(clean|smudge|process)$"
       ], env);
-      const configuredDrivers = configuredFilterKeys
-        .toString("utf8")
-        .split("\0")
-        .filter((key) => key !== "")
+      const configuredDrivers = splitNullTerminatedBufferFields(
+        configuredFilterKeys,
+        `${operation}_git_filter_inspection_failed`
+      )
+        .map((key) => decodeUtf8BufferField(
+          key,
+          `${operation}_git_filter_inspection_failed`
+        ))
         .flatMap((key) => {
-          const match = /^filter\.(.*)\.(?:clean|smudge|process)$/iu.exec(key);
+          const match = /^filter\.(.*)\.(?:clean|smudge|process)$/u.exec(key);
           return match?.[1] === undefined
             ? []
-            : [match[1].toLocaleLowerCase("en-US")];
+            : [match[1]];
         });
       return configuredDrivers.some((driver) => activeDrivers.has(driver))
         ? [`${operation}_git_filters_unsupported`]
@@ -1200,10 +1311,21 @@ async function acquireRollbackLock(cwd: string): Promise<{
   };
 }
 
+/** Internal deterministic seam; intentionally absent from public package exports. */
+export async function createTestOnlyRollbackLock(cwd: string): Promise<{
+  release(): Promise<void>;
+}> {
+  return acquireRollbackLock(cwd);
+}
+
 async function verifyRollbackPostState(cwd: string, receipt: RetainReceipt): Promise<string[]> {
   const reasons: string[] = [];
   try {
-    const repository = await inspectRepository(cwd, "rollback");
+    const repository = await inspectRepository(
+      cwd,
+      "rollback",
+      receipt.targetHashes.map((target) => target.path)
+    );
     if (repository.headCommit !== receipt.headCommit) {
       reasons.push("rollback_post_head_mismatch");
     }
@@ -1250,7 +1372,8 @@ type RepositoryInspection = {
 
 async function inspectRepository(
   cwdInput: string,
-  filterOperation: "retain" | "rollback"
+  filterOperation: "retain" | "rollback",
+  filterPaths: string[] = []
 ): Promise<RepositoryInspection> {
   const cwd = resolve(cwdInput);
   const topLevel = resolve((await gitText(cwd, ["rev-parse", "--show-toplevel"])).trim());
@@ -1264,7 +1387,12 @@ async function inspectRepository(
     ? commonDirRaw
     : resolve(cwd, commonDirRaw));
   const headCommit = (await gitText(cwd, ["rev-parse", "HEAD"])).trim();
-  const filterReasons = await collectActiveConfiguredGitFilterReasons(cwd, filterOperation);
+  const filterReasons = await collectActiveConfiguredGitFilterReasons(cwd, filterOperation, {
+    paths: filterPaths,
+    ...(filterOperation === "rollback"
+      ? { attributeViews: ["worktree", "cached"] as const }
+      : {})
+  });
   if (filterReasons.length > 0) {
     throw new Error(filterReasons[0]);
   }
@@ -1395,7 +1523,8 @@ async function readCommitWorktreeHashes(
     ], environment);
     const filterReasons = await collectActiveConfiguredGitFilterReasons(cwd, "retain", {
       env: environment,
-      paths
+      paths,
+      attributeViews: ["cached"]
     });
     if (filterReasons.length > 0) {
       throw new Error(filterReasons[0]);
@@ -1723,13 +1852,83 @@ async function gitBufferWithInput(
   });
 }
 
+function splitNullTerminatedBufferFields(input: Buffer, errorClass: string): Buffer[] {
+  if (input.length === 0) {
+    return [];
+  }
+  if (input[input.length - 1] !== 0) {
+    throw new Error(errorClass);
+  }
+  const fields: Buffer[] = [];
+  let start = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    if (input[index] === 0) {
+      fields.push(input.subarray(start, index));
+      start = index + 1;
+    }
+  }
+  return fields;
+}
+
+function decodeUtf8BufferField(input: Buffer, errorClass: string): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(input);
+  } catch {
+    throw new Error(errorClass);
+  }
+}
+
+/** Internal deterministic seam; intentionally absent from public package exports. */
+export function createTestOnlyDecodeNullTerminatedGitFields(
+  input: Uint8Array
+): string[] {
+  return splitNullTerminatedBufferFields(
+    Buffer.from(input),
+    "test_git_field_schema_drift"
+  ).map((field) => decodeUtf8BufferField(field, "test_git_field_encoding_unsupported"));
+}
+
+function appendGitConfigEnvironmentOverrides(
+  base: NodeJS.ProcessEnv,
+  entries: ReadonlyArray<readonly [string, string]>
+): NodeJS.ProcessEnv {
+  const countText = base.GIT_CONFIG_COUNT?.trim() ?? "";
+  if (countText !== "" && !/^(?:0|[1-9]\d*)$/u.test(countText)) {
+    throw new Error("rollback_filter_override_environment_invalid");
+  }
+  const count = countText === "" ? 0 : Number.parseInt(countText, 10);
+  if (!Number.isSafeInteger(count) || count > 10_000) {
+    throw new Error("rollback_filter_override_environment_invalid");
+  }
+  const environment: NodeJS.ProcessEnv = { ...base };
+  for (const [offset, [key, value]] of entries.entries()) {
+    const index = count + offset;
+    environment[`GIT_CONFIG_KEY_${index}`] = key;
+    environment[`GIT_CONFIG_VALUE_${index}`] = value;
+  }
+  environment.GIT_CONFIG_COUNT = String(count + entries.length);
+  return environment;
+}
+
+/** Internal deterministic seam; intentionally absent from public package exports. */
+export function createTestOnlyGitConfigEnvironmentOverrides(input: {
+  base: NodeJS.ProcessEnv;
+  entries: ReadonlyArray<readonly [string, string]>;
+}): NodeJS.ProcessEnv {
+  return appendGitConfigEnvironmentOverrides(input.base, input.entries);
+}
+
 function safeGitEnvironment(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return {
+  const environment: NodeJS.ProcessEnv = {
     ...base,
     GIT_NO_LAZY_FETCH: "1",
     GIT_OPTIONAL_LOCKS: "0",
     GIT_TERMINAL_PROMPT: "0"
   };
+  // GIT_CONFIG changes only `git config`; status/check-attr/restore ignore it.
+  // Remove it so configuration inspection observes the same sources they do.
+  delete environment.GIT_CONFIG;
+  return environment;
 }
 
 function cloneJournalEntry(entry: PendingApprovalJournalEntry): PendingApprovalJournalEntry {

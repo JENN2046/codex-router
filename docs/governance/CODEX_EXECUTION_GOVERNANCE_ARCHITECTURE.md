@@ -6,7 +6,8 @@ created: 2026-07-11
 last_verified: 2026-07-12
 verified_by:
   - npm run typecheck
-  - targeted governance tests
+  - npm run test:governance-coverage
+  - npm test
   - npm run test:package-consumer
 applies_to:
   - authorization
@@ -82,9 +83,13 @@ restorable under the effective Git configuration. Git status inspection
 disables fsmonitor and submodule traversal; a path with an effective filter
 attribute whose driver has a configured clean, smudge, or process command, and
 any tracked submodule, blocks before status runs. An installed but unused
-global filter driver is not by itself a blocker. Partial/promisor clones block
-before object reads, and read-only Git commands disable optional index locks
-and lazy fetch.
+global filter driver is not by itself a blocker. Filter path inventories remain
+byte-preserving through `check-attr`; unsupported path encoding or schema
+ambiguity blocks explicitly. Proposed `.gitattributes` changes and proposed
+changes to an effective in-repository Git config/attribute source are never
+accepted. Partial/promisor clones block before object reads, and read-only Git
+commands disable optional index locks and lazy fetch. `GIT_CONFIG` is removed
+from these checks because status, attribute, and restore commands ignore it.
 Any duplicate file approval or completion without a stored proposal marks the
 whole turn `reconciliation_required`; later higher-sequence events cannot
 resume that turn.
@@ -202,8 +207,9 @@ index/worktree and requires the declared hash to match. External filter commands
 whose drivers are active on inspected paths are rejected before status or
 checkout, so only deterministic built-in conversions such as `.gitattributes`
 EOL handling and `core.autocrlf` participate. The alternate index disables
-split-index and sparse-checkout
-inheritance and uses no-lazy-fetch object reads. Tracked submodules,
+split-index and sparse-checkout inheritance and uses no-lazy-fetch object
+reads. Filter checks include declared create targets while they are untracked.
+Tracked submodules,
 partial/promisor clones, non-literal governed paths, and non-object-ID HEAD
 inputs also fail closed before Git worktree operations. Success creates a
 `RetainReceipt`; partial or uncertain state requires reconciliation.
@@ -219,9 +225,17 @@ to preserve later human work. Restore failure or ambiguous post-state requires
 reconciliation. The public API always uses the controlled Git primitive; the
 injected primitive seam is internal to deterministic tests. A repository-local
 coordinator lock and an adjacent second precondition check close the tested
-preflight race. Operators must still quiesce non-cooperating external editors,
-because ordinary filesystems provide no cross-platform compare-and-swap that
-third-party editors are forced to honor.
+preflight race. Restore uses a disposable index loaded from the receipt HEAD,
+checks worktree and cached attribute views, and clears the clean, smudge, and
+process commands for every driver active on the exact update targets in the
+restore subprocess. Exact target scoping prevents unrelated tracked attributes
+from expanding the subprocess environment on Windows. A command injected for
+one of those observed drivers after the final check therefore cannot execute.
+Operators must still quiesce non-cooperating external writers, including
+writers of `.gitattributes`, `.git/info/attributes`, `core.attributesFile`, Git
+config includes, and local/global/system config: a concurrent attribute-source
+change can select a previously unobserved driver, and ordinary filesystems
+provide no cross-platform compare-and-swap that those writers must honor.
 
 ## Public Surface and Compatibility
 
@@ -243,6 +257,6 @@ exact operator authorization and are not implied by fake acceptance.
 
 `npm run test:governance-coverage` enforces at least 90% branch coverage for
 authorization, preview, and retain/permit/rollback. Current local results are
-96.84%, 92.17%, and 91.05% respectively. Remote matrix CI evidence is not yet
-available from this uncommitted worktree. `npm run test:governance-properties`
+96.84%, 90.18%, and 90.20% respectively. Remote matrix evidence is reported by
+PR checks and is not implied by local results. `npm run test:governance-properties`
 runs deterministic seeded path, permit-replay, and event-order properties.

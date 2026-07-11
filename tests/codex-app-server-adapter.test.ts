@@ -728,6 +728,111 @@ test("accept preflight rejects active global Git filters before App Server apply
   }
 });
 
+test("accept preflight rejects proposed changes to effective Git control sources", async (t) => {
+  for (const scenario of ["include", "attributes", "global"] as const) {
+    await t.test(scenario, async () => {
+      const fixture = await createAdapterFixture({ gitControlSource: scenario });
+      const inheritedGlobalConfig = process.env.GIT_CONFIG_GLOBAL;
+      try {
+        const target = join(fixture.repoRoot, "docs/git-control-source");
+        if (scenario === "global") {
+          process.env.GIT_CONFIG_GLOBAL = target;
+        }
+        const before = await readFile(target);
+        const after = scenario === "include"
+          ? "# safe\n[filter \"activated\"]\n\tprocess = command-that-must-not-run\n"
+          : "# safe\ndocs/guide.md filter=activated\n";
+        const addedLines = after.trimEnd().split("\n").slice(1);
+        const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+        const started = events[0] as {
+          item: { changes: Array<Record<string, unknown>> };
+        };
+        started.item.changes = [{
+          path: "docs/git-control-source",
+          kind: "update",
+          unifiedDiff: [
+            "diff --git a/docs/git-control-source b/docs/git-control-source",
+            "--- a/docs/git-control-source",
+            "+++ b/docs/git-control-source",
+            `@@ -1 +1,${addedLines.length + 1} @@`,
+            " # safe",
+            ...addedLines.map((line) => `+${line}`),
+            ""
+          ].join("\n"),
+          beforeHash: sha256(before),
+          afterHash: sha256(Buffer.from(after))
+        }];
+
+        assert.equal((await fixture.adapter.ingest(events[0])).status, "proposed");
+        const blocked = await fixture.adapter.ingest(events[1]);
+        assert.equal(blocked.status, "blocked", scenario);
+        assert.ok(
+          blocked.reasons.includes("accept_git_control_source_change_unsupported"),
+          `${scenario}:${blocked.reasons.join(",")}`
+        );
+        assert.deepEqual(
+          fixture.transport.messages.map((message) => message.decision),
+          ["decline"]
+        );
+        assert.equal(await readFile(target, "utf8"), "# safe\n");
+      } finally {
+        if (inheritedGlobalConfig === undefined) {
+          delete process.env.GIT_CONFIG_GLOBAL;
+        } else {
+          process.env.GIT_CONFIG_GLOBAL = inheritedGlobalConfig;
+        }
+        await rm(fixture.tempRoot, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test("Git attributes control files cannot be accepted even with human approval", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const path = "docs/.GITATTRIBUTES";
+    const content = "docs/guide.md filter=activated\n";
+    const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+    const started = events[0] as {
+      item: { changes: Array<Record<string, unknown>> };
+    };
+    started.item.changes = [{
+      path,
+      kind: "create",
+      unifiedDiff: [
+        `diff --git a/${path} b/${path}`,
+        "new file mode 100644",
+        "--- /dev/null",
+        `+++ b/${path}`,
+        "@@ -0,0 +1 @@",
+        `+${content.trimEnd()}`,
+        ""
+      ].join("\n"),
+      beforeHash: null,
+      afterHash: sha256(Buffer.from(content))
+    }];
+
+    await fixture.adapter.ingest(events[0]);
+    const manual = await fixture.adapter.ingest(events[1]);
+    assert.equal(manual.status, "manual_required");
+    assert.ok(manual.reasons.includes("auto_approval_git_attributes_change_forbidden"));
+    const blocked = await fixture.adapter.resolveHumanApproval({
+      requestId: "request-1",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      nonce: "git-attributes-control"
+    });
+    assert.equal(blocked.status, "blocked");
+    assert.ok(blocked.reasons.includes("accept_git_attributes_change_unsupported"));
+    assert.deepEqual(
+      fixture.transport.messages.map((message) => message.decision),
+      ["decline"]
+    );
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("human accept rejects base bytes that Git restore cannot reproduce", async () => {
   const fixture = await createAdapterFixture({
     coreAutocrlf: "input",
@@ -1812,6 +1917,7 @@ async function createAdapterFixture(options: {
   journal?: PendingApprovalJournalStore;
   transport?: FakeTransport;
   coreAutocrlf?: "input";
+  gitControlSource?: "include" | "attributes" | "global";
   hiddenTrackedCreateTarget?: boolean;
   initialWorktreeLineEnding?: "crlf";
 } = {}) {
@@ -1832,9 +1938,17 @@ async function createAdapterFixture(options: {
   if (options.hiddenTrackedCreateTarget === true) {
     await writeFile(join(repoRoot, "docs/hidden.md"), "tracked\n", "utf8");
   }
+  if (options.gitControlSource !== undefined) {
+    await writeFile(join(repoRoot, "docs/git-control-source"), "# safe\n", "utf8");
+  }
   await git(["add", "."], repoRoot);
   await git(["commit", "-m", "initial"], repoRoot);
   await git(["switch", "-c", "feature/safe"], repoRoot);
+  if (options.gitControlSource === "include") {
+    await git(["config", "include.path", "../docs/git-control-source"], repoRoot);
+  } else if (options.gitControlSource === "attributes") {
+    await git(["config", "core.attributesFile", "docs/git-control-source"], repoRoot);
+  }
   const head = (await git(["rev-parse", "HEAD"], repoRoot)).trim();
   if (options.hiddenTrackedCreateTarget === true) {
     await git(["update-index", "--skip-worktree", "docs/hidden.md"], repoRoot);

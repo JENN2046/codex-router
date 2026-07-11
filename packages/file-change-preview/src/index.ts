@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import {
+  dirname,
   isAbsolute,
   join,
   relative,
@@ -103,7 +104,7 @@ export interface PreviewProcessInput {
   executable: string;
   argv: string[];
   cwd: string;
-  stdin?: string;
+  stdin?: string | Uint8Array;
   timeoutMs: number;
   env: NodeJS.ProcessEnv;
 }
@@ -112,6 +113,7 @@ export interface PreviewProcessResult {
   status: "passed" | "failed" | "timed_out" | "spawn_failed";
   exitCode: number | null;
   stdout: string;
+  stdoutBytes?: Uint8Array;
   stderr: string;
   durationMs: number;
 }
@@ -171,6 +173,23 @@ export async function revalidateSourceTargetsBeforeAcceptance(input: {
   }
   const changeSet = parsed.data;
   try {
+    if (changeSet.changes.some((change) => (
+      isGitAttributesControlPath(change.path)
+      || (change.oldPath !== undefined && isGitAttributesControlPath(change.oldPath))
+    ))) {
+      return ["accept_git_attributes_change_unsupported"];
+    }
+    const runner = new SpawnPreviewProcessRunner();
+    const acceptanceGitEnv = createEffectiveGitCommandEnv(process.env);
+    const gitControlSourceReasons = await collectAcceptanceGitControlSourceReasons(
+      input.repoRoot,
+      changeSet,
+      runner,
+      acceptanceGitEnv
+    );
+    if (gitControlSourceReasons.length > 0) {
+      return gitControlSourceReasons;
+    }
     const topologyReasons = await collectTargetTopologyReasons(
       input.repoRoot,
       changeSet.changes.map((change) => change.path),
@@ -179,17 +198,11 @@ export async function revalidateSourceTargetsBeforeAcceptance(input: {
     if (topologyReasons.length > 0) {
       return topologyReasons.map(toAcceptancePreflightReason);
     }
-    const runner = new SpawnPreviewProcessRunner();
     const governedPaths = changeSet.changes.map((change) => change.path);
     if (await hasActiveConfiguredGitFilters(
       input.repoRoot,
       runner,
-      {
-        ...process.env,
-        GIT_NO_LAZY_FETCH: "1",
-        GIT_OPTIONAL_LOCKS: "0",
-        GIT_TERMINAL_PROMPT: "0"
-      },
+      acceptanceGitEnv,
       governedPaths
     )) {
       return ["accept_source_filters_unsupported"];
@@ -616,8 +629,10 @@ export class SpawnPreviewProcessRunner implements PreviewProcessRunner {
   async run(input: PreviewProcessInput): Promise<PreviewProcessResult> {
     const startedAt = Date.now();
     return new Promise((resolveResult) => {
-      let stdout = "";
-      let stderr = "";
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
+      let stdoutLength = 0;
+      let stderrLength = 0;
       let settled = false;
       let timedOut = false;
       const child = spawn(input.executable, input.argv, {
@@ -636,11 +651,14 @@ export class SpawnPreviewProcessRunner implements PreviewProcessRunner {
         }
         settled = true;
         clearTimeout(timer);
+        const stdoutBytes = Buffer.concat(stdoutChunks, stdoutLength);
+        const stderrBytes = Buffer.concat(stderrChunks, stderrLength);
         resolveResult({
           status,
           exitCode,
-          stdout,
-          stderr,
+          stdout: stdoutBytes.toString("utf8"),
+          stdoutBytes,
+          stderr: stderrBytes.toString("utf8"),
           durationMs: Math.max(0, Date.now() - startedAt)
         });
       };
@@ -649,10 +667,10 @@ export class SpawnPreviewProcessRunner implements PreviewProcessRunner {
         child.kill("SIGKILL");
       }, input.timeoutMs);
       child.stdout?.on("data", (chunk: Buffer | string) => {
-        stdout = appendBounded(stdout, chunk);
+        stdoutLength = appendBoundedChunk(stdoutChunks, stdoutLength, chunk);
       });
       child.stderr?.on("data", (chunk: Buffer | string) => {
-        stderr = appendBounded(stderr, chunk);
+        stderrLength = appendBoundedChunk(stderrChunks, stderrLength, chunk);
       });
       child.on("error", () => finish("spawn_failed", null));
       child.on("close", (code) => {
@@ -661,7 +679,7 @@ export class SpawnPreviewProcessRunner implements PreviewProcessRunner {
       if (input.stdin === undefined) {
         child.stdin?.end();
       } else {
-        child.stdin?.end(input.stdin, "utf8");
+        child.stdin?.end(input.stdin);
       }
     });
   }
@@ -707,6 +725,12 @@ function collectHardBoundaryReasons(
   }
   if (changeSet.changes.some((change) => change.kind === "rename")) {
     reasons.push("auto_approval_rename_forbidden");
+  }
+  if (changeSet.changes.some((change) => (
+    isGitAttributesControlPath(change.path)
+    || (change.oldPath !== undefined && isGitAttributesControlPath(change.oldPath))
+  ))) {
+    reasons.push("auto_approval_git_attributes_change_forbidden");
   }
   if (
     changeSet.changes.some((change) => isSensitiveGovernedPath(change.path))
@@ -892,6 +916,185 @@ async function inspectSourceRepository(
   };
 }
 
+async function collectAcceptanceGitControlSourceReasons(
+  repoRoot: string,
+  changeSet: GovernedFileChangeSet,
+  runner: PreviewProcessRunner,
+  env: NodeJS.ProcessEnv
+): Promise<string[]> {
+  try {
+    const targetAliases = new Set(changeSet.changes.flatMap((change) => [
+      governedPathAlias(change.path),
+      ...(change.oldPath === undefined ? [] : [governedPathAlias(change.oldPath)])
+    ]));
+    const candidatePaths: string[] = [];
+    for (const name of ["GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM"] as const) {
+      const configuredPath = env[name];
+      if (configuredPath !== undefined && configuredPath.trim() !== "") {
+        candidatePaths.push(resolve(repoRoot, configuredPath));
+      }
+    }
+    const configuredHome = env.HOME?.trim() ?? "";
+    const fallbackHomes = process.platform === "win32" && configuredHome === ""
+      ? [
+          env.USERPROFILE?.trim() ?? "",
+          `${env.HOMEDRIVE?.trim() ?? ""}${env.HOMEPATH?.trim() ?? ""}`
+        ].filter((value) => value !== "")
+      : [];
+    const distinctFallbackHomes = [...new Set(fallbackHomes.map((value) => (
+      value.toLocaleLowerCase("en-US")
+    )))];
+    if (configuredHome === "" && distinctFallbackHomes.length !== 1) {
+      return ["accept_git_control_source_inspection_failed"];
+    }
+    const home = configuredHome === "" ? fallbackHomes[0]! : configuredHome;
+    const xdgConfigHome = env.XDG_CONFIG_HOME;
+    if (
+      !isAbsolute(home)
+      || (xdgConfigHome !== undefined
+        && xdgConfigHome.trim() !== ""
+        && !isAbsolute(xdgConfigHome))
+    ) {
+      return ["accept_git_control_source_inspection_failed"];
+    }
+    const effectiveXdgConfigHome = xdgConfigHome === undefined || xdgConfigHome.trim() === ""
+      ? resolve(home, ".config")
+      : resolve(xdgConfigHome);
+    candidatePaths.push(resolve(effectiveXdgConfigHome, "git", "attributes"));
+    if (env.GIT_CONFIG_GLOBAL === undefined || env.GIT_CONFIG_GLOBAL.trim() === "") {
+      candidatePaths.push(resolve(home, ".gitconfig"));
+      candidatePaths.push(resolve(effectiveXdgConfigHome, "git", "config"));
+    }
+
+    const configuredSources = await runner.run({
+      executable: "git",
+      argv: [
+        "config",
+        "--includes",
+        "--show-origin",
+        "--null",
+        "--path",
+        "--get-regexp",
+        "^(include(if\\..*)?\\.path|core\\.attributesfile)$"
+      ],
+      cwd: repoRoot,
+      timeoutMs: 60 * 1000,
+      env
+    });
+    if (!(configuredSources.status === "failed" && configuredSources.exitCode === 1)) {
+      if (configuredSources.status !== "passed") {
+        return ["accept_git_control_source_inspection_failed"];
+      }
+      const configuredSourceBytes = requireProcessStdoutBytes(
+        configuredSources,
+        "accept_git_control_source_binary_output_missing"
+      );
+      if (configuredSourceBytes.length >= PREVIEW_PROCESS_OUTPUT_LIMIT) {
+        return ["accept_git_control_source_inspection_failed"];
+      }
+      const sourceFields = splitNullTerminatedFields(
+        configuredSourceBytes,
+        "accept_git_control_source_schema_drift"
+      );
+      if (sourceFields.length % 2 !== 0) {
+        return ["accept_git_control_source_inspection_failed"];
+      }
+      for (let index = 0; index < sourceFields.length; index += 2) {
+        const origin = decodeUtf8Field(
+          sourceFields[index]!,
+          "accept_git_control_source_encoding_unsupported"
+        );
+        const entry = decodeUtf8Field(
+          sourceFields[index + 1]!,
+          "accept_git_control_source_encoding_unsupported"
+        );
+        const separator = entry.indexOf("\n");
+        if (separator <= 0) {
+          return ["accept_git_control_source_inspection_failed"];
+        }
+        const key = entry.slice(0, separator).toLocaleLowerCase("en-US");
+        const value = entry.slice(separator + 1);
+        const originPath = gitConfigFileOriginPath(origin, repoRoot);
+        if (originPath !== undefined) {
+          candidatePaths.push(originPath);
+        }
+        if (value === "") {
+          return ["accept_git_control_source_inspection_failed"];
+        }
+        if (key === "core.attributesfile") {
+          candidatePaths.push(isAbsolute(value) ? value : resolve(repoRoot, value));
+        } else if (key === "include.path" || key.startsWith("includeif.")) {
+          if (isAbsolute(value)) {
+            candidatePaths.push(value);
+          } else if (originPath !== undefined) {
+            candidatePaths.push(resolve(dirname(originPath), value));
+          } else {
+            return ["accept_git_control_source_inspection_failed"];
+          }
+        }
+      }
+    }
+
+    for (const candidate of candidatePaths) {
+      if (await pathAliasesGovernedTarget(repoRoot, candidate, targetAliases)) {
+        return ["accept_git_control_source_change_unsupported"];
+      }
+    }
+    return [];
+  } catch {
+    return ["accept_git_control_source_inspection_failed"];
+  }
+}
+
+function gitConfigFileOriginPath(origin: string, repoRoot: string): string | undefined {
+  if (!origin.startsWith("file:")) {
+    return undefined;
+  }
+  const value = origin.slice("file:".length);
+  if (value === "") {
+    return undefined;
+  }
+  return isAbsolute(value) ? value : resolve(repoRoot, value);
+}
+
+async function pathAliasesGovernedTarget(
+  repoRoot: string,
+  candidate: string,
+  targetAliases: Set<string>
+): Promise<boolean> {
+  const lexicalAlias = repositoryPathAlias(repoRoot, resolve(repoRoot, candidate));
+  if (lexicalAlias !== undefined && targetAliases.has(lexicalAlias)) {
+    return true;
+  }
+  try {
+    const [realRoot, realCandidate] = await Promise.all([
+      realpath(repoRoot),
+      realpath(candidate)
+    ]);
+    const realAlias = repositoryPathAlias(realRoot, realCandidate);
+    return realAlias !== undefined && targetAliases.has(realAlias);
+  } catch {
+    return false;
+  }
+}
+
+function repositoryPathAlias(repoRoot: string, candidate: string): string | undefined {
+  const value = relative(resolve(repoRoot), resolve(candidate));
+  if (
+    value === ""
+    || value === ".."
+    || value.startsWith(`..${sep}`)
+    || isAbsolute(value)
+  ) {
+    return undefined;
+  }
+  return governedPathAlias(value.replace(/\\/g, "/"));
+}
+
+function governedPathAlias(path: string): string {
+  return path.normalize("NFC").toLocaleLowerCase("en-US");
+}
+
 async function hasActiveConfiguredGitFilters(
   repoRoot: string,
   runner: PreviewProcessRunner,
@@ -904,14 +1107,18 @@ async function hasActiveConfiguredGitFilters(
     ["ls-files", "-z"],
     env
   );
-  if (trackedPaths.stdout.length >= PREVIEW_PROCESS_OUTPUT_LIMIT) {
-    throw new Error("git_filter_path_inventory_exceeded");
+  const trackedPathBytes = requireProcessStdoutBytes(
+    trackedPaths,
+    "preview_git_filter_path_inventory_binary_output_missing"
+  );
+  if (trackedPathBytes.length >= PREVIEW_PROCESS_OUTPUT_LIMIT) {
+    throw new Error("preview_git_filter_path_inventory_exceeded");
   }
   const additionalInput = additionalPaths.length === 0
-    ? ""
-    : `${additionalPaths.join("\0")}\0`;
-  const pathInput = `${trackedPaths.stdout}${additionalInput}`;
-  if (pathInput === "") {
+    ? Buffer.alloc(0)
+    : Buffer.from(`${additionalPaths.join("\0")}\0`);
+  const pathInput = Buffer.concat([trackedPathBytes, additionalInput]);
+  if (pathInput.length === 0) {
     return false;
   }
   const result = await runner.run({
@@ -922,19 +1129,44 @@ async function hasActiveConfiguredGitFilters(
     timeoutMs: 60 * 1000,
     env
   });
-  if (result.status !== "passed" || result.stdout.length >= PREVIEW_PROCESS_OUTPUT_LIMIT) {
-    throw new Error("git_filter_attribute_inspection_failed");
+  const attributeBytes = requireProcessStdoutBytes(
+    result,
+    "preview_git_filter_attribute_binary_output_missing"
+  );
+  if (result.status !== "passed" || attributeBytes.length >= PREVIEW_PROCESS_OUTPUT_LIMIT) {
+    throw new Error("preview_git_filter_attribute_inspection_failed");
   }
-  const fields = result.stdout.split("\0").filter((field) => field !== "");
+  const fields = splitNullTerminatedFields(
+    attributeBytes,
+    "preview_git_filter_attribute_schema_drift"
+  );
   if (fields.length % 3 !== 0) {
-    throw new Error("git_filter_attribute_schema_drift");
+    throw new Error("preview_git_filter_attribute_schema_drift");
   }
   const activeDrivers = new Set<string>();
   for (let index = 2; index < fields.length; index += 3) {
+    const pathField = fields[index - 2];
+    const attributeField = fields[index - 1];
     const value = fields[index];
-    if (value !== undefined && value !== "unspecified" && value !== "unset") {
-      activeDrivers.add(value.toLocaleLowerCase("en-US"));
+    if (pathField === undefined || attributeField === undefined || value === undefined) {
+      throw new Error("preview_git_filter_attribute_schema_drift");
     }
+    if (
+      decodeUtf8Field(pathField, "preview_git_filter_path_encoding_unsupported") === ""
+      || decodeUtf8Field(
+        attributeField,
+        "preview_git_filter_attribute_encoding_unsupported"
+      ) !== "filter"
+    ) {
+      throw new Error("preview_git_filter_attribute_schema_drift");
+    }
+    // Git renders both the special Unspecified/Unset states and literal
+    // driver names "unspecified"/"unset" with the same strings. Keep the
+    // values and let the configured-driver intersection fail closed.
+    activeDrivers.add(decodeUtf8Field(
+      value,
+      "preview_git_filter_driver_encoding_unsupported"
+    ));
   }
   if (activeDrivers.size === 0) {
     return false;
@@ -954,20 +1186,29 @@ async function hasActiveConfiguredGitFilters(
   if (configured.status === "failed" && configured.exitCode === 1) {
     return false;
   }
-  if (
-    configured.status !== "passed"
-    || configured.stdout.length >= PREVIEW_PROCESS_OUTPUT_LIMIT
-  ) {
-    throw new Error("git_filter_command_inspection_failed");
+  if (configured.status !== "passed") {
+    throw new Error("preview_git_filter_command_inspection_failed");
   }
-  const configuredDrivers = configured.stdout
-    .split("\0")
-    .filter((key) => key !== "")
+  const configuredBytes = requireProcessStdoutBytes(
+    configured,
+    "preview_git_filter_command_binary_output_missing"
+  );
+  if (configuredBytes.length >= PREVIEW_PROCESS_OUTPUT_LIMIT) {
+    throw new Error("preview_git_filter_command_inspection_failed");
+  }
+  const configuredDrivers = splitNullTerminatedFields(
+    configuredBytes,
+    "preview_git_filter_command_schema_drift"
+  )
+    .map((key) => decodeUtf8Field(
+      key,
+      "preview_git_filter_command_encoding_unsupported"
+    ))
     .flatMap((key) => {
-      const match = /^filter\.(.*)\.(?:clean|smudge|process)$/iu.exec(key);
+      const match = /^filter\.(.*)\.(?:clean|smudge|process)$/u.exec(key);
       return match?.[1] === undefined
         ? []
-        : [match[1].toLocaleLowerCase("en-US")];
+        : [match[1]];
     });
   return configuredDrivers.some((driver) => activeDrivers.has(driver));
 }
@@ -1233,6 +1474,11 @@ function normalizeAndAssertGovernedPath(input: string): string {
   return normalized;
 }
 
+function isGitAttributesControlPath(input: string): boolean {
+  const basename = input.replace(/\\/g, "/").split("/").at(-1) ?? "";
+  return basename.normalize("NFC").toLocaleLowerCase("en-US") === ".gitattributes";
+}
+
 function hasUnpairedUtf16Surrogate(input: string): boolean {
   for (let index = 0; index < input.length; index += 1) {
     const codeUnit = input.charCodeAt(index);
@@ -1482,6 +1728,19 @@ function createSanitizedEnv(tempRoot: string): NodeJS.ProcessEnv {
   return env;
 }
 
+function createEffectiveGitCommandEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...base,
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0"
+  };
+  // GIT_CONFIG changes only `git config`; status/check-attr/restore ignore it.
+  // Remove it so configuration inspection observes the same sources they do.
+  delete env.GIT_CONFIG;
+  return env;
+}
+
 function blockedReceipt(input: {
   changeSet: GovernedFileChangeSet;
   createdAt: string;
@@ -1588,11 +1847,56 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-function appendBounded(current: string, chunk: Buffer | string): string {
-  const next = current + chunk.toString();
-  return next.length > PREVIEW_PROCESS_OUTPUT_LIMIT
-    ? next.slice(0, PREVIEW_PROCESS_OUTPUT_LIMIT)
-    : next;
+function appendBoundedChunk(
+  chunks: Buffer[],
+  currentLength: number,
+  chunk: Buffer | string
+): number {
+  const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+  const remaining = PREVIEW_PROCESS_OUTPUT_LIMIT - currentLength;
+  if (remaining > 0) {
+    chunks.push(value.subarray(0, remaining));
+  }
+  return Math.min(PREVIEW_PROCESS_OUTPUT_LIMIT, currentLength + value.length);
+}
+
+function requireProcessStdoutBytes(
+  result: PreviewProcessResult,
+  errorClass: string
+): Buffer {
+  if (result.stdoutBytes === undefined) {
+    throw new Error(errorClass);
+  }
+  return Buffer.isBuffer(result.stdoutBytes)
+    ? result.stdoutBytes
+    : Buffer.from(result.stdoutBytes);
+}
+
+function splitNullTerminatedFields(input: Uint8Array, errorClass: string): Buffer[] {
+  const bytes = Buffer.isBuffer(input) ? input : Buffer.from(input);
+  if (bytes.length === 0) {
+    return [];
+  }
+  if (bytes[bytes.length - 1] !== 0) {
+    throw new Error(errorClass);
+  }
+  const fields: Buffer[] = [];
+  let start = 0;
+  for (let index = 0; index < bytes.length; index += 1) {
+    if (bytes[index] === 0) {
+      fields.push(bytes.subarray(start, index));
+      start = index + 1;
+    }
+  }
+  return fields;
+}
+
+function decodeUtf8Field(input: Uint8Array, errorClass: string): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(input);
+  } catch {
+    throw new Error(errorClass);
+  }
 }
 
 function uniqueStrings(values: string[]): string[] {

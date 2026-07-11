@@ -23,7 +23,10 @@ import {
   canonicalizeGovernedFileChangeSet,
   createTestOnlyLocalClonePreviewer,
   evaluateAutoApprovalPolicy,
-  getTrustedPreviewerAttestation
+  getTrustedPreviewerAttestation,
+  type PreviewProcessInput,
+  type PreviewProcessResult,
+  type PreviewProcessRunner
 } from "../packages/file-change-preview/src/index.js";
 import {
   GovernedFileChangeSetSchema,
@@ -442,6 +445,21 @@ test("hard auto-approval boundaries cannot be relaxed by policy", () => {
   ]) {
     assert.ok(result.reasons.includes(reason), reason);
   }
+});
+
+test("Git attributes control files are a cross-platform auto-approval hard boundary", () => {
+  const changeSet = canonicalizeGovernedFileChangeSet({
+    ...changeSetDraftIdentity("git-attributes-hard-boundary"),
+    changes: [createChange("docs/nested/.GITATTRIBUTES", "*.md filter=activated\n")]
+  });
+  const result = evaluateAutoApprovalPolicy(
+    changeSet,
+    safeFacts(changeSet, "feature/safe", "head"),
+    policy(["docs/**"])
+  );
+
+  assert.equal(result.eligible, false);
+  assert.ok(result.reasons.includes("auto_approval_git_attributes_change_forbidden"));
 });
 
 test("sensitive capability facts block auto-approval for otherwise safe targets", () => {
@@ -1248,19 +1266,28 @@ test("source repository drift signals block before cloning", async () => {
 });
 
 test("preview allows filter declarations that cannot execute a configured driver", async (t) => {
-  for (const scenario of ["attribute_without_command", "different_configured_driver"] as const) {
+  for (const scenario of [
+    "attribute_without_command",
+    "different_configured_driver",
+    "case_distinct_driver"
+  ] as const) {
     await t.test(scenario, async () => {
       const fixture = await createRepositoryFixture();
       try {
+        const declaredDriver = scenario === "case_distinct_driver"
+          ? "CaseSensitive"
+          : "declared-only";
         await writeFile(
           join(fixture.repoRoot, ".git", "info", "attributes"),
-          "docs/guide.md filter=declared-only\n",
+          `docs/guide.md filter=${declaredDriver}\n`,
           "utf8"
         );
-        if (scenario === "different_configured_driver") {
+        if (scenario !== "attribute_without_command") {
           await git([
             "config",
-            "filter.unused.clean",
+            scenario === "case_distinct_driver"
+              ? "filter.casesensitive.clean"
+              : "filter.unused.clean",
             "command-that-must-not-run"
           ], fixture.repoRoot);
         }
@@ -1283,6 +1310,45 @@ test("preview allows filter declarations that cannot execute a configured driver
         await rm(fixture.tempRoot, { recursive: true, force: true });
       }
     });
+  }
+});
+
+test("preview rejects sentinel-named configured Git filter drivers", async (t) => {
+  for (const driverName of ["unset", "unspecified"] as const) {
+    for (const filterKind of ["clean", "smudge", "process"] as const) {
+      await t.test(`${driverName}-${filterKind}`, async () => {
+        const fixture = await createRepositoryFixture();
+        try {
+          await writeFile(
+            join(fixture.repoRoot, ".git", "info", "attributes"),
+            `docs/guide.md filter=${driverName}\n`,
+            "utf8"
+          );
+          await git([
+            "config",
+            `filter.${driverName}.${filterKind}`,
+            "node --version"
+          ], fixture.repoRoot);
+          const changeSet = updateFixtureChangeSet(fixture.head);
+          const receipt = await createTestPreviewer(fixture.tempRoot).preview({
+            repoRoot: fixture.repoRoot,
+            changeSet,
+            facts: safeFacts(changeSet, "feature/safe", fixture.head),
+            policy: policy(["docs/**"]),
+            isolation: testIsolation(),
+            now: () => now
+          });
+
+          assert.equal(receipt.status, "blocked", `${driverName}-${filterKind}`);
+          assert.ok(
+            receipt.reasons.includes("preview_source_filters_unsupported"),
+            `${driverName}-${filterKind}:${receipt.reasons.join(",")}`
+          );
+        } finally {
+          await rm(fixture.tempRoot, { recursive: true, force: true });
+        }
+      });
+    }
   }
 });
 
@@ -1392,6 +1458,137 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
   }
 });
 
+test("preview filter inspection fails closed on byte and process contract drift", async (t) => {
+  const scenarios = [
+    ["path_bytes_missing", "preview_git_filter_path_inventory_binary_output_missing"],
+    ["path_inventory_truncated", "preview_git_filter_path_inventory_exceeded"],
+    ["attribute_status", "preview_git_filter_attribute_inspection_failed"],
+    ["attribute_schema", "preview_git_filter_attribute_schema_drift"],
+    ["attribute_driver_encoding", "preview_git_filter_driver_encoding_unsupported"],
+    ["command_status", "preview_git_filter_command_inspection_failed"],
+    ["command_bytes_missing", "preview_git_filter_command_binary_output_missing"],
+    ["command_encoding", "preview_git_filter_command_encoding_unsupported"]
+  ] as const;
+  for (const [scenario, expectedReason] of scenarios) {
+    await t.test(scenario, async () => {
+      const fixture = await createRepositoryFixture();
+      try {
+        await writeFile(
+          join(fixture.repoRoot, ".git", "info", "attributes"),
+          "docs/guide.md filter=declared\n",
+          "utf8"
+        );
+        const delegate = new SpawnPreviewProcessRunner();
+        const runner: PreviewProcessRunner = {
+          isolationAttestation: delegate.isolationAttestation,
+          async run(input: PreviewProcessInput): Promise<PreviewProcessResult> {
+            const result = await delegate.run(input);
+            const pathInventory = input.argv[0] === "ls-files" && input.argv[1] === "-z";
+            const attributeInspection = input.argv[0] === "check-attr";
+            const commandInspection = input.argv[0] === "config"
+              && input.argv.includes("--name-only");
+            if (scenario === "path_bytes_missing" && pathInventory) {
+              const { stdoutBytes: _stdoutBytes, ...withoutBytes } = result;
+              return withoutBytes;
+            }
+            if (scenario === "path_inventory_truncated" && pathInventory) {
+              return { ...result, stdout: "", stdoutBytes: Buffer.alloc(1024 * 1024) };
+            }
+            if (scenario === "attribute_status" && attributeInspection) {
+              return { ...result, status: "timed_out", exitCode: null };
+            }
+            if (scenario === "attribute_schema" && attributeInspection) {
+              const stdoutBytes = Buffer.from("docs/guide.md\0wrong\0declared\0");
+              return { ...result, stdout: stdoutBytes.toString("utf8"), stdoutBytes };
+            }
+            if (scenario === "attribute_driver_encoding" && attributeInspection) {
+              const stdoutBytes = Buffer.concat([
+                Buffer.from("docs/guide.md\0filter\0"),
+                Buffer.from([0xff, 0])
+              ]);
+              return { ...result, stdout: stdoutBytes.toString("utf8"), stdoutBytes };
+            }
+            if (scenario === "command_status" && commandInspection) {
+              return { ...result, status: "timed_out", exitCode: null };
+            }
+            if (scenario === "command_bytes_missing" && commandInspection) {
+              const { stdoutBytes: _stdoutBytes, ...withoutBytes } = result;
+              return { ...withoutBytes, status: "passed", exitCode: 0, stdout: "" };
+            }
+            if (scenario === "command_encoding" && commandInspection) {
+              const stdoutBytes = Buffer.concat([
+                Buffer.from("filter."),
+                Buffer.from([0xff]),
+                Buffer.from(".clean\0")
+              ]);
+              return {
+                ...result,
+                status: "passed",
+                exitCode: 0,
+                stdout: stdoutBytes.toString("utf8"),
+                stdoutBytes
+              };
+            }
+            return result;
+          }
+        };
+        const changeSet = updateFixtureChangeSet(fixture.head);
+        const receipt = await createTestOnlyLocalClonePreviewer({
+          tempRoot: fixture.tempRoot,
+          runner
+        }).preview({
+          repoRoot: fixture.repoRoot,
+          changeSet,
+          facts: safeFacts(changeSet, "feature/safe", fixture.head),
+          policy: policy(["docs/**"]),
+          isolation: testIsolation(),
+          now: () => now
+        });
+
+        assert.equal(receipt.status, "blocked", scenario);
+        assert.ok(
+          receipt.reasons.includes(expectedReason),
+          `${scenario}:${receipt.reasons.join(",")}`
+        );
+      } finally {
+        await rm(fixture.tempRoot, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test("preview accepts plain Uint8Array Git output without lossy decoding", async () => {
+  const fixture = await createRepositoryFixture();
+  try {
+    const delegate = new SpawnPreviewProcessRunner();
+    const runner: PreviewProcessRunner = {
+      isolationAttestation: delegate.isolationAttestation,
+      async run(input: PreviewProcessInput): Promise<PreviewProcessResult> {
+        const result = await delegate.run(input);
+        return result.stdoutBytes === undefined
+          ? result
+          : { ...result, stdoutBytes: Uint8Array.from(result.stdoutBytes) };
+      }
+    };
+    const changeSet = updateFixtureChangeSet(fixture.head);
+    const receipt = await createTestOnlyLocalClonePreviewer({
+      tempRoot: fixture.tempRoot,
+      runner
+    }).preview({
+      repoRoot: fixture.repoRoot,
+      changeSet,
+      facts: safeFacts(changeSet, "feature/safe", fixture.head),
+      policy: policy(["docs/**"]),
+      isolation: testIsolation(),
+      now: () => now
+    });
+
+    assert.equal(receipt.status, "preview_passed", receipt.reasons.join(","));
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("spawn preview process runner reports pass, failure, timeout, and spawn errors", async () => {
   const runner = new SpawnPreviewProcessRunner();
   const base = {
@@ -1406,6 +1603,38 @@ test("spawn preview process runner reports pass, failure, timeout, and spawn err
     stdin: ""
   });
   assert.equal(passed.status, "passed");
+
+  const unicode = "prefix-😀-suffix";
+  const unicodeBytes = Buffer.from(unicode);
+  const bytewise = await runner.run({
+    ...base,
+    executable: process.execPath,
+    argv: [
+      "-e",
+      [
+        `const value = Buffer.from('${unicodeBytes.toString("base64")}', 'base64');`,
+        "let index = 0;",
+        "const write = () => {",
+        "  if (index === value.length) return;",
+        "  process.stdout.write(value.subarray(index, ++index), () => setTimeout(write, 2));",
+        "};",
+        "write();"
+      ].join("\n")
+    ]
+  });
+  assert.equal(bytewise.status, "passed");
+  assert.equal(bytewise.stdout, unicode);
+  assert.deepEqual(Buffer.from(bytewise.stdoutBytes ?? []), unicodeBytes);
+
+  const binaryInput = Uint8Array.from([0xff, 0x00, 0xc3, 0x28]);
+  const binaryEcho = await runner.run({
+    ...base,
+    executable: process.execPath,
+    argv: ["-e", "process.stdin.pipe(process.stdout)"],
+    stdin: binaryInput
+  });
+  assert.equal(binaryEcho.status, "passed");
+  assert.deepEqual(Buffer.from(binaryEcho.stdoutBytes ?? []), Buffer.from(binaryInput));
 
   const failed = await runner.run({
     ...base,
@@ -1428,6 +1657,36 @@ test("spawn preview process runner reports pass, failure, timeout, and spawn err
     argv: []
   });
   assert.equal(spawnFailed.status, "spawn_failed");
+});
+
+test("preview fails closed on non-UTF-8 tracked path inventory", {
+  skip: process.platform === "win32" ? "Windows filenames are Unicode" : false
+}, async () => {
+  const fixture = await createRepositoryFixture();
+  try {
+    const rawPath = Buffer.concat([
+      Buffer.from(`${fixture.repoRoot}/docs/non-utf8-`),
+      Buffer.from([0xff])
+    ]);
+    await writeFile(rawPath, "unsafe-name\n");
+    await git(["add", "."], fixture.repoRoot);
+    await git(["commit", "-m", "add non-utf8 path"], fixture.repoRoot);
+    const head = (await git(["rev-parse", "HEAD"], fixture.repoRoot)).trim();
+    const changeSet = updateFixtureChangeSet(head);
+    const receipt = await createTestPreviewer(fixture.tempRoot).preview({
+      repoRoot: fixture.repoRoot,
+      changeSet,
+      facts: safeFacts(changeSet, "feature/safe", head),
+      policy: policy(["docs/**"]),
+      isolation: testIsolation(),
+      now: () => now
+    });
+
+    assert.equal(receipt.status, "blocked");
+    assert.ok(receipt.reasons.includes("preview_git_filter_path_encoding_unsupported"));
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
 });
 
 function policy(
