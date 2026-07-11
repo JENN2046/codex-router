@@ -375,7 +375,7 @@ test("execution boundary current surface audit passes for current evidence", asy
     review.summary.codexCliHostProviderExecutionAllowedByHostBoundary,
     false
   );
-  assert.equal(review.summary.publicApiMode, "facade_exports_only");
+  assert.equal(review.summary.publicApiMode, "named_governance_subpaths_only");
   assert.equal(
     review.summary.publicApiInternalGovernanceTopLevelExportsAllowed,
     false

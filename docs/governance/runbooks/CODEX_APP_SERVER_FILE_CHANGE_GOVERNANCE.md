@@ -1,0 +1,147 @@
+---
+title: Runbook: Codex App Server File-change Governance
+status: active
+owner: governance
+created: 2026-07-11
+last_verified: 2026-07-11
+verified_by:
+  - node --import tsx --test tests/codex-app-server-adapter.test.ts
+  - npm run test:package-consumer
+applies_to:
+  - codex-app-server
+  - file-change
+  - preview
+  - retain
+  - rollback
+---
+
+# Runbook: Codex App Server File-change Governance
+
+## Purpose
+
+Validate the deterministic file-change governance loop with a fake normalized
+transport, or review the preconditions for a separately authorized live App
+Server acceptance. This runbook never authorizes a live run by itself.
+
+## Preconditions
+
+- The repository dependencies are already installed from `package-lock.json`.
+- The test path uses only disposable repositories under the platform temp root.
+- The normalized fixture profile and session attestation have exact identities.
+- Fake acceptance uses the internal test-only preview factory; a caller-provided
+  isolation string or the default spawn runner is insufficient.
+- No secret, provider credential, live Codex process, remote write, release, or
+  deployment is required.
+- A live schema/smoke command has a fresh exact authorization before it is run.
+
+## Required Environment
+
+- Node.js 20 or 22, npm, and Git.
+- A local checkout and dependencies installed by `npm ci` when setup is needed.
+- No Codex binary, API key, provider credential, network access, or production
+  environment is required for deterministic acceptance.
+
+## Required Commands
+
+```bash
+node --import tsx --test tests/authorization-kernel.test.ts
+node --import tsx --test tests/codex-app-server-adapter.test.ts
+node --import tsx --test tests/file-change-preview.test.ts
+node --import tsx --test tests/retain-control.test.ts
+npm run test:governance-coverage
+npm run test:governance-properties
+npm run typecheck
+npm run build
+npm run test:package-consumer
+```
+
+Do not substitute a real App Server, Codex CLI, provider, or source-workspace
+write command without new operator authorization for that exact command.
+
+## Procedure
+
+1. Confirm the session attestation matches the normalized fixture profile.
+2. Ingest `item_started` and verify the full change set has a canonical hash.
+3. Ingest the approval request and verify request/item/thread/turn correlation.
+4. Confirm command and permission requests expose exact argv/cwd or permission
+   scope and return `manual_required`; cancelled requests reject late accepts.
+5. For file changes, confirm shared authorization runs before preview.
+6. Confirm preview uses an independent no-hardlink clone, exact HEAD, no remote,
+   exact argv, and an in-module trust binding. Confirm the default spawn runner,
+   forged caller claims, and test-to-live scope promotion all fail closed.
+7. Confirm the pending journal reaches durable storage before an accept response.
+8. Let the fake transport apply the change only in its disposable source repo.
+9. Ingest resolution and completion, then verify exact retain hashes and no
+   outside changes.
+10. Exercise disconnect, event gap/replay, schema drift, failed preview, drift,
+    restart with an unresolved journal, concurrent resolution/operator input,
+    and rollback conflict/race cases; each must fail closed and a quarantined
+    session must never resume acceptance.
+11. Run the blank-consumer test to verify only the five public subpaths resolve.
+
+For a live candidate, stop after reviewing the attestation unless the exact
+schema-generation and smoke commands are separately authorized. Never infer
+interception from configuration alone.
+
+## Expected Result
+
+- Safe test-fixture create/update may reach `accepted_by_app_server` only after
+  authorization, test-bound preview, and pending journal persistence. No live
+  profile can do so in `0.1.0` because no live OS isolation enforcer ships.
+- Completion becomes `post_checked` only after retain verification.
+- Human and automatic decisions share the same authorization contract.
+- Uncertain event or workspace state becomes blocked or reconciliation-required.
+- No deterministic test touches the working repository being validated.
+
+## Blocking Conditions
+
+- effective approval policy is not `on-request`;
+- sandbox is not `workspace-write`;
+- file-change interception is not proven for the session;
+- schema profile, event identity, sequence, or correlation is missing/mismatched;
+- proposal contains delete, rename, sensitive path, a missing create/update
+  after-hash, or a missing update before-hash;
+- command or permission proposal lacks exact operator-visible details;
+- proposal contains
+  protected branch, network/external, credential, or release/deploy behavior;
+- source worktree is dirty, HEAD differs, targets are ambiguous, isolation is
+  unsupported/unnamed, a check fails, or cleanup cannot be proven;
+- post-state is partial, outside-target, drifted, or unknown;
+- live execution lacks exact operator authorization.
+
+## Evidence Produced
+
+Allowed evidence is limited to schema/profile identifiers, request/item/thread/
+turn IDs, canonical hashes, decision/reason codes, check argv hashes and status,
+journal state, receipt IDs, target paths and byte hashes, cleanup status, and
+sanitized test results. Do not store raw prompts, raw provider responses,
+secrets, environment values, or unredacted command output.
+
+## Rollback
+
+Rollback requires a new `RollbackPermit` bound to the `RetainReceipt`. Before
+restore, verify repository identity, HEAD, exact changed-target set, clean index,
+safe topology, and each current after-hash. Use durable permit consumption,
+acquire the coordinator lock, and repeat the checks adjacent to mutation.
+Any drift blocks rollback; any restore or post-check uncertainty enters
+`reconciliation_required`. Quiesce external editors: the coordinator lock is
+honored by codex-router operations but cannot force an unrelated editor to
+participate.
+
+## Incident Handling
+
+- Replay, disconnect, or schema/profile drift: quarantine the full adapter
+  session, mark open items reconciliation-required, and require a new attested
+  session rather than resuming acceptance.
+- Restart with unresolved journal state: quarantine and hand the sanitized
+  journal target hashes to explicit reconciliation; do not infer apply outcome.
+- Unknown or partial completion: preserve hashes and reason codes, then stop.
+- Any attempt to use the default spawn runner or a caller-forged isolation claim:
+  block before repository inspection or policy command execution.
+- Unsafe evidence: remove raw material and retain only approved hashes/statuses.
+
+## Post-run Documentation
+
+Record exact commands and pass/fail status, whether only fake transport was used,
+whether live integration was explicitly not run, and all remaining gaps. Do not
+change current-state authority or claim production readiness from fixture tests.

@@ -1,11 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { exec } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const SCRIPT_PATH = join(__dirname, "..", "scripts", "arbitrate.ts");
+import { tmpdir } from "node:os";
+import { runArbitrateCli } from "../scripts/arbitrate.js";
 
 test("arbitrate CLI shows help with no arguments", async () => {
   const result = await runCli([]);
@@ -24,18 +21,19 @@ test("arbitrate CLI show command handles missing task", async () => {
   assert.ok(result.includes("Missing") || result.includes("Usage:"));
 });
 
-function runCli(args: string[]): Promise<string> {
-  return new Promise((resolve) => {
-    const proc = exec(`npx tsx ${SCRIPT_PATH} ${args.join(" ")}`, {
-      cwd: join(__dirname, "..")
-    });
-    let output = "";
-    proc.stdout?.on("data", (data) => {
-      output += data.toString();
-    });
-    proc.stderr?.on("data", (data) => {
-      output += data.toString();
-    });
-    proc.on("exit", () => resolve(output));
-  });
+async function runCli(args: string[]): Promise<string> {
+  const output: string[] = [];
+  const previousLog = console.log;
+  const previousError = console.error;
+  const previousExitCode = process.exitCode;
+  console.log = (...values: unknown[]) => output.push(values.map(String).join(" "));
+  console.error = (...values: unknown[]) => output.push(values.map(String).join(" "));
+  try {
+    await runArbitrateCli(args, join(tmpdir(), "codex-router-arbitrate-test-missing"));
+  } finally {
+    console.log = previousLog;
+    console.error = previousError;
+    process.exitCode = previousExitCode;
+  }
+  return output.join("\n");
 }

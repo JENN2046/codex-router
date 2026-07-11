@@ -41,9 +41,9 @@ const REQUIRED_ADAPTER_SOURCE_MARKERS = [
 ] as const;
 
 const REQUIRED_TEST_MARKERS = [
-  "CodexMemoryMcpHttpClient talks to codex-memory over native MCP HTTP",
-  "createCodexMemoryAdapterFromMcpHttp wires native MCP transport into CodexMemoryAdapter",
-  "startMockCodexMemoryServer",
+  "CodexMemoryMcpHttpClient uses the injected native-MCP fetch transport",
+  "createCodexMemoryAdapterFromMcpHttp wires the injected MCP transport",
+  "createMockCodexMemoryFetch",
   "body?.method === \"initialize\"",
   "body?.method === \"tools/call\" && body.params?.name === \"record_memory\"",
   "body?.method === \"tools/call\" && body.params?.name === \"search_memory\"",

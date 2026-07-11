@@ -6,6 +6,17 @@ as historical evidence unless a current authority document links them.
 
 ## Current Surface
 
+- [Codex execution-governance architecture](CODEX_EXECUTION_GOVERNANCE_ARCHITECTURE.md):
+  the two-page product boundary, authorization chain, App Server adapter,
+  preview, retain, rollback, and public surface.
+- [Codex governance baseline](CODEX_GOVERNANCE_BASELINE.md): frozen API,
+  classification counterexamples, CI posture, and execution boundaries.
+- [App Server governance adapter ADR](decisions/ADR_006_CODEX_APP_SERVER_GOVERNANCE_ADAPTER.md):
+  why App Server remains the runtime and why unproven interception is
+  observe-only.
+- [App Server file-change governance runbook](runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md):
+  deterministic fake-transport acceptance and the explicit live-acceptance
+  authorization stop.
 - [governance control plane](GOVERNANCE_CONTROL_PLANE.md): current capability
   status, authority model, and default runtime posture.
 - [release gate matrix](RELEASE_GATE_MATRIX.md): PR, main, and release gate

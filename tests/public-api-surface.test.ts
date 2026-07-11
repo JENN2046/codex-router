@@ -1,15 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import packageJson from "../package.json" with { type: "json" };
 import tsconfigJson from "../tsconfig.json" with { type: "json" };
+import publicApiCodexAdapterSurfaceLockFixture from "./fixtures/public-api-codex-adapter-surface-lock.fixture.json" with { type: "json" };
+import publicApiEvidenceSurfaceLockFixture from "./fixtures/public-api-evidence-surface-lock.fixture.json" with { type: "json" };
 import publicApiHostSurfaceLockFixture from "./fixtures/public-api-host-surface-lock.fixture.json" with { type: "json" };
 import publicApiProtocolSurfaceLockFixture from "./fixtures/public-api-protocol-surface-lock.fixture.json" with { type: "json" };
 import publicApiProviderSurfaceLockFixture from "./fixtures/public-api-provider-surface-lock.fixture.json" with { type: "json" };
+import publicApiPolicySurfaceLockFixture from "./fixtures/public-api-policy-surface-lock.fixture.json" with { type: "json" };
 import publicApiSdkSurfaceLockFixture from "./fixtures/public-api-sdk-surface-lock.fixture.json" with { type: "json" };
 import publicApiSurfaceLockFixture from "./fixtures/public-api-surface-lock.fixture.json" with { type: "json" };
 import publicApiSupportSpiSurfaceLockFixture from "./fixtures/public-api-support-spi-surface-lock.fixture.json" with { type: "json" };
@@ -222,7 +225,7 @@ test("public-api facade export surface is lock-stable", async () => {
   assert.deepEqual(actualExports, publicApiSurfaceLockFixture);
 });
 
-test("public-api subfacade export surfaces are lock-stable", async () => {
+test("public and legacy-internal source facade export surfaces are lock-stable", async () => {
   for (const facade of [
     {
       entrypoint: "../packages/public-api/src/sdk.js",
@@ -239,6 +242,18 @@ test("public-api subfacade export surfaces are lock-stable", async () => {
     {
       entrypoint: "../packages/public-api/src/provider.js",
       fixture: publicApiProviderSurfaceLockFixture
+    },
+    {
+      entrypoint: "../packages/public-api/src/policy.js",
+      fixture: publicApiPolicySurfaceLockFixture
+    },
+    {
+      entrypoint: "../packages/public-api/src/codex-adapter.js",
+      fixture: publicApiCodexAdapterSurfaceLockFixture
+    },
+    {
+      entrypoint: "../packages/public-api/src/evidence.js",
+      fixture: publicApiEvidenceSurfaceLockFixture
     }
   ]) {
     const moduleExports = await import(facade.entrypoint);
@@ -270,7 +285,13 @@ test("public protocol facade exposes kernel contracts without legacy compatibili
     "ToolInvocationSchema",
     "hashKernelObject",
     "parseTask",
-    "parsePolicyDecision"
+    "parsePolicyDecision",
+    "CapabilityFactsSchema",
+    "AuthorizationDecisionSchema",
+    "GovernedFileChangeSetSchema",
+    "PreviewPolicySchema",
+    "RetainReceiptSchema",
+    "RollbackPermitSchema"
   ]) {
     assert.equal(name in moduleExports, true, `${name} should be public through kernel contracts`);
   }
@@ -281,7 +302,9 @@ test("public protocol facade exposes kernel contracts without legacy compatibili
     "DesktopExecutionPlanSchema",
     "DesktopPrimitiveSchema",
     "parseTaskEnvelope",
-    "parseRoutingDecision"
+    "parseRoutingDecision",
+    "AgentOsMcpServerManifestSchema",
+    "A2AAgentCardSkeletonSchema"
   ]) {
     assert.equal(
       legacyName in moduleExports,
@@ -291,36 +314,32 @@ test("public protocol facade exposes kernel contracts without legacy compatibili
   }
 });
 
-test("root package exports only approved public API facades", () => {
+test("package exports only the five policy-based governance facades", () => {
   const expectedExports = {
-    ".": {
-      types: "./dist/packages/public-api/src/index.d.ts",
-      import: "./dist/packages/public-api/src/index.js"
-    },
-    "./sdk": {
-      types: "./dist/packages/public-api/src/sdk.d.ts",
-      import: "./dist/packages/public-api/src/sdk.js"
-    },
-    "./host": {
-      types: "./dist/packages/public-api/src/host.d.ts",
-      import: "./dist/packages/public-api/src/host.js"
-    },
     "./protocol": {
       types: "./dist/packages/public-api/src/protocol.d.ts",
       import: "./dist/packages/public-api/src/protocol.js"
     },
+    "./policy": {
+      types: "./dist/packages/public-api/src/policy.d.ts",
+      import: "./dist/packages/public-api/src/policy.js"
+    },
+    "./codex-adapter": {
+      types: "./dist/packages/public-api/src/codex-adapter.d.ts",
+      import: "./dist/packages/public-api/src/codex-adapter.js"
+    },
+    "./evidence": {
+      types: "./dist/packages/public-api/src/evidence.d.ts",
+      import: "./dist/packages/public-api/src/evidence.js"
+    },
     "./provider": {
       types: "./dist/packages/public-api/src/provider.d.ts",
       import: "./dist/packages/public-api/src/provider.js"
-    },
-    "./support": {
-      types: "./dist/packages/public-api/src/support.d.ts",
-      import: "./dist/packages/public-api/src/support.js"
     }
   };
 
-  assert.equal(packageJson.main, expectedExports["."].import);
-  assert.equal(packageJson.types, expectedExports["."].types);
+  assert.equal("main" in packageJson, false);
+  assert.equal("types" in packageJson, false);
   assert.deepEqual(packageJson.exports, expectedExports);
 
   for (const entry of Object.values(expectedExports)) {
@@ -344,6 +363,10 @@ test("root package exports only approved public API facades", () => {
   }
 
   for (const blockedSubpath of [
+    ".",
+    "./sdk",
+    "./host",
+    "./support",
     "./packages/public-api/src/index.js",
     "./packages/*",
     "./contracts",
@@ -384,20 +407,31 @@ test("public-api package type targets are emitted and stay governance-internal f
 
   const declarationOutDir = mkdtempSync(resolve(tmpdir(), "codex-router-public-api-types-"));
   try {
-    execFileSync(
-      process.execPath,
-      [
-        resolve(repoRoot, "node_modules/typescript/bin/tsc"),
-        "-p",
-        "tsconfig.json",
-        "--emitDeclarationOnly",
-        "--outDir",
-        declarationOutDir
-      ],
+    const configPath = resolve(repoRoot, "tsconfig.json");
+    const config = ts.readConfigFile(configPath, ts.sys.readFile);
+    assert.equal(config.error, undefined, "tsconfig.json must be readable");
+    const parsed = ts.parseJsonConfigFileContent(
+      config.config,
+      ts.sys,
+      repoRoot,
       {
-        cwd: repoRoot,
-        stdio: "pipe"
-      }
+        emitDeclarationOnly: true,
+        noEmit: false,
+        outDir: declarationOutDir
+      },
+      configPath
+    );
+    const program = ts.createProgram(parsed.fileNames, parsed.options);
+    const emit = program.emit();
+    const diagnostics = [...ts.getPreEmitDiagnostics(program), ...emit.diagnostics];
+    assert.equal(
+      diagnostics.length,
+      0,
+      ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+        getCanonicalFileName: (fileName) => fileName,
+        getCurrentDirectory: () => repoRoot,
+        getNewLine: () => "\n"
+      })
     );
 
     const exportEntries = Object.values(

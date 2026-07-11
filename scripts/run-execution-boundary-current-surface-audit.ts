@@ -605,7 +605,7 @@ export interface ExecutionBoundaryCurrentSurfaceAuditResult {
     runtimeControlMode: "runtime_signal_and_escalation_outcome_only";
     operatorActionExecutorGateMode: "plan_only";
     codexCliHostMode: "explicit_codex_cli_host_execution_surface";
-    publicApiMode: "facade_exports_only";
+    publicApiMode: "named_governance_subpaths_only";
     agentOsLocalRuntimeMode: "local_state_and_provider_plan_runtime";
     agentOsMcpServerManifestMode: "manifest_only_no_runtime";
     protocolMcpProviderSkeletonMode: "protocol_mapping_and_disabled_provider_skeleton_only";
@@ -2108,7 +2108,7 @@ export function reviewExecutionBoundaryCurrentSurfaceAudit(
       runtimeControlMode: "runtime_signal_and_escalation_outcome_only",
       operatorActionExecutorGateMode: "plan_only",
       codexCliHostMode: "explicit_codex_cli_host_execution_surface",
-      publicApiMode: "facade_exports_only",
+      publicApiMode: "named_governance_subpaths_only",
       agentOsLocalRuntimeMode: "local_state_and_provider_plan_runtime",
       agentOsMcpServerManifestMode:
         input.agentOsMcpServerManifestReview.summary.agentOsMcpServerManifestMode,
@@ -5132,8 +5132,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("explicit Codex CLI host execution surface")
     && text.includes("workspace-write smoke requires explicit allowance and confirmation")
     && text.includes("governance step-back blocks write sandbox before spawn")
-    && text.includes("facade exports only")
-    && text.includes("public facade does not authorize Codex CLI")
+    && text.includes("five named governance subpaths only")
+    && text.includes("There is no root, SDK, host, support, MCP/A2A")
     && text.includes("local state and provider-plan runtime")
     && text.includes("does not authorize provider execute, Codex CLI")
     && text.includes("permit creation, validation, revocation, and store only")
@@ -5463,10 +5463,11 @@ function publicApiBoundaryConstrained(
   const summary = input.publicApiReview.summary;
 
   return input.publicApiReview.status === "passed"
-    && summary.publicApiMode === "facade_exports_only"
-    && summary.hostFacadeMode === "desktop_host_client_declaration_safe_wrapper"
-    && summary.providerFacadeMode === "schemas_registry_selection_only"
-    && summary.protocolFacadeMode === "disabled_remote_provider_skeletons"
+    && summary.publicApiMode === "named_governance_subpaths_only"
+    && summary.hostFacadeMode === "internal_not_exported"
+    && summary.providerFacadeMode === "manifest_capability_security_spi_only"
+    && summary.protocolFacadeMode === "kernel_governance_contracts_only"
+    && summary.governedRollbackExportAllowed === true
     && summary.internalGovernanceTopLevelExportsAllowed === false
     && summary.directHostExecutorDispatchExportAllowed === false
     && summary.providerExecuteExportAllowed === false
@@ -9398,7 +9399,7 @@ function outputSanitized(): boolean {
       runtimeControlMode: "runtime_signal_and_escalation_outcome_only",
       operatorActionExecutorGateMode: "plan_only",
       codexCliHostMode: "explicit_codex_cli_host_execution_surface",
-      publicApiMode: "facade_exports_only",
+      publicApiMode: "named_governance_subpaths_only",
       agentOsLocalRuntimeMode: "local_state_and_provider_plan_runtime",
       agentOsMcpServerManifestMode: "manifest_only_no_runtime",
       protocolMcpProviderSkeletonMode:

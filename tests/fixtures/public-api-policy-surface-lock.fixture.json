@@ -1,0 +1,15 @@
+[
+  "AutoApprovalRuleSchema",
+  "ExactArgvCommandSchema",
+  "PreviewPolicySchema",
+  "authorizeCapabilityFacts",
+  "canonicalizeGovernedFileChangeSet",
+  "classifySemanticRiskSignal",
+  "deriveCapabilityFacts",
+  "deriveCapabilityFactsFromChangeSet",
+  "evaluateAutoApprovalPolicy",
+  "isSensitiveGovernedPath",
+  "maxRisk",
+  "narrowToCapabilityCeiling",
+  "scoreCapabilityFactsRisk"
+]

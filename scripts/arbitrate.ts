@@ -13,7 +13,7 @@
  */
 
 import { readFile, writeFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -192,9 +192,10 @@ Examples:
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const basePath = process.env.CODEX_ROUTER_CHECKPOINT_PATH ?? DEFAULT_BASE_PATH;
+export async function runArbitrateCli(
+  args: string[],
+  basePath = process.env.CODEX_ROUTER_CHECKPOINT_PATH ?? DEFAULT_BASE_PATH
+): Promise<void> {
 
   if (args.length === 0 || args.includes("help") || args.includes("--help")) {
     cmdHelp();
@@ -263,7 +264,10 @@ async function main(): Promise<void> {
   cmdHelp();
 }
 
-main().catch((err) => {
-  console.error("Error:", err);
-  process.exitCode = 1;
-});
+const invokedPath = process.argv[1];
+if (invokedPath !== undefined && resolve(invokedPath) === fileURLToPath(import.meta.url)) {
+  runArbitrateCli(process.argv.slice(2)).catch((err) => {
+    console.error("Error:", err);
+    process.exitCode = 1;
+  });
+}
