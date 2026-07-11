@@ -67,6 +67,8 @@ write command without new operator authorization for that exact command.
 1. Confirm the session attestation matches the normalized fixture profile.
 2. Ingest `item_started` and verify the full change set has a canonical hash.
 3. Ingest the approval request and verify request/item/thread/turn correlation.
+   A duplicate file approval or completion without a stored proposal must mark
+   the whole turn reconciliation-required before any later event is processed.
 4. Confirm command and permission requests expose exact argv/cwd or permission
    scope and return `manual_required`; cancelled requests reject late accepts.
 5. For file changes, confirm shared authorization runs before preview.
@@ -74,14 +76,22 @@ write command without new operator authorization for that exact command.
    exact argv, and an in-module trust binding. Confirm the default spawn runner,
    forged caller claims, and test-to-live scope promotion all fail closed.
 7. Confirm the pending journal reaches durable storage before an accept response.
-8. Immediately before accept dispatch, confirm each existing source target is a
-   regular single-link file, every update still matches its declared
-   `beforeHash`, and every create target is still absent. On drift, confirm the
-   journal becomes `blocked` before a decline is sent; topology failures must
-   not read target content.
+8. Immediately before accept dispatch, confirm HEAD, branch, clean worktree
+   state, each existing source target's topology, every update `beforeHash`, and
+   every create target's absence. On drift, confirm the journal becomes
+   `blocked` before a decline is sent; topology failures must not read target
+   content. Rematerialize base checkout bytes and require every update hash to
+   be restorable. Effective configured filters and tracked submodules must block
+   before status, whose fsmonitor, submodule traversal, lazy fetch, and optional
+   index locks stay off. Partial/promisor clones must block before object reads.
 9. Let the fake transport apply the change only in its disposable source repo.
-10. Ingest resolution and completion, then verify exact retain hashes and no
-   outside changes.
+10. Ingest resolution and completion, then verify the permit-bound pre-accept
+    worktree hashes, actual post-state hashes, and no outside changes. Recreate
+    base bytes in a disposable alternate index/worktree so EOL and other
+    built-in checkout conversions are exact; configured external filters fail
+    closed before status or checkout. Governed Git paths remain literal and
+    HEAD inputs must be full object IDs. Disable sparse/split-index inheritance
+    in that disposable snapshot and prohibit lazy fetch.
 11. Exercise disconnect, event gap/replay, schema drift, failed preview, drift,
     restart with an unresolved journal, concurrent resolution/operator input,
     and rollback conflict/race cases; each must fail closed and a quarantined
@@ -120,10 +130,18 @@ interception from configuration alone.
   capability facts claim `credentialAccess: "none"`;
 - source worktree is dirty, HEAD differs, targets are ambiguous, isolation is
   unsupported/unnamed, a check fails, or cleanup cannot be proven;
+- effective Git filters or tracked submodules are present, or base checkout
+  bytes cannot reproduce a declared update `beforeHash`;
+- repository metadata declares a partial/promisor clone or a required object is
+  unavailable locally;
 - immediately before acceptance, an update target has hash or topology drift, a
   create target exists, or an existing final target is not a regular single-link
   file;
+- a duplicate file approval or completion without a stored proposal proves
+  turn correlation drift;
 - post-state is partial, outside-target, drifted, or unknown;
+- rollback-time checkout configuration cannot reproduce every receipt
+  `beforeHash` before permit consumption;
 - live execution lacks exact operator authorization.
 
 ## Evidence Produced

@@ -44,6 +44,7 @@ import {
   createTestOnlyRollbackPermitConsumptionStore,
   issueRetainPermit,
   issueRollbackPermit,
+  revalidateBaseCheckoutBeforeAcceptance,
   runGovernedRollback,
   runGovernedRollbackWithPrimitive,
   verifyRetainedChange
@@ -656,6 +657,561 @@ test("retain verifies App Server post-state and rollback restores exact targets 
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
+test("retain preserves pre-accept worktree hashes across checkout conversions", async () => {
+  for (const [caseId, options] of [
+    ["gitattributes-eol", {
+      gitattributes: "docs/guide.md text eol=crlf\n",
+      initialWorktreeLineEnding: "crlf"
+    }],
+    ["core-autocrlf", { coreAutocrlf: "true" }]
+  ] as const) {
+    const fixture = await createRetainFixture(options);
+    const update = fixture.changeSet.changes.find((change) => (
+      change.path === "docs/guide.md"
+    ));
+    assert.ok(update, caseId);
+    const baseBlobHash = sha256(Buffer.from(
+      await git(["show", `${fixture.head}:docs/guide.md`], fixture.repoRoot)
+    ));
+    assert.notEqual(update.beforeHash, baseBlobHash, caseId);
+    assert.equal(
+      update.beforeHash,
+      sha256(await readFile(join(fixture.repoRoot, "docs/guide.md"))),
+      caseId
+    );
+
+    await applyFakeAppServerChanges(fixture.repoRoot);
+    const retained = await verifyRetainedChange({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet,
+      permit: fixture.permit,
+      now: retainedAt
+    });
+    if (retained.status !== "retained") {
+      assert.fail(`${caseId}:${retained.reasons.join(",")}`);
+    }
+    assert.equal(
+      retained.receipt.targetHashes.find((target) => (
+        target.path === "docs/guide.md"
+      ))?.beforeHash,
+      update.beforeHash,
+      caseId
+    );
+
+    const rollback = await runGovernedRollback({
+      cwd: fixture.repoRoot,
+      receipt: retained.receipt,
+      permit: issueRollbackPermit({
+        receipt: retained.receipt,
+        operatorId: "operator-jenn",
+        issuedAt: "2026-07-11T00:02:00.000Z",
+        expiresAt: "2026-07-11T00:05:00.000Z",
+        nonce: `rollback-${caseId}`
+      }),
+      consumptionStore: new InMemoryRollbackPermitConsumptionStore(),
+      now: "2026-07-11T00:03:00.000Z"
+    });
+    assert.equal(rollback.status, "rolled_back", caseId);
+    assert.equal(
+      sha256(await readFile(join(fixture.repoRoot, "docs/guide.md"))),
+      update.beforeHash,
+      caseId
+    );
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("retain rejects forged before hashes even when checkout conversion is active", async () => {
+  for (const [caseId, options] of [
+    ["none", {}],
+    ["core-autocrlf", { coreAutocrlf: "true" }],
+    ["gitattributes-eol", {
+      gitattributes: "docs/guide.md text eol=crlf\n",
+      initialWorktreeLineEnding: "crlf"
+    }]
+  ] as const) {
+    const fixture = await createRetainFixture(options);
+    const drifted = canonicalizeGovernedFileChangeSet({
+      changeSetId: fixture.changeSet.changeSetId,
+      threadId: fixture.changeSet.threadId,
+      turnId: fixture.changeSet.turnId,
+      itemId: fixture.changeSet.itemId,
+      baseHead: fixture.changeSet.baseHead,
+      proposedAt: fixture.changeSet.proposedAt,
+      sourceSchemaProfile: fixture.changeSet.sourceSchemaProfile,
+      changes: fixture.changeSet.changes.map((change) => ({
+        path: change.path,
+        kind: change.kind,
+        unifiedDiff: change.unifiedDiff,
+        beforeHash: change.kind === "update" ? "0".repeat(64) : null,
+        afterHash: change.afterHash ?? null
+      }))
+    });
+    const humanAuthorization: AuthorizationDecision = {
+      ...fixture.authorization,
+      approvalMode: "human_required",
+      disposition: "approval_required",
+      approvalRequired: true
+    };
+    const permit = issueRetainPermit({
+      changeSet: drifted,
+      authorizationDecision: humanAuthorization,
+      issuedAt,
+      expiresAt,
+      nonce: `drifted-before-hash-${caseId}`
+    });
+    await applyFakeAppServerChanges(fixture.repoRoot);
+
+    const retained = await verifyRetainedChange({
+      cwd: fixture.repoRoot,
+      changeSet: drifted,
+      permit,
+      now: retainedAt
+    });
+    assert.equal(retained.status, "reconciliation_required", caseId);
+    assert.ok(
+      retained.reasons.includes("retain_before_hash_mismatch:docs/guide.md"),
+      caseId
+    );
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("retain rejects pre-accept bytes that Git restore cannot reproduce", async () => {
+  const fixture = await createRetainFixture({
+    coreAutocrlf: "input",
+    initialWorktreeLineEnding: "crlf"
+  });
+  await applyFakeAppServerChanges(fixture.repoRoot);
+
+  const retained = await verifyRetainedChange({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet,
+    permit: fixture.permit,
+    now: retainedAt
+  });
+  assert.equal(retained.status, "reconciliation_required");
+  assert.ok(retained.reasons.includes("retain_before_hash_mismatch:docs/guide.md"));
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("retain rejects configured Git filters before status can execute them", async () => {
+  for (const filterKind of ["clean", "smudge", "process"] as const) {
+    const fixture = await createRetainFixture({
+      gitattributes: "docs/guide.md filter=rollback-test\n"
+    });
+    const markerPath = await configureRollbackFilterCommand(
+      fixture,
+      filterKind,
+      `retain-${filterKind}`
+    );
+    await applyFakeAppServerChanges(fixture.repoRoot);
+
+    const retained = await verifyRetainedChange({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet,
+      permit: fixture.permit,
+      now: retainedAt
+    });
+    assert.deepEqual(retained.reasons, ["retain_git_filters_unsupported"]);
+    await assert.rejects(() => readFile(markerPath, "utf8"), { code: "ENOENT" });
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("rollback rejects checkout configuration drift before consuming its permit", async () => {
+  const fixture = await createRetainFixture({ coreAutocrlf: "true" });
+  await applyFakeAppServerChanges(fixture.repoRoot);
+  const retained = await verifyRetainedChange({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet,
+    permit: fixture.permit,
+    now: retainedAt
+  });
+  if (retained.status !== "retained") {
+    assert.fail(retained.reasons.join(","));
+  }
+  const permit = issueRollbackPermit({
+    receipt: retained.receipt,
+    operatorId: "operator-jenn",
+    issuedAt: "2026-07-11T00:02:00.000Z",
+    expiresAt: "2026-07-11T00:05:00.000Z",
+    nonce: "rollback-checkout-config-drift"
+  });
+  const consumptionStore = new InMemoryRollbackPermitConsumptionStore();
+  const expectedAfterHash = sha256(await readFile(join(fixture.repoRoot, "docs/guide.md")));
+  await git(["config", "core.autocrlf", "false"], fixture.repoRoot);
+
+  const blocked = await runGovernedRollback({
+    cwd: fixture.repoRoot,
+    receipt: retained.receipt,
+    permit,
+    consumptionStore,
+    now: "2026-07-11T00:03:00.000Z"
+  });
+  assert.deepEqual(blocked.reasons, [
+    "rollback_checkout_configuration_drift:docs/guide.md"
+  ]);
+  assert.equal(
+    sha256(await readFile(join(fixture.repoRoot, "docs/guide.md"))),
+    expectedAfterHash
+  );
+
+  await git(["config", "core.autocrlf", "true"], fixture.repoRoot);
+  const retried = await runGovernedRollback({
+    cwd: fixture.repoRoot,
+    receipt: retained.receipt,
+    permit,
+    consumptionStore,
+    now: "2026-07-11T00:03:30.000Z"
+  });
+  assert.equal(retried.status, "rolled_back");
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("retain and rollback reject tracked submodules before worktree status", async () => {
+  {
+    const fixture = await createRetainFixture({ embeddedSubmodule: true });
+    await writeFile(join(fixture.repoRoot, "vendor/sub/dirty.txt"), "dirty\n", "utf8");
+    await applyFakeAppServerChanges(fixture.repoRoot);
+    const retained = await verifyRetainedChange({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet,
+      permit: fixture.permit,
+      now: retainedAt
+    });
+    assert.equal(retained.status, "reconciliation_required");
+    if (retained.status !== "reconciliation_required") {
+      assert.fail("expected submodule retain reconciliation");
+    }
+    assert.ok(retained.reasons.includes("retain_submodules_unsupported"));
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+
+  {
+    const fixture = await createRetainFixture();
+    await applyFakeAppServerChanges(fixture.repoRoot);
+    const retained = await verifyRetainedChange({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet,
+      permit: fixture.permit,
+      now: retainedAt
+    });
+    if (retained.status !== "retained") {
+      assert.fail(retained.reasons.join(","));
+    }
+    await addEmbeddedGitlink(fixture.repoRoot);
+    await git(["add", "vendor/sub"], fixture.repoRoot);
+    let consumeCalls = 0;
+    const blocked = await runGovernedRollback({
+      cwd: fixture.repoRoot,
+      receipt: retained.receipt,
+      permit: issueRollbackPermit({
+        receipt: retained.receipt,
+        operatorId: "operator-jenn",
+        issuedAt: "2026-07-11T00:02:00.000Z",
+        expiresAt: "2026-07-11T00:05:00.000Z",
+        nonce: "rollback-submodule"
+      }),
+      consumptionStore: createTestOnlyRollbackPermitConsumptionStore(() => {
+        consumeCalls += 1;
+        return true;
+      }),
+      now: "2026-07-11T00:03:00.000Z"
+    });
+    assert.equal(blocked.status, "blocked");
+    if (blocked.status !== "blocked") {
+      assert.fail("expected submodule rollback block");
+    }
+    assert.ok(blocked.reasons.includes("rollback_submodules_unsupported"));
+    assert.equal(consumeCalls, 0);
+    assert.equal(
+      sha256(await readFile(join(fixture.repoRoot, "docs/guide.md"))),
+      retained.receipt.targetHashes.find((target) => (
+        target.path === "docs/guide.md"
+      ))?.afterHash
+    );
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("base checkout snapshot leaves split and sparse source Git metadata unchanged", async () => {
+  const fixture = await createRetainFixture();
+  await git(["config", "core.splitIndex", "true"], fixture.repoRoot);
+  await git(["update-index", "--split-index"], fixture.repoRoot);
+  await git(["config", "core.sparseCheckout", "true"], fixture.repoRoot);
+  await git(["config", "core.sparseCheckoutCone", "true"], fixture.repoRoot);
+  await writeFile(join(fixture.repoRoot, ".git/info/sparse-checkout"), "docs/\n", "utf8");
+  await git(["update-index", "--skip-worktree", "docs/guide.md"], fixture.repoRoot);
+  const gitDirectory = join(fixture.repoRoot, ".git");
+  const entriesBefore = (await readdir(gitDirectory)).sort();
+  const indexBefore = await readFile(join(gitDirectory, "index"));
+
+  const reasons = await revalidateBaseCheckoutBeforeAcceptance({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet
+  });
+  assert.deepEqual(reasons, []);
+  assert.deepEqual((await readdir(gitDirectory)).sort(), entriesBefore);
+  assert.deepEqual(await readFile(join(gitDirectory, "index")), indexBefore);
+  await assert.rejects(() => readFile(join(gitDirectory, "index.lock")), { code: "ENOENT" });
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("accept base checkout guard covers invalid, missing, and unsupported repository states", async () => {
+  {
+    const fixture = await createRetainFixture();
+    const withBaseHead = (baseHead: string): GovernedFileChangeSet => (
+      canonicalizeGovernedFileChangeSet({
+        changeSetId: fixture.changeSet.changeSetId,
+        threadId: fixture.changeSet.threadId,
+        turnId: fixture.changeSet.turnId,
+        itemId: fixture.changeSet.itemId,
+        baseHead,
+        proposedAt: fixture.changeSet.proposedAt,
+        sourceSchemaProfile: fixture.changeSet.sourceSchemaProfile,
+        changes: fixture.changeSet.changes.map((change) => ({
+          path: change.path,
+          kind: change.kind,
+          ...(change.oldPath === undefined ? {} : { oldPath: change.oldPath }),
+          unifiedDiff: change.unifiedDiff,
+          ...(change.beforeHash === undefined ? {} : { beforeHash: change.beforeHash }),
+          ...(change.afterHash === undefined ? {} : { afterHash: change.afterHash })
+        }))
+      })
+    );
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: {} as GovernedFileChangeSet
+    }), ["accept_base_change_set_invalid"]);
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: withBaseHead("head")
+    }), ["accept_base_head_object_id_invalid"]);
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: withBaseHead("0".repeat(40))
+    }), ["accept_base_worktree_snapshot_failed"]);
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: withBaseHead("0".repeat(64))
+    }), ["accept_base_worktree_snapshot_failed"]);
+
+    const createPresent = canonicalizeGovernedFileChangeSet({
+      changeSetId: "base-create-present",
+      threadId: "thread-1",
+      turnId: "turn-1",
+      itemId: "item-create-present",
+      baseHead: fixture.head,
+      proposedAt: issuedAt,
+      sourceSchemaProfile: "fake-v2",
+      changes: [{
+        path: "docs/guide.md",
+        kind: "create",
+        unifiedDiff: createDiff("docs/guide.md", "created"),
+        beforeHash: null,
+        afterHash: sha256(Buffer.from("created\n"))
+      }]
+    });
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: createPresent
+    }), ["accept_base_create_target_present:docs/guide.md"]);
+
+    const updateMissing = canonicalizeGovernedFileChangeSet({
+      changeSetId: "base-update-missing",
+      threadId: "thread-1",
+      turnId: "turn-1",
+      itemId: "item-update-missing",
+      baseHead: fixture.head,
+      proposedAt: issuedAt,
+      sourceSchemaProfile: "fake-v2",
+      changes: [{
+        path: "docs/missing.md",
+        kind: "update",
+        unifiedDiff: updateDiff("docs/missing.md", "old", "new"),
+        beforeHash: sha256(Buffer.from("old\n")),
+        afterHash: sha256(Buffer.from("new\n"))
+      }]
+    });
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: updateMissing
+    }), ["accept_base_update_target_missing:docs/missing.md"]);
+
+    const updateWithoutBeforeHash = canonicalizeGovernedFileChangeSet({
+      changeSetId: "base-update-without-hash",
+      threadId: "thread-1",
+      turnId: "turn-1",
+      itemId: "item-update-without-hash",
+      baseHead: fixture.head,
+      proposedAt: issuedAt,
+      sourceSchemaProfile: "fake-v2",
+      changes: [{
+        path: "docs/guide.md",
+        kind: "update",
+        unifiedDiff: updateDiff("docs/guide.md", "old", "new"),
+        afterHash: sha256(Buffer.from("new\n"))
+      }]
+    });
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: updateWithoutBeforeHash
+    }), ["accept_base_worktree_hash_mismatch:docs/guide.md"]);
+    const updateWithNullBeforeHash = canonicalizeGovernedFileChangeSet({
+      changeSetId: "base-update-null-hash",
+      threadId: "thread-1",
+      turnId: "turn-1",
+      itemId: "item-update-null-hash",
+      baseHead: fixture.head,
+      proposedAt: issuedAt,
+      sourceSchemaProfile: "fake-v2",
+      changes: [{
+        path: "docs/guide.md",
+        kind: "update",
+        unifiedDiff: updateDiff("docs/guide.md", "old", "new"),
+        beforeHash: null,
+        afterHash: sha256(Buffer.from("new\n"))
+      }]
+    });
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: updateWithNullBeforeHash
+    }), ["accept_base_worktree_hash_mismatch:docs/guide.md"]);
+
+    const createAbsent = canonicalizeGovernedFileChangeSet({
+      changeSetId: "base-create-absent",
+      threadId: "thread-1",
+      turnId: "turn-1",
+      itemId: "item-create-absent",
+      baseHead: fixture.head,
+      proposedAt: issuedAt,
+      sourceSchemaProfile: "fake-v2",
+      changes: [{
+        path: "docs/absent.md",
+        kind: "create",
+        unifiedDiff: createDiff("docs/absent.md", "created"),
+        beforeHash: null,
+        afterHash: sha256(Buffer.from("created\n"))
+      }]
+    });
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: createAbsent
+    }), []);
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+
+  {
+    const fixture = await createRetainFixture({
+      coreAutocrlf: "input",
+      initialWorktreeLineEnding: "crlf"
+    });
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet
+    }), ["accept_base_worktree_hash_mismatch:docs/guide.md"]);
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+
+  {
+    const fixture = await createRetainFixture({
+      gitattributes: "docs/guide.md filter=rollback-test\n"
+    });
+    await configureRollbackFilterCommand(fixture, "clean", "accept-base-filter");
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet
+    }), ["accept_source_filters_unsupported"]);
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+
+  {
+    const fixture = await createRetainFixture({ embeddedSubmodule: true });
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet
+    }), ["accept_source_submodules_unsupported"]);
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+
+  {
+    const fixture = await createRetainFixture();
+    await writeFile(join(fixture.repoRoot, ".gitmodules"), "[submodule \"x\"]\n", "utf8");
+    await git(["add", ".gitmodules"], fixture.repoRoot);
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet
+    }), ["accept_source_submodules_unsupported"]);
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+
+  {
+    const fixture = await createRetainFixture();
+    await git(["config", "core.repositoryformatversion", "1"], fixture.repoRoot);
+    await git(["config", "extensions.partialClone", "origin"], fixture.repoRoot);
+    await git(["config", "remote.origin.promisor", "true"], fixture.repoRoot);
+    assert.deepEqual(await revalidateBaseCheckoutBeforeAcceptance({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet
+    }), ["accept_source_partial_clone_unsupported"]);
+    await applyFakeAppServerChanges(fixture.repoRoot);
+    const retained = await verifyRetainedChange({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet,
+      permit: fixture.permit,
+      now: retainedAt
+    });
+    assert.equal(retained.status, "reconciliation_required");
+    if (retained.status !== "reconciliation_required") {
+      assert.fail("expected partial clone retain reconciliation");
+    }
+    assert.ok(retained.reasons.includes("retain_partial_clone_unsupported"));
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("rollback rejects partial-clone metadata before permit consumption", async () => {
+  const fixture = await createRetainFixture();
+  await applyFakeAppServerChanges(fixture.repoRoot);
+  const retained = await verifyRetainedChange({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet,
+    permit: fixture.permit,
+    now: retainedAt
+  });
+  if (retained.status !== "retained") {
+    assert.fail(retained.reasons.join(","));
+  }
+  await git(["config", "core.repositoryformatversion", "1"], fixture.repoRoot);
+  await git(["config", "extensions.partialClone", "origin"], fixture.repoRoot);
+  await git(["config", "remote.origin.promisor", "true"], fixture.repoRoot);
+  let consumeCalls = 0;
+  const result = await runGovernedRollback({
+    cwd: fixture.repoRoot,
+    receipt: retained.receipt,
+    permit: issueRollbackPermit({
+      receipt: retained.receipt,
+      operatorId: "operator-jenn",
+      issuedAt: "2026-07-11T00:02:00.000Z",
+      expiresAt: "2026-07-11T00:05:00.000Z",
+      nonce: "rollback-partial-clone"
+    }),
+    consumptionStore: createTestOnlyRollbackPermitConsumptionStore(() => {
+      consumeCalls += 1;
+      return true;
+    }),
+    now: "2026-07-11T00:03:00.000Z"
+  });
+  assert.equal(result.status, "blocked");
+  if (result.status !== "blocked") {
+    assert.fail("expected partial clone rollback block");
+  }
+  assert.ok(result.reasons.includes("rollback_partial_clone_unsupported"));
+  assert.equal(consumeCalls, 0);
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
 test("rollback rejects configured Git filters before permit consumption or command execution", async () => {
   for (const filterKind of ["clean", "smudge", "process"] as const) {
     const fixture = await createRetainFixture({
@@ -1104,7 +1660,7 @@ test("retain rejects index, hashes, permit bindings, time, and repository drift"
       targets: "retain_permit_targets_mismatch",
       expired: "retain_permit_expired_or_not_yet_valid",
       not_yet_valid: "retain_permit_expired_or_not_yet_valid",
-      invalid_repo: "retain_unknown_error"
+      invalid_repo: "retain_git_filter_inspection_failed"
     }[mode];
     assert.ok(result.reasons.includes(expected), `${mode}:${result.reasons.join(",")}`);
     await rm(fixture.tempRoot, { recursive: true, force: true });
@@ -1582,16 +2138,53 @@ test("Git rollback primitive rejects empty, duplicate, unsafe, and wrong-HEAD ta
       }]
     }
   }), /target_path_unsafe/);
+  for (const path of [
+    ":(glob)**",
+    "docs/[ab].md",
+    "docs/*.md",
+    "docs/con",
+    "docs/trailing.",
+    "docs/trailing ",
+    "docs/\ud800.md",
+    "docs/\udc00.md",
+    "docs/e\u0301.md",
+    "docs/.git/config",
+    "C:/outside.md"
+  ]) {
+    await assert.rejects(() => primitive.restore({
+      cwd: fixture.repoRoot,
+      receipt: {
+        ...receipt,
+        targetHashes: [{
+          ...receipt.targetHashes[0]!,
+          path
+        }]
+      }
+    }), /target_path_unsafe/);
+  }
+  await assert.rejects(() => primitive.restore({
+    cwd: fixture.repoRoot,
+    receipt: {
+      ...receipt,
+      targetHashes: [{
+        ...receipt.targetHashes[0]!,
+        path: "docs/😀.md"
+      }]
+    }
+  }), /rollback_restore_precondition_failed/);
   await assert.rejects(() => primitive.restore({
     cwd: fixture.repoRoot,
     receipt: { ...receipt, headCommit: "wrong-head" }
-  }), /rollback_restore_precondition_failed/);
+  }), /rollback_head_object_id_invalid/);
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
 async function createRetainFixture(options: {
   changeMode?: "mixed" | "create-only";
   gitattributes?: string;
+  coreAutocrlf?: "true" | "input";
+  embeddedSubmodule?: boolean;
+  initialWorktreeLineEnding?: "crlf";
 } = {}): Promise<{
   tempRoot: string;
   repoRoot: string;
@@ -1607,9 +2200,21 @@ async function createRetainFixture(options: {
   await git(["init"], repoRoot);
   await git(["config", "user.email", "retain@example.invalid"], repoRoot);
   await git(["config", "user.name", "Retain Fixture"], repoRoot);
-  await writeFile(join(repoRoot, "docs/guide.md"), "old\n", "utf8");
+  if (options.coreAutocrlf !== undefined) {
+    await git(["config", "core.autocrlf", options.coreAutocrlf], repoRoot);
+  }
+  await writeFile(
+    join(repoRoot, "docs/guide.md"),
+    options.coreAutocrlf === "true" || options.initialWorktreeLineEnding === "crlf"
+      ? "old\r\n"
+      : "old\n",
+    "utf8"
+  );
   if (options.gitattributes !== undefined) {
     await writeFile(join(repoRoot, ".gitattributes"), options.gitattributes, "utf8");
+  }
+  if (options.embeddedSubmodule === true) {
+    await addEmbeddedGitlink(repoRoot);
   }
   await git(["add", "."], repoRoot);
   await git(["commit", "-m", "initial"], repoRoot);
@@ -1739,6 +2344,17 @@ async function configureRollbackFilterCommand(
     .join(" ");
   await git(["config", `filter.rollback-test.${filterKind}`, command], fixture.repoRoot);
   return markerPath;
+}
+
+async function addEmbeddedGitlink(repoRoot: string): Promise<void> {
+  const submoduleRoot = join(repoRoot, "vendor/sub");
+  await mkdir(submoduleRoot, { recursive: true });
+  await git(["init"], submoduleRoot);
+  await git(["config", "user.email", "submodule@example.invalid"], submoduleRoot);
+  await git(["config", "user.name", "Submodule Fixture"], submoduleRoot);
+  await writeFile(join(submoduleRoot, "tracked.txt"), "tracked\n", "utf8");
+  await git(["add", "tracked.txt"], submoduleRoot);
+  await git(["commit", "-m", "submodule fixture"], submoduleRoot);
 }
 
 function quoteGitFilterCommandArgument(value: string): string {

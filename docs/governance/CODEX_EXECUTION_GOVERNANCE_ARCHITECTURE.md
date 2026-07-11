@@ -74,8 +74,18 @@ canonicalizes it, and binds the later approval request to that hash. Event IDs
 and per-turn sequences are single-use and contiguous. Schema drift, missing or
 late correlation, replay, gaps, unknown completion, or disconnect fails closed.
 Inbound events and operator decisions share one adapter-local serial queue. An
-accept response rechecks request, turn, session state, source-target topology,
-and every declared update `beforeHash` immediately before transport dispatch.
+accept response rechecks request, turn, session state, HEAD, branch, clean
+worktree state, source-target topology, and every declared update `beforeHash`
+immediately before transport dispatch. It also rematerializes base checkout
+bytes in an alternate index/worktree and requires every `beforeHash` to be
+restorable under the effective Git configuration. Git status inspection
+disables fsmonitor and submodule traversal; configured effective filters and
+tracked submodules block before status runs. Partial/promisor clones block
+before object reads, and read-only Git commands disable optional index locks
+and lazy fetch.
+Any duplicate file approval or completion without a stored proposal marks the
+whole turn `reconciliation_required`; later higher-sequence events cannot
+resume that turn.
 An existing final target must be a regular single-link file; a topology failure
 returns before reading target content. Source-target drift first transitions the
 pending journal to `blocked`, then sends only a decline response.
@@ -181,12 +191,25 @@ reason and retry on the next serialized operation. The adapter never publishes
 an in-memory retain state before its matching journal transition commits.
 
 After App Server reports `applied`, retain verification requires the same HEAD
-and repository identity, exact changed-target set, clean index, matching before
-and after byte hashes, safe topology, and no outside modification. Success
-creates a `RetainReceipt`; partial or uncertain state requires reconciliation.
+and repository identity, exact changed-target set, clean index, safe topology,
+matching after bytes, and no outside modification. The receipt's `beforeHash`
+is the pre-accept worktree-byte snapshot already bound by the canonical change
+hash and retain permit; it is not reinterpreted as a normalized Git blob hash.
+Retain recreates the exact base checkout bytes in a disposable alternate Git
+index/worktree and requires the declared hash to match. Configured external
+filters are rejected before status or checkout, so only deterministic built-in
+conversions such as `.gitattributes` EOL handling and `core.autocrlf`
+participate. The alternate index disables split-index and sparse-checkout
+inheritance and uses no-lazy-fetch object reads. Tracked submodules,
+partial/promisor clones, non-literal governed paths, and non-object-ID HEAD
+inputs also fail closed before Git worktree operations. Success creates a
+`RetainReceipt`; partial or uncertain state requires reconciliation.
 
 Rollback is a new operator action, not an implication of retain. A
 `RollbackPermit` is receipt-bound, expiring, nonce-hashed, and consumed before restore.
+Before permit consumption, rollback rematerializes base checkout bytes under
+the current Git configuration and rejects checkout-configuration drift; this
+prevents a restore from producing bytes different from the receipt.
 Rollback proceeds only while HEAD, repository identity, exact targets, index,
 and every after-hash still match the receipt. Target or outside drift blocks it
 to preserve later human work. Restore failure or ambiguous post-state requires

@@ -33,6 +33,7 @@ import {
 import {
   createPendingApprovalJournalEntry,
   issueRetainPermit,
+  revalidateBaseCheckoutBeforeAcceptance,
   verifyRetainedChange,
   type PendingApprovalJournalEntry,
   type PendingApprovalJournalStore
@@ -220,6 +221,7 @@ type ItemRecord = {
   retainReceipt?: RetainReceipt;
   journalId?: string;
   repoRoot?: string;
+  expectedBranch?: string;
 };
 
 type ApprovalRecord = {
@@ -635,6 +637,11 @@ export class CodexAppServerAdapter {
       || this.turn(event.threadId, event.turnId).blocked
       || this.turn(event.threadId, event.turnId).completedItems.has(event.itemId)
     ) {
+      await this.markTurnForReconciliation(
+        event.threadId,
+        event.turnId,
+        "file_approval_correlation_failed"
+      );
       return this.declineInvalidRequest(event, approval, "file_approval_correlation_failed");
     }
     item.approvalRequestId = event.requestId;
@@ -707,6 +714,9 @@ export class CodexAppServerAdapter {
       });
     }
     item.repoRoot = context.repoRoot;
+    if (context.repository.branch !== undefined) {
+      item.expectedBranch = context.repository.branch;
+    }
     const facts = deriveCapabilityFactsFromChangeSet(item.changeSet, {
       repository: context.repository,
       ...(context.networkAccess === undefined ? {} : { networkAccess: context.networkAccess }),
@@ -888,6 +898,11 @@ export class CodexAppServerAdapter {
     turn.completedItems.add(event.itemId);
     const item = this.items.get(itemKey(event.threadId, event.turnId, event.itemId));
     if (item === undefined) {
+      await this.markTurnForReconciliation(
+        event.threadId,
+        event.turnId,
+        "item_completion_without_proposal"
+      );
       return this.outcome("reconciliation_required", ["item_completion_without_proposal"], {
         itemId: event.itemId
       });
@@ -1058,12 +1073,27 @@ export class CodexAppServerAdapter {
         lifecycleState: input.item.state
       });
     }
-    const acceptPreflightReasons = input.item.repoRoot === undefined
+    let acceptPreflightReasons = (
+      input.item.repoRoot === undefined || input.item.expectedBranch === undefined
+    )
       ? ["accept_source_context_missing"]
-      : await revalidateSourceTargetsBeforeAcceptance({
-        repoRoot: input.item.repoRoot,
+      : await revalidateBaseCheckoutBeforeAcceptance({
+        cwd: input.item.repoRoot,
         changeSet: input.item.changeSet
       });
+    if (
+      acceptPreflightReasons.length === 0
+      && input.item.repoRoot !== undefined
+      && input.item.expectedBranch !== undefined
+    ) {
+      // Keep the source topology/hash/repository check last so it is adjacent
+      // to the transport decision after the disposable base reconstruction.
+      acceptPreflightReasons = await revalidateSourceTargetsBeforeAcceptance({
+        repoRoot: input.item.repoRoot,
+        changeSet: input.item.changeSet,
+        expectedBranch: input.item.expectedBranch
+      });
+    }
     if (acceptPreflightReasons.length > 0) {
       const reasons = uniqueStrings([
         "accept_source_target_preflight_failed",
@@ -1159,7 +1189,7 @@ export class CodexAppServerAdapter {
   ): Promise<CodexAdapterOutcome> {
     const delivery = await this.sendDecision(approval, "decline", reason);
     const sent = delivery === "sent";
-    return this.outcome(sent ? "blocked" : "reconciliation_required", [
+    return this.outcome("reconciliation_required", [
       reason,
       ...(sent ? [] : ["approval_response_send_failed"])
     ], {
@@ -1317,9 +1347,6 @@ export class CodexAppServerAdapter {
   }
 
   private async markItemReconciliation(item: ItemRecord, ...reasons: string[]): Promise<void> {
-    if (item.state === "post_checked" || item.state === "blocked") {
-      return;
-    }
     if (item.state !== "reconciliation_required") {
       transitionItem(item, "reconciliation_required");
     }
@@ -1488,8 +1515,8 @@ function transitionItem(item: ItemRecord, next: FileChangeLifecycleState): void 
     auto_approved: ["accepted_by_app_server", "blocked", "reconciliation_required"],
     accepted_by_app_server: ["retained", "blocked", "reconciliation_required", "rollback_available"],
     retained: ["post_checked", "reconciliation_required", "rollback_available"],
-    post_checked: ["rollback_available"],
-    blocked: [],
+    post_checked: ["rollback_available", "reconciliation_required"],
+    blocked: ["reconciliation_required"],
     reconciliation_required: [],
     rollback_available: ["reconciliation_required"]
   };

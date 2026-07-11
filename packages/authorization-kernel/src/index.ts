@@ -132,7 +132,7 @@ const SENSITIVE_PATH_COMPONENTS = new Set([
 ]);
 
 const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
-const UNSAFE_GOVERNED_PATH_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*]/;
+const UNSAFE_GOVERNED_PATH_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*\[\]]/;
 
 const CREDENTIAL_LIKE_COMPACT_FRAGMENTS = [
   "apikey",

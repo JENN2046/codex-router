@@ -48,7 +48,7 @@ const PROTECTED_BRANCHES = new Set([
 ]);
 
 const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
-const UNSAFE_GOVERNED_PATH_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*]/;
+const UNSAFE_GOVERNED_PATH_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*\[\]]/;
 
 export interface GovernedFileChangeDraft {
   path: string;
@@ -162,6 +162,7 @@ export function getTrustedPreviewerAttestation(
 export async function revalidateSourceTargetsBeforeAcceptance(input: {
   repoRoot: string;
   changeSet: GovernedFileChangeSet;
+  expectedBranch: string;
 }): Promise<string[]> {
   const parsed = GovernedFileChangeSetSchema.safeParse(input.changeSet);
   if (!parsed.success) {
@@ -177,8 +178,24 @@ export async function revalidateSourceTargetsBeforeAcceptance(input: {
     if (topologyReasons.length > 0) {
       return topologyReasons.map(toAcceptancePreflightReason);
     }
-    return (await verifyBeforeHashes(input.repoRoot, changeSet))
-      .map(toAcceptancePreflightReason);
+    const runner = new SpawnPreviewProcessRunner();
+    if (await hasEffectiveConfiguredGitFilterCommands(input.repoRoot, runner)) {
+      return ["accept_source_filters_unsupported"];
+    }
+    const source = await inspectSourceRepository(input.repoRoot, runner, tmpdir());
+    const sourceReasons = uniqueStrings([
+      ...(source.headCommit === changeSet.baseHead ? [] : ["accept_source_head_mismatch"]),
+      ...(source.status === "" ? [] : ["accept_source_worktree_not_clean"]),
+      ...(source.branch === input.expectedBranch ? [] : ["accept_source_branch_mismatch"]),
+      ...(source.hasLocalFilters ? ["accept_source_filters_unsupported"] : []),
+      ...(source.hasSubmodules ? ["accept_source_submodules_unsupported"] : []),
+      ...(source.hasPartialClone ? ["accept_source_partial_clone_unsupported"] : [])
+    ]);
+    return uniqueStrings([
+      ...sourceReasons,
+      ...(await verifyBeforeHashes(input.repoRoot, changeSet))
+        .map(toAcceptancePreflightReason)
+    ]);
   } catch {
     return ["accept_source_target_preflight_failed"];
   }
@@ -768,6 +785,7 @@ type SourceRepositoryState = {
   shallow: boolean;
   hasSubmodules: boolean;
   hasLocalFilters: boolean;
+  hasPartialClone: boolean;
   hasCustomHooksPath: boolean;
 };
 
@@ -779,30 +797,68 @@ async function inspectSourceRepository(
   const env = createSanitizedEnv(tempRoot);
   const branch = (await runGit(runner, repoRoot, ["branch", "--show-current"], env)).stdout.trim();
   const headCommit = (await runGit(runner, repoRoot, ["rev-parse", "HEAD"], env)).stdout.trim();
-  const status = (await runGit(
-    runner,
-    repoRoot,
-    ["status", "--porcelain=v1", "-z"],
-    env
-  )).stdout;
-  const shallow = (await runGit(
-    runner,
-    repoRoot,
-    ["rev-parse", "--is-shallow-repository"],
-    env
-  )).stdout.trim() !== "false";
-  const submodules = await runGitAllowFailure(
-    runner,
-    repoRoot,
-    ["ls-files", "--error-unmatch", ".gitmodules"],
-    env
-  );
   const filters = await runGitAllowFailure(
     runner,
     repoRoot,
     ["config", "--local", "--get-regexp", "^filter\\."],
     env
   );
+  let hasLocalFilters: boolean;
+  if (filters.status === "passed") {
+    hasLocalFilters = filters.stdout.trim() !== "";
+  } else if (filters.status === "failed" && filters.exitCode === 1) {
+    hasLocalFilters = false;
+  } else {
+    throw new Error("preview_filter_inspection_failed");
+  }
+  const partialClone = await runGitAllowFailure(
+    runner,
+    repoRoot,
+    [
+      "config",
+      "--local",
+      "--get-regexp",
+      "^(extensions\\.partialclone|remote\\..*\\.promisor)$"
+    ],
+    env
+  );
+  let hasPartialClone: boolean;
+  if (partialClone.status === "passed") {
+    hasPartialClone = partialClone.stdout.trim() !== "";
+  } else if (partialClone.status === "failed" && partialClone.exitCode === 1) {
+    hasPartialClone = false;
+  } else {
+    throw new Error("preview_partial_clone_inspection_failed");
+  }
+  // `git status` can invoke configured clean/process filters. Reject that
+  // repository shape without asking Git to inspect worktree contents.
+  const status = hasLocalFilters || hasPartialClone
+    ? ""
+    : (await runGit(
+      runner,
+      repoRoot,
+      [
+        "-c",
+        "core.fsmonitor=false",
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--ignore-submodules=all"
+      ],
+      env
+    )).stdout;
+  const shallow = (await runGit(
+    runner,
+    repoRoot,
+    ["rev-parse", "--is-shallow-repository"],
+    env
+  )).stdout.trim() !== "false";
+  const trackedEntries = (await runGit(
+    runner,
+    repoRoot,
+    ["ls-files", "--stage", "-z"],
+    env
+  )).stdout.split("\0").filter((entry) => entry !== "");
   const hooks = await runGitAllowFailure(
     runner,
     repoRoot,
@@ -815,10 +871,43 @@ async function inspectSourceRepository(
     headCommit,
     status,
     shallow,
-    hasSubmodules: submodules.status === "passed",
-    hasLocalFilters: filters.status === "passed" && filters.stdout.trim() !== "",
+    hasSubmodules: trackedEntries.some((entry) => (
+      entry.startsWith("160000 ") || entry.endsWith("\t.gitmodules")
+    )),
+    hasLocalFilters,
+    hasPartialClone,
     hasCustomHooksPath: hooks.status === "passed" && hooks.stdout.trim() !== ""
   };
+}
+
+async function hasEffectiveConfiguredGitFilterCommands(
+  repoRoot: string,
+  runner: PreviewProcessRunner
+): Promise<boolean> {
+  const result = await runGitAllowFailure(
+    runner,
+    repoRoot,
+    [
+      "config",
+      "--null",
+      "--name-only",
+      "--get-regexp",
+      "^filter\\..*\\.(clean|smudge|process)$"
+    ],
+    {
+      ...process.env,
+      GIT_NO_LAZY_FETCH: "1",
+      GIT_OPTIONAL_LOCKS: "0",
+      GIT_TERMINAL_PROMPT: "0"
+    }
+  );
+  if (result.status === "passed") {
+    return result.stdout.length > 0;
+  }
+  if (result.status === "failed" && result.exitCode === 1) {
+    return false;
+  }
+  throw new Error("accept_filter_inspection_failed");
 }
 
 function validateSourceState(
@@ -834,6 +923,7 @@ function validateSourceState(
     ...(state.shallow ? ["preview_source_shallow_repository"] : []),
     ...(state.hasSubmodules ? ["preview_source_submodules_unsupported"] : []),
     ...(state.hasLocalFilters ? ["preview_source_filters_unsupported"] : []),
+    ...(state.hasPartialClone ? ["preview_source_partial_clone_unsupported"] : []),
     ...(state.hasCustomHooksPath ? ["preview_source_hooks_path_unsupported"] : [])
   ]);
 }
@@ -1313,6 +1403,8 @@ function createSanitizedEnv(tempRoot: string): NodeJS.ProcessEnv {
     CI: "true",
     GIT_CONFIG_NOSYSTEM: "1",
     GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_OPTIONAL_LOCKS: "0",
     GIT_TERMINAL_PROMPT: "0",
     HOME: tempRoot,
     TMPDIR: tempRoot,

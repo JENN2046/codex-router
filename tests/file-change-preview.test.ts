@@ -44,6 +44,8 @@ const CROSS_PLATFORM_UNSAFE_PATH_CHARACTERS = [
   "|",
   "?",
   "*",
+  "[",
+  "]",
   "\ud800",
   "\udc00"
 ];

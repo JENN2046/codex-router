@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import {
   lstat,
   mkdir,
+  mkdtemp,
   open,
   readFile,
   readdir,
@@ -10,6 +11,7 @@ import {
   rename,
   rm
 } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import {
   dirname,
   isAbsolute,
@@ -40,6 +42,9 @@ import {
 
 const execFileAsync = promisify(execFile);
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
+const GitObjectIdSchema = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/);
+const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+const UNSAFE_TARGET_PATH_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*\[\]]/;
 
 export const PendingApprovalJournalStateSchema = z.enum([
   "pending_accept",
@@ -454,6 +459,67 @@ export type RetainVerificationResult =
   | { status: "retained"; receipt: RetainReceipt; reasons: [] }
   | { status: "reconciliation_required"; reasons: string[] };
 
+/** Internal accept-adjacent guard; intentionally absent from public facades. */
+export async function revalidateBaseCheckoutBeforeAcceptance(input: {
+  cwd: string;
+  changeSet: GovernedFileChangeSet;
+}): Promise<string[]> {
+  const parsed = GovernedFileChangeSetSchema.safeParse(input.changeSet);
+  if (!parsed.success) {
+    return ["accept_base_change_set_invalid"];
+  }
+  const changeSet = parsed.data;
+  if (!GitObjectIdSchema.safeParse(changeSet.baseHead).success) {
+    return ["accept_base_head_object_id_invalid"];
+  }
+  try {
+    const filterReasons = await collectConfiguredGitFilterReasons(input.cwd, "retain");
+    if (filterReasons.length > 0) {
+      return ["accept_source_filters_unsupported"];
+    }
+    const submoduleReasons = await collectTrackedSubmoduleReasons(input.cwd, "retain");
+    if (submoduleReasons.length > 0) {
+      return ["accept_source_submodules_unsupported"];
+    }
+    const partialCloneReasons = await collectPartialCloneReasons(input.cwd, "retain");
+    if (partialCloneReasons.length > 0) {
+      return ["accept_source_partial_clone_unsupported"];
+    }
+    const baseReasons: string[] = [];
+    for (const change of changeSet.changes) {
+      const basePathExists = await commitPathExists(
+        input.cwd,
+        changeSet.baseHead,
+        change.path
+      );
+      if (change.kind === "create" && basePathExists) {
+        baseReasons.push(`accept_base_create_target_present:${change.path}`);
+      }
+      if (change.kind === "update" && !basePathExists) {
+        baseReasons.push(`accept_base_update_target_missing:${change.path}`);
+      }
+    }
+    if (baseReasons.length > 0) {
+      return uniqueStrings(baseReasons);
+    }
+    const updates = changeSet.changes.filter((change) => change.kind === "update");
+    const restorableHashes = await readCommitWorktreeHashes(
+      input.cwd,
+      changeSet.baseHead,
+      updates.map((change) => change.path)
+    );
+    return uniqueStrings(updates.flatMap((change) => (
+      change.beforeHash !== undefined
+      && change.beforeHash !== null
+      && restorableHashes.get(change.path) === change.beforeHash
+        ? []
+        : [`accept_base_worktree_hash_mismatch:${change.path}`]
+    )));
+  } catch {
+    return ["accept_base_worktree_snapshot_failed"];
+  }
+}
+
 export async function verifyRetainedChange(input: {
   cwd: string;
   changeSet: GovernedFileChangeSet;
@@ -465,7 +531,23 @@ export async function verifyRetainedChange(input: {
     const changeSet = GovernedFileChangeSetSchema.parse(input.changeSet);
     const permit = RetainPermitSchema.parse(input.permit);
     reasons.push(...validateRetainPermit(changeSet, permit, input.now));
-    const repository = await inspectRepository(input.cwd);
+    if (!GitObjectIdSchema.safeParse(permit.headCommit).success) {
+      reasons.push("retain_head_object_id_invalid");
+      return { status: "reconciliation_required", reasons: uniqueStrings(reasons) };
+    }
+    const repositoryBoundaryReasons = [
+      ...await collectConfiguredGitFilterReasons(input.cwd, "retain"),
+      ...await collectTrackedSubmoduleReasons(input.cwd, "retain"),
+      ...await collectPartialCloneReasons(input.cwd, "retain")
+    ];
+    reasons.push(...repositoryBoundaryReasons);
+    if (repositoryBoundaryReasons.length > 0) {
+      return {
+        status: "reconciliation_required",
+        reasons: uniqueStrings(reasons)
+      };
+    }
+    const repository = await inspectRepository(input.cwd, "retain");
     if (repository.headCommit !== permit.headCommit) {
       reasons.push("retain_head_mismatch");
     }
@@ -483,18 +565,44 @@ export async function verifyRetainedChange(input: {
         reasons: uniqueStrings(reasons)
       };
     }
+    const basePathPresence = new Map<string, boolean>();
+    for (const change of changeSet.changes) {
+      basePathPresence.set(
+        change.path,
+        await commitPathExists(input.cwd, permit.headCommit, change.path)
+      );
+    }
+    const baseWorktreeHashes = await readCommitWorktreeHashes(
+      input.cwd,
+      permit.headCommit,
+      changeSet.changes
+        .filter((change) => (
+          change.kind === "update" && basePathPresence.get(change.path) === true
+        ))
+        .map((change) => change.path)
+    );
     const targetHashes: RetainReceipt["targetHashes"] = [];
     for (const change of changeSet.changes) {
-      const before = await readCommitPathHash(input.cwd, permit.headCommit, change.path);
+      const basePathExists = basePathPresence.get(change.path) === true;
+      // Governed beforeHash values describe the bytes observed in the worktree
+      // immediately before acceptance. Checkout conversions can legitimately
+      // make those bytes differ from the normalized Git blob.
+      const before = change.kind === "create" ? null : change.beforeHash ?? null;
       const after = await readWorkspacePathHash(input.cwd, change.path);
-      if (change.kind === "create" && before !== null) {
+      if (change.kind === "create" && basePathExists) {
         reasons.push(`retain_create_before_present:${change.path}`);
       }
       if (change.kind === "update") {
-        if (before === null) {
+        if (!basePathExists) {
           reasons.push(`retain_update_before_missing:${change.path}`);
         }
-        if (change.beforeHash === undefined || change.beforeHash !== before) {
+        const expectedBeforeHash = baseWorktreeHashes.get(change.path);
+        if (
+          change.beforeHash === undefined
+          || change.beforeHash === null
+          || expectedBeforeHash === undefined
+          || change.beforeHash !== expectedBeforeHash
+        ) {
           reasons.push(`retain_before_hash_mismatch:${change.path}`);
         }
       }
@@ -707,6 +815,7 @@ export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestor
     receipt: RetainReceipt;
   }): Promise<void> {
     const receipt = RetainReceiptSchema.parse(input.receipt);
+    assertGitObjectId(receipt.headCommit, "rollback_head_object_id_invalid");
     const updatePaths = receipt.targetHashes
       .filter((target) => target.beforeHash !== null)
       .map((target) => target.path);
@@ -726,11 +835,12 @@ export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestor
     }
     if (updatePaths.length > 0) {
       await rollbackRestoreTestHooks.get(this)?.beforeFinalFilterCheck();
-      const filterReasons = await collectRollbackGitFilterReasons(input.cwd);
+      const filterReasons = await collectConfiguredGitFilterReasons(input.cwd, "rollback");
       if (filterReasons.length > 0) {
         throw new Error(`rollback_restore_precondition_failed:${filterReasons.join(",")}`);
       }
       await gitText(input.cwd, [
+        "--literal-pathspecs",
         "restore",
         "--worktree",
         `--source=${receipt.headCommit}`,
@@ -861,6 +971,10 @@ async function validateRollbackPreflight(
   now: string
 ): Promise<string[]> {
   const reasons: string[] = [];
+  if (!GitObjectIdSchema.safeParse(receipt.headCommit).success) {
+    reasons.push("rollback_head_object_id_invalid");
+    return reasons;
+  }
   if (permit.receiptId !== receipt.receiptId || permit.receiptHash !== hashKernelObject(receipt)) {
     reasons.push("rollback_receipt_binding_mismatch");
   }
@@ -884,13 +998,17 @@ async function validateRollbackWorkspaceState(
 ): Promise<string[]> {
   const reasons: string[] = [];
   const targetFiles = receipt.targetHashes.map((target) => target.path).sort(compareCodeUnits);
-  const filterReasons = await collectRollbackGitFilterReasons(cwd);
-  reasons.push(...filterReasons);
-  if (filterReasons.length > 0) {
+  const repositoryBoundaryReasons = [
+    ...await collectConfiguredGitFilterReasons(cwd, "rollback"),
+    ...await collectTrackedSubmoduleReasons(cwd, "rollback"),
+    ...await collectPartialCloneReasons(cwd, "rollback")
+  ];
+  reasons.push(...repositoryBoundaryReasons);
+  if (repositoryBoundaryReasons.length > 0) {
     return uniqueStrings(reasons);
   }
   try {
-    const repository = await inspectRepository(cwd);
+    const repository = await inspectRepository(cwd, "rollback");
     if (repository.headCommit !== receipt.headCommit) {
       reasons.push("rollback_head_drift");
     }
@@ -908,6 +1026,26 @@ async function validateRollbackWorkspaceState(
     if (topologyReasons.length > 0) {
       return uniqueStrings(reasons);
     }
+    const updateTargets = receipt.targetHashes.filter((target) => target.beforeHash !== null);
+    let restorableBeforeHashes: Map<string, string>;
+    try {
+      restorableBeforeHashes = await readCommitWorktreeHashes(
+        cwd,
+        receipt.headCommit,
+        updateTargets.map((target) => target.path)
+      );
+    } catch {
+      reasons.push("rollback_base_worktree_snapshot_failed");
+      return uniqueStrings(reasons);
+    }
+    for (const target of updateTargets) {
+      if (restorableBeforeHashes.get(target.path) !== target.beforeHash) {
+        reasons.push(`rollback_checkout_configuration_drift:${target.path}`);
+      }
+    }
+    if (reasons.length > 0) {
+      return uniqueStrings(reasons);
+    }
     for (const target of receipt.targetHashes) {
       const current = await readWorkspacePathHash(cwd, target.path);
       if (current !== target.afterHash) {
@@ -920,7 +1058,10 @@ async function validateRollbackWorkspaceState(
   return uniqueStrings(reasons);
 }
 
-async function collectRollbackGitFilterReasons(cwd: string): Promise<string[]> {
+async function collectConfiguredGitFilterReasons(
+  cwd: string,
+  operation: "retain" | "rollback"
+): Promise<string[]> {
   try {
     const configuredFilterKeys = await gitBuffer(cwd, [
       "config",
@@ -931,11 +1072,52 @@ async function collectRollbackGitFilterReasons(cwd: string): Promise<string[]> {
     ]);
     return configuredFilterKeys.length === 0
       ? []
-      : ["rollback_git_filters_unsupported"];
+      : [`${operation}_git_filters_unsupported`];
   } catch (error) {
     return isProcessExitCode(error, 1)
       ? []
-      : ["rollback_git_filter_inspection_failed"];
+      : [`${operation}_git_filter_inspection_failed`];
+  }
+}
+
+async function collectTrackedSubmoduleReasons(
+  cwd: string,
+  operation: "retain" | "rollback"
+): Promise<string[]> {
+  try {
+    const entries = (await gitBuffer(cwd, ["ls-files", "--stage", "-z"]))
+      .toString("utf8")
+      .split("\0")
+      .filter((entry) => entry !== "");
+    return entries.some((entry) => (
+      entry.startsWith("160000 ") || entry.endsWith("\t.gitmodules")
+    ))
+      ? [`${operation}_submodules_unsupported`]
+      : [];
+  } catch {
+    return [`${operation}_submodule_inspection_failed`];
+  }
+}
+
+async function collectPartialCloneReasons(
+  cwd: string,
+  operation: "retain" | "rollback"
+): Promise<string[]> {
+  try {
+    const configuredKeys = await gitBuffer(cwd, [
+      "config",
+      "--null",
+      "--name-only",
+      "--get-regexp",
+      "^(extensions\\.partialclone|remote\\..*\\.promisor)$"
+    ]);
+    return configuredKeys.length === 0
+      ? []
+      : [`${operation}_partial_clone_unsupported`];
+  } catch (error) {
+    return isProcessExitCode(error, 1)
+      ? []
+      : [`${operation}_partial_clone_inspection_failed`];
   }
 }
 
@@ -972,7 +1154,7 @@ async function acquireRollbackLock(cwd: string): Promise<{
 async function verifyRollbackPostState(cwd: string, receipt: RetainReceipt): Promise<string[]> {
   const reasons: string[] = [];
   try {
-    const repository = await inspectRepository(cwd);
+    const repository = await inspectRepository(cwd, "rollback");
     if (repository.headCommit !== receipt.headCommit) {
       reasons.push("rollback_post_head_mismatch");
     }
@@ -1017,7 +1199,10 @@ type RepositoryInspection = {
   indexChanged: boolean;
 };
 
-async function inspectRepository(cwdInput: string): Promise<RepositoryInspection> {
+async function inspectRepository(
+  cwdInput: string,
+  filterOperation: "retain" | "rollback"
+): Promise<RepositoryInspection> {
   const cwd = resolve(cwdInput);
   const topLevel = resolve((await gitText(cwd, ["rev-parse", "--show-toplevel"])).trim());
   const topLevelReal = await realpath(topLevel);
@@ -1030,7 +1215,27 @@ async function inspectRepository(cwdInput: string): Promise<RepositoryInspection
     ? commonDirRaw
     : resolve(cwd, commonDirRaw));
   const headCommit = (await gitText(cwd, ["rev-parse", "HEAD"])).trim();
-  const status = await gitText(cwd, ["status", "--porcelain=v2", "-z", "--untracked-files=all"]);
+  const filterReasons = await collectConfiguredGitFilterReasons(cwd, filterOperation);
+  if (filterReasons.length > 0) {
+    throw new Error(filterReasons[0]);
+  }
+  const submoduleReasons = await collectTrackedSubmoduleReasons(cwd, filterOperation);
+  if (submoduleReasons.length > 0) {
+    throw new Error(submoduleReasons[0]);
+  }
+  const partialCloneReasons = await collectPartialCloneReasons(cwd, filterOperation);
+  if (partialCloneReasons.length > 0) {
+    throw new Error(partialCloneReasons[0]);
+  }
+  const status = await gitText(cwd, [
+    "-c",
+    "core.fsmonitor=false",
+    "status",
+    "--porcelain=v2",
+    "-z",
+    "--untracked-files=all",
+    "--ignore-submodules=all"
+  ]);
   const parsed = parsePorcelainV2(status);
   return {
     headCommit,
@@ -1083,17 +1288,98 @@ function parsePorcelainV2(output: string): { paths: string[]; indexChanged: bool
   return { paths: uniqueStrings(paths), indexChanged };
 }
 
-async function readCommitPathHash(
+async function commitPathExists(
   cwd: string,
   commit: string,
   path: string
-): Promise<string | null> {
-  const listed = await gitBuffer(cwd, ["ls-tree", "-z", "--name-only", commit, "--", path]);
+): Promise<boolean> {
+  assertGitObjectId(commit, "retain_head_object_id_invalid");
+  assertSafeRelativePath(path);
+  const listed = await gitBuffer(cwd, [
+    "--literal-pathspecs",
+    "ls-tree",
+    "-z",
+    "--name-only",
+    commit,
+    "--",
+    path
+  ]);
   const names = listed.toString("utf8").split("\0").filter((name) => name !== "");
-  if (!names.includes(path)) {
-    return null;
+  return names.includes(path);
+}
+
+async function readCommitWorktreeHashes(
+  cwd: string,
+  commit: string,
+  paths: string[]
+): Promise<Map<string, string>> {
+  assertGitObjectId(commit, "retain_head_object_id_invalid");
+  for (const path of paths) {
+    assertSafeRelativePath(path);
   }
-  return sha256(await gitBuffer(cwd, ["show", `${commit}:${path}`]));
+  const hashes = new Map<string, string>();
+  if (paths.length === 0) {
+    return hashes;
+  }
+  const tempRoot = await mkdtemp(join(tmpdir(), "codex-router-retain-base-"));
+  const worktreeRoot = join(tempRoot, "worktree");
+  const environment: NodeJS.ProcessEnv = {
+    ...process.env,
+    GIT_INDEX_FILE: join(tempRoot, "index"),
+    GIT_WORK_TREE: worktreeRoot,
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_TERMINAL_PROMPT: "0"
+  };
+  try {
+    await mkdir(worktreeRoot, { recursive: true });
+    await gitBufferWithEnv(cwd, [
+      "-c",
+      "core.splitIndex=false",
+      "-c",
+      "core.sparseCheckout=false",
+      "-c",
+      "core.sparseCheckoutCone=false",
+      "read-tree",
+      "--no-sparse-checkout",
+      commit
+    ], environment);
+    const filterReasons = await collectConfiguredGitFilterReasons(cwd, "retain");
+    if (filterReasons.length > 0) {
+      throw new Error(filterReasons[0]);
+    }
+    // checkout-index uses an alternate index/worktree, so Git performs the
+    // exact built-in checkout conversions without touching the source index or
+    // worktree. Configured external filters were rejected immediately above.
+    await gitBufferWithEnv(cwd, [
+      "-c",
+      "core.splitIndex=false",
+      "-c",
+      "core.sparseCheckout=false",
+      "-c",
+      "core.sparseCheckoutCone=false",
+      "--literal-pathspecs",
+      "checkout-index",
+      "--force",
+      "--",
+      ...paths
+    ], environment);
+    for (const path of paths) {
+      const target = join(worktreeRoot, ...path.split("/"));
+      const stat = await lstat(target);
+      if (!stat.isFile() || stat.nlink !== 1) {
+        throw new Error("retain_base_worktree_topology_unsupported");
+      }
+      hashes.set(path, sha256(await readFile(target)));
+    }
+    return hashes;
+  } catch {
+    throw new Error("retain_base_worktree_snapshot_failed");
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true }).catch(() => {
+      throw new Error("retain_base_worktree_cleanup_failed");
+    });
+  }
 }
 
 async function readWorkspacePathHash(cwd: string, path: string): Promise<string | null> {
@@ -1232,11 +1518,18 @@ function assertSafeRelativePath(path: string): void {
   }
 }
 
+function assertGitObjectId(input: string, errorClass: string): void {
+  if (!GitObjectIdSchema.safeParse(input).success) {
+    throw new Error(errorClass);
+  }
+}
+
 function normalizeAndAssertPath(input: string): string {
   const slashPath = input.replace(/\\/g, "/");
   const normalized = pathPosix.normalize(slashPath);
   if (
     input.normalize("NFC") !== input
+    || hasUnpairedUtf16Surrogate(input)
     || input === ""
     || normalized === "."
     || normalized === ".."
@@ -1248,6 +1541,9 @@ function normalizeAndAssertPath(input: string): string {
     || input.includes("\0")
     || input.includes("\n")
     || input.includes("\r")
+    || normalized.split("/").some((part) => UNSAFE_TARGET_PATH_CHARACTERS.test(part))
+    || normalized.split("/").some((part) => part.endsWith(".") || part.endsWith(" "))
+    || normalized.split("/").some((part) => WINDOWS_RESERVED_NAMES.test(part))
     || normalized.split("/").some((part) => part.toLocaleLowerCase("en-US") === ".git")
   ) {
     throw new Error("target_path_unsafe");
@@ -1255,10 +1551,27 @@ function normalizeAndAssertPath(input: string): string {
   return normalized;
 }
 
+function hasUnpairedUtf16Surrogate(input: string): boolean {
+  for (let index = 0; index < input.length; index += 1) {
+    const codeUnit = input.charCodeAt(index);
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = input.charCodeAt(index + 1);
+      if (next < 0xdc00 || next > 0xdfff) {
+        return true;
+      }
+      index += 1;
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function gitText(cwd: string, argv: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", argv, {
     cwd,
     encoding: "utf8",
+    env: safeGitEnvironment(),
     windowsHide: true,
     maxBuffer: 20 * 1024 * 1024
   });
@@ -1269,10 +1582,35 @@ async function gitBuffer(cwd: string, argv: string[]): Promise<Buffer> {
   const { stdout } = await execFileAsync("git", argv, {
     cwd,
     encoding: "buffer",
+    env: safeGitEnvironment(),
     windowsHide: true,
     maxBuffer: 20 * 1024 * 1024
   });
   return stdout;
+}
+
+async function gitBufferWithEnv(
+  cwd: string,
+  argv: string[],
+  env: NodeJS.ProcessEnv
+): Promise<Buffer> {
+  const { stdout } = await execFileAsync("git", argv, {
+    cwd,
+    encoding: "buffer",
+    env: safeGitEnvironment(env),
+    windowsHide: true,
+    maxBuffer: 20 * 1024 * 1024
+  });
+  return stdout;
+}
+
+function safeGitEnvironment(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return {
+    ...base,
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0"
+  };
 }
 
 function cloneJournalEntry(entry: PendingApprovalJournalEntry): PendingApprovalJournalEntry {
