@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   collectExecutionBoundaryCurrentSurfaceAuditInput,
   formatExecutionBoundaryCurrentSurfaceAuditResult,
@@ -12,6 +13,31 @@ const forbiddenOutputMarkers = [
   "sk-proj-",
   "Bearer "
 ];
+
+test("execution boundary audit predicates stay below compiler recursion limits", async () => {
+  const source = await readFile(
+    new URL(
+      "../scripts/run-execution-boundary-current-surface-audit.ts",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const longestConsecutiveAndRun = source.split("\n").reduce(
+    (state, line) => {
+      const current = line.startsWith("    && ") ? state.current + 1 : 0;
+      return {
+        current,
+        longest: Math.max(state.longest, current)
+      };
+    },
+    { current: 0, longest: 0 }
+  ).longest;
+
+  assert.ok(
+    longestConsecutiveAndRun <= 128,
+    `execution boundary audit contains ${longestConsecutiveAndRun} consecutive && predicates`
+  );
+});
 
 test("execution boundary current surface audit passes for current evidence", async () => {
   const review = reviewExecutionBoundaryCurrentSurfaceAudit(

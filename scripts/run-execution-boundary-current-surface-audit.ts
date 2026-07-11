@@ -4877,10 +4877,17 @@ function allComponentAuditsPassed(
     && input.agentTaskControlReview.status === "passed";
 }
 
+function allConditionGroupsPass(
+  conditionGroups: readonly (() => boolean)[]
+): boolean {
+  return conditionGroups.every((conditionGroup) => conditionGroup());
+}
+
 function controlPlaneRecordsAllBoundaries(text: string): boolean {
   const normalizedText = normalizeDocTextForMarkerSearch(text);
 
-  return text.includes("Controlled read-only real execution")
+  return allConditionGroupsPass([
+    () => text.includes("Controlled read-only real execution")
     && text.includes("Strategy router execution boundary")
     && text.includes("Execution profiles boundary")
     && text.includes("profile templates only")
@@ -4911,8 +4918,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("bounded workspace-write receipt is not execution authorization")
     && text.includes("scoped workspace-write class is not workspace-write execution")
     && text.includes("general workspace-write class is not execution authorization")
-    && text.includes("general provider execution class is not provider execute authorization")
-    && text.includes("external_write class is not external-write authorization")
+    && text.includes("general provider execution class is not provider execute authorization"),
+    () => text.includes("external_write class is not external-write authorization")
     && text.includes("release_or_deploy class is not release authorization")
     && text.includes("secret_or_credential_change class is not secret access authorization")
     && text.includes("capability escalation policy is not runtime authorization")
@@ -4943,8 +4950,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("commandRef is not a shell command")
     && text.includes("endpointRef is not a network call")
     && text.includes("invoke remains disabled")
-    && text.includes("Protocol A2A remote provider skeleton boundary")
-    && text.includes("agent card, task, artifact mapping and disabled remote provider skeleton only")
+    && text.includes("Protocol A2A remote provider skeleton boundary"),
+    () => text.includes("agent card, task, artifact mapping and disabled remote provider skeleton only")
     && text.includes("endpoint refs are not network calls")
     && text.includes("agent cards are not remote runtime authorization")
     && text.includes("task skeletons are not remote execution authorization")
@@ -4975,8 +4982,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("client-supplied gate fields remain ignored")
     && text.includes("status codes are not host executor receipts")
     && text.includes("approval permit issue and consumption are not provider execution")
-    && text.includes("live HTTP servers remain unimplemented")
-    && text.includes("network access remains absent")
+    && text.includes("live HTTP servers remain unimplemented"),
+    () => text.includes("network access remains absent")
     && text.includes("real provider execution remains uninvoked")
     && text.includes("Agent OS public surfaces boundary")
     && text.includes("public surface to local MCP runtime only")
@@ -5007,8 +5014,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("Approval consumption dispatch boundary")
     && text.includes("approval consumption dispatch matrix only")
     && text.includes("approval permit consumption is not provider execution authorization")
-    && text.includes("host dispatcher precondition is not provider execute authorization")
-    && text.includes("Read-only productization boundary")
+    && text.includes("host dispatcher precondition is not provider execute authorization"),
+    () => text.includes("Read-only productization boundary")
     && text.includes("local read-only productization acceptance gate only")
     && text.includes("productization is not provider execute authorization")
     && text.includes("productization is not real Codex CLI authorization")
@@ -5039,8 +5046,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("Execution authority lattice")
     && text.includes("narrow_readonly_provider_dispatch_without_boundary_inheritance")
     && text.includes("read-only provider dispatch does not inherit into host executor authorization")
-    && text.includes("read-only provider dispatch does not inherit into sub-agent runtime authorization")
-    && text.includes("read-only provider dispatch does not inherit into workspace-write authorization")
+    && text.includes("read-only provider dispatch does not inherit into sub-agent runtime authorization"),
+    () => text.includes("read-only provider dispatch does not inherit into workspace-write authorization")
     && text.includes("read-only provider dispatch does not inherit into release authorization")
     && normalizedText.includes("Codex CLI host does not authorize host executor or sub-agent runtime")
     && normalizedText.includes("sub-agent runtime does not invoke Codex CLI or provider execution")
@@ -5071,8 +5078,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("Codex desktop live host boundary")
     && text.includes("Codex memory MCP client boundary")
     && text.includes("Codex memory host client boundary")
-    && text.includes("Desktop host client boundary")
-    && text.includes("may delegate controlled workspace-write provider plans to the host dispatcher")
+    && text.includes("Desktop host client boundary"),
+    () => text.includes("may delegate controlled workspace-write provider plans to the host dispatcher")
     && text.includes("workspace-write through `provider.execute`")
     && text.includes("Desktop live adapter dispatch boundary")
     && text.includes("Host client example boundary")
@@ -5103,8 +5110,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("codex-cli provider ids are not Codex CLI invocation")
     && text.includes("desktop provider ids are not desktop runtime invocation")
     && text.includes("sandboxMode is not workspace-write execution")
-    && text.includes("toolAccess is not tool runtime authorization")
-    && text.includes("approvalRequired is not approval grant")
+    && text.includes("toolAccess is not tool runtime authorization"),
+    () => text.includes("approvalRequired is not approval grant")
     && text.includes("risk scores are not runtime authorization")
     && text.includes("parallelism allowance is not sub-agent runtime authorization")
     && text.includes("schemas, packets, reviews, and explicit injected witnesses only")
@@ -5135,8 +5142,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("five named governance subpaths only")
     && text.includes("There is no root, SDK, host, support, MCP/A2A")
     && text.includes("local state and provider-plan runtime")
-    && text.includes("does not authorize provider execute, Codex CLI")
-    && text.includes("permit creation, validation, revocation, and store only")
+    && text.includes("does not authorize provider execute, Codex CLI"),
+    () => text.includes("permit creation, validation, revocation, and store only")
     && text.includes("valid permits are not provider execution authorization")
     && text.includes("valid permits are not Codex CLI authorization")
     && text.includes("valid permits are not sub-agent runtime authorization")
@@ -5167,8 +5174,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("recovery action lists are not recovery execution")
     && text.includes("historical trust is not runtime authorization")
     && text.includes("recorded resumes are not runtime invocation")
-    && text.includes("delegation file-store persistence is not workspace-write execution")
-    && text.includes("admission/capability/permit decision only")
+    && text.includes("delegation file-store persistence is not workspace-write execution"),
+    () => text.includes("admission/capability/permit decision only")
     && text.includes("eligible status is not execution authorization")
     && text.includes("sanitized task-scoped observation records")
     && text.includes("observation status is not execution authorization")
@@ -5199,8 +5206,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("worker ids are not host executor or sub-agent identity authorization")
     && text.includes("releaseLease is not runtime completion proof")
     && text.includes("failLease is not recovery execution")
-    && text.includes("expired leases are not retry execution")
-    && text.includes("exhausted status is not runtime block execution")
+    && text.includes("expired leases are not retry execution"),
+    () => text.includes("exhausted status is not runtime block execution")
     && text.includes("scheduler file-state persistence is not workspace-write execution")
     && text.includes("scheduler file locks are not shell/process execution")
     && text.includes("provider execution plan only")
@@ -5231,8 +5238,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("ready_for_mapping is not host execution authorization")
     && text.includes("runtime tool invocation is not default-authorized")
     && text.includes("requires a current host object with all runtime and required memory methods before bundle creation")
-    && text.includes("explicit MCP HTTP memory transport only")
-    && text.includes("MCP HTTP calls are not provider execution")
+    && text.includes("explicit MCP HTTP memory transport only"),
+    () => text.includes("MCP HTTP calls are not provider execution")
     && text.includes("MCP HTTP calls are not host executor authorization")
     && text.includes("bearer tokens are not execution authorization")
     && text.includes("explicit injected memory operations only")
@@ -5246,7 +5253,8 @@ function controlPlaneRecordsAllBoundaries(text: string): boolean {
     && text.includes("placeholder host methods are not real execution")
     && text.includes("createBundle requires a fully wired explicit host")
     && text.includes("codex-cli routes do not invoke desktop bridge handlers")
-    && text.includes("real `resume`, `rollback`, `abort`, or `fork` dispatch remains a separate authorization stop");
+    && text.includes("real `resume`, `rollback`, `abort`, or `fork` dispatch remains a separate authorization stop")
+  ]);
 }
 
 function entryDocsRecordExecutionAuthorityLattice(
@@ -7198,7 +7206,8 @@ function noCrossBoundaryExecutionBroadening(
     input.governanceRunnerText
   ].join("\n");
 
-  return !text.includes("sub-agent runtime execution authorized")
+  return allConditionGroupsPass([
+    () => !text.includes("sub-agent runtime execution authorized")
     && !text.includes("strategy router execute action family is authorization: true")
     && !text.includes("strategy router write execution predicate is authorization: true")
     && !text.includes("strategy router executor budget is runtime invocation: true")
@@ -7229,8 +7238,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("policy config protected_remote tool policy is external-write authorization: true")
     && !text.includes("policy config approval rule is approval grant: true")
     && !text.includes("policy config memory health block is runtime block execution: true")
-    && !text.includes("policy config memory guidance is sub-agent runtime authorization: true")
-    && !text.includes("policy config telemetry threshold is runtime authorization: true")
+    && !text.includes("policy config memory guidance is sub-agent runtime authorization: true"),
+    () => !text.includes("policy config telemetry threshold is runtime authorization: true")
     && !text.includes("policy config telemetry delivery window is host executor authorization: true")
     && !text.includes("policy config load calls during audit: 1")
     && !text.includes("policy config provider execute calls during audit: 1")
@@ -7261,8 +7270,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("capability taxonomy external write calls during audit: 1")
     && !text.includes("capability taxonomy release calls during audit: 1")
     && !text.includes("capability taxonomy secret access calls during audit: 1")
-    && !text.includes("capability taxonomy shell/process calls during audit: 1")
-    && !text.includes("capability taxonomy escalation policy is provider execute authorization: true")
+    && !text.includes("capability taxonomy shell/process calls during audit: 1"),
+    () => !text.includes("capability taxonomy escalation policy is provider execute authorization: true")
     && !text.includes("capability taxonomy escalation policy is Codex CLI authorization: true")
     && !text.includes("capability taxonomy escalation policy is workspace-write authorization: true")
     && !text.includes("capability taxonomy escalation policy is host executor authorization: true")
@@ -7293,8 +7302,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("controlled provider execution taskbook is sub-agent runtime authorization: true")
     && !text.includes("controlled provider execution taskbook is external-write authorization: true")
     && !text.includes("controlled provider execution taskbook is release authorization: true")
-    && !text.includes("controlled provider execution taskbook is secret change authorization: true")
-    && !text.includes("controlled provider execution taskbook provider execute calls during audit: 1")
+    && !text.includes("controlled provider execution taskbook is secret change authorization: true"),
+    () => !text.includes("controlled provider execution taskbook provider execute calls during audit: 1")
     && !text.includes("controlled provider execution taskbook Codex CLI calls during audit: 1")
     && !text.includes("controlled provider execution taskbook workspace-write calls during audit: 1")
     && !text.includes("controlled provider execution taskbook host executor calls during audit: 1")
@@ -7325,8 +7334,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("routing engine providerGrant is provider execute authorization: true")
     && !text.includes("routing engine codex-cli provider id is Codex CLI invocation: true")
     && !text.includes("routing engine desktop provider id is desktop runtime invocation: true")
-    && !text.includes("routing engine sandboxMode is workspace-write execution: true")
-    && !text.includes("routing engine toolAccess is tool runtime authorization: true")
+    && !text.includes("routing engine sandboxMode is workspace-write execution: true"),
+    () => !text.includes("routing engine toolAccess is tool runtime authorization: true")
     && !text.includes("routing engine approvalRequired is approval grant: true")
     && !text.includes("routing engine risk score is runtime authorization: true")
     && !text.includes("routing engine parallelism allowed is sub-agent runtime authorization: true")
@@ -7357,8 +7366,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("recovery control Codex CLI calls during audit: 1")
     && !text.includes("recovery control provider execute calls during audit: 1")
     && !text.includes("recovery control sub-agent runtime calls during audit: 1")
-    && !text.includes("recovery control shell/process calls during audit: 1")
-    && !text.includes("recovery control workspace-write calls during audit: 1")
+    && !text.includes("recovery control shell/process calls during audit: 1"),
+    () => !text.includes("recovery control workspace-write calls during audit: 1")
     && !text.includes("recovery control external write calls during audit: 1")
     && !text.includes("runtime control runtime signal is execution authorization: true")
     && !text.includes("runtime control escalation outcome is provider execution authorization: true")
@@ -7389,8 +7398,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("Approval permit external capability scope is external write execution: true")
     && !text.includes("Approval permit store persistence is workspace-write execution: true")
     && !text.includes("Approval permit provider execute calls during audit: 1")
-    && !text.includes("Approval permit Codex CLI calls during audit: 1")
-    && !text.includes("Approval permit sub-agent runtime calls during audit: 1")
+    && !text.includes("Approval permit Codex CLI calls during audit: 1"),
+    () => !text.includes("Approval permit sub-agent runtime calls during audit: 1")
     && !text.includes("Approval permit host executor calls during audit: 1")
     && !text.includes("Approval permit tool runtime calls during audit: 1")
     && !text.includes("Approval permit shell/process calls during audit: 1")
@@ -7421,8 +7430,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("approval consumption dispatch matrix audit is workspace-write authorization: true")
     && !text.includes("approval consumption dispatch matrix audit is local command authorization: true")
     && !text.includes("approval consumption dispatch matrix audit is host executor authorization: true")
-    && !text.includes("approval consumption dispatch matrix audit is sub-agent runtime authorization: true")
-    && !text.includes("approval consumption dispatch matrix audit is tool runtime authorization: true")
+    && !text.includes("approval consumption dispatch matrix audit is sub-agent runtime authorization: true"),
+    () => !text.includes("approval consumption dispatch matrix audit is tool runtime authorization: true")
     && !text.includes("approval consumption dispatch matrix audit is external-write authorization: true")
     && !text.includes("approval consumption dispatch matrix audit is release authorization: true")
     && !text.includes("approval consumption dispatch matrix audit git state is execution authorization: true")
@@ -7453,8 +7462,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("approval consumption dispatch sub-agent runtime calls during audit: 1")
     && !text.includes("approval consumption dispatch shell/process calls during audit: 1")
     && !text.includes("approval consumption dispatch external write calls during audit: 1")
-    && !text.includes("read-only productization is provider execute authorization: true")
-    && !text.includes("read-only productization is real Codex CLI authorization: true")
+    && !text.includes("read-only productization is provider execute authorization: true"),
+    () => !text.includes("read-only productization is real Codex CLI authorization: true")
     && !text.includes("read-only productization is workspace-write authorization: true")
     && !text.includes("read-only productization is local command authorization: true")
     && !text.includes("read-only productization is host executor authorization: true")
@@ -7485,8 +7494,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("state-sync is evidence refresh authorization: true")
     && !text.includes("state-sync is push authorization: true")
     && !text.includes("state-sync is release authorization: true")
-    && !text.includes("state-sync git state is execution authorization: true")
-    && !text.includes("state-sync policy v2 is execution authorization: true")
+    && !text.includes("state-sync git state is execution authorization: true"),
+    () => !text.includes("state-sync policy v2 is execution authorization: true")
     && !text.includes("state-sync boundary provider execute calls during audit: 1")
     && !text.includes("state-sync boundary Codex CLI calls during audit: 1")
     && !text.includes("state-sync boundary workspace-write calls during audit: 1")
@@ -7517,8 +7526,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("Admission control workspace-write calls during audit: 1")
     && !text.includes("Admission control external write calls during audit: 1")
     && !text.includes("Delegation policy full_delegation is execution authorization: true")
-    && !text.includes("Delegation policy requiresApproval false is execution authorization: true")
-    && !text.includes("Delegation policy approved proposal is runtime authorization: true")
+    && !text.includes("Delegation policy requiresApproval false is execution authorization: true"),
+    () => !text.includes("Delegation policy approved proposal is runtime authorization: true")
     && !text.includes("Delegation policy applied proposal is provider execution authorization: true")
     && !text.includes("Delegation policy filtered recovery action is host executor authorization: true")
     && !text.includes("Delegation policy recovery action list is recovery execution: true")
@@ -7549,8 +7558,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("governance failure reducer provider execute calls during audit: 1")
     && !text.includes("governance failure reducer Codex CLI calls during audit: 1")
     && !text.includes("governance failure reducer sub-agent runtime calls during audit: 1")
-    && !text.includes("governance failure reducer host executor calls during audit: 1")
-    && !text.includes("governance failure reducer host dispatch calls during audit: 1")
+    && !text.includes("governance failure reducer host executor calls during audit: 1"),
+    () => !text.includes("governance failure reducer host dispatch calls during audit: 1")
     && !text.includes("governance failure reducer tool runtime calls during audit: 1")
     && !text.includes("governance failure reducer shell/process calls during audit: 1")
     && !text.includes("governance failure reducer workspace-write calls during audit: 1")
@@ -7581,8 +7590,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("scheduler worker id is host or sub-agent authorization: true")
     && !text.includes("scheduler releaseLease is runtime completion proof: true")
     && !text.includes("scheduler failLease is recovery execution: true")
-    && !text.includes("scheduler expired lease is retry execution: true")
-    && !text.includes("scheduler exhausted status is runtime block execution: true")
+    && !text.includes("scheduler expired lease is retry execution: true"),
+    () => !text.includes("scheduler exhausted status is runtime block execution: true")
     && !text.includes("scheduler file-state persistence is workspace-write execution: true")
     && !text.includes("scheduler file lock is shell/process execution: true")
     && !text.includes("scheduler calls during audit: 1")
@@ -7613,8 +7622,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("Tool invocation planner workspace-write allowed by default: true")
     && !text.includes("Tool invocation planner external write allowed by default: true")
     && !text.includes("Tool invocation planner registry calls during audit: 1")
-    && !text.includes("Tool invocation planner plans during audit: 1")
-    && !text.includes("Tool invocation planner tool runtime calls during audit: 1")
+    && !text.includes("Tool invocation planner plans during audit: 1"),
+    () => !text.includes("Tool invocation planner tool runtime calls during audit: 1")
     && !text.includes("Tool invocation planner provider execute calls during audit: 1")
     && !text.includes("Tool invocation planner sub-agent runtime calls during audit: 1")
     && !text.includes("Tool invocation planner host executor calls during audit: 1")
@@ -7645,8 +7654,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("Provider registry manifest-store persistence is workspace-write execution: true")
     && !text.includes("Provider registry provider execute calls during audit: 1")
     && !text.includes("Provider registry Codex CLI calls during audit: 1")
-    && !text.includes("Provider registry sub-agent runtime calls during audit: 1")
-    && !text.includes("Provider registry host executor calls during audit: 1")
+    && !text.includes("Provider registry sub-agent runtime calls during audit: 1"),
+    () => !text.includes("Provider registry host executor calls during audit: 1")
     && !text.includes("Provider registry tool runtime calls during audit: 1")
     && !text.includes("Provider registry workspace-write calls during audit: 1")
     && !text.includes("provider execution runner workspace-write allowed: true")
@@ -7677,8 +7686,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("public API Codex CLI host run export allowed: true")
     && !text.includes("public API calls during audit: 1")
     && !text.includes("Agent OS local runtime real provider execution allowed: true")
-    && !text.includes("Agent OS local runtime Codex CLI invocation allowed: true")
-    && !text.includes("Agent OS local runtime host executor invocation allowed: true")
+    && !text.includes("Agent OS local runtime Codex CLI invocation allowed: true"),
+    () => !text.includes("Agent OS local runtime host executor invocation allowed: true")
     && !text.includes("Agent OS local runtime workspace-write execution allowed: true")
     && !text.includes("Agent OS local runtime calls during audit: 1")
     && !text.includes("Agent OS MCP server manifest runtimeImplemented means live server: true")
@@ -7709,8 +7718,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("protocol MCP endpointRef is network call: true")
     && !text.includes("protocol MCP tool manifest is tool runtime authorization: true")
     && !text.includes("protocol MCP invocation plan is tool execution authorization: true")
-    && !text.includes("protocol MCP fake provider is live MCP server: true")
-    && !text.includes("protocol MCP invoke method is enabled: true")
+    && !text.includes("protocol MCP fake provider is live MCP server: true"),
+    () => !text.includes("protocol MCP invoke method is enabled: true")
     && !text.includes("protocol MCP unknown side effect is auto-approved: true")
     && !text.includes("protocol MCP allowed tool is MCP invocation authorization: true")
     && !text.includes("protocol MCP calls during audit: 1")
@@ -7741,8 +7750,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("protocol A2A live network service starts during audit: 1")
     && !text.includes("protocol A2A remote agent runtime calls during audit: 1")
     && !text.includes("protocol A2A remote task creations during audit: 1")
-    && !text.includes("protocol A2A provider execute calls during audit: 1")
-    && !text.includes("protocol A2A Codex CLI calls during audit: 1")
+    && !text.includes("protocol A2A provider execute calls during audit: 1"),
+    () => !text.includes("protocol A2A Codex CLI calls during audit: 1")
     && !text.includes("protocol A2A desktop primitive calls during audit: 1")
     && !text.includes("protocol A2A sub-agent runtime calls during audit: 1")
     && !text.includes("protocol A2A host executor calls during audit: 1")
@@ -7773,8 +7782,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("Agent OS public surface workspace-write calls during audit: 1")
     && !text.includes("Agent OS public surface external write calls during audit: 1")
     && !text.includes("preflight ok is execution authorization: true")
-    && !text.includes("preflight missing tool check is tool runtime authorization: true")
-    && !text.includes("preflight auth available is provider execution authorization: true")
+    && !text.includes("preflight missing tool check is tool runtime authorization: true"),
+    () => !text.includes("preflight auth available is provider execution authorization: true")
     && !text.includes("preflight workspace clean is workspace-write authorization: true")
     && !text.includes("preflight protected branch check is workspace-write execution: true")
     && !text.includes("preflight memory overview is runtime authorization: true")
@@ -7805,8 +7814,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("execution eligibility calls during audit: 1")
     && !text.includes("execution eligibility provider execute calls during audit: 1")
     && !text.includes("execution observation status is execution authorization: true")
-    && !text.includes("execution observation succeeded is completion authorization: true")
-    && !text.includes("execution observation failed is recovery authorization: true")
+    && !text.includes("execution observation succeeded is completion authorization: true"),
+    () => !text.includes("execution observation failed is recovery authorization: true")
     && !text.includes("execution observation evidence ref is runtime invocation: true")
     && !text.includes("execution observation ref resolution is replay authorization: true")
     && !text.includes("execution observation record write is workspace-write execution: true")
@@ -7837,8 +7846,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("Codex memory MCP client MCP HTTP calls are host executor authorization: true")
     && !text.includes("Codex memory MCP client recordMemory is workspace-write execution: true")
     && !text.includes("Codex memory MCP client searchMemory is sub-agent runtime invocation: true")
-    && !text.includes("Codex memory MCP client memoryOverview is runtime authorization: true")
-    && !text.includes("Codex memory MCP client adapter checkpoint write is execution authorization: true")
+    && !text.includes("Codex memory MCP client memoryOverview is runtime authorization: true"),
+    () => !text.includes("Codex memory MCP client adapter checkpoint write is execution authorization: true")
     && !text.includes("Codex memory MCP client default endpoint lookup allowed: true")
     && !text.includes("Codex memory MCP client bearer token is execution authorization: true")
     && !text.includes("Codex memory MCP client default Codex CLI invocation allowed: true")
@@ -7869,8 +7878,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("Codex memory host client provider execute calls during audit: 1")
     && !text.includes("desktop host client default real execution allowed: true")
     && !text.includes("desktop host client default host executor lookup allowed: true")
-    && !text.includes("desktop host client direct dispatchToHost allowed: true")
-    && !text.includes("host client example default real execution allowed: true")
+    && !text.includes("desktop host client direct dispatchToHost allowed: true"),
+    () => !text.includes("host client example default real execution allowed: true")
     && !text.includes("host client example real shell/process allowed: true")
     && !text.includes("host client example workspace-write allowed: true")
     && !text.includes("target host embedding placeholder methods are real execution: true")
@@ -7898,7 +7907,8 @@ function noCrossBoundaryExecutionBroadening(
     && !text.includes("tool runtime invocation allowed: true")
     && !text.includes("host executor default real execution allowed: true")
     && !text.includes("adapter invocations during audit: 1")
-    && !text.includes("provider execute calls during audit: 1");
+    && !text.includes("provider execute calls during audit: 1")
+  ]);
 }
 
 function auditItselfIsNonExecuting(
@@ -7980,7 +7990,8 @@ function auditItselfIsNonExecuting(
   const subAgent = input.subAgentRuntimeReview.summary;
   const taskControl = input.agentTaskControlReview.summary;
 
-  return strategyRouter.strategyRouterCallsDuringAudit === 0
+  return allConditionGroupsPass([
+    () => strategyRouter.strategyRouterCallsDuringAudit === 0
     && strategyRouter.providerPlanExecutionCallsDuringAudit === 0
     && strategyRouter.providerValidateExecutionPlanCallsDuringAudit === 0
     && strategyRouter.providerExecuteCallsDuringAudit === 0
@@ -8011,8 +8022,8 @@ function auditItselfIsNonExecuting(
     && executionProfiles.profileStageIsRuntimeStep === false
     && executionProfiles.defaultRoleIsSubAgentRuntimeAuthorization === false
     && executionProfiles.defaultToolAccessIsToolRuntimeAuthorization === false
-    && executionProfiles.engineeringWriteToolAccessIsWorkspaceWriteExecution === false
-    && executionProfiles.protectedRemoteToolAccessIsExternalWriteAuthorization === false
+    && executionProfiles.engineeringWriteToolAccessIsWorkspaceWriteExecution === false,
+    () => executionProfiles.protectedRemoteToolAccessIsExternalWriteAuthorization === false
     && executionProfiles.allowParallelIsSubAgentRuntimeAuthorization === false
     && executionProfiles.maxParallelAgentsIsSubAgentSpawnAuthorization === false
     && executionProfiles.releaseGovernanceProfileIsProtectedRemoteAuthorization === false
@@ -8043,8 +8054,8 @@ function auditItselfIsNonExecuting(
     && capabilityTaxonomy.workspaceWriteCallsDuringAudit === 0
     && capabilityTaxonomy.canaryFileWriteCallsDuringAudit === 0
     && capabilityTaxonomy.generalProviderExecutionCallsDuringAudit === 0
-    && capabilityTaxonomy.externalWriteCallsDuringAudit === 0
-    && capabilityTaxonomy.releaseCallsDuringAudit === 0
+    && capabilityTaxonomy.externalWriteCallsDuringAudit === 0,
+    () => capabilityTaxonomy.releaseCallsDuringAudit === 0
     && capabilityTaxonomy.secretAccessCallsDuringAudit === 0
     && capabilityTaxonomy.shellProcessCallsDuringAudit === 0
     && capabilityTaxonomy.boundedWorkspaceWriteCanaryIsWorkspaceWriteAuthorization === false
@@ -8075,8 +8086,8 @@ function auditItselfIsNonExecuting(
     && capabilityTaxonomyEscalationPolicy.escalationPolicyIsToolRuntimeAuthorization === false
     && capabilityTaxonomyEscalationPolicy.escalationPolicyIsExternalWriteAuthorization === false
     && capabilityTaxonomyEscalationPolicy.escalationPolicyIsReleaseAuthorization === false
-    && capabilityTaxonomyEscalationPolicy.escalationPolicyIsSecretAccessAuthorization === false
-    && capabilityTaxonomyEscalationPolicy.blockedCapabilityClassIsRuntimeBlockExecution === false
+    && capabilityTaxonomyEscalationPolicy.escalationPolicyIsSecretAccessAuthorization === false,
+    () => capabilityTaxonomyEscalationPolicy.blockedCapabilityClassIsRuntimeBlockExecution === false
     && capabilityTaxonomyEscalationPolicy.severityIsRuntimeAuthorization === false
     && capabilityTaxonomyEscalationPolicy.statusIsExecutionAuthorization === false
     && routingEngine.routingEngineCallsDuringAudit === 0
@@ -8107,8 +8118,8 @@ function auditItselfIsNonExecuting(
     && recoveryControl.codexCliCallsDuringAudit === 0
     && recoveryControl.providerExecuteCallsDuringAudit === 0
     && recoveryControl.subAgentRuntimeCallsDuringAudit === 0
-    && recoveryControl.shellProcessCallsDuringAudit === 0
-    && recoveryControl.workspaceWriteCallsDuringAudit === 0
+    && recoveryControl.shellProcessCallsDuringAudit === 0,
+    () => recoveryControl.workspaceWriteCallsDuringAudit === 0
     && recoveryControl.externalWriteCallsDuringAudit === 0
     && recoveryControl.schemaStatusIsExecutionAuthorization === false
     && recoveryControl.executionPlanIsRecoveryExecutionAuthorization === false
@@ -8139,8 +8150,8 @@ function auditItselfIsNonExecuting(
     && gate.hostExecutorInvocationsDuringAudit === 0
     && gate.recoveryActionExecutionsDuringAudit === 0
     && gate.codexCliCallsDuringAudit === 0
-    && gate.providerExecuteCallsDuringAudit === 0
-    && gate.subAgentRuntimeCallsDuringAudit === 0
+    && gate.providerExecuteCallsDuringAudit === 0,
+    () => gate.subAgentRuntimeCallsDuringAudit === 0
     && gate.shellProcessCallsDuringAudit === 0
     && gate.workspaceWriteCallsDuringAudit === 0
     && gate.externalWriteCallsDuringAudit === 0
@@ -8171,8 +8182,8 @@ function auditItselfIsNonExecuting(
     && publicApi.externalWriteCallsDuringAudit === 0
     && publicApi.internalGovernanceTopLevelExportsAllowed === false
     && publicApi.directHostExecutorDispatchExportAllowed === false
-    && publicApi.providerExecuteExportAllowed === false
-    && publicApi.codexCliHostRunExportAllowed === false
+    && publicApi.providerExecuteExportAllowed === false,
+    () => publicApi.codexCliHostRunExportAllowed === false
     && publicApi.subAgentRuntimeExportAllowed === false
     && publicApi.workspaceWriteGuardExportAllowed === false
     && agentOsLocalRuntime.localRuntimeCallsDuringAudit === 0
@@ -8203,8 +8214,8 @@ function auditItselfIsNonExecuting(
     && agentOsMcpServerManifest.networkCallsDuringAudit === 0
     && agentOsMcpServerManifest.workspaceWriteCallsDuringAudit === 0
     && agentOsMcpServerManifest.externalWriteCallsDuringAudit === 0
-    && agentOsMcpServerManifest.runtimeImplementedMeansLiveServer === false
-    && agentOsMcpServerManifest.toolManifestIsToolRuntimeAuthorization === false
+    && agentOsMcpServerManifest.runtimeImplementedMeansLiveServer === false,
+    () => agentOsMcpServerManifest.toolManifestIsToolRuntimeAuthorization === false
     && agentOsMcpServerManifest.requiredCapabilityIsCapabilityGrant === false
     && agentOsMcpServerManifest.approvalRequiredIsApprovalGrant === false
     && agentOsMcpServerManifest.localWriteSideEffectIsWorkspaceWriteExecution === false
@@ -8235,8 +8246,8 @@ function auditItselfIsNonExecuting(
     && protocolMcp.unknownSideEffectIsAutoApproved === false
     && protocolMcp.allowedToolIsMcpInvocationAuthorization === false
     && protocolA2a.protocolA2aCallsDuringAudit === 0
-    && protocolA2a.liveNetworkServiceStartsDuringAudit === 0
-    && protocolA2a.remoteAgentRuntimeCallsDuringAudit === 0
+    && protocolA2a.liveNetworkServiceStartsDuringAudit === 0,
+    () => protocolA2a.remoteAgentRuntimeCallsDuringAudit === 0
     && protocolA2a.remoteTaskCreationsDuringAudit === 0
     && protocolA2a.providerExecuteCallsDuringAudit === 0
     && protocolA2a.codexCliCallsDuringAudit === 0
@@ -8267,8 +8278,8 @@ function auditItselfIsNonExecuting(
     && agentOsSdk.subAgentRuntimeCallsDuringAudit === 0
     && agentOsSdk.hostExecutorCallsDuringAudit === 0
     && agentOsSdk.hostDispatchCallsDuringAudit === 0
-    && agentOsSdk.shellProcessCallsDuringAudit === 0
-    && agentOsSdk.networkCallsDuringAudit === 0
+    && agentOsSdk.shellProcessCallsDuringAudit === 0,
+    () => agentOsSdk.networkCallsDuringAudit === 0
     && agentOsSdk.workspaceWriteCallsDuringAudit === 0
     && agentOsSdk.externalWriteCallsDuringAudit === 0
     && agentOsSdk.sdkCallIsProviderExecutionAuthorization === false
@@ -8299,8 +8310,8 @@ function auditItselfIsNonExecuting(
     && agentOsCli.parsedCommandIsProviderExecutionAuthorization === false
     && agentOsCli.localRuntimeCallIsProviderExecutionAuthorization === false
     && agentOsCli.approvalPermitIssueIsProviderExecutionAuthorization === false
-    && agentOsCli.approvalPermitConsumptionIsProviderExecutionAuthorization === false
-    && agentOsCli.sanitizedArgvContainsRawSecrets === false
+    && agentOsCli.approvalPermitConsumptionIsProviderExecutionAuthorization === false,
+    () => agentOsCli.sanitizedArgvContainsRawSecrets === false
     && agentOsAppServer.appServerWrapperCallsDuringAudit === 0
     && agentOsAppServer.localRuntimeCallsDuringAudit === 0
     && agentOsAppServer.liveHttpServerStartsDuringAudit === 0
@@ -8331,8 +8342,8 @@ function auditItselfIsNonExecuting(
     && agentOsPublicSurfaces.codexCliCallsDuringAudit === 0
     && agentOsPublicSurfaces.desktopPrimitiveCallsDuringAudit === 0
     && agentOsPublicSurfaces.subAgentRuntimeCallsDuringAudit === 0
-    && agentOsPublicSurfaces.hostExecutorCallsDuringAudit === 0
-    && agentOsPublicSurfaces.hostDispatchCallsDuringAudit === 0
+    && agentOsPublicSurfaces.hostExecutorCallsDuringAudit === 0,
+    () => agentOsPublicSurfaces.hostDispatchCallsDuringAudit === 0
     && agentOsPublicSurfaces.shellProcessCallsDuringAudit === 0
     && agentOsPublicSurfaces.networkCallsDuringAudit === 0
     && agentOsPublicSurfaces.workspaceWriteCallsDuringAudit === 0
@@ -8363,8 +8374,8 @@ function auditItselfIsNonExecuting(
     && preflight.workspaceWriteCallsDuringAudit === 0
     && preflight.externalWriteCallsDuringAudit === 0
     && preflight.preflightOkIsExecutionAuthorization === false
-    && preflight.missingToolCheckIsToolRuntimeAuthorization === false
-    && preflight.authAvailableIsProviderExecutionAuthorization === false
+    && preflight.missingToolCheckIsToolRuntimeAuthorization === false,
+    () => preflight.authAvailableIsProviderExecutionAuthorization === false
     && preflight.workspaceCleanIsWorkspaceWriteAuthorization === false
     && preflight.protectedBranchCheckIsWorkspaceWriteExecution === false
     && preflight.memoryOverviewIsRuntimeAuthorization === false
@@ -8395,8 +8406,8 @@ function auditItselfIsNonExecuting(
     && approvalGate.codexCliCallsDuringAudit === 0
     && approvalGate.subAgentRuntimeCallsDuringAudit === 0
     && approvalGate.hostExecutorCallsDuringAudit === 0
-    && approvalGate.toolRuntimeCallsDuringAudit === 0
-    && approvalGate.shellProcessCallsDuringAudit === 0
+    && approvalGate.toolRuntimeCallsDuringAudit === 0,
+    () => approvalGate.shellProcessCallsDuringAudit === 0
     && approvalGate.workspaceWriteCallsDuringAudit === 0
     && approvalGate.externalWriteCallsDuringAudit === 0
     && approvalGate.approvalNotRequiredIsExecutionAuthorization === false
@@ -8427,8 +8438,8 @@ function auditItselfIsNonExecuting(
     && approvalConsumptionDispatchMatrix.subAgentRuntimeCallsDuringBoundaryAudit === 0
     && approvalConsumptionDispatchMatrix.toolRuntimeCallsDuringBoundaryAudit === 0
     && approvalConsumptionDispatchMatrix.shellProcessCallsDuringBoundaryAudit === 0
-    && approvalConsumptionDispatchMatrix.externalWriteCallsDuringBoundaryAudit === 0
-    && approvalConsumptionDispatch.matrixIsProviderExecuteAuthorization === false
+    && approvalConsumptionDispatchMatrix.externalWriteCallsDuringBoundaryAudit === 0,
+    () => approvalConsumptionDispatch.matrixIsProviderExecuteAuthorization === false
     && approvalConsumptionDispatch.matrixIsRealCodexCliAuthorization === false
     && approvalConsumptionDispatch.matrixIsWorkspaceWriteAuthorization === false
     && approvalConsumptionDispatch.matrixIsLocalCommandAuthorization === false
@@ -8459,8 +8470,8 @@ function auditItselfIsNonExecuting(
     && readonlyProductization.readonlyProductizationGitStateIsExecutionAuthorization === false
     && readonlyProductization.readonlyProductizationWorktreeCleanIsProviderExecutionAuthorization === false
     && readonlyProductization.providerExecuteCallsDuringBoundaryAudit === 0
-    && readonlyProductization.codexCliCallsDuringBoundaryAudit === 0
-    && readonlyProductization.workspaceWriteCallsDuringBoundaryAudit === 0
+    && readonlyProductization.codexCliCallsDuringBoundaryAudit === 0,
+    () => readonlyProductization.workspaceWriteCallsDuringBoundaryAudit === 0
     && readonlyProductization.hostExecutorCallsDuringBoundaryAudit === 0
     && readonlyProductization.subAgentRuntimeCallsDuringBoundaryAudit === 0
     && readonlyProductization.toolRuntimeCallsDuringBoundaryAudit === 0
@@ -8491,8 +8502,8 @@ function auditItselfIsNonExecuting(
     && stateSync.externalWriteCallsDuringBoundaryAudit === 0
     && stateSync.stateWritesDuringBoundaryAudit === 0
     && stateSync.remoteWritesDuringBoundaryAudit === 0
-    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsWorkspaceWriteAuthorization === false
-    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsRealCodexCliAuthorization === false
+    && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsWorkspaceWriteAuthorization === false,
+    () => workspaceWriteReleaseGate.workspaceWriteReleaseGateIsRealCodexCliAuthorization === false
     && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsProviderExecutionAuthorization === false
     && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsHostExecutorAuthorization === false
     && workspaceWriteReleaseGate.workspaceWriteReleaseGateIsSubAgentRuntimeAuthorization === false
@@ -8523,8 +8534,8 @@ function auditItselfIsNonExecuting(
     && admissionControl.requiredApprovalIsCodexCliAuthorization === false
     && admissionControl.requiredApprovalIsSubAgentRuntimeAuthorization === false
     && admissionControl.requiredApprovalIsHostExecutorAuthorization === false
-    && admissionControl.externalCapabilityIsExternalWriteExecution === false
-    && admissionControl.fileWriteCapabilityIsWorkspaceWriteExecution === false
+    && admissionControl.externalCapabilityIsExternalWriteExecution === false,
+    () => admissionControl.fileWriteCapabilityIsWorkspaceWriteExecution === false
     && delegationPolicy.delegationPolicyCallsDuringAudit === 0
     && delegationPolicy.proposalLifecycleCallsDuringAudit === 0
     && delegationPolicy.fileStoreWritesDuringAudit === 0
@@ -8555,8 +8566,8 @@ function auditItselfIsNonExecuting(
     && executionEligibility.hostDispatchCallsDuringAudit === 0
     && executionEligibility.shellProcessCallsDuringAudit === 0
     && executionEligibility.workspaceWriteCallsDuringAudit === 0
-    && executionEligibility.externalWriteCallsDuringAudit === 0
-    && executionEligibility.eligibleStatusIsExecutionAuthorization === false
+    && executionEligibility.externalWriteCallsDuringAudit === 0,
+    () => executionEligibility.eligibleStatusIsExecutionAuthorization === false
     && executionEligibility.validApprovalPermitIsProviderExecutionAuthorization === false
     && executionEligibility.capabilityGrantIsRuntimeInvocation === false
     && executionEligibility.permitStoreReadIsRuntimeInvocation === false
@@ -8587,8 +8598,8 @@ function auditItselfIsNonExecuting(
     && executionObservation.observationRecordWriteIsWorkspaceWriteExecution === false
     && executionObservation.providerExecuteAllowed === false
     && executionObservation.codexCliInvocationAllowed === false
-    && executionObservation.subAgentRuntimeInvocationAllowed === false
-    && executionObservation.hostExecutorInvocationAllowed === false
+    && executionObservation.subAgentRuntimeInvocationAllowed === false,
+    () => executionObservation.hostExecutorInvocationAllowed === false
     && executionObservation.hostDispatchAllowed === false
     && executionObservation.shellProcessAllowed === false
     && executionObservation.workspaceWriteExecutionAllowed === false
@@ -8619,8 +8630,8 @@ function auditItselfIsNonExecuting(
     && taskGraph.subAgentRuntimeCallsDuringAudit === 0
     && taskGraph.hostExecutorCallsDuringAudit === 0
     && taskGraph.hostDispatchCallsDuringAudit === 0
-    && taskGraph.toolRuntimeCallsDuringAudit === 0
-    && taskGraph.shellProcessCallsDuringAudit === 0
+    && taskGraph.toolRuntimeCallsDuringAudit === 0,
+    () => taskGraph.shellProcessCallsDuringAudit === 0
     && taskGraph.workspaceWriteCallsDuringAudit === 0
     && taskGraph.externalWriteCallsDuringAudit === 0
     && taskGraph.nodeStatusIsExecutionAuthorization === false
@@ -8651,8 +8662,8 @@ function auditItselfIsNonExecuting(
     && scheduler.releaseLeaseIsRuntimeCompletionProof === false
     && scheduler.failLeaseIsRecoveryExecution === false
     && scheduler.expiredLeaseIsRetryExecution === false
-    && scheduler.exhaustedStatusIsRuntimeBlockExecution === false
-    && scheduler.fileStatePersistenceIsWorkspaceWriteExecution === false
+    && scheduler.exhaustedStatusIsRuntimeBlockExecution === false,
+    () => scheduler.fileStatePersistenceIsWorkspaceWriteExecution === false
     && scheduler.fileLockIsShellProcessExecution === false
     && executionPlanner.executionPlannerCallsDuringAudit === 0
     && executionPlanner.localPlanStoreWritesDuringAudit === 0
@@ -8683,8 +8694,8 @@ function auditItselfIsNonExecuting(
     && providerRegistry.providerRegistryCallsDuringAudit === 0
     && providerRegistry.providerSelectionCallsDuringAudit === 0
     && providerRegistry.providerExecuteCallsDuringAudit === 0
-    && providerRegistry.codexCliCallsDuringAudit === 0
-    && providerRegistry.subAgentRuntimeCallsDuringAudit === 0
+    && providerRegistry.codexCliCallsDuringAudit === 0,
+    () => providerRegistry.subAgentRuntimeCallsDuringAudit === 0
     && providerRegistry.hostExecutorCallsDuringAudit === 0
     && providerRegistry.toolRuntimeCallsDuringAudit === 0
     && providerRegistry.shellProcessCallsDuringAudit === 0
@@ -8715,8 +8726,8 @@ function auditItselfIsNonExecuting(
     && controlledProviderTaskbook.subAgentRuntimeCallsDuringAudit === 0
     && controlledProviderTaskbook.shellProcessCallsDuringAudit === 0
     && controlledProviderTaskbook.externalWriteCallsDuringAudit === 0
-    && controlledProviderTaskbook.evidenceWritesDuringAudit === 0
-    && controlledProviderTaskbookReviewBoundary.reviewAuditIsProviderExecuteAuthorization === false
+    && controlledProviderTaskbook.evidenceWritesDuringAudit === 0,
+    () => controlledProviderTaskbookReviewBoundary.reviewAuditIsProviderExecuteAuthorization === false
     && controlledProviderTaskbookReviewBoundary.reviewAuditIsRealCodexCliAuthorization === false
     && controlledProviderTaskbookReviewBoundary.reviewAuditIsWorkspaceWriteAuthorization === false
     && controlledProviderTaskbookReviewBoundary.reviewAuditIsLocalCommandAuthorization === false
@@ -8747,8 +8758,8 @@ function auditItselfIsNonExecuting(
     && controlledProviderDispatchPreflight.dispatchPreflightIsWorkspaceWriteAuthorization === false
     && controlledProviderDispatchPreflight.dispatchPreflightIsHostExecutorAuthorization === false
     && controlledProviderDispatchPreflight.dispatchPreflightIsSubAgentRuntimeAuthorization === false
-    && controlledProviderDispatchPreflight.dispatchPreflightIsShellProcessAuthorization === false
-    && controlledProviderDispatchPreflight.dispatchPreflightIsExternalWriteAuthorization === false
+    && controlledProviderDispatchPreflight.dispatchPreflightIsShellProcessAuthorization === false,
+    () => controlledProviderDispatchPreflight.dispatchPreflightIsExternalWriteAuthorization === false
     && controlledProviderDispatchPreflight.dispatchPreflightIsReleaseAuthorization === false
     && controlledProviderDispatcher.runnerInvocationsDuringAudit === 0
     && controlledProviderDispatcher.providerExecuteCallsDuringAudit === 0
@@ -8779,8 +8790,8 @@ function auditItselfIsNonExecuting(
     && providerRunner.workspaceWriteAllowedByRunner === true
     && providerRunner.workspaceWriteProviderExecuteAllowed === false
     && providerRunner.defaultRealCodexCliAllowed === false
-    && providerRunner.subAgentRuntimeInvocationAllowed === false
-    && providerRunner.hostExecutorInvocationAllowed === false
+    && providerRunner.subAgentRuntimeInvocationAllowed === false,
+    () => providerRunner.hostExecutorInvocationAllowed === false
     && providerCore.providerCoreRuntimeCallsDuringAudit === 0
     && providerCore.remoteAgentRuntimeCallsDuringAudit === 0
     && providerCore.toolRuntimeCallsDuringAudit === 0
@@ -8811,8 +8822,8 @@ function auditItselfIsNonExecuting(
     && toolInvocationPlanner.inputPreviewStoresRawSecrets === false
     && toolInvocationPlanner.defaultCodexCliInvocationAllowed === false
     && toolInvocationPlanner.providerExecuteAllowed === false
-    && toolInvocationPlanner.subAgentRuntimeInvocationAllowed === false
-    && toolInvocationPlanner.hostExecutorInvocationAllowed === false
+    && toolInvocationPlanner.subAgentRuntimeInvocationAllowed === false,
+    () => toolInvocationPlanner.hostExecutorInvocationAllowed === false
     && toolInvocationPlanner.toolRuntimeInvocationAllowed === false
     && toolInvocationPlanner.shellProcessAllowedByDefault === false
     && toolInvocationPlanner.workspaceWriteAllowedByDefault === false
@@ -8843,8 +8854,8 @@ function auditItselfIsNonExecuting(
     && desktopDecisionRunner.shellProcessCallsDuringAudit === 0
     && desktopDecisionRunner.workspaceWriteCallsDuringAudit === 0
     && desktopDecisionRunner.externalWriteCallsDuringAudit === 0
-    && desktopDecisionRunner.readyStatusIsExecutionAuthorization === false
-    && desktopDecisionRunner.desktopPlanAuthorizedFlagIsDispatch === false
+    && desktopDecisionRunner.readyStatusIsExecutionAuthorization === false,
+    () => desktopDecisionRunner.desktopPlanAuthorizedFlagIsDispatch === false
     && desktopDecisionRunner.providerSelectionIsProviderExecute === false
     && desktopDecisionRunner.providerGrantIsProviderExecute === false
     && desktopDecisionRunner.agentStrategyIsSubAgentRuntimeInvocation === false
@@ -8875,8 +8886,8 @@ function auditItselfIsNonExecuting(
     && finalHostLocator.desktopHostClientCreationAllowed === false
     && finalHostLocator.hostDispatchAllowed === false
     && finalHostLocator.providerExecuteAllowed === false
-    && finalHostLocator.codexCliInvocationAllowed === false
-    && finalHostLocator.subAgentRuntimeInvocationAllowed === false
+    && finalHostLocator.codexCliInvocationAllowed === false,
+    () => finalHostLocator.subAgentRuntimeInvocationAllowed === false
     && finalHostLocator.shellProcessAllowed === false
     && finalHostLocator.workspaceWriteExecutionAllowed === false
     && hostDispatcherProvider.dispatcherCallsDuringAudit === 0
@@ -8907,8 +8918,8 @@ function auditItselfIsNonExecuting(
     && codexDesktopLiveHost.memoryToolCallsDuringAudit === 0
     && codexDesktopLiveHost.bridgeCallsDuringAudit === 0
     && codexDesktopLiveHost.hostClientRunCallsDuringAudit === 0
-    && codexDesktopLiveHost.smokeRunsDuringAudit === 0
-    && codexDesktopLiveHost.providerCallsDuringAudit === 0
+    && codexDesktopLiveHost.smokeRunsDuringAudit === 0,
+    () => codexDesktopLiveHost.providerCallsDuringAudit === 0
     && codexDesktopLiveHost.subAgentRuntimeCallsDuringAudit === 0
     && codexDesktopLiveHost.hostExecutorCallsDuringAudit === 0
     && codexDesktopLiveHost.workspaceWriteCallsDuringAudit === 0
@@ -8939,8 +8950,8 @@ function auditItselfIsNonExecuting(
     && codexMemoryMcpClient.providerExecuteAllowed === false
     && codexMemoryMcpClient.subAgentRuntimeInvocationAllowed === false
     && codexMemoryMcpClient.shellProcessAllowedByDefault === false
-    && codexMemoryMcpClient.workspaceWriteAllowedByDefault === false
-    && codexMemoryMcpClient.externalWriteAllowedByDefault === false
+    && codexMemoryMcpClient.workspaceWriteAllowedByDefault === false,
+    () => codexMemoryMcpClient.externalWriteAllowedByDefault === false
     && codexMemoryHostClient.memoryHostClientCallsDuringAudit === 0
     && codexMemoryHostClient.memoryOperationCallsDuringAudit === 0
     && codexMemoryHostClient.hostExecutorInvocationsDuringAudit === 0
@@ -8971,8 +8982,8 @@ function auditItselfIsNonExecuting(
     && desktopHostClient.codexCliCallsDuringAudit === 0
     && desktopHostClient.providerCallsDuringAudit === 0
     && desktopHostClient.subAgentRuntimeCallsDuringAudit === 0
-    && desktopHostClient.shellProcessCallsDuringAudit === 0
-    && desktopHostClient.workspaceWriteCallsDuringAudit === 0
+    && desktopHostClient.shellProcessCallsDuringAudit === 0,
+    () => desktopHostClient.workspaceWriteCallsDuringAudit === 0
     && desktopHostClient.externalWriteCallsDuringAudit === 0
     && desktopHostClient.defaultRealExecutionAllowed === false
     && desktopHostClient.defaultHostExecutorLookupAllowed === false
@@ -9003,8 +9014,8 @@ function auditItselfIsNonExecuting(
     && hostClientExample.exampleClientCallsDuringAudit === 0
     && hostClientExample.liveAdapterCallsDuringAudit === 0
     && hostClientExample.hostExecutorInvocationsDuringAudit === 0
-    && hostClientExample.dispatchToHostCallsDuringAudit === 0
-    && hostClientExample.codexCliCallsDuringAudit === 0
+    && hostClientExample.dispatchToHostCallsDuringAudit === 0,
+    () => hostClientExample.codexCliCallsDuringAudit === 0
     && hostClientExample.providerCallsDuringAudit === 0
     && hostClientExample.subAgentRuntimeCallsDuringAudit === 0
     && hostClientExample.shellProcessCallsDuringAudit === 0
@@ -9035,8 +9046,8 @@ function auditItselfIsNonExecuting(
     && targetHostEmbedding.directiveBuildersAreShellAuthorization === false
     && targetHostEmbedding.defaultRealHostExecutionAllowed === false
     && targetHostEmbedding.defaultHostExecutorLookupAllowed === false
-    && targetHostEmbedding.defaultCodexCliInvocationAllowed === false
-    && targetHostEmbedding.providerExecuteAllowed === false
+    && targetHostEmbedding.defaultCodexCliInvocationAllowed === false,
+    () => targetHostEmbedding.providerExecuteAllowed === false
     && targetHostEmbedding.subAgentRuntimeInvocationAllowed === false
     && targetHostEmbedding.shellProcessAllowedByDefault === false
     && targetHostEmbedding.workspaceWriteAllowedByDefault === false
@@ -9067,8 +9078,8 @@ function auditItselfIsNonExecuting(
     && hostClientReview.recoveryActionDispatchAllowed === false
     && hostClientReview.hostBridgeCallAllowedByReview === false
     && hostClientReview.dispatchToHostAllowedByReview === false
-    && hostClientReview.codexCliInvocationAllowed === false
-    && hostClientReview.providerInvocationAllowed === false
+    && hostClientReview.codexCliInvocationAllowed === false,
+    () => hostClientReview.providerInvocationAllowed === false
     && hostClientReview.subAgentRuntimeInvocationAllowed === false
     && hostClientReview.shellProcessAllowed === false
     && hostClientReview.workspaceWriteAllowed === false
@@ -9099,8 +9110,8 @@ function auditItselfIsNonExecuting(
     && adapterTaskbook.externalWriteAllowed === false
     && adapterTaskbook.productionRecoveryAllowed === false
     && adapterTaskbook.realRecoveryActionExecutionAllowed === false
-    && adapterTaskbook.adapterInvocationsDuringAudit === 0
-    && adapterReview.adapterInvocationAllowed === false
+    && adapterTaskbook.adapterInvocationsDuringAudit === 0,
+    () => adapterReview.adapterInvocationAllowed === false
     && adapterReview.subAgentRuntimeInvocationAllowed === false
     && adapterReview.codexCliInvocationAllowed === false
     && adapterReview.providerInvocationAllowed === false
@@ -9131,8 +9142,8 @@ function auditItselfIsNonExecuting(
     && taskControlReview.codexCliCallsDuringAudit === 0
     && taskControlReview.providerCallsDuringAudit === 0
     && taskControlReview.shellProcessCallsDuringAudit === 0
-    && taskControlReview.workspaceWriteCallsDuringAudit === 0
-    && taskControlReview.externalWriteCallsDuringAudit === 0
+    && taskControlReview.workspaceWriteCallsDuringAudit === 0,
+    () => taskControlReview.externalWriteCallsDuringAudit === 0
     && taskControlReview.adapterInvocationAllowed === false
     && taskControlReview.subAgentRuntimeInvocationAllowed === false
     && taskControlReview.codexCliInvocationAllowed === false
@@ -9153,7 +9164,8 @@ function auditItselfIsNonExecuting(
     && taskControl.subAgentRuntimeCallsDuringAudit === 0
     && taskControl.shellProcessCallsDuringAudit === 0
     && taskControl.workspaceWriteCallsDuringAudit === 0
-    && taskControl.externalWriteCallsDuringAudit === 0;
+    && taskControl.externalWriteCallsDuringAudit === 0
+  ]);
 }
 
 function executionAuthorityLatticeConstrained(
