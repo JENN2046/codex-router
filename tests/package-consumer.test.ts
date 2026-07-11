@@ -7,10 +7,9 @@ import {
 test("package consumer invokes npm through node on Windows without a shell", () => {
   assert.deepEqual(resolveNpmInvocation(["pack", "--json"], {
     platform: "win32",
-    npmExecPath: "C:/node/node_modules/npm/bin/npm-cli.js",
-    nodeExecutable: "C:/node/node.exe"
+    npmExecPath: "C:/node/node_modules/npm/bin/npm-cli.js"
   }), {
-    command: "C:/node/node.exe",
+    command: process.execPath,
     argv: ["C:/node/node_modules/npm/bin/npm-cli.js", "pack", "--json"]
   });
 });
