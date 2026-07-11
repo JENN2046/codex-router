@@ -267,6 +267,43 @@ test("workspace-write executor blocks targets outside sandbox writable roots bef
   assertSafeEvidence(result);
 });
 
+test("workspace-write executor blocks tampered permit diff limits before writing", async () => {
+  const cwd = await createGitRepo("workspace-write/general-tampered-diff-limit");
+  const targetPath = "tmp/tampered.txt";
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: [targetPath],
+    maxChangedFiles: 1,
+    maxDiffLines: 1
+  });
+  const tamperedPermit: WorkspaceWriteProviderExecutionPermitV2 = {
+    ...fixture.permit,
+    maxDiffLines: 2
+  };
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: tamperedPermit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "write", path: targetPath, content: "first\nsecond\n" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.permitValidForPlan, false);
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes("workspace_write_execution_permit_invalid"));
+  assert.ok(result.reasons.includes("workspace_write_execution_permit_v2_nonce_mismatch"));
+  assert.equal(existsSync(join(cwd, targetPath)), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
 test("workspace-write executor blocks existing ignored targets before writing", async () => {
   const cwd = await createGitRepo("workspace-write/general-ignored-target");
   await writeFile(join(cwd, ".gitignore"), "tmp/ignored.txt\n", "utf8");

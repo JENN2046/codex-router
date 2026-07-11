@@ -1500,6 +1500,8 @@ function createWorkspaceWriteProviderPermitV2Nonce(
     | "sandboxProfileId"
     | "operatorAuthorizationId"
     | "targetFiles"
+    | "maxChangedFiles"
+    | "maxDiffLines"
     | "rollback"
     | "issuedAt"
     | "expiresAt"
@@ -1524,6 +1526,8 @@ function createWorkspaceWriteProviderPermitV2Nonce(
       sandboxProfileId: permit.sandboxProfileId,
       operatorAuthorizationId: permit.operatorAuthorizationId,
       targetFiles: normalizeWorkspaceWritePermitPathList(permit.targetFiles),
+      maxChangedFiles: permit.maxChangedFiles,
+      maxDiffLines: permit.maxDiffLines,
       rollback: permit.rollback,
       issuedAt: permit.issuedAt,
       expiresAt: permit.expiresAt

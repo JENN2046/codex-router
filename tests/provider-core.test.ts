@@ -589,6 +589,14 @@ test("provider-core rejects workspace-write permit v2 binding mismatches", () =>
   }, plan, manifest).includes("workspace_write_provider_execution_permit_v2_rollback_affected_files_mismatch"));
   assert.ok(validateWorkspaceWriteProviderExecutionPermitV2ForPlan({
     ...permit,
+    maxChangedFiles: permit.maxChangedFiles + 1
+  }, plan, manifest).includes("workspace_write_provider_execution_permit_v2_nonce_mismatch"));
+  assert.ok(validateWorkspaceWriteProviderExecutionPermitV2ForPlan({
+    ...permit,
+    maxDiffLines: permit.maxDiffLines + 1
+  }, plan, manifest).includes("workspace_write_provider_execution_permit_v2_nonce_mismatch"));
+  assert.ok(validateWorkspaceWriteProviderExecutionPermitV2ForPlan({
+    ...permit,
     nonce: "tampered_nonce"
   }, plan, manifest).includes("workspace_write_provider_execution_permit_v2_nonce_mismatch"));
 });
