@@ -1031,12 +1031,17 @@ async function collectWorkspaceTargetPathReasons(
       .filter((part) => part.length > 0);
     let currentPath = cwd;
 
-    for (const part of parts) {
+    for (const [index, part] of parts.entries()) {
       currentPath = join(currentPath, part);
       try {
         const stats = await lstat(currentPath);
+        const isFinalPathComponent = index === parts.length - 1;
         if (stats.isSymbolicLink()) {
           reasons.push(`workspace_write_execution_symlink_target_forbidden:${targetPath}`);
+          break;
+        }
+        if (isFinalPathComponent && stats.isDirectory()) {
+          reasons.push(`workspace_write_execution_directory_target_forbidden:${targetPath}`);
           break;
         }
         if (stats.isFile() && stats.nlink > 1) {

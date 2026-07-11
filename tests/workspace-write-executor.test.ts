@@ -421,6 +421,45 @@ test("workspace-write executor blocks hard-linked targets before writing", async
   assertSafeEvidence(result);
 });
 
+test("workspace-write executor blocks directory targets before consuming permits", async () => {
+  const cwd = await createGitRepo("workspace-write/general-directory-target");
+  const targetPath = "docs";
+  await mkdir(join(cwd, targetPath), { recursive: true });
+  await writeFile(join(cwd, targetPath, "file.md"), "tracked docs\n", "utf8");
+  await git(["add", targetPath], cwd);
+  await git(["commit", "-m", "add tracked docs directory"], cwd);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: [targetPath],
+    maxChangedFiles: 1,
+    maxDiffLines: 1,
+    writableRoots: ["docs"]
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "write", path: targetPath, content: "not a directory\n" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.checks.permitConsumed, false);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 0);
+  assert.equal(result.counters.fileWriteCalls, 0);
+  assert.ok(result.reasons.includes(
+    `workspace_write_execution_directory_target_forbidden:${targetPath}`
+  ));
+  assert.equal(await readFile(join(cwd, targetPath, "file.md"), "utf8"), "tracked docs\n");
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
 test("workspace-write executor blocks git metadata targets before writing", async () => {
   const cwd = await createGitRepo("workspace-write/general-git-metadata-target");
   const targetPath = ".git/hooks/pre-commit";
