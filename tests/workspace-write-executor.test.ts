@@ -267,6 +267,43 @@ test("workspace-write executor blocks targets outside sandbox writable roots bef
   assertSafeEvidence(result);
 });
 
+test("workspace-write executor allows scoped workspace-prefixed writable roots", async () => {
+  const cwd = await createGitRepo("workspace-write/general-scoped-workspace-root");
+  const targetPath = "workspace/docs/file.md";
+  const fixture = await createWorkspaceWriteFixture(cwd, {
+    targetFiles: [targetPath],
+    maxChangedFiles: 1,
+    maxDiffLines: 1,
+    writableRoots: ["workspace/docs/**"]
+  });
+
+  const result = await runWorkspaceWriteExecution({
+    cwd,
+    permit: fixture.permit,
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    operations: [{ kind: "write", path: targetPath, content: "scoped docs\n" }],
+    executionAuthorizationId: authorizationId,
+    consumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    execute: true,
+    now: clock()
+  });
+
+  assert.equal(result.status, "passed");
+  assert.equal(result.checks.permitConsumed, true);
+  assert.equal(result.checks.wroteOnlyPermittedTargets, true);
+  assert.equal(result.checks.rollbackVerified, true);
+  assert.equal(result.counters.workspaceWriteExecuteCalls, 1);
+  assert.equal(result.counters.fileWriteCalls, 1);
+  assert.equal(result.reasons.includes(
+    `workspace_write_execution_target_outside_writable_roots:${targetPath}`
+  ), false);
+  assert.equal(existsSync(join(cwd, targetPath)), false);
+  assert.equal(existsSync(join(cwd, "workspace")), false);
+  assert.equal((await git(["status", "--short"], cwd)).trim(), "");
+  assertSafeEvidence(result);
+});
+
 test("workspace-write executor blocks tampered permit diff limits before writing", async () => {
   const cwd = await createGitRepo("workspace-write/general-tampered-diff-limit");
   const targetPath = "tmp/tampered.txt";

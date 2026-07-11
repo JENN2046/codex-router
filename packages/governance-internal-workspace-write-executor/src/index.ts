@@ -971,7 +971,7 @@ function writableRootAllowsTarget(
   targetPath: string
 ): boolean {
   const normalizedRoot = normalizeWorkspaceWritableRoot(writableRoot);
-  const normalizedTarget = normalizeWorkspacePath(targetPath);
+  const normalizedTarget = normalizeWorkspaceWritableTarget(targetPath);
 
   if (
     !isSafeWorkspaceRelativePath(normalizedRoot) ||
@@ -1004,6 +1004,13 @@ function normalizeWorkspaceWritableRoot(writableRoot: string): string {
   return normalizedRoot.startsWith("workspace/")
     ? normalizedRoot.slice("workspace/".length)
     : normalizedRoot;
+}
+
+function normalizeWorkspaceWritableTarget(targetPath: string): string {
+  const normalizedTarget = normalizeWorkspacePath(targetPath);
+  return normalizedTarget.startsWith("workspace/")
+    ? normalizedTarget.slice("workspace/".length)
+    : normalizedTarget;
 }
 
 async function collectWorkspaceTargetPathReasons(
