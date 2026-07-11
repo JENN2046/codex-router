@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "app-server-session-attestation.v1",
+  "sessionId": "fake-session-1",
+  "schemaProfileId": "fake-v2",
+  "codexVersion": "fake-only-not-live",
+  "effectiveApprovalPolicy": "on-request",
+  "effectiveSandboxPolicy": "workspace-write",
+  "fileChangeApprovalInterceptionProven": true,
+  "evidenceSource": "fake_fixture",
+  "scope": "test_only",
+  "attestedAt": "2026-07-11T00:00:00.000Z"
+}

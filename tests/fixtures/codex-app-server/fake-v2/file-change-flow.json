@@ -1,0 +1,64 @@
+[
+  {
+    "schemaVersion": "codex-app-server-normalized-event.v1",
+    "schemaProfileId": "fake-v2",
+    "eventId": "event-item-started",
+    "eventType": "item_started",
+    "sequence": 1,
+    "threadId": "thread-1",
+    "turnId": "turn-1",
+    "item": {
+      "itemId": "item-1",
+      "itemType": "file_change",
+      "baseHead": "$HEAD",
+      "proposedAt": "2026-07-11T00:00:00.000Z",
+      "changes": [
+        {
+          "path": "docs/guide.md",
+          "kind": "update",
+          "unifiedDiff": "diff --git a/docs/guide.md b/docs/guide.md\n--- a/docs/guide.md\n+++ b/docs/guide.md\n@@ -1 +1 @@\n-old\n+new\n",
+          "beforeHash": "$BEFORE_HASH",
+          "afterHash": "$AFTER_HASH"
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": "codex-app-server-normalized-event.v1",
+    "schemaProfileId": "fake-v2",
+    "eventId": "event-approval-requested",
+    "eventType": "approval_requested",
+    "sequence": 2,
+    "threadId": "thread-1",
+    "turnId": "turn-1",
+    "requestId": "request-1",
+    "itemId": "item-1",
+    "proposal": {
+      "kind": "file_change"
+    },
+    "semanticContext": "structured docs update"
+  },
+  {
+    "schemaVersion": "codex-app-server-normalized-event.v1",
+    "schemaProfileId": "fake-v2",
+    "eventId": "event-request-resolved",
+    "eventType": "request_resolved",
+    "sequence": 3,
+    "threadId": "thread-1",
+    "turnId": "turn-1",
+    "requestId": "request-1",
+    "itemId": "item-1",
+    "resolution": "accept"
+  },
+  {
+    "schemaVersion": "codex-app-server-normalized-event.v1",
+    "schemaProfileId": "fake-v2",
+    "eventId": "event-item-completed",
+    "eventType": "item_completed",
+    "sequence": 4,
+    "threadId": "thread-1",
+    "turnId": "turn-1",
+    "itemId": "item-1",
+    "outcome": "applied"
+  }
+]
