@@ -258,6 +258,73 @@ test("canonicalization rejects empty sets and diffs bound to another path", () =
   }).success, false);
 });
 
+test("canonicalization rejects file modes absent from governance evidence", () => {
+  const modeChangingUpdate = [
+    "diff --git a/docs/a.md b/docs/a.md",
+    "old mode 100644",
+    "new mode 100755",
+    "--- a/docs/a.md",
+    "+++ b/docs/a.md",
+    "@@ -1 +1 @@",
+    "-same",
+    "+same",
+    ""
+  ].join("\n");
+  const drafts = [{
+    path: "docs/a.md",
+    kind: "update" as const,
+    unifiedDiff: modeChangingUpdate,
+    beforeHash: sha256(Buffer.from("same\n")),
+    afterHash: sha256(Buffer.from("same\n"))
+  }, {
+    ...createChange("docs/executable.sh", "echo safe\n"),
+    unifiedDiff: createChange("docs/executable.sh", "echo safe\n").unifiedDiff.replace(
+      "new file mode 100644",
+      "new file mode 100755"
+    )
+  }, {
+    path: "docs/link.md",
+    kind: "create" as const,
+    unifiedDiff: createSymlinkDiff("docs/link.md", "../../outside.md"),
+    beforeHash: null,
+    afterHash: sha256(Buffer.from("../../outside.md"))
+  }];
+
+  for (const [index, change] of drafts.entries()) {
+    assert.throws(() => canonicalizeGovernedFileChangeSet({
+      changeSetId: `unsupported-mode-${index}`,
+      threadId: "thread",
+      turnId: "turn",
+      itemId: "item",
+      baseHead: "head",
+      proposedAt: now,
+      sourceSchemaProfile: "fake-v2",
+      changes: [change]
+    }), /governed_change_file_mode_unsupported/);
+  }
+
+  const safeDelete = canonicalizeGovernedFileChangeSet({
+    changeSetId: "supported-delete-mode",
+    threadId: "thread",
+    turnId: "turn",
+    itemId: "item",
+    baseHead: "head",
+    proposedAt: now,
+    sourceSchemaProfile: "fake-v2",
+    changes: [{
+      path: "docs/a.md",
+      kind: "delete",
+      unifiedDiff: deleteDiff("docs/a.md", "old").replace(
+        "--- a/docs/a.md",
+        "deleted file mode 100644\n--- a/docs/a.md"
+      ),
+      beforeHash: sha256(Buffer.from("old\n")),
+      afterHash: null
+    }]
+  });
+  assert.equal(safeDelete.changes[0]?.kind, "delete");
+});
+
 test("hard auto-approval boundaries cannot be relaxed by policy", () => {
   const changeSet = canonicalizeGovernedFileChangeSet({
     changeSetId: "set-hard-boundary",
@@ -866,8 +933,7 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
     "create_exists",
     "before_hash",
     "after_hash",
-    "symlink",
-    "applied_symlink"
+    "symlink"
   ] as const) {
     const fixture = await createRepositoryFixture();
     let head = fixture.head;
@@ -898,7 +964,7 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
       changeSet = updateFixtureChangeSet(head, { beforeHash: "0".repeat(64) });
     } else if (mode === "after_hash") {
       changeSet = updateFixtureChangeSet(head, { afterHash: "0".repeat(64) });
-    } else if (mode === "symlink") {
+    } else {
       await symlink("../../missing-private-target.md", join(fixture.repoRoot, "docs/link.md"));
       await git(["add", "docs/link.md"], fixture.repoRoot);
       await git(["commit", "-m", "add symlink"], fixture.repoRoot);
@@ -920,24 +986,6 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
           afterHash: sha256(Buffer.from("other.md\n"))
         }]
       });
-    } else {
-      const linkTarget = "../../missing-private-target.md";
-      changeSet = canonicalizeGovernedFileChangeSet({
-        changeSetId: "applied-symlink-target",
-        threadId: "thread",
-        turnId: "turn",
-        itemId: "item",
-        baseHead: head,
-        proposedAt: now,
-        sourceSchemaProfile: "fake-v2",
-        changes: [{
-          path: "docs/link.md",
-          kind: "create",
-          unifiedDiff: createSymlinkDiff("docs/link.md", linkTarget),
-          beforeHash: null,
-          afterHash: sha256(Buffer.from(linkTarget))
-        }]
-      });
     }
     const receipt = await createTestPreviewer(fixture.tempRoot).preview({
       repoRoot: fixture.repoRoot,
@@ -954,15 +1002,11 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
       create_exists: "preview_create_target_exists:docs/guide.md",
       before_hash: "preview_before_hash_mismatch:docs/guide.md",
       after_hash: "preview_after_hash_mismatch:docs/guide.md",
-      symlink: "preview_symlink_target_forbidden:docs/link.md",
-      applied_symlink: "preview_symlink_target_forbidden:docs/link.md"
+      symlink: "preview_symlink_target_forbidden:docs/link.md"
     }[mode];
     assert.ok(receipt.reasons.includes(marker), `${mode}:${receipt.reasons.join(",")}`);
     if (mode === "symlink") {
       assert.equal(receipt.reasons.includes("preview_before_target_unreadable:docs/link.md"), false);
-    }
-    if (mode === "applied_symlink") {
-      assert.equal(receipt.reasons.includes("preview_unknown_error"), false);
     }
     await rm(fixture.tempRoot, { recursive: true, force: true });
   }

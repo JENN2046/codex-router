@@ -1005,6 +1005,30 @@ function assertDiffBindsPath(
   ) {
     throw new Error("governed_change_diff_path_mismatch");
   }
+  assertSupportedFileModeHeaders(headerLines, kind);
+}
+
+function assertSupportedFileModeHeaders(
+  headerLines: string[],
+  kind: GovernedFileChangeKind
+): void {
+  const modeHeaders = headerLines.filter((line) => (
+    /^(?:old mode|new mode|new file mode|deleted file mode)\s/u.test(line)
+  ));
+  const supported = modeHeaders.length === 0
+    || (
+      kind === "create"
+      && modeHeaders.length === 1
+      && modeHeaders[0] === "new file mode 100644"
+    )
+    || (
+      kind === "delete"
+      && modeHeaders.length === 1
+      && modeHeaders[0] === "deleted file mode 100644"
+    );
+  if (!supported) {
+    throw new Error("governed_change_file_mode_unsupported");
+  }
 }
 
 function normalizeUnifiedDiff(diff: string): string {
