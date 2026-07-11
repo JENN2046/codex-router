@@ -26,6 +26,14 @@ import {
   type ProviderRegistry,
   type ProviderSelectionSummary
 } from "../../provider-registry/src/index.js";
+import {
+  dispatchControlledWorkspaceWriteProviderExecution,
+  prepareControlledWorkspaceWriteProviderDispatchInput,
+  type ControlledWorkspaceWriteProviderDispatchResult,
+  type PreparedControlledWorkspaceWriteProviderDispatch,
+  type PrepareControlledWorkspaceWriteProviderDispatchInput,
+  type RunControlledWorkspaceWriteProviderDispatchInput
+} from "../../governance-internal-controlled-provider-dispatcher/src/index.js";
 
 export type { HostRoute };
 
@@ -92,6 +100,18 @@ export interface FormalReadOnlyRunnerProviderDispatchInput {
   dryRun?: boolean;
   providerExecutionMetadata: Record<string, unknown>;
 }
+
+export type ControlledWorkspaceWriteHostProviderDispatchInput =
+  RunControlledWorkspaceWriteProviderDispatchInput;
+
+export type ControlledWorkspaceWriteHostProviderDispatchResult =
+  ControlledWorkspaceWriteProviderDispatchResult;
+
+export type PrepareControlledWorkspaceWriteHostProviderDispatchInput =
+  PrepareControlledWorkspaceWriteProviderDispatchInput;
+
+export type PreparedControlledWorkspaceWriteHostProviderDispatch =
+  PreparedControlledWorkspaceWriteProviderDispatch;
 
 export async function dispatchToHost(
   input: HostDispatcherInput
@@ -280,6 +300,18 @@ export async function dispatchFormalReadOnlyRunnerResultToProvider(
     ...(input.dryRun === true ? { dryRun: true } : {}),
     providerExecutionMetadata: looseInput.providerExecutionMetadata
   });
+}
+
+export async function dispatchControlledWorkspaceWriteProviderPlan(
+  input: ControlledWorkspaceWriteHostProviderDispatchInput
+): Promise<ControlledWorkspaceWriteHostProviderDispatchResult> {
+  return dispatchControlledWorkspaceWriteProviderExecution(input);
+}
+
+export async function prepareControlledWorkspaceWriteHostProviderDispatch(
+  input: PrepareControlledWorkspaceWriteHostProviderDispatchInput
+): Promise<PreparedControlledWorkspaceWriteHostProviderDispatch> {
+  return prepareControlledWorkspaceWriteProviderDispatchInput(input);
 }
 
 async function dispatchToCliHost(

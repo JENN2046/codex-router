@@ -23,8 +23,13 @@ import {
 } from "../../governance-internal-strategy-router/src/index.js";
 import {
   runProviderExecutionPlanControlledReadOnly,
-  type ControlledReadOnlyProviderExecutionRunnerResult
+  runProviderExecutionPlanControlledWorkspaceWrite,
+  type ControlledReadOnlyProviderExecutionRunnerResult,
+  type ControlledWorkspaceWriteProviderExecutionRunnerResult
 } from "../../governance-internal-provider-execution-runner/src/index.js";
+import type {
+  WorkspaceWriteOperation
+} from "../../governance-internal-workspace-write-executor/src/index.js";
 import {
   parseGovernanceState,
   type GovernanceState
@@ -50,12 +55,16 @@ import type {
 import {
   ExecutorExecutionPlanSchema,
   ProviderExecutionPermitSchema,
+  WorkspaceWriteProviderExecutionPermitV2Schema,
   hashProviderManifest,
   validateProviderExecutionPermitForPlan,
+  validateWorkspaceWriteProviderExecutionPermitV2ForPlan,
   type ExecutorExecutionPlan,
   type ProviderExecutionPermit,
+  type ProviderExecutionPermitConsumptionStore,
   type ProviderManifest,
-  type ProviderSideEffectClass
+  type ProviderSideEffectClass,
+  type WorkspaceWriteProviderExecutionPermitV2
 } from "../../provider-core/src/index.js";
 import {
   summarizeProviderSelectionResult,
@@ -114,6 +123,49 @@ export type ControlledReadOnlyProviderDispatchPreflight = z.infer<
   typeof ControlledReadOnlyProviderDispatchPreflightSchema
 >;
 
+export const ControlledWorkspaceWriteDispatchPreflightChecksSchema = z.object({
+  cleanWorktreeConfirmed: z.literal(true),
+  targetAllowlistConfirmed: z.literal(true),
+  rollbackRequired: z.literal(true),
+  noProviderExecute: z.literal(true),
+  noRealCodexCli: z.literal(true),
+  noExternalWrite: z.literal(true),
+  versionProbe: z.string().min(1)
+});
+
+export type ControlledWorkspaceWriteDispatchPreflightChecks = z.infer<
+  typeof ControlledWorkspaceWriteDispatchPreflightChecksSchema
+>;
+
+export const ControlledWorkspaceWriteDispatchEnvironmentPreflightSchema = z.object({
+  status: z.literal("ready"),
+  artifactRef: z.string().min(1),
+  artifactHash: Sha256Schema,
+  checks: ControlledWorkspaceWriteDispatchPreflightChecksSchema,
+  blockingReasons: z.array(z.string().min(1)).default([])
+});
+
+export type ControlledWorkspaceWriteDispatchEnvironmentPreflight = z.infer<
+  typeof ControlledWorkspaceWriteDispatchEnvironmentPreflightSchema
+>;
+
+export const ControlledWorkspaceWriteProviderDispatchPreflightSchema = z.object({
+  schemaVersion: z.literal("controlled-workspace-write-provider-dispatch-preflight.v1"),
+  mode: z.literal("controlled-workspace-write"),
+  providerExecutionPlanHash: Sha256Schema,
+  providerRegistrySelectionRequired: z.literal(true),
+  permitRequired: z.literal(true),
+  operationManifestRequired: z.literal(true),
+  preflightArtifactBindingRequired: z.literal(true),
+  providerExecuteForbidden: z.literal(true),
+  realCodexCliForbidden: z.literal(true),
+  environmentPreflight: ControlledWorkspaceWriteDispatchEnvironmentPreflightSchema
+});
+
+export type ControlledWorkspaceWriteProviderDispatchPreflight = z.infer<
+  typeof ControlledWorkspaceWriteProviderDispatchPreflightSchema
+>;
+
 export type RunControlledReadOnlyProviderDispatchInput = {
   providerExecutionPlan: ProviderExecutionPlan;
   task: Task;
@@ -134,6 +186,28 @@ export type RunControlledReadOnlyProviderDispatchInput = {
     state: GovernanceState,
     strategy: StrategyDecisionV2
   ) => Promise<void>;
+  now: () => string;
+};
+
+export type RunControlledWorkspaceWriteProviderDispatchInput = {
+  providerExecutionPlan: ProviderExecutionPlan;
+  task: Task;
+  run: Run;
+  principal: Principal;
+  policyDecision: PolicyDecision;
+  providerRegistry: ProviderRegistry;
+  kernelStore: KernelStore;
+  artifactStore: ArtifactStore;
+  workspaceRoot: string;
+  permit: WorkspaceWriteProviderExecutionPermitV2;
+  executorPlan: ExecutorExecutionPlan;
+  operations: WorkspaceWriteOperation[];
+  executionAuthorizationId: string;
+  consumptionStore: ProviderExecutionPermitConsumptionStore;
+  dispatchPreflight: ControlledWorkspaceWriteProviderDispatchPreflight;
+  governanceState: GovernanceState;
+  taskEnvelope: TaskEnvelopeInput;
+  proposedInput?: unknown;
   now: () => string;
 };
 
@@ -176,6 +250,50 @@ export type ControlledReadOnlyProviderDispatchResult =
   | ControlledReadOnlyProviderDispatchBlocked
   | ControlledReadOnlyProviderDispatchCompleted;
 
+export type ControlledWorkspaceWriteProviderDispatchReady = {
+  schemaVersion: "controlled-workspace-write-provider-dispatch-review.v1";
+  status: "dispatch_ready";
+  runnerInvoked: false;
+  executeInvoked: false;
+  providerExecuteInvoked: false;
+  reasons: string[];
+  providerExecutionPlanHash: string;
+  executorPlanHash: string;
+  operationManifestHash: string;
+  providerRegistrySelection: ProviderSelectionSummary;
+};
+
+export type ControlledWorkspaceWriteProviderDispatchBlocked = {
+  schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1";
+  status: "dispatch_blocked";
+  runnerInvoked: false;
+  executeInvoked: false;
+  providerExecuteInvoked: false;
+  reasons: string[];
+  providerExecutionPlanHash: string;
+  executorPlanHash: string;
+  operationManifestHash: string;
+  providerRegistrySelection: ProviderSelectionSummary;
+};
+
+export type ControlledWorkspaceWriteProviderDispatchCompleted = {
+  schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1";
+  status: "runner_completed";
+  runnerInvoked: true;
+  executeInvoked: boolean;
+  providerExecuteInvoked: false;
+  reasons: string[];
+  providerExecutionPlanHash: string;
+  executorPlanHash: string;
+  operationManifestHash: string;
+  providerRegistrySelection: ProviderSelectionSummary;
+  runnerResult: ControlledWorkspaceWriteProviderExecutionRunnerResult;
+};
+
+export type ControlledWorkspaceWriteProviderDispatchResult =
+  | ControlledWorkspaceWriteProviderDispatchBlocked
+  | ControlledWorkspaceWriteProviderDispatchCompleted;
+
 export type RecordControlledReadOnlyProviderDispatchPreflightArtifactInput = {
   artifactStore: ArtifactStore;
   dispatchPreflight: ControlledReadOnlyProviderDispatchPreflight;
@@ -185,6 +303,32 @@ export type RecordControlledReadOnlyProviderDispatchPreflightArtifactInput = {
   task: Task;
   run: Run;
   now?: () => string;
+};
+
+export type RecordControlledWorkspaceWriteProviderDispatchPreflightArtifactInput = {
+  artifactStore: ArtifactStore;
+  dispatchPreflight: ControlledWorkspaceWriteProviderDispatchPreflight;
+  providerExecutionPlan: ProviderExecutionPlan;
+  executorPlan: ExecutorExecutionPlan;
+  policyDecision: PolicyDecision;
+  task: Task;
+  run: Run;
+  operations: WorkspaceWriteOperation[];
+  now?: () => string;
+};
+
+export type PrepareControlledWorkspaceWriteProviderDispatchInput =
+  Omit<RunControlledWorkspaceWriteProviderDispatchInput, "dispatchPreflight"> & {
+    environmentChecks?: Partial<ControlledWorkspaceWriteDispatchPreflightChecks> & {
+      versionProbe?: string;
+    };
+  };
+
+export type PreparedControlledWorkspaceWriteProviderDispatch = {
+  schemaVersion: "prepared-controlled-workspace-write-provider-dispatch.v1";
+  dispatchInput: RunControlledWorkspaceWriteProviderDispatchInput;
+  dispatchPreflight: ControlledWorkspaceWriteProviderDispatchPreflight;
+  preflightArtifact: StoredArtifact;
 };
 
 export function createControlledReadOnlyProviderDispatchPreflight(input: {
@@ -226,6 +370,50 @@ export function createControlledReadOnlyProviderDispatchPreflight(input: {
     permitRequired: true,
     preflightArtifactBindingRequired: true,
     dryRunDefaultPreserved: true,
+    environmentPreflight
+  });
+}
+
+export function createControlledWorkspaceWriteProviderDispatchPreflight(input: {
+  providerExecutionPlan: ProviderExecutionPlan;
+  environmentChecks?: Partial<ControlledWorkspaceWriteDispatchPreflightChecks> & {
+    versionProbe?: string;
+  };
+}): ControlledWorkspaceWriteProviderDispatchPreflight {
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse(
+    input.providerExecutionPlan
+  );
+  const checks = ControlledWorkspaceWriteDispatchPreflightChecksSchema.parse({
+    cleanWorktreeConfirmed: true,
+    targetAllowlistConfirmed: true,
+    rollbackRequired: true,
+    noProviderExecute: true,
+    noRealCodexCli: true,
+    noExternalWrite: true,
+    versionProbe: input.environmentChecks?.versionProbe ?? "passed",
+    ...input.environmentChecks
+  });
+  const providerExecutionPlanHash =
+    hashProviderExecutionPlannerObject(providerExecutionPlan);
+  const environmentPreflight = createWorkspaceWriteEnvironmentPreflight({
+    providerId: providerExecutionPlan.providerId,
+    providerKind: providerExecutionPlan.providerKind,
+    checks,
+    ...(providerExecutionPlan.providerManifestHash !== undefined
+      ? { manifestHash: providerExecutionPlan.providerManifestHash }
+      : {})
+  });
+
+  return ControlledWorkspaceWriteProviderDispatchPreflightSchema.parse({
+    schemaVersion: "controlled-workspace-write-provider-dispatch-preflight.v1",
+    mode: "controlled-workspace-write",
+    providerExecutionPlanHash,
+    providerRegistrySelectionRequired: true,
+    permitRequired: true,
+    operationManifestRequired: true,
+    preflightArtifactBindingRequired: true,
+    providerExecuteForbidden: true,
+    realCodexCliForbidden: true,
     environmentPreflight
   });
 }
@@ -285,6 +473,116 @@ export async function recordControlledReadOnlyProviderDispatchPreflightArtifact(
     ...(input.now !== undefined ? { createdAt: input.now() } : {}),
     alreadyRedacted: true
   });
+}
+
+export async function recordControlledWorkspaceWriteProviderDispatchPreflightArtifact(
+  input: RecordControlledWorkspaceWriteProviderDispatchPreflightArtifactInput
+): Promise<StoredArtifact> {
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse(
+    input.providerExecutionPlan
+  );
+  const executorPlan = ExecutorExecutionPlanSchema.parse(input.executorPlan);
+  const policyDecision = PolicyDecisionSchema.parse(input.policyDecision);
+  const task = TaskSchema.parse(input.task);
+  const run = RunSchema.parse(input.run);
+  const dispatchPreflight = ControlledWorkspaceWriteProviderDispatchPreflightSchema.parse(
+    input.dispatchPreflight
+  );
+  if (containsForbiddenExecutionMaterial(dispatchPreflight.environmentPreflight)) {
+    throw new Error("controlled_workspace_write_dispatch_preflight_metadata_not_sanitized");
+  }
+  const providerExecutionPlanHash =
+    hashProviderExecutionPlannerObject(providerExecutionPlan);
+  const executorPlanHash = hashProviderExecutionPlannerObject(executorPlan);
+  const policyDecisionHash = hashProviderExecutionPlannerObject(policyDecision);
+  const operationManifestHash = hashProviderExecutionPlannerObject(input.operations);
+  const binding = createWorkspaceWriteDispatchPreflightArtifactBinding({
+    dispatchPreflight,
+    providerExecutionPlan,
+    providerExecutionPlanHash,
+    executorPlanHash,
+    operationManifestHash,
+    policyDecisionHash,
+    task,
+    run
+  });
+  const payload = createWorkspaceWriteDispatchPreflightArtifactPayload({
+    dispatchPreflight,
+    binding
+  });
+  const artifactId = dispatchPreflightArtifactId({
+    artifactRef: dispatchPreflight.environmentPreflight.artifactRef,
+    taskId: task.taskId,
+    runId: run.runId,
+    providerExecutionPlanHash
+  });
+
+  return input.artifactStore.putArtifact({
+    artifactId,
+    taskId: task.taskId,
+    runId: run.runId,
+    type: "json",
+    payload,
+    metadata: {
+      controlledWorkspaceWriteDispatchPreflight: binding
+    },
+    provenance: {
+      source: "controlled-provider-dispatcher"
+    },
+    ...(input.now !== undefined ? { createdAt: input.now() } : {}),
+    alreadyRedacted: true
+  });
+}
+
+export async function prepareControlledWorkspaceWriteProviderDispatchInput(
+  input: PrepareControlledWorkspaceWriteProviderDispatchInput
+): Promise<PreparedControlledWorkspaceWriteProviderDispatch> {
+  const dispatchPreflight = createControlledWorkspaceWriteProviderDispatchPreflight({
+    providerExecutionPlan: input.providerExecutionPlan,
+    ...(input.environmentChecks !== undefined
+      ? { environmentChecks: input.environmentChecks }
+      : {})
+  });
+  const preflightArtifact =
+    await recordControlledWorkspaceWriteProviderDispatchPreflightArtifact({
+      artifactStore: input.artifactStore,
+      dispatchPreflight,
+      providerExecutionPlan: input.providerExecutionPlan,
+      executorPlan: input.executorPlan,
+      policyDecision: input.policyDecision,
+      task: input.task,
+      run: input.run,
+      operations: input.operations,
+      now: input.now
+    });
+  const dispatchInput: RunControlledWorkspaceWriteProviderDispatchInput = {
+    providerExecutionPlan: input.providerExecutionPlan,
+    task: input.task,
+    run: input.run,
+    principal: input.principal,
+    policyDecision: input.policyDecision,
+    providerRegistry: input.providerRegistry,
+    kernelStore: input.kernelStore,
+    artifactStore: input.artifactStore,
+    workspaceRoot: input.workspaceRoot,
+    permit: input.permit,
+    executorPlan: input.executorPlan,
+    operations: input.operations,
+    executionAuthorizationId: input.executionAuthorizationId,
+    dispatchPreflight,
+    governanceState: input.governanceState,
+    taskEnvelope: input.taskEnvelope,
+    consumptionStore: input.consumptionStore,
+    ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
+    now: input.now
+  };
+
+  return {
+    schemaVersion: "prepared-controlled-workspace-write-provider-dispatch.v1",
+    dispatchInput,
+    dispatchPreflight,
+    preflightArtifact
+  };
 }
 
 export function reviewControlledReadOnlyProviderDispatch(
@@ -411,6 +709,122 @@ export function reviewControlledReadOnlyProviderDispatch(
   };
 }
 
+export function reviewControlledWorkspaceWriteProviderDispatch(
+  input: RunControlledWorkspaceWriteProviderDispatchInput
+): ControlledWorkspaceWriteProviderDispatchReady | ControlledWorkspaceWriteProviderDispatchBlocked {
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse(
+    input.providerExecutionPlan
+  );
+  const task = TaskSchema.parse(input.task);
+  const run = RunSchema.parse(input.run);
+  const principal = PrincipalSchema.parse(input.principal);
+  const policyDecision = PolicyDecisionSchema.parse(input.policyDecision);
+  const executorPlan = ExecutorExecutionPlanSchema.parse(input.executorPlan);
+  const permit = WorkspaceWriteProviderExecutionPermitV2Schema.parse(input.permit);
+  const dispatchPreflight = ControlledWorkspaceWriteProviderDispatchPreflightSchema.parse(
+    input.dispatchPreflight
+  );
+  const governanceState = parseGovernanceState(input.governanceState);
+  const taskEnvelope = parseTaskEnvelope(input.taskEnvelope);
+  const providerExecutionPlanHash =
+    hashProviderExecutionPlannerObject(providerExecutionPlan);
+  const executorPlanHash = hashProviderExecutionPlannerObject(executorPlan);
+  const operationManifestHash = hashProviderExecutionPlannerObject(input.operations);
+  const providerEntry = input.providerRegistry.getProvider(
+    providerExecutionPlan.providerId
+  );
+  const selection = input.providerRegistry.select({
+    providerId: providerExecutionPlan.providerId,
+    kind: "executor",
+    requiredCapabilities: providerExecutionPlan.requiredCapabilities,
+    requiredSandboxProfile: providerExecutionPlan.sandboxProfile,
+    requiredSideEffectClass: "workspace_write",
+    ...(providerExecutionPlan.providerManifestHash !== undefined
+      ? { expectedManifestHash: providerExecutionPlan.providerManifestHash }
+      : {}),
+    requireEnabled: true
+  });
+  const providerRegistrySelection = summarizeProviderSelectionResult(selection);
+  const strategyDecision = routeStrategyV2({
+    state: governanceState,
+    now: input.now
+  });
+  const reasons = uniqueStrings([
+    ...collectWorkspaceWritePlanReasons({
+      providerExecutionPlan,
+      task,
+      run,
+      principal,
+      policyDecision,
+      executorPlan,
+      operations: input.operations,
+      workspaceRoot: input.workspaceRoot,
+      executionAuthorizationId: input.executionAuthorizationId,
+      consumptionStore: input.consumptionStore
+    }),
+    ...collectWorkspaceWriteExecutorPlanReasons({
+      providerExecutionPlan,
+      executorPlan
+    }),
+    ...collectWorkspaceWriteDispatchPreflightReasons({
+      dispatchPreflight,
+      providerExecutionPlan,
+      providerExecutionPlanHash,
+      providerRegistrySelection
+    }),
+    ...collectGovernanceReasons({
+      governanceState,
+      task,
+      taskEnvelope,
+      strategyDecision
+    }).map((reason) =>
+      reason.replace("controlled_readonly_dispatch_", "controlled_workspace_write_dispatch_")
+    ),
+    ...collectWorkspaceWriteProviderSelectionReasons({
+      providerRegistrySelection,
+      ...(providerEntry !== undefined
+        ? { providerEntryManifestHash: hashProviderManifest(providerEntry.manifest) }
+        : {})
+    }),
+    ...collectWorkspaceWritePermitReasons({
+      permit,
+      executorPlan,
+      now: input.now(),
+      ...(providerEntry !== undefined
+        ? { providerEntryManifest: providerEntry.manifest }
+        : {})
+    })
+  ]);
+
+  if (reasons.length > 0) {
+    return {
+      schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+      status: "dispatch_blocked",
+      runnerInvoked: false,
+      executeInvoked: false,
+      providerExecuteInvoked: false,
+      reasons,
+      providerExecutionPlanHash,
+      executorPlanHash,
+      operationManifestHash,
+      providerRegistrySelection
+    };
+  }
+
+  return {
+    schemaVersion: "controlled-workspace-write-provider-dispatch-review.v1",
+    status: "dispatch_ready",
+    runnerInvoked: false,
+    executeInvoked: false,
+    providerExecuteInvoked: false,
+    reasons: ["controlled_workspace_write_provider_dispatch_ready"],
+    providerExecutionPlanHash,
+    executorPlanHash,
+    operationManifestHash,
+    providerRegistrySelection
+  };
+}
+
 export async function dispatchControlledReadOnlyProviderExecution(
   input: RunControlledReadOnlyProviderDispatchInput
 ): Promise<ControlledReadOnlyProviderDispatchResult> {
@@ -477,6 +891,80 @@ export async function dispatchControlledReadOnlyProviderExecution(
     ]),
     providerExecutionPlanHash: review.providerExecutionPlanHash,
     executorPlanHash: review.executorPlanHash,
+    providerRegistrySelection: review.providerRegistrySelection,
+    runnerResult
+  };
+}
+
+export async function dispatchControlledWorkspaceWriteProviderExecution(
+  input: RunControlledWorkspaceWriteProviderDispatchInput
+): Promise<ControlledWorkspaceWriteProviderDispatchResult> {
+  const review = reviewControlledWorkspaceWriteProviderDispatch(input);
+  if (review.status === "dispatch_blocked") {
+    return review;
+  }
+
+  const artifactStoreReasons = await collectWorkspaceWriteDispatchPreflightArtifactStoreReasons({
+    artifactStore: input.artifactStore,
+    dispatchPreflight: input.dispatchPreflight,
+    providerExecutionPlan: input.providerExecutionPlan,
+    executorPlan: input.executorPlan,
+    policyDecision: input.policyDecision,
+    task: input.task,
+    run: input.run,
+    operations: input.operations,
+    providerExecutionPlanHash: review.providerExecutionPlanHash,
+    executorPlanHash: review.executorPlanHash,
+    operationManifestHash: review.operationManifestHash
+  });
+  if (artifactStoreReasons.length > 0) {
+    return {
+      schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+      status: "dispatch_blocked",
+      runnerInvoked: false,
+      executeInvoked: false,
+      providerExecuteInvoked: false,
+      reasons: artifactStoreReasons,
+      providerExecutionPlanHash: review.providerExecutionPlanHash,
+      executorPlanHash: review.executorPlanHash,
+      operationManifestHash: review.operationManifestHash,
+      providerRegistrySelection: review.providerRegistrySelection
+    };
+  }
+
+  const runnerResult = await runProviderExecutionPlanControlledWorkspaceWrite({
+    providerExecutionPlan: input.providerExecutionPlan,
+    task: input.task,
+    run: input.run,
+    principal: input.principal,
+    policyDecision: input.policyDecision,
+    providerRegistry: input.providerRegistry,
+    kernelStore: input.kernelStore,
+    artifactStore: input.artifactStore,
+    workspaceRoot: input.workspaceRoot,
+    permit: input.permit,
+    executorPlan: input.executorPlan,
+    operations: input.operations,
+    executionAuthorizationId: input.executionAuthorizationId,
+    consumptionStore: input.consumptionStore,
+    ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
+    now: input.now,
+    mode: "controlled-workspace-write"
+  });
+
+  return {
+    schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+    status: "runner_completed",
+    runnerInvoked: true,
+    executeInvoked: runnerResult.executeInvoked,
+    providerExecuteInvoked: false,
+    reasons: uniqueStrings([
+      "controlled_workspace_write_provider_dispatch_runner_completed",
+      ...runnerResult.reasons
+    ]),
+    providerExecutionPlanHash: review.providerExecutionPlanHash,
+    executorPlanHash: review.executorPlanHash,
+    operationManifestHash: review.operationManifestHash,
     providerRegistrySelection: review.providerRegistrySelection,
     runnerResult
   };
@@ -574,6 +1062,116 @@ function collectPlanReasons(input: {
     providerExecutionPlan,
     policyDecision
   }));
+
+  return uniqueStrings(reasons);
+}
+
+function collectWorkspaceWritePlanReasons(input: {
+  providerExecutionPlan: ProviderExecutionPlan;
+  task: Task;
+  run: Run;
+  principal: Principal;
+  policyDecision: PolicyDecision;
+  executorPlan: ExecutorExecutionPlan;
+  operations: WorkspaceWriteOperation[];
+  workspaceRoot: string;
+  executionAuthorizationId: string;
+  consumptionStore?: ProviderExecutionPermitConsumptionStore;
+}): string[] {
+  const reasons: string[] = [];
+  const {
+    providerExecutionPlan,
+    task,
+    run,
+    principal,
+    policyDecision,
+    executorPlan
+  } = input;
+
+  if (providerExecutionPlan.status !== "planned") {
+    reasons.push(`controlled_workspace_write_dispatch_plan_not_planned:${providerExecutionPlan.status}`);
+  }
+  if (providerExecutionPlan.providerKind !== "executor") {
+    reasons.push(`controlled_workspace_write_dispatch_requires_executor_provider:${providerExecutionPlan.providerKind}`);
+  }
+  if (providerExecutionPlan.providerManifestHash === undefined) {
+    reasons.push("controlled_workspace_write_dispatch_provider_manifest_hash_required");
+  }
+  if (providerExecutionPlan.sideEffectClass !== "workspace_write") {
+    reasons.push(
+      `controlled_workspace_write_dispatch_requires_workspace_write_side_effect:${providerExecutionPlan.sideEffectClass}`
+    );
+  }
+  if (providerExecutionPlan.sandboxProfile.mode !== "workspace-write") {
+    reasons.push(
+      `controlled_workspace_write_dispatch_requires_workspace_write_sandbox:${providerExecutionPlan.sandboxProfile.mode}`
+    );
+  }
+  if (providerExecutionPlan.sandboxProfile.writableRoots.length === 0) {
+    reasons.push("controlled_workspace_write_dispatch_requires_writable_roots");
+  }
+  if (policyDecision.approval.required !== true) {
+    reasons.push("controlled_workspace_write_dispatch_requires_explicit_approval");
+  }
+  if (input.operations.length === 0) {
+    reasons.push("controlled_workspace_write_dispatch_operations_required");
+  }
+  if (input.workspaceRoot.trim() === "") {
+    reasons.push("controlled_workspace_write_dispatch_workspace_root_required");
+  }
+  if (input.executionAuthorizationId.trim() === "") {
+    reasons.push("controlled_workspace_write_dispatch_authorization_id_required");
+  }
+  if (input.consumptionStore === undefined) {
+    reasons.push("controlled_workspace_write_dispatch_consumption_store_required");
+  }
+  if (providerExecutionPlan.taskId !== task.taskId) {
+    reasons.push(`controlled_workspace_write_dispatch_task_mismatch:${providerExecutionPlan.taskId}:${task.taskId}`);
+  }
+  const expectedTaskHash = hashProviderExecutionPlannerObject(task);
+  if (providerExecutionPlan.taskHash === undefined) {
+    reasons.push("controlled_workspace_write_dispatch_task_hash_required");
+  } else if (providerExecutionPlan.taskHash !== expectedTaskHash) {
+    reasons.push("controlled_workspace_write_dispatch_task_hash_mismatch");
+  }
+  if (providerExecutionPlan.runId !== run.runId || run.taskId !== task.taskId) {
+    reasons.push("controlled_workspace_write_dispatch_run_binding_mismatch");
+  }
+  if (run.status !== "running") {
+    reasons.push(`controlled_workspace_write_dispatch_run_not_running:${run.status}`);
+  }
+  if (policyDecision.taskId !== task.taskId) {
+    reasons.push(`controlled_workspace_write_dispatch_policy_task_mismatch:${policyDecision.taskId}:${task.taskId}`);
+  }
+  if (
+    run.policyDecisionId !== undefined &&
+    run.policyDecisionId !== policyDecision.decisionId
+  ) {
+    reasons.push(
+      `controlled_workspace_write_dispatch_run_policy_decision_mismatch:${run.policyDecisionId}:${policyDecision.decisionId}`
+    );
+  }
+  if (providerExecutionPlan.principalId !== principal.principalId) {
+    reasons.push("controlled_workspace_write_dispatch_principal_mismatch");
+  }
+  const expectedPrincipalHash = hashProviderExecutionPlannerObject(principal);
+  if (providerExecutionPlan.principalHash === undefined) {
+    reasons.push("controlled_workspace_write_dispatch_principal_hash_required");
+  } else if (providerExecutionPlan.principalHash !== expectedPrincipalHash) {
+    reasons.push("controlled_workspace_write_dispatch_principal_hash_mismatch");
+  }
+  if (providerExecutionPlan.policyDecisionHash !== hashProviderExecutionPlannerObject(policyDecision)) {
+    reasons.push("controlled_workspace_write_dispatch_policy_hash_mismatch");
+  }
+  if (executorPlan.providerExecutionPlanHash !== hashProviderExecutionPlannerObject(providerExecutionPlan)) {
+    reasons.push("controlled_workspace_write_dispatch_executor_plan_hash_mismatch");
+  }
+  reasons.push(...collectProviderPlanPolicyInvariantReasons({
+    providerExecutionPlan,
+    policyDecision
+  }).map((reason) =>
+    reason.replace("controlled_readonly_dispatch_", "controlled_workspace_write_dispatch_")
+  ));
 
   return uniqueStrings(reasons);
 }
@@ -681,6 +1279,35 @@ function collectExecutorPlanInvariantReasons(input: {
   return uniqueStrings(reasons);
 }
 
+function collectWorkspaceWriteExecutorPlanReasons(input: {
+  providerExecutionPlan: ProviderExecutionPlan;
+  executorPlan: ExecutorExecutionPlan;
+}): string[] {
+  const reasons = collectExecutorPlanInvariantReasons(input).map((reason) =>
+    reason.replace("controlled_readonly_dispatch_", "controlled_workspace_write_dispatch_")
+  );
+  const { executorPlan } = input;
+
+  if (executorPlan.sideEffectClass !== "workspace_write") {
+    reasons.push(
+      `controlled_workspace_write_dispatch_executor_requires_workspace_write_side_effect:${executorPlan.sideEffectClass}`
+    );
+  }
+  if (executorPlan.sandboxProfile.mode !== "workspace-write") {
+    reasons.push(
+      `controlled_workspace_write_dispatch_executor_requires_workspace_write_sandbox:${executorPlan.sandboxProfile.mode}`
+    );
+  }
+  if (executorPlan.sandboxProfile.writableRoots.length === 0) {
+    reasons.push("controlled_workspace_write_dispatch_executor_requires_writable_roots");
+  }
+  if (executorPlan.approvalRequired !== true) {
+    reasons.push("controlled_workspace_write_dispatch_executor_requires_explicit_approval");
+  }
+
+  return uniqueStrings(reasons);
+}
+
 function collectExecutorApprovalPolicyReasons(input: {
   executorPlan: ExecutorExecutionPlan;
 }): string[] {
@@ -729,6 +1356,44 @@ function collectDispatchPreflightReasons(input: {
   }
   if (input.providerRegistrySelection.selected !== true) {
     reasons.push("controlled_readonly_dispatch_provider_registry_selection_required");
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function collectWorkspaceWriteDispatchPreflightReasons(input: {
+  dispatchPreflight: ControlledWorkspaceWriteProviderDispatchPreflight;
+  providerExecutionPlan: ProviderExecutionPlan;
+  providerExecutionPlanHash: string;
+  providerRegistrySelection: ProviderSelectionSummary;
+}): string[] {
+  const reasons: string[] = [];
+  const expectedPreflight = createWorkspaceWriteEnvironmentPreflight({
+    providerId: input.providerExecutionPlan.providerId,
+    providerKind: input.providerExecutionPlan.providerKind,
+    checks: input.dispatchPreflight.environmentPreflight.checks,
+    ...(input.providerExecutionPlan.providerManifestHash !== undefined
+      ? { manifestHash: input.providerExecutionPlan.providerManifestHash }
+      : {})
+  });
+
+  if (input.dispatchPreflight.providerExecutionPlanHash !== input.providerExecutionPlanHash) {
+    reasons.push("controlled_workspace_write_dispatch_provider_execution_plan_hash_mismatch");
+  }
+  if (input.dispatchPreflight.environmentPreflight.blockingReasons.length > 0) {
+    reasons.push("controlled_workspace_write_dispatch_environment_preflight_blocked");
+  }
+  if (containsForbiddenExecutionMaterial(input.dispatchPreflight.environmentPreflight)) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_metadata_not_sanitized");
+  }
+  if (input.dispatchPreflight.environmentPreflight.artifactRef !== expectedPreflight.artifactRef) {
+    reasons.push("controlled_workspace_write_dispatch_environment_preflight_artifact_ref_mismatch");
+  }
+  if (input.dispatchPreflight.environmentPreflight.artifactHash !== expectedPreflight.artifactHash) {
+    reasons.push("controlled_workspace_write_dispatch_environment_preflight_artifact_hash_mismatch");
+  }
+  if (input.providerRegistrySelection.selected !== true) {
+    reasons.push("controlled_workspace_write_dispatch_provider_registry_selection_required");
   }
 
   return uniqueStrings(reasons);
@@ -806,6 +1471,31 @@ function collectProviderSelectionReasons(input: {
   return uniqueStrings(reasons);
 }
 
+function collectWorkspaceWriteProviderSelectionReasons(input: {
+  providerRegistrySelection: ProviderSelectionSummary;
+  providerEntryManifestHash?: string;
+}): string[] {
+  const reasons = [...input.providerRegistrySelection.reasons];
+
+  if (input.providerRegistrySelection.selected !== true) {
+    reasons.push("controlled_workspace_write_dispatch_provider_not_selected");
+  }
+  if (input.providerRegistrySelection.kind !== "executor") {
+    reasons.push("controlled_workspace_write_dispatch_provider_selection_kind_mismatch");
+  }
+  if (input.providerRegistrySelection.enabled !== true) {
+    reasons.push("controlled_workspace_write_dispatch_provider_selection_disabled");
+  }
+  if (
+    input.providerEntryManifestHash !== undefined &&
+    input.providerRegistrySelection.manifestHash !== input.providerEntryManifestHash
+  ) {
+    reasons.push("controlled_workspace_write_dispatch_provider_manifest_hash_mismatch");
+  }
+
+  return uniqueStrings(reasons);
+}
+
 function collectPermitReasons(input: {
   permit: ProviderExecutionPermit;
   executorPlan: ExecutorExecutionPlan;
@@ -822,6 +1512,27 @@ function collectPermitReasons(input: {
     input.providerEntryManifest,
     {
       reasonPrefix: "controlled_readonly_dispatch_permit",
+      now: input.now
+    }
+  );
+}
+
+function collectWorkspaceWritePermitReasons(input: {
+  permit: WorkspaceWriteProviderExecutionPermitV2;
+  executorPlan: ExecutorExecutionPlan;
+  providerEntryManifest?: ProviderManifest;
+  now: string;
+}): string[] {
+  if (input.providerEntryManifest === undefined) {
+    return ["controlled_workspace_write_dispatch_provider_manifest_required"];
+  }
+
+  return validateWorkspaceWriteProviderExecutionPermitV2ForPlan(
+    input.permit,
+    input.executorPlan,
+    input.providerEntryManifest,
+    {
+      reasonPrefix: "controlled_workspace_write_dispatch_permit",
       now: input.now
     }
   );
@@ -861,6 +1572,40 @@ function createEnvironmentPreflight(input: {
   });
 }
 
+function createWorkspaceWriteEnvironmentPreflight(input: {
+  providerId: string;
+  manifestHash?: string;
+  providerKind: string;
+  checks: ControlledWorkspaceWriteDispatchPreflightChecks;
+}): ControlledWorkspaceWriteDispatchEnvironmentPreflight {
+  const manifestHash = input.manifestHash ?? "0".repeat(64);
+  const artifactRef =
+    `artifact://controlled-workspace-write-provider-execution/preflight/${input.providerId}`;
+  const artifactHash = hashProviderExecutionPlannerObject({
+    schemaVersion: "controlled-workspace-write-provider-execution-preflight.v1",
+    providerRegistrySelection: {
+      selected: true,
+      providerId: input.providerId,
+      manifestHash,
+      kind: input.providerKind,
+      enabled: true
+    },
+    environmentPreflight: {
+      status: "ready",
+      checks: input.checks,
+      blockingReasonCount: 0
+    }
+  });
+
+  return ControlledWorkspaceWriteDispatchEnvironmentPreflightSchema.parse({
+    status: "ready",
+    artifactRef,
+    artifactHash,
+    checks: input.checks,
+    blockingReasons: []
+  });
+}
+
 function createDispatchPreflightArtifactBinding(input: {
   dispatchPreflight: ControlledReadOnlyProviderDispatchPreflight;
   providerExecutionPlan: ProviderExecutionPlan;
@@ -884,6 +1629,31 @@ function createDispatchPreflightArtifactBinding(input: {
   };
 }
 
+function createWorkspaceWriteDispatchPreflightArtifactBinding(input: {
+  dispatchPreflight: ControlledWorkspaceWriteProviderDispatchPreflight;
+  providerExecutionPlan: ProviderExecutionPlan;
+  providerExecutionPlanHash: string;
+  executorPlanHash: string;
+  operationManifestHash: string;
+  policyDecisionHash: string;
+  task: Task;
+  run: Run;
+}): Record<string, string> {
+  return {
+    schemaVersion: "controlled-workspace-write-provider-dispatch-preflight-artifact-binding.v1",
+    artifactRef: input.dispatchPreflight.environmentPreflight.artifactRef,
+    artifactHash: input.dispatchPreflight.environmentPreflight.artifactHash,
+    providerExecutionPlanHash: input.providerExecutionPlanHash,
+    executorPlanHash: input.executorPlanHash,
+    operationManifestHash: input.operationManifestHash,
+    providerManifestHash: input.providerExecutionPlan.providerManifestHash ?? "",
+    policyDecisionHash: input.policyDecisionHash,
+    providerId: input.providerExecutionPlan.providerId,
+    taskId: input.task.taskId,
+    runId: input.run.runId
+  };
+}
+
 function createDispatchPreflightArtifactPayload(input: {
   dispatchPreflight: ControlledReadOnlyProviderDispatchPreflight;
   binding: Record<string, string>;
@@ -897,10 +1667,34 @@ function createDispatchPreflightArtifactPayload(input: {
   };
 }
 
+function createWorkspaceWriteDispatchPreflightArtifactPayload(input: {
+  dispatchPreflight: ControlledWorkspaceWriteProviderDispatchPreflight;
+  binding: Record<string, string>;
+}): Record<string, unknown> {
+  return {
+    schemaVersion: "controlled-workspace-write-provider-dispatch-preflight-artifact.v1",
+    binding: input.binding,
+    checks: input.dispatchPreflight.environmentPreflight.checks,
+    blockingReasonCount:
+      input.dispatchPreflight.environmentPreflight.blockingReasons.length
+  };
+}
+
 function readDispatchPreflightArtifactBinding(
   artifact: StoredArtifact
 ): Record<string, string> | undefined {
   const value = artifact.metadata.controlledReadOnlyDispatchPreflight;
+  if (!isStringRecord(value)) {
+    return undefined;
+  }
+
+  return value;
+}
+
+function readWorkspaceWriteDispatchPreflightArtifactBinding(
+  artifact: StoredArtifact
+): Record<string, string> | undefined {
+  const value = artifact.metadata.controlledWorkspaceWriteDispatchPreflight;
   if (!isStringRecord(value)) {
     return undefined;
   }
@@ -1051,6 +1845,142 @@ async function collectDispatchPreflightArtifactStoreReasons(input: {
   const expectedPayloadHash = hashArtifactPayload(expectedPayload, "json");
   if (artifact.sha256 !== expectedPayloadHash) {
     reasons.push("controlled_readonly_dispatch_preflight_artifact_payload_hash_mismatch");
+  }
+
+  return uniqueStrings(reasons);
+}
+
+async function collectWorkspaceWriteDispatchPreflightArtifactStoreReasons(input: {
+  artifactStore: ArtifactStore;
+  dispatchPreflight: ControlledWorkspaceWriteProviderDispatchPreflight;
+  providerExecutionPlan: ProviderExecutionPlan;
+  executorPlan: ExecutorExecutionPlan;
+  policyDecision: PolicyDecision;
+  task: Task;
+  run: Run;
+  operations: WorkspaceWriteOperation[];
+  providerExecutionPlanHash: string;
+  executorPlanHash: string;
+  operationManifestHash: string;
+}): Promise<string[]> {
+  const dispatchPreflight = ControlledWorkspaceWriteProviderDispatchPreflightSchema.parse(
+    input.dispatchPreflight
+  );
+  const providerExecutionPlan = ProviderExecutionPlanSchema.parse(
+    input.providerExecutionPlan
+  );
+  const executorPlan = ExecutorExecutionPlanSchema.parse(input.executorPlan);
+  const policyDecision = PolicyDecisionSchema.parse(input.policyDecision);
+  const task = TaskSchema.parse(input.task);
+  const run = RunSchema.parse(input.run);
+  const artifactId = dispatchPreflightArtifactId({
+    artifactRef: dispatchPreflight.environmentPreflight.artifactRef,
+    taskId: task.taskId,
+    runId: run.runId,
+    providerExecutionPlanHash: input.providerExecutionPlanHash
+  });
+  const artifact = await input.artifactStore.getArtifact(artifactId);
+  if (artifact === undefined) {
+    return ["controlled_workspace_write_dispatch_preflight_artifact_store_missing"];
+  }
+
+  const verification = await input.artifactStore.verifyArtifact(artifactId);
+  const reasons: string[] = [];
+  if (verification.ok !== true) {
+    reasons.push(
+      `controlled_workspace_write_dispatch_preflight_artifact_store_verification_failed:${verification.reason ?? "unknown"}`
+    );
+  }
+
+  if (artifact.taskId !== task.taskId) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_artifact_task_mismatch");
+  }
+  if (artifact.runId !== run.runId) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_artifact_run_mismatch");
+  }
+  if (artifact.type !== "json") {
+    reasons.push(`controlled_workspace_write_dispatch_preflight_artifact_type_mismatch:${artifact.type}`);
+  }
+
+  const binding = readWorkspaceWriteDispatchPreflightArtifactBinding(artifact);
+  if (binding === undefined) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_artifact_binding_missing");
+    return uniqueStrings(reasons);
+  }
+
+  const expectedBinding = createWorkspaceWriteDispatchPreflightArtifactBinding({
+    dispatchPreflight,
+    providerExecutionPlan,
+    providerExecutionPlanHash: input.providerExecutionPlanHash,
+    executorPlanHash: input.executorPlanHash,
+    operationManifestHash: input.operationManifestHash,
+    policyDecisionHash: hashProviderExecutionPlannerObject(policyDecision),
+    task,
+    run
+  });
+  const actualExecutorPlanHash = hashProviderExecutionPlannerObject(executorPlan);
+  const actualOperationManifestHash = hashProviderExecutionPlannerObject(input.operations);
+
+  if (binding.schemaVersion !== expectedBinding.schemaVersion) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_artifact_schema_mismatch");
+  }
+  if (binding.artifactRef !== expectedBinding.artifactRef) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_artifact_ref_mismatch");
+  }
+  if (binding.artifactHash !== expectedBinding.artifactHash) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_artifact_hash_mismatch");
+  }
+  if (binding.providerExecutionPlanHash !== expectedBinding.providerExecutionPlanHash) {
+    reasons.push(
+      "controlled_workspace_write_dispatch_preflight_artifact_provider_execution_plan_hash_mismatch"
+    );
+  }
+  if (binding.executorPlanHash !== expectedBinding.executorPlanHash) {
+    reasons.push(
+      "controlled_workspace_write_dispatch_preflight_artifact_executor_plan_hash_mismatch"
+    );
+  }
+  if (binding.executorPlanHash !== actualExecutorPlanHash) {
+    reasons.push(
+      "controlled_workspace_write_dispatch_preflight_artifact_executor_plan_current_hash_mismatch"
+    );
+  }
+  if (binding.operationManifestHash !== expectedBinding.operationManifestHash) {
+    reasons.push(
+      "controlled_workspace_write_dispatch_preflight_artifact_operation_manifest_hash_mismatch"
+    );
+  }
+  if (binding.operationManifestHash !== actualOperationManifestHash) {
+    reasons.push(
+      "controlled_workspace_write_dispatch_preflight_artifact_operation_manifest_current_hash_mismatch"
+    );
+  }
+  if (binding.providerManifestHash !== expectedBinding.providerManifestHash) {
+    reasons.push(
+      "controlled_workspace_write_dispatch_preflight_artifact_provider_manifest_hash_mismatch"
+    );
+  }
+  if (binding.policyDecisionHash !== expectedBinding.policyDecisionHash) {
+    reasons.push(
+      "controlled_workspace_write_dispatch_preflight_artifact_policy_decision_hash_mismatch"
+    );
+  }
+  if (binding.providerId !== expectedBinding.providerId) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_artifact_provider_mismatch");
+  }
+  if (binding.taskId !== expectedBinding.taskId) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_artifact_task_binding_mismatch");
+  }
+  if (binding.runId !== expectedBinding.runId) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_artifact_run_binding_mismatch");
+  }
+  const expectedPayload = createWorkspaceWriteDispatchPreflightArtifactPayload({
+    dispatchPreflight,
+    binding: expectedBinding
+  });
+  const expectedPayloadHash = hashArtifactPayload(expectedPayload, "json");
+  if (artifact.sha256 !== expectedPayloadHash) {
+    reasons.push("controlled_workspace_write_dispatch_preflight_artifact_payload_hash_mismatch");
   }
 
   return uniqueStrings(reasons);

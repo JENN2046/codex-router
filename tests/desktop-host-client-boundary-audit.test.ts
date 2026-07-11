@@ -45,8 +45,10 @@ test("desktop host client boundary audit passes for current evidence", async () 
   assert.equal(review.summary.directDispatchToHostAllowedByClient, false);
   assert.equal(review.summary.codexCliInvocationAllowedByClient, false);
   assert.equal(review.summary.providerInvocationAllowedByClient, false);
+  assert.equal(review.summary.controlledWorkspaceWriteDispatchAllowedByClient, true);
+  assert.equal(review.summary.generalWorkspaceWriteAllowedByClient, false);
+  assert.equal(review.summary.workspaceWriteProviderExecuteAllowedByClient, false);
   assert.equal(review.summary.subAgentRuntimeInvocationAllowed, false);
-  assert.equal(review.summary.workspaceWriteAllowedByClient, false);
   assert.equal(review.summary.clientCallsDuringAudit, 0);
   assert.equal(review.summary.liveAdapterCallsDuringAudit, 0);
   assert.equal(review.summary.hostExecutorInvocationsDuringAudit, 0);
@@ -118,7 +120,10 @@ test("desktop host client boundary audit blocks broadened docs", async () => {
     ...input,
     governanceControlPlaneText: input.governanceControlPlaneText
       .replaceAll("Desktop host client boundary", "Archived desktop host client boundary")
-      .concat("\ndesktop host client provider invocation allowed: true\n")
+      .concat(
+        "\ndesktop host client provider invocation allowed: true\n"
+        + "desktop host client workspace-write provider execute allowed: true\n"
+      )
   });
 
   assert.equal(review.status, "blocked");
@@ -140,6 +145,8 @@ test("desktop host client boundary audit output stays summarized", async () => {
 
   assert.match(text, /status: passed/);
   assert.match(text, /client calls during audit: 0/);
+  assert.match(text, /controlled workspace-write dispatch allowed by client: true/);
+  assert.match(text, /workspace-write provider execute allowed by client: false/);
   assert.equal(parsed.status, "passed");
 
   for (const marker of forbiddenOutputMarkers) {

@@ -49,6 +49,7 @@
     "canary": "node --import tsx scripts/run-canary-test.ts",
     "canary:write": "node --import tsx scripts/run-canary-test.ts --risk medium",
     "canary:external": "node --import tsx scripts/run-canary-test.ts --risk high",
+    "canary:workspace-write:real": "node --import tsx scripts/run-workspace-write-real-canary-local.ts",
     "evidence:collect": "node --import tsx scripts/collect-evidence.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test tests/*.test.ts"

@@ -6,6 +6,7 @@ import type {
   RoutingDecision,
   TaskEnvelope
 } from "../../contracts/src/index.js";
+import { normalize } from "node:path";
 import type { AuditEvent, MemoryAdapter } from "../../audit-memory/src/index.js";
 import type { AgentStrategyPlan, } from "../../desktop-agent-strategy/src/index.js";
 import {
@@ -17,9 +18,15 @@ import {
 } from "../../desktop-decision-runner/src/index.js";
 import type { CodexCliProcessRunOptions } from "../../codex-cli-host/src/index.js";
 import {
+  dispatchControlledWorkspaceWriteProviderPlan,
   dispatchToHost,
+  type ControlledWorkspaceWriteHostProviderDispatchInput,
+  type ControlledWorkspaceWriteHostProviderDispatchResult,
   type HostDispatcherResult
 } from "../../host-dispatcher/src/index.js";
+import {
+  hashProviderExecutionPlannerObject
+} from "../../execution-planner/src/index.js";
 import type { MemoryCheckpointFrequency } from "../../policy-config/src/index.js";
 import {
   emitTelemetryEvents,
@@ -172,6 +179,8 @@ export interface RunDesktopTaskInput extends DesktopDecisionRunnerInput {
   handlers?: Partial<Record<DesktopPrimitive, PrimitiveHandler>>;
   bridge?: DesktopHostBridge;
   codexCliOptions?: CodexCliProcessRunOptions;
+  controlledWorkspaceWriteProviderDispatchInput?: ControlledWorkspaceWriteHostProviderDispatchInput;
+  controlledWorkspaceWriteProviderDispatcher?: DesktopControlledWorkspaceWriteProviderDispatcher;
   stopOnFailure?: boolean;
   observationBus?: ExecutionObservationBus;
   governanceState?: GovernanceState;
@@ -182,6 +191,8 @@ export interface ResumeDesktopTaskInput extends DesktopDecisionResumeInput {
   handlers?: Partial<Record<DesktopPrimitive, PrimitiveHandler>>;
   bridge?: DesktopHostBridge;
   codexCliOptions?: CodexCliProcessRunOptions;
+  controlledWorkspaceWriteProviderDispatchInput?: ControlledWorkspaceWriteHostProviderDispatchInput;
+  controlledWorkspaceWriteProviderDispatcher?: DesktopControlledWorkspaceWriteProviderDispatcher;
   stopOnFailure?: boolean;
   observationBus?: ExecutionObservationBus;
   governanceState?: GovernanceState;
@@ -194,7 +205,14 @@ export interface RunDesktopTaskResult {
   operatorActionEnvelope?: GovernanceOperatorActionEnvelope;
   operatorActionSummary: GovernanceOperatorActionSummary;
   hostDispatch?: HostDispatcherResult;
+  controlledWorkspaceWriteDispatch?: ControlledWorkspaceWriteHostProviderDispatchResult;
 }
+
+export type DesktopControlledWorkspaceWriteProviderDispatcher = (
+  input: ControlledWorkspaceWriteHostProviderDispatchInput
+) =>
+  | Promise<ControlledWorkspaceWriteHostProviderDispatchResult>
+  | ControlledWorkspaceWriteHostProviderDispatchResult;
 
 export interface DesktopOperatorActionReceiptCreation {
   schemaVersion: "desktop-operator-action-receipt-creation.v1";
@@ -467,6 +485,8 @@ async function executeDesktopTaskFromDecision(
     bridge?: DesktopHostBridge;
     stopOnFailure?: boolean;
     codexCliOptions?: CodexCliProcessRunOptions;
+    controlledWorkspaceWriteProviderDispatchInput?: ControlledWorkspaceWriteHostProviderDispatchInput;
+    controlledWorkspaceWriteProviderDispatcher?: DesktopControlledWorkspaceWriteProviderDispatcher;
     now?: () => string;
     persistence?: DesktopDecisionRunnerInput["persistence"];
     observationBus?: ExecutionObservationBus;
@@ -509,6 +529,44 @@ async function executeDesktopTaskFromDecision(
   }
 
   if (decisionResult.status === "ready" && decisionResult.decision.hostRoute === "codex-cli") {
+    const controlledWorkspaceWriteDispatchInput =
+      input.controlledWorkspaceWriteProviderDispatchInput;
+    if (
+      controlledWorkspaceWriteDispatchInput !== undefined &&
+      shouldDispatchControlledWorkspaceWrite(decisionResult)
+    ) {
+      const inputBindingReasons = collectControlledWorkspaceWriteDispatchInputBindingReasons(
+        decisionResult,
+        controlledWorkspaceWriteDispatchInput
+      );
+      const controlledWorkspaceWriteDispatch = inputBindingReasons.length > 0
+        ? createBlockedControlledWorkspaceWriteDispatchForInputBinding(
+            controlledWorkspaceWriteDispatchInput,
+            inputBindingReasons
+          )
+        : await (
+            input.controlledWorkspaceWriteProviderDispatcher
+            ?? dispatchControlledWorkspaceWriteProviderPlan
+          )(controlledWorkspaceWriteDispatchInput);
+      const executionResult = await createControlledWorkspaceWriteDispatchExecutionResult({
+        runnerResult: decisionResult,
+        controlledWorkspaceWriteDispatch,
+        ...(input.now !== undefined ? { now: input.now } : {}),
+        ...(input.persistence?.auditStore !== undefined ? { auditStore: input.persistence.auditStore } : {}),
+        ...(input.persistence?.checkpointStore !== undefined ? { checkpointStore: input.persistence.checkpointStore } : {}),
+        ...(input.persistence?.memoryAdapter !== undefined ? { memoryAdapter: input.persistence.memoryAdapter } : {}),
+        ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+        ...(input.governanceState !== undefined ? { governanceState: input.governanceState } : {}),
+        ...(input.onGovernanceUpdate !== undefined ? { onGovernanceUpdate: input.onGovernanceUpdate } : {})
+      });
+
+      return createRunDesktopTaskResult({
+        decisionResult,
+        executionResult,
+        controlledWorkspaceWriteDispatch
+      });
+    }
+
     const hostDispatch = await dispatchToHost({
       runnerResult: decisionResult,
       ...(input.codexCliOptions !== undefined ? { codexCliOptions: input.codexCliOptions } : {})
@@ -559,9 +617,10 @@ function createRunDesktopTaskResult(input: {
   decisionResult: DesktopDecisionRunnerResult;
   executionResult: DesktopLiveExecutionResult;
   hostDispatch?: HostDispatcherResult;
+  controlledWorkspaceWriteDispatch?: ControlledWorkspaceWriteHostProviderDispatchResult;
 }): RunDesktopTaskResult {
   const operatorActionEnvelope = createGovernanceOperatorActionEnvelope({
-    source: input.hostDispatch === undefined
+    source: input.hostDispatch === undefined && input.controlledWorkspaceWriteDispatch === undefined
       ? "desktop_live_governance"
       : "host_dispatch_governance",
     operatorAction: input.executionResult.governance?.operatorAction
@@ -575,8 +634,96 @@ function createRunDesktopTaskResult(input: {
     executionResult: input.executionResult,
     ...(operatorActionEnvelope !== undefined ? { operatorActionEnvelope } : {}),
     operatorActionSummary,
-    ...(input.hostDispatch !== undefined ? { hostDispatch: input.hostDispatch } : {})
+    ...(input.hostDispatch !== undefined ? { hostDispatch: input.hostDispatch } : {}),
+    ...(input.controlledWorkspaceWriteDispatch !== undefined
+      ? { controlledWorkspaceWriteDispatch: input.controlledWorkspaceWriteDispatch }
+      : {})
   };
+}
+
+function shouldDispatchControlledWorkspaceWrite(
+  decisionResult: DesktopDecisionRunnerResult
+): boolean {
+  return decisionResult.decision.execution.toolAccess === "local_write";
+}
+
+function collectControlledWorkspaceWriteDispatchInputBindingReasons(
+  runnerResult: DesktopDecisionRunnerResult,
+  dispatchInput: ControlledWorkspaceWriteHostProviderDispatchInput
+): string[] {
+  const expectedTaskId = runnerResult.task.taskId;
+  const reasons: string[] = [];
+
+  if (dispatchInput.task.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_task_mismatch");
+  }
+  if (dispatchInput.taskEnvelope.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_task_envelope_mismatch");
+  }
+  if (dispatchInput.run.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_run_task_mismatch");
+  }
+  if (dispatchInput.providerExecutionPlan.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_provider_plan_task_mismatch");
+  }
+  if (dispatchInput.executorPlan.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_executor_plan_task_mismatch");
+  }
+  if (dispatchInput.permit.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_permit_task_mismatch");
+  }
+  if (dispatchInput.governanceState.taskId !== expectedTaskId) {
+    reasons.push("controlled_workspace_write_dispatch_input_governance_task_mismatch");
+  }
+
+  const targetFiles = runnerResult.task.target.files.map(normalizeWorkspaceTargetPath);
+  if (targetFiles.length > 0) {
+    const allowedTargets = new Set(targetFiles);
+    const operationTargets = dispatchInput.operations.map((operation) =>
+      normalizeWorkspaceTargetPath(operation.path)
+    );
+    if (!operationTargets.every((target) => allowedTargets.has(target))) {
+      reasons.push("controlled_workspace_write_dispatch_input_target_scope_mismatch");
+    }
+  }
+
+  return [...new Set(reasons)];
+}
+
+function createBlockedControlledWorkspaceWriteDispatchForInputBinding(
+  dispatchInput: ControlledWorkspaceWriteHostProviderDispatchInput,
+  reasons: string[]
+): ControlledWorkspaceWriteHostProviderDispatchResult {
+  return {
+    schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+    status: "dispatch_blocked",
+    runnerInvoked: false,
+    executeInvoked: false,
+    providerExecuteInvoked: false,
+    reasons,
+    providerExecutionPlanHash: safeHashProviderDispatchObject(
+      dispatchInput.providerExecutionPlan
+    ),
+    executorPlanHash: safeHashProviderDispatchObject(dispatchInput.executorPlan),
+    operationManifestHash: safeHashProviderDispatchObject(dispatchInput.operations),
+    providerRegistrySelection: {
+      selected: false,
+      providerId: dispatchInput.providerExecutionPlan.providerId,
+      reasons
+    }
+  };
+}
+
+function safeHashProviderDispatchObject(value: unknown): string {
+  try {
+    return hashProviderExecutionPlannerObject(value);
+  } catch {
+    return "0".repeat(64);
+  }
+}
+
+function normalizeWorkspaceTargetPath(path: string): string {
+  return normalize(path).replace(/\\/g, "/");
 }
 
 async function createHostDispatchExecutionResult(input: {
@@ -660,6 +807,190 @@ async function createHostDispatchExecutionResult(input: {
     auditEvents,
     ...(governance !== undefined ? { governance } : {})
   };
+}
+
+async function createControlledWorkspaceWriteDispatchExecutionResult(input: {
+  runnerResult: DesktopDecisionRunnerResult;
+  controlledWorkspaceWriteDispatch: ControlledWorkspaceWriteHostProviderDispatchResult;
+  now?: () => string;
+  auditStore?: {
+    record(event: AuditEvent): Promise<void>;
+  };
+  checkpointStore?: {
+    record(checkpoint: CheckpointRef): Promise<void>;
+  };
+  memoryAdapter?: MemoryAdapter;
+  observationBus?: ExecutionObservationBus;
+  governanceState?: GovernanceState;
+  onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
+}): Promise<DesktopLiveExecutionResult> {
+  const now = input.now ?? (() => new Date().toISOString());
+  const checkpointFrequency = input.runnerResult.preflight.memory.guidance?.checkpointFrequency ?? "minimal";
+  const blockingReasons = collectControlledWorkspaceWriteDispatchBlockingReasons(
+    input.controlledWorkspaceWriteDispatch
+  );
+  const status: DesktopLiveExecutionStatus = blockingReasons.length === 0 ? "completed" : "failed";
+  const auditEvents: AuditEvent[] = [{
+    type: "runner_dispatched",
+    taskId: input.runnerResult.task.taskId,
+    timestamp: now(),
+    details: {
+      hostRoute: input.runnerResult.decision.hostRoute,
+      executionProfile: input.runnerResult.executionPlan.executionProfile,
+      primitiveCount: 0,
+      dispatchTarget: "controlled_workspace_write_provider_dispatcher",
+      dispatchStatus: input.controlledWorkspaceWriteDispatch.status,
+      runnerInvoked: input.controlledWorkspaceWriteDispatch.runnerInvoked,
+      executeInvoked: input.controlledWorkspaceWriteDispatch.executeInvoked,
+      providerExecuteInvoked: input.controlledWorkspaceWriteDispatch.providerExecuteInvoked
+    }
+  }];
+
+  auditEvents.push({
+    type: status === "completed" ? "task_completed" : "task_failed",
+    taskId: input.runnerResult.task.taskId,
+    timestamp: now(),
+    details: {
+      hostRoute: input.runnerResult.decision.hostRoute,
+      dispatchTarget: "controlled_workspace_write_provider_dispatcher",
+      blockingReasons
+    }
+  });
+
+  const governance = status === "failed"
+    ? await applyControlledWorkspaceWriteDispatchFailureToGovernance({
+        runnerResult: input.runnerResult,
+        controlledWorkspaceWriteDispatch: input.controlledWorkspaceWriteDispatch,
+        blockingReasons,
+        now,
+        ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+        ...(input.governanceState !== undefined ? { governanceState: input.governanceState } : {}),
+        ...(input.onGovernanceUpdate !== undefined ? { onGovernanceUpdate: input.onGovernanceUpdate } : {})
+      })
+    : undefined;
+
+  await maybePersistExecutionCheckpoint({
+    taskId: input.runnerResult.task.taskId,
+    stage: status === "completed"
+      ? "controlled-workspace-write-dispatch-completed"
+      : "controlled-workspace-write-dispatch-failed",
+    summary: status === "completed"
+      ? "controlled workspace-write dispatch completed routed execution"
+      : `controlled workspace-write dispatch failed routed execution: ${blockingReasons.join(", ")}`,
+    frequency: checkpointFrequency,
+    trigger: "final",
+    now,
+    ...(input.checkpointStore ? { checkpointStore: input.checkpointStore } : {}),
+    ...(input.memoryAdapter ? { memoryAdapter: input.memoryAdapter } : {})
+  });
+  await persistAudit(auditEvents, input.auditStore);
+
+  return {
+    status,
+    taskId: input.runnerResult.task.taskId,
+    plan: input.runnerResult.executionPlan,
+    steps: [],
+    blockingReasons: governance
+      ? createGovernanceBlockingReasons(governance)
+      : blockingReasons,
+    auditEvents,
+    ...(governance !== undefined ? { governance } : {})
+  };
+}
+
+async function applyControlledWorkspaceWriteDispatchFailureToGovernance(input: {
+  runnerResult: DesktopDecisionRunnerResult;
+  controlledWorkspaceWriteDispatch: ControlledWorkspaceWriteHostProviderDispatchResult;
+  blockingReasons: string[];
+  now: () => string;
+  observationBus?: ExecutionObservationBus;
+  governanceState?: GovernanceState;
+  onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
+}): Promise<DesktopLiveExecutionGovernance | undefined> {
+  const primitiveId = "host_dispatch:controlled_workspace_write";
+  const errorClass = createControlledWorkspaceWriteDispatchErrorClass(
+    input.controlledWorkspaceWriteDispatch,
+    input.blockingReasons
+  );
+  const failureCreatedAt = input.now();
+
+  const evidenceRefs = await emitFailureObservationRefs({
+    ...(input.observationBus !== undefined ? { observationBus: input.observationBus } : {}),
+    taskId: input.runnerResult.task.taskId,
+    primitiveId,
+    stage: "host_dispatch",
+    error: errorClass,
+    createdAt: failureCreatedAt
+  });
+
+  if (input.governanceState === undefined) {
+    return undefined;
+  }
+
+  const failureResult = applyExecutionFailureToGovernanceState({
+    state: input.governanceState,
+    task: input.runnerResult.task,
+    primitiveId,
+    errorClass,
+    evidenceRefs,
+    stepIndex: 0,
+    now: () => failureCreatedAt
+  });
+
+  if (input.onGovernanceUpdate !== undefined) {
+    await input.onGovernanceUpdate(
+      failureResult.state,
+      failureResult.strategyDecision
+    );
+  }
+
+  return createRecoveryGovernanceIfRequired({
+    state: failureResult.state,
+    strategyDecision: failureResult.strategyDecision,
+    arbitrationPacket: failureResult.arbitrationPacket
+  });
+}
+
+function collectControlledWorkspaceWriteDispatchBlockingReasons(
+  dispatch: ControlledWorkspaceWriteHostProviderDispatchResult
+): string[] {
+  const reasons = dispatch.reasons
+    .map(normalizeControlledWorkspaceWriteDispatchBlockingReason)
+    .filter((reason): reason is string => reason !== undefined);
+
+  if (dispatch.status !== "runner_completed") {
+    reasons.push(`controlled_workspace_write_dispatch_status:${dispatch.status}`);
+  } else if (dispatch.runnerResult.status !== "controlled_workspace_write_succeeded") {
+    reasons.push(`controlled_workspace_write_runner_status:${dispatch.runnerResult.status}`);
+  }
+
+  return [...new Set(reasons)];
+}
+
+function normalizeControlledWorkspaceWriteDispatchBlockingReason(
+  reason: string | undefined
+): string | undefined {
+  const normalized = normalizeHostDispatchBlockingReason(reason);
+  if (
+    normalized === "controlled_workspace_write_provider_dispatch_runner_completed" ||
+    normalized === "controlled_workspace_write_execution_succeeded"
+  ) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function createControlledWorkspaceWriteDispatchErrorClass(
+  dispatch: ControlledWorkspaceWriteHostProviderDispatchResult,
+  blockingReasons: string[]
+): string {
+  const firstReason = blockingReasons
+    .map(normalizeHostDispatchBlockingReason)
+    .find((reason): reason is string => reason !== undefined);
+  return firstReason
+    ? `controlled_workspace_write_dispatch_failed:${firstReason}`
+    : `controlled_workspace_write_dispatch_failed:${dispatch.status}`;
 }
 
 async function applyHostDispatchFailureToGovernance(input: {

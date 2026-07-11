@@ -331,6 +331,62 @@ function createReadTask(taskId: string): TaskEnvelopeInput {
   };
 }
 
+function createSmallEditTask(taskId: string): TaskEnvelopeInput {
+  return {
+    taskId,
+    source: "desktop-thread",
+    intent: {
+      summary: "apply a small fix",
+      requestedAction: "make a small fix in a single file",
+      successCriteria: [],
+      outOfScope: []
+    },
+    repoContext: { repoRoot: "A:/codex-router", worktreeClean: true },
+    target: { branches: [], files: ["README.md"], modules: [] },
+    constraints: {},
+    hints: { riskHints: ["workspace-write"], tags: [] }
+  };
+}
+
+function createControlledWorkspaceWriteDispatchInputForTask(
+  taskId: string,
+  targetFiles: string[] = ["README.md"]
+): unknown {
+  return {
+    task: {
+      taskId,
+      target: { branches: [], files: targetFiles, modules: [] }
+    },
+    taskEnvelope: {
+      taskId,
+      target: { branches: [], files: targetFiles, modules: [] }
+    },
+    run: {
+      runId: `run_${taskId}`,
+      taskId
+    },
+    providerExecutionPlan: {
+      providerId: "fake-desktop-host-run-workspace-write",
+      providerKind: "executor",
+      taskId
+    },
+    executorPlan: {
+      providerId: "fake-desktop-host-run-workspace-write",
+      taskId
+    },
+    permit: {
+      taskId,
+      targetFiles
+    },
+    governanceState: createHighRiskStateWithTwoExecutionFailures(taskId),
+    operations: targetFiles.map((path) => ({
+      kind: "write",
+      path,
+      content: "test content\n"
+    }))
+  };
+}
+
 function createEngineeringTask(taskId: string): TaskEnvelopeInput {
   return {
     taskId,
@@ -809,6 +865,108 @@ test("desktop host client exposes non-executing host executor review for current
 
   assert.equal(blocked.status, "blocked");
   assert.ok(blocked.reasons.includes("operator_action_host_executor_lifecycle_action_missing"));
+});
+
+test("desktop host client delegates controlled workspace-write provider plans", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const dispatchInputs: unknown[] = [];
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    bridgeBindings: createHostBindings(),
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["desktop_host_client_controlled_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:desktop-host-client-provider-plan",
+        executorPlanHash: "sha256:desktop-host-client-executor-plan",
+        operationManifestHash: "sha256:desktop-host-client-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-desktop-host-workspace-write"
+        }
+      } as never;
+    }
+  });
+  const input = {
+    schemaVersion: "desktop-host-client-controlled-workspace-write-test.v1"
+  };
+
+  const result = await client.dispatchControlledWorkspaceWriteProviderPlan(
+    input as never
+  );
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(dispatchInputs[0], input);
+  assert.equal(result.status, "dispatch_blocked");
+  assert.equal(result.runnerInvoked, false);
+  assert.equal(result.executeInvoked, false);
+  assert.equal(result.providerExecuteInvoked, false);
+  assert.deepEqual(result.reasons, [
+    "desktop_host_client_controlled_workspace_write_dispatch_test"
+  ]);
+});
+
+test("desktop host client forwards per-run controlled workspace-write dispatch input", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  const dispatchInputs: unknown[] = [];
+  const client = createDesktopHostClient({
+    policy,
+    preflight: {
+      authAvailable: true,
+      availableTools: []
+    },
+    bridgeBindings: createHostBindings(),
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["desktop_host_client_run_controlled_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:desktop-host-client-run-provider-plan",
+        executorPlanHash: "sha256:desktop-host-client-run-executor-plan",
+        operationManifestHash: "sha256:desktop-host-client-run-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-desktop-host-run-workspace-write"
+        }
+      } as never;
+    },
+    codexCliOptions: {
+      skipExecutionModelProbe: true,
+      spawn: () => {
+        throw new Error("codex cli spawn must not run");
+      }
+    },
+    now: () => "2026-04-28T12:00:00.000Z"
+  });
+  const taskId = "desktop-host-run-controlled-workspace-write";
+  const input = createControlledWorkspaceWriteDispatchInputForTask(taskId);
+
+  const result = await client.run(
+    createSmallEditTask(taskId),
+    {
+      controlledWorkspaceWriteProviderDispatchInput: input as never
+    }
+  );
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(dispatchInputs[0], input);
+  assert.equal(result.hostDispatch, undefined);
+  assert.equal(result.controlledWorkspaceWriteDispatch?.status, "dispatch_blocked");
+  assert.equal(result.controlledWorkspaceWriteDispatch?.providerExecuteInvoked, false);
+  assert.equal(result.executionResult.status, "failed");
 });
 
 test("desktop host client blocks replayed operator action receipts", async () => {

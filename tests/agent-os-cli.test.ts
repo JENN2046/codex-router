@@ -3,9 +3,14 @@ import assert from "node:assert/strict";
 import {
   parseAgentOsCliArgv,
   runAgentOsCliCommand,
+  runAgentOsCliCommandAsync,
   sanitizeAgentOsCliArgv
 } from "../packages/agent-os-cli/src/index.js";
 import {
+  InMemoryArtifactStore
+} from "../packages/artifact-store/src/index.js";
+import {
+  hashProviderExecutionPlannerObject,
   InMemoryProviderExecutionPlanStore
 } from "../packages/execution-planner/src/index.js";
 import {
@@ -26,15 +31,29 @@ import {
 import {
   AGENT_OS_MCP_LOCAL_MUTATION_DISABLED,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
-  AGENT_OS_MCP_TOOL_CAPABILITY_MISSING
+  AGENT_OS_MCP_TOOL_CAPABILITY_MISSING,
+  AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC
 } from "../packages/protocol-mcp/src/index.js";
 import {
   createApprovalPermit,
   hashApprovalScope,
   InMemoryApprovalPermitStore
 } from "../packages/governance-internal-approval-permit/src/index.js";
+import type {
+  ControlledWorkspaceWriteHostProviderDispatchInput
+} from "../packages/host-dispatcher/src/index.js";
+import {
+  InMemoryProviderExecutionPermitConsumptionStore
+} from "../packages/provider-core/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
+import {
+  createAgentOsWorkspaceWriteEligibility,
+  createAgentOsWorkspaceWriteGovernanceState,
+  createAgentOsWorkspaceWritePolicyDecision,
+  createAgentOsWorkspaceWriteProvider,
+  createAgentOsWorkspaceWriteProviderRegistry
+} from "./fixtures/agent-os-workspace-write-fixture.js";
 
 const now = "2026-06-10T01:00:00.000Z";
 const taskId = "task_agentos_cli_001";
@@ -97,6 +116,67 @@ test("Agent OS CLI parser maps approve-run argv to a governed tool call", () => 
   });
   assert.deepEqual(parsed.grantedCapabilities, ["approval.issue"]);
   assert.deepEqual(parsed.approvedMutatingTools, ["agentos.approve_run"]);
+  assert.equal(parsed.allowLocalMutations, true);
+});
+
+test("Agent OS CLI parser maps workspace-write dispatch argv to a governed tool call", () => {
+  const parsed = parseAgentOsCliArgv([
+    "dispatch-workspace-write",
+    "--dispatch-input-json",
+    "{\"schemaVersion\":\"agent-os-cli-workspace-write-dispatch-test.v1\"}",
+    "--grant",
+    "workspace_write.dispatch",
+    "--approve-tool",
+    "agentos.dispatch_workspace_write",
+    "--allow-local-mutation"
+  ]);
+
+  assert.equal(parsed.command, "dispatch-workspace-write");
+  assert.equal(parsed.toolName, "agentos.dispatch_workspace_write");
+  assert.deepEqual(parsed.toolInput, {
+    dispatchInput: {
+      schemaVersion: "agent-os-cli-workspace-write-dispatch-test.v1"
+    }
+  });
+  assert.deepEqual(parsed.grantedCapabilities, ["workspace_write.dispatch"]);
+  assert.deepEqual(parsed.approvedMutatingTools, ["agentos.dispatch_workspace_write"]);
+  assert.equal(parsed.allowLocalMutations, true);
+});
+
+test("Agent OS CLI parser maps workspace-write prepare argv to a governed tool call", () => {
+  const prepare = {
+    runId,
+    workspaceRoot: "/tmp/agent-os-cli-workspace",
+    operations: [{
+      kind: "write",
+      path: "workspace/docs/agent-os-cli-write.md",
+      content: "agent os cli prepared workspace-write\n"
+    }],
+    executionAuthorizationId: "operator_auth_agentos_cli_workspace_write",
+    governanceState: createAgentOsWorkspaceWriteGovernanceState({ taskId, now }),
+    repositoryState: {
+      branch: "agentos/cli-workspace-write",
+      protectedBranch: false,
+      worktreeClean: true,
+      headCommit: "abc123"
+    }
+  };
+  const parsed = parseAgentOsCliArgv([
+    "dispatch-workspace-write",
+    "--prepare-json",
+    JSON.stringify(prepare),
+    "--grant",
+    "workspace_write.dispatch",
+    "--approve-tool",
+    "agentos.dispatch_workspace_write",
+    "--allow-local-mutation"
+  ]);
+
+  assert.equal(parsed.command, "dispatch-workspace-write");
+  assert.equal(parsed.toolName, "agentos.dispatch_workspace_write");
+  assert.deepEqual(parsed.toolInput, { prepare });
+  assert.deepEqual(parsed.grantedCapabilities, ["workspace_write.dispatch"]);
+  assert.deepEqual(parsed.approvedMutatingTools, ["agentos.dispatch_workspace_write"]);
   assert.equal(parsed.allowLocalMutations, true);
 });
 
@@ -206,6 +286,228 @@ test("Agent OS CLI wrapper creates a local run and provider plan without spawnin
     (searchEvents.output.events as Array<{ eventType: string }>).map((event) => event.eventType),
     ["kernel.public_surface.cli.create_task"]
   );
+});
+
+test("Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchronously", async () => {
+  const dispatchInputs: unknown[] = [];
+  const workspaceWriteConsumptionStore =
+    new InMemoryProviderExecutionPermitConsumptionStore();
+  const dispatchInput = {
+    schemaVersion: "agent-os-cli-workspace-write-dispatch-test.v1"
+  };
+  const argv = [
+    "dispatch-workspace-write",
+    "--dispatch-input-json",
+    JSON.stringify(dispatchInput),
+    "--grant",
+    "workspace_write.dispatch",
+    "--approve-tool",
+    "agentos.dispatch_workspace_write",
+    "--allow-local-mutation"
+  ];
+  const runtimeInput = {
+    ...createRuntimeInput(new InMemoryKernelStore()),
+    workspaceWriteConsumptionStore,
+    controlledWorkspaceWriteProviderDispatcher(input: unknown) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_cli_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:agent-os-cli-provider-plan",
+        executorPlanHash: "sha256:agent-os-cli-executor-plan",
+        operationManifestHash: "sha256:agent-os-cli-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-agent-os-cli-workspace-write"
+        }
+      } as never;
+    }
+  };
+
+  const syncResult = runAgentOsCliCommand({
+    ...runtimeInput,
+    argv
+  });
+  assert.equal(syncResult.status, "blocked");
+  assert.deepEqual(syncResult.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC
+  ]);
+  assert.equal(dispatchInputs.length, 0);
+
+  const result = await runAgentOsCliCommandAsync({
+    ...runtimeInput,
+    argv
+  });
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(
+    (dispatchInputs[0] as { schemaVersion?: string }).schemaVersion,
+    dispatchInput.schemaVersion
+  );
+  assert.equal(
+    (dispatchInputs[0] as { consumptionStore?: unknown }).consumptionStore,
+    workspaceWriteConsumptionStore
+  );
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_cli_workspace_write_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
+  assert.equal(result.surface, "cli");
+  assert.equal(result.command, "dispatch-workspace-write");
+  assert.equal(result.audit.publicSurface, "cli");
+  assert.equal(result.audit.realProviderExecutionInvoked, false);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
+  );
+  assert.equal(result.sanitizedArgv.includes(JSON.stringify(dispatchInput)), false);
+  assert.equal(result.sanitizedArgv.includes("<REDACTED>"), true);
+});
+
+test("Agent OS CLI wrapper prepares controlled workspace-write dispatch asynchronously", async () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const artifactStore = new InMemoryArtifactStore({ now: () => now });
+  const targetFile = "workspace/docs/agent-os-cli-write.md";
+  const provider = createAgentOsWorkspaceWriteProvider({
+    providerId: "agent-os-cli-workspace-write-provider",
+    targetFiles: [targetFile],
+    sandboxId: "sandbox_agentos_cli_workspace_write",
+    source: "agent-os-cli-test"
+  });
+  const providerRegistry = createAgentOsWorkspaceWriteProviderRegistry(provider);
+  const policyDecision = createAgentOsWorkspaceWritePolicyDecision({
+    basePolicyDecision: validPolicyDecision,
+    decisionId: "decision_agentos_cli_workspace_write",
+    taskId,
+    targetFiles: [targetFile],
+    sandboxId: "sandbox_agentos_cli_workspace_write",
+    now
+  });
+  const dispatchInputs: unknown[] = [];
+  const runtimeInput = {
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    artifactStore,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    executionEligibility: createAgentOsWorkspaceWriteEligibility({
+      policyDecision,
+      taskId,
+      runId,
+      permitId: "permit_agentos_cli_workspace_write_planner",
+      now
+    }),
+    controlledWorkspaceWriteProviderDispatcher(
+      input: ControlledWorkspaceWriteHostProviderDispatchInput
+    ) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_cli_workspace_write_prepare_dispatch_test"],
+        providerExecutionPlanHash: hashProviderExecutionPlannerObject(input.providerExecutionPlan),
+        executorPlanHash: hashProviderExecutionPlannerObject(input.executorPlan),
+        operationManifestHash: hashProviderExecutionPlannerObject(input.operations),
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: provider.manifest.providerId
+        }
+      } as never;
+    }
+  };
+  const create = runAgentOsCliCommand({
+    ...runtimeInput,
+    argv: [
+      "create-task",
+      "--title",
+      "CLI workspace-write prepare",
+      "--requested-action",
+      "Prepare a controlled workspace-write from CLI prepare JSON.",
+      "--repo-root",
+      "workspace",
+      "--branch",
+      "agentos/cli-workspace-write",
+      "--target-file",
+      targetFile,
+      "--grant",
+      "task.create",
+      "--approve-tool",
+      "agentos.create_task",
+      "--allow-local-mutation",
+      "--preferred-provider",
+      provider.manifest.providerId
+    ]
+  });
+  assert.equal(create.status, "succeeded");
+
+  const prepare = {
+    runId,
+    workspaceRoot: "/tmp/agent-os-cli-workspace",
+    operations: [{
+      kind: "write",
+      path: targetFile,
+      content: "agent os cli prepared workspace-write\n"
+    }],
+    executionAuthorizationId: "operator_auth_agentos_cli_workspace_write",
+    governanceState: createAgentOsWorkspaceWriteGovernanceState({ taskId, now }),
+    repositoryState: {
+      branch: "agentos/cli-workspace-write",
+      protectedBranch: false,
+      worktreeClean: true,
+      headCommit: "abc123"
+    },
+    permitId: "permit_agentos_cli_workspace_write_prepare",
+    maxChangedFiles: 1,
+    maxDiffLines: 1
+  };
+  const argv = [
+    "dispatch-workspace-write",
+    "--prepare-json",
+    JSON.stringify(prepare),
+    "--grant",
+    "workspace_write.dispatch",
+    "--approve-tool",
+    "agentos.dispatch_workspace_write",
+    "--allow-local-mutation"
+  ];
+  const result = await runAgentOsCliCommandAsync({
+    ...runtimeInput,
+    argv
+  });
+  const preparedDispatch = result.output.preparedDispatch as {
+    providerPlanId?: string;
+    permitId?: string;
+    targetFiles?: string[];
+  };
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(provider.calls.planExecution, 1);
+  assert.equal(provider.calls.execute, 0);
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_cli_workspace_write_prepare_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
+  assert.equal(result.surface, "cli");
+  assert.equal(result.command, "dispatch-workspace-write");
+  assert.equal(preparedDispatch.providerPlanId, create.output.providerPlanId);
+  assert.equal(preparedDispatch.permitId, "permit_agentos_cli_workspace_write_prepare");
+  assert.deepEqual(preparedDispatch.targetFiles, [targetFile]);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
+  );
+  assert.equal(result.sanitizedArgv.includes(JSON.stringify(prepare)), false);
+  assert.equal(result.sanitizedArgv.includes("<REDACTED>"), true);
 });
 
 test("Agent OS CLI wrapper issues an approval permit without spawning CLI", () => {
@@ -517,6 +819,11 @@ test("Agent OS CLI sanitizer redacts secret-like option values", () => {
       "safe",
       "--metadata-json",
       "{\"apiKey\":\"secret\"}",
+      "dispatch-workspace-write",
+      "--dispatch-input-json",
+      "{\"token\":\"raw-token\"}",
+      "--prepare-json",
+      "{\"token\":\"raw-token\"}",
       "--token",
       "raw-token"
     ]),
@@ -525,6 +832,11 @@ test("Agent OS CLI sanitizer redacts secret-like option values", () => {
       "--title",
       "safe",
       "--metadata-json",
+      "<REDACTED>",
+      "dispatch-workspace-write",
+      "--dispatch-input-json",
+      "<REDACTED>",
+      "--prepare-json",
       "<REDACTED>",
       "--token",
       "<REDACTED>"

@@ -31,7 +31,7 @@ test("controlled provider execution dispatch preflight boundary passes", async (
   assert.equal(review.checks.noBroadAuthorization, true);
   assert.equal(
     review.summary.dispatchPreflightMode,
-    "controlled_readonly_dispatch_preflight_matrix_only"
+    "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only"
   );
   assert.equal(review.summary.dispatchPreflightIsProviderExecuteAuthorization, false);
   assert.equal(review.summary.runnerRemainsFinalProviderExecuteGate, true);
@@ -81,7 +81,7 @@ test("controlled provider execution dispatch preflight requires runner boundary"
   const review = reviewControlledProviderExecutionDispatchPreflightBoundaryAudit({
     ...input,
     providerRunnerAuditText: input.providerRunnerAuditText.replaceAll(
-      "controlled_readonly_provider_execute_gate",
+      "controlled_readonly_and_workspace_write_gate",
       "general_provider_execute_gate"
     )
   });

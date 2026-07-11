@@ -38,6 +38,23 @@ const REQUIRED_SOURCE_MARKERS = [
   "dispatchControlledReadOnlyProviderExecution",
   "runProviderExecutionPlanControlledReadOnly",
   "validateProviderExecutionPermitForPlan",
+  "createControlledWorkspaceWriteProviderDispatchPreflight",
+  "recordControlledWorkspaceWriteProviderDispatchPreflightArtifact",
+  "prepareControlledWorkspaceWriteProviderDispatchInput",
+  "prepared-controlled-workspace-write-provider-dispatch.v1",
+  "reviewControlledWorkspaceWriteProviderDispatch",
+  "dispatchControlledWorkspaceWriteProviderExecution",
+  "runProviderExecutionPlanControlledWorkspaceWrite",
+  "WorkspaceWriteProviderExecutionPermitV2Schema",
+  "validateWorkspaceWriteProviderExecutionPermitV2ForPlan",
+  "controlled-workspace-write-provider-dispatch-preflight.v1",
+  "controlled-workspace-write-provider-dispatch-preflight-artifact.v1",
+  "controlled_workspace_write_dispatch_preflight_artifact_store_missing",
+  "controlled_workspace_write_dispatch_preflight_artifact_operation_manifest_hash_mismatch",
+  "controlled_workspace_write_dispatch_requires_workspace_write_side_effect",
+  "controlled_workspace_write_dispatch_requires_workspace_write_sandbox",
+  "controlled_workspace_write_dispatch_requires_explicit_approval",
+  "providerExecuteInvoked: false",
   "summarizeProviderSelectionResult",
   "requiredCapabilities: providerExecutionPlan.requiredCapabilities",
   "routeStrategyV2",
@@ -97,6 +114,13 @@ const REQUIRED_TEST_MARKERS = [
   "controlled provider dispatcher blocks stale executor approval policy before runner",
   "controlled provider dispatcher blocks governance recovery before runner",
   "controlled provider dispatcher blocks broad provider plans before runner",
+  "controlled provider dispatcher routes workspace-write through local runner without provider execute",
+  "controlled provider dispatcher prepares workspace-write dispatch input with preflight artifact",
+  "controlled provider dispatcher requires workspace-write preflight artifact before runner",
+  "controlled provider dispatcher binds workspace-write operation manifest before runner",
+  "controlled_workspace_write_dispatch_preflight_artifact_store_missing",
+  "controlled_workspace_write_dispatch_preflight_artifact_operation_manifest_hash_mismatch",
+  "providerExecuteInvoked, false",
   "runnerInvoked, false",
   "executeInvoked, false",
   "validateExecutionPlan, 0",
@@ -175,12 +199,14 @@ export interface ControlledProviderExecutionDispatcherBoundaryAuditResult {
     outputSanitized: boolean;
   };
   summary: {
-    dispatcherMode: "controlled_readonly_pre_runner_dispatcher";
+    dispatcherMode: "controlled_readonly_and_workspace_write_pre_runner_dispatcher";
     consumesDispatchPreflightSchema: true;
     callsRunnerBoundary: true;
     callsProviderExecuteDirectly: false;
     callsRealCodexCliDirectly: false;
-    authorizesWorkspaceWrite: false;
+    controlledWorkspaceWriteDispatchAllowed: true;
+    authorizesGeneralWorkspaceWrite: false;
+    workspaceWriteProviderExecuteAllowed: false;
     authorizesHostExecutor: false;
     authorizesSubAgentRuntime: false;
     defaultDryRunPreserved: true;
@@ -241,7 +267,9 @@ export function reviewControlledProviderExecutionDispatcherBoundaryAudit(
   const checks = {
     controlPlaneAuthorityRecorded:
       input.controlPlaneText.includes("Controlled provider execution dispatcher boundary")
-      && input.controlPlaneText.includes("controlled_readonly_pre_runner_dispatcher"),
+      && input.controlPlaneText.includes(
+        "controlled_readonly_and_workspace_write_pre_runner_dispatcher"
+      ),
     governanceReadmeListsBoundary:
       input.governanceReadmeText.includes(
         "npm run governance -- audit controlled-provider-execution-dispatcher-boundary"
@@ -274,12 +302,14 @@ export function reviewControlledProviderExecutionDispatcherBoundaryAudit(
     status: reasons.length === 0 ? "passed" : "blocked",
     checks,
     summary: {
-      dispatcherMode: "controlled_readonly_pre_runner_dispatcher",
+      dispatcherMode: "controlled_readonly_and_workspace_write_pre_runner_dispatcher",
       consumesDispatchPreflightSchema: true,
       callsRunnerBoundary: true,
       callsProviderExecuteDirectly: false,
       callsRealCodexCliDirectly: false,
-      authorizesWorkspaceWrite: false,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      authorizesGeneralWorkspaceWrite: false,
+      workspaceWriteProviderExecuteAllowed: false,
       authorizesHostExecutor: false,
       authorizesSubAgentRuntime: false,
       defaultDryRunPreserved: true,
@@ -319,7 +349,9 @@ export function formatControlledProviderExecutionDispatcherBoundaryAuditResult(
     `calls runner boundary: ${review.summary.callsRunnerBoundary}`,
     `calls provider execute directly: ${review.summary.callsProviderExecuteDirectly}`,
     `calls real Codex CLI directly: ${review.summary.callsRealCodexCliDirectly}`,
-    `authorizes workspace-write: ${review.summary.authorizesWorkspaceWrite}`,
+    `controlled workspace-write dispatch allowed: ${review.summary.controlledWorkspaceWriteDispatchAllowed}`,
+    `authorizes general workspace-write: ${review.summary.authorizesGeneralWorkspaceWrite}`,
+    `workspace-write provider execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
     `authorizes host executor: ${review.summary.authorizesHostExecutor}`,
     `authorizes sub-agent runtime: ${review.summary.authorizesSubAgentRuntime}`,
     `default dry-run preserved: ${review.summary.defaultDryRunPreserved}`,
@@ -362,12 +394,14 @@ function outputSanitized(
       outputSanitized: true
     },
     summary: {
-      dispatcherMode: "controlled_readonly_pre_runner_dispatcher",
+      dispatcherMode: "controlled_readonly_and_workspace_write_pre_runner_dispatcher",
       consumesDispatchPreflightSchema: true,
       callsRunnerBoundary: true,
       callsProviderExecuteDirectly: false,
       callsRealCodexCliDirectly: false,
-      authorizesWorkspaceWrite: false,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      authorizesGeneralWorkspaceWrite: false,
+      workspaceWriteProviderExecuteAllowed: false,
       authorizesHostExecutor: false,
       authorizesSubAgentRuntime: false,
       defaultDryRunPreserved: true,

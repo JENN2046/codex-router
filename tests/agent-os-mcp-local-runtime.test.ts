@@ -9,12 +9,23 @@ import {
   AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING,
+  AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED,
+  AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC,
+  AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED,
+  AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_ARTIFACT_STORE_NOT_CONFIGURED,
+  AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_EXECUTOR_PLAN,
+  AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_POLICY,
+  AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_TASK,
   createAgentOsMcpLocalRuntime
 } from "../packages/protocol-mcp/src/index.js";
 import {
   InMemoryKernelStore
 } from "../packages/kernel-store/src/index.js";
 import {
+  InMemoryArtifactStore
+} from "../packages/artifact-store/src/index.js";
+import {
+  hashProviderExecutionPlannerObject,
   InMemoryProviderExecutionPlanStore
 } from "../packages/execution-planner/src/index.js";
 import {
@@ -31,7 +42,8 @@ import {
   SandboxProfileSchema,
   type Artifact,
   type Event,
-  type PolicyDecision
+  type PolicyDecision,
+  type SandboxProfile
 } from "../packages/kernel-contracts/src/index.js";
 import {
   createApprovalPermit,
@@ -42,6 +54,17 @@ import { validArtifact } from "../packages/kernel-contracts/test-fixtures/valid-
 import { validEvent } from "../packages/kernel-contracts/test-fixtures/valid-event.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
+import {
+  parseExecutorExecutionPlan,
+  InMemoryProviderExecutionPermitConsumptionStore,
+  parseProviderManifest,
+  type ExecutionPlanInput,
+  type ExecutionValidationResult,
+  type ExecutorExecutionPlan,
+  type ExecutorProvider,
+  type ProviderExecutionContext,
+  type ProviderExecutionResult
+} from "../packages/provider-core/src/index.js";
 
 const now = "2026-06-10T00:00:00.000Z";
 const taskId = "task_agentos_mcp_runtime_001";
@@ -156,6 +179,492 @@ test("Agent OS MCP local runtime creates a governed run and provider plan withou
     (searchEvents.output.events as Array<{ eventType: string }>).map((event) => event.eventType),
     ["kernel.public_surface.mcp.create_task"]
   );
+});
+
+test("Agent OS MCP local runtime delegates controlled workspace-write dispatch asynchronously", async () => {
+  const dispatchInputs: unknown[] = [];
+  const runtimeConsumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
+  const callerConsumptionStore = new InMemoryProviderExecutionPermitConsumptionStore();
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    workspaceWriteConsumptionStore: runtimeConsumptionStore,
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_mcp_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:agent-os-mcp-provider-plan",
+        executorPlanHash: "sha256:agent-os-mcp-executor-plan",
+        operationManifestHash: "sha256:agent-os-mcp-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-agent-os-mcp-workspace-write"
+        }
+      } as never;
+    },
+    now: () => now
+  });
+  const dispatchInput = {
+    schemaVersion: "agent-os-mcp-workspace-write-dispatch-test.v1",
+    consumptionStore: callerConsumptionStore
+  };
+
+  const syncResult = runtime.handleToolCall({
+    toolName: "agentos.dispatch_workspace_write",
+    input: { dispatchInput },
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+  assert.equal(syncResult.status, "blocked");
+  assert.deepEqual(syncResult.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC
+  ]);
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: { dispatchInput },
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.notEqual(dispatchInputs[0], dispatchInput);
+  assert.equal(
+    (dispatchInputs[0] as { schemaVersion?: string }).schemaVersion,
+    dispatchInput.schemaVersion
+  );
+  assert.equal(
+    (dispatchInputs[0] as { consumptionStore?: unknown }).consumptionStore,
+    runtimeConsumptionStore
+  );
+  assert.notEqual(
+    (dispatchInputs[0] as { consumptionStore?: unknown }).consumptionStore,
+    callerConsumptionStore
+  );
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_mcp_workspace_write_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
+  assert.equal(result.audit.realProviderExecutionInvoked, false);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
+  );
+});
+
+test("Agent OS MCP local runtime blocks workspace-write dispatch without shared consumption store", async () => {
+  let dispatcherInvoked = false;
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    controlledWorkspaceWriteProviderDispatcher() {
+      dispatcherInvoked = true;
+      throw new Error("dispatcher should not run without shared consumption store");
+    },
+    now: () => now
+  });
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      dispatchInput: {
+        schemaVersion: "agent-os-mcp-workspace-write-dispatch-test.v1"
+      }
+    },
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+
+  assert.equal(dispatcherInvoked, false);
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED
+  ]);
+  assert.equal(result.audit.realProviderExecutionInvoked, false);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+});
+
+test("Agent OS MCP local runtime blocks completed workspace-write dispatches when runner failed", async () => {
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    controlledWorkspaceWriteProviderDispatcher() {
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "runner_completed",
+        runnerInvoked: true,
+        executeInvoked: true,
+        providerExecuteInvoked: false,
+        reasons: [
+          "controlled_workspace_write_provider_dispatch_runner_completed",
+          "workspace_write_execution_target_outside_writable_roots:README.md"
+        ],
+        providerExecutionPlanHash: "sha256:agent-os-mcp-provider-plan",
+        executorPlanHash: "sha256:agent-os-mcp-executor-plan",
+        operationManifestHash: "sha256:agent-os-mcp-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-agent-os-mcp-workspace-write"
+        },
+        runnerResult: {
+          status: "controlled_workspace_write_blocked"
+        }
+      } as never;
+    },
+    now: () => now
+  });
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      dispatchInput: {
+        schemaVersion: "agent-os-mcp-workspace-write-dispatch-test.v1"
+      }
+    },
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.ok(!result.reasons.includes(
+    "controlled_workspace_write_provider_dispatch_runner_completed"
+  ));
+  assert.ok(result.reasons.includes(
+    "workspace_write_execution_target_outside_writable_roots:README.md"
+  ));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_runner_status:controlled_workspace_write_blocked"
+  ));
+  assert.equal(result.audit.localMutationApplied, true);
+});
+
+test("Agent OS MCP local runtime prepares workspace-write dispatch from run context", async () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const artifactStore = new InMemoryArtifactStore({ now: () => now });
+  const targetFile = "workspace/docs/agent-os-runtime-write.md";
+  const provider = createWorkspaceWriteProvider([targetFile]);
+  const providerRegistry = createWorkspaceWriteProviderRegistry(provider);
+  const policyDecision = createWorkspaceWritePolicyDecision([targetFile]);
+  const dispatchInputs: unknown[] = [];
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    artifactStore,
+    providerExecutionPlanStore: planStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createWorkspaceWriteEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    preferredProviderId: provider.manifest.providerId,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_mcp_workspace_write_prepare_dispatch_test"],
+        providerExecutionPlanHash: hashProviderExecutionPlannerObject(input.providerExecutionPlan),
+        executorPlanHash: hashProviderExecutionPlannerObject(input.executorPlan),
+        operationManifestHash: hashProviderExecutionPlannerObject(input.operations),
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: provider.manifest.providerId
+        }
+      } as never;
+    },
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId
+  });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Prepare workspace-write",
+      requestedAction: "Prepare a controlled Agent OS workspace-write dispatch.",
+      repoRoot: "workspace",
+      branch: "agentos/workspace-write",
+      targetFiles: [targetFile]
+    }
+  });
+  assert.equal(create.status, "succeeded");
+  assert.equal(create.output.providerPlanStatus, "planned");
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      prepare: {
+        runId,
+        workspaceRoot: "/tmp/agent-os-runtime-workspace",
+        operations: [{
+          kind: "write",
+          path: targetFile,
+          content: "agent os runtime prepared workspace-write\n"
+        }],
+        executionAuthorizationId: "operator_auth_agentos_mcp_workspace_write",
+        governanceState: createWorkspaceWriteGovernanceState(),
+        repositoryState: {
+          branch: "agentos/workspace-write",
+          protectedBranch: false,
+          worktreeClean: true,
+          headCommit: "abc123"
+        },
+        permitId: "permit_agentos_mcp_workspace_write_prepare",
+        maxChangedFiles: 1,
+        maxDiffLines: 1
+      }
+    }
+  });
+
+  const preparedDispatch = result.output.preparedDispatch as {
+    providerPlanId?: string;
+    executorPlanId?: string;
+    permitId?: string;
+    preflightArtifactId?: string;
+    preflightArtifactRef?: string;
+    targetFiles?: string[];
+  };
+  const dispatchInput = dispatchInputs[0] as {
+    providerExecutionPlan?: { planId?: string };
+    executorPlan?: { sideEffectClass?: string };
+    permit?: { permitId?: string };
+    operations?: Array<{ path: string }>;
+    dispatchPreflight?: {
+      environmentPreflight?: {
+        artifactRef?: string;
+      };
+    };
+  };
+
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_mcp_workspace_write_prepare_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(provider.calls.planExecution, 1);
+  assert.equal(provider.calls.execute, 0);
+  assert.equal(preparedDispatch.providerPlanId, create.output.providerPlanId);
+  assert.match(String(preparedDispatch.executorPlanId), /^executor_run_agentos_mcp_runtime_001$/);
+  assert.equal(preparedDispatch.permitId, "permit_agentos_mcp_workspace_write_prepare");
+  assert.deepEqual(preparedDispatch.targetFiles, [targetFile]);
+  assert.equal(preparedDispatch.preflightArtifactRef, dispatchInput.dispatchPreflight?.environmentPreflight?.artifactRef);
+  assert.equal(dispatchInput.providerExecutionPlan?.planId, create.output.providerPlanId);
+  assert.equal(dispatchInput.executorPlan?.sideEffectClass, "workspace_write");
+  assert.equal(dispatchInput.permit?.permitId, "permit_agentos_mcp_workspace_write_prepare");
+  assert.deepEqual(dispatchInput.operations?.map((operation) => operation.path), [targetFile]);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
+  );
+});
+
+test("Agent OS MCP local runtime blocks workspace-write prepare outside task and policy targets", async () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const artifactStore = new InMemoryArtifactStore({ now: () => now });
+  const targetFile = "workspace/docs/agent-os-runtime-write.md";
+  const otherFile = "workspace/docs/agent-os-runtime-other.md";
+  const provider = createWorkspaceWriteProvider([targetFile]);
+  const providerRegistry = createWorkspaceWriteProviderRegistry(provider);
+  const policyDecision = createWorkspaceWritePolicyDecision([targetFile]);
+  const dispatchInputs: unknown[] = [];
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    artifactStore,
+    providerExecutionPlanStore: planStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createWorkspaceWriteEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    preferredProviderId: provider.manifest.providerId,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      throw new Error("dispatcher should not run for out-of-scope workspace-write target");
+    },
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId
+  });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Prepare workspace-write with an out-of-scope target",
+      requestedAction: "Prepare a controlled Agent OS workspace-write dispatch.",
+      repoRoot: "workspace",
+      branch: "agentos/workspace-write",
+      targetFiles: [targetFile]
+    }
+  });
+  assert.equal(create.status, "succeeded");
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      prepare: {
+        runId,
+        workspaceRoot: "/tmp/agent-os-runtime-workspace",
+        operations: [{
+          kind: "write",
+          path: otherFile,
+          content: "agent os runtime out-of-scope workspace-write\n"
+        }],
+        executionAuthorizationId: "operator_auth_agentos_mcp_workspace_write",
+        governanceState: createWorkspaceWriteGovernanceState(),
+        repositoryState: {
+          branch: "agentos/workspace-write",
+          protectedBranch: false,
+          worktreeClean: true,
+          headCommit: "abc123"
+        },
+        permitId: "permit_agentos_mcp_workspace_write_prepare_outside_scope",
+        maxChangedFiles: 1,
+        maxDiffLines: 1
+      }
+    }
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(provider.calls.planExecution, 1);
+  assert.equal(dispatchInputs.length, 0);
+  assert.ok(result.reasons.includes(
+    `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_TASK}:${otherFile}`
+  ));
+  assert.ok(result.reasons.includes(
+    `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_POLICY}:${otherFile}`
+  ));
+  assert.ok(result.reasons.includes(
+    `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_EXECUTOR_PLAN}:${otherFile}`
+  ));
+  assert.equal(result.audit.localMutationApplied, false);
+});
+
+test("Agent OS MCP local runtime blocks workspace-write prepare without artifact store", async () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const targetFile = "workspace/docs/agent-os-runtime-write.md";
+  const provider = createWorkspaceWriteProvider([targetFile]);
+  const providerRegistry = createWorkspaceWriteProviderRegistry(provider);
+  const policyDecision = createWorkspaceWritePolicyDecision([targetFile]);
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore,
+    providerExecutionPlanStore: planStore,
+    providerRegistry,
+    principal: validPrincipal,
+    policyDecision,
+    executionEligibility: createEligibility(policyDecision),
+    grantedCapabilities: ["task.create", "workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.create_task", "agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    preferredProviderId: provider.manifest.providerId,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    controlledWorkspaceWriteProviderDispatcher() {
+      throw new Error("dispatcher should not run without artifact store");
+    },
+    now: () => now,
+    createTaskId: () => taskId,
+    createRunId: () => runId
+  });
+
+  const create = runtime.handleToolCall({
+    toolName: "agentos.create_task",
+    input: {
+      title: "Prepare workspace-write without artifact store",
+      requestedAction: "Prepare a controlled Agent OS workspace-write dispatch.",
+      targetFiles: [targetFile]
+    }
+  });
+  assert.equal(create.status, "succeeded");
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      prepare: {
+        runId,
+        workspaceRoot: "/tmp/agent-os-runtime-workspace",
+        operations: [{
+          kind: "write",
+          path: targetFile,
+          content: "agent os runtime prepared workspace-write\n"
+        }],
+        executionAuthorizationId: "operator_auth_agentos_mcp_workspace_write",
+        governanceState: createWorkspaceWriteGovernanceState(),
+        repositoryState: {
+          branch: "agentos/workspace-write",
+          protectedBranch: false,
+          worktreeClean: true,
+          headCommit: "abc123"
+        }
+      }
+    }
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_ARTIFACT_STORE_NOT_CONFIGURED
+  ]);
+  assert.equal(provider.calls.planExecution, 0);
+  assert.equal(result.audit.localMutationApplied, false);
+});
+
+test("Agent OS MCP local runtime blocks workspace-write dispatch without configured dispatcher", async () => {
+  const runtime = createAgentOsMcpLocalRuntime({
+    kernelStore: new InMemoryKernelStore(),
+    principal: validPrincipal,
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true,
+    now: () => now
+  });
+
+  const result = await runtime.handleToolCallAsync({
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      dispatchInput: {
+        schemaVersion: "agent-os-mcp-workspace-write-dispatch-test.v1"
+      }
+    }
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED
+  ]);
+  assert.equal(result.audit.localMutationApplied, false);
 });
 
 test("Agent OS MCP local runtime consumes approval permits into a planned provider plan", () => {
@@ -1129,6 +1638,199 @@ function createProviderRegistry(): ProviderRegistry {
   const provider = new CodexCliExecutorProvider();
   registry.registerProvider(provider.manifest, provider);
   return registry;
+}
+
+type WorkspaceWriteTestProvider = ExecutorProvider & {
+  calls: {
+    planExecution: number;
+    validateExecutionPlan: number;
+    execute: number;
+  };
+};
+
+function createWorkspaceWriteProvider(targetFiles: string[]): WorkspaceWriteTestProvider {
+  const calls = {
+    planExecution: 0,
+    validateExecutionPlan: 0,
+    execute: 0
+  };
+  const manifest = parseProviderManifest({
+    schemaVersion: "provider-manifest.v1",
+    providerId: "agent-os-mcp-workspace-write-provider",
+    kind: "executor",
+    displayName: "Agent OS MCP Workspace Write Provider",
+    version: "0.1.0",
+    capabilities: [
+      "execution.plan",
+      "execution.validate",
+      ...targetFiles.map((path) => `fs.write:${path}`)
+    ],
+    requiredConfig: {
+      keys: [],
+      optionalKeys: []
+    },
+    securityBoundary: {
+      isolation: "process",
+      networkAccess: "none",
+      filesystemAccess: "workspace-write",
+      secretAccess: "none",
+      notes: ["test fixture"]
+    },
+    supportedSandboxProfiles: [createWorkspaceWriteSandboxProfile()],
+    supportedSideEffectClasses: ["workspace_write"],
+    enabled: true,
+    metadata: {}
+  });
+
+  return {
+    manifest,
+    calls,
+    planExecution(input: ExecutionPlanInput): ExecutorExecutionPlan {
+      calls.planExecution += 1;
+      return parseExecutorExecutionPlan({
+        schemaVersion: "executor-execution-plan.v1",
+        kind: "executor",
+        planId: `executor_${input.run.runId}`,
+        runId: input.run.runId,
+        taskId: input.task.taskId,
+        ...(input.taskHash !== undefined ? { taskHash: input.taskHash } : {}),
+        ...(input.principalId !== undefined ? { principalId: input.principalId } : {}),
+        ...(input.principalHash !== undefined ? { principalHash: input.principalHash } : {}),
+        ...(input.providerExecutionPlanHash !== undefined
+          ? { providerExecutionPlanHash: input.providerExecutionPlanHash }
+          : {}),
+        ...(input.providerManifestHash !== undefined
+          ? { providerManifestHash: input.providerManifestHash }
+          : {}),
+        providerId: manifest.providerId,
+        inputHash: input.inputHash ?? "1".repeat(64),
+        policyDecisionHash: hashProviderExecutionPlannerObject(input.policyDecision),
+        requiredCapabilities: targetFiles.map((path) => `fs.write:${path}`),
+        approvalRequired: true,
+        sandboxProfile: input.sandboxProfile,
+        sideEffectClass: "workspace_write",
+        createdAt: input.now,
+        metadata: {
+          controlledWorkspaceWrite: true,
+          source: "agent-os-mcp-local-runtime-test"
+        }
+      });
+    },
+    validateExecutionPlan(_plan: ExecutorExecutionPlan): ExecutionValidationResult {
+      calls.validateExecutionPlan += 1;
+      return {
+        valid: true,
+        reasons: []
+      };
+    },
+    execute(
+      _plan: ExecutorExecutionPlan,
+      _context: ProviderExecutionContext
+    ): ProviderExecutionResult {
+      calls.execute += 1;
+      throw new Error("agent_os_mcp_workspace_write_provider_execute_forbidden");
+    }
+  };
+}
+
+function createWorkspaceWriteProviderRegistry(
+  provider: WorkspaceWriteTestProvider
+): ProviderRegistry {
+  const registry = new ProviderRegistry();
+  registry.registerProvider(provider.manifest, provider);
+  return registry;
+}
+
+function createWorkspaceWritePolicyDecision(targetFiles: string[]): PolicyDecision {
+  return PolicyDecisionSchema.parse({
+    ...validPolicyDecision,
+    decisionId: "decision_agentos_mcp_runtime_workspace_write",
+    taskId,
+    risk: {
+      level: "medium",
+      factors: ["workspace_write"],
+      ambiguityScore: 0,
+      clarificationRequired: false
+    },
+    execution: {
+      executor: "codex-cli",
+      model: "gpt-5.4-mini",
+      profile: "workspace-write",
+      reasoningEffort: "low",
+      sandbox: createWorkspaceWriteSandboxProfile()
+    },
+    capabilities: targetFiles.map((path) => CapabilityScopeSchema.parse({
+      kind: "file",
+      resource: path,
+      access: "write"
+    })),
+    approval: {
+      required: true,
+      reasons: ["workspace_write_requires_operator_authorization"]
+    },
+    createdAt: now,
+    legacy: {
+      taskClass: "small_edit",
+      toolAccess: "local_write"
+    }
+  });
+}
+
+function createWorkspaceWriteEligibility(policyDecision: PolicyDecision) {
+  return {
+    status: "eligible" as const,
+    taskId,
+    runId,
+    policyDecisionHash: hashApprovalScope(policyDecision),
+    reasons: ["capability_grants_satisfied", "valid_approval_permit"],
+    missingCapabilities: [],
+    requiredApprovals: [],
+    acceptedPermits: ["permit_agentos_mcp_workspace_write_planner"],
+    rejectedPermits: [],
+    createdAt: now
+  };
+}
+
+function createWorkspaceWriteSandboxProfile(): SandboxProfile {
+  return SandboxProfileSchema.parse({
+    schemaVersion: "sandbox-profile.v1",
+    sandboxId: "sandbox_agentos_mcp_runtime_workspace_write",
+    mode: "workspace-write",
+    networkAccess: "none",
+    writableRoots: ["workspace"],
+    envPolicy: {
+      inheritProcessEnv: false,
+      allowlist: []
+    }
+  });
+}
+
+function createWorkspaceWriteGovernanceState() {
+  return {
+    schemaVersion: "governance-state.v1",
+    taskId,
+    branchId: "main",
+    phase: "execution",
+    trustBalance: {
+      centralOrder: 0.5,
+      distributedVitality: 0.5
+    },
+    risk: {
+      entanglement: 0.2,
+      entropy: 0.2,
+      failureCost: 0.2,
+      reversibility: 0.8,
+      contextPressure: 0.2,
+      historicalTrust: 0.5,
+      globalCoherence: 0.9,
+      finalRiskLevel: "low"
+    },
+    anomalies: [],
+    approvals: [],
+    taskGraphRef: `task-graph:${taskId}`,
+    createdAt: now,
+    updatedAt: now
+  };
 }
 
 function createPolicyDecision(): PolicyDecision {

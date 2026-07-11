@@ -14,11 +14,17 @@ const REQUIRED_SOURCE_MARKERS = [
   "AgentOsCliCommandSchema",
   "RunAgentOsCliCommandInput = Omit<",
   "runAgentOsCliCommand",
+  "runAgentOsCliCommandAsync",
   "parseAgentOsCliArgv",
   "sanitizeAgentOsCliArgv",
   "createAgentOsMcpLocalRuntime",
   "publicSurface: \"cli\"",
   "runtime.handleToolCall(call)",
+  "runtime.handleToolCallAsync(call)",
+  "dispatch-workspace-write",
+  "agentos.dispatch_workspace_write",
+  "--dispatch-input-json",
+  "--prepare-json",
   "call.grantedCapabilities = parsed.grantedCapabilities",
   "call.approvedMutatingTools = parsed.approvedMutatingTools",
   "call.allowLocalMutations = parsed.allowLocalMutations",
@@ -36,8 +42,12 @@ const REQUIRED_SOURCE_MARKERS = [
 const REQUIRED_TEST_MARKERS = [
   "Agent OS CLI parser maps create-task argv to a governed tool call",
   "Agent OS CLI parser maps approve-run argv to a governed tool call",
+  "Agent OS CLI parser maps workspace-write dispatch argv to a governed tool call",
+  "Agent OS CLI parser maps workspace-write prepare argv to a governed tool call",
   "Agent OS CLI wrapper blocks local mutation by default",
   "Agent OS CLI wrapper creates a local run and provider plan without spawning CLI",
+  "Agent OS CLI wrapper delegates controlled workspace-write dispatch asynchronously",
+  "Agent OS CLI wrapper prepares controlled workspace-write dispatch asynchronously",
   "Agent OS CLI wrapper issues an approval permit without spawning CLI",
   "Agent OS CLI wrapper consumes approval permits without spawning CLI",
   "Agent OS CLI wrapper preserves rejected permit audit without spawning CLI",
@@ -112,6 +122,10 @@ export interface AgentOsCliBoundaryAuditResult {
     localRuntimeCallIsProviderExecutionAuthorization: false;
     approvalPermitIssueIsProviderExecutionAuthorization: false;
     approvalPermitConsumptionIsProviderExecutionAuthorization: false;
+    controlledWorkspaceWritePrepareAllowed: true;
+    controlledWorkspaceWriteDispatchAllowed: true;
+    generalWorkspaceWriteExecutionAllowed: false;
+    workspaceWriteProviderExecuteAllowed: false;
     sanitizedArgvContainsRawSecrets: false;
     cliWrapperCallsDuringAudit: 0;
     localRuntimeCallsDuringAudit: 0;
@@ -195,6 +209,10 @@ export function reviewAgentOsCliBoundaryAudit(
       localRuntimeCallIsProviderExecutionAuthorization: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
       approvalPermitConsumptionIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWritePrepareAllowed: true,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       sanitizedArgvContainsRawSecrets: false,
       cliWrapperCallsDuringAudit: 0,
       localRuntimeCallsDuringAudit: 0,
@@ -233,6 +251,10 @@ export function formatAgentOsCliBoundaryAuditResult(
     `local runtime call is provider execution authorization: ${review.summary.localRuntimeCallIsProviderExecutionAuthorization}`,
     `approval permit issue is provider execution authorization: ${review.summary.approvalPermitIssueIsProviderExecutionAuthorization}`,
     `approval permit consumption is provider execution authorization: ${review.summary.approvalPermitConsumptionIsProviderExecutionAuthorization}`,
+    `controlled workspace-write prepare allowed: ${review.summary.controlledWorkspaceWritePrepareAllowed}`,
+    `controlled workspace-write dispatch allowed: ${review.summary.controlledWorkspaceWriteDispatchAllowed}`,
+    `general workspace-write execution allowed: ${review.summary.generalWorkspaceWriteExecutionAllowed}`,
+    `workspace-write provider.execute allowed: ${review.summary.workspaceWriteProviderExecuteAllowed}`,
     `sanitized argv contains raw secrets: ${review.summary.sanitizedArgvContainsRawSecrets}`,
     `CLI wrapper calls during audit: ${review.summary.cliWrapperCallsDuringAudit}`,
     `local runtime calls during audit: ${review.summary.localRuntimeCallsDuringAudit}`,
@@ -263,6 +285,8 @@ function controlPlaneAuthorityRecorded(text: string): boolean {
     && text.includes("preferred provider is not Codex CLI invocation")
     && text.includes("parsed commands are not provider execution authorization")
     && text.includes("approval permit issue and consumption are not provider execution")
+    && text.includes("controlled workspace-write dispatch")
+    && text.includes("workspace-write through `provider.execute`")
     && text.includes("sanitized argv must not expose raw secrets")
     && text.includes("the CLI wrapper does not spawn Codex CLI");
 }
@@ -293,6 +317,10 @@ function outputSanitized(input: AgentOsCliBoundaryAuditInput): boolean {
       localRuntimeCallIsProviderExecutionAuthorization: false,
       approvalPermitIssueIsProviderExecutionAuthorization: false,
       approvalPermitConsumptionIsProviderExecutionAuthorization: false,
+      controlledWorkspaceWritePrepareAllowed: true,
+      controlledWorkspaceWriteDispatchAllowed: true,
+      generalWorkspaceWriteExecutionAllowed: false,
+      workspaceWriteProviderExecuteAllowed: false,
       sanitizedArgvContainsRawSecrets: false,
       cliWrapperCallsDuringAudit: 0,
       localRuntimeCallsDuringAudit: 0,

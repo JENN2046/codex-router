@@ -2,10 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   handleAgentOsAppServerRequest,
+  handleAgentOsAppServerRequestAsync,
   routeAgentOsAppServerRequest,
   type AgentOsAppServerRequest
 } from "../packages/agent-os-app-server/src/index.js";
 import {
+  InMemoryArtifactStore
+} from "../packages/artifact-store/src/index.js";
+import {
+  hashProviderExecutionPlannerObject,
   InMemoryProviderExecutionPlanStore
 } from "../packages/execution-planner/src/index.js";
 import {
@@ -29,6 +34,8 @@ import {
   AGENT_OS_MCP_RUN_NOT_FOUND,
   AGENT_OS_MCP_TOOL_APPROVAL_REQUIRED,
   AGENT_OS_MCP_TOOL_CAPABILITY_MISSING,
+  AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED,
+  AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC,
   type AgentOsMcpToolName
 } from "../packages/protocol-mcp/src/index.js";
 import {
@@ -36,8 +43,21 @@ import {
   hashApprovalScope,
   InMemoryApprovalPermitStore
 } from "../packages/governance-internal-approval-permit/src/index.js";
+import type {
+  ControlledWorkspaceWriteHostProviderDispatchInput
+} from "../packages/host-dispatcher/src/index.js";
+import {
+  InMemoryProviderExecutionPermitConsumptionStore
+} from "../packages/provider-core/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
+import {
+  createAgentOsWorkspaceWriteEligibility,
+  createAgentOsWorkspaceWriteGovernanceState,
+  createAgentOsWorkspaceWritePolicyDecision,
+  createAgentOsWorkspaceWriteProvider,
+  createAgentOsWorkspaceWriteProviderRegistry
+} from "./fixtures/agent-os-workspace-write-fixture.js";
 
 const now = "2026-06-10T02:00:00.000Z";
 const taskId = "task_agentos_app_server_001";
@@ -66,6 +86,23 @@ test("Agent OS App Server router maps HTTP-like routes to governed tool calls", 
     toolName: "agentos.get_run",
     input: {
       runId: "run_001"
+    }
+  });
+
+  assert.deepEqual(routeAgentOsAppServerRequest({
+    method: "POST",
+    path: "/agent-os/workspace-write/dispatch",
+    body: {
+      dispatchInput: {
+        schemaVersion: "agent-os-app-server-workspace-write-dispatch-test.v1"
+      }
+    }
+  }), {
+    toolName: "agentos.dispatch_workspace_write",
+    input: {
+      dispatchInput: {
+        schemaVersion: "agent-os-app-server-workspace-write-dispatch-test.v1"
+      }
     }
   });
 
@@ -163,6 +200,292 @@ test("Agent OS App Server router maps HTTP-like routes to governed tool calls", 
       cursor: "agentos-search-events:2"
     }
   });
+});
+
+test("Agent OS App Server wrapper delegates controlled workspace-write dispatch asynchronously without network", async () => {
+  const dispatchInputs: unknown[] = [];
+  const workspaceWriteConsumptionStore =
+    new InMemoryProviderExecutionPermitConsumptionStore();
+  const dispatchInput = {
+    schemaVersion: "agent-os-app-server-workspace-write-dispatch-test.v1"
+  };
+  const runtimeInput = {
+    ...createRuntimeInput(new InMemoryKernelStore()),
+    workspaceWriteConsumptionStore,
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"] as AgentOsMcpToolName[],
+    allowLocalMutations: true,
+    controlledWorkspaceWriteProviderDispatcher(input: unknown) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_app_server_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:agent-os-app-server-provider-plan",
+        executorPlanHash: "sha256:agent-os-app-server-executor-plan",
+        operationManifestHash: "sha256:agent-os-app-server-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-agent-os-app-server-workspace-write"
+        }
+      } as never;
+    },
+    request: {
+      method: "POST",
+      path: "/agent-os/workspace-write/dispatch",
+      body: {
+        dispatchInput
+      }
+    }
+  };
+
+  const syncResponse = handleAgentOsAppServerRequest(runtimeInput);
+  const syncResult = syncResponse.body.result as {
+    status: string;
+    reasons: string[];
+  };
+  assert.equal(syncResponse.statusCode, 403);
+  assert.equal(syncResult.status, "blocked");
+  assert.deepEqual(syncResult.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC
+  ]);
+  assert.equal(dispatchInputs.length, 0);
+
+  const response = await handleAgentOsAppServerRequestAsync(runtimeInput);
+  const result = response.body.result as {
+    status: string;
+    reasons: string[];
+    output: Record<string, unknown>;
+    audit: {
+      publicSurface: string;
+      realProviderExecutionInvoked: boolean;
+      localMutationAttempted: boolean;
+      localMutationApplied: boolean;
+    };
+  };
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.notEqual(dispatchInputs[0], dispatchInput);
+  assert.equal(
+    (dispatchInputs[0] as { schemaVersion?: string }).schemaVersion,
+    dispatchInput.schemaVersion
+  );
+  assert.equal(
+    (dispatchInputs[0] as { consumptionStore?: unknown }).consumptionStore,
+    workspaceWriteConsumptionStore
+  );
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.audit.liveHttpServerStarted, false);
+  assert.equal(response.audit.networkAccessed, false);
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_app_server_workspace_write_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
+  assert.equal(result.audit.publicSurface, "app_server");
+  assert.equal(result.audit.realProviderExecutionInvoked, false);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
+  );
+});
+
+test("Agent OS App Server wrapper blocks workspace-write dispatch without shared consumption store", async () => {
+  let dispatcherInvoked = false;
+  const response = await handleAgentOsAppServerRequestAsync({
+    ...createRuntimeInput(new InMemoryKernelStore()),
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"] as AgentOsMcpToolName[],
+    allowLocalMutations: true,
+    controlledWorkspaceWriteProviderDispatcher() {
+      dispatcherInvoked = true;
+      throw new Error("dispatcher should not run without shared consumption store");
+    },
+    request: {
+      method: "POST",
+      path: "/agent-os/workspace-write/dispatch",
+      body: {
+        dispatchInput: {
+          schemaVersion: "agent-os-app-server-workspace-write-dispatch-test.v1"
+        }
+      }
+    }
+  });
+  const result = response.body.result as {
+    status: string;
+    reasons: string[];
+    audit: {
+      localMutationAttempted: boolean;
+      localMutationApplied: boolean;
+    };
+  };
+
+  assert.equal(dispatcherInvoked, false);
+  assert.equal(response.statusCode, 403);
+  assert.equal(result.status, "blocked");
+  assert.deepEqual(result.reasons, [
+    AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED
+  ]);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+  assert.equal(response.audit.liveHttpServerStarted, false);
+  assert.equal(response.audit.networkAccessed, false);
+});
+
+test("Agent OS App Server wrapper prepares controlled workspace-write dispatch asynchronously without network", async () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const artifactStore = new InMemoryArtifactStore({ now: () => now });
+  const targetFile = "workspace/docs/agent-os-app-server-write.md";
+  const provider = createAgentOsWorkspaceWriteProvider({
+    providerId: "agent-os-app-server-workspace-write-provider",
+    targetFiles: [targetFile],
+    sandboxId: "sandbox_agentos_app_server_workspace_write",
+    source: "agent-os-app-server-test"
+  });
+  const providerRegistry = createAgentOsWorkspaceWriteProviderRegistry(provider);
+  const policyDecision = createAgentOsWorkspaceWritePolicyDecision({
+    basePolicyDecision: validPolicyDecision,
+    decisionId: "decision_agentos_app_server_workspace_write",
+    taskId,
+    targetFiles: [targetFile],
+    sandboxId: "sandbox_agentos_app_server_workspace_write",
+    now
+  });
+  const dispatchInputs: unknown[] = [];
+  const runtimeInput = {
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    artifactStore,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    executionEligibility: createAgentOsWorkspaceWriteEligibility({
+      policyDecision,
+      taskId,
+      runId,
+      permitId: "permit_agentos_app_server_workspace_write_planner",
+      now
+    }),
+    grantedCapabilities: ["task.create", "workspace_write.dispatch"],
+    approvedMutatingTools: [
+      "agentos.create_task",
+      "agentos.dispatch_workspace_write"
+    ] as AgentOsMcpToolName[],
+    allowLocalMutations: true,
+    preferredProviderId: provider.manifest.providerId,
+    controlledWorkspaceWriteProviderDispatcher(
+      input: ControlledWorkspaceWriteHostProviderDispatchInput
+    ) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_app_server_workspace_write_prepare_dispatch_test"],
+        providerExecutionPlanHash: hashProviderExecutionPlannerObject(input.providerExecutionPlan),
+        executorPlanHash: hashProviderExecutionPlannerObject(input.executorPlan),
+        operationManifestHash: hashProviderExecutionPlannerObject(input.operations),
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: provider.manifest.providerId
+        }
+      } as never;
+    }
+  };
+  const createResponse = handleAgentOsAppServerRequest({
+    ...runtimeInput,
+    request: {
+      method: "POST",
+      path: "/agent-os/tasks",
+      body: {
+        title: "App Server workspace-write prepare",
+        requestedAction: "Prepare a controlled workspace-write from app-server body.",
+        repoRoot: "workspace",
+        branch: "agentos/app-server-workspace-write",
+        targetFiles: [targetFile]
+      }
+    }
+  });
+  const createResult = createResponse.body.result as {
+    status: string;
+    output: Record<string, unknown>;
+  };
+  assert.equal(createResponse.statusCode, 200);
+  assert.equal(createResult.status, "succeeded");
+
+  const response = await handleAgentOsAppServerRequestAsync({
+    ...runtimeInput,
+    request: {
+      method: "POST",
+      path: "/agent-os/workspace-write/dispatch",
+      body: {
+        prepare: {
+          runId,
+          workspaceRoot: "/tmp/agent-os-app-server-workspace",
+          operations: [{
+            kind: "write",
+            path: targetFile,
+            content: "agent os app-server prepared workspace-write\n"
+          }],
+          executionAuthorizationId: "operator_auth_agentos_app_server_workspace_write",
+          governanceState: createAgentOsWorkspaceWriteGovernanceState({ taskId, now }),
+          repositoryState: {
+            branch: "agentos/app-server-workspace-write",
+            protectedBranch: false,
+            worktreeClean: true,
+            headCommit: "abc123"
+          },
+          permitId: "permit_agentos_app_server_workspace_write_prepare",
+          maxChangedFiles: 1,
+          maxDiffLines: 1
+        }
+      }
+    }
+  });
+  const result = response.body.result as {
+    status: string;
+    reasons: string[];
+    output: Record<string, unknown>;
+    audit: {
+      publicSurface: string;
+      realProviderExecutionInvoked: boolean;
+      localMutationAttempted: boolean;
+      localMutationApplied: boolean;
+    };
+  };
+  const preparedDispatch = result.output.preparedDispatch as {
+    providerPlanId?: string;
+    permitId?: string;
+    targetFiles?: string[];
+  };
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(provider.calls.planExecution, 1);
+  assert.equal(provider.calls.execute, 0);
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.audit.liveHttpServerStarted, false);
+  assert.equal(response.audit.networkAccessed, false);
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_app_server_workspace_write_prepare_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
+  assert.equal(result.audit.publicSurface, "app_server");
+  assert.equal(result.audit.realProviderExecutionInvoked, false);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+  assert.equal(preparedDispatch.providerPlanId, createResult.output.providerPlanId);
+  assert.equal(preparedDispatch.permitId, "permit_agentos_app_server_workspace_write_prepare");
+  assert.deepEqual(preparedDispatch.targetFiles, [targetFile]);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
+  );
 });
 
 test("Agent OS App Server wrapper blocks mutating requests by default", () => {

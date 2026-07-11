@@ -16,9 +16,9 @@ const ROADMAP = "docs/agent-os-transformation/current-roadmap-20260610.md";
 const REQUIRED_MATRIX_MARKERS = [
   "CONTROLLED_PROVIDER_EXECUTION_DISPATCH_PREFLIGHT_MATRIX_RECORDED",
   "This matrix is a dispatch preflight boundary for controlled provider execution.",
-  "It is not provider execute authorization.",
+  "It is not general provider execute authorization.",
   "It is not real Codex CLI authorization.",
-  "It is not workspace-write authorization.",
+  "It is not general workspace-write authorization.",
   "does not call `provider.execute`",
   "provider id is exactly `codex-cli`",
   "side effect class is exactly `read_only`",
@@ -32,6 +32,12 @@ const REQUIRED_MATRIX_MARKERS = [
   "provider execution permit is valid for the exact task, run, provider plan",
   "environment preflight artifact ref is present",
   "environment preflight artifact hash is present",
+  "side effect class is exactly `workspace_write`",
+  "workspace-write permit v2 is approved",
+  "operation manifest is declared and hashed",
+  "dispatcher preparation records a sanitized controlled workspace-write",
+  "provider execute is forbidden",
+  "real Codex CLI is forbidden",
   "runner real-execution guard is present",
   "governance strategy is not `step_back`",
   "governance strategy is not `simulate`",
@@ -61,6 +67,8 @@ const REQUIRED_STOP_MARKERS = [
 const REQUIRED_MATRIX_ROWS = [
   "dry-run default",
   "controlled read-only candidate",
+  "controlled workspace-write prepare",
+  "controlled workspace-write candidate",
   "provider mismatch",
   "side-effect mismatch",
   "sandbox mismatch",
@@ -73,14 +81,15 @@ const REQUIRED_MATRIX_ROWS = [
 
 const REQUIRED_RUNNER_MARKERS = [
   "Provider execution runner boundary audit",
-  "controlled_readonly_provider_execute_gate",
+  "controlled_readonly_and_workspace_write_gate",
   "provider.execute",
   "controlledReadOnlyProviderId: \"codex-cli\"",
   "controlledReadOnlySideEffectClass: \"read_only\"",
   "controlledReadOnlySandbox: \"read-only\"",
   "permitRequired: true",
   "preflightArtifactBindingRequired: true",
-  "realExecutionGuardRequired: true"
+  "realExecutionGuardRequired: true",
+  "workspaceWriteProviderExecuteAllowed: false"
 ] as const;
 
 const FORBIDDEN_AUTHORIZATION_MARKERS = [
@@ -122,7 +131,7 @@ export interface ControlledProviderExecutionDispatchPreflightBoundaryAuditResult
     outputSanitized: boolean;
   };
   summary: {
-    dispatchPreflightMode: "controlled_readonly_dispatch_preflight_matrix_only";
+    dispatchPreflightMode: "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only";
     dispatchPreflightIsProviderExecuteAuthorization: false;
     dispatchPreflightIsRealCodexCliAuthorization: false;
     dispatchPreflightIsWorkspaceWriteAuthorization: false;
@@ -183,7 +192,7 @@ export function reviewControlledProviderExecutionDispatchPreflightBoundaryAudit(
   const checks = {
     controlPlaneAuthorityRecorded:
       input.controlPlaneText.includes("Controlled provider execution dispatch preflight boundary")
-      && input.controlPlaneText.includes("controlled_readonly_dispatch_preflight_matrix_only"),
+      && input.controlPlaneText.includes("controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only"),
     governanceReadmeListsBoundary: input.governanceReadmeText.includes(
       "CONTROLLED_PROVIDER_EXECUTION_DISPATCH_PREFLIGHT_MATRIX.md"
     ) && input.governanceReadmeText.includes(
@@ -221,7 +230,7 @@ export function reviewControlledProviderExecutionDispatchPreflightBoundaryAudit(
     status: reasons.length === 0 ? "passed" : "blocked",
     checks,
     summary: {
-      dispatchPreflightMode: "controlled_readonly_dispatch_preflight_matrix_only",
+      dispatchPreflightMode: "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only",
       dispatchPreflightIsProviderExecuteAuthorization: false,
       dispatchPreflightIsRealCodexCliAuthorization: false,
       dispatchPreflightIsWorkspaceWriteAuthorization: false,
@@ -314,7 +323,7 @@ function outputSanitized(
       outputSanitized: true
     },
     summary: {
-      dispatchPreflightMode: "controlled_readonly_dispatch_preflight_matrix_only",
+      dispatchPreflightMode: "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only",
       dispatchPreflightIsProviderExecuteAuthorization: false,
       dispatchPreflightIsRealCodexCliAuthorization: false,
       dispatchPreflightIsWorkspaceWriteAuthorization: false,

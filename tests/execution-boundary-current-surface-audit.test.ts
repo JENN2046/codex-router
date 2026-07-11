@@ -736,11 +736,11 @@ test("execution boundary current surface audit passes for current evidence", asy
   );
   assert.equal(
     review.summary.controlledProviderExecutionDispatchPreflightMode,
-    "controlled_readonly_dispatch_preflight_matrix_only"
+    "controlled_readonly_and_workspace_write_dispatch_preflight_matrix_only"
   );
   assert.equal(
     review.summary.controlledProviderExecutionDispatcherMode,
-    "controlled_readonly_pre_runner_dispatcher"
+    "controlled_readonly_and_workspace_write_pre_runner_dispatcher"
   );
   assert.equal(
     review.summary.controlledProviderExecutionDispatchPreflightIsProviderExecuteAuthorization,
@@ -748,6 +748,18 @@ test("execution boundary current surface audit passes for current evidence", asy
   );
   assert.equal(
     review.summary.controlledProviderExecutionDispatcherCallsProviderExecuteDirectly,
+    false
+  );
+  assert.equal(
+    review.summary.controlledProviderExecutionDispatcherControlledWorkspaceWriteDispatchAllowed,
+    true
+  );
+  assert.equal(
+    review.summary.controlledProviderExecutionDispatcherAuthorizesGeneralWorkspaceWrite,
+    false
+  );
+  assert.equal(
+    review.summary.controlledProviderExecutionDispatcherWorkspaceWriteProviderExecuteAllowed,
     false
   );
   assert.equal(
@@ -997,10 +1009,14 @@ test("execution boundary current surface audit passes for current evidence", asy
   assert.equal(review.summary.totalProviderRegistryProviderExecuteCallsDuringAudit, 0);
   assert.equal(
     review.summary.providerExecutionRunnerMode,
-    "controlled_readonly_provider_execute_gate"
+    "controlled_readonly_and_workspace_write_gate"
   );
   assert.equal(review.summary.controlledReadOnlyProviderExecutionAllowed, true);
-  assert.equal(review.summary.providerExecutionRunnerWorkspaceWriteAllowed, false);
+  assert.equal(review.summary.providerExecutionRunnerWorkspaceWriteAllowed, true);
+  assert.equal(
+    review.summary.providerExecutionRunnerWorkspaceWriteProviderExecuteAllowed,
+    false
+  );
   assert.equal(
     review.summary.providerExecutionRunnerDefaultRealCodexCliAllowed,
     false
@@ -1092,7 +1108,7 @@ test("execution boundary current surface audit passes for current evidence", asy
   );
   assert.equal(
     review.summary.hostDispatcherProviderMode,
-    "controlled_read_only_provider_dispatch"
+    "controlled_read_only_and_workspace_write_provider_dispatch"
   );
   assert.equal(
     review.summary.codexDesktopBridgeMode,
@@ -1266,8 +1282,16 @@ test("execution boundary current surface audit passes for current evidence", asy
   );
   assert.equal(review.summary.desktopLiveAdapterProviderInvocationAllowed, false);
   assert.equal(review.summary.hostDispatcherReadOnlyProviderDispatchAllowed, true);
+  assert.equal(
+    review.summary.hostDispatcherControlledWorkspaceWriteDispatchAllowed,
+    true
+  );
   assert.equal(review.summary.hostDispatcherGeneralProviderExecutionAllowed, false);
-  assert.equal(review.summary.hostDispatcherWorkspaceWriteAllowed, false);
+  assert.equal(review.summary.hostDispatcherGeneralWorkspaceWriteAllowed, false);
+  assert.equal(
+    review.summary.hostDispatcherWorkspaceWriteProviderExecuteAllowed,
+    false
+  );
   assert.equal(review.summary.hostExecutorDefaultRealExecutionAllowed, false);
   assert.equal(review.summary.hostExecutorTaskbookExecutionAllowed, false);
   assert.equal(review.summary.hostClientExecutorReviewDispatchAllowed, false);
@@ -1890,7 +1914,7 @@ test("execution boundary current surface audit blocks broadened execution summar
       ...input.providerExecutionRunnerReview,
       summary: {
         ...input.providerExecutionRunnerReview.summary,
-        workspaceWriteAllowedByRunner: true as false
+        workspaceWriteProviderExecuteAllowed: true as false
       }
     },
     providerCorePrimitivesReview: {
@@ -1967,7 +1991,8 @@ test("execution boundary current surface audit blocks broadened execution summar
       ...input.desktopHostClientReview,
       summary: {
         ...input.desktopHostClientReview.summary,
-        defaultHostExecutorLookupAllowed: true as false
+        defaultHostExecutorLookupAllowed: true as false,
+        workspaceWriteProviderExecuteAllowedByClient: true as false
       }
     },
     desktopLiveAdapterDispatchReview: {
@@ -3097,6 +3122,18 @@ test("execution boundary current surface audit output stays summarized", async (
   assert.match(text, /operator action executor gate invocations during audit: 0/);
   assert.match(text, /Codex CLI host process spawns during audit: 0/);
   assert.match(text, /public API calls during audit: 0/);
+  assert.match(
+    text,
+    /desktop host client controlled workspace-write dispatch allowed: true/
+  );
+  assert.match(
+    text,
+    /desktop host client general workspace-write allowed: false/
+  );
+  assert.match(
+    text,
+    /desktop host client workspace-write provider execute allowed: false/
+  );
   assert.match(text, /protocol MCP tool runtime calls during audit: 0/);
   assert.match(text, /protocol A2A remote agent runtime calls during audit: 0/);
   assert.match(text, /Agent OS SDK Codex CLI calls during audit: 0/);

@@ -5,6 +5,7 @@ import {
   type DesktopHostOperatorActionHostExecutorAuthorizationReviewInput as InternalDesktopHostOperatorActionHostExecutorAuthorizationReviewInput,
   type DesktopHostOperatorActionHostExecutorDispatchInput as InternalDesktopHostOperatorActionHostExecutorDispatchInput,
   type DesktopHostOperatorActionReceiptInput as InternalDesktopHostOperatorActionReceiptInput,
+  type DesktopHostRunOptions as InternalDesktopHostRunOptions,
   type DesktopHostResumeOptions as InternalDesktopHostResumeOptions
 } from "../../desktop-host-client/src/index.js";
 import {
@@ -346,6 +347,90 @@ export interface DesktopHostTelemetrySink {
   record(event: DesktopHostLogEvent): Promise<void> | void;
 }
 
+export type DesktopHostWorkspaceWriteOperation =
+  | {
+      kind: "write";
+      path: string;
+      content: string;
+    }
+  | {
+      kind: "delete";
+      path: string;
+    };
+
+export interface DesktopHostControlledWorkspaceWriteDispatchPreflightChecks {
+  cleanWorktreeConfirmed: true;
+  targetAllowlistConfirmed: true;
+  rollbackRequired: true;
+  noProviderExecute: true;
+  noRealCodexCli: true;
+  noExternalWrite: true;
+  versionProbe: string;
+}
+
+export interface DesktopHostControlledWorkspaceWriteDispatchEnvironmentPreflight {
+  status: "ready";
+  artifactRef: string;
+  artifactHash: string;
+  checks: DesktopHostControlledWorkspaceWriteDispatchPreflightChecks;
+  blockingReasons: string[];
+}
+
+export interface DesktopHostControlledWorkspaceWriteProviderDispatchPreflight {
+  schemaVersion: "controlled-workspace-write-provider-dispatch-preflight.v1";
+  mode: "controlled-workspace-write";
+  providerExecutionPlanHash: string;
+  providerRegistrySelectionRequired: true;
+  permitRequired: true;
+  operationManifestRequired: true;
+  preflightArtifactBindingRequired: true;
+  providerExecuteForbidden: true;
+  realCodexCliForbidden: true;
+  environmentPreflight: DesktopHostControlledWorkspaceWriteDispatchEnvironmentPreflight;
+}
+
+export interface DesktopHostControlledWorkspaceWriteProviderDispatchInput {
+  providerExecutionPlan: unknown;
+  task: unknown;
+  run: unknown;
+  principal: unknown;
+  policyDecision: unknown;
+  providerRegistry: unknown;
+  kernelStore: unknown;
+  artifactStore: unknown;
+  workspaceRoot: string;
+  permit: unknown;
+  executorPlan: unknown;
+  operations: DesktopHostWorkspaceWriteOperation[];
+  executionAuthorizationId: string;
+  consumptionStore: unknown;
+  dispatchPreflight: DesktopHostControlledWorkspaceWriteProviderDispatchPreflight;
+  governanceState: unknown;
+  taskEnvelope: DesktopHostTaskEnvelopeInput;
+  proposedInput?: unknown;
+  now: () => string;
+}
+
+export interface DesktopHostControlledWorkspaceWriteProviderDispatchResult
+  extends DesktopHostUnknownRecord {
+  schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1";
+  status: "dispatch_blocked" | "runner_completed";
+  runnerInvoked: boolean;
+  executeInvoked: boolean;
+  providerExecuteInvoked: false;
+  reasons: string[];
+  providerExecutionPlanHash?: string;
+  executorPlanHash?: string;
+  operationManifestHash?: string;
+  providerRegistrySelection?: unknown;
+  runnerResult?: unknown;
+}
+export type DesktopHostControlledWorkspaceWriteProviderDispatcher = (
+  input: DesktopHostControlledWorkspaceWriteProviderDispatchInput
+) =>
+  | Promise<DesktopHostControlledWorkspaceWriteProviderDispatchResult>
+  | DesktopHostControlledWorkspaceWriteProviderDispatchResult;
+
 export interface DesktopHostClientPersistence {
   checkpointStore?: DesktopHostCheckpointStore & Partial<DesktopHostCheckpointLookup>;
   auditStore?: DesktopHostAuditStore;
@@ -368,6 +453,7 @@ export interface DesktopHostClientOptions {
   operatorActionReceiptStore?: unknown;
   governanceState?: unknown;
   onGovernanceUpdate?: (state: unknown, strategy: unknown) => Promise<void> | void;
+  controlledWorkspaceWriteProviderDispatcher?: DesktopHostControlledWorkspaceWriteProviderDispatcher;
   now?: () => string;
 }
 
@@ -450,6 +536,11 @@ export interface DesktopHostResumeOptions {
   preferredSource?: "memory" | "checkpoint";
   memoryRecall?: DesktopHostCheckpointRecallAdapter;
   checkpointStore?: DesktopHostCheckpointLookup;
+  controlledWorkspaceWriteProviderDispatchInput?: DesktopHostControlledWorkspaceWriteProviderDispatchInput;
+}
+
+export interface DesktopHostRunOptions {
+  controlledWorkspaceWriteProviderDispatchInput?: DesktopHostControlledWorkspaceWriteProviderDispatchInput;
 }
 
 export type DesktopHostOperatorActionReceiptDecision =
@@ -507,6 +598,7 @@ export interface DesktopHostRunResult extends DesktopHostUnknownRecord {
   operatorActionEnvelope?: unknown;
   operatorActionSummary: unknown;
   hostDispatch?: unknown;
+  controlledWorkspaceWriteDispatch?: unknown;
 }
 
 export interface DesktopHostOperatorActionReceiptCreation {
@@ -568,8 +660,14 @@ export class DesktopHostClient {
     this.bridge = this.inner.bridge as unknown as DesktopHostBridge;
   }
 
-  async run(task: DesktopHostTaskEnvelopeInput): Promise<DesktopHostRunResult> {
-    return this.inner.run(task as never) as Promise<DesktopHostRunResult>;
+  async run(
+    task: DesktopHostTaskEnvelopeInput,
+    options: DesktopHostRunOptions = {}
+  ): Promise<DesktopHostRunResult> {
+    return this.inner.run(
+      task as never,
+      options as unknown as InternalDesktopHostRunOptions
+    ) as Promise<DesktopHostRunResult>;
   }
 
   async resume(
@@ -616,6 +714,12 @@ export class DesktopHostClient {
     return this.inner.dispatchCurrentOperatorActionHostExecutor(
       input as unknown as InternalDesktopHostOperatorActionHostExecutorDispatchInput
     );
+  }
+
+  async dispatchControlledWorkspaceWriteProviderPlan(
+    input: DesktopHostControlledWorkspaceWriteProviderDispatchInput
+  ): Promise<DesktopHostControlledWorkspaceWriteProviderDispatchResult> {
+    return this.inner.dispatchControlledWorkspaceWriteProviderPlan(input as never);
   }
 }
 

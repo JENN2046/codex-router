@@ -12,9 +12,17 @@ import {
   type Run,
   type Task
 } from "../../kernel-contracts/src/index.js";
+import type { ArtifactStore } from "../../artifact-store/src/index.js";
+import {
+  parseTaskEnvelope,
+  TaskClassSchema,
+  type TaskClass,
+  type TaskEnvelope
+} from "../../contracts/src/index.js";
 import type { ExecutionEligibilityDecision } from "../../execution-eligibility/src/index.js";
 import type { KernelStore } from "../../kernel-store/src/index.js";
 import {
+  hashProviderExecutionPlannerObject,
   planProviderExecution,
   type ProviderExecutionPlan,
   type ProviderExecutionPlanStore
@@ -29,16 +37,32 @@ import {
   evaluateExecutionEligibilityWithPermitStore
 } from "../../execution-eligibility/src/index.js";
 import {
-  capabilityImplies
+  capabilityImplies,
+  capabilityScopeToCanonicalString
 } from "../../capability/src/index.js";
 import type { ProviderRegistry } from "../../provider-registry/src/index.js";
 import { RunManager } from "../../governance-internal-run-manager/src/index.js";
+import type { WorkspaceWriteOperation } from "../../governance-internal-workspace-write-executor/src/index.js";
+import type { GovernanceState } from "../../governance-internal-state-manager/src/index.js";
+import {
+  createApprovedWorkspaceWriteProviderExecutionPermitV2,
+  parseExecutorExecutionPlan,
+  type ExecutorExecutionPlan,
+  type ExecutorProvider,
+  type ExecutionPlanInput,
+  type ProviderExecutionPermitConsumptionStore
+} from "../../provider-core/src/index.js";
 import {
   AgentOsMcpToolNameSchema,
   agentOsMcpToolManifests,
   type AgentOsMcpToolManifest,
   type AgentOsMcpToolName
 } from "./agent-os-server-manifest.js";
+import {
+  prepareControlledWorkspaceWriteHostProviderDispatch,
+  type ControlledWorkspaceWriteHostProviderDispatchInput,
+  type ControlledWorkspaceWriteHostProviderDispatchResult
+} from "../../host-dispatcher/src/index.js";
 
 export const AGENT_OS_MCP_LOCAL_MUTATION_DISABLED =
   "agent_os_mcp_local_mutation_disabled";
@@ -60,6 +84,34 @@ export const AGENT_OS_MCP_APPROVAL_SCOPE_OUTSIDE_PLAN =
   "agent_os_mcp_approval_scope_outside_plan";
 export const AGENT_OS_MCP_APPROVAL_PERMIT_DUPLICATE =
   "agent_os_mcp_approval_permit_duplicate";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED =
+  "agent_os_mcp_workspace_write_dispatcher_not_configured";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC =
+  "agent_os_mcp_workspace_write_dispatch_requires_async";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED =
+  "agent_os_mcp_workspace_write_consumption_store_required";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_ARTIFACT_STORE_NOT_CONFIGURED =
+  "agent_os_mcp_workspace_write_prepare_artifact_store_not_configured";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_CONTEXT_MISSING =
+  "agent_os_mcp_workspace_write_prepare_context_missing";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TASK_NOT_FOUND =
+  "agent_os_mcp_workspace_write_prepare_task_not_found";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PLAN_NOT_FOUND =
+  "agent_os_mcp_workspace_write_prepare_plan_not_found";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PLAN_NOT_READY =
+  "agent_os_mcp_workspace_write_prepare_plan_not_ready";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PROVIDER_NOT_FOUND =
+  "agent_os_mcp_workspace_write_prepare_provider_not_found";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PROVIDER_NOT_EXECUTOR =
+  "agent_os_mcp_workspace_write_prepare_provider_not_executor";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_FAILED =
+  "agent_os_mcp_workspace_write_prepare_failed";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_TASK =
+  "agent_os_mcp_workspace_write_prepare_target_outside_task";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_POLICY =
+  "agent_os_mcp_workspace_write_prepare_target_outside_policy";
+export const AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_EXECUTOR_PLAN =
+  "agent_os_mcp_workspace_write_prepare_target_outside_executor_plan";
 export const AGENT_OS_MCP_RUN_NOT_FOUND =
   "agent_os_run_not_found";
 export const AGENT_OS_MCP_ARTIFACT_NOT_FOUND =
@@ -79,6 +131,7 @@ const AGENT_OS_SEARCH_EVENTS_CURSOR = {
 
 export type AgentOsMcpLocalRuntimeOptions = {
   kernelStore: KernelStore;
+  artifactStore?: ArtifactStore;
   providerExecutionPlanStore?: ProviderExecutionPlanStore;
   approvalPermitStore?: ApprovalPermitStore;
   providerRegistry?: ProviderRegistry;
@@ -90,7 +143,9 @@ export type AgentOsMcpLocalRuntimeOptions = {
   approvedMutatingTools?: AgentOsMcpToolName[];
   allowLocalMutations?: boolean;
   preferredProviderId?: string;
+  controlledWorkspaceWriteProviderDispatcher?: AgentOsControlledWorkspaceWriteProviderDispatcher;
   publicSurface?: AgentOsPublicSurface;
+  workspaceWriteConsumptionStore?: ProviderExecutionPermitConsumptionStore;
   now?: () => string;
   createTaskId?: (input: AgentOsCreateTaskInput) => string;
   createRunId?: (task: Task) => string;
@@ -113,6 +168,12 @@ export type AgentOsMcpLocalToolCall = {
   allowLocalMutations?: boolean;
   preferredProviderId?: string;
 };
+
+export type AgentOsControlledWorkspaceWriteProviderDispatcher = (
+  input: ControlledWorkspaceWriteHostProviderDispatchInput
+) =>
+  | Promise<ControlledWorkspaceWriteHostProviderDispatchResult>
+  | ControlledWorkspaceWriteHostProviderDispatchResult;
 
 export type AgentOsMcpLocalRuntimeResult = {
   toolName: AgentOsMcpToolName;
@@ -168,6 +229,59 @@ const AgentOsApproveRunInputSchema = z.object({
   reason: z.string().min(1)
 });
 
+const WorkspaceWriteOperationSchema: z.ZodType<WorkspaceWriteOperation> = z.union([
+  z.object({
+    kind: z.literal("write"),
+    path: z.string().min(1),
+    content: z.string()
+  }),
+  z.object({
+    kind: z.literal("delete"),
+    path: z.string().min(1)
+  })
+]);
+
+const AgentOsDispatchWorkspaceWritePrepareInputSchema = z.object({
+  runId: z.string().min(1),
+  workspaceRoot: z.string().min(1),
+  operations: z.array(WorkspaceWriteOperationSchema).min(1),
+  executionAuthorizationId: z.string().min(1),
+  governanceState: z.custom<GovernanceState>(
+    (value) => typeof value === "object" && value !== null && !Array.isArray(value),
+    "governanceState must be an object"
+  ),
+  repositoryState: z.object({
+    branch: z.string().min(1),
+    protectedBranch: z.boolean(),
+    worktreeClean: z.boolean(),
+    headCommit: z.string().min(1)
+  }),
+  rollback: z.object({
+    beforeCommit: z.string().min(1).optional(),
+    affectedFiles: z.array(z.string().min(1)).optional()
+  }).optional(),
+  maxChangedFiles: z.number().int().min(1).optional(),
+  maxDiffLines: z.number().int().min(1).optional(),
+  permitId: z.string().min(1).optional(),
+  expiresAt: z.string().min(1).optional(),
+  proposedInput: z.unknown().optional()
+});
+
+const AgentOsDispatchWorkspaceWriteInputSchema = z.object({
+  dispatchInput: z.custom<ControlledWorkspaceWriteHostProviderDispatchInput>(
+    (value) => typeof value === "object" && value !== null && !Array.isArray(value),
+    "dispatchInput must be an object"
+  ).optional(),
+  prepare: AgentOsDispatchWorkspaceWritePrepareInputSchema.optional()
+}).superRefine((input, ctx) => {
+  if ((input.dispatchInput === undefined) === (input.prepare === undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "provide exactly one of dispatchInput or prepare"
+    });
+  }
+});
+
 const AgentOsListArtifactsInputSchema = z.object({
   taskId: z.string().min(1).optional(),
   runId: z.string().min(1).optional(),
@@ -191,6 +305,8 @@ const AgentOsSearchEventsInputSchema = z.object({
 
 export type AgentOsCreateTaskInput = z.infer<typeof AgentOsCreateTaskInputSchema>;
 export type AgentOsApproveRunInput = z.infer<typeof AgentOsApproveRunInputSchema>;
+export type AgentOsDispatchWorkspaceWritePrepareInput =
+  z.infer<typeof AgentOsDispatchWorkspaceWritePrepareInputSchema>;
 
 export type AgentOsApproveRunPermitIdContext = {
   issuedAt: string;
@@ -199,6 +315,7 @@ export type AgentOsApproveRunPermitIdContext = {
 
 export class AgentOsMcpLocalRuntime {
   private readonly kernelStore: KernelStore;
+  private readonly artifactStore: ArtifactStore | undefined;
   private readonly providerExecutionPlanStore: ProviderExecutionPlanStore | undefined;
   private readonly approvalPermitStore: ApprovalPermitStore | undefined;
   private readonly providerRegistry: ProviderRegistry | undefined;
@@ -210,6 +327,10 @@ export class AgentOsMcpLocalRuntime {
   private readonly approvedMutatingTools: AgentOsMcpToolName[];
   private readonly allowLocalMutations: boolean;
   private readonly preferredProviderId: string | undefined;
+  private readonly controlledWorkspaceWriteProviderDispatcher:
+    | AgentOsControlledWorkspaceWriteProviderDispatcher
+    | undefined;
+  private readonly workspaceWriteConsumptionStore: ProviderExecutionPermitConsumptionStore | undefined;
   private readonly publicSurface: AgentOsPublicSurface;
   private readonly now: () => string;
   private readonly createTaskId: (input: AgentOsCreateTaskInput) => string;
@@ -224,6 +345,7 @@ export class AgentOsMcpLocalRuntime {
 
   constructor(options: AgentOsMcpLocalRuntimeOptions) {
     this.kernelStore = options.kernelStore;
+    this.artifactStore = options.artifactStore;
     this.providerExecutionPlanStore = options.providerExecutionPlanStore;
     this.approvalPermitStore = options.approvalPermitStore;
     this.providerRegistry = options.providerRegistry;
@@ -239,6 +361,9 @@ export class AgentOsMcpLocalRuntime {
     this.approvedMutatingTools = [...(options.approvedMutatingTools ?? [])];
     this.allowLocalMutations = options.allowLocalMutations ?? false;
     this.preferredProviderId = options.preferredProviderId;
+    this.controlledWorkspaceWriteProviderDispatcher =
+      options.controlledWorkspaceWriteProviderDispatcher;
+    this.workspaceWriteConsumptionStore = options.workspaceWriteConsumptionStore;
     this.publicSurface = options.publicSurface ?? "mcp";
     this.now = options.now ?? (() => new Date().toISOString());
     this.createTaskId = options.createTaskId ?? ((input) => this.createDefaultTaskId(input));
@@ -249,6 +374,10 @@ export class AgentOsMcpLocalRuntime {
   }
 
   handleToolCall(call: AgentOsMcpLocalToolCall): AgentOsMcpLocalRuntimeResult {
+    return this.handleToolCallSync(call);
+  }
+
+  async handleToolCallAsync(call: AgentOsMcpLocalToolCall): Promise<AgentOsMcpLocalRuntimeResult> {
     const toolName = AgentOsMcpToolNameSchema.parse(call.toolName);
     const tool = requireAgentOsMcpTool(toolName);
     const gate = this.evaluateGate(tool, call);
@@ -256,6 +385,53 @@ export class AgentOsMcpLocalRuntime {
     if (gate.status === "blocked") {
       return this.createResult(toolName, gate.reasons, {}, {
         localMutationAttempted: isMutatingTool(toolName),
+        localMutationApplied: false,
+        gate
+      });
+    }
+
+    switch (toolName) {
+      case "agentos.create_task":
+        return this.handleCreateTask(call, gate);
+      case "agentos.get_run":
+        return this.handleGetRun(call, gate);
+      case "agentos.list_runs":
+        return this.handleListRuns(call, gate);
+      case "agentos.cancel_run":
+        return this.handleCancelRun(call, gate);
+      case "agentos.approve_run":
+        return this.handleApproveRun(call, gate);
+      case "agentos.dispatch_workspace_write":
+        return this.handleDispatchWorkspaceWrite(call, gate);
+      case "agentos.list_artifacts":
+        return this.handleListArtifacts(call, gate);
+      case "agentos.get_artifact":
+        return this.handleGetArtifact(call, gate);
+      case "agentos.search_events":
+        return this.handleSearchEvents(call, gate);
+    }
+  }
+
+  private handleToolCallSync(call: AgentOsMcpLocalToolCall): AgentOsMcpLocalRuntimeResult {
+    const toolName = AgentOsMcpToolNameSchema.parse(call.toolName);
+    const tool = requireAgentOsMcpTool(toolName);
+    const gate = this.evaluateGate(tool, call);
+
+    if (gate.status === "blocked") {
+      return this.createResult(toolName, gate.reasons, {}, {
+        localMutationAttempted: isMutatingTool(toolName),
+        localMutationApplied: false,
+        gate
+      });
+    }
+
+    if (toolName === "agentos.dispatch_workspace_write") {
+      return this.createResult(toolName, [
+        AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCH_REQUIRES_ASYNC
+      ], {
+        status: "blocked"
+      }, {
+        localMutationAttempted: true,
         localMutationApplied: false,
         gate
       });
@@ -622,6 +798,283 @@ export class AgentOsMcpLocalRuntime {
       localMutationApplied: true,
       gate
     });
+  }
+
+  private async handleDispatchWorkspaceWrite(
+    call: AgentOsMcpLocalToolCall,
+    gate: AgentOsMcpLocalRuntimeGate
+  ): Promise<AgentOsMcpLocalRuntimeResult> {
+    const dispatcher = this.controlledWorkspaceWriteProviderDispatcher;
+    if (dispatcher === undefined) {
+      return this.createResult("agentos.dispatch_workspace_write", [
+        AGENT_OS_MCP_WORKSPACE_WRITE_DISPATCHER_NOT_CONFIGURED
+      ], {
+        status: "blocked"
+      }, {
+        localMutationAttempted: true,
+        localMutationApplied: false,
+        gate
+      });
+    }
+    const consumptionStore = this.workspaceWriteConsumptionStore;
+    if (consumptionStore === undefined) {
+      return this.createResult("agentos.dispatch_workspace_write", [
+        AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED
+      ], {
+        status: "blocked"
+      }, {
+        localMutationAttempted: true,
+        localMutationApplied: false,
+        gate
+      });
+    }
+
+    const input = AgentOsDispatchWorkspaceWriteInputSchema.parse(call.input ?? {});
+    if (input.dispatchInput !== undefined) {
+      const dispatchResult = await dispatcher({
+        ...input.dispatchInput,
+        consumptionStore
+      });
+      const dispatchBlockingReasons =
+        collectWorkspaceWriteDispatchBlockingReasons(dispatchResult);
+
+      return this.createResult("agentos.dispatch_workspace_write", dispatchBlockingReasons, {
+        dispatchResult
+      }, {
+        localMutationAttempted: true,
+        localMutationApplied: dispatchResult.status === "runner_completed"
+          && dispatchResult.executeInvoked === true,
+        gate
+      });
+    }
+
+    const prepared = await this.prepareWorkspaceWriteDispatch(call, input.prepare);
+    if (prepared.status === "blocked") {
+      return this.createResult("agentos.dispatch_workspace_write", prepared.reasons, {
+        status: "blocked"
+      }, {
+        localMutationAttempted: true,
+        localMutationApplied: false,
+        gate
+      });
+    }
+
+    const dispatchResult = await dispatcher(prepared.dispatchInput);
+    const dispatchBlockingReasons =
+      collectWorkspaceWriteDispatchBlockingReasons(dispatchResult);
+
+    return this.createResult("agentos.dispatch_workspace_write", dispatchBlockingReasons, {
+      preparedDispatch: prepared.summary,
+      dispatchResult
+    }, {
+      localMutationAttempted: true,
+      localMutationApplied: dispatchResult.status === "runner_completed"
+        && dispatchResult.executeInvoked === true,
+      gate
+    });
+  }
+
+  private async prepareWorkspaceWriteDispatch(
+    call: AgentOsMcpLocalToolCall,
+    input: AgentOsDispatchWorkspaceWritePrepareInput | undefined
+  ): Promise<AgentOsPreparedWorkspaceWriteDispatchResult> {
+    if (input === undefined) {
+      return {
+        status: "blocked",
+        reasons: [`${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_FAILED}:prepare_input_missing`]
+      };
+    }
+
+    const artifactStore = this.artifactStore;
+    if (artifactStore === undefined) {
+      return {
+        status: "blocked",
+        reasons: [AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_ARTIFACT_STORE_NOT_CONFIGURED]
+      };
+    }
+    const consumptionStore = this.workspaceWriteConsumptionStore;
+    if (consumptionStore === undefined) {
+      return {
+        status: "blocked",
+        reasons: [AGENT_OS_MCP_WORKSPACE_WRITE_CONSUMPTION_STORE_REQUIRED]
+      };
+    }
+
+    const providerExecutionPlanStore = this.providerExecutionPlanStore;
+    const providerRegistry = this.providerRegistry;
+    const policyDecision = this.resolvePolicyDecision(call);
+    if (
+      providerExecutionPlanStore === undefined
+      || providerRegistry === undefined
+      || policyDecision === undefined
+    ) {
+      return {
+        status: "blocked",
+        reasons: [AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_CONTEXT_MISSING]
+      };
+    }
+
+    const run = this.kernelStore.getRun(input.runId);
+    if (run === undefined) {
+      return {
+        status: "blocked",
+        reasons: [`${AGENT_OS_MCP_RUN_NOT_FOUND}:${input.runId}`]
+      };
+    }
+
+    const task = this.kernelStore.getTask(run.taskId);
+    if (task === undefined) {
+      return {
+        status: "blocked",
+        reasons: [`${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TASK_NOT_FOUND}:${run.taskId}`]
+      };
+    }
+
+    const providerExecutionPlan = providerExecutionPlanStore
+      .listPlans({ runId: run.runId })
+      .at(-1);
+    if (providerExecutionPlan === undefined) {
+      return {
+        status: "blocked",
+        reasons: [`${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PLAN_NOT_FOUND}:${run.runId}`]
+      };
+    }
+    if (providerExecutionPlan.status !== "planned") {
+      return {
+        status: "blocked",
+        reasons: [
+          `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PLAN_NOT_READY}:${providerExecutionPlan.status}`
+        ]
+      };
+    }
+
+    const providerEntry = providerRegistry.getProvider(providerExecutionPlan.providerId);
+    if (providerEntry === undefined) {
+      return {
+        status: "blocked",
+        reasons: [
+          `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PROVIDER_NOT_FOUND}:${providerExecutionPlan.providerId}`
+        ]
+      };
+    }
+    if (
+      providerEntry.manifest.kind !== "executor"
+      || !isExecutorProviderLike(providerEntry.provider)
+    ) {
+      return {
+        status: "blocked",
+        reasons: [
+          `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_PROVIDER_NOT_EXECUTOR}:${providerExecutionPlan.providerId}`
+        ]
+      };
+    }
+
+    try {
+      const principal = this.resolvePrincipal(call);
+      const executionPlanInput: ExecutionPlanInput = {
+        task,
+        run,
+        policyDecision,
+        sandboxProfile: providerExecutionPlan.sandboxProfile,
+        inputHash: providerExecutionPlan.inputHash,
+        ...(providerExecutionPlan.taskHash !== undefined
+          ? { taskHash: providerExecutionPlan.taskHash }
+          : {}),
+        ...(providerExecutionPlan.principalId !== undefined
+          ? { principalId: providerExecutionPlan.principalId }
+          : {}),
+        ...(providerExecutionPlan.principalHash !== undefined
+          ? { principalHash: providerExecutionPlan.principalHash }
+          : {}),
+        providerExecutionPlanHash: hashProviderExecutionPlannerObject(providerExecutionPlan),
+        ...(providerExecutionPlan.providerManifestHash !== undefined
+          ? { providerManifestHash: providerExecutionPlan.providerManifestHash }
+          : {}),
+        ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
+        now: this.now()
+      };
+      const executorPlan = parseExecutorExecutionPlan(
+        await providerEntry.provider.planExecution(executionPlanInput)
+      );
+      const targetFiles = uniqueWorkspaceWriteOperationTargets(input.operations);
+      const targetReasons = collectWorkspaceWritePrepareTargetReasons({
+        targetFiles,
+        task,
+        policyDecision,
+        executorPlan
+      });
+      if (targetReasons.length > 0) {
+        return {
+          status: "blocked",
+          reasons: targetReasons
+        };
+      }
+      const permit = createApprovedWorkspaceWriteProviderExecutionPermitV2({
+        ...(input.permitId !== undefined ? { permitId: input.permitId } : {}),
+        plan: executorPlan,
+        manifest: providerEntry.manifest,
+        approvalStatus: "approved",
+        operatorAuthorizationId: input.executionAuthorizationId,
+        targetFiles,
+        maxChangedFiles: input.maxChangedFiles ?? targetFiles.length,
+        maxDiffLines: input.maxDiffLines ?? Math.max(targetFiles.length, 1),
+        rollbackRequired: true,
+        rollback: {
+          beforeCommit: input.rollback?.beforeCommit ?? input.repositoryState.headCommit,
+          ...(input.rollback?.affectedFiles !== undefined
+            ? { affectedFiles: input.rollback.affectedFiles }
+            : {})
+        },
+        protectedBranchForbidden: true,
+        dirtyWorktreeForbidden: true,
+        repositoryState: input.repositoryState,
+        issuedAt: this.now(),
+        ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {})
+      });
+      const taskEnvelope = createTaskEnvelopeFromKernelTask(task);
+      const prepared = await prepareControlledWorkspaceWriteHostProviderDispatch({
+        artifactStore,
+        providerRegistry,
+        kernelStore: this.kernelStore,
+        providerExecutionPlan,
+        executorPlan,
+        permit,
+        task,
+        taskEnvelope,
+        run,
+        principal,
+        policyDecision,
+        governanceState: input.governanceState,
+        operations: input.operations,
+        workspaceRoot: input.workspaceRoot,
+        executionAuthorizationId: input.executionAuthorizationId,
+        consumptionStore,
+        ...(input.proposedInput !== undefined ? { proposedInput: input.proposedInput } : {}),
+        now: this.now
+      });
+
+      return {
+        status: "prepared",
+        dispatchInput: prepared.dispatchInput,
+        summary: {
+          schemaVersion: prepared.schemaVersion,
+          providerPlanId: providerExecutionPlan.planId,
+          executorPlanId: executorPlan.planId,
+          permitId: permit.permitId,
+          preflightArtifactId: prepared.preflightArtifact.artifactId,
+          preflightArtifactRef:
+            prepared.dispatchPreflight.environmentPreflight.artifactRef,
+          targetFiles
+        }
+      };
+    } catch (error) {
+      return {
+        status: "blocked",
+        reasons: [
+          `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_FAILED}:${normalizeRuntimeError(error)}`
+        ]
+      };
+    }
   }
 
   private maybeConsumeApprovalPermit(input: {
@@ -1006,6 +1459,25 @@ type AgentOsMcpLocalRuntimeGate = {
   approved: boolean;
 };
 
+type AgentOsPreparedWorkspaceWriteDispatchResult =
+  | {
+      status: "prepared";
+      dispatchInput: ControlledWorkspaceWriteHostProviderDispatchInput;
+      summary: {
+        schemaVersion: "prepared-controlled-workspace-write-provider-dispatch.v1";
+        providerPlanId: string;
+        executorPlanId: string;
+        permitId: string;
+        preflightArtifactId: string;
+        preflightArtifactRef: string;
+        targetFiles: string[];
+      };
+    }
+  | {
+      status: "blocked";
+      reasons: string[];
+    };
+
 function requireAgentOsMcpTool(toolName: AgentOsMcpToolName): AgentOsMcpToolManifest {
   const tool = agentOsMcpToolManifests.find((candidate) => candidate.name === toolName);
   if (tool === undefined) {
@@ -1017,7 +1489,8 @@ function requireAgentOsMcpTool(toolName: AgentOsMcpToolName): AgentOsMcpToolMani
 function isMutatingTool(toolName: AgentOsMcpToolName): boolean {
   return toolName === "agentos.create_task"
     || toolName === "agentos.cancel_run"
-    || toolName === "agentos.approve_run";
+    || toolName === "agentos.approve_run"
+    || toolName === "agentos.dispatch_workspace_write";
 }
 
 function eventMatchesQuery(event: Event, query: string): boolean {
@@ -1074,6 +1547,147 @@ function approvalPermitSaveBlockedReason(error: unknown, permitId: string): stri
   }
 
   return undefined;
+}
+
+function isExecutorProviderLike(
+  provider: unknown
+): provider is ExecutorProvider {
+  return typeof provider === "object"
+    && provider !== null
+    && "planExecution" in provider
+    && typeof provider.planExecution === "function"
+    && "validateExecutionPlan" in provider
+    && typeof provider.validateExecutionPlan === "function"
+    && "execute" in provider
+    && typeof provider.execute === "function";
+}
+
+function uniqueWorkspaceWriteOperationTargets(operations: WorkspaceWriteOperation[]): string[] {
+  return [...new Set(operations.map((operation) => operation.path))];
+}
+
+function collectWorkspaceWritePrepareTargetReasons(input: {
+  targetFiles: string[];
+  task: Task;
+  policyDecision: PolicyDecision;
+  executorPlan: ExecutorExecutionPlan;
+}): string[] {
+  const reasons: string[] = [];
+  const taskTargets = new Set(input.task.target.files);
+  const policyCapabilities = input.policyDecision.capabilities.map(
+    capabilityScopeToCanonicalString
+  );
+
+  for (const targetFile of input.targetFiles) {
+    const requiredScope = `fs.write:${targetFile}`;
+
+    if (taskTargets.size > 0 && !taskTargets.has(targetFile)) {
+      reasons.push(`${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_TASK}:${targetFile}`);
+    }
+
+    if (!policyCapabilities.some((scope) => capabilityImpliesSafely(scope, requiredScope))) {
+      reasons.push(`${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_POLICY}:${targetFile}`);
+    }
+
+    if (!input.executorPlan.requiredCapabilities.some((scope) =>
+      capabilityImpliesSafely(scope, requiredScope)
+    )) {
+      reasons.push(
+        `${AGENT_OS_MCP_WORKSPACE_WRITE_PREPARE_TARGET_OUTSIDE_EXECUTOR_PLAN}:${targetFile}`
+      );
+    }
+  }
+
+  return [...new Set(reasons)];
+}
+
+function collectWorkspaceWriteDispatchBlockingReasons(
+  dispatch: ControlledWorkspaceWriteHostProviderDispatchResult
+): string[] {
+  const reasons = dispatch.reasons
+    .map(normalizeWorkspaceWriteDispatchBlockingReason)
+    .filter((reason): reason is string => reason !== undefined);
+
+  if (dispatch.status !== "runner_completed") {
+    reasons.push(`controlled_workspace_write_dispatch_status:${dispatch.status}`);
+  } else if (dispatch.runnerResult.status !== "controlled_workspace_write_succeeded") {
+    reasons.push(`controlled_workspace_write_runner_status:${dispatch.runnerResult.status}`);
+  }
+
+  return [...new Set(reasons)];
+}
+
+function normalizeWorkspaceWriteDispatchBlockingReason(
+  reason: string | undefined
+): string | undefined {
+  if (reason === undefined || reason.trim().length === 0) {
+    return undefined;
+  }
+
+  if (
+    reason === "controlled_workspace_write_provider_dispatch_runner_completed" ||
+    reason === "controlled_workspace_write_execution_succeeded"
+  ) {
+    return undefined;
+  }
+
+  return reason;
+}
+
+function createTaskEnvelopeFromKernelTask(task: Task): TaskEnvelope {
+  const taskClassHint = toTaskEnvelopeTaskClassHint(task.hints.taskClass);
+
+  return parseTaskEnvelope({
+    taskId: task.taskId,
+    source: task.source,
+    intent: {
+      summary: task.intent?.summary ?? task.title,
+      requestedAction: task.intent?.requestedAction ?? task.requestedAction,
+      successCriteria: task.successCriteria,
+      outOfScope: task.outOfScope
+    },
+    repoContext: {
+      ...(task.repo.root !== undefined ? { repoRoot: task.repo.root } : {}),
+      ...(task.repo.branch !== undefined ? { branch: task.repo.branch } : {}),
+      ...(task.repo.worktreeClean !== undefined
+        ? { worktreeClean: task.repo.worktreeClean }
+        : {}),
+      ...(task.repo.protectedBranch !== undefined
+        ? { protectedBranch: task.repo.protectedBranch }
+        : {})
+    },
+    target: task.target,
+    constraints: {
+      ...(typeof task.constraints.requiresNetwork === "boolean"
+        ? { requiresNetwork: task.constraints.requiresNetwork }
+        : {}),
+      ...(typeof task.constraints.explicitOwnership === "boolean"
+        ? { explicitOwnership: task.constraints.explicitOwnership }
+        : {}),
+      ...(typeof task.constraints.allowBackgroundAutomation === "boolean"
+        ? { allowBackgroundAutomation: task.constraints.allowBackgroundAutomation }
+        : {})
+    },
+    hints: {
+      ...(taskClassHint !== undefined ? { taskClassHint } : {}),
+      riskHints: task.hints.riskHints,
+      tags: task.hints.tags,
+      provenance: []
+    }
+  });
+}
+
+function toTaskEnvelopeTaskClassHint(taskClass: string | undefined): TaskClass | undefined {
+  const parsed = TaskClassSchema.safeParse(taskClass);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function normalizeRuntimeError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  return raw
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9:_.,-]+/g, "_")
+    .slice(0, 240) || "unknown_runtime_error";
 }
 
 type AgentOsOffsetCursorConfig = {

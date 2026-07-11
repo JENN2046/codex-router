@@ -39,6 +39,10 @@ test("Agent OS public surfaces boundary audit passes for current evidence", asyn
   assert.equal(review.summary.appServerRouteIsNetworkServer, false);
   assert.equal(review.summary.appServerStatusCodeIsExecutionReceipt, false);
   assert.equal(review.summary.approvalPermitIssueIsProviderExecutionAuthorization, false);
+  assert.equal(review.summary.controlledWorkspaceWritePrepareAllowed, true);
+  assert.equal(review.summary.controlledWorkspaceWriteDispatchAllowed, true);
+  assert.equal(review.summary.generalWorkspaceWriteExecutionAllowed, false);
+  assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
   assert.equal(review.summary.agentOsPublicSurfaceCallsDuringAudit, 0);
   assert.equal(review.summary.localRuntimeCallsDuringAudit, 0);
   assert.equal(review.summary.providerExecuteCallsDuringAudit, 0);
@@ -151,6 +155,8 @@ test("Agent OS public surfaces boundary audit formats sanitized text and json", 
 
   assert.match(text, /Agent OS public surfaces boundary audit/);
   assert.match(text, /CLI grant flag is provider execution authorization: false/);
+  assert.match(text, /controlled workspace-write prepare allowed: true/);
+  assert.match(text, /controlled workspace-write dispatch allowed: true/);
   assert.match(text, /network calls during audit: 0/);
   assert.equal(JSON.parse(json).status, "passed");
   for (const marker of forbiddenOutputMarkers) {

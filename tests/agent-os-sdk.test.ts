@@ -4,6 +4,10 @@ import {
   createAgentOsSdk
 } from "../packages/agent-os-sdk/src/index.js";
 import {
+  InMemoryArtifactStore
+} from "../packages/artifact-store/src/index.js";
+import {
+  hashProviderExecutionPlannerObject,
   InMemoryProviderExecutionPlanStore
 } from "../packages/execution-planner/src/index.js";
 import {
@@ -33,6 +37,16 @@ import {
 } from "../packages/governance-internal-approval-permit/src/index.js";
 import { validPolicyDecision } from "../packages/kernel-contracts/test-fixtures/valid-policy-decision.js";
 import { validPrincipal } from "../packages/kernel-contracts/test-fixtures/valid-principal.js";
+import {
+  InMemoryProviderExecutionPermitConsumptionStore
+} from "../packages/provider-core/src/index.js";
+import {
+  createAgentOsWorkspaceWriteEligibility,
+  createAgentOsWorkspaceWriteGovernanceState,
+  createAgentOsWorkspaceWritePolicyDecision,
+  createAgentOsWorkspaceWriteProvider,
+  createAgentOsWorkspaceWriteProviderRegistry
+} from "./fixtures/agent-os-workspace-write-fixture.js";
 
 const now = "2026-06-10T03:00:00.000Z";
 const taskId = "task_agentos_sdk_001";
@@ -133,6 +147,189 @@ test("Agent OS SDK creates a local run and provider plan without real execution"
   assert.deepEqual(
     (searchEvents.output.events as Array<{ eventType: string }>).map((event) => event.eventType),
     ["kernel.public_surface.sdk.create_task"]
+  );
+});
+
+test("Agent OS SDK delegates controlled workspace-write dispatch through async wrapper", async () => {
+  const dispatchInputs: unknown[] = [];
+  const workspaceWriteConsumptionStore =
+    new InMemoryProviderExecutionPermitConsumptionStore();
+  const sdk = createAgentOsSdk({
+    ...createRuntimeInput(new InMemoryKernelStore()),
+    workspaceWriteConsumptionStore,
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_sdk_workspace_write_dispatch_test"],
+        providerExecutionPlanHash: "sha256:agent-os-sdk-provider-plan",
+        executorPlanHash: "sha256:agent-os-sdk-executor-plan",
+        operationManifestHash: "sha256:agent-os-sdk-operations",
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: "fake-agent-os-sdk-workspace-write"
+        }
+      } as never;
+    }
+  });
+  const dispatchInput = {
+    schemaVersion: "agent-os-sdk-workspace-write-dispatch-test.v1"
+  };
+
+  const result = await sdk.dispatchWorkspaceWrite({
+    dispatchInput: dispatchInput as never
+  }, {
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.notEqual(dispatchInputs[0], dispatchInput);
+  assert.equal(
+    (dispatchInputs[0] as { schemaVersion?: string }).schemaVersion,
+    dispatchInput.schemaVersion
+  );
+  assert.equal(
+    (dispatchInputs[0] as { consumptionStore?: unknown }).consumptionStore,
+    workspaceWriteConsumptionStore
+  );
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_sdk_workspace_write_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
+  assert.equal(result.surface, "sdk");
+  assert.equal(result.operation, "dispatchWorkspaceWrite");
+  assert.equal(result.audit.publicSurface, "sdk");
+  assert.equal(result.audit.realProviderExecutionInvoked, false);
+  assert.equal(result.audit.localMutationAttempted, true);
+  assert.equal(result.audit.localMutationApplied, false);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
+  );
+});
+
+test("Agent OS SDK prepares workspace-write dispatch through typed input", async () => {
+  const kernelStore = new InMemoryKernelStore();
+  const planStore = new InMemoryProviderExecutionPlanStore();
+  const artifactStore = new InMemoryArtifactStore({ now: () => now });
+  const targetFile = "workspace/docs/agent-os-sdk-write.md";
+  const provider = createAgentOsWorkspaceWriteProvider({
+    providerId: "agent-os-sdk-workspace-write-provider",
+    targetFiles: [targetFile],
+    sandboxId: "sandbox_agentos_sdk_workspace_write",
+    source: "agent-os-sdk-test"
+  });
+  const providerRegistry = createAgentOsWorkspaceWriteProviderRegistry(provider);
+  const policyDecision = createAgentOsWorkspaceWritePolicyDecision({
+    basePolicyDecision: validPolicyDecision,
+    decisionId: "decision_agentos_sdk_workspace_write",
+    taskId,
+    targetFiles: [targetFile],
+    sandboxId: "sandbox_agentos_sdk_workspace_write",
+    now
+  });
+  const dispatchInputs: unknown[] = [];
+  const sdk = createAgentOsSdk({
+    ...createRuntimeInput(kernelStore, planStore, providerRegistry, policyDecision),
+    artifactStore,
+    workspaceWriteConsumptionStore: new InMemoryProviderExecutionPermitConsumptionStore(),
+    executionEligibility: createAgentOsWorkspaceWriteEligibility({
+      policyDecision,
+      taskId,
+      runId,
+      permitId: "permit_agentos_sdk_workspace_write_planner",
+      now
+    }),
+    controlledWorkspaceWriteProviderDispatcher(input) {
+      dispatchInputs.push(input);
+      return {
+        schemaVersion: "controlled-workspace-write-provider-dispatch-result.v1",
+        status: "dispatch_blocked",
+        runnerInvoked: false,
+        executeInvoked: false,
+        providerExecuteInvoked: false,
+        reasons: ["agent_os_sdk_workspace_write_prepare_dispatch_test"],
+        providerExecutionPlanHash: hashProviderExecutionPlannerObject(input.providerExecutionPlan),
+        executorPlanHash: hashProviderExecutionPlannerObject(input.executorPlan),
+        operationManifestHash: hashProviderExecutionPlannerObject(input.operations),
+        providerRegistrySelection: {
+          status: "selected",
+          providerId: provider.manifest.providerId
+        }
+      } as never;
+    }
+  });
+
+  const create = sdk.createTask({
+    title: "SDK workspace-write prepare",
+    requestedAction: "Prepare a controlled workspace-write from SDK typed input.",
+    repoRoot: "workspace",
+    branch: "agentos/sdk-workspace-write",
+    targetFiles: [targetFile]
+  }, {
+    grantedCapabilities: ["task.create"],
+    approvedMutatingTools: ["agentos.create_task"],
+    allowLocalMutations: true,
+    preferredProviderId: provider.manifest.providerId
+  });
+  assert.equal(create.status, "succeeded");
+  assert.equal(create.output.providerPlanStatus, "planned");
+
+  const result = await sdk.dispatchWorkspaceWrite({
+    prepare: {
+      runId,
+      workspaceRoot: "/tmp/agent-os-sdk-workspace",
+      operations: [{
+        kind: "write",
+        path: targetFile,
+        content: "agent os sdk prepared workspace-write\n"
+      }],
+      executionAuthorizationId: "operator_auth_agentos_sdk_workspace_write",
+      governanceState: createAgentOsWorkspaceWriteGovernanceState({ taskId, now }),
+      repositoryState: {
+        branch: "agentos/sdk-workspace-write",
+        protectedBranch: false,
+        worktreeClean: true,
+        headCommit: "abc123"
+      },
+      permitId: "permit_agentos_sdk_workspace_write_prepare",
+      maxChangedFiles: 1,
+      maxDiffLines: 1
+    }
+  }, {
+    grantedCapabilities: ["workspace_write.dispatch"],
+    approvedMutatingTools: ["agentos.dispatch_workspace_write"],
+    allowLocalMutations: true
+  });
+  const preparedDispatch = result.output.preparedDispatch as {
+    providerPlanId?: string;
+    permitId?: string;
+    targetFiles?: string[];
+  };
+
+  assert.equal(dispatchInputs.length, 1);
+  assert.equal(provider.calls.planExecution, 1);
+  assert.equal(provider.calls.execute, 0);
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("agent_os_sdk_workspace_write_prepare_dispatch_test"));
+  assert.ok(result.reasons.includes(
+    "controlled_workspace_write_dispatch_status:dispatch_blocked"
+  ));
+  assert.equal(result.surface, "sdk");
+  assert.equal(result.operation, "dispatchWorkspaceWrite");
+  assert.equal(preparedDispatch.providerPlanId, create.output.providerPlanId);
+  assert.equal(preparedDispatch.permitId, "permit_agentos_sdk_workspace_write_prepare");
+  assert.deepEqual(preparedDispatch.targetFiles, [targetFile]);
+  assert.equal(
+    (result.output.dispatchResult as { providerExecuteInvoked?: boolean }).providerExecuteInvoked,
+    false
   );
 });
 

@@ -29,15 +29,20 @@ test("host dispatcher provider boundary audit passes for current evidence", asyn
   assert.equal(review.checks.hostDispatcherSourceGuardsPresent, true);
   assert.equal(review.checks.hostDispatcherRegressionCoverageRecorded, true);
   assert.equal(review.checks.noBroadExecutionAuthorization, true);
-  assert.equal(review.summary.dispatchMode, "controlled_read_only_provider_dispatch");
+  assert.equal(
+    review.summary.dispatchMode,
+    "controlled_read_only_and_workspace_write_provider_dispatch"
+  );
   assert.equal(review.summary.permittedProviderId, "codex-cli");
   assert.equal(review.summary.permittedSideEffectClass, "read_only");
   assert.equal(review.summary.permittedSandbox, "read-only");
   assert.equal(review.summary.readOnlyProviderDispatchAllowed, true);
+  assert.equal(review.summary.controlledWorkspaceWriteDispatchAllowed, true);
   assert.equal(review.summary.formalDispatchRequiresRegistry, true);
   assert.equal(review.summary.formalDispatchRequiresMetadata, true);
   assert.equal(review.summary.generalProviderExecutionAllowed, false);
-  assert.equal(review.summary.workspaceWriteAllowedByHostDispatcher, false);
+  assert.equal(review.summary.generalWorkspaceWriteAllowedByHostDispatcher, false);
+  assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
   assert.equal(review.summary.defaultRealCodexCliAllowed, false);
   assert.equal(review.summary.providerExecuteCallsDuringAudit, 0);
   assert.equal(review.summary.realCodexCliCallsDuringAudit, 0);
@@ -67,12 +72,16 @@ test("host dispatcher provider boundary audit blocks broadened control plane", a
     ...input,
     governanceControlPlaneText: input.governanceControlPlaneText
       .replaceAll(
-        "Host dispatcher provider boundary | active / controlled read-only provider dispatch | Yes, narrow",
+        "Host dispatcher provider boundary | active / controlled read-only and controlled workspace-write provider dispatch | Yes, narrow",
         "Host dispatcher provider boundary | active | Yes"
       )
       .replaceAll(
-        "codex-cli + read_only + read-only only",
-        "all providers and side effects"
+        "may delegate controlled workspace-write input preparation and dispatch to `governance-internal-controlled-provider-dispatcher`",
+        "may execute all workspace-write inputs directly"
+      )
+      .replaceAll(
+        "controlled workspace-write requires permit v2, preflight artifact binding, declared operations, exact authorization id, and the local runner",
+        "Controlled workspace-write may run through provider.execute"
       )
   });
 
@@ -117,6 +126,8 @@ test("host dispatcher provider boundary audit output stays summarized", async ()
 
   assert.match(text, /status: passed/);
   assert.match(text, /provider execute calls during audit: 0/);
+  assert.match(text, /controlled workspace-write dispatch allowed: true/);
+  assert.match(text, /workspace-write provider execute allowed: false/);
   assert.equal(parsed.status, "passed");
 
   for (const marker of forbiddenOutputMarkers) {

@@ -14,13 +14,17 @@ const GOVERNANCE_RUNNER = "scripts/run-governance-check.ts";
 
 const REQUIRED_CLIENT_SOURCE_MARKERS = [
   "export class DesktopHostClient",
-  "async run(task: TaskEnvelopeInput)",
+  "async run(",
+  "options: DesktopHostRunOptions = {}",
+  "controlledWorkspaceWriteProviderDispatchInput",
   "runDesktopTask({",
   "async resume(",
   "resumeDesktopTask({",
   "bridge: this.bridge",
   "this.captureOperatorAction(result)",
   "buildGovernanceForwarding()",
+  "dispatchControlledWorkspaceWriteProviderPlan",
+  "controlledWorkspaceWriteProviderDispatcher",
   "reviewCurrentOperatorActionHostExecutorAuthorization",
   "authorizeGovernanceOperatorActionHostExecutorReview({",
   "lifecycleState: this.getOperatorActionLifecycle()",
@@ -32,8 +36,10 @@ const REQUIRED_CLIENT_SOURCE_MARKERS = [
 
 const REQUIRED_PUBLIC_API_MARKERS = [
   "class DesktopHostClient",
-  "return this.inner.run(task as never)",
+  "DesktopHostRunOptions",
+  "return this.inner.run(",
   "return this.inner.resume(",
+  "return this.inner.dispatchControlledWorkspaceWriteProviderPlan(input as never)",
   "return this.inner.reviewCurrentOperatorActionHostExecutorAuthorization(",
   "return this.inner.dispatchCurrentOperatorActionHostExecutor(",
   "export function createDesktopHostClient"
@@ -47,6 +53,10 @@ const REQUIRED_CLIENT_TEST_MARKERS = [
   "dispatchInvocations.length, 1",
   "idleClient.reviewCurrentOperatorActionHostExecutorAuthorization",
   "operator_action_host_executor_lifecycle_action_missing",
+  "desktop host client delegates controlled workspace-write provider plans",
+  "desktop_host_client_controlled_workspace_write_dispatch_test",
+  "desktop host client forwards per-run controlled workspace-write dispatch input",
+  "desktop_host_client_run_controlled_workspace_write_dispatch_test",
   "desktop host client persists updated governance state between run and resume",
   "desktop host client rejects stale governance state before bridge execution",
   "desktop host client resumes from memory recall when the memory adapter supports it",
@@ -60,6 +70,8 @@ const REQUIRED_PUBLIC_API_TEST_MARKERS = [
   "createDesktopHostClient({",
   "void client.run(task)",
   "void client.resume(task, resumeOptions)",
+  "dispatchControlledWorkspaceWriteProviderPlan",
+  "public_host_controlled_workspace_write_dispatch_test",
   "public DesktopHostClient.run requires a task envelope input"
 ] as const;
 
@@ -109,9 +121,11 @@ export interface DesktopHostClientBoundaryAuditResult {
     directDispatchToHostAllowedByClient: false;
     codexCliInvocationAllowedByClient: false;
     providerInvocationAllowedByClient: false;
+    controlledWorkspaceWriteDispatchAllowedByClient: true;
+    generalWorkspaceWriteAllowedByClient: false;
+    workspaceWriteProviderExecuteAllowedByClient: false;
     subAgentRuntimeInvocationAllowed: false;
     shellProcessAllowed: false;
-    workspaceWriteAllowedByClient: false;
     externalWriteAllowed: false;
     clientCallsDuringAudit: 0;
     liveAdapterCallsDuringAudit: 0;
@@ -211,9 +225,11 @@ export function reviewDesktopHostClientBoundaryAudit(
       directDispatchToHostAllowedByClient: false,
       codexCliInvocationAllowedByClient: false,
       providerInvocationAllowedByClient: false,
+      controlledWorkspaceWriteDispatchAllowedByClient: true,
+      generalWorkspaceWriteAllowedByClient: false,
+      workspaceWriteProviderExecuteAllowedByClient: false,
       subAgentRuntimeInvocationAllowed: false,
       shellProcessAllowed: false,
-      workspaceWriteAllowedByClient: false,
       externalWriteAllowed: false,
       clientCallsDuringAudit: 0,
       liveAdapterCallsDuringAudit: 0,
@@ -252,9 +268,11 @@ export function formatDesktopHostClientBoundaryAuditResult(
     `direct dispatchToHost allowed by client: ${review.summary.directDispatchToHostAllowedByClient}`,
     `Codex CLI invocation allowed by client: ${review.summary.codexCliInvocationAllowedByClient}`,
     `provider invocation allowed by client: ${review.summary.providerInvocationAllowedByClient}`,
+    `controlled workspace-write dispatch allowed by client: ${review.summary.controlledWorkspaceWriteDispatchAllowedByClient}`,
+    `general workspace-write allowed by client: ${review.summary.generalWorkspaceWriteAllowedByClient}`,
+    `workspace-write provider execute allowed by client: ${review.summary.workspaceWriteProviderExecuteAllowedByClient}`,
     `sub-agent runtime invocation allowed: ${review.summary.subAgentRuntimeInvocationAllowed}`,
     `shell/process allowed: ${review.summary.shellProcessAllowed}`,
-    `workspace-write allowed by client: ${review.summary.workspaceWriteAllowedByClient}`,
     `external write allowed: ${review.summary.externalWriteAllowed}`,
     `client calls during audit: ${review.summary.clientCallsDuringAudit}`,
     `live adapter calls during audit: ${review.summary.liveAdapterCallsDuringAudit}`,
@@ -278,8 +296,9 @@ function controlPlaneBoundaryRecorded(text: string): boolean {
   return text.includes("Desktop host client boundary")
     && text.includes("desktop-host-client")
     && text.includes("delegates `run` and `resume` to the desktop live adapter")
+    && text.includes("may delegate controlled workspace-write provider plans to the host dispatcher")
     && text.includes("review or explicit injected dispatch")
-    && text.includes("does not authorize Codex CLI, provider, sub-agent runtime, shell/process, workspace-write, or external write by itself");
+    && text.includes("does not authorize Codex CLI, general provider execution, workspace-write through `provider.execute`, general workspace-write, sub-agent runtime, shell/process, or external write by itself");
 }
 
 function noBroadExecutionAuthorization(
@@ -297,7 +316,8 @@ function noBroadExecutionAuthorization(
     && !text.includes("desktop host client Codex CLI invocation allowed: true")
     && !text.includes("desktop host client provider invocation allowed: true")
     && !text.includes("desktop host client sub-agent runtime invocation allowed: true")
-    && !text.includes("desktop host client workspace-write allowed: true")
+    && !text.includes("desktop host client general workspace-write allowed: true")
+    && !text.includes("desktop host client workspace-write provider execute allowed: true")
     && !text.includes("desktop host client external write allowed: true");
 }
 
@@ -332,9 +352,11 @@ function outputSanitized(): boolean {
       directDispatchToHostAllowedByClient: false,
       codexCliInvocationAllowedByClient: false,
       providerInvocationAllowedByClient: false,
+      controlledWorkspaceWriteDispatchAllowedByClient: true,
+      generalWorkspaceWriteAllowedByClient: false,
+      workspaceWriteProviderExecuteAllowedByClient: false,
       subAgentRuntimeInvocationAllowed: false,
       shellProcessAllowed: false,
-      workspaceWriteAllowedByClient: false,
       externalWriteAllowed: false,
       clientCallsDuringAudit: 0,
       liveAdapterCallsDuringAudit: 0,

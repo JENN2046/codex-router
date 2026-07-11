@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "controlled-generic-workspace-write-acceptance.v1",
+  "generatedAt": "2026-07-10T00:00:00.000Z",
+  "mode": "controlled-generic-workspace-write-local-runner",
+  "taskId": "controlled-generic-workspace-write-acceptance",
+  "checks": {
+    "preflightReadyWithoutMutation": true,
+    "executeSucceeded": true,
+    "createUpdateDeleteCovered": true,
+    "permitConsumedOnce": true,
+    "replayBlocked": true,
+    "patchGuardPassed": true,
+    "rollbackVerified": true,
+    "worktreeCleanAfterExecution": true,
+    "createdFileRolledBack": true,
+    "updatedFileRestored": true,
+    "deletedFileRestored": true,
+    "wroteOnlyPermittedTargets": true,
+    "noProviderExecute": true,
+    "noRealCodexCli": true,
+    "noExternalWrite": true,
+    "evidenceSanitized": true
+  },
+  "summary": {
+    "providerId": "local-workspace-write-executor",
+    "sideEffectClass": "workspace_write",
+    "sandbox": "workspace-write",
+    "targetFiles": [
+      "tmp/controlled-create.txt",
+      "tmp/controlled-edit.txt",
+      "tmp/controlled-delete.txt"
+    ],
+    "operationKinds": [
+      "write",
+      "write",
+      "delete"
+    ],
+    "maxChangedFiles": 3,
+    "maxDiffLines": 8,
+    "changedFileCount": 3,
+    "diffLineCount": 4,
+    "preflightStatus": "ready",
+    "executionStatus": "passed",
+    "replayStatus": "blocked",
+    "permitId": "workspace_write_permit_v2_plan_controlled_generic_workspace_write_acceptance",
+    "planId": "plan_controlled_generic_workspace_write_acceptance",
+    "manifestHash": "63fc2513b0534fe89a4f17c386c2989e478c0b39be51c0b250af8549084ee922",
+    "expectedPatchHash": "cb3582404b4c1ff4df08c579bcfccc6e70091c8382b5129889c6b129ccc3ed12",
+    "actualPatchHash": "cb3582404b4c1ff4df08c579bcfccc6e70091c8382b5129889c6b129ccc3ed12"
+  },
+  "counters": {
+    "preflightWorkspaceWriteExecuteCalls": 0,
+    "executionWorkspaceWriteExecuteCalls": 1,
+    "replayWorkspaceWriteExecuteCalls": 0,
+    "fileWriteCalls": 2,
+    "fileDeleteCalls": 1,
+    "providerExecuteCalls": 0,
+    "realCodexCliCalls": 0,
+    "externalWriteCalls": 0
+  },
+  "blockingReasons": [
+    "workspace_write_execution_permit_v2_already_consumed_by_store"
+  ]
+}

@@ -27,7 +27,7 @@ test("provider execution runner boundary audit passes for current evidence", asy
   assert.equal(review.checks.runnerRegressionCoverageRecorded, true);
   assert.equal(review.checks.governanceStopCoverageRecorded, true);
   assert.equal(review.checks.noBroadExecutionAuthorization, true);
-  assert.equal(review.summary.runnerMode, "controlled_readonly_provider_execute_gate");
+  assert.equal(review.summary.runnerMode, "controlled_readonly_and_workspace_write_gate");
   assert.equal(review.summary.controlledReadOnlyExecuteAllowed, true);
   assert.equal(review.summary.controlledReadOnlyProviderId, "codex-cli");
   assert.equal(review.summary.controlledReadOnlySideEffectClass, "read_only");
@@ -39,7 +39,8 @@ test("provider execution runner boundary audit passes for current evidence", asy
   assert.equal(review.summary.simulateBlocksBeforeProviderHooks, true);
   assert.equal(review.summary.recoveryPhaseBlocksBeforeProviderHooks, true);
   assert.equal(review.summary.nonCodexProviderExecutionAllowed, false);
-  assert.equal(review.summary.workspaceWriteAllowedByRunner, false);
+  assert.equal(review.summary.workspaceWriteAllowedByRunner, true);
+  assert.equal(review.summary.workspaceWriteProviderExecuteAllowed, false);
   assert.equal(review.summary.defaultRealCodexCliAllowed, false);
   assert.equal(review.summary.providerRunnerCallsDuringAudit, 0);
   assert.equal(review.summary.providerPlanExecutionCallsDuringAudit, 0);
@@ -125,7 +126,7 @@ test("provider execution runner boundary audit blocks broadened docs", async () 
         "Provider execution runner boundary",
         "Archived provider execution runner boundary"
       )
-      .concat("\nprovider execution runner workspace-write allowed: true\n")
+      .concat("\nprovider execution runner workspace-write provider execute allowed: true\n")
   });
 
   assert.equal(review.status, "blocked");

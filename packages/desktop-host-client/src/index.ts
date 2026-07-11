@@ -38,6 +38,11 @@ import {
   authorizeGovernanceOperatorActionHostExecutorReview,
   dispatchGovernanceOperatorActionHostExecutor
 } from "../../governance-internal-recovery-control/src/index.js";
+import {
+  dispatchControlledWorkspaceWriteProviderPlan,
+  type ControlledWorkspaceWriteHostProviderDispatchInput,
+  type ControlledWorkspaceWriteHostProviderDispatchResult
+} from "../../host-dispatcher/src/index.js";
 import type {
   GovernanceOperatorActionEnvelope,
   GovernanceOperatorActionEnvelopeInput,
@@ -75,6 +80,7 @@ export interface DesktopHostClientOptions {
   operatorActionReceiptStore?: GovernanceOperatorActionReceiptStore;
   governanceState?: GovernanceState;
   onGovernanceUpdate?: (state: GovernanceState, strategy: StrategyDecisionV2) => Promise<void>;
+  controlledWorkspaceWriteProviderDispatcher?: DesktopHostControlledWorkspaceWriteProviderDispatcher;
   now?: () => string;
 }
 
@@ -84,6 +90,11 @@ export interface DesktopHostResumeOptions {
   preferredSource?: ResumeSource;
   memoryRecall?: CheckpointRecallAdapter;
   checkpointStore?: CheckpointLookup;
+  controlledWorkspaceWriteProviderDispatchInput?: DesktopHostControlledWorkspaceWriteProviderDispatchInput;
+}
+
+export interface DesktopHostRunOptions {
+  controlledWorkspaceWriteProviderDispatchInput?: DesktopHostControlledWorkspaceWriteProviderDispatchInput;
 }
 
 export interface DesktopHostOperatorActionReceiptInput {
@@ -117,6 +128,18 @@ export interface DesktopHostOperatorActionHostExecutorDispatchInput
   auditSink?: GovernanceOperatorActionHostExecutorDispatchAuditSink;
 }
 
+export type DesktopHostControlledWorkspaceWriteProviderDispatchInput =
+  ControlledWorkspaceWriteHostProviderDispatchInput;
+
+export type DesktopHostControlledWorkspaceWriteProviderDispatchResult =
+  ControlledWorkspaceWriteHostProviderDispatchResult;
+
+export type DesktopHostControlledWorkspaceWriteProviderDispatcher = (
+  input: DesktopHostControlledWorkspaceWriteProviderDispatchInput
+) =>
+  | Promise<DesktopHostControlledWorkspaceWriteProviderDispatchResult>
+  | DesktopHostControlledWorkspaceWriteProviderDispatchResult;
+
 export class DesktopHostClient {
   readonly bridge: DesktopHostBridge;
   private currentGovernanceState: GovernanceState | undefined;
@@ -130,7 +153,10 @@ export class DesktopHostClient {
     this.currentGovernanceState = options.governanceState;
   }
 
-  async run(task: TaskEnvelopeInput): Promise<RunDesktopTaskResult> {
+  async run(
+    task: TaskEnvelopeInput,
+    options: DesktopHostRunOptions = {}
+  ): Promise<RunDesktopTaskResult> {
     const result = await runDesktopTask({
       task,
       policy: this.options.policy,
@@ -147,6 +173,18 @@ export class DesktopHostClient {
         : {}),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
+        : {}),
+      ...(options.controlledWorkspaceWriteProviderDispatchInput !== undefined
+        ? {
+            controlledWorkspaceWriteProviderDispatchInput:
+              options.controlledWorkspaceWriteProviderDispatchInput
+          }
+        : {}),
+      ...(this.options.controlledWorkspaceWriteProviderDispatcher !== undefined
+        ? {
+            controlledWorkspaceWriteProviderDispatcher:
+              this.options.controlledWorkspaceWriteProviderDispatcher
+          }
         : {}),
       ...(this.options.observationBus !== undefined
         ? { observationBus: this.options.observationBus }
@@ -191,6 +229,18 @@ export class DesktopHostClient {
         : {}),
       ...(this.options.codexCliOptions !== undefined
         ? { codexCliOptions: this.options.codexCliOptions }
+        : {}),
+      ...(options.controlledWorkspaceWriteProviderDispatchInput !== undefined
+        ? {
+            controlledWorkspaceWriteProviderDispatchInput:
+              options.controlledWorkspaceWriteProviderDispatchInput
+          }
+        : {}),
+      ...(this.options.controlledWorkspaceWriteProviderDispatcher !== undefined
+        ? {
+            controlledWorkspaceWriteProviderDispatcher:
+              this.options.controlledWorkspaceWriteProviderDispatcher
+          }
         : {}),
       ...(this.options.observationBus !== undefined
         ? { observationBus: this.options.observationBus }
@@ -318,6 +368,15 @@ export class DesktopHostClient {
       ...(input.executor !== undefined ? { executor: input.executor } : {}),
       ...(input.auditSink !== undefined ? { auditSink: input.auditSink } : {})
     });
+  }
+
+  async dispatchControlledWorkspaceWriteProviderPlan(
+    input: DesktopHostControlledWorkspaceWriteProviderDispatchInput
+  ): Promise<DesktopHostControlledWorkspaceWriteProviderDispatchResult> {
+    const dispatcher =
+      this.options.controlledWorkspaceWriteProviderDispatcher
+      ?? dispatchControlledWorkspaceWriteProviderPlan;
+    return dispatcher(input);
   }
 
   private captureOperatorAction(result: RunDesktopTaskResult): void {

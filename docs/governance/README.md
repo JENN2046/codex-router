@@ -58,8 +58,10 @@ as historical evidence unless a current authority document links them.
   `packages/governance-internal-controlled-provider-dispatcher` consumes the
   dispatch preflight schema, provider registry selection, permit, executor plan,
   environment preflight artifact binding, and governance stop checks before
-  handing off to the provider execution runner boundary; it does not call
-  `provider.execute` directly and does not authorize workspace-write.
+  handing off to the provider execution runner boundary. It supports controlled
+  read-only dispatch and controlled workspace-write dispatch to the local
+  runner, but does not call `provider.execute` directly, does not spawn Codex
+  CLI, and does not authorize general workspace-write.
 - [Phase 6 controlled execution runtime hardening baseline](PHASE_6_CONTROLLED_EXECUTION_RUNTIME_HARDENING_BASELINE.md):
   current baseline for PR-23A through PR-23F; this records the next runtime
   hardening sequence and is not workspace-write authorization.
@@ -82,6 +84,16 @@ as historical evidence unless a current authority document links them.
 - [PR-23E workspace-write fake canary v2](PR_23E_WORKSPACE_WRITE_FAKE_CANARY_V2.md):
   current fake-canary line using permit v2, patch guard, rollback evidence, and
   replay blocking without real workspace-write execution.
+- Controlled generic workspace-write acceptance:
+  `npm run governance -- acceptance controlled-generic-workspace-write -- --check`
+  proves the local runner can preflight, execute, roll back, and replay-block
+  explicit create/update/delete operations in a temporary repository with
+  sanitized evidence, without provider `execute`, Codex CLI, or external write.
+- Controlled generic workspace-write completion audit:
+  `npm run governance -- audit controlled-generic-workspace-write-completion`
+  ties executor, runner, dispatcher, host/desktop routing, Agent OS public
+  surfaces, public host facade structural dispatch types, committed acceptance
+  evidence, and release gate posture into one read-only completion matrix.
 - [Phase 7 runtime operator actionability closeout](PHASE_7_RUNTIME_OPERATOR_ACTIONABILITY_CLOSEOUT.md):
   current closeout for preflight governance blocks, operator action envelopes,
   summaries, host-client surfaces, and sanitized evidence resolution; this is

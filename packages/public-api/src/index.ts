@@ -7,6 +7,7 @@ export type {
   AgentOsSdkCallOptions,
   AgentOsSdkCancelRunInput,
   AgentOsSdkCreateTaskInput,
+  AgentOsSdkDispatchWorkspaceWriteInput,
   AgentOsSdkGetArtifactInput,
   AgentOsSdkGetRunInput,
   AgentOsSdkListArtifactsInput,
@@ -21,6 +22,7 @@ export {
   AgentOsCliCommandSchema,
   parseAgentOsCliArgv,
   runAgentOsCliCommand,
+  runAgentOsCliCommandAsync,
   sanitizeAgentOsCliArgv
 } from "../../agent-os-cli/src/index.js";
 export type {
@@ -33,6 +35,7 @@ export type {
 export {
   AgentOsAppServerMethodSchema,
   handleAgentOsAppServerRequest,
+  handleAgentOsAppServerRequestAsync,
   routeAgentOsAppServerRequest
 } from "../../agent-os-app-server/src/index.js";
 export type {
@@ -114,6 +117,11 @@ export type {
   DesktopHostBindings,
   DesktopHostBridge,
   DesktopHostClientOptions,
+  DesktopHostControlledWorkspaceWriteProviderDispatchInput,
+  DesktopHostControlledWorkspaceWriteProviderDispatchPreflight,
+  DesktopHostControlledWorkspaceWriteProviderDispatchResult,
+  DesktopHostControlledWorkspaceWriteDispatchEnvironmentPreflight,
+  DesktopHostControlledWorkspaceWriteDispatchPreflightChecks,
   DesktopHostClientPersistence,
   DesktopHostCheckpointLookup,
   DesktopHostCheckpointRecallAdapter,
@@ -155,6 +163,7 @@ export type {
   DesktopHostTaskIntent,
   DesktopHostTaskRepoContext,
   DesktopHostTaskTarget,
+  DesktopHostWorkspaceWriteOperation,
   DesktopHostTelemetryAlertDeliveryWindowPolicy,
   DesktopHostTelemetryAlertDeliveryWindowPresetName,
   DesktopHostTelemetryAlertMetricThresholdValues,
@@ -165,6 +174,7 @@ export type {
   DesktopHostToolAccessLevel,
   DesktopHostUnknownRecord,
   DesktopPrimitiveInvocation,
+  DesktopHostRunOptions,
   DesktopHostResumeOptions
 } from "./host.js";
 

@@ -42,7 +42,7 @@ The structured claim records:
 - upstream baseline: `refs/remotes/origin/main`
 - recorded divergence baseline: `observed at audit time`
 - source tree digest: `git-ls-tree-sha256`
-  `87bc62db5e754ddcc13df01884506a13510a47265819d0a84814f4ee20c8e7ee`
+  `e0efd8a1adf6af71c8060720673fe849adc95682c610032e9fc200020877c16e`
 
 Source digest excluded paths:
 
@@ -64,6 +64,10 @@ Source digest excluded paths:
   `npm run governance -- audit execution-boundary-current-surface`
 - Workspace-write release gate:
   `npm run governance -- audit workspace-write-release-gate`
+- Controlled generic workspace-write acceptance:
+  `npm run governance -- acceptance controlled-generic-workspace-write -- --check`
+- Controlled generic workspace-write completion audit:
+  `npm run governance -- audit controlled-generic-workspace-write-completion`
 - Workspace-write real canary authorization design:
   `npm run governance -- audit workspace-write-real-canary-authorization-design`
 - Source/release package boundary:
@@ -235,8 +239,21 @@ Current repository governance status:
   infrastructure only, not workspace-write execution authorization.
 - Workspace-write release-gate alignment is now machine-checkable with
   `npm run governance -- audit workspace-write-release-gate`; the gate is a
-  promotion review only and keeps real/general workspace-write blocked by
-  default.
+  promotion review only. It records controlled generic local workspace-write as
+  guarded behind permit v2, exact operation target allowlist, local runner,
+  sanitized evidence, and rollback verification, while keeping real
+  workspace-write and general / unbounded workspace-write blocked by default.
+- Controlled generic workspace-write acceptance is now machine-checkable with
+  `npm run governance -- acceptance controlled-generic-workspace-write -- --check`;
+  it executes and rolls back create/update/delete operations only inside a
+  temporary local git repository and proves replay blocking, sanitized evidence,
+  zero provider `execute`, zero real Codex CLI, and zero external writes.
+- Controlled generic workspace-write completion is now machine-checkable with
+  `npm run governance -- audit controlled-generic-workspace-write-completion`;
+  it ties executor, provider runner, controlled dispatcher, host/desktop
+  routing, Agent OS SDK/CLI/app-server prepare surfaces, public host facade
+  structural dispatch types, committed acceptance evidence, and release gate
+  posture into a single read-only completion matrix.
 - Workspace-write real canary authorization packet design is now
   machine-checkable with
   `npm run governance -- audit workspace-write-real-canary-authorization-design`;
@@ -335,8 +352,12 @@ exposed through
 `npm run governance -- audit controlled-provider-execution-dispatcher-boundary`;
 it consumes the dispatch preflight schema, provider registry selection, permit,
 executor plan, environment preflight artifact binding, and governance stop
-checks before handing off to the provider execution runner boundary. It does
-not call `provider.execute` directly and does not authorize workspace-write.
+checks before handing off to the provider execution runner boundary. It
+supports controlled read-only dispatch and controlled workspace-write
+prepare / dispatch
+to the local runner, but does not call `provider.execute` directly for
+workspace-write, does not spawn Codex CLI, and does not authorize general
+workspace-write.
 The Phase 6 read-only provider permit lifecycle line is recorded at
 `docs/governance/PHASE_6_READONLY_PROVIDER_PERMIT_LIFECYCLE_HARDENING.md`;
 it keeps the same acceptance entry point while adding expiration, nonce, replay,
