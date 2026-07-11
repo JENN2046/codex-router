@@ -1208,8 +1208,8 @@ function assertJournalTransition(
     pending_accept: ["accepted", "blocked", "reconciliation_required"],
     accepted: ["retained", "blocked", "reconciliation_required"],
     retained: ["post_checked", "reconciliation_required"],
-    post_checked: [],
-    blocked: [],
+    post_checked: ["reconciliation_required"],
+    blocked: ["reconciliation_required"],
     reconciliation_required: []
   };
   if (current !== next && !allowed[current].includes(next)) {

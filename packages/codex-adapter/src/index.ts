@@ -899,8 +899,23 @@ export class CodexAppServerAdapter {
       });
     }
     if (event.outcome === "not_applied") {
-      transitionItem(item, "blocked");
-      await this.updateJournalState(item, "blocked", "app_server_change_not_applied");
+      try {
+        await this.updateJournalState(item, "blocked", "app_server_change_not_applied");
+        transitionItem(item, "blocked");
+      } catch {
+        await this.markItemReconciliation(
+          item,
+          "app_server_change_not_applied",
+          "pending_journal_block_update_failed"
+        );
+        return this.outcome("reconciliation_required", [
+          "app_server_change_not_applied",
+          "pending_journal_block_update_failed"
+        ], {
+          itemId: event.itemId,
+          lifecycleState: item.state
+        });
+      }
       return this.outcome("blocked", ["app_server_change_not_applied"], {
         itemId: event.itemId,
         lifecycleState: item.state
@@ -939,10 +954,32 @@ export class CodexAppServerAdapter {
       });
     }
     item.retainReceipt = retained.receipt;
-    transitionItem(item, "retained");
-    await this.updateJournalState(item, "retained");
-    transitionItem(item, "post_checked");
-    await this.updateJournalState(item, "post_checked");
+    try {
+      await this.updateJournalState(item, "retained");
+      transitionItem(item, "retained");
+    } catch {
+      await this.markItemReconciliation(item, "pending_journal_retained_update_failed");
+      return this.outcome("reconciliation_required", [
+        "pending_journal_retained_update_failed"
+      ], {
+        itemId: event.itemId,
+        lifecycleState: item.state,
+        retainReceipt: retained.receipt
+      });
+    }
+    try {
+      await this.updateJournalState(item, "post_checked");
+      transitionItem(item, "post_checked");
+    } catch {
+      await this.markItemReconciliation(item, "pending_journal_post_checked_update_failed");
+      return this.outcome("reconciliation_required", [
+        "pending_journal_post_checked_update_failed"
+      ], {
+        itemId: event.itemId,
+        lifecycleState: item.state,
+        retainReceipt: retained.receipt
+      });
+    }
     return this.outcome("retained", [], {
       itemId: event.itemId,
       lifecycleState: item.state,
@@ -1238,14 +1275,19 @@ export class CodexAppServerAdapter {
     if (item.state !== "reconciliation_required") {
       transitionItem(item, "reconciliation_required");
     }
+    const previous = this.journalReconciliationFailures.get(item.key);
+    const combinedReasons = uniqueStrings([...(previous?.reasons ?? []), ...reasons]);
     try {
-      await this.updateJournalState(item, "reconciliation_required", ...reasons);
+      await this.updateJournalState(
+        item,
+        "reconciliation_required",
+        ...combinedReasons
+      );
       this.journalReconciliationFailures.delete(item.key);
     } catch {
-      const previous = this.journalReconciliationFailures.get(item.key);
       this.journalReconciliationFailures.set(item.key, {
         item,
-        reasons: uniqueStrings([...(previous?.reasons ?? []), ...reasons])
+        reasons: combinedReasons
       });
     }
   }
@@ -1274,13 +1316,33 @@ export class CodexAppServerAdapter {
       return;
     }
     const now = this.now();
-    await this.journalStore.update(item.journalId, (current) => ({
-      ...current,
-      state,
-      ...(item.retainReceipt === undefined ? {} : { retainReceipt: item.retainReceipt }),
-      reasons: uniqueStrings([...current.reasons, ...reasons]),
-      updatedAt: now
-    }));
+    let expected: PendingApprovalJournalEntry | undefined;
+    try {
+      await this.journalStore.update(item.journalId, (current) => {
+        expected = {
+          ...current,
+          state,
+          ...(item.retainReceipt === undefined ? {} : { retainReceipt: item.retainReceipt }),
+          reasons: uniqueStrings([...current.reasons, ...reasons]),
+          updatedAt: now
+        };
+        return expected;
+      });
+    } catch (error) {
+      let persisted: PendingApprovalJournalEntry | undefined;
+      try {
+        persisted = await this.journalStore.get(item.journalId);
+      } catch {
+        throw error;
+      }
+      if (
+        expected === undefined
+        || persisted === undefined
+        || hashKernelObject(persisted) !== hashKernelObject(expected)
+      ) {
+        throw error;
+      }
+    }
   }
 
   private outcome(

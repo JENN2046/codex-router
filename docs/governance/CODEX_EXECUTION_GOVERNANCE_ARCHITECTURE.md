@@ -156,7 +156,14 @@ overridable public instance method.
 The file journal uses a lock plus file fsync, rename, and directory fsync.
 Directory fsync is an explicit unsupported live durability gate on Windows in
 this beta; deterministic Windows tests use a documented non-live mode instead
-of claiming equivalent durability.
+of claiming equivalent durability. If a `blocked`, `retained`, or
+`post_checked` update rejects after an atomic rename, the adapter reads the
+journal back and accepts only an exact state, binding, reason, and receipt match.
+An absent or mismatched read-back moves the item and journal to
+`reconciliation_required`; terminal journal states may make only this
+conservative downgrade. Failed reconciliation writes retain every sanitized
+reason and retry on the next serialized operation. The adapter never publishes
+an in-memory retain state before its matching journal transition commits.
 
 After App Server reports `applied`, retain verification requires the same HEAD
 and repository identity, exact changed-target set, clean index, matching before

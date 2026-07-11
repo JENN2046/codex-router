@@ -82,6 +82,306 @@ test("fake App Server flow previews, journals, accepts, and retains without a pa
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
+test("terminal journal update failures enter reconciliation and retry durably", async (t) => {
+  const scenarios = [
+    {
+      name: "not-applied update",
+      outcome: "not_applied" as const,
+      failurePositions: [1, 2],
+      reason: "pending_journal_block_update_failed",
+      journalStateBeforeRetry: "accepted",
+      receiptExpected: false
+    },
+    {
+      name: "retained update",
+      outcome: "applied" as const,
+      failurePositions: [1, 2],
+      reason: "pending_journal_retained_update_failed",
+      journalStateBeforeRetry: "accepted",
+      receiptExpected: true
+    },
+    {
+      name: "post-checked update",
+      outcome: "applied" as const,
+      failurePositions: [2, 3],
+      reason: "pending_journal_post_checked_update_failed",
+      journalStateBeforeRetry: "retained",
+      receiptExpected: true
+    }
+  ] as const;
+
+  for (const scenario of scenarios) {
+    await t.test(scenario.name, async () => {
+      const journal = new FailingJournalStore();
+      const fixture = await createAdapterFixture({ journal });
+      try {
+        const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+        await fixture.adapter.ingest(events[0]);
+        assert.equal((await fixture.adapter.ingest(events[1])).status, "accepted");
+        assert.equal((await fixture.adapter.ingest(events[2])).status, "accepted");
+
+        journal.failUpcomingUpdates(...scenario.failurePositions);
+        const completed = await fixture.adapter.ingest({
+          ...(events[3] as Record<string, unknown>),
+          outcome: scenario.outcome
+        });
+        assert.equal(completed.status, "reconciliation_required");
+        assert.ok(completed.reasons.includes(scenario.reason));
+        assert.ok(completed.reasons.includes("pending_journal_reconciliation_update_failed"));
+        assert.equal(completed.lifecycleState, "reconciliation_required");
+        assert.equal(completed.retainReceipt !== undefined, scenario.receiptExpected);
+        assert.equal((await journal.list())[0]?.state, scenario.journalStateBeforeRetry);
+
+        const retried = await fixture.adapter.resolveHumanApproval({
+          requestId: "request-1",
+          decision: "accept",
+          operatorId: "operator-jenn"
+        });
+        assert.equal(retried.status, "reconciliation_required");
+        assert.equal(
+          retried.reasons.includes("pending_journal_reconciliation_update_failed"),
+          false
+        );
+        const reconciled = (await journal.list())[0];
+        assert.equal(reconciled?.state, "reconciliation_required");
+        assert.ok(reconciled?.reasons.includes(scenario.reason));
+        assert.equal(reconciled?.retainReceipt !== undefined, scenario.receiptExpected);
+        if (scenario.receiptExpected) {
+          assert.equal(
+            reconciled?.retainReceipt?.receiptId,
+            completed.retainReceipt?.receiptId
+          );
+          assert.equal(
+            reconciled?.retainReceipt?.changeSetHash,
+            completed.retainReceipt?.changeSetHash
+          );
+          assert.deepEqual(
+            reconciled?.retainReceipt?.targetHashes,
+            completed.retainReceipt?.targetHashes
+          );
+        }
+      } finally {
+        await rm(fixture.tempRoot, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test("committed journal updates survive thrown acknowledgements and failed readback", async (t) => {
+  const scenarios = [
+    {
+      name: "not-applied commit is confirmed by readback",
+      outcome: "not_applied" as const,
+      throwPosition: 1,
+      failReadback: false,
+      expectedStatus: "blocked",
+      expectedLifecycle: "blocked",
+      expectedJournalState: "blocked",
+      receiptExpected: false
+    },
+    {
+      name: "retained commit is confirmed by readback",
+      outcome: "applied" as const,
+      throwPosition: 1,
+      failReadback: false,
+      expectedStatus: "retained",
+      expectedLifecycle: "post_checked",
+      expectedJournalState: "post_checked",
+      receiptExpected: true
+    },
+    {
+      name: "post-checked commit is confirmed by readback",
+      outcome: "applied" as const,
+      throwPosition: 2,
+      failReadback: false,
+      expectedStatus: "retained",
+      expectedLifecycle: "post_checked",
+      expectedJournalState: "post_checked",
+      receiptExpected: true
+    },
+    {
+      name: "blocked commit with unavailable readback downgrades durably",
+      outcome: "not_applied" as const,
+      throwPosition: 1,
+      failReadback: true,
+      expectedStatus: "reconciliation_required",
+      expectedLifecycle: "reconciliation_required",
+      expectedJournalState: "reconciliation_required",
+      receiptExpected: false
+    },
+    {
+      name: "post-checked commit with unavailable readback downgrades durably",
+      outcome: "applied" as const,
+      throwPosition: 2,
+      failReadback: true,
+      expectedStatus: "reconciliation_required",
+      expectedLifecycle: "reconciliation_required",
+      expectedJournalState: "reconciliation_required",
+      receiptExpected: true
+    }
+  ] as const;
+
+  for (const scenario of scenarios) {
+    await t.test(scenario.name, async () => {
+      const journal = new CommitThenThrowJournalStore();
+      const fixture = await createAdapterFixture({ journal });
+      try {
+        const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+        await fixture.adapter.ingest(events[0]);
+        assert.equal((await fixture.adapter.ingest(events[1])).status, "accepted");
+        assert.equal((await fixture.adapter.ingest(events[2])).status, "accepted");
+
+        journal.commitThenThrowOnUpdate(scenario.throwPosition, scenario.failReadback);
+        const completed = await fixture.adapter.ingest({
+          ...(events[3] as Record<string, unknown>),
+          outcome: scenario.outcome
+        });
+        assert.equal(completed.status, scenario.expectedStatus);
+        assert.equal(completed.lifecycleState, scenario.expectedLifecycle);
+        const persisted = (await journal.list())[0];
+        assert.equal(persisted?.state, scenario.expectedJournalState);
+        assert.equal(persisted?.retainReceipt !== undefined, scenario.receiptExpected);
+        if (scenario.receiptExpected) {
+          assert.equal(persisted?.retainReceipt?.receiptId, completed.retainReceipt?.receiptId);
+          assert.equal(
+            persisted?.retainReceipt?.changeSetHash,
+            completed.retainReceipt?.changeSetHash
+          );
+          assert.deepEqual(
+            persisted?.retainReceipt?.targetHashes,
+            completed.retainReceipt?.targetHashes
+          );
+        }
+      } finally {
+        await rm(fixture.tempRoot, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test("committed journal readback rejects drifted top-level bindings", async (t) => {
+  const scenarios: Array<{
+    name: string;
+    tamper: (entry: PendingApprovalJournalEntry) => PendingApprovalJournalEntry;
+  }> = [
+    {
+      name: "request id",
+      tamper: (entry) => ({ ...entry, requestId: "request-tampered" })
+    },
+    {
+      name: "authorization decision hash",
+      tamper: (entry) => ({ ...entry, authorizationDecisionHash: "f".repeat(64) })
+    },
+    {
+      name: "preview receipt hash",
+      tamper: (entry) => ({ ...entry, previewReceiptHash: "e".repeat(64) })
+    },
+    {
+      name: "head commit",
+      tamper: (entry) => ({ ...entry, headCommit: "tampered-head" })
+    }
+  ];
+
+  for (const scenario of scenarios) {
+    await t.test(scenario.name, async () => {
+      const journal = new CommitThenThrowJournalStore();
+      const fixture = await createAdapterFixture({ journal });
+      try {
+        const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+        await fixture.adapter.ingest(events[0]);
+        assert.equal((await fixture.adapter.ingest(events[1])).status, "accepted");
+        assert.equal((await fixture.adapter.ingest(events[2])).status, "accepted");
+
+        journal.commitThenThrowOnUpdate(1, false, scenario.tamper);
+        const completed = await fixture.adapter.ingest({
+          ...(events[3] as Record<string, unknown>),
+          outcome: "not_applied"
+        });
+        assert.equal(completed.status, "reconciliation_required");
+        assert.equal(completed.lifecycleState, "reconciliation_required");
+        assert.ok(completed.reasons.includes("pending_journal_block_update_failed"));
+        const persisted = (await journal.list())[0];
+        assert.equal(persisted?.state, "reconciliation_required");
+        assert.equal(persisted?.requestId, "request-1");
+        assert.equal(persisted?.headCommit, fixture.head);
+      } finally {
+        await rm(fixture.tempRoot, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test("retained state is not visible before its journal update commits", async () => {
+  const journal = new BlockingJournalStore();
+  const fixture = await createAdapterFixture({ journal });
+  try {
+    const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+    await fixture.adapter.ingest(events[0]);
+    assert.equal((await fixture.adapter.ingest(events[1])).status, "accepted");
+    assert.equal((await fixture.adapter.ingest(events[2])).status, "accepted");
+
+    const gate = journal.blockNextUpdate();
+    const completion = fixture.adapter.ingest(events[3]);
+    await gate.started;
+    assert.equal(
+      fixture.adapter.getItemSnapshot("thread-1", "turn-1", "item-1")?.state,
+      "accepted_by_app_server"
+    );
+    assert.equal((await journal.list())[0]?.state, "accepted");
+    gate.release();
+
+    const completed = await completion;
+    assert.equal(completed.status, "retained");
+    assert.equal(completed.lifecycleState, "post_checked");
+    assert.equal((await journal.list())[0]?.state, "post_checked");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("later reconciliation events preserve queued journal failure reasons", async () => {
+  const journal = new FailingJournalStore();
+  const fixture = await createAdapterFixture({ journal });
+  try {
+    const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+    await fixture.adapter.ingest(events[0]);
+    assert.equal((await fixture.adapter.ingest(events[1])).status, "accepted");
+    assert.equal((await fixture.adapter.ingest(events[2])).status, "accepted");
+
+    journal.failUpcomingUpdates(1, 2, 3);
+    const first = await fixture.adapter.ingest({
+      ...(events[3] as Record<string, unknown>),
+      outcome: "not_applied"
+    });
+    assert.equal(first.status, "reconciliation_required");
+    assert.ok(first.reasons.includes("pending_journal_reconciliation_update_failed"));
+
+    const duplicate = await fixture.adapter.ingest({
+      ...(events[3] as Record<string, unknown>),
+      eventId: "event-item-completed-duplicate-reconciliation",
+      sequence: 5,
+      outcome: "not_applied"
+    });
+    assert.equal(duplicate.status, "reconciliation_required");
+    assert.ok(duplicate.reasons.includes("duplicate_item_completion"));
+    assert.equal(
+      duplicate.reasons.includes("pending_journal_reconciliation_update_failed"),
+      false
+    );
+    const reconciled = (await journal.list())[0];
+    assert.equal(reconciled?.state, "reconciliation_required");
+    for (const reason of [
+      "app_server_change_not_applied",
+      "pending_journal_block_update_failed",
+      "duplicate_item_completion"
+    ]) {
+      assert.ok(reconciled?.reasons.includes(reason), reason);
+    }
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("concurrent approval and resolution events are serialized before acceptance", async () => {
   const fixture = await createAdapterFixture();
   const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
@@ -545,7 +845,7 @@ test("duplicate approval request ids quarantine without consuming pending approv
 });
 
 test("duplicate approval ids retry durable journal reconciliation failures", async () => {
-  const journal = new OneShotFailingJournalStore();
+  const journal = new FailingJournalStore();
   const fixture = await createAdapterFixture({ journal });
   const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
 
@@ -998,20 +1298,112 @@ class BlockingTransport extends FakeTransport {
   }
 }
 
-class OneShotFailingJournalStore extends InMemoryPendingApprovalJournalStore {
-  private updateFailuresRemaining = 0;
+class FailingJournalStore extends InMemoryPendingApprovalJournalStore {
+  private updateAttempt = 0;
+  private failurePositions = new Set<number>();
 
   failNextUpdate(): void {
-    this.updateFailuresRemaining += 1;
+    this.failUpcomingUpdates(1);
+  }
+
+  failUpcomingUpdates(...positions: number[]): void {
+    this.updateAttempt = 0;
+    this.failurePositions = new Set(positions);
   }
 
   override async update(
     journalId: string,
     update: (current: PendingApprovalJournalEntry) => PendingApprovalJournalEntry
   ): Promise<PendingApprovalJournalEntry> {
-    if (this.updateFailuresRemaining > 0) {
-      this.updateFailuresRemaining -= 1;
+    this.updateAttempt += 1;
+    if (this.failurePositions.delete(this.updateAttempt)) {
       throw new Error("injected_pending_journal_update_failure");
+    }
+    return super.update(journalId, update);
+  }
+}
+
+class CommitThenThrowJournalStore extends InMemoryPendingApprovalJournalStore {
+  private updateAttempt = 0;
+  private throwPosition: number | undefined;
+  private failReadback = false;
+  private readFailuresRemaining = 0;
+  private tamperReadback: (
+    (entry: PendingApprovalJournalEntry) => PendingApprovalJournalEntry
+  ) | undefined;
+
+  commitThenThrowOnUpdate(
+    position: number,
+    failReadback: boolean,
+    tamperReadback?: (entry: PendingApprovalJournalEntry) => PendingApprovalJournalEntry
+  ): void {
+    this.updateAttempt = 0;
+    this.throwPosition = position;
+    this.failReadback = failReadback;
+    this.tamperReadback = tamperReadback;
+  }
+
+  override async get(journalId: string): Promise<PendingApprovalJournalEntry | undefined> {
+    if (this.readFailuresRemaining > 0) {
+      this.readFailuresRemaining -= 1;
+      throw new Error("injected_pending_journal_readback_failure");
+    }
+    const entry = await super.get(journalId);
+    if (entry !== undefined && this.tamperReadback !== undefined) {
+      const tampered = this.tamperReadback(entry);
+      this.tamperReadback = undefined;
+      return tampered;
+    }
+    return entry;
+  }
+
+  override async update(
+    journalId: string,
+    update: (current: PendingApprovalJournalEntry) => PendingApprovalJournalEntry
+  ): Promise<PendingApprovalJournalEntry> {
+    this.updateAttempt += 1;
+    const result = await super.update(journalId, update);
+    if (this.updateAttempt === this.throwPosition) {
+      this.throwPosition = undefined;
+      if (this.failReadback) {
+        this.readFailuresRemaining += 1;
+      }
+      throw new Error("injected_pending_journal_commit_ack_failure");
+    }
+    return result;
+  }
+}
+
+class BlockingJournalStore extends InMemoryPendingApprovalJournalStore {
+  private nextBlock: {
+    started: Promise<void>;
+    markStarted: () => void;
+    released: Promise<void>;
+    markReleased: () => void;
+  } | undefined;
+
+  blockNextUpdate(): { started: Promise<void>; release: () => void } {
+    let markStarted!: () => void;
+    let markReleased!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      markReleased = resolve;
+    });
+    this.nextBlock = { started, markStarted, released, markReleased };
+    return { started, release: markReleased };
+  }
+
+  override async update(
+    journalId: string,
+    update: (current: PendingApprovalJournalEntry) => PendingApprovalJournalEntry
+  ): Promise<PendingApprovalJournalEntry> {
+    const block = this.nextBlock;
+    if (block !== undefined) {
+      this.nextBlock = undefined;
+      block.markStarted();
+      await block.released;
     }
     return super.update(journalId, update);
   }
