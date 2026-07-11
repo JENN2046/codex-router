@@ -179,7 +179,7 @@ renaming. Phase 0 does not move evidence files.
 |---|---|---|---|
 | `build` | `tsc -p tsconfig.json` | README validation section | documented |
 | `typecheck` | `tsc -p tsconfig.json --noEmit` | README validation section | documented |
-| `test` | `node --import tsx --test tests/*.test.ts` | README validation section | documented |
+| `test` | `tsx --test tests/*.test.ts` | README validation section | documented |
 | `governance` | `node --import tsx scripts/run-governance-check.ts` | README and `docs/governance/README.md` | documented |
 | `validate:daily` | `node --import tsx scripts/run-governance-check.ts tier daily` | README validation tiers | documented |
 | `validate:pr` | `node --import tsx scripts/run-governance-check.ts tier pr` | README validation tiers | documented |

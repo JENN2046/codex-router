@@ -56,7 +56,7 @@
     "test:governance-coverage": "npm run test:coverage:authorization && npm run test:coverage:preview && npm run test:coverage:retain",
     "test:governance-properties": "node --import tsx --test --test-name-pattern=property tests/file-change-preview.test.ts tests/retain-control.test.ts tests/codex-app-server-adapter.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "yaml": "^2.8.1",
