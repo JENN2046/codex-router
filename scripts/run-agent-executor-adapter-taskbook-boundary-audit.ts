@@ -149,36 +149,41 @@ export async function collectAgentExecutorAdapterTaskbookBoundaryAuditInput(
 export function reviewAgentExecutorAdapterTaskbookBoundaryAudit(
   input: AgentExecutorAdapterTaskbookBoundaryAuditInput
 ): AgentExecutorAdapterTaskbookBoundaryAuditResult {
+  const normalizedInput = normalizeInputLineEndings(input);
   const checks = {
     phase15TaskbookRecorded: REQUIRED_PHASE15_MARKERS.every((marker) =>
-      input.phase15TaskbookText.includes(marker)
+      normalizedInput.phase15TaskbookText.includes(marker)
     ),
     phase16AuthorizationTaskbookRecorded:
       REQUIRED_PHASE16_AUTHORIZATION_MARKERS.every((marker) =>
-        input.phase16AuthorizationTaskbookText.includes(marker)
+        normalizedInput.phase16AuthorizationTaskbookText.includes(marker)
       ),
     phase16SandboxTaskbookRecorded: REQUIRED_PHASE16_SANDBOX_MARKERS.every(
-      (marker) => input.phase16SandboxTaskbookText.includes(marker)
+      (marker) => normalizedInput.phase16SandboxTaskbookText.includes(marker)
     ),
-    currentStateRecordsTaskbooks: currentStateRecordsTaskbooks(input.currentStateText),
+    currentStateRecordsTaskbooks: currentStateRecordsTaskbooks(
+      normalizedInput.currentStateText
+    ),
     controlPlaneRecordsTaskbookAuthority: controlPlaneRecordsTaskbookAuthority(
-      input.governanceControlPlaneText
+      normalizedInput.governanceControlPlaneText
     ),
     governanceReadmeListsTaskbooks: governanceReadmeListsTaskbooks(
-      input.governanceReadmeText
+      normalizedInput.governanceReadmeText
     ),
-    governanceRunnerRegistered: input.governanceRunnerText.includes(
+    governanceRunnerRegistered: normalizedInput.governanceRunnerText.includes(
       "agent-executor-adapter-taskbook-boundary"
     ),
     phase15ApprovalsRemainNarrow: phase15ApprovalsRemainNarrow(
-      input.phase15TaskbookText
+      normalizedInput.phase15TaskbookText
     ),
     phase16CandidateApprovalsRemainInactive:
-      phase16CandidateApprovalsRemainInactive(input.phase16AuthorizationTaskbookText),
+      phase16CandidateApprovalsRemainInactive(
+        normalizedInput.phase16AuthorizationTaskbookText
+      ),
     phase16SandboxApprovalRemainsNarrow: phase16SandboxApprovalRemainsNarrow(
-      input.phase16SandboxTaskbookText
+      normalizedInput.phase16SandboxTaskbookText
     ),
-    noBroadExecutionAuthorization: noBroadExecutionAuthorization(input),
+    noBroadExecutionAuthorization: noBroadExecutionAuthorization(normalizedInput),
     outputSanitized: outputSanitized()
   };
   const reasons = collectReasons(checks);
@@ -209,6 +214,30 @@ export function reviewAgentExecutorAdapterTaskbookBoundaryAudit(
     },
     reasons
   };
+}
+
+function normalizeInputLineEndings(
+  input: AgentExecutorAdapterTaskbookBoundaryAuditInput
+): AgentExecutorAdapterTaskbookBoundaryAuditInput {
+  return {
+    phase15TaskbookText: normalizeLineEndings(input.phase15TaskbookText),
+    phase16AuthorizationTaskbookText: normalizeLineEndings(
+      input.phase16AuthorizationTaskbookText
+    ),
+    phase16SandboxTaskbookText: normalizeLineEndings(
+      input.phase16SandboxTaskbookText
+    ),
+    currentStateText: normalizeLineEndings(input.currentStateText),
+    governanceControlPlaneText: normalizeLineEndings(
+      input.governanceControlPlaneText
+    ),
+    governanceReadmeText: normalizeLineEndings(input.governanceReadmeText),
+    governanceRunnerText: normalizeLineEndings(input.governanceRunnerText)
+  };
+}
+
+function normalizeLineEndings(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
 }
 
 export function formatAgentExecutorAdapterTaskbookBoundaryAuditResult(
