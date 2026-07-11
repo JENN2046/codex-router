@@ -325,6 +325,45 @@ test("canonicalization rejects file modes absent from governance evidence", () =
   assert.equal(safeDelete.changes[0]?.kind, "delete");
 });
 
+test("canonicalization counts hunk payloads that resemble diff file headers", () => {
+  const path = "docs/a.md";
+  const changeSet = canonicalizeGovernedFileChangeSet({
+    changeSetId: "header-shaped-hunk-payload",
+    threadId: "thread",
+    turnId: "turn",
+    itemId: "item",
+    baseHead: "head",
+    proposedAt: now,
+    sourceSchemaProfile: "fake-v2",
+    changes: [{
+      path,
+      kind: "update",
+      unifiedDiff: [
+        `diff --git a/${path} b/${path}`,
+        `--- a/${path}`,
+        `+++ b/${path}`,
+        "@@ -1 +1 @@",
+        `--- a/${path}`,
+        `+++ b/${path}`,
+        ""
+      ].join("\n"),
+      beforeHash: sha256(Buffer.from(`-- a/${path}\n`)),
+      afterHash: sha256(Buffer.from(`++ b/${path}\n`))
+    }]
+  });
+
+  assert.equal(changeSet.changes[0]?.addedLines, 1);
+  assert.equal(changeSet.changes[0]?.deletedLines, 1);
+  const facts = safeFacts(changeSet, "feature/safe", "head");
+  const configured = policy(["docs/**"]);
+  configured.autoApprovalRules[0]!.maxDiffLines = 1;
+  assert.ok(
+    evaluateAutoApprovalPolicy(changeSet, facts, configured).reasons.includes(
+      "safe-docs:diff_limit_exceeded"
+    )
+  );
+});
+
 test("hard auto-approval boundaries cannot be relaxed by policy", () => {
   const changeSet = canonicalizeGovernedFileChangeSet({
     changeSetId: "set-hard-boundary",
@@ -933,7 +972,8 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
     "create_exists",
     "before_hash",
     "after_hash",
-    "symlink"
+    "symlink",
+    "materialized_symlink"
   ] as const) {
     const fixture = await createRepositoryFixture();
     let head = fixture.head;
@@ -965,8 +1005,24 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
     } else if (mode === "after_hash") {
       changeSet = updateFixtureChangeSet(head, { afterHash: "0".repeat(64) });
     } else {
-      await symlink("../../missing-private-target.md", join(fixture.repoRoot, "docs/link.md"));
-      await git(["add", "docs/link.md"], fixture.repoRoot);
+      const linkTarget = "../../missing-private-target.md";
+      if (mode === "symlink") {
+        await symlink(linkTarget, join(fixture.repoRoot, "docs/link.md"));
+        await git(["add", "docs/link.md"], fixture.repoRoot);
+      } else {
+        await writeFile(join(fixture.repoRoot, "docs/link.md"), linkTarget, "utf8");
+        const blob = (await git(
+          ["hash-object", "-w", "--", "docs/link.md"],
+          fixture.repoRoot
+        )).trim();
+        await git(["config", "core.symlinks", "false"], fixture.repoRoot);
+        await git([
+          "update-index",
+          "--add",
+          "--cacheinfo",
+          `120000,${blob},docs/link.md`
+        ], fixture.repoRoot);
+      }
       await git(["commit", "-m", "add symlink"], fixture.repoRoot);
       head = (await git(["rev-parse", "HEAD"], fixture.repoRoot)).trim();
       factsHead = head;
@@ -981,8 +1037,10 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
         changes: [{
           path: "docs/link.md",
           kind: "update",
-          unifiedDiff: updateDiff("docs/link.md", "../../missing-private-target.md", "other.md"),
-          beforeHash: sha256(Buffer.from("old\n")),
+          unifiedDiff: updateDiff("docs/link.md", linkTarget, "other.md"),
+          beforeHash: mode === "materialized_symlink"
+            ? sha256(Buffer.from(linkTarget))
+            : sha256(Buffer.from("old\n")),
           afterHash: sha256(Buffer.from("other.md\n"))
         }]
       });
@@ -1002,10 +1060,11 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
       create_exists: "preview_create_target_exists:docs/guide.md",
       before_hash: "preview_before_hash_mismatch:docs/guide.md",
       after_hash: "preview_after_hash_mismatch:docs/guide.md",
-      symlink: "preview_symlink_target_forbidden:docs/link.md"
+      symlink: "preview_symlink_target_forbidden:docs/link.md",
+      materialized_symlink: "preview_symlink_target_forbidden:docs/link.md"
     }[mode];
     assert.ok(receipt.reasons.includes(marker), `${mode}:${receipt.reasons.join(",")}`);
-    if (mode === "symlink") {
+    if (mode === "symlink" || mode === "materialized_symlink") {
       assert.equal(receipt.reasons.includes("preview_before_target_unreadable:docs/link.md"), false);
     }
     await rm(fixture.tempRoot, { recursive: true, force: true });

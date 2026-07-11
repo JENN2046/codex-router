@@ -524,7 +524,11 @@ export class CodexAppServerAdapter {
     event: Extract<CodexAppServerNormalizedEvent, { eventType: "approval_requested" }>
   ): Promise<CodexAdapterOutcome> {
     if (this.approvals.has(event.requestId)) {
-      return this.declineInvalidRequest(event, "duplicate_approval_request_id");
+      await this.quarantineSession("duplicate_approval_request_id");
+      return this.quarantinedOutcome({
+        requestId: event.requestId,
+        itemId: event.itemId
+      });
     }
     const approval: ApprovalRecord = {
       requestId: event.requestId,
@@ -553,7 +557,7 @@ export class CodexAppServerAdapter {
       || this.turn(event.threadId, event.turnId).blocked
       || this.turn(event.threadId, event.turnId).completedItems.has(event.itemId)
     ) {
-      return this.declineInvalidRequest(event, "file_approval_correlation_failed");
+      return this.declineInvalidRequest(event, approval, "file_approval_correlation_failed");
     }
     item.approvalRequestId = event.requestId;
 
@@ -938,18 +942,10 @@ export class CodexAppServerAdapter {
 
   private async declineInvalidRequest(
     event: Extract<CodexAppServerNormalizedEvent, { eventType: "approval_requested" }>,
+    approval: ApprovalRecord,
     reason: string
   ): Promise<CodexAdapterOutcome> {
-    const record = this.approvals.get(event.requestId) ?? {
-      requestId: event.requestId,
-      threadId: event.threadId,
-      turnId: event.turnId,
-      itemId: event.itemId,
-      proposal: event.proposal,
-      resolved: false
-    };
-    this.approvals.set(event.requestId, record);
-    const sent = await this.sendDecision(record, "decline", reason);
+    const sent = await this.sendDecision(approval, "decline", reason);
     return this.outcome(sent ? "blocked" : "reconciliation_required", [reason], {
       requestId: event.requestId,
       itemId: event.itemId

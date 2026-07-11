@@ -326,6 +326,39 @@ export class LocalClonePreviewer implements FileChangePreviewer {
         });
       }
 
+      const sourceTopologyReasons = await collectTargetTopologyReasons(
+        input.repoRoot,
+        changeSet.changes.map((change) => change.path),
+        true
+      );
+      reasons.push(...sourceTopologyReasons);
+      if (sourceTopologyReasons.length > 0) {
+        return blockedReceipt({
+          changeSet,
+          createdAt,
+          isolation,
+          cleanupStatus,
+          reasons
+        });
+      }
+      const trackedModeReasons = await collectTrackedTargetModeReasons(
+        input.repoRoot,
+        sourceBefore.headCommit,
+        changeSet.changes.map((change) => change.path),
+        this.runner,
+        createSanitizedEnv(this.tempRoot)
+      );
+      reasons.push(...trackedModeReasons);
+      if (trackedModeReasons.length > 0) {
+        return blockedReceipt({
+          changeSet,
+          createdAt,
+          isolation,
+          cleanupStatus,
+          reasons
+        });
+      }
+
       cloneRoot = await mkdtemp(join(this.tempRoot, "codex-router-preview-"));
       cleanupStatus = "failed";
       const clonePath = join(cloneRoot, "repo");
@@ -576,8 +609,8 @@ function canonicalizeChange(change: GovernedFileChangeDraft): GovernedFileChange
     ? undefined
     : normalizeAndAssertGovernedPath(change.oldPath);
   const unifiedDiff = normalizeUnifiedDiff(change.unifiedDiff);
-  assertDiffBindsPath(unifiedDiff, path, change.kind, oldPath);
-  const counts = countDiffLines(unifiedDiff);
+  const firstHunkIndex = assertDiffBindsPath(unifiedDiff, path, change.kind, oldPath);
+  const counts = countDiffLines(unifiedDiff, firstHunkIndex);
 
   return {
     path,
@@ -910,6 +943,38 @@ async function collectTargetTopologyReasons(
   return uniqueStrings(reasons);
 }
 
+async function collectTrackedTargetModeReasons(
+  repoRoot: string,
+  headCommit: string,
+  targets: string[],
+  runner: PreviewProcessRunner,
+  env: NodeJS.ProcessEnv
+): Promise<string[]> {
+  const reasons: string[] = [];
+  targetLoop: for (const target of targets) {
+    const parts = target.split("/");
+    for (let index = 0; index < parts.length; index += 1) {
+      const prefix = parts.slice(0, index + 1).join("/");
+      const tree = await runGit(
+        runner,
+        repoRoot,
+        ["ls-tree", "-z", headCommit, "--", `:(top,literal)${prefix}`],
+        env
+      );
+      for (const entry of tree.stdout.split("\0").filter(Boolean)) {
+        const separator = entry.indexOf("\t");
+        const metadata = entry.slice(0, separator);
+        const entryPath = entry.slice(separator + 1);
+        if (entryPath === prefix && metadata.startsWith("120000 ")) {
+          reasons.push(`preview_symlink_target_forbidden:${target}`);
+          continue targetLoop;
+        }
+      }
+    }
+  }
+  return uniqueStrings(reasons);
+}
+
 function factsBindChangeSet(facts: CapabilityFacts, changeSet: GovernedFileChangeSet): boolean {
   const factChanges = facts.fileChanges.map((change) => (
     `${change.kind}\0${change.oldPath ?? ""}\0${change.path}\0${change.addedLines}\0${change.deletedLines}`
@@ -970,7 +1035,7 @@ function assertDiffBindsPath(
   path: string,
   kind: GovernedFileChangeKind,
   oldPath?: string
-): void {
+): number {
   const expectedDiff = `diff --git a/${oldPath ?? path} b/${path}`;
   const expectedOld = kind === "create" ? "--- /dev/null" : `--- a/${oldPath ?? path}`;
   const expectedNew = kind === "delete" ? "+++ /dev/null" : `+++ b/${path}`;
@@ -1006,6 +1071,7 @@ function assertDiffBindsPath(
     throw new Error("governed_change_diff_path_mismatch");
   }
   assertSupportedFileModeHeaders(headerLines, kind);
+  return firstHunkIndex;
 }
 
 function assertSupportedFileModeHeaders(
@@ -1036,14 +1102,17 @@ function normalizeUnifiedDiff(diff: string): string {
   return normalized.endsWith("\n") ? normalized : `${normalized}\n`;
 }
 
-function countDiffLines(diff: string): { addedLines: number; deletedLines: number } {
+function countDiffLines(
+  diff: string,
+  firstHunkIndex: number
+): { addedLines: number; deletedLines: number } {
   let addedLines = 0;
   let deletedLines = 0;
-  for (const line of diff.split("\n")) {
-    if (line.startsWith("+") && !line.startsWith("+++")) {
+  for (const line of diff.split("\n").slice(firstHunkIndex + 1)) {
+    if (line.startsWith("+")) {
       addedLines += 1;
     }
-    if (line.startsWith("-") && !line.startsWith("---")) {
+    if (line.startsWith("-")) {
       deletedLines += 1;
     }
   }
