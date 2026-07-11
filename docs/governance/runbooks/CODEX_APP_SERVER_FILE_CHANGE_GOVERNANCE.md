@@ -116,6 +116,8 @@ interception from configuration alone.
 - command or permission proposal lacks exact operator-visible details;
 - proposal contains
   protected branch, network/external, credential, or release/deploy behavior;
+- canonical diff content contains a credential-like marker, even when supplied
+  capability facts claim `credentialAccess: "none"`;
 - source worktree is dirty, HEAD differs, targets are ambiguous, isolation is
   unsupported/unnamed, a check fails, or cleanup cannot be proven;
 - immediately before acceptance, an update target has hash or topology drift, a

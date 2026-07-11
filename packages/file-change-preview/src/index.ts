@@ -35,6 +35,7 @@ import {
   type PreviewReceipt
 } from "../../kernel-contracts/src/index.js";
 import {
+  containsCredentialLikeDiffContent,
   isSensitiveGovernedPath
 } from "../../authorization-kernel/src/index.js";
 
@@ -711,7 +712,12 @@ function collectHardBoundaryReasons(
   if (facts.networkAccess !== "none") {
     reasons.push("auto_approval_network_forbidden");
   }
-  if (facts.credentialAccess !== "none") {
+  if (
+    facts.credentialAccess !== "none"
+    || changeSet.changes.some((change) => (
+      containsCredentialLikeDiffContent(change.unifiedDiff)
+    ))
+  ) {
     reasons.push("auto_approval_credential_forbidden");
   }
   if (facts.externalTargets.length > 0) {
@@ -1025,13 +1031,20 @@ async function collectTrackedTargetModeReasons(
 }
 
 function factsBindChangeSet(facts: CapabilityFacts, changeSet: GovernedFileChangeSet): boolean {
+  if (facts.subjectId !== changeSet.changeSetId) {
+    return false;
+  }
   const factChanges = facts.fileChanges.map((change) => (
-    `${change.kind}\0${change.oldPath ?? ""}\0${change.path}\0${change.addedLines}\0${change.deletedLines}`
+    `${change.kind}\0${change.oldPath ?? ""}\0${change.path}\0${change.addedLines}\0${change.deletedLines}\0${bindOptionalHash(change.beforeHash)}\0${bindOptionalHash(change.afterHash)}`
   )).sort(compareCodeUnits);
   const proposedChanges = changeSet.changes.map((change) => (
-    `${change.kind}\0${change.oldPath ?? ""}\0${change.path}\0${change.addedLines}\0${change.deletedLines}`
+    `${change.kind}\0${change.oldPath ?? ""}\0${change.path}\0${change.addedLines}\0${change.deletedLines}\0${bindOptionalHash(change.beforeHash)}\0${bindOptionalHash(change.afterHash)}`
   )).sort(compareCodeUnits);
   return sameStringArrays(factChanges, proposedChanges);
+}
+
+function bindOptionalHash(value: string | null | undefined): string {
+  return value === undefined ? "undefined" : value === null ? "null" : `sha256:${value}`;
 }
 
 function normalizeAndAssertGovernedPath(input: string): string {

@@ -118,12 +118,18 @@ operations under a matching `autoApprovalRules` entry. Hard boundaries reject
 delete, rename, command, permission, sensitive/env paths, protected branches,
 dirty worktrees, HEAD mismatch, network, credentials, external targets,
 release/deploy, ambiguous targets, and unknown facts regardless of policy.
+The public policy evaluator re-derives recognized credential-like signals from
+canonical diff content using NFKC and separator-insensitive token matching, so
+a caller-supplied or stale `credentialAccess: "none"` fact cannot suppress
+that hard-boundary signal. This conservative marker gate is not represented as
+a complete secret scanner; positive signals always fall back to human review.
 Every create/update must declare an exact expected after-hash; updates must also
 declare their before-hash. The public policy evaluator re-canonicalizes the
 entire change set before matching a rule, so unsafe cross-platform characters,
 ill-formed Unicode, path aliases, duplicate targets, non-canonical order, diff
 binding drift, and canonical-hash drift cannot be made eligible by a broad path
-rule.
+rule. Supplied capability facts must also bind the change-set ID and every
+operation, path, line count, before-hash, and after-hash.
 
 `LocalClonePreviewer` does not trust caller-provided isolation strings. A
 previewer and process runner must be registered inside the module and bound to
@@ -211,6 +217,6 @@ exact operator authorization and are not implied by fake acceptance.
 
 `npm run test:governance-coverage` enforces at least 90% branch coverage for
 authorization, preview, and retain/permit/rollback. Current local results are
-96.84%, 91.98%, and 91.05% respectively. Remote matrix CI evidence is not yet
+96.84%, 92.17%, and 91.05% respectively. Remote matrix CI evidence is not yet
 available from this uncommitted worktree. `npm run test:governance-properties`
 runs deterministic seeded path, permit-replay, and event-order properties.

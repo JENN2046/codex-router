@@ -464,6 +464,86 @@ test("sensitive capability facts block auto-approval for otherwise safe targets"
   assert.ok(result.reasons.includes("auto_approval_sensitive_path_forbidden"));
 });
 
+test("policy re-derives normalized credential signals from proposed diff content", () => {
+  for (const [label, content] of [
+    ["snake assignment", "OPENAI_API_KEY=example-placeholder\n"],
+    ["spaced assignment", "API_KEY = example-placeholder\n"],
+    ["private key assignment", "PRIVATE_KEY = example-placeholder\n"],
+    ["yaml key", "api_key: example-placeholder\n"],
+    ["camel case variable", "const apiKey = 'example-placeholder';\n"],
+    ["bearer header", "Authorization:\tBearer example-placeholder\n"],
+    ["quoted bearer header", "Authorization: \"Bearer example-placeholder\"\n"],
+    ["kebab case key", "openai-api-key = example-placeholder\n"],
+    ["compatibility characters", "ＡＰＩ＿ＫＥＹ = example-placeholder\n"],
+    ["prefixed snake key", "MY_API_KEY = example-placeholder\n"],
+    ["prefixed camel key", "const myApiKey = 'example-placeholder';\n"],
+    ["rsa private key", "-----BEGIN RSA PRIVATE KEY-----\n"],
+    ["encrypted private key", "-----BEGIN ENCRYPTED PRIVATE KEY-----\n"]
+  ] as const) {
+    const credentialSet = canonicalizeGovernedFileChangeSet({
+      ...changeSetDraftIdentity(`credential-content-${label.replaceAll(" ", "-")}`),
+      changes: [createChange("docs/example.md", content)]
+    });
+    const derivedFacts = safeFacts(credentialSet, "feature/safe", "head");
+    assert.equal(derivedFacts.credentialAccess, "requested", label);
+    const forgedFacts = {
+      ...derivedFacts,
+      credentialAccess: "none" as const
+    };
+
+    const result = evaluateAutoApprovalPolicy(
+      credentialSet,
+      forgedFacts,
+      policy(["docs/**"])
+    );
+
+    assert.equal(result.eligible, false, label);
+    assert.ok(
+      result.reasons.includes("auto_approval_credential_forbidden"),
+      `${label}:${result.reasons.join(",")}`
+    );
+  }
+});
+
+test("policy binds capability facts to change-set identity and hashes", () => {
+  const changeSet = canonicalizeGovernedFileChangeSet({
+    ...changeSetDraftIdentity("facts-binding"),
+    changes: [createChange("docs/example.md", "safe\n")]
+  });
+  const facts = safeFacts(changeSet, "feature/safe", "head");
+  const cases = [
+    {
+      label: "subject id",
+      facts: { ...facts, subjectId: "another-change-set" }
+    },
+    {
+      label: "after hash",
+      facts: {
+        ...facts,
+        fileChanges: facts.fileChanges.map((change) => ({
+          ...change,
+          afterHash: "0".repeat(64)
+        }))
+      }
+    },
+    {
+      label: "before hash",
+      facts: {
+        ...facts,
+        fileChanges: facts.fileChanges.map((change) => ({
+          ...change,
+          beforeHash: "0".repeat(64)
+        }))
+      }
+    }
+  ];
+  for (const entry of cases) {
+    const result = evaluateAutoApprovalPolicy(changeSet, entry.facts, policy(["docs/**"]));
+    assert.equal(result.eligible, false, entry.label);
+    assert.ok(result.reasons.includes("auto_approval_facts_change_set_mismatch"));
+  }
+});
+
 test("policy evaluation revalidates caller-supplied change-set paths", () => {
   const safeSet = canonicalizeGovernedFileChangeSet({
     changeSetId: "set-forged-path",

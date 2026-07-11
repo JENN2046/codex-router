@@ -134,17 +134,13 @@ const SENSITIVE_PATH_COMPONENTS = new Set([
 const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 const UNSAFE_GOVERNED_PATH_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*]/;
 
-const SENSITIVE_DIFF_MARKERS = [
-  "-----begin private key-----",
-  "-----begin openssh private key-----",
-  "aws_secret_access_key",
-  "github_token",
-  "npm_token",
-  "openai_api_key",
-  "private_key=",
-  "secret_access_key",
-  "api_key=",
-  "authorization: bearer "
+const CREDENTIAL_LIKE_COMPACT_FRAGMENTS = [
+  "apikey",
+  "privatekey",
+  "secretaccesskey",
+  "githubtoken",
+  "npmtoken",
+  "authorizationbearer"
 ];
 
 export interface CapabilityFactsInput {
@@ -226,7 +222,7 @@ export function deriveCapabilityFactsFromChangeSet(
   }
 ): CapabilityFacts {
   const diffSignalsCredentialMaterial = changeSet.changes.some((change) => (
-    containsSensitiveDiffSignal(change.unifiedDiff)
+    containsCredentialLikeDiffContent(change.unifiedDiff)
   ));
   const credentialAccess = diffSignalsCredentialMaterial
     ? "requested" as const
@@ -504,9 +500,11 @@ function deriveSensitivePathsFromFileChanges(
   );
 }
 
-function containsSensitiveDiffSignal(diff: string): boolean {
+/** Internal hard-boundary signal shared by authorization and preview policy. */
+export function containsCredentialLikeDiffContent(diff: string): boolean {
   const normalized = diff.normalize("NFKC").toLocaleLowerCase("en-US");
-  return SENSITIVE_DIFF_MARKERS.some((marker) => normalized.includes(marker));
+  const compact = normalized.replace(/[^a-z0-9]/gu, "");
+  return CREDENTIAL_LIKE_COMPACT_FRAGMENTS.some((fragment) => compact.includes(fragment));
 }
 
 function isPolicyAutoCandidate(
