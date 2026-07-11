@@ -635,7 +635,10 @@ function collectHardBoundaryReasons(
   if (changeSet.changes.some((change) => change.kind === "rename")) {
     reasons.push("auto_approval_rename_forbidden");
   }
-  if (changeSet.changes.some((change) => isSensitiveGovernedPath(change.path))) {
+  if (
+    changeSet.changes.some((change) => isSensitiveGovernedPath(change.path))
+    || facts.sensitivePaths.length > 0
+  ) {
     reasons.push("auto_approval_sensitive_path_forbidden");
   }
   if (changeSet.changes.some((change) => (

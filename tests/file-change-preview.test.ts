@@ -409,6 +409,28 @@ test("hard auto-approval boundaries cannot be relaxed by policy", () => {
   }
 });
 
+test("sensitive capability facts block auto-approval for otherwise safe targets", () => {
+  const changeSet = canonicalizeGovernedFileChangeSet({
+    changeSetId: "set-sensitive-facts",
+    threadId: "thread",
+    turnId: "turn",
+    itemId: "item",
+    baseHead: "head",
+    proposedAt: now,
+    sourceSchemaProfile: "fake-v2",
+    changes: [createChange("docs/new.md", "safe\n")]
+  });
+  const facts = {
+    ...safeFacts(changeSet, "feature/safe", "head"),
+    sensitivePaths: ["config/operator.key"]
+  };
+
+  const result = evaluateAutoApprovalPolicy(changeSet, facts, policy(["docs/**"]));
+
+  assert.equal(result.eligible, false);
+  assert.ok(result.reasons.includes("auto_approval_sensitive_path_forbidden"));
+});
+
 test("delete, rename, missing hashes, and ambiguous facts never auto-approve", () => {
   const deleteSet = canonicalizeGovernedFileChangeSet({
     changeSetId: "delete-set",

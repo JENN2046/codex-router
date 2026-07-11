@@ -467,6 +467,42 @@ test("duplicate item starts reconcile an already accepted journal", async () => 
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
+test("canonicalization failures reconcile an already accepted journal", async () => {
+  const fixture = await createAdapterFixture();
+  const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+
+  await fixture.adapter.ingest(events[0]);
+  assert.equal((await fixture.adapter.ingest(events[1])).status, "accepted");
+  assert.equal((await fixture.journal.list())[0]?.state, "accepted");
+  assert.equal(fixture.transport.messages.length, 1);
+
+  const malformed = await fixture.adapter.ingest({
+    ...(events[0] as Record<string, unknown>),
+    eventId: "event-item-started-malformed",
+    sequence: 3,
+    item: {
+      ...((events[0] as { item: Record<string, unknown> }).item),
+      itemId: "item-malformed",
+      changes: [{
+        path: "../outside.md",
+        kind: "create",
+        unifiedDiff: "diff --git a/../outside.md b/../outside.md\n--- /dev/null\n+++ b/../outside.md\n@@ -0,0 +1 @@\n+unsafe\n",
+        afterHash: sha256(Buffer.from("unsafe\n"))
+      }]
+    }
+  });
+
+  assert.equal(malformed.status, "reconciliation_required");
+  assert.deepEqual(malformed.reasons, ["file_change_canonicalization_failed"]);
+  assert.equal(
+    fixture.adapter.getItemSnapshot("thread-1", "turn-1", "item-1")?.state,
+    "reconciliation_required"
+  );
+  assert.equal((await fixture.journal.list())[0]?.state, "reconciliation_required");
+  assert.equal(fixture.transport.messages.length, 1);
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
 test("duplicate approval request ids quarantine without consuming pending approval", async () => {
   const fixture = await createAdapterFixture();
   const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);

@@ -585,10 +585,12 @@ export class CodexAppServerAdapter {
         lifecycleState: "proposed"
       });
     } catch {
-      const turn = this.turn(event.threadId, event.turnId);
-      turn.blocked = true;
-      turn.blockedReason ??= "file_change_canonicalization_failed";
-      return this.outcome("blocked", ["file_change_canonicalization_failed"], {
+      await this.markTurnForReconciliation(
+        event.threadId,
+        event.turnId,
+        "file_change_canonicalization_failed"
+      );
+      return this.outcome("reconciliation_required", ["file_change_canonicalization_failed"], {
         itemId: event.item.itemId
       });
     }
