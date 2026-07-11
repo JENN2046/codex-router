@@ -34,14 +34,14 @@ export async function testPackageConsumer(
   let stage = "pack";
 
   try {
-    const npm = process.platform === "win32" ? "npm.cmd" : "npm";
     const npmEnv = createNpmEnv(join(tempRoot, "npm-cache"));
-    await execFileAsync(npm, [
+    const pack = resolveNpmInvocation([
       "pack",
       "--json",
       "--pack-destination",
       tempRoot
-    ], {
+    ]);
+    await execFileAsync(pack.command, pack.argv, {
       cwd: repoRoot,
       encoding: "utf8",
       env: npmEnv,
@@ -66,7 +66,7 @@ export async function testPackageConsumer(
       private: true,
       type: "module"
     }, null, 2)}\n`, "utf8");
-    await execFileAsync(npm, [
+    const install = resolveNpmInvocation([
       "install",
       "--offline",
       "--ignore-scripts",
@@ -76,7 +76,8 @@ export async function testPackageConsumer(
       tarball,
       resolve(repoRoot, "node_modules/zod"),
       resolve(repoRoot, "node_modules/yaml")
-    ], {
+    ]);
+    await execFileAsync(install.command, install.argv, {
       cwd: consumerRoot,
       encoding: "utf8",
       env: npmEnv,
@@ -199,6 +200,28 @@ function createNpmEnv(cacheDir: string): NodeJS.ProcessEnv {
     }
   }
   return env;
+}
+
+export function resolveNpmInvocation(
+  argv: string[],
+  options: {
+    platform?: NodeJS.Platform;
+    npmExecPath?: string;
+    nodeExecutable?: string;
+  } = {}
+): { command: string; argv: string[] } {
+  const platform = options.platform ?? process.platform;
+  if (platform !== "win32") {
+    return { command: "npm", argv: [...argv] };
+  }
+  const npmExecPath = (options.npmExecPath ?? process.env.npm_execpath)?.trim();
+  if (!npmExecPath) {
+    throw new Error("package_consumer_npm_execpath_missing");
+  }
+  return {
+    command: options.nodeExecutable ?? process.execPath,
+    argv: [npmExecPath, ...argv]
+  };
 }
 
 async function main(): Promise<void> {
