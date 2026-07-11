@@ -244,6 +244,41 @@ test("safe structured create or update is only conditionally policy-auto eligibl
   assert.deepEqual(decision.authorizedCapabilities, [writeScope]);
 });
 
+test("protected branch names override a false caller protection hint", () => {
+  for (const branch of [
+    undefined,
+    "main",
+    "MASTER",
+    "release/candidate",
+    "production/hotfix",
+    " main"
+  ]) {
+    const facts = deriveFacts({ kind: "update", path: "docs/guide.md" }, {
+      repository: {
+        ...(branch === undefined ? {} : { branch }),
+        protectedBranch: false,
+        worktreeClean: true,
+        headCommit: head,
+        expectedHead: head
+      }
+    });
+    const decision = authorizeCapabilityFacts({
+      surface: "codex_app_server",
+      facts,
+      semanticRisk: "low",
+      requestedCapabilities: [writeScope],
+      capabilityCeiling: [writeCeiling],
+      createdAt: now
+    });
+
+    assert.equal(decision.factualRisk, "high", branch);
+    assert.equal(decision.effectiveRisk, "high", branch);
+    assert.equal(decision.approvalMode, "human_required", branch);
+    assert.equal(decision.disposition, "approval_required", branch);
+    assert.ok(decision.reasons.includes("facts:protected_branch"), branch);
+  }
+});
+
 test("read-only facts can be authorized without approval", () => {
   const facts = deriveCapabilityFacts({
     subjectId: "read-only-facts",

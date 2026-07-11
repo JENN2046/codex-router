@@ -23,6 +23,14 @@ const RISK_RANK: Record<GovernanceRiskLevel, number> = {
   critical: 3
 };
 
+const PROTECTED_BRANCHES = new Set([
+  "main",
+  "master",
+  "production",
+  "release",
+  "prod/stable"
+]);
+
 const CRITICAL_SEMANTIC_MARKERS = [
   "deploy",
   "deployment",
@@ -399,7 +407,10 @@ export function scoreCapabilityFactsRisk(
   if (facts.permissionRequests.length > 0) {
     raise("high", "facts:permission");
   }
-  if (facts.repository.protectedBranch) {
+  if (
+    facts.repository.protectedBranch
+    || isProtectedBranchName(facts.repository.branch)
+  ) {
     raise("high", "facts:protected_branch");
   }
   if (!facts.repository.worktreeClean) {
@@ -478,6 +489,7 @@ function isPolicyAutoCandidate(
     && facts.commands.length === 0
     && facts.permissionRequests.length === 0
     && !facts.repository.protectedBranch
+    && !isProtectedBranchName(facts.repository.branch)
     && facts.repository.worktreeClean
     && facts.repository.headCommit !== undefined
     && facts.repository.headCommit === facts.repository.expectedHead
@@ -493,6 +505,16 @@ function isPolicyAutoCandidate(
 
 function normalizeGovernedPath(path: string): string {
   return pathPosix.normalize(path.replace(/\\/g, "/"));
+}
+
+function isProtectedBranchName(branch?: string): boolean {
+  if (branch === undefined || branch.trim() !== branch) {
+    return true;
+  }
+  const normalized = branch.toLocaleLowerCase("en-US");
+  return PROTECTED_BRANCHES.has(normalized)
+    || normalized.startsWith("release/")
+    || normalized.startsWith("production/");
 }
 
 function hasUnsafeGovernedPath(change: CapabilityFactFileChange): boolean {
