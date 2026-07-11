@@ -166,9 +166,20 @@ export function hashGovernedFileChangeSetContent(input: {
   });
 }
 
-export const CapabilityFactFileChangeSchema = GovernedFileChangeFieldsSchema.omit({
-  unifiedDiff: true
-}).superRefine(refineGovernedFileChangeSemantics);
+export type CapabilityFactFileChange = {
+  path: string;
+  kind: "create" | "update" | "delete" | "rename";
+  oldPath?: string | undefined;
+  beforeHash?: string | null | undefined;
+  afterHash?: string | null | undefined;
+  addedLines: number;
+  deletedLines: number;
+};
+
+export const CapabilityFactFileChangeSchema: z.ZodType<CapabilityFactFileChange> =
+  GovernedFileChangeFieldsSchema.omit({
+    unifiedDiff: true
+  }).superRefine(refineGovernedFileChangeSemantics);
 
 export const CapabilityFactCommandSchema = z.object({
   argv: NonEmptyArgvSchema,
@@ -426,7 +437,6 @@ export type AuthorizationDisposition = z.infer<typeof AuthorizationDispositionSc
 export type GovernedFileChangeKind = z.infer<typeof GovernedFileChangeKindSchema>;
 export type GovernedFileChange = z.infer<typeof GovernedFileChangeSchema>;
 export type GovernedFileChangeSet = z.infer<typeof GovernedFileChangeSetSchema>;
-export type CapabilityFactFileChange = z.infer<typeof CapabilityFactFileChangeSchema>;
 export type CapabilityFactCommand = z.infer<typeof CapabilityFactCommandSchema>;
 export type CapabilityFacts = z.infer<typeof CapabilityFactsSchema>;
 export type AuthorizationDecision = z.infer<typeof AuthorizationDecisionSchema>;
