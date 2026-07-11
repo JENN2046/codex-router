@@ -48,7 +48,7 @@ test("fake App Server flow previews, journals, accepts, and retains without a pa
   assert.equal(proposed.lifecycleState, "proposed");
 
   const accepted = await fixture.adapter.ingest(events[1]);
-  assert.equal(accepted.status, "accepted");
+  assert.equal(accepted.status, "accepted", accepted.reasons.join(","));
   assert.equal(accepted.lifecycleState, "accepted_by_app_server");
   assert.equal(accepted.authorizationDecision?.approvalMode, "policy_auto");
   assert.equal(accepted.previewReceipt?.status, "preview_passed");

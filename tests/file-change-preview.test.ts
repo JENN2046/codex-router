@@ -1660,7 +1660,9 @@ test("spawn preview process runner reports pass, failure, timeout, and spawn err
 });
 
 test("preview fails closed on non-UTF-8 tracked path inventory", {
-  skip: process.platform === "win32" ? "Windows filenames are Unicode" : false
+  skip: process.platform === "win32" || process.platform === "darwin"
+    ? "This platform cannot create arbitrary byte filenames through Node"
+    : false
 }, async () => {
   const fixture = await createRepositoryFixture();
   try {

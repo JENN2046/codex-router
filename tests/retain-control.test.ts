@@ -882,7 +882,9 @@ test("retain checks untracked create targets for active configured filters", asy
 });
 
 test("retain fails closed on a non-UTF-8 tracked path inventory", {
-  skip: process.platform === "win32" ? "Windows filenames are Unicode" : false
+  skip: process.platform === "win32" || process.platform === "darwin"
+    ? "This platform cannot create arbitrary byte filenames through Node"
+    : false
 }, async () => {
   const fixture = await createRetainFixture();
   try {

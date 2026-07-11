@@ -941,13 +941,18 @@ async function collectAcceptanceGitControlSourceReasons(
           `${env.HOMEDRIVE?.trim() ?? ""}${env.HOMEPATH?.trim() ?? ""}`
         ].filter((value) => value !== "")
       : [];
-    const distinctFallbackHomes = [...new Set(fallbackHomes.map((value) => (
-      value.toLocaleLowerCase("en-US")
-    )))];
-    if (configuredHome === "" && distinctFallbackHomes.length !== 1) {
+    const fallbackHomesAreAbsolute = fallbackHomes.every((value) => isAbsolute(value));
+    const distinctFallbackHomes = [...new Map(fallbackHomes.map((value) => {
+      const resolved = resolve(value);
+      return [resolved.toLocaleLowerCase("en-US"), resolved] as const;
+    })).values()];
+    if (
+      configuredHome === ""
+      && (!fallbackHomesAreAbsolute || distinctFallbackHomes.length !== 1)
+    ) {
       return ["accept_git_control_source_inspection_failed"];
     }
-    const home = configuredHome === "" ? fallbackHomes[0]! : configuredHome;
+    const home = configuredHome === "" ? distinctFallbackHomes[0]! : configuredHome;
     const xdgConfigHome = env.XDG_CONFIG_HOME;
     if (
       !isAbsolute(home)
