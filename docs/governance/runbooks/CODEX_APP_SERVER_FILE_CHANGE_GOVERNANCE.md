@@ -3,7 +3,7 @@ title: Runbook: Codex App Server File-change Governance
 status: active
 owner: governance
 created: 2026-07-11
-last_verified: 2026-07-11
+last_verified: 2026-07-12
 verified_by:
   - node --import tsx --test tests/codex-app-server-adapter.test.ts
   - node --import tsx --test tests/retain-control.test.ts
@@ -74,14 +74,19 @@ write command without new operator authorization for that exact command.
    exact argv, and an in-module trust binding. Confirm the default spawn runner,
    forged caller claims, and test-to-live scope promotion all fail closed.
 7. Confirm the pending journal reaches durable storage before an accept response.
-8. Let the fake transport apply the change only in its disposable source repo.
-9. Ingest resolution and completion, then verify exact retain hashes and no
+8. Immediately before accept dispatch, confirm each existing source target is a
+   regular single-link file, every update still matches its declared
+   `beforeHash`, and every create target is still absent. On drift, confirm the
+   journal becomes `blocked` before a decline is sent; topology failures must
+   not read target content.
+9. Let the fake transport apply the change only in its disposable source repo.
+10. Ingest resolution and completion, then verify exact retain hashes and no
    outside changes.
-10. Exercise disconnect, event gap/replay, schema drift, failed preview, drift,
+11. Exercise disconnect, event gap/replay, schema drift, failed preview, drift,
     restart with an unresolved journal, concurrent resolution/operator input,
     and rollback conflict/race cases; each must fail closed and a quarantined
     session must never resume acceptance.
-11. Run the blank-consumer test to verify only the five public subpaths resolve.
+12. Run the blank-consumer test to verify only the five public subpaths resolve.
 
 For a live candidate, stop after reviewing the attestation unless the exact
 schema-generation and smoke commands are separately authorized. Never infer
@@ -113,6 +118,9 @@ interception from configuration alone.
   protected branch, network/external, credential, or release/deploy behavior;
 - source worktree is dirty, HEAD differs, targets are ambiguous, isolation is
   unsupported/unnamed, a check fails, or cleanup cannot be proven;
+- immediately before acceptance, an update target has hash or topology drift, a
+  create target exists, or an existing final target is not a regular single-link
+  file;
 - post-state is partial, outside-target, drifted, or unknown;
 - live execution lacks exact operator authorization.
 
@@ -146,6 +154,8 @@ participate.
 - Restart with unresolved journal state: quarantine and hand the sanitized
   journal target hashes to explicit reconciliation; do not infer apply outcome.
 - Unknown or partial completion: preserve hashes and reason codes, then stop.
+- Accept-adjacent source drift: persist `blocked`, decline the request, and
+  require a new proposal; do not reuse the reviewed or previewed decision.
 - Any attempt to use the default spawn runner or a caller-forged isolation claim:
   block before repository inspection or policy command execution.
 - Unsafe evidence: remove raw material and retain only approved hashes/statuses.

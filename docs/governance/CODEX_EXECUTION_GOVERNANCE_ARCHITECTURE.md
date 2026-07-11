@@ -3,7 +3,7 @@ title: Policy-based Codex Execution Governance Architecture
 status: active
 owner: governance
 created: 2026-07-11
-last_verified: 2026-07-11
+last_verified: 2026-07-12
 verified_by:
   - npm run typecheck
   - targeted governance tests
@@ -73,9 +73,12 @@ The adapter correlates `(threadId, turnId, itemId)` separately from
 canonicalizes it, and binds the later approval request to that hash. Event IDs
 and per-turn sequences are single-use and contiguous. Schema drift, missing or
 late correlation, replay, gaps, unknown completion, or disconnect fails closed.
-Inbound events and operator decisions share one adapter-local serial queue, and
-an accept response rechecks request, turn, and session state immediately before
-transport dispatch.
+Inbound events and operator decisions share one adapter-local serial queue. An
+accept response rechecks request, turn, session state, source-target topology,
+and every declared update `beforeHash` immediately before transport dispatch.
+An existing final target must be a regular single-link file; a topology failure
+returns before reading target content. Source-target drift first transitions the
+pending journal to `blocked`, then sends only a decline response.
 Replay, schema/profile drift, and disconnect irreversibly quarantine the
 adapter session; later events and operator accepts require a new adapter
 instance and a new attestation.
@@ -153,6 +156,12 @@ caller-supplied object cannot bypass single-use enforcement. Rollback invokes
 the module-private consumption closure captured at registration, not an
 overridable public instance method.
 
+The accept-adjacent source-target recheck narrows the race window but is not a
+cross-process filesystem transaction. A non-cooperating editor can still mutate
+a target between the final `lstat`/hash read and App Server application, so live
+operators must quiesce external writers and retain verification remains
+mandatory after an `applied` completion.
+
 The file journal uses a lock plus file fsync, rename, and directory fsync.
 Directory fsync is an explicit unsupported live durability gate on Windows in
 this beta; deterministic Windows tests use a documented non-live mode instead
@@ -202,6 +211,6 @@ exact operator authorization and are not implied by fake acceptance.
 
 `npm run test:governance-coverage` enforces at least 90% branch coverage for
 authorization, preview, and retain/permit/rollback. Current local results are
-96.83%, 91.12%, and 90.29% respectively. Remote matrix CI evidence is not yet
+96.84%, 91.98%, and 91.05% respectively. Remote matrix CI evidence is not yet
 available from this uncommitted worktree. `npm run test:governance-properties`
 runs deterministic seeded path, permit-replay, and event-order properties.

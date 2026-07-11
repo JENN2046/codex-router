@@ -157,6 +157,32 @@ export function getTrustedPreviewerAttestation(
   return attestation === undefined ? undefined : { ...attestation };
 }
 
+/** Internal source-workspace guard used immediately before an approval response. */
+export async function revalidateSourceTargetsBeforeAcceptance(input: {
+  repoRoot: string;
+  changeSet: GovernedFileChangeSet;
+}): Promise<string[]> {
+  const parsed = GovernedFileChangeSetSchema.safeParse(input.changeSet);
+  if (!parsed.success) {
+    return ["accept_change_set_invalid"];
+  }
+  const changeSet = parsed.data;
+  try {
+    const topologyReasons = await collectTargetTopologyReasons(
+      input.repoRoot,
+      changeSet.changes.map((change) => change.path),
+      true
+    );
+    if (topologyReasons.length > 0) {
+      return topologyReasons.map(toAcceptancePreflightReason);
+    }
+    return (await verifyBeforeHashes(input.repoRoot, changeSet))
+      .map(toAcceptancePreflightReason);
+  } catch {
+    return ["accept_source_target_preflight_failed"];
+  }
+}
+
 export function canonicalizeGovernedFileChangeSet(
   draft: GovernedFileChangeSetDraft
 ): GovernedFileChangeSet {
@@ -868,6 +894,12 @@ async function verifyBeforeHashes(
   return uniqueStrings(reasons);
 }
 
+function toAcceptancePreflightReason(reason: string): string {
+  return reason.startsWith("preview_")
+    ? `accept_${reason.slice("preview_".length)}`
+    : `accept_${reason}`;
+}
+
 async function readTargetHashes(
   clonePath: string,
   changeSet: GovernedFileChangeSet
@@ -930,6 +962,10 @@ async function collectTargetTopologyReasons(
         }
         if (final && stats.isDirectory()) {
           reasons.push(`preview_directory_target_forbidden:${target}`);
+          break;
+        }
+        if (final && !stats.isFile()) {
+          reasons.push(`preview_non_regular_target_forbidden:${target}`);
           break;
         }
         if (stats.isFile() && stats.nlink > 1) {

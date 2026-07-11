@@ -25,6 +25,7 @@ import {
   canonicalizeGovernedFileChangeSet,
   getTrustedPreviewerAttestation,
   PreviewIsolationAttestationSchema,
+  revalidateSourceTargetsBeforeAcceptance,
   type FileChangePreviewer,
   type GovernedFileChangeDraft,
   type PreviewIsolationAttestation
@@ -1055,6 +1056,53 @@ export class CodexAppServerAdapter {
         requestId: input.approval.requestId,
         itemId: input.item.itemId,
         lifecycleState: input.item.state
+      });
+    }
+    const acceptPreflightReasons = input.item.repoRoot === undefined
+      ? ["accept_source_context_missing"]
+      : await revalidateSourceTargetsBeforeAcceptance({
+        repoRoot: input.item.repoRoot,
+        changeSet: input.item.changeSet
+      });
+    if (acceptPreflightReasons.length > 0) {
+      const reasons = uniqueStrings([
+        "accept_source_target_preflight_failed",
+        ...acceptPreflightReasons
+      ]);
+      try {
+        await this.updateJournalState(input.item, "blocked", ...reasons);
+      } catch {
+        await this.markItemReconciliation(
+          input.item,
+          ...reasons,
+          "accept_preflight_journal_update_failed"
+        );
+        return this.outcome("reconciliation_required", [
+          ...reasons,
+          "accept_preflight_journal_update_failed"
+        ], {
+          requestId: input.approval.requestId,
+          itemId: input.item.itemId,
+          lifecycleState: input.item.state,
+          authorizationDecision: input.authorization,
+          ...(input.preview === undefined ? {} : { previewReceipt: input.preview })
+        });
+      }
+      const delivery = await this.declineFileItem(
+        input.approval,
+        input.item,
+        "accept_source_target_preflight_failed"
+      );
+      const sent = delivery === "sent";
+      return this.outcome(sent ? "blocked" : "reconciliation_required", [
+        ...reasons,
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
+        requestId: input.approval.requestId,
+        itemId: input.item.itemId,
+        lifecycleState: input.item.state,
+        authorizationDecision: input.authorization,
+        ...(input.preview === undefined ? {} : { previewReceipt: input.preview })
       });
     }
     const delivery = await this.sendDecision(input.approval, "accept", input.reasonCode);
