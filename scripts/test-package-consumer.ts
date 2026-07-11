@@ -12,6 +12,7 @@ const execFileAsync = promisify(execFile);
 export interface PackageConsumerTestResult {
   status: "passed" | "failed";
   checks: {
+    packageBuilt: boolean;
     packageCreated: boolean;
     blankConsumerInstalled: boolean;
     publicSubpathsTypechecked: boolean;
@@ -20,32 +21,66 @@ export interface PackageConsumerTestResult {
   reasons: string[];
 }
 
+export interface PackageConsumerCommandInput {
+  command: string;
+  argv: string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  maxBuffer: number;
+}
+
+export interface PackageConsumerTestOptions {
+  runCommand?: (input: PackageConsumerCommandInput) => Promise<void>;
+  npmInvocation?: {
+    platform?: NodeJS.Platform;
+    npmExecPath?: string;
+    nodeExecutable?: string;
+  };
+}
+
 export async function testPackageConsumer(
-  repoRoot = process.cwd()
+  repoRoot = process.cwd(),
+  options: PackageConsumerTestOptions = {}
 ): Promise<PackageConsumerTestResult> {
   const tempRoot = await mkdtemp(join(tmpdir(), "codex-router-package-consumer-"));
+  const runCommand = options.runCommand ?? runPackageConsumerCommand;
+  const npmInvocation = (argv: string[]): { command: string; argv: string[] } => (
+    resolveNpmInvocation(argv, options.npmInvocation)
+  );
   const checks: PackageConsumerTestResult["checks"] = {
+    packageBuilt: false,
     packageCreated: false,
     blankConsumerInstalled: false,
     publicSubpathsTypechecked: false,
     bareRootImportBlocked: false
   };
   const reasons: string[] = [];
-  let stage = "pack";
+  let stage = "build";
 
   try {
     const npmEnv = createNpmEnv(join(tempRoot, "npm-cache"));
-    const pack = resolveNpmInvocation([
+    const build = npmInvocation(["run", "build"]);
+    await runCommand({
+      command: build.command,
+      argv: build.argv,
+      cwd: repoRoot,
+      env: npmEnv,
+      maxBuffer: 20 * 1024 * 1024
+    });
+    checks.packageBuilt = true;
+
+    stage = "pack";
+    const pack = npmInvocation([
       "pack",
       "--json",
       "--pack-destination",
       tempRoot
     ]);
-    await execFileAsync(pack.command, pack.argv, {
+    await runCommand({
+      command: pack.command,
+      argv: pack.argv,
       cwd: repoRoot,
-      encoding: "utf8",
       env: npmEnv,
-      windowsHide: true,
       maxBuffer: 10 * 1024 * 1024
     });
     const filename = (await readdir(tempRoot))
@@ -66,7 +101,7 @@ export async function testPackageConsumer(
       private: true,
       type: "module"
     }, null, 2)}\n`, "utf8");
-    const install = resolveNpmInvocation([
+    const install = npmInvocation([
       "install",
       "--offline",
       "--ignore-scripts",
@@ -77,11 +112,11 @@ export async function testPackageConsumer(
       resolve(repoRoot, "node_modules/zod"),
       resolve(repoRoot, "node_modules/yaml")
     ]);
-    await execFileAsync(install.command, install.argv, {
+    await runCommand({
+      command: install.command,
+      argv: install.argv,
       cwd: consumerRoot,
-      encoding: "utf8",
       env: npmEnv,
-      windowsHide: true,
       maxBuffer: 20 * 1024 * 1024
     });
     checks.blankConsumerInstalled = true;
@@ -159,6 +194,18 @@ void ProviderManifestSchema;
     checks,
     reasons: [...new Set(reasons)].sort()
   };
+}
+
+async function runPackageConsumerCommand(
+  input: PackageConsumerCommandInput
+): Promise<void> {
+  await execFileAsync(input.command, input.argv, {
+    cwd: input.cwd,
+    encoding: "utf8",
+    env: input.env,
+    windowsHide: true,
+    maxBuffer: input.maxBuffer
+  });
 }
 
 function collectProcessErrorOutput(error: unknown): string {

@@ -82,6 +82,9 @@ npm run test:governance-properties
 npm run docs:governance
 ```
 
+`npm run test:package-consumer` is self-contained after `npm ci`: it runs the
+repository build before packing and typechecking the blank consumer.
+
 The coverage gate requires at least 90% branch coverage independently for
 authorization, preview, and retain/permit/rollback. CI is configured for Node
 20/22 and Linux/Windows/macOS acceptance, with the coverage gate on Node 22.

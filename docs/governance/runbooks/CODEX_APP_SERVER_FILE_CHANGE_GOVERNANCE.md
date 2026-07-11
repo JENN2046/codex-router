@@ -56,6 +56,9 @@ npm run build
 npm run test:package-consumer
 ```
 
+The package-consumer command runs `npm run build` before `npm pack`, so it can
+be invoked directly after `npm ci` without a separate build prerequisite.
+
 Do not substitute a real App Server, Codex CLI, provider, or source-workspace
 write command without new operator authorization for that exact command.
 
