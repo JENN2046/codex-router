@@ -738,6 +738,54 @@ test("rollback refuses target, outside-file, and HEAD drift", async () => {
   }
 });
 
+test("rollback preflight stops before content reads when topology is unsafe", async (t) => {
+  const fixture = await createRetainFixture();
+  await applyFakeAppServerChanges(fixture.repoRoot);
+  const retained = await verifyRetainedChange({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet,
+    permit: fixture.permit,
+    now: retainedAt
+  });
+  if (retained.status !== "retained") {
+    assert.fail(retained.reasons.join(","));
+  }
+  const permit = issueRollbackPermit({
+    receipt: retained.receipt,
+    operatorId: "operator-jenn",
+    issuedAt: "2026-07-11T00:02:00.000Z",
+    expiresAt: "2026-07-11T00:05:00.000Z",
+    nonce: "rollback-topology-preflight"
+  });
+  const target = join(fixture.repoRoot, "docs/guide.md");
+  await rm(target);
+  try {
+    await symlink(join(fixture.tempRoot, "missing-private-target.md"), target, "file");
+  } catch (error) {
+    const code = error instanceof Error && "code" in error
+      ? String((error as NodeJS.ErrnoException).code)
+      : "unknown";
+    if (code !== "EPERM" && code !== "EACCES") {
+      throw error;
+    }
+    t.diagnostic(`file symlink capability unavailable:${code}`);
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+    return;
+  }
+
+  const result = await runGovernedRollback({
+    cwd: fixture.repoRoot,
+    receipt: retained.receipt,
+    permit,
+    consumptionStore: new InMemoryRollbackPermitConsumptionStore(),
+    now: "2026-07-11T00:03:00.000Z"
+  });
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes("target_symlink_forbidden:docs/guide.md"));
+  assert.equal(result.reasons.includes("rollback_after_hash_drift:docs/guide.md"), false);
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
 test("retain enters reconciliation on partial or outside App Server state", async () => {
   const fixture = await createRetainFixture();
   await writeFile(join(fixture.repoRoot, "docs/guide.md"), "new\n", "utf8");
@@ -998,6 +1046,62 @@ test("rollback post-check catches a no-op or outside-target restore primitive", 
     )));
     await rm(fixture.tempRoot, { recursive: true, force: true });
   }
+});
+
+test("rollback post-check stops before content reads when restore topology is unsafe", async (t) => {
+  const fixture = await createRetainFixture();
+  await applyFakeAppServerChanges(fixture.repoRoot);
+  const retained = await verifyRetainedChange({
+    cwd: fixture.repoRoot,
+    changeSet: fixture.changeSet,
+    permit: fixture.permit,
+    now: retainedAt
+  });
+  if (retained.status !== "retained") {
+    assert.fail(retained.reasons.join(","));
+  }
+  const permit = issueRollbackPermit({
+    receipt: retained.receipt,
+    operatorId: "operator-jenn",
+    issuedAt: "2026-07-11T00:02:00.000Z",
+    expiresAt: "2026-07-11T00:05:00.000Z",
+    nonce: "rollback-topology-post-check"
+  });
+  let symlinkUnavailable: string | undefined;
+  const result = await runGovernedRollbackWithPrimitive({
+    cwd: fixture.repoRoot,
+    receipt: retained.receipt,
+    permit,
+    consumptionStore: new InMemoryRollbackPermitConsumptionStore(),
+    restorePrimitive: {
+      async restore(): Promise<void> {
+        const target = join(fixture.repoRoot, "docs/guide.md");
+        await rm(target);
+        try {
+          await symlink(join(fixture.tempRoot, "missing-private-target.md"), target, "file");
+        } catch (error) {
+          const code = error instanceof Error && "code" in error
+            ? String((error as NodeJS.ErrnoException).code)
+            : "unknown";
+          if (code !== "EPERM" && code !== "EACCES") {
+            throw error;
+          }
+          symlinkUnavailable = code;
+          throw error;
+        }
+      }
+    },
+    now: "2026-07-11T00:03:00.000Z"
+  });
+  if (symlinkUnavailable !== undefined) {
+    t.diagnostic(`file symlink capability unavailable:${symlinkUnavailable}`);
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+    return;
+  }
+  assert.equal(result.status, "reconciliation_required");
+  assert.ok(result.reasons.includes("target_symlink_forbidden:docs/guide.md"));
+  assert.equal(result.reasons.includes("rollback_post_hash_mismatch:docs/guide.md"), false);
+  await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
 test("rollback rechecks hashes immediately inside the Git primitive and preserves a racing human edit", async () => {

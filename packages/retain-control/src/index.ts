@@ -877,7 +877,11 @@ async function validateRollbackWorkspaceState(
     if (!sameStringArrays(repository.changedPaths, targetFiles)) {
       reasons.push("rollback_outside_or_missing_target_drift");
     }
-    reasons.push(...await collectTargetTopologyReasons(cwd, targetFiles));
+    const topologyReasons = await collectTargetTopologyReasons(cwd, targetFiles);
+    reasons.push(...topologyReasons);
+    if (topologyReasons.length > 0) {
+      return uniqueStrings(reasons);
+    }
     for (const target of receipt.targetHashes) {
       const current = await readWorkspacePathHash(cwd, target.path);
       if (current !== target.afterHash) {
@@ -929,6 +933,25 @@ async function verifyRollbackPostState(cwd: string, receipt: RetainReceipt): Pro
     }
     if (repository.changedPaths.length > 0 || repository.indexChanged) {
       reasons.push("rollback_post_worktree_not_clean");
+    }
+    const restoredTargetTopologyReasons = uniqueStrings([
+      ...await collectTargetTopologyReasons(
+        cwd,
+        receipt.targetHashes
+          .filter((target) => target.beforeHash !== null)
+          .map((target) => target.path)
+      ),
+      ...await collectTargetTopologyReasons(
+        cwd,
+        receipt.targetHashes
+          .filter((target) => target.beforeHash === null)
+          .map((target) => target.path),
+        true
+      )
+    ]);
+    reasons.push(...restoredTargetTopologyReasons);
+    if (restoredTargetTopologyReasons.length > 0) {
+      return uniqueStrings(reasons);
     }
     for (const target of receipt.targetHashes) {
       const current = await readWorkspacePathHash(cwd, target.path);
@@ -1039,7 +1062,11 @@ async function readWorkspacePathHash(cwd: string, path: string): Promise<string 
   }
 }
 
-async function collectTargetTopologyReasons(cwd: string, paths: string[]): Promise<string[]> {
+async function collectTargetTopologyReasons(
+  cwd: string,
+  paths: string[],
+  allowMissingFinal = false
+): Promise<string[]> {
   const root = await realpath(cwd);
   const reasons: string[] = [];
   for (const path of paths) {
@@ -1050,11 +1077,12 @@ async function collectTargetTopologyReasons(cwd: string, paths: string[]): Promi
       continue;
     }
     let current = cwd;
-    for (const [index, part] of path.split("/").entries()) {
+    const parts = path.split("/");
+    for (const [index, part] of parts.entries()) {
       current = join(current, part);
+      const final = index === parts.length - 1;
       try {
         const stats = await lstat(current);
-        const final = index === path.split("/").length - 1;
         if (stats.isSymbolicLink()) {
           reasons.push(`target_symlink_forbidden:${path}`);
           break;
@@ -1068,7 +1096,10 @@ async function collectTargetTopologyReasons(cwd: string, paths: string[]): Promi
           reasons.push(`target_outside_workspace:${path}`);
           break;
         }
-      } catch {
+      } catch (error) {
+        if (allowMissingFinal && final && isErrorCode(error, "ENOENT")) {
+          break;
+        }
         reasons.push(`target_topology_unreadable:${path}`);
         break;
       }

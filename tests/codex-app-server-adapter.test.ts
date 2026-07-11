@@ -181,6 +181,53 @@ test("command and permission approvals are always manual", async () => {
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
+test("malformed human approval decisions fail closed without a response", async () => {
+  const fixture = await createAdapterFixture();
+  const command = {
+    schemaVersion: "codex-app-server-normalized-event.v1",
+    schemaProfileId: "fake-v2",
+    eventId: "malformed-human-command",
+    eventType: "approval_requested",
+    sequence: 1,
+    threadId: "thread-malformed-human",
+    turnId: "turn-malformed-human",
+    requestId: "request-malformed-human",
+    itemId: "item-malformed-human",
+    proposal: {
+      kind: "command",
+      argv: ["npm", "test"]
+    }
+  };
+  assert.equal((await fixture.adapter.ingest(command)).status, "manual_required");
+
+  for (const malformed of [
+    {
+      requestId: command.requestId,
+      operatorId: "operator-jenn"
+    },
+    {
+      requestId: command.requestId,
+      decision: "approve",
+      operatorId: "operator-jenn"
+    },
+    undefined
+  ]) {
+    const outcome = await fixture.adapter.resolveHumanApproval(malformed as never);
+    assert.equal(outcome.status, "blocked");
+    assert.deepEqual(outcome.reasons, ["human_approval_input_invalid"]);
+    assert.equal(fixture.transport.messages.length, 0);
+  }
+
+  const declined = await fixture.adapter.resolveHumanApproval({
+    requestId: command.requestId,
+    decision: "decline",
+    operatorId: "operator-jenn"
+  });
+  assert.equal(declined.status, "blocked");
+  assert.equal(fixture.transport.messages[0]?.decision, "decline");
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
 test("high-risk semantic signals require human approval before file acceptance", async () => {
   const fixture = await createAdapterFixture();
   const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);

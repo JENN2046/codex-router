@@ -230,12 +230,14 @@ type ApprovalRecord = {
   sentDecision?: "accept" | "decline";
 };
 
-type HumanApprovalInput = {
-  requestId: string;
-  decision: "accept" | "decline";
-  operatorId: string;
-  nonce?: string;
-};
+const HumanApprovalInputSchema = z.object({
+  requestId: z.string().min(1),
+  decision: z.enum(["accept", "decline"]),
+  operatorId: z.string().min(1),
+  nonce: z.string().min(1).optional()
+}).strict();
+
+type HumanApprovalInput = z.infer<typeof HumanApprovalInputSchema>;
 
 export class CodexAppServerAdapter {
   private readonly attestation: AppServerSessionAttestation;
@@ -347,7 +349,13 @@ export class CodexAppServerAdapter {
   }
 
   async resolveHumanApproval(input: HumanApprovalInput): Promise<CodexAdapterOutcome> {
-    return this.serialize(() => this.resolveHumanApprovalSerialized(input));
+    return this.serialize(async () => {
+      const parsed = HumanApprovalInputSchema.safeParse(input);
+      if (!parsed.success) {
+        return this.outcome("blocked", ["human_approval_input_invalid"]);
+      }
+      return this.resolveHumanApprovalSerialized(parsed.data);
+    });
   }
 
   private async resolveHumanApprovalSerialized(

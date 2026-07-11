@@ -823,7 +823,8 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
     "create_exists",
     "before_hash",
     "after_hash",
-    "symlink"
+    "symlink",
+    "applied_symlink"
   ] as const) {
     const fixture = await createRepositoryFixture();
     let head = fixture.head;
@@ -854,8 +855,8 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
       changeSet = updateFixtureChangeSet(head, { beforeHash: "0".repeat(64) });
     } else if (mode === "after_hash") {
       changeSet = updateFixtureChangeSet(head, { afterHash: "0".repeat(64) });
-    } else {
-      await symlink("guide.md", join(fixture.repoRoot, "docs/link.md"));
+    } else if (mode === "symlink") {
+      await symlink("../../missing-private-target.md", join(fixture.repoRoot, "docs/link.md"));
       await git(["add", "docs/link.md"], fixture.repoRoot);
       await git(["commit", "-m", "add symlink"], fixture.repoRoot);
       head = (await git(["rev-parse", "HEAD"], fixture.repoRoot)).trim();
@@ -871,9 +872,27 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
         changes: [{
           path: "docs/link.md",
           kind: "update",
-          unifiedDiff: updateDiff("docs/link.md", "guide.md", "other.md"),
+          unifiedDiff: updateDiff("docs/link.md", "../../missing-private-target.md", "other.md"),
           beforeHash: sha256(Buffer.from("old\n")),
           afterHash: sha256(Buffer.from("other.md\n"))
+        }]
+      });
+    } else {
+      const linkTarget = "../../missing-private-target.md";
+      changeSet = canonicalizeGovernedFileChangeSet({
+        changeSetId: "applied-symlink-target",
+        threadId: "thread",
+        turnId: "turn",
+        itemId: "item",
+        baseHead: head,
+        proposedAt: now,
+        sourceSchemaProfile: "fake-v2",
+        changes: [{
+          path: "docs/link.md",
+          kind: "create",
+          unifiedDiff: createSymlinkDiff("docs/link.md", linkTarget),
+          beforeHash: null,
+          afterHash: sha256(Buffer.from(linkTarget))
         }]
       });
     }
@@ -892,9 +911,16 @@ test("source metadata, target topology, and hash drift fail closed", async () =>
       create_exists: "preview_create_target_exists:docs/guide.md",
       before_hash: "preview_before_hash_mismatch:docs/guide.md",
       after_hash: "preview_after_hash_mismatch:docs/guide.md",
-      symlink: "preview_symlink_target_forbidden:docs/link.md"
+      symlink: "preview_symlink_target_forbidden:docs/link.md",
+      applied_symlink: "preview_symlink_target_forbidden:docs/link.md"
     }[mode];
     assert.ok(receipt.reasons.includes(marker), `${mode}:${receipt.reasons.join(",")}`);
+    if (mode === "symlink") {
+      assert.equal(receipt.reasons.includes("preview_before_target_unreadable:docs/link.md"), false);
+    }
+    if (mode === "applied_symlink") {
+      assert.equal(receipt.reasons.includes("preview_unknown_error"), false);
+    }
     await rm(fixture.tempRoot, { recursive: true, force: true });
   }
 });
@@ -1025,6 +1051,19 @@ function createChange(path: string, content: string, newline = "\n") {
     beforeHash: null,
     afterHash: sha256(Buffer.from(content, "utf8"))
   };
+}
+
+function createSymlinkDiff(path: string, target: string): string {
+  return [
+    `diff --git a/${path} b/${path}`,
+    "new file mode 120000",
+    "--- /dev/null",
+    `+++ b/${path}`,
+    "@@ -0,0 +1 @@",
+    `+${target}`,
+    "\\ No newline at end of file",
+    ""
+  ].join("\n");
 }
 
 function updateDiff(path: string, before: string, after: string): string {

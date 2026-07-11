@@ -376,11 +376,15 @@ export class LocalClonePreviewer implements FileChangePreviewer {
       if (cloneStatus.stdout !== "") {
         reasons.push("preview_clone_not_clean");
       }
-      reasons.push(...await collectTargetTopologyReasons(
+      const cloneTopologyReasons = await collectTargetTopologyReasons(
         clonePath,
         changeSet.changes.map((change) => change.path),
         true
-      ));
+      );
+      reasons.push(...cloneTopologyReasons);
+      if (cloneTopologyReasons.length > 0) {
+        throw new Error("preview_clone_preflight_failed");
+      }
       reasons.push(...await verifyBeforeHashes(clonePath, changeSet));
       if (reasons.length > 0) {
         throw new Error("preview_clone_preflight_failed");
@@ -395,11 +399,15 @@ export class LocalClonePreviewer implements FileChangePreviewer {
         timeoutMs: 60 * 1000,
         env: gitEnv
       }, "preview_patch_apply_failed");
-      reasons.push(...await collectTargetTopologyReasons(
+      const appliedTopologyReasons = await collectTargetTopologyReasons(
         clonePath,
         changeSet.changes.map((change) => change.path),
         false
-      ));
+      );
+      reasons.push(...appliedTopologyReasons);
+      if (appliedTopologyReasons.length > 0) {
+        throw new Error("preview_applied_topology_failed");
+      }
       reasons.push(...await verifyChangedTargetSet(clonePath, changeSet, this.runner, gitEnv));
       const expectedAfterHashes = await readTargetHashes(clonePath, changeSet);
       reasons.push(...verifyDeclaredAfterHashes(changeSet, expectedAfterHashes));
@@ -437,10 +445,18 @@ export class LocalClonePreviewer implements FileChangePreviewer {
         }
       }
       if (reasons.length === 0) {
-        reasons.push(...await verifyChangedTargetSet(clonePath, changeSet, this.runner, gitEnv));
-        const hashesAfterChecks = await readTargetHashes(clonePath, changeSet);
-        if (!sameHashMap(expectedAfterHashes, hashesAfterChecks)) {
-          reasons.push("preview_checks_changed_proposed_targets");
+        const checkedTopologyReasons = await collectTargetTopologyReasons(
+          clonePath,
+          changeSet.changes.map((change) => change.path),
+          false
+        );
+        reasons.push(...checkedTopologyReasons);
+        if (checkedTopologyReasons.length === 0) {
+          reasons.push(...await verifyChangedTargetSet(clonePath, changeSet, this.runner, gitEnv));
+          const hashesAfterChecks = await readTargetHashes(clonePath, changeSet);
+          if (!sameHashMap(expectedAfterHashes, hashesAfterChecks)) {
+            reasons.push("preview_checks_changed_proposed_targets");
+          }
         }
       }
 
