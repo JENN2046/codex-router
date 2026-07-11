@@ -7,6 +7,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
   writeFile
@@ -1230,7 +1231,7 @@ test("rollback receipt is bound to repository identity even when HEAD and target
 });
 
 test("durable rollback permit consumption rejects replay and unsafe directories", async (t) => {
-  const baseDir = await mkdtemp(join(tmpdir(), "rollback-consumption-"));
+  const baseDir = await createCanonicalTempDirectory("rollback-consumption-");
   const createStore = () => process.platform === "win32"
     ? createTestOnlyFileRollbackPermitConsumptionStore(baseDir)
     : new FileRollbackPermitConsumptionStore(baseDir);
@@ -1386,7 +1387,7 @@ async function createRetainFixture(): Promise<{
   preview: PreviewReceipt;
   permit: RetainPermit;
 }> {
-  const tempRoot = await mkdtemp(join(tmpdir(), "retain-control-"));
+  const tempRoot = await createCanonicalTempDirectory("retain-control-");
   const repoRoot = join(tempRoot, "repo");
   await mkdir(join(repoRoot, "docs"), { recursive: true });
   await git(["init"], repoRoot);
@@ -1484,6 +1485,10 @@ async function createRetainFixture(): Promise<{
     nonce: "retain-once"
   });
   return { tempRoot, repoRoot, head, changeSet, authorization, preview, permit };
+}
+
+async function createCanonicalTempDirectory(prefix: string): Promise<string> {
+  return realpath(await mkdtemp(join(tmpdir(), prefix)));
 }
 
 async function applyFakeAppServerChanges(repoRoot: string): Promise<void> {
