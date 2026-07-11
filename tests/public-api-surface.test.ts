@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import ts from "typescript";
 import packageJson from "../package.json" with { type: "json" };
 import tsconfigJson from "../tsconfig.json" with { type: "json" };
 import publicApiCodexAdapterSurfaceLockFixture from "./fixtures/public-api-codex-adapter-surface-lock.fixture.json" with { type: "json" };
@@ -407,31 +407,20 @@ test("public-api package type targets are emitted and stay governance-internal f
 
   const declarationOutDir = mkdtempSync(resolve(tmpdir(), "codex-router-public-api-types-"));
   try {
-    const configPath = resolve(repoRoot, "tsconfig.json");
-    const config = ts.readConfigFile(configPath, ts.sys.readFile);
-    assert.equal(config.error, undefined, "tsconfig.json must be readable");
-    const parsed = ts.parseJsonConfigFileContent(
-      config.config,
-      ts.sys,
-      repoRoot,
+    execFileSync(
+      process.execPath,
+      [
+        resolve(repoRoot, "node_modules/typescript/bin/tsc"),
+        "-p",
+        "tsconfig.json",
+        "--emitDeclarationOnly",
+        "--outDir",
+        declarationOutDir
+      ],
       {
-        emitDeclarationOnly: true,
-        noEmit: false,
-        outDir: declarationOutDir
-      },
-      configPath
-    );
-    const program = ts.createProgram(parsed.fileNames, parsed.options);
-    const emit = program.emit();
-    const diagnostics = [...ts.getPreEmitDiagnostics(program), ...emit.diagnostics];
-    assert.equal(
-      diagnostics.length,
-      0,
-      ts.formatDiagnosticsWithColorAndContext(diagnostics, {
-        getCanonicalFileName: (fileName) => fileName,
-        getCurrentDirectory: () => repoRoot,
-        getNewLine: () => "\n"
-      })
+        cwd: repoRoot,
+        stdio: "pipe"
+      }
     );
 
     const exportEntries = Object.values(
