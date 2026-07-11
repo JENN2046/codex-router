@@ -9,18 +9,18 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-test("package test script expands test globs without shell assistance", async (context) => {
+test("package test script discovers files without shell glob expansion", async (context) => {
   const packageJson = JSON.parse(
     await readFile(new URL("../package.json", import.meta.url), "utf8")
   ) as { scripts?: { test?: string } };
-  assert.equal(packageJson.scripts?.test, "tsx --test tests/*.test.ts");
+  assert.equal(packageJson.scripts?.test, "node --import tsx scripts/run-tests.ts");
 
   const fixtureRoot = await mkdtemp(join(tmpdir(), "codex-router-test-glob-"));
   context.after(async () => {
     await rm(fixtureRoot, { recursive: true, force: true });
   });
   await writeFile(
-    join(fixtureRoot, "literal-glob.test.ts"),
+    join(fixtureRoot, "literal glob.test.ts"),
     [
       'import test from "node:test";',
       'import assert from "node:assert/strict";',
@@ -33,15 +33,21 @@ test("package test script expands test globs without shell assistance", async (c
     ].join("\n"),
     "utf8"
   );
+  await writeFile(
+    join(fixtureRoot, "ignored.ts"),
+    "throw new Error('non-test file executed');\n",
+    "utf8"
+  );
 
-  const tsxCliPath = fileURLToPath(import.meta.resolve("tsx/cli"));
+  const runnerPath = fileURLToPath(new URL("../scripts/run-tests.ts", import.meta.url));
+  const repoRoot = fileURLToPath(new URL("..", import.meta.url));
   const childEnv: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: "0" };
   delete childEnv.NODE_TEST_CONTEXT;
   const { stdout, stderr } = await execFileAsync(
     process.execPath,
-    [tsxCliPath, "--test", "*.test.ts"],
+    ["--import", "tsx", runnerPath, fixtureRoot],
     {
-      cwd: fixtureRoot,
+      cwd: repoRoot,
       env: childEnv,
       windowsHide: true
     }
