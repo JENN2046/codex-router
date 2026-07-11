@@ -198,6 +198,49 @@ test("canonicalization rejects empty sets and diffs bound to another path", () =
       unifiedDiff: createChange("docs/b.md", "b\n").unifiedDiff
     }]
   }), /governed_change_diff_path_mismatch/);
+  const deceptiveDiff = [
+    "diff --git a/docs/other.md b/docs/other.md",
+    "--- a/docs/other.md",
+    "+++ b/docs/other.md",
+    "@@ -1,2 +1,2 @@",
+    "--- a/docs/a.md",
+    "+++ b/docs/a.md",
+    ""
+  ].join("\n");
+  assert.throws(() => canonicalizeGovernedFileChangeSet({
+    changeSetId: "diff-hunk-header-spoof",
+    threadId: "thread",
+    turnId: "turn",
+    itemId: "item",
+    baseHead: "head",
+    proposedAt: now,
+    sourceSchemaProfile: "fake-v2",
+    changes: [{
+      path: "docs/a.md",
+      kind: "update",
+      unifiedDiff: deceptiveDiff,
+      beforeHash: sha256(Buffer.from("old\n")),
+      afterHash: sha256(Buffer.from("new\n"))
+    }]
+  }), /governed_change_diff_path_mismatch/);
+
+  const secondFileDiff = [
+    createChange("docs/a.md", "a\n").unifiedDiff.trimEnd(),
+    createChange("docs/other.md", "other\n").unifiedDiff
+  ].join("\n");
+  assert.throws(() => canonicalizeGovernedFileChangeSet({
+    changeSetId: "diff-multiple-file-blocks",
+    threadId: "thread",
+    turnId: "turn",
+    itemId: "item",
+    baseHead: "head",
+    proposedAt: now,
+    sourceSchemaProfile: "fake-v2",
+    changes: [{
+      ...createChange("docs/a.md", "a\n"),
+      unifiedDiff: secondFileDiff
+    }]
+  }), /governed_change_diff_path_mismatch/);
 
   const valid = canonicalizeGovernedFileChangeSet({
     changeSetId: "tamper-check",

@@ -971,9 +971,38 @@ function assertDiffBindsPath(
   kind: GovernedFileChangeKind,
   oldPath?: string
 ): void {
+  const expectedDiff = `diff --git a/${oldPath ?? path} b/${path}`;
   const expectedOld = kind === "create" ? "--- /dev/null" : `--- a/${oldPath ?? path}`;
   const expectedNew = kind === "delete" ? "+++ /dev/null" : `+++ b/${path}`;
-  if (!diff.includes(expectedOld) || !diff.includes(expectedNew)) {
+  const lines = diff.split("\n");
+  const firstHunkIndex = lines.findIndex((line) => line.startsWith("@@ "));
+  const diffHeaderIndexes = lines.flatMap((line, index) => (
+    line.startsWith("diff --git ") ? [index] : []
+  ));
+  const headerLines = firstHunkIndex < 0 ? [] : lines.slice(0, firstHunkIndex);
+  const oldHeaderIndexes = headerLines.flatMap((line, index) => (
+    line.startsWith("--- ") ? [index] : []
+  ));
+  const newHeaderIndexes = headerLines.flatMap((line, index) => (
+    line.startsWith("+++ ") ? [index] : []
+  ));
+  const diffHeaderIndex = diffHeaderIndexes[0];
+  const oldHeaderIndex = oldHeaderIndexes[0];
+  const newHeaderIndex = newHeaderIndexes[0];
+  if (
+    firstHunkIndex < 0
+    || diffHeaderIndexes.length !== 1
+    || oldHeaderIndexes.length !== 1
+    || newHeaderIndexes.length !== 1
+    || diffHeaderIndex === undefined
+    || oldHeaderIndex === undefined
+    || newHeaderIndex === undefined
+    || diffHeaderIndex >= oldHeaderIndex
+    || newHeaderIndex !== oldHeaderIndex + 1
+    || lines[diffHeaderIndex] !== expectedDiff
+    || headerLines[oldHeaderIndex] !== expectedOld
+    || headerLines[newHeaderIndex] !== expectedNew
+  ) {
     throw new Error("governed_change_diff_path_mismatch");
   }
 }
