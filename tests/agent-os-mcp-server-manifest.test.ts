@@ -176,8 +176,8 @@ test("Agent OS MCP dispatch_workspace_write declares controlled dispatch only", 
     properties?: Record<string, unknown>;
   };
   const outputSchema = agentOsDispatchWorkspaceWriteMcpToolManifest.outputSchema as {
-    additionalProperties?: unknown;
-    properties?: Record<string, unknown>;
+    type?: unknown;
+    oneOf?: unknown;
   };
 
   assert.equal(inputSchema.additionalProperties, false);
@@ -216,9 +216,37 @@ test("Agent OS MCP dispatch_workspace_write declares controlled dispatch only", 
       }
     }
   ]);
-  assert.equal(outputSchema.additionalProperties, false);
-  assert.ok("preparedDispatch" in (outputSchema.properties ?? {}));
-  assert.ok("dispatchResult" in (outputSchema.properties ?? {}));
+  assert.equal(outputSchema.type, "object");
+  assert.deepEqual(outputSchema.oneOf, [
+    {
+      type: "object",
+      required: ["preparedDispatch"],
+      additionalProperties: false,
+      properties: {
+        preparedDispatch: { type: "object" }
+      }
+    },
+    {
+      type: "object",
+      required: ["dispatchResult"],
+      additionalProperties: false,
+      properties: {
+        dispatchResult: { type: "object" },
+        preparedDispatch: { type: "object" }
+      }
+    },
+    {
+      type: "object",
+      required: ["status"],
+      additionalProperties: false,
+      properties: {
+        status: {
+          type: "string",
+          enum: ["blocked"]
+        }
+      }
+    }
+  ]);
   assert.equal(
     agentOsDispatchWorkspaceWriteMcpToolManifest.metadata.controlledWorkspaceWritePrepare,
     true

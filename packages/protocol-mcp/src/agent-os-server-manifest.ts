@@ -490,12 +490,36 @@ export const agentOsDispatchWorkspaceWriteMcpToolManifest = defineAgentOsMcpTool
   },
   outputSchema: {
     type: "object",
-    required: ["dispatchResult"],
-    additionalProperties: false,
-    properties: {
-      preparedDispatch: { type: "object" },
-      dispatchResult: { type: "object" }
-    }
+    oneOf: [
+      {
+        type: "object",
+        required: ["preparedDispatch"],
+        additionalProperties: false,
+        properties: {
+          preparedDispatch: { type: "object" }
+        }
+      },
+      {
+        type: "object",
+        required: ["dispatchResult"],
+        additionalProperties: false,
+        properties: {
+          dispatchResult: { type: "object" },
+          preparedDispatch: { type: "object" }
+        }
+      },
+      {
+        type: "object",
+        required: ["status"],
+        additionalProperties: false,
+        properties: {
+          status: {
+            type: "string",
+            enum: ["blocked"]
+          }
+        }
+      }
+    ]
   },
   sideEffectClass: "local_write",
   requiredCapabilities: ["workspace_write.dispatch"],
