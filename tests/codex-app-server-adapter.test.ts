@@ -925,6 +925,26 @@ test("SDK adapter exposes read-only authorization only", () => {
   assert.deepEqual(read.authorizedCapabilities, [readScope]);
   assert.equal(write.disposition, "blocked");
   assert.deepEqual(write.authorizedCapabilities, []);
+
+  const factualWrite = adapter.authorizeReadOnly({
+    facts: deriveCapabilityFacts({
+      subjectId: "sdk-factual-write",
+      fileChanges: [{
+        path: "docs/guide.md",
+        kind: "update",
+        addedLines: 1,
+        deletedLines: 1
+      }],
+      repository: facts.repository,
+      exactTargets: true,
+      observedAt: now
+    }),
+    semanticContext: "review the file",
+    requestedCapabilities: [readScope]
+  });
+  assert.equal(factualWrite.disposition, "blocked");
+  assert.equal(factualWrite.approvalMode, "human_required");
+  assert.ok(factualWrite.reasons.includes("factual_file_write_capability_missing"));
 });
 
 class FakeTransport implements CodexAppServerMessageTransport {

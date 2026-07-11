@@ -103,6 +103,9 @@ interception from configuration alone.
 - sandbox is not `workspace-write`;
 - file-change interception is not proven for the session;
 - schema profile, event identity, sequence, or correlation is missing/mismatched;
+- file facts omit a matching requested write scope or a derived sensitive path;
+- the proposed set is not fully canonical, including duplicate/case-alias paths,
+  unsafe cross-platform characters, ill-formed Unicode, or ordering/hash drift;
 - proposal contains delete, rename, sensitive path, a missing create/update
   after-hash, or a missing update before-hash;
 - command or permission proposal lacks exact operator-visible details;

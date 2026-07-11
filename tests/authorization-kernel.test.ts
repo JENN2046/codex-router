@@ -171,6 +171,11 @@ test("unsafe governed paths fail closed before policy auto approval", () => {
     { kind: "update" as const, path: "C:\\outside.md" },
     { kind: "update" as const, path: "docs/../guide.md" },
     { kind: "update" as const, path: "docs/NUL" },
+    { kind: "update" as const, path: "docs/tab\tname.md" },
+    { kind: "update" as const, path: "docs/control\u0001name.md" },
+    { kind: "update" as const, path: "docs/name?.md" },
+    { kind: "update" as const, path: "docs/high\ud800surrogate.md" },
+    { kind: "update" as const, path: "docs/low\udc00surrogate.md" },
     { kind: "rename" as const, path: "docs/new.md", oldPath: "../outside.md" }
   ];
 
@@ -225,6 +230,38 @@ test("authorization revalidates unsafe paths in caller-supplied facts", () => {
   assert.ok(decision.reasons.includes("unsafe_governed_path_forbidden"));
 });
 
+test("authorization re-derives sensitive paths from caller-supplied facts", () => {
+  const safeFacts = deriveFacts({ kind: "update", path: "docs/guide.md" });
+  const forgedFacts = {
+    ...safeFacts,
+    fileChanges: safeFacts.fileChanges.map((change) => ({
+      ...change,
+      path: ".env"
+    })),
+    sensitivePaths: []
+  };
+  const sensitiveWrite: CapabilityScope = {
+    ...writeScope,
+    resource: ".env"
+  };
+  const decision = authorizeCapabilityFacts({
+    surface: "provider",
+    facts: forgedFacts,
+    semanticRisk: "low",
+    requestedCapabilities: [sensitiveWrite],
+    capabilityCeiling: [sensitiveWrite],
+    createdAt: now
+  });
+
+  assert.equal(scoreCapabilityFactsRisk(forgedFacts).level, "critical");
+  assert.equal(decision.factualRisk, "critical");
+  assert.equal(decision.approvalMode, "human_required");
+  assert.equal(decision.disposition, "blocked");
+  assert.deepEqual(decision.authorizedCapabilities, []);
+  assert.ok(decision.reasons.includes("facts:sensitive_path"));
+  assert.ok(decision.reasons.includes("sensitive_path_facts_incomplete"));
+});
+
 test("safe structured create or update is only conditionally policy-auto eligible", () => {
   const facts = deriveFacts({ kind: "update", path: "docs/guide.md" });
   const decision = authorizeCapabilityFacts({
@@ -242,6 +279,104 @@ test("safe structured create or update is only conditionally policy-auto eligibl
   assert.equal(decision.disposition, "approval_required");
   assert.equal(decision.approvalRequired, true);
   assert.deepEqual(decision.authorizedCapabilities, [writeScope]);
+});
+
+test("factual file writes require matching requested write capabilities", () => {
+  const facts = deriveFacts({ kind: "update", path: "docs/guide.md" });
+  const unrelatedExecuteScope: CapabilityScope = {
+    schemaVersion: "capability-scope.v1",
+    kind: "tool",
+    resource: "test-runner",
+    access: "execute",
+    constraints: {}
+  };
+
+  for (const requestedCapabilities of [
+    [],
+    [readScope],
+    [unrelatedExecuteScope]
+  ]) {
+    const decision = authorizeCapabilityFacts({
+      surface: "codex_sdk",
+      facts,
+      semanticRisk: "low",
+      requestedCapabilities,
+      capabilityCeiling: [readScope, writeCeiling, unrelatedExecuteScope],
+      createdAt: now
+    });
+
+    assert.equal(decision.disposition, "blocked");
+    assert.equal(decision.approvalMode, "human_required");
+    assert.equal(decision.approvalRequired, true);
+    assert.deepEqual(
+      decision.authorizedCapabilities,
+      requestedCapabilities.filter((scope) => scope.access === "read")
+    );
+    assert.ok(decision.reasons.includes("factual_file_write_capability_missing"));
+  }
+});
+
+test("rename facts require requested write coverage for both paths", () => {
+  const facts = deriveFacts({
+    kind: "rename",
+    path: "docs/new.md",
+    oldPath: "docs/old.md"
+  });
+  const newPathOnly: CapabilityScope = {
+    ...writeScope,
+    resource: "docs/new.md"
+  };
+  const oldPathOnly: CapabilityScope = {
+    ...writeScope,
+    resource: "docs/old.md"
+  };
+  const incomplete = authorizeCapabilityFacts({
+    surface: "codex_app_server",
+    facts,
+    semanticRisk: "high",
+    requestedCapabilities: [newPathOnly],
+    capabilityCeiling: [writeCeiling],
+    createdAt: now
+  });
+
+  assert.equal(incomplete.disposition, "blocked");
+  assert.deepEqual(incomplete.authorizedCapabilities, []);
+  assert.ok(incomplete.reasons.includes("factual_file_write_capability_missing"));
+
+  for (const requestedCapabilities of [
+    [oldPathOnly, newPathOnly],
+    [writeCeiling]
+  ]) {
+    const complete = authorizeCapabilityFacts({
+      surface: "codex_app_server",
+      facts,
+      semanticRisk: "high",
+      requestedCapabilities,
+      capabilityCeiling: [writeCeiling],
+      createdAt: now
+    });
+
+    assert.equal(complete.disposition, "approval_required");
+    assert.equal(complete.approvalMode, "human_required");
+    assert.deepEqual(complete.authorizedCapabilities, requestedCapabilities);
+    assert.equal(
+      complete.reasons.includes("factual_file_write_capability_missing"),
+      false
+    );
+  }
+
+  const malformedFacts = {
+    ...facts,
+    fileChanges: facts.fileChanges.map(({ oldPath: _oldPath, ...change }) => change)
+  };
+  assert.throws(() => authorizeCapabilityFacts({
+    surface: "codex_app_server",
+    facts: malformedFacts,
+    semanticRisk: "high",
+    requestedCapabilities: [newPathOnly],
+    capabilityCeiling: [writeCeiling],
+    createdAt: now
+  }), /rename changes require oldPath/);
 });
 
 test("protected branch names override a false caller protection hint", () => {

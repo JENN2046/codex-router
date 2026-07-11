@@ -28,12 +28,25 @@ import {
 import {
   GovernedFileChangeSetSchema,
   PreviewPolicySchema,
+  hashGovernedFileChangeSetContent,
   type GovernedFileChangeSet,
   type PreviewPolicy
 } from "../packages/kernel-contracts/src/index.js";
 
 const execFileAsync = promisify(execFile);
 const now = "2026-07-11T00:00:00.000Z";
+const CROSS_PLATFORM_UNSAFE_PATH_CHARACTERS = [
+  ...Array.from({ length: 32 }, (_value, code) => String.fromCharCode(code)),
+  "\u007f",
+  "<",
+  ">",
+  "\"",
+  "|",
+  "?",
+  "*",
+  "\ud800",
+  "\udc00"
+];
 
 test("canonical change hashing is order-stable and rejects path aliases", () => {
   const first = canonicalizeGovernedFileChangeSet({
@@ -103,9 +116,9 @@ test("canonicalization rejects non-canonical and cross-platform hazardous paths"
     "docs/trailing.",
     "docs/trailing ",
     "docs/con",
-    "docs/null\0byte.md",
-    "docs/new\nline.md",
-    "docs/carriage\rreturn.md",
+    ...CROSS_PLATFORM_UNSAFE_PATH_CHARACTERS.map((character) => (
+      `docs/bad${character}name.md`
+    )),
     "docs/e\u0301.md"
   ];
 
@@ -136,6 +149,26 @@ test("canonicalization rejects non-canonical and cross-platform hazardous paths"
     }]
   });
   assert.equal(normalized.changes[0]?.path, "docs/guide.md");
+
+  const validSurrogatePair = canonicalizeGovernedFileChangeSet({
+    changeSetId: "valid-surrogate-pair",
+    threadId: "thread",
+    turnId: "turn",
+    itemId: "item",
+    baseHead: "head",
+    proposedAt: now,
+    sourceSchemaProfile: "fake-v2",
+    changes: [createChange("docs/emoji-😀.md", "ok\n")]
+  });
+  assert.equal(validSurrogatePair.changes[0]?.path, "docs/emoji-😀.md");
+  assert.equal(
+    evaluateAutoApprovalPolicy(
+      validSurrogatePair,
+      safeFacts(validSurrogatePair, "feature/safe", "head"),
+      policy(["docs/**"])
+    ).eligible,
+    true
+  );
 });
 
 test("seeded path property cases preserve canonical hashes and reject traversal aliases", () => {
@@ -429,6 +462,146 @@ test("sensitive capability facts block auto-approval for otherwise safe targets"
 
   assert.equal(result.eligible, false);
   assert.ok(result.reasons.includes("auto_approval_sensitive_path_forbidden"));
+});
+
+test("policy evaluation revalidates caller-supplied change-set paths", () => {
+  const safeSet = canonicalizeGovernedFileChangeSet({
+    changeSetId: "set-forged-path",
+    threadId: "thread",
+    turnId: "turn",
+    itemId: "item",
+    baseHead: "head",
+    proposedAt: now,
+    sourceSchemaProfile: "fake-v2",
+    changes: [createChange("docs/new.md", "safe\n")]
+  });
+  const baseFacts = safeFacts(safeSet, "feature/safe", "head");
+
+  for (const unsafePath of [
+    "../outside.md",
+    "/tmp/outside.md",
+    ".git/config",
+    "docs/../outside.md",
+    "C:\\outside.md",
+    ...CROSS_PLATFORM_UNSAFE_PATH_CHARACTERS.map((character) => (
+      `docs/bad${character}name.md`
+    ))
+  ]) {
+    const changes = safeSet.changes.map((change) => ({
+      ...change,
+      path: unsafePath
+    }));
+    const changeSet: GovernedFileChangeSet = {
+      ...safeSet,
+      changes,
+      canonicalHash: hashGovernedFileChangeSetContent({
+        baseHead: safeSet.baseHead,
+        changes
+      })
+    };
+    const facts = {
+      ...baseFacts,
+      fileChanges: baseFacts.fileChanges.map((change) => ({
+        ...change,
+        path: unsafePath
+      }))
+    };
+
+    const result = evaluateAutoApprovalPolicy(changeSet, facts, policy(["**"]));
+
+    assert.equal(result.eligible, false, unsafePath);
+    assert.ok(result.reasons.includes("auto_approval_unsafe_path_forbidden"), unsafePath);
+  }
+
+  const safeRenameSet = canonicalizeGovernedFileChangeSet({
+    changeSetId: "set-forged-old-path",
+    threadId: "thread",
+    turnId: "turn",
+    itemId: "item",
+    baseHead: "head",
+    proposedAt: now,
+    sourceSchemaProfile: "fake-v2",
+    changes: [{
+      path: "docs/new.md",
+      oldPath: "docs/old.md",
+      kind: "rename",
+      unifiedDiff: renameDiff("docs/old.md", "docs/new.md", "old"),
+      beforeHash: sha256(Buffer.from("old\n")),
+      afterHash: sha256(Buffer.from("old\n"))
+    }]
+  });
+  const renameChanges = safeRenameSet.changes.map((change) => ({
+    ...change,
+    oldPath: "../outside.md"
+  }));
+  const forgedRenameSet: GovernedFileChangeSet = {
+    ...safeRenameSet,
+    changes: renameChanges,
+    canonicalHash: hashGovernedFileChangeSetContent({
+      baseHead: safeRenameSet.baseHead,
+      changes: renameChanges
+    })
+  };
+  const renameFacts = safeFacts(safeRenameSet, "feature/safe", "head");
+  const forgedRenameFacts = {
+    ...renameFacts,
+    fileChanges: renameFacts.fileChanges.map((change) => ({
+      ...change,
+      oldPath: "../outside.md"
+    }))
+  };
+  const oldPathResult = evaluateAutoApprovalPolicy(
+    forgedRenameSet,
+    forgedRenameFacts,
+    policy(["**"])
+  );
+
+  assert.equal(oldPathResult.eligible, false);
+  assert.ok(oldPathResult.reasons.includes("auto_approval_unsafe_path_forbidden"));
+});
+
+test("policy evaluation property requires a fully canonical change set", () => {
+  const canonical = canonicalizeGovernedFileChangeSet({
+    changeSetId: "set-canonical-invariants",
+    threadId: "thread",
+    turnId: "turn",
+    itemId: "item",
+    baseHead: "head",
+    proposedAt: now,
+    sourceSchemaProfile: "fake-v2",
+    changes: [
+      createChange("docs/a.md", "a\n"),
+      createChange("docs/b.md", "b\n")
+    ]
+  });
+  const upper = canonicalizeGovernedFileChangeSet({
+    ...changeSetDraftIdentity("set-upper"),
+    changes: [createChange("docs/Case.md", "upper\n")]
+  });
+  const lower = canonicalizeGovernedFileChangeSet({
+    ...changeSetDraftIdentity("set-lower"),
+    changes: [createChange("docs/case.md", "lower\n")]
+  });
+
+  const variants: Array<[string, GovernedFileChangeSet["changes"]]> = [
+    ["duplicate", [canonical.changes[0]!, canonical.changes[0]!]],
+    ["case_alias", [upper.changes[0]!, lower.changes[0]!]],
+    ["reverse_order", [...canonical.changes].reverse()]
+  ];
+  for (const [name, changes] of variants) {
+    const forged = rehashChangeSet(canonical, changes);
+    const result = evaluateAutoApprovalPolicy(
+      forged,
+      safeFacts(forged, "feature/safe", "head"),
+      policy(["**"])
+    );
+
+    assert.equal(result.eligible, false, name);
+    assert.ok(
+      result.reasons.includes("auto_approval_noncanonical_change_set_forbidden"),
+      name
+    );
+  }
 });
 
 test("delete, rename, missing hashes, and ambiguous facts never auto-approve", () => {
@@ -1165,6 +1338,32 @@ function safeFacts(changeSet: GovernedFileChangeSet, branch: string, head: strin
     credentialAccess: "none",
     exactTargets: true
   });
+}
+
+function changeSetDraftIdentity(changeSetId: string) {
+  return {
+    changeSetId,
+    threadId: "thread",
+    turnId: "turn",
+    itemId: "item",
+    baseHead: "head",
+    proposedAt: now,
+    sourceSchemaProfile: "fake-v2"
+  };
+}
+
+function rehashChangeSet(
+  base: GovernedFileChangeSet,
+  changes: GovernedFileChangeSet["changes"]
+): GovernedFileChangeSet {
+  return {
+    ...base,
+    changes,
+    canonicalHash: hashGovernedFileChangeSetContent({
+      baseHead: base.baseHead,
+      changes
+    })
+  };
 }
 
 function updateFixtureChangeSet(

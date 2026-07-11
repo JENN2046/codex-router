@@ -67,7 +67,15 @@ const GovernedFileChangeFieldsSchema = z.object({
   deletedLines: z.number().int().nonnegative()
 }).strict();
 
-export const GovernedFileChangeSchema = GovernedFileChangeFieldsSchema.superRefine((change, ctx) => {
+type GovernedFileChangeSemanticFields = Pick<
+  z.infer<typeof GovernedFileChangeFieldsSchema>,
+  "kind" | "oldPath" | "beforeHash" | "afterHash"
+>;
+
+function refineGovernedFileChangeSemantics(
+  change: GovernedFileChangeSemanticFields,
+  ctx: z.RefinementCtx
+): void {
   if (change.kind === "rename" && change.oldPath === undefined) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -96,7 +104,11 @@ export const GovernedFileChangeSchema = GovernedFileChangeFieldsSchema.superRefi
       path: ["afterHash"]
     });
   }
-});
+}
+
+export const GovernedFileChangeSchema = GovernedFileChangeFieldsSchema.superRefine(
+  refineGovernedFileChangeSemantics
+);
 
 const GovernedFileChangeSetFieldsSchema = z.object({
   schemaVersion: z.literal("governed-file-change-set.v1").default(
@@ -156,7 +168,7 @@ export function hashGovernedFileChangeSetContent(input: {
 
 export const CapabilityFactFileChangeSchema = GovernedFileChangeFieldsSchema.omit({
   unifiedDiff: true
-});
+}).superRefine(refineGovernedFileChangeSemantics);
 
 export const CapabilityFactCommandSchema = z.object({
   argv: NonEmptyArgvSchema,

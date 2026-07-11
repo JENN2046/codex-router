@@ -47,6 +47,7 @@ const PROTECTED_BRANCHES = new Set([
 ]);
 
 const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+const UNSAFE_GOVERNED_PATH_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*]/;
 
 export interface GovernedFileChangeDraft {
   path: string;
@@ -629,6 +630,15 @@ function collectHardBoundaryReasons(
   facts: CapabilityFacts
 ): string[] {
   const reasons: string[] = [];
+  if (changeSet.changes.some((change) => (
+    !isCanonicalGovernedPath(change.path)
+    || (change.oldPath !== undefined && !isCanonicalGovernedPath(change.oldPath))
+  ))) {
+    reasons.push("auto_approval_unsafe_path_forbidden");
+  }
+  if (!isCanonicalGovernedChangeSet(changeSet)) {
+    reasons.push("auto_approval_noncanonical_change_set_forbidden");
+  }
   if (changeSet.changes.some((change) => change.kind === "delete")) {
     reasons.push("auto_approval_delete_forbidden");
   }
@@ -992,6 +1002,9 @@ function normalizeAndAssertGovernedPath(input: string): string {
   if (input.normalize("NFC") !== input) {
     throw new Error("governed_path_unicode_not_nfc");
   }
+  if (hasUnpairedUtf16Surrogate(input)) {
+    throw new Error("governed_path_unicode_not_well_formed");
+  }
   const slashPath = input.replace(/\\/g, "/");
   const normalized = pathPosix.normalize(slashPath);
   const parts = normalized.split("/");
@@ -1010,13 +1023,62 @@ function normalizeAndAssertGovernedPath(input: string): string {
     || input.includes("\r")
     || parts.some((part) => part === "" || part === "." || part === "..")
     || parts.some((part) => part.toLocaleLowerCase("en-US") === ".git")
-    || parts.some((part) => part.includes(":"))
+    || parts.some((part) => UNSAFE_GOVERNED_PATH_CHARACTERS.test(part))
     || parts.some((part) => part.endsWith(".") || part.endsWith(" "))
     || parts.some((part) => WINDOWS_RESERVED_NAMES.test(part))
   ) {
     throw new Error("governed_path_unsafe");
   }
   return normalized;
+}
+
+function hasUnpairedUtf16Surrogate(input: string): boolean {
+  for (let index = 0; index < input.length; index += 1) {
+    const codeUnit = input.charCodeAt(index);
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = input.charCodeAt(index + 1);
+      if (next < 0xdc00 || next > 0xdfff) {
+        return true;
+      }
+      index += 1;
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isCanonicalGovernedPath(input: string): boolean {
+  try {
+    return normalizeAndAssertGovernedPath(input) === input;
+  } catch {
+    return false;
+  }
+}
+
+function isCanonicalGovernedChangeSet(changeSet: GovernedFileChangeSet): boolean {
+  try {
+    const canonical = canonicalizeGovernedFileChangeSet({
+      changeSetId: changeSet.changeSetId,
+      threadId: changeSet.threadId,
+      turnId: changeSet.turnId,
+      itemId: changeSet.itemId,
+      baseHead: changeSet.baseHead,
+      proposedAt: changeSet.proposedAt,
+      sourceSchemaProfile: changeSet.sourceSchemaProfile,
+      changes: changeSet.changes.map((change) => ({
+        path: change.path,
+        kind: change.kind,
+        ...(change.oldPath === undefined ? {} : { oldPath: change.oldPath }),
+        unifiedDiff: change.unifiedDiff,
+        ...(change.beforeHash === undefined ? {} : { beforeHash: change.beforeHash }),
+        ...(change.afterHash === undefined ? {} : { afterHash: change.afterHash })
+      }))
+    });
+    return canonical.canonicalHash === changeSet.canonicalHash;
+  } catch {
+    return false;
+  }
 }
 
 function assertNoPathAliases(changes: GovernedFileChange[]): void {

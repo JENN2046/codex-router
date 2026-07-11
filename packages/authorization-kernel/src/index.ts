@@ -132,6 +132,7 @@ const SENSITIVE_PATH_COMPONENTS = new Set([
 ]);
 
 const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+const UNSAFE_GOVERNED_PATH_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*]/;
 
 const SENSITIVE_DIFF_MARKERS = [
   "-----begin private key-----",
@@ -193,11 +194,7 @@ export function deriveCapabilityFacts(input: CapabilityFactsInput): CapabilityFa
       left.argv.join("\0"),
       right.argv.join("\0")
     ));
-  const sensitivePaths = uniqueStrings(
-    fileChanges
-      .flatMap((change) => [change.path, ...(change.oldPath ? [change.oldPath] : [])])
-      .filter(isSensitiveGovernedPath)
-  );
+  const sensitivePaths = deriveSensitivePathsFromFileChanges(fileChanges);
   const unknowns = uniqueStrings([
     ...(input.unknowns ?? []),
     ...(unsafeGovernedPathDetected ? ["unsafe_governed_path"] : [])
@@ -287,7 +284,15 @@ export function authorizeCapabilityFacts(
     input.requestedCapabilities,
     input.capabilityCeiling
   );
-  const sideEffectRequested = input.requestedCapabilities.some(isSideEffectingCapability);
+  const factualFileWriteDetected = facts.fileChanges.length > 0;
+  const factualFileWriteCapabilityMissing = factualFileWriteDetected
+    && !factualFileWritesAreRequested(facts, input.requestedCapabilities);
+  const derivedSensitivePaths = deriveSensitivePathsFromFileChanges(facts.fileChanges);
+  const sensitivePathFactsIncomplete = derivedSensitivePaths.some((path) => (
+    !facts.sensitivePaths.includes(path)
+  ));
+  const sideEffectRequested = factualFileWriteDetected
+    || input.requestedCapabilities.some(isSideEffectingCapability);
   const unsafeGovernedPathDetected = facts.fileChanges.some(hasUnsafeGovernedPath)
     || facts.unknowns.includes("unsafe_governed_path");
   const unsafeGovernedPathWriteBlocked = sideEffectRequested && unsafeGovernedPathDetected;
@@ -301,6 +306,8 @@ export function authorizeCapabilityFacts(
   const missingCeiling = ceiling.missing.length > 0;
   const policyAutoEligible = isPolicyAutoCandidate(facts, effectiveRisk)
     && !missingCeiling
+    && !factualFileWriteCapabilityMissing
+    && !sensitivePathFactsIncomplete
     && !unsafeGovernedPathWriteBlocked
     && !unknownWriteBlocked;
   const reasons = uniqueStrings([
@@ -309,10 +316,18 @@ export function authorizeCapabilityFacts(
     `factual_risk:${factual.level}`,
     `effective_risk:${effectiveRisk}`,
     ...ceiling.missing.map((scope) => `capability_ceiling_missing:${scope}`),
+    ...(factualFileWriteCapabilityMissing
+      ? ["factual_file_write_capability_missing"]
+      : []),
+    ...(sensitivePathFactsIncomplete ? ["sensitive_path_facts_incomplete"] : []),
     ...(unsafeGovernedPathWriteBlocked ? ["unsafe_governed_path_forbidden"] : []),
     ...(unknownWriteBlocked ? ["unknown_or_ambiguous_write_forbidden"] : [])
   ]);
-  const blocked = missingCeiling || unsafeGovernedPathWriteBlocked || unknownWriteBlocked;
+  const blocked = missingCeiling
+    || factualFileWriteCapabilityMissing
+    || sensitivePathFactsIncomplete
+    || unsafeGovernedPathWriteBlocked
+    || unknownWriteBlocked;
   const approvalMode = blocked
     ? "human_required"
     : !sideEffectRequested && effectiveRisk !== "high" && effectiveRisk !== "critical"
@@ -422,7 +437,10 @@ export function scoreCapabilityFactsRisk(
   ) {
     raise("high", "facts:head_mismatch");
   }
-  if (facts.sensitivePaths.length > 0) {
+  if (
+    facts.sensitivePaths.length > 0
+    || deriveSensitivePathsFromFileChanges(facts.fileChanges).length > 0
+  ) {
     raise("critical", "facts:sensitive_path");
   }
   if (facts.networkAccess !== "none") {
@@ -473,6 +491,19 @@ export function isSensitiveGovernedPath(path: string): boolean {
   ));
 }
 
+function deriveSensitivePathsFromFileChanges(
+  fileChanges: CapabilityFactFileChange[]
+): string[] {
+  return uniqueStrings(
+    fileChanges
+      .flatMap((change) => [
+        normalizeGovernedPath(change.path),
+        ...(change.oldPath === undefined ? [] : [normalizeGovernedPath(change.oldPath)])
+      ])
+      .filter(isSensitiveGovernedPath)
+  );
+}
+
 function containsSensitiveDiffSignal(diff: string): boolean {
   const normalized = diff.normalize("NFKC").toLocaleLowerCase("en-US");
   return SENSITIVE_DIFF_MARKERS.some((marker) => normalized.includes(marker));
@@ -497,6 +528,7 @@ function isPolicyAutoCandidate(
     && facts.credentialAccess === "none"
     && facts.externalTargets.length === 0
     && facts.sensitivePaths.length === 0
+    && deriveSensitivePathsFromFileChanges(facts.fileChanges).length === 0
     && !facts.releaseAction
     && facts.exactTargets
     && !facts.ambiguous
@@ -523,7 +555,7 @@ function hasUnsafeGovernedPath(change: CapabilityFactFileChange): boolean {
 }
 
 function isSafeGovernedPath(input: string): boolean {
-  if (input.normalize("NFC") !== input) {
+  if (input.normalize("NFC") !== input || hasUnpairedUtf16Surrogate(input)) {
     return false;
   }
   const slashPath = input.replace(/\\/g, "/");
@@ -544,10 +576,26 @@ function isSafeGovernedPath(input: string): boolean {
     || input.includes("\r")
     || parts.some((part) => part === "" || part === "." || part === "..")
     || parts.some((part) => part.toLocaleLowerCase("en-US") === ".git")
-    || parts.some((part) => part.includes(":"))
+    || parts.some((part) => UNSAFE_GOVERNED_PATH_CHARACTERS.test(part))
     || parts.some((part) => part.endsWith(".") || part.endsWith(" "))
     || parts.some((part) => WINDOWS_RESERVED_NAMES.test(part))
   );
+}
+
+function hasUnpairedUtf16Surrogate(input: string): boolean {
+  for (let index = 0; index < input.length; index += 1) {
+    const codeUnit = input.charCodeAt(index);
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = input.charCodeAt(index + 1);
+      if (next < 0xdc00 || next > 0xdfff) {
+        return true;
+      }
+      index += 1;
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function compareFileChanges(
@@ -566,6 +614,24 @@ function compareCodeUnits(left: string, right: string): number {
 
 function isSideEffectingCapability(scope: CapabilityScope): boolean {
   return scope.access !== "read";
+}
+
+function factualFileWritesAreRequested(
+  facts: CapabilityFacts,
+  requestedCapabilities: CapabilityScope[]
+): boolean {
+  const requestedFileWrites = requestedCapabilities.filter((scope) => (
+    scope.kind === "file" && scope.access === "write"
+  ));
+  return facts.fileChanges.every((change) => (
+    [change.path, ...(change.oldPath === undefined ? [] : [change.oldPath])]
+      .every((target) => requestedFileWrites.some((scope) => (
+        capabilityImplies(
+          capabilityScopeToCanonicalString(scope),
+          `fs.write:${target}`
+        )
+      )))
+  ));
 }
 
 function isReadOnlyCapability(scope: CapabilityScope): boolean {

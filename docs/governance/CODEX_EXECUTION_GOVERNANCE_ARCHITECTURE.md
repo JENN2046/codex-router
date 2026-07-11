@@ -54,6 +54,8 @@ provider, App Server, and SDK surfaces:
 - unknown or ambiguous work receives no write capability;
 - high and critical risk always use `human_required`;
 - authorized capability is a subset of both the request and configured ceiling;
+- every factual file write is covered by a requested write scope, including
+  both paths of a rename, and sensitive paths are re-derived from file facts;
 - approval permits never manufacture a missing capability grant;
 - structured file changes are at most conditionally `policy_auto` eligible.
 
@@ -114,7 +116,11 @@ delete, rename, command, permission, sensitive/env paths, protected branches,
 dirty worktrees, HEAD mismatch, network, credentials, external targets,
 release/deploy, ambiguous targets, and unknown facts regardless of policy.
 Every create/update must declare an exact expected after-hash; updates must also
-declare their before-hash.
+declare their before-hash. The public policy evaluator re-canonicalizes the
+entire change set before matching a rule, so unsafe cross-platform characters,
+ill-formed Unicode, path aliases, duplicate targets, non-canonical order, diff
+binding drift, and canonical-hash drift cannot be made eligible by a broad path
+rule.
 
 `LocalClonePreviewer` does not trust caller-provided isolation strings. A
 previewer and process runner must be registered inside the module and bound to
