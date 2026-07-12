@@ -205,6 +205,17 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
       assert.equal(lifecycle.status, "ignored");
     }
 
+    for (const status of [
+      { activeFlags: ["waitingOnApproval"], type: "active" },
+      { type: "idle" }
+    ]) {
+      const statusResult = await bridge.ingest({
+        method: "thread/status/changed",
+        params: { status, threadId: "thread-progress" }
+      });
+      assert.equal(statusResult.status, "ignored");
+    }
+
     for (const progress of [
       {
         method: "item/agentMessage/delta",
@@ -235,6 +246,16 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
         }
       },
       {
+        method: "item/commandExecution/terminalInteraction",
+        params: {
+          itemId: "command-1",
+          processId: "process-1",
+          stdin: "continue\n",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
         method: "item/fileChange/patchUpdated",
         params: {
           changes: [{
@@ -243,6 +264,58 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
             path: "docs/guide.md"
           }],
           itemId: "file-change-1",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/mcpToolCall/progress",
+        params: {
+          itemId: "mcp-tool-call-1",
+          message: "connecting",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/autoApprovalReview/started",
+        params: {
+          action: {
+            cwd: "/tmp/codex-router",
+            files: ["/tmp/codex-router/docs/guide.md"],
+            type: "applyPatch"
+          },
+          review: {
+            riskLevel: "low",
+            status: "inProgress",
+            userAuthorization: "low"
+          },
+          reviewId: "review-1",
+          startedAtMs: 1762732800200,
+          targetItemId: "file-change-1",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/autoApprovalReview/completed",
+        params: {
+          action: {
+            cwd: "/tmp/codex-router",
+            files: ["/tmp/codex-router/docs/guide.md"],
+            type: "applyPatch"
+          },
+          completedAtMs: 1762732800201,
+          decisionSource: "agent",
+          review: {
+            rationale: "review complete",
+            riskLevel: "low",
+            status: "approved",
+            userAuthorization: "low"
+          },
+          reviewId: "review-1",
+          startedAtMs: 1762732800200,
+          targetItemId: "file-change-1",
           threadId: "thread-progress",
           turnId: "turn-progress"
         }
@@ -312,6 +385,23 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
         method: "turn/moderationMetadata",
         params: {
           metadata: { source: "test" },
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "mcpServer/startupStatus/updated",
+        params: {
+          error: null,
+          failureReason: null,
+          name: "filesystem",
+          status: "ready",
+          threadId: "thread-non-governance"
+        }
+      },
+      {
+        method: "thread/compacted",
+        params: {
           threadId: "thread-non-governance",
           turnId: "turn-non-governance"
         }
@@ -404,8 +494,13 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
       id: "raw-command-request",
       method: "item/commandExecution/requestApproval",
       params: {
+        additionalPermissions: {
+          fileSystem: { read: ["/tmp/codex-router/docs"] },
+          network: null
+        },
         command: "npm test",
         cwd: "/tmp/codex-router",
+        environmentId: "local",
         itemId: "raw-command-item",
         reason: "operator review",
         startedAtMs: 1762732800100,
@@ -416,6 +511,13 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
     assert.equal(command.status, "normalized");
     if (command.status !== "normalized") return;
     assert.equal(command.outcome.status, "manual_required");
+    assert.deepEqual(command.outcome.approvalProposal, {
+      kind: "command",
+      argv: ["npm test"],
+      cwd: "/tmp/codex-router",
+      environmentId: "local",
+      requestedPermissionScope: "{\"fileSystem\":{\"read\":[\"/tmp/codex-router/docs\"]},\"network\":null}"
+    });
     assert.equal(fixture.transport.messages.length, 0);
 
     const network = await bridge.ingest({
@@ -427,6 +529,7 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
           network: { enabled: true }
         },
         availableDecisions: ["accept", "decline"],
+        environmentId: "local",
         itemId: "raw-network-item",
         networkApprovalContext: {
           host: "api.example.test",
@@ -444,7 +547,9 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
     assert.deepEqual(network.outcome.approvalProposal, {
       kind: "network",
       host: "api.example.test",
-      protocol: "https"
+      protocol: "https",
+      environmentId: "local",
+      requestedPermissionScope: "{\"fileSystem\":null,\"network\":{\"enabled\":true}}"
     });
     assert.equal(fixture.transport.messages.length, 0);
 

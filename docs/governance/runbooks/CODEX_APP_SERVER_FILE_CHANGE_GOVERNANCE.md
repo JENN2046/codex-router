@@ -3,7 +3,7 @@ title: Runbook: Codex App Server File-change Governance
 status: active
 owner: governance
 created: 2026-07-11
-last_verified: 2026-07-12
+last_verified: 2026-07-13
 verified_by:
   - node --import tsx --test tests/codex-app-server-v2-wire.test.ts
   - node --import tsx --test tests/codex-app-server-adapter.test.ts
@@ -87,9 +87,11 @@ normalized `transport_disconnected` event to reconcile the governed adapter.
 
 After the handshake, ordinary client-call JSON-RPC responses with `{ id,
 result }` or `{ id, error }` are accepted and ignored by governance; malformed
-responses remain fail-closed. Documented `turn/started` and `turn/completed`
-notifications use `{ turn }`; an optional `threadId` is compatibility metadata
-and is not required for the ignore path.
+error envelopes remain fail-closed. Optional W3C `trace` metadata is strictly
+validated only on server requests and is never an authorization input.
+Documented `turn/started` and `turn/completed` notifications use `{ turn }`; an
+optional `threadId` is compatibility metadata and is not required for the
+ignore path.
 
 The v2 `item/started` payload does not carry a trusted Git HEAD or target
 hashes. Callers must inject an evidence provider that returns one full HEAD and
@@ -102,8 +104,10 @@ command, and network approvals use `{ id, result: { decision } }`; a permission
 accept echoes the exact requested permission profile for the operator-approved
 turn, while a decline sends an empty profile. `acceptForSession`, `cancel`, and
 unknown request ids are never auto-mapped. Command approval hints such as
-`availableDecisions` and experimental `additionalPermissions` are accepted for
-schema compatibility but do not grant authorization. Command and network-only
+`availableDecisions` do not grant authorization. Experimental
+`additionalPermissions` and `environmentId` are canonicalized into the
+operator-visible command/network proposal so an `accept` decision cannot hide
+requested sandbox scope or its execution environment. Command and network-only
 requests are always normalized as `manual_required` proposals; they never enter
 policy auto-approval.
 
@@ -118,19 +122,26 @@ still quarantines the session. Governed paths containing literal backslashes
 are rejected before path canonicalization.
 
 Documented item progress notifications (`item/agentMessage/delta`,
-`item/plan/delta`, reasoning deltas, command output deltas, and file-change
-patch/output deltas) are validated against their correlation fields and then
-ignored. They carry no authorization input; malformed progress or an unknown
-notification method still quarantines the v2 session. Repeated valid ignored
-chunks or snapshots are not replay failures: replay protection remains on
-request-id messages and governed file lifecycle/resolution events. The
-documented `turn/plan/updated` shape is keyed by `turnId` (optional `threadId`
-is compatibility metadata). Plan, token-usage, model buffering/reroute/
-verification, moderation, error, and warning diagnostics are validated and
-ignored. The `collabToolCall` ThreadItem tag is accepted for lifecycle-only
-events. App Server permission profiles may encode a no-access filesystem entry
-as `access: "none"`; this is accepted as a distinct non-grant value and
-preserved for manual review.
+`item/plan/delta`, reasoning deltas, command output/terminal interaction,
+MCP-tool progress, and file-change patch/output deltas) are validated against
+their correlation fields and then ignored. They carry no authorization input;
+malformed progress or an unknown notification method still quarantines the v2
+session. Repeated valid ignored chunks or snapshots are not replay failures:
+replay protection remains on request-id messages and governed file
+lifecycle/resolution events. Normal `thread/status/changed` transitions to
+`active` or `idle` are validated and ignored; `systemError`, `notLoaded`,
+unknown status variants, and malformed status payloads quarantine the session.
+The deprecated `thread/compacted` diagnostic is also validated and ignored.
+The documented `turn/plan/updated` shape is keyed by `turnId` (optional
+`threadId` is compatibility metadata). Plan, token-usage, model
+buffering/reroute/verification, moderation, error, and warning diagnostics are
+validated and ignored. MCP startup status and approval auto-review
+start/completion events are also validated and ignored; auto-review status,
+risk, or authorization hints never grant capability or bypass the manual
+command/permission boundary. The `collabToolCall` ThreadItem tag is accepted
+for lifecycle-only events. App Server permission profiles may encode a
+no-access filesystem entry as `access: "none"`; this is accepted as a distinct
+non-grant value and preserved for manual review.
 
 ## Procedure
 

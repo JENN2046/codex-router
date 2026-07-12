@@ -36,6 +36,11 @@ const FullGitObjectIdSchema = z.string().regex(
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 
+const V2TraceContextSchema = z.object({
+  traceparent: z.string().optional(),
+  tracestate: z.string().optional()
+}).strict();
+
 const V2FileChangeKindSchema = z.union([
   z.object({ type: z.literal("add") }).strict(),
   z.object({ type: z.literal("delete") }).strict(),
@@ -228,7 +233,7 @@ const V2CommandExecutionApprovalParamsSchema = z.object({
   command: z.string().min(1).nullable().optional(),
   commandActions: z.array(V2CommandActionSchema).nullable().optional(),
   cwd: z.string().min(1).nullable().optional(),
-  environmentId: z.string().nullable().optional(),
+  environmentId: z.string().min(1).nullable().optional(),
   itemId: z.string().min(1),
   networkApprovalContext: V2NetworkApprovalContextSchema.nullable().optional(),
   proposedExecpolicyAmendment: z.array(z.string()).nullable().optional(),
@@ -244,7 +249,7 @@ const V2CommandExecutionApprovalParamsSchema = z.object({
 
 const V2PermissionsApprovalParamsSchema = z.object({
   cwd: z.string().min(1),
-  environmentId: z.string().nullable().optional(),
+  environmentId: z.string().min(1).nullable().optional(),
   itemId: z.string().min(1),
   permissions: V2PermissionProfileSchema,
   reason: z.string().nullable().optional(),
@@ -268,6 +273,21 @@ const V2TurnDiffUpdatedParamsSchema = z.object({
 
 const V2ThreadStartedParamsSchema = z.object({
   thread: z.record(z.unknown())
+}).strict();
+
+const V2ThreadStatusSchema = z.union([
+  z.object({ type: z.literal("notLoaded") }).strict(),
+  z.object({ type: z.literal("idle") }).strict(),
+  z.object({ type: z.literal("systemError") }).strict(),
+  z.object({
+    activeFlags: z.array(z.enum(["waitingOnApproval", "waitingOnUserInput"])),
+    type: z.literal("active")
+  }).strict()
+]);
+
+const V2ThreadStatusChangedParamsSchema = z.object({
+  status: V2ThreadStatusSchema,
+  threadId: z.string().min(1)
 }).strict();
 
 const V2TurnLifecycleParamsSchema = z.object({
@@ -359,6 +379,91 @@ const V2ConfigWarningNotificationParamsSchema = z.object({
   summary: z.string().min(1)
 }).strict();
 
+const V2McpServerStatusUpdatedParamsSchema = z.object({
+  error: z.string().nullable().optional(),
+  failureReason: z.literal("reauthenticationRequired").nullable().optional(),
+  name: z.string().min(1),
+  status: z.enum(["starting", "ready", "failed", "cancelled"]),
+  threadId: z.string().min(1).nullable().optional()
+}).strict();
+
+const V2ContextCompactedParamsSchema = z.object({
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2AutoApprovalReviewActionSchema = z.union([
+  z.object({
+    command: z.string(),
+    cwd: z.string().min(1),
+    source: z.enum(["shell", "unifiedExec"]),
+    type: z.literal("command")
+  }).strict(),
+  z.object({
+    argv: z.array(z.string()),
+    cwd: z.string().min(1),
+    program: z.string(),
+    source: z.enum(["shell", "unifiedExec"]),
+    type: z.literal("execve")
+  }).strict(),
+  z.object({
+    cwd: z.string().min(1),
+    files: z.array(z.string()),
+    type: z.literal("applyPatch")
+  }).strict(),
+  z.object({
+    host: z.string(),
+    port: z.number().int().min(0).max(65535),
+    protocol: z.enum(["http", "https", "socks5Tcp", "socks5Udp"]),
+    target: z.string(),
+    type: z.literal("networkAccess")
+  }).strict(),
+  z.object({
+    connectorId: z.string().nullable().optional(),
+    connectorName: z.string().nullable().optional(),
+    server: z.string(),
+    toolName: z.string(),
+    toolTitle: z.string().nullable().optional(),
+    type: z.literal("mcpToolCall")
+  }).strict(),
+  z.object({
+    permissions: V2PermissionProfileSchema,
+    reason: z.string().nullable().optional(),
+    type: z.literal("requestPermissions")
+  }).strict()
+]);
+
+const V2AutoApprovalReviewSchema = z.object({
+  rationale: z.string().nullable().optional(),
+  riskLevel: z.enum(["low", "medium", "high", "critical"]).nullable().optional(),
+  status: z.enum(["inProgress", "approved", "denied", "timedOut", "aborted"]),
+  userAuthorization: z.enum(["unknown", "low", "medium", "high"])
+    .nullable()
+    .optional()
+}).strict();
+
+const V2AutoApprovalReviewStartedParamsSchema = z.object({
+  action: V2AutoApprovalReviewActionSchema,
+  review: V2AutoApprovalReviewSchema,
+  reviewId: z.string().min(1),
+  startedAtMs: TimestampMsSchema,
+  targetItemId: z.string().min(1).nullable().optional(),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2AutoApprovalReviewCompletedParamsSchema = z.object({
+  action: V2AutoApprovalReviewActionSchema,
+  completedAtMs: TimestampMsSchema,
+  decisionSource: z.literal("agent"),
+  review: V2AutoApprovalReviewSchema,
+  reviewId: z.string().min(1),
+  startedAtMs: TimestampMsSchema,
+  targetItemId: z.string().min(1).nullable().optional(),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
 const V2RemoteControlStatusParamsSchema = z.object({
   environmentId: z.string().min(1).nullable().optional(),
   // The startup disabled snapshot is documented without an installation id.
@@ -372,11 +477,27 @@ const V2RemoteControlStatusParamsSchema = z.object({
 const V2ProgressIndexSchema = z.number()
   .int()
   .finite()
+  .nonnegative()
   .refine(Number.isSafeInteger, "progress index must be a safe integer");
 
 const V2ItemProgressDeltaParamsSchema = z.object({
   delta: z.string(),
   itemId: z.string().min(1),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2CommandExecutionTerminalInteractionParamsSchema = z.object({
+  itemId: z.string().min(1),
+  processId: z.string().min(1),
+  stdin: z.string(),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2McpToolCallProgressParamsSchema = z.object({
+  itemId: z.string().min(1),
+  message: z.string(),
   threadId: z.string().min(1),
   turnId: z.string().min(1)
 }).strict();
@@ -428,7 +549,9 @@ const V2NonGovernanceNotificationMethodSchema = z.enum([
   "warning",
   "guardianWarning",
   "deprecationNotice",
-  "configWarning"
+  "configWarning",
+  "mcpServer/startupStatus/updated",
+  "thread/compacted"
 ]);
 
 /**
@@ -480,6 +603,14 @@ const V2NonGovernanceNotificationSchema = z.union([
   z.object({
     method: z.literal("configWarning"),
     params: V2ConfigWarningNotificationParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("mcpServer/startupStatus/updated"),
+    params: V2McpServerStatusUpdatedParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("thread/compacted"),
+    params: V2ContextCompactedParamsSchema
   }).strict()
 ]);
 
@@ -496,8 +627,12 @@ const V2ProgressNotificationMethodSchema = z.enum([
   "item/reasoning/summaryPartAdded",
   "item/reasoning/textDelta",
   "item/commandExecution/outputDelta",
+  "item/commandExecution/terminalInteraction",
   "item/fileChange/outputDelta",
-  "item/fileChange/patchUpdated"
+  "item/fileChange/patchUpdated",
+  "item/mcpToolCall/progress",
+  "item/autoApprovalReview/started",
+  "item/autoApprovalReview/completed"
 ]);
 
 const V2ProgressNotificationSchema = z.union([
@@ -526,17 +661,37 @@ const V2ProgressNotificationSchema = z.union([
     params: V2ItemProgressDeltaParamsSchema
   }).strict(),
   z.object({
+    method: z.literal("item/commandExecution/terminalInteraction"),
+    params: V2CommandExecutionTerminalInteractionParamsSchema
+  }).strict(),
+  z.object({
     method: z.literal("item/fileChange/outputDelta"),
     params: V2ItemProgressDeltaParamsSchema
   }).strict(),
   z.object({
     method: z.literal("item/fileChange/patchUpdated"),
     params: V2FileChangePatchUpdatedParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("item/mcpToolCall/progress"),
+    params: V2McpToolCallProgressParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("item/autoApprovalReview/started"),
+    params: V2AutoApprovalReviewStartedParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("item/autoApprovalReview/completed"),
+    params: V2AutoApprovalReviewCompletedParamsSchema
   }).strict()
 ]);
 
 const V2JsonRpcResponseSchema = z.object({
-  error: z.unknown().optional(),
+  error: z.object({
+    code: z.number().int().finite().refine(Number.isSafeInteger),
+    data: z.unknown().optional(),
+    message: z.string()
+  }).strict().optional(),
   id: JsonRpcRequestIdSchema,
   result: z.unknown().optional()
 }).strict().refine((value) => {
@@ -548,25 +703,32 @@ const V2JsonRpcResponseSchema = z.object({
 const V2WireEnvelopeSchema = z.object({
   id: JsonRpcRequestIdSchema.optional(),
   method: z.string().min(1),
-  params: z.unknown().refine((value) => value !== undefined, "params is required")
-}).strict();
+  params: z.unknown().refine((value) => value !== undefined, "params is required"),
+  trace: V2TraceContextSchema.optional()
+}).strict().refine(
+  (value) => value.id !== undefined || value.trace === undefined,
+  "trace is supported only on JSON-RPC requests"
+);
 
 const V2FileChangeApprovalRequestSchema = z.object({
   id: JsonRpcRequestIdSchema,
   method: z.literal("item/fileChange/requestApproval"),
-  params: CodexAppServerV2FileChangeApprovalParamsSchema
+  params: CodexAppServerV2FileChangeApprovalParamsSchema,
+  trace: V2TraceContextSchema.optional()
 }).strict();
 
 const V2CommandExecutionApprovalRequestSchema = z.object({
   id: JsonRpcRequestIdSchema,
   method: z.literal("item/commandExecution/requestApproval"),
-  params: V2CommandExecutionApprovalParamsSchema
+  params: V2CommandExecutionApprovalParamsSchema,
+  trace: V2TraceContextSchema.optional()
 }).strict();
 
 const V2PermissionsApprovalRequestSchema = z.object({
   id: JsonRpcRequestIdSchema,
   method: z.literal("item/permissions/requestApproval"),
-  params: V2PermissionsApprovalParamsSchema
+  params: V2PermissionsApprovalParamsSchema,
+  trace: V2TraceContextSchema.optional()
 }).strict();
 
 const V2ItemStartedWireSchema = z.object({
@@ -592,6 +754,11 @@ const V2TurnDiffUpdatedWireSchema = z.object({
 const V2ThreadStartedWireSchema = z.object({
   method: z.literal("thread/started"),
   params: V2ThreadStartedParamsSchema
+}).strict();
+
+const V2ThreadStatusChangedWireSchema = z.object({
+  method: z.literal("thread/status/changed"),
+  params: V2ThreadStatusChangedParamsSchema
 }).strict();
 
 const V2TurnStartedWireSchema = z.object({
@@ -620,6 +787,7 @@ export const CodexAppServerV2WireMessageSchema = z.union([
   V2ServerRequestResolvedWireSchema,
   V2TurnDiffUpdatedWireSchema,
   V2ThreadStartedWireSchema,
+  V2ThreadStatusChangedWireSchema,
   V2TurnStartedWireSchema,
   V2TurnCompletedWireSchema,
   V2RemoteControlStatusWireSchema,
@@ -988,14 +1156,38 @@ export class CodexAppServerV2WireNormalizer {
           ? {
               kind: "network",
               host: networkApprovalContext!.host,
-              protocol: networkApprovalContext!.protocol
+              protocol: networkApprovalContext!.protocol,
+              ...(parsed.data.params.environmentId === undefined
+                || parsed.data.params.environmentId === null
+                ? {}
+                : { environmentId: parsed.data.params.environmentId }),
+              ...(parsed.data.params.additionalPermissions === undefined
+                || parsed.data.params.additionalPermissions === null
+                ? {}
+                : {
+                    requestedPermissionScope: stableJson(
+                      parsed.data.params.additionalPermissions
+                    )
+                  })
             }
           : {
               kind: "command",
               argv: [command!],
               ...(parsed.data.params.cwd === undefined || parsed.data.params.cwd === null
                 ? {}
-                : { cwd: parsed.data.params.cwd })
+                : { cwd: parsed.data.params.cwd }),
+              ...(parsed.data.params.environmentId === undefined
+                || parsed.data.params.environmentId === null
+                ? {}
+                : { environmentId: parsed.data.params.environmentId }),
+              ...(parsed.data.params.additionalPermissions === undefined
+                || parsed.data.params.additionalPermissions === null
+                ? {}
+                : {
+                    requestedPermissionScope: stableJson(
+                      parsed.data.params.additionalPermissions
+                    )
+                  })
             },
         requestId,
         ...(parsed.data.params.reason === undefined
@@ -1098,6 +1290,16 @@ export class CodexAppServerV2WireNormalizer {
         return parsed.success
           ? { status: "ignored", method }
           : this.quarantine("v2_thread_started_schema_invalid", { method });
+      }
+      case "thread/status/changed": {
+        const parsed = V2ThreadStatusChangedWireSchema.safeParse({ method, params });
+        if (!parsed.success) {
+          return this.quarantine("v2_thread_status_schema_invalid", { method });
+        }
+        return parsed.data.params.status.type === "active"
+          || parsed.data.params.status.type === "idle"
+          ? { status: "ignored", method }
+          : this.quarantine("v2_thread_status_terminal", { method });
       }
       case "turn/started": {
         const parsed = V2TurnStartedWireSchema.safeParse({ method, params });

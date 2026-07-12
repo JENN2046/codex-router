@@ -156,6 +156,40 @@ test("ordinary JSON-RPC responses and documented turn snapshots are ignored", ()
     });
   }
 
+  for (const status of [
+    { activeFlags: [], type: "active" as const },
+    { type: "idle" as const }
+  ]) {
+    const statusMessage = {
+      method: "thread/status/changed",
+      params: { status, threadId: "thread-status" }
+    };
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(statusMessage).success, true);
+    assert.deepEqual(normalizer.normalize(statusMessage), {
+      status: "ignored",
+      method: "thread/status/changed"
+    });
+  }
+
+  const terminalStatus = createNormalizer().normalize({
+    method: "thread/status/changed",
+    params: {
+      status: { type: "systemError" },
+      threadId: "thread-status"
+    }
+  });
+  assert.equal(terminalStatus.status, "blocked");
+  if (terminalStatus.status !== "blocked") return;
+  assert.ok(terminalStatus.reasons.includes("v2_thread_status_terminal"));
+
+  const malformedError = createNormalizer().normalize({
+    id: "malformed-error-response",
+    error: null
+  });
+  assert.equal(malformedError.status, "blocked");
+  if (malformedError.status !== "blocked") return;
+  assert.ok(malformedError.reasons.includes("v2_wire_envelope_invalid"));
+
   const malformedResponse = normalizer.normalize({ id: "missing-result-or-error" });
   assert.equal(malformedResponse.status, "blocked");
   if (malformedResponse.status !== "blocked") return;
@@ -464,6 +498,16 @@ test("documented item progress notifications are ignored without quarantining", 
       }
     },
     {
+      method: "item/commandExecution/terminalInteraction",
+      params: {
+        itemId: "command-1",
+        processId: "process-1",
+        stdin: "continue\n",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    },
+    {
       method: "item/fileChange/outputDelta",
       params: {
         delta: "legacy patch output",
@@ -484,6 +528,59 @@ test("documented item progress notifications are ignored without quarantining", 
         threadId: "thread-progress",
         turnId: "turn-progress"
       }
+    },
+    {
+      method: "item/mcpToolCall/progress",
+      params: {
+        itemId: "mcp-tool-call-1",
+        message: "connecting",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    },
+    {
+      method: "item/autoApprovalReview/started",
+      params: {
+        action: {
+          cwd: "/tmp/codex-router",
+          files: ["/tmp/codex-router/docs/guide.md"],
+          type: "applyPatch"
+        },
+        review: {
+          rationale: null,
+          riskLevel: "low",
+          status: "inProgress",
+          userAuthorization: "low"
+        },
+        reviewId: "review-1",
+        startedAtMs: 1762732800200,
+        targetItemId: "file-change-1",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    },
+    {
+      method: "item/autoApprovalReview/completed",
+      params: {
+        action: {
+          cwd: "/tmp/codex-router",
+          files: ["/tmp/codex-router/docs/guide.md"],
+          type: "applyPatch"
+        },
+        completedAtMs: 1762732800201,
+        decisionSource: "agent",
+        review: {
+          rationale: "review complete",
+          riskLevel: "low",
+          status: "approved",
+          userAuthorization: "low"
+        },
+        reviewId: "review-1",
+        startedAtMs: 1762732800200,
+        targetItemId: "file-change-1",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
     }
   ];
 
@@ -501,6 +598,20 @@ test("documented item progress notifications are ignored without quarantining", 
 
   const [fileStarted] = fileChangeFlow as unknown[];
   assert.equal(normalizer.normalize(fileStarted).status, "normalized");
+
+  const negativeIndex = createNormalizer().normalize({
+    method: "item/reasoning/summaryTextDelta",
+    params: {
+      delta: "invalid",
+      itemId: "reasoning-negative",
+      summaryIndex: -1,
+      threadId: "thread-progress",
+      turnId: "turn-progress"
+    }
+  });
+  assert.equal(negativeIndex.status, "blocked");
+  if (negativeIndex.status !== "blocked") return;
+  assert.ok(negativeIndex.reasons.includes("v2_progress_notification_schema_invalid"));
 
   const malformed = normalizer.normalize({
     method: "item/agentMessage/delta",
@@ -596,6 +707,23 @@ test("documented non-governance notifications are ignored without quarantining",
     {
       method: "configWarning",
       params: { summary: "invalid optional config" }
+    },
+    {
+      method: "mcpServer/startupStatus/updated",
+      params: {
+        error: null,
+        failureReason: null,
+        name: "filesystem",
+        status: "ready",
+        threadId: "thread-non-governance"
+      }
+    },
+    {
+      method: "thread/compacted",
+      params: {
+        threadId: "thread-non-governance",
+        turnId: "turn-non-governance"
+      }
     }
   ];
 
@@ -625,6 +753,114 @@ test("documented non-governance notifications are ignored without quarantining",
   assert.ok(malformed.reasons.includes("v2_session_quarantined"));
 });
 
+test("MCP startup and auto-review notifications validate every documented variant", () => {
+  const normalizer = createNormalizer();
+  for (const message of [
+    {
+      method: "mcpServer/startupStatus/updated",
+      params: { name: "filesystem", status: "starting" }
+    },
+    {
+      method: "mcpServer/startupStatus/updated",
+      params: {
+        error: "stored OAuth credentials expired",
+        failureReason: "reauthenticationRequired",
+        name: "remote-docs",
+        status: "failed",
+        threadId: null
+      }
+    }
+  ]) {
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(message).success, true);
+    assert.equal(normalizer.normalize(message).status, "ignored");
+  }
+
+  const actions = [
+    {
+      command: "npm test",
+      cwd: "/tmp/codex-router",
+      source: "shell",
+      type: "command"
+    },
+    {
+      argv: ["npm", "test"],
+      cwd: "/tmp/codex-router",
+      program: "npm",
+      source: "unifiedExec",
+      type: "execve"
+    },
+    {
+      cwd: "/tmp/codex-router",
+      files: ["/tmp/codex-router/docs/guide.md"],
+      type: "applyPatch"
+    },
+    {
+      host: "example.test",
+      port: 443,
+      protocol: "https",
+      target: "https://example.test",
+      type: "networkAccess"
+    },
+    {
+      connectorId: null,
+      connectorName: null,
+      server: "filesystem",
+      toolName: "read_file",
+      toolTitle: null,
+      type: "mcpToolCall"
+    },
+    {
+      permissions: {
+        fileSystem: { read: ["/tmp/codex-router/docs"] },
+        network: null
+      },
+      reason: "read documentation",
+      type: "requestPermissions"
+    }
+  ];
+  for (const [index, action] of actions.entries()) {
+    const message = {
+      method: "item/autoApprovalReview/started",
+      params: {
+        action,
+        review: { status: "inProgress" },
+        reviewId: `review-variant-${index}`,
+        startedAtMs: 1762732800300 + index,
+        targetItemId: null,
+        threadId: "thread-review-variants",
+        turnId: "turn-review-variants"
+      }
+    };
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(message).success, true);
+    assert.equal(normalizer.normalize(message).status, "ignored");
+  }
+
+  const invalidMcp = createNormalizer().normalize({
+    method: "mcpServer/startupStatus/updated",
+    params: { name: "filesystem", status: "unknown" }
+  });
+  assert.equal(invalidMcp.status, "blocked");
+  if (invalidMcp.status !== "blocked") return;
+  assert.ok(invalidMcp.reasons.includes("v2_non_governance_notification_schema_invalid"));
+
+  const invalidReview = createNormalizer().normalize({
+    method: "item/autoApprovalReview/completed",
+    params: {
+      action: { type: "futureAction" },
+      completedAtMs: 1762732800301,
+      decisionSource: "agent",
+      review: { status: "approved" },
+      reviewId: "review-invalid",
+      startedAtMs: 1762732800300,
+      threadId: "thread-review-invalid",
+      turnId: "turn-review-invalid"
+    }
+  });
+  assert.equal(invalidReview.status, "blocked");
+  if (invalidReview.status !== "blocked") return;
+  assert.ok(invalidReview.reasons.includes("v2_progress_notification_schema_invalid"));
+});
+
 test("command and permission wire approvals become manual-only normalized events", () => {
   const normalizer = createNormalizer();
   const command = normalizer.normalize({
@@ -645,6 +881,7 @@ test("command and permission wire approvals become manual-only normalized events
         network: { enabled: true }
       },
       availableDecisions: ["accept", "decline"],
+      environmentId: "local",
       itemId: "item-command",
       reason: "operator review",
       startedAtMs: 1762732800100,
@@ -657,7 +894,9 @@ test("command and permission wire approvals become manual-only normalized events
   assert.deepEqual(command.event.proposal, {
     kind: "command",
     argv: ["npm test"],
-    cwd: "/tmp/codex-router"
+    cwd: "/tmp/codex-router",
+    environmentId: "local",
+    requestedPermissionScope: "{\"fileSystem\":{\"entries\":[{\"access\":\"none\",\"path\":{\"path\":\"/tmp/codex-router/private\",\"type\":\"path\"}}],\"read\":[\"/tmp/codex-router/docs\"],\"write\":null},\"network\":{\"enabled\":true}}"
   });
   assert.equal(normalizer.encodeApprovalResponse(response("command-request", "accept")).status, "encoded");
 
@@ -735,6 +974,10 @@ test("approval requests accept documented payloads without lifecycle timestamps"
       itemId: "timestampless-command-item",
       threadId: "timestampless-command-thread",
       turnId: "timestampless-command-turn"
+    },
+    trace: {
+      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+      tracestate: "vendor=test"
     }
   };
   assert.equal(CodexAppServerV2WireMessageSchema.safeParse(command).success, true);
@@ -775,6 +1018,7 @@ test("network-only command approvals remain manual and preserve the network targ
         network: { enabled: true }
       },
       availableDecisions: ["accept", "decline"],
+      environmentId: "local",
       itemId: "item-network",
       networkApprovalContext: {
         host: "api.example.test",
@@ -791,7 +1035,9 @@ test("network-only command approvals remain manual and preserve the network targ
   assert.deepEqual(network.event.proposal, {
     kind: "network",
     host: "api.example.test",
-    protocol: "https"
+    protocol: "https",
+    environmentId: "local",
+    requestedPermissionScope: "{\"fileSystem\":null,\"network\":{\"enabled\":true}}"
   });
   assert.equal(normalizer.encodeApprovalResponse(response("network-request", "decline")).status, "encoded");
 });
