@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import codexCliHostPublicExportLockFixture from "../tests/fixtures/codex-cli-host-public-export-lock.fixture.json" with { type: "json" };
 import codexCliHostGovernanceV2PublicExportLockFixture from "../tests/fixtures/codex-cli-host-governance-v2-public-export-lock.fixture.json" with { type: "json" };
@@ -4203,11 +4203,7 @@ test("codex cli read-only smoke runs through guarded runner and captures evidenc
   });
 
   assert.equal(result.status, "passed");
-  if (process.platform === "win32") {
-    assert.match(calls[0]?.command ?? "", /codex\.(cmd|exe)$/i);
-  } else {
-    assert.equal(calls[0]?.command, "codex");
-  }
+  assertResolvedCodexRuntimeCommand(calls[0]?.command);
   assert.equal(result.plan.sandbox, "read-only");
   assert.equal(result.plan.approvalPolicy, "never");
   assert.deepEqual(result.plan.args.slice(0, 3), ["exec", "--json", "--sandbox"]);
@@ -4726,11 +4722,7 @@ test("codex cli workspace-write smoke runner executes only after both gates", as
   assert.equal(result.preflight.status, "ready");
   assert.deepEqual(result.validationBlockers, []);
   assert.equal(calls.length, 1);
-  if (process.platform === "win32") {
-    assert.match(calls[0]?.command ?? "", /codex\.exe$/i);
-  } else {
-    assert.equal(calls[0]?.command, "codex");
-  }
+  assertResolvedCodexRuntimeCommand(calls[0]?.command);
   assert.equal(calls[0]?.cwd, "A:/codex-router");
   assert.deepEqual(calls[0]?.stdio, ["pipe", "pipe", "pipe"]);
   assert.deepEqual(calls[0]?.args.slice(0, 6), [
@@ -4947,6 +4939,15 @@ test("codex cli workspace-write smoke run-and-write forwards lifecycle options",
 function getArgValue(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
   return index >= 0 ? args[index + 1] : undefined;
+}
+
+function assertResolvedCodexRuntimeCommand(command: string | undefined): void {
+  assert.ok(command !== undefined);
+  if (command === "codex") {
+    return;
+  }
+  assert.equal(isAbsolute(command), true);
+  assert.match(basename(command), /^codex(?:\.(?:cmd|exe))?$/iu);
 }
 
 class FakeCodexCliStream extends EventEmitter {

@@ -66,6 +66,40 @@ test("approval gate independently requires approval for protected write contexts
   assert.ok(approval.reasons.includes("workspace:dirty"));
 });
 
+test("Chinese high-risk and release requests always require approval", async () => {
+  const policy = await loadPolicyFromFile(policyPath);
+  for (const [taskId, requestedAction] of [
+    ["gate-zh-permission", "修改权限并删除凭证文件"],
+    ["gate-zh-release", "把修改推送到主分支并发布到生产"]
+  ] as const) {
+    const task = parseTaskEnvelope({
+      taskId,
+      source: "desktop-thread",
+      intent: {
+        summary: "执行受保护的中文动作",
+        requestedAction,
+        successCriteria: [],
+        outOfScope: []
+      },
+      repoContext: {
+        repoRoot: "A:/codex-router",
+        branch: "feature/safe",
+        worktreeClean: true,
+        protectedBranch: false
+      },
+      target: { branches: [], files: ["docs/guide.md"], modules: [] },
+      constraints: {},
+      hints: { taskClassHint: "read_only", riskHints: [], tags: [] }
+    });
+    const decision = routeTask(task, classifyIntent(task), policy);
+    const approval = evaluateApprovalRequirement(task, decision, policy);
+
+    assert.equal(decision.classification.riskLevel, "high");
+    assert.equal(approval.status, "pending");
+    assert.ok(approval.reasons.some((reason) => reason.startsWith("risk:")));
+  }
+});
+
 test("approval gate recomputes protected policy signals when routing approval is absent", async () => {
   const policy = await loadPolicyFromFile(policyPath);
   const task = parseTaskEnvelope({

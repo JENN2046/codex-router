@@ -143,19 +143,21 @@ test("state-sync reanchor range verifier preserves padded path names", async () 
   const cwd = await createGitFixture();
   const baseRef = (await git(cwd, ["rev-parse", "HEAD"])).trim();
 
+  const paddedPath = " docs/current/CURRENT_STATE.md";
+  await mkdir(join(cwd, " docs", "current"), { recursive: true });
   await writeFile(
-    join(cwd, "docs", "current", "CURRENT_STATE.md "),
+    join(cwd, paddedPath),
     "padded path\n",
     "utf8"
   );
-  await git(cwd, ["add", "docs/current/CURRENT_STATE.md "]);
+  await git(cwd, ["add", paddedPath]);
   await git(cwd, ["commit", "-m", "docs(state): padded path"]);
 
   const result = await verifyStateSyncReanchorRange(cwd, baseRef, "HEAD");
 
   assert.equal(result.status, "blocked");
-  assert.ok(result.changedPaths.includes("docs/current/CURRENT_STATE.md "));
-  assert.ok(result.disallowedPaths.includes("docs/current/CURRENT_STATE.md "));
+  assert.ok(result.changedPaths.includes(paddedPath));
+  assert.ok(result.disallowedPaths.includes(paddedPath));
 });
 
 test("state-sync reanchor PR body records validation and boundaries", () => {

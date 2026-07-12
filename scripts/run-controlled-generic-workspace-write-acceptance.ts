@@ -297,6 +297,7 @@ async function createGitRepo(): Promise<string> {
   await git(["init"], cwd);
   await git(["config", "user.email", "workspace-write@example.invalid"], cwd);
   await git(["config", "user.name", "Workspace Write Acceptance"], cwd);
+  await git(["config", "core.autocrlf", "false"], cwd);
   await writeFile(join(cwd, "README.md"), "fixture\n", "utf8");
   await mkdir(join(cwd, "tmp"), { recursive: true });
   await writeFile(join(cwd, TARGET_FILES[1]), "initial edit value\n", "utf8");

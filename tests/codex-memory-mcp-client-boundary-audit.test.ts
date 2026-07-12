@@ -106,7 +106,7 @@ test("Codex memory MCP client boundary audit blocks source and test drift", asyn
       "await this.client.executeMemorySearch({"
     ),
     memoryMcpClientTestText: input.memoryMcpClientTestText.replaceAll(
-      "createCodexMemoryAdapterFromMcpHttp wires native MCP transport into CodexMemoryAdapter",
+      "createCodexMemoryAdapterFromMcpHttp wires the injected MCP transport",
       "memory MCP client wires native transport into CodexMemoryAdapter"
     )
   });

@@ -36,6 +36,25 @@ test("agent executor adapter taskbook boundary audit passes for current taskbook
   assert.equal(review.summary.adapterInvocationsDuringAudit, 0);
 });
 
+test("agent executor adapter taskbook boundary audit accepts CRLF inputs", async () => {
+  const input = await createInputFromWorkspace();
+  const crlf = (text: string): string => text.replace(/\r?\n/g, "\r\n");
+  const review = reviewAgentExecutorAdapterTaskbookBoundaryAudit({
+    phase15TaskbookText: crlf(input.phase15TaskbookText),
+    phase16AuthorizationTaskbookText: crlf(
+      input.phase16AuthorizationTaskbookText
+    ),
+    phase16SandboxTaskbookText: crlf(input.phase16SandboxTaskbookText),
+    currentStateText: crlf(input.currentStateText),
+    governanceControlPlaneText: crlf(input.governanceControlPlaneText),
+    governanceReadmeText: crlf(input.governanceReadmeText),
+    governanceRunnerText: crlf(input.governanceRunnerText)
+  });
+
+  assert.equal(review.status, "passed");
+  assert.deepEqual(review.reasons, []);
+});
+
 test("agent executor adapter taskbook boundary audit blocks missing runner entry", async () => {
   const input = await createInputFromWorkspace();
   const review = reviewAgentExecutorAdapterTaskbookBoundaryAudit({

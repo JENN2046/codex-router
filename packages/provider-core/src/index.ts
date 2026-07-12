@@ -71,6 +71,14 @@ export const ProviderManifestSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).default({})
 });
 
+/**
+ * Public governance-only provider SPI. It intentionally carries no execute,
+ * invoke, remote-task, or model-runtime method.
+ */
+export interface GovernanceProvider {
+  readonly manifest: ProviderManifest;
+}
+
 export const ProviderAttestationSchema = z.object({
   schemaVersion: z.literal("provider-attestation.v1").default("provider-attestation.v1"),
   providerId: z.string().min(1),

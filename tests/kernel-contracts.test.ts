@@ -4,6 +4,7 @@ import {
   AgentManifestSchema,
   ApprovalPermitSchema,
   ArtifactSchema,
+  CapabilityFactFileChangeSchema,
   CapabilityGrantSchema,
   CapabilityScopeSchema,
   EventSchema,
@@ -119,6 +120,34 @@ test("capability scope validation blocks unsafe or malformed scopes", () => {
     }),
     /external scopes must describe side-effectful access/
   );
+});
+
+test("capability file-change facts preserve governed change semantics", () => {
+  const base = {
+    path: "docs/new.md",
+    addedLines: 1,
+    deletedLines: 1,
+    beforeHash: "0".repeat(64),
+    afterHash: "1".repeat(64)
+  };
+
+  assert.throws(() => CapabilityFactFileChangeSchema.parse({
+    ...base,
+    kind: "rename"
+  }), /rename changes require oldPath/);
+  assert.throws(() => CapabilityFactFileChangeSchema.parse({
+    ...base,
+    kind: "update",
+    oldPath: "docs/old.md"
+  }), /oldPath is only valid for rename changes/);
+  assert.throws(() => CapabilityFactFileChangeSchema.parse({
+    ...base,
+    kind: "create"
+  }), /create changes cannot declare a beforeHash/);
+  assert.throws(() => CapabilityFactFileChangeSchema.parse({
+    ...base,
+    kind: "delete"
+  }), /delete changes cannot declare an afterHash/);
 });
 
 test("sandbox profile defaults deny network and env inheritance", () => {

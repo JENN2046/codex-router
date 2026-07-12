@@ -1,0 +1,17 @@
+[
+  "FileRollbackPermitConsumptionStore",
+  "PendingApprovalJournalEntrySchema",
+  "PendingApprovalJournalStateSchema",
+  "PreviewCheckReceiptSchema",
+  "PreviewReceiptSchema",
+  "RetainPermitSchema",
+  "RetainReceiptSchema",
+  "RetainTargetHashSchema",
+  "RollbackPermitSchema",
+  "createPendingApprovalJournalEntry",
+  "hashKernelObject",
+  "issueRetainPermit",
+  "issueRollbackPermit",
+  "runGovernedRollback",
+  "verifyRetainedChange"
+]

@@ -140,7 +140,7 @@ test("execution eligibility blocks explicit deny capability decisions", () => {
   assert.deepEqual(decision.missingCapabilities, [writeScope]);
 });
 
-test("execution eligibility accepts valid approval permits", () => {
+test("execution eligibility does not let approval permits expand missing capabilities", () => {
   const policyDecision = createPolicyDecision();
   const permit = createPermit(policyDecision, {
     capabilityScopes: ["fs.write:/repo/docs/**"]
@@ -153,13 +153,18 @@ test("execution eligibility accepts valid approval permits", () => {
     approvalPermits: [permit]
   }));
 
-  assert.equal(decision.status, "eligible");
-  assert.deepEqual(decision.reasons, ["valid_approval_permit"]);
-  assert.deepEqual(decision.acceptedPermits, [permit.permitId]);
-  assert.deepEqual(decision.rejectedPermits, []);
+  assert.equal(decision.status, "waiting_approval");
+  assert.ok(decision.reasons.includes("missing_capability"));
+  assert.ok(decision.reasons.includes("capability_grant_required"));
+  assert.ok(decision.reasons.includes("approval_permit_cannot_expand_capability"));
+  assert.deepEqual(decision.missingCapabilities, [writeScope]);
+  assert.deepEqual(decision.acceptedPermits, []);
+  assert.ok(decision.rejectedPermits.includes(
+    `${permit.permitId}:permit_cannot_expand_capability`
+  ));
 });
 
-test("execution eligibility loads valid approval permits from store", () => {
+test("execution eligibility does not let stored permits expand missing capabilities", () => {
   const policyDecision = createPolicyDecision();
   const permitStore = new InMemoryApprovalPermitStore();
   const permit = permitStore.savePermit(createPermit(policyDecision, {
@@ -175,10 +180,13 @@ test("execution eligibility loads valid approval permits from store", () => {
     approvalPermitStore: permitStore
   });
 
-  assert.equal(decision.status, "eligible");
-  assert.deepEqual(decision.reasons, ["valid_approval_permit"]);
-  assert.deepEqual(decision.acceptedPermits, [permit.permitId]);
-  assert.deepEqual(decision.rejectedPermits, []);
+  assert.equal(decision.status, "waiting_approval");
+  assert.ok(decision.reasons.includes("capability_grant_required"));
+  assert.deepEqual(decision.missingCapabilities, [writeScope]);
+  assert.deepEqual(decision.acceptedPermits, []);
+  assert.ok(decision.rejectedPermits.includes(
+    `${permit.permitId}:permit_cannot_expand_capability`
+  ));
 });
 
 test("execution eligibility rejects revoked permits loaded from store", () => {

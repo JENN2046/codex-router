@@ -3,33 +3,31 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Desktop-first policy SDK for Codex routing, approval gating, escalation, and auditability.",
-  "main": "./dist/packages/public-api/src/index.js",
-  "types": "./dist/packages/public-api/src/index.d.ts",
+  "description": "Policy-based Codex execution governance for authorization, preview, evidence, retain, and rollback.",
+  "files": [
+    "dist/packages",
+    "README.md"
+  ],
   "exports": {
-    ".": {
-      "types": "./dist/packages/public-api/src/index.d.ts",
-      "import": "./dist/packages/public-api/src/index.js"
-    },
-    "./sdk": {
-      "types": "./dist/packages/public-api/src/sdk.d.ts",
-      "import": "./dist/packages/public-api/src/sdk.js"
-    },
-    "./host": {
-      "types": "./dist/packages/public-api/src/host.d.ts",
-      "import": "./dist/packages/public-api/src/host.js"
-    },
     "./protocol": {
       "types": "./dist/packages/public-api/src/protocol.d.ts",
       "import": "./dist/packages/public-api/src/protocol.js"
     },
+    "./policy": {
+      "types": "./dist/packages/public-api/src/policy.d.ts",
+      "import": "./dist/packages/public-api/src/policy.js"
+    },
+    "./codex-adapter": {
+      "types": "./dist/packages/public-api/src/codex-adapter.d.ts",
+      "import": "./dist/packages/public-api/src/codex-adapter.js"
+    },
+    "./evidence": {
+      "types": "./dist/packages/public-api/src/evidence.d.ts",
+      "import": "./dist/packages/public-api/src/evidence.js"
+    },
     "./provider": {
       "types": "./dist/packages/public-api/src/provider.d.ts",
       "import": "./dist/packages/public-api/src/provider.js"
-    },
-    "./support": {
-      "types": "./dist/packages/public-api/src/support.d.ts",
-      "import": "./dist/packages/public-api/src/support.js"
     }
   },
   "scripts": {
@@ -51,8 +49,14 @@
     "canary:external": "node --import tsx scripts/run-canary-test.ts --risk high",
     "canary:workspace-write:real": "node --import tsx scripts/run-workspace-write-real-canary-local.ts",
     "evidence:collect": "node --import tsx scripts/collect-evidence.ts",
+    "test:package-consumer": "node --import tsx scripts/test-package-consumer.ts",
+    "test:coverage:authorization": "node --experimental-test-coverage --test-coverage-include=\"packages/authorization-kernel/src/**\" --test-coverage-branches=90 --import tsx --test tests/authorization-kernel.test.ts",
+    "test:coverage:preview": "node --experimental-test-coverage --test-coverage-include=\"packages/file-change-preview/src/**\" --test-coverage-branches=90 --import tsx --test tests/file-change-preview.test.ts",
+    "test:coverage:retain": "node --experimental-test-coverage --test-coverage-include=\"packages/retain-control/src/**\" --test-coverage-branches=90 --import tsx --test tests/retain-control.test.ts",
+    "test:governance-coverage": "npm run test:coverage:authorization && npm run test:coverage:preview && npm run test:coverage:retain",
+    "test:governance-properties": "node --import tsx --test --test-name-pattern=property tests/file-change-preview.test.ts tests/retain-control.test.ts tests/codex-app-server-adapter.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx scripts/run-tests.ts"
   },
   "dependencies": {
     "yaml": "^2.8.1",

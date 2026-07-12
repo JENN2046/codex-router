@@ -23,7 +23,7 @@ The matrix verifies these local evidence rows:
 
 - Approval consumption hardening closeout:
   `APPROVAL_CONSUMPTION_HARDENING_LOCAL_CLOSEOUT_COMPLETE`
-- Approval issuance and consumption tests:
+- Approval issuance and fail-closed consumption tests:
   `tests/approval-permit.test.ts`,
   `tests/execution-eligibility.test.ts`,
   `tests/agent-os-mcp-local-runtime.test.ts`,
@@ -48,7 +48,10 @@ The matrix must prove:
 - local branch is not behind `origin/main`
 - package script for this matrix is present
 - approval consumption closeout is recorded
-- public wrapper approval consumption coverage is present
+- public wrapper approval attempts stay waiting when a capability grant is
+  missing, even if a valid approval permit exists
+- approval permits can satisfy approval only after capability grants already
+  satisfy the requested scope; permits never expand capability
 - provider dispatch rejects workspace-write before spawn
 - invalid runner results are blocked before provider dispatch
 - audit/event/artifact/tool/result/workspace-write surfaces are redacted

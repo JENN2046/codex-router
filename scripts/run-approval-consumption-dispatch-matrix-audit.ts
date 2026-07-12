@@ -301,7 +301,7 @@ function approvalPermitCoveragePresent(
 function executionEligibilityPermitStoreCoveragePresent(
   input: ApprovalConsumptionDispatchMatrixAuditInput
 ): boolean {
-  return input.executionEligibilityTestText.includes("loads valid approval permits from store")
+  return input.executionEligibilityTestText.includes("does not let stored permits expand missing capabilities")
     && input.executionEligibilityTestText.includes("rejects revoked permits loaded from store")
     && input.executionEligibilityTestText.includes("only loads permits for the matching task run and principal");
 }
@@ -309,21 +309,21 @@ function executionEligibilityPermitStoreCoveragePresent(
 function mcpConsumptionCoveragePresent(
   input: ApprovalConsumptionDispatchMatrixAuditInput
 ): boolean {
-  return input.mcpRuntimeTestText.includes("consumes approval permits into a planned provider plan")
-    && input.mcpRuntimeTestText.includes("records revoked permits during approval consumption")
-    && input.mcpRuntimeTestText.includes("rejects stale permits during approval consumption")
+  return input.mcpRuntimeTestText.includes("does not let permits expand missing capabilities")
+    && input.mcpRuntimeTestText.includes("keeps revoked candidates fail closed without capability")
+    && input.mcpRuntimeTestText.includes("keeps stale candidates fail closed without capability")
     && input.mcpRuntimeTestText.includes("does not consume permits without planning context");
 }
 
 function publicWrapperConsumptionCoveragePresent(
   input: ApprovalConsumptionDispatchMatrixAuditInput
 ): boolean {
-  return input.sdkTestText.includes("SDK approval consumption")
-    && input.cliTestText.includes("CLI approval consumption")
-    && input.appServerTestText.includes("App Server approval consumption")
-    && input.sdkTestText.includes("preserves rejected permit audit during approval consumption")
-    && input.cliTestText.includes("preserves rejected permit audit without spawning CLI")
-    && input.appServerTestText.includes("preserves rejected permit audit without network");
+  return input.sdkTestText.includes("does not let approval permits expand missing capabilities")
+    && input.cliTestText.includes("does not let permits expand missing capabilities")
+    && input.appServerTestText.includes("does not let permits expand missing capabilities")
+    && input.sdkTestText.includes("keeps missing-capability approval candidates fail closed")
+    && input.cliTestText.includes("keeps missing-capability approval candidates fail closed")
+    && input.appServerTestText.includes("keeps missing-capability candidates fail closed");
 }
 
 function providerDispatchPreconditionsCovered(

@@ -4,130 +4,103 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const GOVERNANCE_CONTROL_PLANE = "docs/governance/GOVERNANCE_CONTROL_PLANE.md";
-const GOVERNANCE_README = "docs/governance/README.md";
-const GOVERNANCE_RUNNER = "scripts/run-governance-check.ts";
-const PACKAGE_JSON = "package.json";
-const PUBLIC_API_INDEX = "packages/public-api/src/index.ts";
-const PUBLIC_API_HOST = "packages/public-api/src/host.ts";
-const PUBLIC_API_PROVIDER = "packages/public-api/src/provider.ts";
-const PUBLIC_API_PROTOCOL = "packages/public-api/src/protocol.ts";
-const PUBLIC_API_TEST = "tests/public-api-surface.test.ts";
-const PUBLIC_API_ROOT_FIXTURE = "tests/fixtures/public-api-surface-lock.fixture.json";
-const PUBLIC_API_HOST_FIXTURE = "tests/fixtures/public-api-host-surface-lock.fixture.json";
-const PUBLIC_API_PROVIDER_FIXTURE =
-  "tests/fixtures/public-api-provider-surface-lock.fixture.json";
+const FORBIDDEN_PACKAGE_EXPORTS = [
+  ".",
+  "./sdk",
+  "./host",
+  "./support",
+  "./testing",
+  "./diagnostics",
+  "./governance-internal-recovery-control",
+  "./provider-execution-runner",
+  "./workspace-write-guard",
+  "./codex-cli-host",
+  "./packages/*"
+] as const;
 
 const REQUIRED_PACKAGE_EXPORTS = [
-  "\".\"",
-  "\"./sdk\"",
-  "\"./host\"",
-  "\"./protocol\"",
-  "\"./provider\"",
-  "\"./support\""
+  "./protocol",
+  "./policy",
+  "./codex-adapter",
+  "./evidence",
+  "./provider"
 ] as const;
 
-const FORBIDDEN_PACKAGE_EXPORTS = [
-  "\"./governance-internal-recovery-control\"",
-  "\"./governance-internal-provider-execution-runner\"",
-  "\"./governance-internal-workspace-write-guard\"",
-  "\"./recovery-control\"",
-  "\"./provider-execution-runner\"",
-  "\"./workspace-write-guard\"",
-  "\"./codex-cli-host\"",
-  "\"./packages/*\""
-] as const;
+const REQUIRED_FIXTURE_MARKERS = {
+  protocol: [
+    '"CapabilityFactsSchema"',
+    '"AuthorizationDecisionSchema"',
+    '"GovernedFileChangeSetSchema"',
+    '"RetainReceiptSchema"',
+    '"RollbackPermitSchema"'
+  ],
+  policy: [
+    '"authorizeCapabilityFacts"',
+    '"deriveCapabilityFacts"',
+    '"canonicalizeGovernedFileChangeSet"',
+    '"evaluateAutoApprovalPolicy"'
+  ],
+  codexAdapter: [
+    '"AppServerSessionAttestationSchema"',
+    '"CodexAppServerAdapter"',
+    '"CodexAppServerNormalizedEventSchema"',
+    '"CodexSdkAdapter"'
+  ],
+  evidence: [
+    '"PreviewReceiptSchema"',
+    '"RetainReceiptSchema"',
+    '"issueRollbackPermit"',
+    '"runGovernedRollback"',
+    '"verifyRetainedChange"'
+  ],
+  provider: [
+    '"ProviderManifestSchema"',
+    '"ProviderSecurityBoundarySchema"',
+    '"parseProviderManifest"',
+    '"providerSupportsSideEffectClass"'
+  ]
+} as const;
 
-const REQUIRED_ROOT_FIXTURE_MARKERS = [
-  "\"DesktopHostClient\"",
-  "\"createDesktopHostClient\"",
-  "\"createCodexDesktopLiveHostBundle\"",
-  "\"ProviderManifestSchema\"",
-  "\"ProviderRegistry\"",
-  "\"createProviderRegistry\"",
-  "\"MCP_TOOL_PROVIDER_INVOKE_DISABLED\"",
-  "\"A2A_REMOTE_AGENT_PROVIDER_DISABLED\""
-] as const;
-
-const REQUIRED_HOST_SOURCE_MARKERS = [
-  "DesktopHostClient as InternalDesktopHostClient",
-  "private inner: InternalDesktopHostClient",
-  "this.inner.run(",
-  "this.inner.resume(",
-  "this.inner.reviewCurrentOperatorActionHostExecutorAuthorization(",
-  "this.inner.dispatchCurrentOperatorActionHostExecutor(",
-  "DesktopHostOperatorActionHostExecutorDispatchMode",
-  "\"dry_run\"",
-  "\"execute_injected\"",
-  "DesktopHostOperatorActionHostExecutorDispatchExecutor",
-  "DesktopHostOperatorActionHostExecutorDispatchAuditSink",
-  "DesktopHostOperatorActionHostExecutorAuthorizationResult = unknown",
-  "DesktopHostOperatorActionHostExecutorDispatchResult = unknown"
-] as const;
-
-const REQUIRED_PROVIDER_SOURCE_MARKERS = [
-  "ProviderManifestSchema",
+const FORBIDDEN_PUBLIC_MARKERS = [
+  "dispatchGovernanceOperatorActionHostExecutor",
+  "runProviderExecutionPlanControlledReadOnly",
+  "runProviderExecutionPlanDryRun",
+  "runCodexCliExecPlan",
+  "runCodexCliReadOnlySmoke",
+  "runCodexCliWorkspaceWriteSmoke",
+  "createFakeMcpToolProvider",
+  "createFakeA2ATransport",
   "ProviderRegistry",
   "createProviderRegistry",
   "selectProviderForGrant",
-  "selectProviderForRoutingDecision",
-  "parseExecutorExecutionPlan",
   "ToolProviderInvocationPlanSchema"
-] as const;
-
-const REQUIRED_PROTOCOL_SOURCE_MARKERS = [
-  "MCP_TOOL_PROVIDER_INVOKE_DISABLED",
-  "createMcpToolProviderSkeleton",
-  "A2A_REMOTE_AGENT_PROVIDER_DISABLED",
-  "createA2ARemoteAgentProviderSkeleton"
 ] as const;
 
 const REQUIRED_TEST_MARKERS = [
   "public-api facade export surface is lock-stable",
-  "public-api subfacade export surfaces are lock-stable",
-  "root package exports only approved public API facades",
-  "public-api facade does not expose internal governance implementation",
-  "dispatchGovernanceOperatorActionHostExecutor",
-  "authorizeGovernanceOperatorActionHostExecutorReview",
-  "runProviderExecutionPlanControlledReadOnly",
-  "runProviderExecutionPlanDryRun",
-  "evaluateWorkspaceWritePatchGuard",
-  "runCodexDesktopLiveHostSmoke",
-  "createFakeMcpToolProvider",
-  "createFakeA2ATransport"
+  "public protocol facade exposes kernel contracts without legacy compatibility contracts",
+  "package exports only the five policy-based governance facades",
+  "public-api package type targets are emitted and stay governance-internal free",
+  "public-api facade does not expose internal governance implementation"
 ] as const;
 
-const FORBIDDEN_PUBLIC_EXPORTS = [
-  "\"dispatchGovernanceOperatorActionHostExecutor\"",
-  "\"authorizeGovernanceOperatorActionHostExecutorReview\"",
-  "\"runProviderExecutionPlanControlledReadOnly\"",
-  "\"runProviderExecutionPlanDryRun\"",
-  "\"evaluateWorkspaceWritePatchGuard\"",
-  "\"runCodexCliExecPlan\"",
-  "\"runCodexCliReadOnlySmoke\"",
-  "\"runCodexCliWorkspaceWriteSmoke\"",
-  "\"createFakeMcpToolProvider\"",
-  "\"createFakeA2ATransport\""
-] as const;
-
-const FORBIDDEN_OUTPUT_MARKERS = [
-  "OPENAI_API_KEY",
-  "sk-proj-",
-  "Bearer "
-] as const;
+const FORBIDDEN_OUTPUT_MARKERS = ["OPENAI_API_KEY", "sk-proj-", "Bearer "] as const;
 
 export interface PublicApiExecutionBoundaryAuditInput {
   governanceControlPlaneText: string;
   governanceReadmeText: string;
   governanceRunnerText: string;
   packageJsonText: string;
-  publicApiIndexText: string;
-  publicApiHostText: string;
-  publicApiProviderText: string;
   publicApiProtocolText: string;
+  publicApiPolicyText: string;
+  publicApiCodexAdapterText: string;
+  publicApiEvidenceText: string;
+  publicApiProviderText: string;
   publicApiTestText: string;
-  rootFixtureText: string;
-  hostFixtureText: string;
+  protocolFixtureText: string;
+  policyFixtureText: string;
+  codexAdapterFixtureText: string;
+  evidenceFixtureText: string;
   providerFixtureText: string;
 }
 
@@ -137,22 +110,24 @@ export interface PublicApiExecutionBoundaryAuditResult {
     controlPlaneCapabilityRecorded: boolean;
     governanceReadmeListsBoundary: boolean;
     governanceRunnerRegistered: boolean;
-    packageExportsFacadeOnly: boolean;
-    rootPublicSurfaceLocked: boolean;
-    hostPublicSurfaceLocked: boolean;
+    packageExportsNamedGovernanceOnly: boolean;
+    protocolPublicSurfaceLocked: boolean;
+    policyPublicSurfaceLocked: boolean;
+    codexAdapterPublicSurfaceLocked: boolean;
+    evidencePublicSurfaceLocked: boolean;
     providerPublicSurfaceLocked: boolean;
-    hostFacadeDelegatesToDesktopClient: boolean;
-    providerFacadeIsPlanAndRegistryOnly: boolean;
-    protocolRemoteInvokeDisabledByDefault: boolean;
+    providerFacadeIsManifestSpiOnly: boolean;
+    protocolExcludesMcpA2a: boolean;
     negativeCoverageRecorded: boolean;
     noBroadExecutionAuthorization: boolean;
     outputSanitized: boolean;
   };
   summary: {
-    publicApiMode: "facade_exports_only";
-    hostFacadeMode: "desktop_host_client_declaration_safe_wrapper";
-    providerFacadeMode: "schemas_registry_selection_only";
-    protocolFacadeMode: "disabled_remote_provider_skeletons";
+    publicApiMode: "named_governance_subpaths_only";
+    hostFacadeMode: "internal_not_exported";
+    providerFacadeMode: "manifest_capability_security_spi_only";
+    protocolFacadeMode: "kernel_governance_contracts_only";
+    governedRollbackExportAllowed: true;
     internalGovernanceTopLevelExportsAllowed: false;
     directHostExecutorDispatchExportAllowed: false;
     providerExecuteExportAllowed: false;
@@ -175,32 +150,39 @@ export type PublicApiExecutionBoundaryAuditOutputFormat = "text" | "json";
 export async function collectPublicApiExecutionBoundaryAuditInput(
   cwd = process.cwd()
 ): Promise<PublicApiExecutionBoundaryAuditInput> {
+  const read = (path: string) => readFile(join(cwd, path), "utf8");
   const [
     governanceControlPlaneText,
     governanceReadmeText,
     governanceRunnerText,
     packageJsonText,
-    publicApiIndexText,
-    publicApiHostText,
-    publicApiProviderText,
     publicApiProtocolText,
+    publicApiPolicyText,
+    publicApiCodexAdapterText,
+    publicApiEvidenceText,
+    publicApiProviderText,
     publicApiTestText,
-    rootFixtureText,
-    hostFixtureText,
+    protocolFixtureText,
+    policyFixtureText,
+    codexAdapterFixtureText,
+    evidenceFixtureText,
     providerFixtureText
   ] = await Promise.all([
-    read(cwd, GOVERNANCE_CONTROL_PLANE),
-    read(cwd, GOVERNANCE_README),
-    read(cwd, GOVERNANCE_RUNNER),
-    read(cwd, PACKAGE_JSON),
-    read(cwd, PUBLIC_API_INDEX),
-    read(cwd, PUBLIC_API_HOST),
-    read(cwd, PUBLIC_API_PROVIDER),
-    read(cwd, PUBLIC_API_PROTOCOL),
-    read(cwd, PUBLIC_API_TEST),
-    read(cwd, PUBLIC_API_ROOT_FIXTURE),
-    read(cwd, PUBLIC_API_HOST_FIXTURE),
-    read(cwd, PUBLIC_API_PROVIDER_FIXTURE)
+    read("docs/governance/GOVERNANCE_CONTROL_PLANE.md"),
+    read("docs/governance/README.md"),
+    read("scripts/run-governance-check.ts"),
+    read("package.json"),
+    read("packages/public-api/src/protocol.ts"),
+    read("packages/public-api/src/policy.ts"),
+    read("packages/public-api/src/codex-adapter.ts"),
+    read("packages/public-api/src/evidence.ts"),
+    read("packages/public-api/src/provider.ts"),
+    read("tests/public-api-surface.test.ts"),
+    read("tests/fixtures/public-api-protocol-surface-lock.fixture.json"),
+    read("tests/fixtures/public-api-policy-surface-lock.fixture.json"),
+    read("tests/fixtures/public-api-codex-adapter-surface-lock.fixture.json"),
+    read("tests/fixtures/public-api-evidence-surface-lock.fixture.json"),
+    read("tests/fixtures/public-api-provider-surface-lock.fixture.json")
   ]);
 
   return {
@@ -208,13 +190,16 @@ export async function collectPublicApiExecutionBoundaryAuditInput(
     governanceReadmeText,
     governanceRunnerText,
     packageJsonText,
-    publicApiIndexText,
-    publicApiHostText,
-    publicApiProviderText,
     publicApiProtocolText,
+    publicApiPolicyText,
+    publicApiCodexAdapterText,
+    publicApiEvidenceText,
+    publicApiProviderText,
     publicApiTestText,
-    rootFixtureText,
-    hostFixtureText,
+    protocolFixtureText,
+    policyFixtureText,
+    codexAdapterFixtureText,
+    evidenceFixtureText,
     providerFixtureText
   };
 }
@@ -222,63 +207,82 @@ export async function collectPublicApiExecutionBoundaryAuditInput(
 export function reviewPublicApiExecutionBoundaryAudit(
   input: PublicApiExecutionBoundaryAuditInput
 ): PublicApiExecutionBoundaryAuditResult {
+  const publicSources = [
+    input.publicApiProtocolText,
+    input.publicApiPolicyText,
+    input.publicApiCodexAdapterText,
+    input.publicApiEvidenceText,
+    input.publicApiProviderText
+  ].join("\n");
   const checks = {
-    controlPlaneCapabilityRecorded: controlPlaneCapabilityRecorded(
-      input.governanceControlPlaneText
-    ),
+    controlPlaneCapabilityRecorded:
+      input.governanceControlPlaneText.includes("five named governance subpaths only")
+      && input.governanceControlPlaneText.includes("There is no root, SDK, host, support, MCP/A2A"),
     governanceReadmeListsBoundary: input.governanceReadmeText.includes(
       "npm run governance -- audit public-api-execution-boundary"
     ),
     governanceRunnerRegistered: input.governanceRunnerText.includes(
       "public-api-execution-boundary"
     ),
-    packageExportsFacadeOnly: packageExportsFacadeOnly(input.packageJsonText),
-    rootPublicSurfaceLocked: rootPublicSurfaceLocked(input.rootFixtureText),
-    hostPublicSurfaceLocked: hostPublicSurfaceLocked(input.hostFixtureText),
-    providerPublicSurfaceLocked: providerPublicSurfaceLocked(input.providerFixtureText),
-    hostFacadeDelegatesToDesktopClient: REQUIRED_HOST_SOURCE_MARKERS.every((marker) =>
-      input.publicApiHostText.includes(marker)
+    packageExportsNamedGovernanceOnly: packageExportsNamedGovernanceOnly(
+      input.packageJsonText
     ),
-    providerFacadeIsPlanAndRegistryOnly:
-      REQUIRED_PROVIDER_SOURCE_MARKERS.every((marker) =>
-        input.publicApiProviderText.includes(marker)
-      )
+    protocolPublicSurfaceLocked: fixtureLocked(
+      input.protocolFixtureText,
+      REQUIRED_FIXTURE_MARKERS.protocol
+    ),
+    policyPublicSurfaceLocked: fixtureLocked(
+      input.policyFixtureText,
+      REQUIRED_FIXTURE_MARKERS.policy
+    ),
+    codexAdapterPublicSurfaceLocked: fixtureLocked(
+      input.codexAdapterFixtureText,
+      REQUIRED_FIXTURE_MARKERS.codexAdapter
+    ),
+    evidencePublicSurfaceLocked: fixtureLocked(
+      input.evidenceFixtureText,
+      REQUIRED_FIXTURE_MARKERS.evidence
+    ),
+    providerPublicSurfaceLocked: fixtureLocked(
+      input.providerFixtureText,
+      REQUIRED_FIXTURE_MARKERS.provider
+    ),
+    providerFacadeIsManifestSpiOnly:
+      input.publicApiProviderText.includes("GovernanceProvider")
       && !input.publicApiProviderText.includes("execute(")
-      && !input.publicApiProviderText.includes("runProviderExecutionPlan"),
-    protocolRemoteInvokeDisabledByDefault:
-      REQUIRED_PROTOCOL_SOURCE_MARKERS.every((marker) =>
-        input.publicApiProtocolText.includes(marker)
-      ),
-    negativeCoverageRecorded: REQUIRED_TEST_MARKERS.every((marker) =>
+      && !FORBIDDEN_PUBLIC_MARKERS.some((marker) => (
+        input.publicApiProviderText.includes(marker)
+      )),
+    protocolExcludesMcpA2a:
+      !input.publicApiProtocolText.includes("protocol-mcp")
+      && !input.publicApiProtocolText.includes("protocol-a2a")
+      && !input.protocolFixtureText.includes("MCP_")
+      && !input.protocolFixtureText.includes("A2A_"),
+    negativeCoverageRecorded: REQUIRED_TEST_MARKERS.every((marker) => (
       input.publicApiTestText.includes(marker)
-    ),
-    noBroadExecutionAuthorization: noBroadExecutionAuthorization(input),
+    )),
+    noBroadExecutionAuthorization:
+      !FORBIDDEN_PUBLIC_MARKERS.some((marker) => publicSources.includes(marker))
+      && !input.publicApiEvidenceText.includes("GitWorkspaceTargetRestorePrimitive")
+      && !input.publicApiEvidenceText.includes("WorkspaceTargetRestorePrimitive")
+      && !input.publicApiEvidenceText.includes("runGovernedRollbackWithPrimitive")
+      && !input.publicApiEvidenceText.includes("createTestOnlyRollbackPermitConsumptionStore")
+      && !input.publicApiEvidenceText.includes("createTestOnlyFileRollbackPermitConsumptionStore")
+      && !input.publicApiPolicyText.includes("createTestOnlyLocalClonePreviewer")
+      && !input.publicApiCodexAdapterText.includes("createTestOnlyLocalClonePreviewer")
+      && !input.publicApiCodexAdapterText.includes("SpawnPreviewProcessRunner")
+      && input.publicApiEvidenceText.includes("runGovernedRollback")
+      && input.publicApiEvidenceText.includes("FileRollbackPermitConsumptionStore"),
     outputSanitized: outputSanitized(input)
   };
-  const reasons = collectReasons(checks);
+  const reasons = Object.entries(checks)
+    .filter(([, passed]) => !passed)
+    .map(([name]) => `public_api_execution_boundary_${name}`);
 
   return {
     status: reasons.length === 0 ? "passed" : "blocked",
     checks,
-    summary: {
-      publicApiMode: "facade_exports_only",
-      hostFacadeMode: "desktop_host_client_declaration_safe_wrapper",
-      providerFacadeMode: "schemas_registry_selection_only",
-      protocolFacadeMode: "disabled_remote_provider_skeletons",
-      internalGovernanceTopLevelExportsAllowed: false,
-      directHostExecutorDispatchExportAllowed: false,
-      providerExecuteExportAllowed: false,
-      codexCliHostRunExportAllowed: false,
-      subAgentRuntimeExportAllowed: false,
-      workspaceWriteGuardExportAllowed: false,
-      publicApiCallsDuringAudit: 0,
-      hostExecutorInvocationsDuringAudit: 0,
-      providerExecuteCallsDuringAudit: 0,
-      codexCliCallsDuringAudit: 0,
-      subAgentRuntimeCallsDuringAudit: 0,
-      workspaceWriteCallsDuringAudit: 0,
-      externalWriteCallsDuringAudit: 0
-    },
+    summary: createSummary(),
     reasons
   };
 }
@@ -290,14 +294,14 @@ export function formatPublicApiExecutionBoundaryAuditResult(
   if (format === "json") {
     return JSON.stringify(review, null, 2);
   }
-
   return [
     "Public API execution boundary audit",
     `status: ${review.status}`,
     `public API mode: ${review.summary.publicApiMode}`,
-    `host facade mode: ${review.summary.hostFacadeMode}`,
+    `legacy host facade mode: ${review.summary.hostFacadeMode}`,
     `provider facade mode: ${review.summary.providerFacadeMode}`,
     `protocol facade mode: ${review.summary.protocolFacadeMode}`,
+    `governed rollback export allowed: ${review.summary.governedRollbackExportAllowed}`,
     `internal governance top-level exports allowed: ${review.summary.internalGovernanceTopLevelExportsAllowed}`,
     `direct host executor dispatch export allowed: ${review.summary.directHostExecutorDispatchExportAllowed}`,
     `provider execute export allowed: ${review.summary.providerExecuteExportAllowed}`,
@@ -315,127 +319,82 @@ export function formatPublicApiExecutionBoundaryAuditResult(
   ].join("\n");
 }
 
-function controlPlaneCapabilityRecorded(text: string): boolean {
-  return text.includes("Public API execution boundary")
-    && text.includes("facade exports only")
-    && text.includes("public facade does not authorize Codex CLI")
-    && text.includes("provider execute, sub-agent runtime, host executor dispatch")
-    && text.includes("npm run governance -- audit public-api-execution-boundary");
+function packageExportsNamedGovernanceOnly(text: string): boolean {
+  try {
+    const parsed = JSON.parse(text) as { exports?: Record<string, unknown> };
+    const keys = Object.keys(parsed.exports ?? {}).sort();
+    return keys.length === REQUIRED_PACKAGE_EXPORTS.length
+      && REQUIRED_PACKAGE_EXPORTS.every((key) => keys.includes(key))
+      && FORBIDDEN_PACKAGE_EXPORTS.every((key) => !keys.includes(key));
+  } catch {
+    return false;
+  }
 }
 
-function packageExportsFacadeOnly(text: string): boolean {
-  return REQUIRED_PACKAGE_EXPORTS.every((marker) => text.includes(marker))
-    && FORBIDDEN_PACKAGE_EXPORTS.every((marker) => !text.includes(marker));
+function fixtureLocked(text: string, required: readonly string[]): boolean {
+  return required.every((marker) => text.includes(marker))
+    && FORBIDDEN_PUBLIC_MARKERS.every((marker) => !text.includes(`"${marker}"`));
 }
 
-function rootPublicSurfaceLocked(text: string): boolean {
-  return REQUIRED_ROOT_FIXTURE_MARKERS.every((marker) => text.includes(marker))
-    && FORBIDDEN_PUBLIC_EXPORTS.every((marker) => !text.includes(marker));
-}
-
-function hostPublicSurfaceLocked(text: string): boolean {
-  return text.includes("\"DesktopHostClient\"")
-    && text.includes("\"createDesktopHostClient\"")
-    && text.includes("\"createCodexDesktopLiveHostBundle\"")
-    && !text.includes("\"dispatchGovernanceOperatorActionHostExecutor\"")
-    && !text.includes("\"authorizeGovernanceOperatorActionHostExecutorReview\"");
-}
-
-function providerPublicSurfaceLocked(text: string): boolean {
-  return text.includes("\"ProviderRegistry\"")
-    && text.includes("\"ProviderManifestSchema\"")
-    && text.includes("\"ToolProviderInvocationPlanSchema\"")
-    && !text.includes("\"runProviderExecutionPlanControlledReadOnly\"")
-    && !text.includes("\"runProviderExecutionPlanDryRun\"");
-}
-
-function noBroadExecutionAuthorization(
-  input: PublicApiExecutionBoundaryAuditInput
-): boolean {
-  return rootPublicSurfaceLocked(input.rootFixtureText)
-    && providerPublicSurfaceLocked(input.providerFixtureText)
-    && !input.publicApiIndexText.includes("governance-internal-recovery-control")
-    && !input.publicApiIndexText.includes("governance-internal-provider-execution-runner")
-    && !input.publicApiIndexText.includes("governance-internal-workspace-write-guard")
-    && !input.publicApiIndexText.includes("codex-cli-host")
-    && !input.publicApiIndexText.includes("dispatchGovernanceOperatorActionHostExecutor")
-    && !input.publicApiIndexText.includes("runProviderExecutionPlanControlledReadOnly")
-    && !input.publicApiIndexText.includes("runCodexCliExecPlan")
-    && !input.publicApiProviderText.includes("provider.execute(")
-    && !input.publicApiProviderText.includes("runProviderExecutionPlan")
-    && !input.publicApiProtocolText.includes("createFakeMcpToolProvider")
-    && !input.publicApiProtocolText.includes("createFakeA2ATransport");
+function createSummary(): PublicApiExecutionBoundaryAuditResult["summary"] {
+  return {
+    publicApiMode: "named_governance_subpaths_only",
+    hostFacadeMode: "internal_not_exported",
+    providerFacadeMode: "manifest_capability_security_spi_only",
+    protocolFacadeMode: "kernel_governance_contracts_only",
+    governedRollbackExportAllowed: true,
+    internalGovernanceTopLevelExportsAllowed: false,
+    directHostExecutorDispatchExportAllowed: false,
+    providerExecuteExportAllowed: false,
+    codexCliHostRunExportAllowed: false,
+    subAgentRuntimeExportAllowed: false,
+    workspaceWriteGuardExportAllowed: false,
+    publicApiCallsDuringAudit: 0,
+    hostExecutorInvocationsDuringAudit: 0,
+    providerExecuteCallsDuringAudit: 0,
+    codexCliCallsDuringAudit: 0,
+    subAgentRuntimeCallsDuringAudit: 0,
+    workspaceWriteCallsDuringAudit: 0,
+    externalWriteCallsDuringAudit: 0
+  };
 }
 
 function outputSanitized(input: PublicApiExecutionBoundaryAuditInput): boolean {
-  const review: PublicApiExecutionBoundaryAuditResult = {
+  const sample: PublicApiExecutionBoundaryAuditResult = {
     status: "passed",
     checks: {
       controlPlaneCapabilityRecorded: true,
       governanceReadmeListsBoundary: true,
       governanceRunnerRegistered: true,
-      packageExportsFacadeOnly: true,
-      rootPublicSurfaceLocked: true,
-      hostPublicSurfaceLocked: true,
+      packageExportsNamedGovernanceOnly: true,
+      protocolPublicSurfaceLocked: true,
+      policyPublicSurfaceLocked: true,
+      codexAdapterPublicSurfaceLocked: true,
+      evidencePublicSurfaceLocked: true,
       providerPublicSurfaceLocked: true,
-      hostFacadeDelegatesToDesktopClient: true,
-      providerFacadeIsPlanAndRegistryOnly: true,
-      protocolRemoteInvokeDisabledByDefault: true,
+      providerFacadeIsManifestSpiOnly: true,
+      protocolExcludesMcpA2a: true,
       negativeCoverageRecorded: true,
       noBroadExecutionAuthorization: true,
       outputSanitized: true
     },
-    summary: {
-      publicApiMode: "facade_exports_only",
-      hostFacadeMode: "desktop_host_client_declaration_safe_wrapper",
-      providerFacadeMode: "schemas_registry_selection_only",
-      protocolFacadeMode: "disabled_remote_provider_skeletons",
-      internalGovernanceTopLevelExportsAllowed: false,
-      directHostExecutorDispatchExportAllowed: false,
-      providerExecuteExportAllowed: false,
-      codexCliHostRunExportAllowed: false,
-      subAgentRuntimeExportAllowed: false,
-      workspaceWriteGuardExportAllowed: false,
-      publicApiCallsDuringAudit: 0,
-      hostExecutorInvocationsDuringAudit: 0,
-      providerExecuteCallsDuringAudit: 0,
-      codexCliCallsDuringAudit: 0,
-      subAgentRuntimeCallsDuringAudit: 0,
-      workspaceWriteCallsDuringAudit: 0,
-      externalWriteCallsDuringAudit: 0
-    },
+    summary: createSummary(),
     reasons: []
   };
-  const text = formatPublicApiExecutionBoundaryAuditResult(review);
-  const json = formatPublicApiExecutionBoundaryAuditResult(review, "json");
-
-  return FORBIDDEN_OUTPUT_MARKERS.every((marker) =>
-    !text.includes(marker)
-      && !json.includes(marker)
-      && !input.governanceControlPlaneText.includes(marker)
-      && !input.governanceReadmeText.includes(marker)
-  );
-}
-
-function collectReasons(
-  checks: PublicApiExecutionBoundaryAuditResult["checks"]
-): string[] {
-  return Object.entries(checks)
-    .filter(([, passed]) => !passed)
-    .map(([name]) => `public_api_execution_boundary_${name}`);
-}
-
-async function read(cwd: string, relativePath: string): Promise<string> {
-  return readFile(join(cwd, relativePath), "utf8");
+  const output = `${formatPublicApiExecutionBoundaryAuditResult(sample)}\n${formatPublicApiExecutionBoundaryAuditResult(sample, "json")}`;
+  return FORBIDDEN_OUTPUT_MARKERS.every((marker) => (
+    !output.includes(marker)
+    && !input.governanceControlPlaneText.includes(marker)
+    && !input.governanceReadmeText.includes(marker)
+  ));
 }
 
 async function main(): Promise<void> {
   const format = process.argv.includes("--json") ? "json" : "text";
-  const input = await collectPublicApiExecutionBoundaryAuditInput();
-  const review = reviewPublicApiExecutionBoundaryAudit(input);
-
+  const review = reviewPublicApiExecutionBoundaryAudit(
+    await collectPublicApiExecutionBoundaryAuditInput()
+  );
   console.log(formatPublicApiExecutionBoundaryAuditResult(review, format));
-
   if (review.status !== "passed") {
     process.exitCode = 1;
   }

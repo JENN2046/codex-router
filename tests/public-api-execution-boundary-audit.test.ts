@@ -23,16 +23,18 @@ test("public API execution boundary audit passes for current evidence", async ()
   assert.equal(review.checks.controlPlaneCapabilityRecorded, true);
   assert.equal(review.checks.governanceReadmeListsBoundary, true);
   assert.equal(review.checks.governanceRunnerRegistered, true);
-  assert.equal(review.checks.packageExportsFacadeOnly, true);
-  assert.equal(review.checks.rootPublicSurfaceLocked, true);
-  assert.equal(review.checks.hostPublicSurfaceLocked, true);
+  assert.equal(review.checks.packageExportsNamedGovernanceOnly, true);
+  assert.equal(review.checks.protocolPublicSurfaceLocked, true);
+  assert.equal(review.checks.policyPublicSurfaceLocked, true);
+  assert.equal(review.checks.codexAdapterPublicSurfaceLocked, true);
+  assert.equal(review.checks.evidencePublicSurfaceLocked, true);
   assert.equal(review.checks.providerPublicSurfaceLocked, true);
-  assert.equal(review.checks.hostFacadeDelegatesToDesktopClient, true);
-  assert.equal(review.checks.providerFacadeIsPlanAndRegistryOnly, true);
-  assert.equal(review.checks.protocolRemoteInvokeDisabledByDefault, true);
+  assert.equal(review.checks.providerFacadeIsManifestSpiOnly, true);
+  assert.equal(review.checks.protocolExcludesMcpA2a, true);
   assert.equal(review.checks.negativeCoverageRecorded, true);
   assert.equal(review.checks.noBroadExecutionAuthorization, true);
-  assert.equal(review.summary.publicApiMode, "facade_exports_only");
+  assert.equal(review.summary.publicApiMode, "named_governance_subpaths_only");
+  assert.equal(review.summary.governedRollbackExportAllowed, true);
   assert.equal(review.summary.directHostExecutorDispatchExportAllowed, false);
   assert.equal(review.summary.providerExecuteExportAllowed, false);
   assert.equal(review.summary.codexCliHostRunExportAllowed, false);
@@ -69,7 +71,7 @@ test("public API execution boundary audit blocks internal package exports", asyn
 
   assert.equal(review.status, "blocked");
   assert.ok(
-    review.reasons.includes("public_api_execution_boundary_packageExportsFacadeOnly")
+    review.reasons.includes("public_api_execution_boundary_packageExportsNamedGovernanceOnly")
   );
 });
 
@@ -77,17 +79,17 @@ test("public API execution boundary audit blocks direct execution exports", asyn
   const input = await createInputFromWorkspace();
   const review = reviewPublicApiExecutionBoundaryAudit({
     ...input,
-    rootFixtureText: input.rootFixtureText.replace(
+    evidenceFixtureText: input.evidenceFixtureText.replace(
       "\n]",
       ',\n  "dispatchGovernanceOperatorActionHostExecutor"\n]'
     ),
-    publicApiIndexText:
-      `${input.publicApiIndexText}\nexport { dispatchGovernanceOperatorActionHostExecutor } from "../../governance-internal-recovery-control/src/index.js";\n`
+    publicApiEvidenceText:
+      `${input.publicApiEvidenceText}\nexport { dispatchGovernanceOperatorActionHostExecutor } from "../../governance-internal-recovery-control/src/index.js";\n`
   });
 
   assert.equal(review.status, "blocked");
   assert.ok(
-    review.reasons.includes("public_api_execution_boundary_rootPublicSurfaceLocked")
+    review.reasons.includes("public_api_execution_boundary_evidencePublicSurfaceLocked")
   );
   assert.ok(
     review.reasons.includes("public_api_execution_boundary_noBroadExecutionAuthorization")
@@ -111,8 +113,24 @@ test("public API execution boundary audit blocks provider runner broadening", as
     review.reasons.includes("public_api_execution_boundary_providerPublicSurfaceLocked")
   );
   assert.ok(
-    review.reasons.includes("public_api_execution_boundary_providerFacadeIsPlanAndRegistryOnly")
+    review.reasons.includes("public_api_execution_boundary_providerFacadeIsManifestSpiOnly")
   );
+  assert.ok(
+    review.reasons.includes("public_api_execution_boundary_noBroadExecutionAuthorization")
+  );
+});
+
+test("public API execution boundary audit blocks test preview and injected rollback seams", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewPublicApiExecutionBoundaryAudit({
+    ...input,
+    publicApiPolicyText:
+      `${input.publicApiPolicyText}\nexport { createTestOnlyLocalClonePreviewer } from "../../file-change-preview/src/index.js";\n`,
+    publicApiEvidenceText:
+      `${input.publicApiEvidenceText}\nexport { runGovernedRollbackWithPrimitive } from "../../retain-control/src/index.js";\n`
+  });
+
+  assert.equal(review.status, "blocked");
   assert.ok(
     review.reasons.includes("public_api_execution_boundary_noBroadExecutionAuthorization")
   );
@@ -147,23 +165,38 @@ async function createInputFromWorkspace(
     governanceReadmeText: await readFile("docs/governance/README.md", "utf8"),
     governanceRunnerText: await readFile("scripts/run-governance-check.ts", "utf8"),
     packageJsonText: await readFile("package.json", "utf8"),
-    publicApiIndexText: await readFile("packages/public-api/src/index.ts", "utf8"),
-    publicApiHostText: await readFile("packages/public-api/src/host.ts", "utf8"),
-    publicApiProviderText: await readFile(
-      "packages/public-api/src/provider.ts",
-      "utf8"
-    ),
     publicApiProtocolText: await readFile(
       "packages/public-api/src/protocol.ts",
       "utf8"
     ),
-    publicApiTestText: await readFile("tests/public-api-surface.test.ts", "utf8"),
-    rootFixtureText: await readFile(
-      "tests/fixtures/public-api-surface-lock.fixture.json",
+    publicApiPolicyText: await readFile("packages/public-api/src/policy.ts", "utf8"),
+    publicApiCodexAdapterText: await readFile(
+      "packages/public-api/src/codex-adapter.ts",
       "utf8"
     ),
-    hostFixtureText: await readFile(
-      "tests/fixtures/public-api-host-surface-lock.fixture.json",
+    publicApiEvidenceText: await readFile(
+      "packages/public-api/src/evidence.ts",
+      "utf8"
+    ),
+    publicApiProviderText: await readFile(
+      "packages/public-api/src/provider.ts",
+      "utf8"
+    ),
+    publicApiTestText: await readFile("tests/public-api-surface.test.ts", "utf8"),
+    protocolFixtureText: await readFile(
+      "tests/fixtures/public-api-protocol-surface-lock.fixture.json",
+      "utf8"
+    ),
+    policyFixtureText: await readFile(
+      "tests/fixtures/public-api-policy-surface-lock.fixture.json",
+      "utf8"
+    ),
+    codexAdapterFixtureText: await readFile(
+      "tests/fixtures/public-api-codex-adapter-surface-lock.fixture.json",
+      "utf8"
+    ),
+    evidenceFixtureText: await readFile(
+      "tests/fixtures/public-api-evidence-surface-lock.fixture.json",
       "utf8"
     ),
     providerFixtureText: await readFile(

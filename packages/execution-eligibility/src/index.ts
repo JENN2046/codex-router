@@ -149,12 +149,16 @@ export function evaluateExecutionEligibility(
     || missingCapabilities.length > 0;
   const permitEvaluation = evaluatePermits(input, effectiveRequestedScopes);
 
-  if (missingCapabilities.length > 0 && permitEvaluation.acceptedPermits.length === 0) {
+  if (missingCapabilities.length > 0) {
     return {
       ...base,
       status: "waiting_approval",
       reasons: uniqueStrings([
         "missing_capability",
+        "capability_grant_required",
+        ...(permitEvaluation.acceptedPermits.length > 0
+          ? ["approval_permit_cannot_expand_capability"]
+          : []),
         ...capabilityResults
           .filter((result) => !result.allowed)
           .flatMap(capabilityFailureReasons)
@@ -164,7 +168,13 @@ export function evaluateExecutionEligibility(
         ...admission.requiredApprovals,
         ...missingCapabilities.map((scope) => `approval:${scope}`)
       ]),
-      rejectedPermits: permitEvaluation.rejectedPermits
+      acceptedPermits: [],
+      rejectedPermits: uniqueStrings([
+        ...permitEvaluation.rejectedPermits,
+        ...permitEvaluation.acceptedPermits.map((permitId) => (
+          `${permitId}:permit_cannot_expand_capability`
+        ))
+      ])
     };
   }
 

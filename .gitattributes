@@ -1,0 +1,2 @@
+# Keep text checkouts deterministic across Linux, macOS, and Windows.
+* text=auto eol=lf

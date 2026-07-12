@@ -389,7 +389,7 @@ test("Agent OS SDK issues an approval permit through the shared local runtime", 
   );
 });
 
-test("Agent OS SDK consumes approval permits through the shared local runtime", () => {
+test("Agent OS SDK does not let approval permits expand missing capabilities", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
   const permitStore = new InMemoryApprovalPermitStore();
@@ -427,26 +427,25 @@ test("Agent OS SDK consumes approval permits through the shared local runtime", 
   const latestPlan = plans.at(-1);
 
   assert.equal(approve.status, "succeeded");
-  assert.equal(approve.output.consumedProviderPlanId, latestPlan?.planId);
+  assert.equal(approve.output.consumedProviderPlanId, undefined);
   assert.deepEqual(approve.output.approvalConsumptionReasons, [
-    "approval_permit_consumed"
+    "approval_permit_consumption_not_eligible:waiting_approval"
   ]);
-  assert.equal(plans.length, 2);
+  assert.equal(plans.length, 1);
   assert.equal(plans[0]?.status, "waiting_approval");
-  assert.equal(latestPlan?.status, "planned");
+  assert.equal(latestPlan?.status, "waiting_approval");
   assert.equal(approve.audit.realProviderExecutionInvoked, false);
   assert.deepEqual(
     kernelStore.listEvents({ runId }).map((event) => event.eventType),
     [
       "kernel.run.created",
       "kernel.public_surface.sdk.create_task",
-      "kernel.approval.permit.issued",
-      "kernel.approval.permit.consumed"
+      "kernel.approval.permit.issued"
     ]
   );
 });
 
-test("Agent OS SDK preserves rejected permit audit during approval consumption", () => {
+test("Agent OS SDK keeps missing-capability approval candidates fail closed", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
   const permitStore = new InMemoryApprovalPermitStore();
@@ -499,21 +498,14 @@ test("Agent OS SDK preserves rejected permit audit during approval consumption",
     runId,
     type: "kernel.approval.permit.consumed"
   }).at(-1);
-  const payload = consumedEvent?.payload as {
-    acceptedPermits?: string[];
-    rejectedPermits?: string[];
-  } | undefined;
-
   assert.equal(approve.status, "succeeded");
-  assert.deepEqual(payload?.acceptedPermits, [
-    "permit_agentos_sdk_valid_after_rejected"
+  assert.equal(consumedEvent, undefined);
+  assert.deepEqual(approve.output.approvalConsumptionReasons, [
+    "approval_permit_consumption_not_eligible:waiting_approval"
   ]);
-  assert.ok(payload?.rejectedPermits?.some((reason) => (
-    reason.includes("permit_agentos_sdk_expired_candidate")
-    && reason.includes("permit_expired")
-  )));
   assert.equal(approve.audit.realProviderExecutionInvoked, false);
-  assert.equal(planStore.listPlans({ runId }).at(-1)?.status, "planned");
+  assert.equal(planStore.listPlans({ runId }).length, 1);
+  assert.equal(planStore.listPlans({ runId }).at(-1)?.status, "waiting_approval");
 });
 
 test("Agent OS SDK default approval permit IDs are unique for repeated approvals", () => {

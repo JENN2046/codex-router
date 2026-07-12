@@ -37,8 +37,8 @@ const REQUIRED_TEST_MARKERS = [
   "Agent OS SDK delegates controlled workspace-write dispatch through async wrapper",
   "Agent OS SDK prepares workspace-write dispatch through typed input",
   "Agent OS SDK issues an approval permit through the shared local runtime",
-  "Agent OS SDK consumes approval permits through the shared local runtime",
-  "Agent OS SDK preserves rejected permit audit during approval consumption",
+  "Agent OS SDK does not let approval permits expand missing capabilities",
+  "Agent OS SDK keeps missing-capability approval candidates fail closed",
   "Agent OS SDK default approval permit IDs are unique for repeated approvals",
   "realProviderExecutionInvoked, false",
   "preferredProviderId: \"codex-cli\""

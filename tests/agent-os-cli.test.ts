@@ -582,7 +582,7 @@ test("Agent OS CLI wrapper issues an approval permit without spawning CLI", () =
   );
 });
 
-test("Agent OS CLI wrapper consumes approval permits without spawning CLI", () => {
+test("Agent OS CLI wrapper does not let permits expand missing capabilities", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
   const permitStore = new InMemoryApprovalPermitStore();
@@ -636,26 +636,25 @@ test("Agent OS CLI wrapper consumes approval permits without spawning CLI", () =
   const latestPlan = plans.at(-1);
 
   assert.equal(approve.status, "succeeded");
-  assert.equal(approve.output.consumedProviderPlanId, latestPlan?.planId);
+  assert.equal(approve.output.consumedProviderPlanId, undefined);
   assert.deepEqual(approve.output.approvalConsumptionReasons, [
-    "approval_permit_consumed"
+    "approval_permit_consumption_not_eligible:waiting_approval"
   ]);
-  assert.equal(plans.length, 2);
+  assert.equal(plans.length, 1);
   assert.equal(plans[0]?.status, "waiting_approval");
-  assert.equal(latestPlan?.status, "planned");
+  assert.equal(latestPlan?.status, "waiting_approval");
   assert.equal(approve.audit.realProviderExecutionInvoked, false);
   assert.deepEqual(
     kernelStore.listEvents({ runId }).map((event) => event.eventType),
     [
       "kernel.run.created",
       "kernel.public_surface.cli.create_task",
-      "kernel.approval.permit.issued",
-      "kernel.approval.permit.consumed"
+      "kernel.approval.permit.issued"
     ]
   );
 });
 
-test("Agent OS CLI wrapper preserves rejected permit audit without spawning CLI", () => {
+test("Agent OS CLI wrapper keeps missing-capability approval candidates fail closed", () => {
   const kernelStore = new InMemoryKernelStore();
   const planStore = new InMemoryProviderExecutionPlanStore();
   const permitStore = new InMemoryApprovalPermitStore();
@@ -724,21 +723,14 @@ test("Agent OS CLI wrapper preserves rejected permit audit without spawning CLI"
     runId,
     type: "kernel.approval.permit.consumed"
   }).at(-1);
-  const payload = consumedEvent?.payload as {
-    acceptedPermits?: string[];
-    rejectedPermits?: string[];
-  } | undefined;
-
   assert.equal(approve.status, "succeeded");
-  assert.deepEqual(payload?.acceptedPermits, [
-    "permit_agentos_cli_valid_after_rejected"
+  assert.equal(consumedEvent, undefined);
+  assert.deepEqual(approve.output.approvalConsumptionReasons, [
+    "approval_permit_consumption_not_eligible:waiting_approval"
   ]);
-  assert.ok(payload?.rejectedPermits?.some((reason) => (
-    reason.includes("permit_agentos_cli_expired_candidate")
-    && reason.includes("permit_expired")
-  )));
   assert.equal(approve.audit.realProviderExecutionInvoked, false);
-  assert.equal(planStore.listPlans({ runId }).at(-1)?.status, "planned");
+  assert.equal(planStore.listPlans({ runId }).length, 1);
+  assert.equal(planStore.listPlans({ runId }).at(-1)?.status, "waiting_approval");
 });
 
 test("Agent OS CLI parser accepts cursors on paginated commands", () => {
