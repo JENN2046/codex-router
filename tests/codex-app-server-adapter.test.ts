@@ -205,6 +205,53 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
       assert.equal(lifecycle.status, "ignored");
     }
 
+    for (const progress of [
+      {
+        method: "item/agentMessage/delta",
+        params: {
+          delta: "working",
+          itemId: "agent-message-1",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/reasoning/summaryTextDelta",
+        params: {
+          delta: "checking",
+          itemId: "reasoning-1",
+          summaryIndex: 0,
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/commandExecution/outputDelta",
+        params: {
+          delta: "stdout",
+          itemId: "command-1",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/fileChange/patchUpdated",
+        params: {
+          changes: [{
+            diff: "+new\n",
+            kind: { type: "add" },
+            path: "docs/guide.md"
+          }],
+          itemId: "file-change-1",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      }
+    ]) {
+      const progressResult = await bridge.ingest(progress);
+      assert.equal(progressResult.status, "ignored");
+    }
+
     const [started] = v2WireFileChangeFlowFixture as unknown[];
     const proposed = await bridge.ingest(started);
     assert.equal(proposed.status, "normalized");
@@ -302,7 +349,13 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
         cwd: "/tmp/codex-router",
         itemId: "raw-permission-item",
         permissions: {
-          fileSystem: { write: ["/tmp/codex-router/docs"] },
+          fileSystem: {
+            entries: [{
+              access: "none",
+              path: { path: "/tmp/codex-router/private", type: "path" }
+            }],
+            write: ["/tmp/codex-router/docs"]
+          },
           network: { enabled: null }
         },
         reason: "operator review",

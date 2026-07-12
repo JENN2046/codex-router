@@ -111,7 +111,10 @@ const V2FileSystemPathSchema = z.union([
 ]);
 
 const V2FileSystemSandboxEntrySchema = z.object({
-  access: z.enum(["read", "write", "deny"]),
+  // App Server serializes FileSystemAccessMode::None as "none". It is a
+  // no-access entry, not an authorization grant, and must remain distinct
+  // from an omitted entry.
+  access: z.enum(["read", "write", "deny", "none"]),
   path: V2FileSystemPathSchema
 }).strict();
 
@@ -283,6 +286,106 @@ const V2RemoteControlStatusParamsSchema = z.object({
   status: z.enum(["disabled", "connecting", "connected", "errored"])
 }).strict();
 
+const V2ProgressIndexSchema = z.number()
+  .int()
+  .finite()
+  .refine(Number.isSafeInteger, "progress index must be a safe integer");
+
+const V2ItemProgressDeltaParamsSchema = z.object({
+  delta: z.string(),
+  itemId: z.string().min(1),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2ReasoningSummaryTextDeltaParamsSchema = z.object({
+  delta: z.string(),
+  itemId: z.string().min(1),
+  summaryIndex: V2ProgressIndexSchema,
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2ReasoningSummaryPartAddedParamsSchema = z.object({
+  itemId: z.string().min(1),
+  summaryIndex: V2ProgressIndexSchema,
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2ReasoningTextDeltaParamsSchema = z.object({
+  contentIndex: V2ProgressIndexSchema,
+  delta: z.string(),
+  itemId: z.string().min(1),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2FileChangePatchUpdatedChangeSchema = z.object({
+  diff: z.string(),
+  kind: V2FileChangeKindSchema,
+  path: z.string().min(1)
+}).strict();
+
+const V2FileChangePatchUpdatedParamsSchema = z.object({
+  changes: z.array(V2FileChangePatchUpdatedChangeSchema),
+  itemId: z.string().min(1),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+/**
+ * Item-specific streaming notifications are informational only. Validate
+ * their documented shapes, then ignore them so ordinary model/tool output
+ * cannot quarantine a session before a later governed approval. The explicit
+ * method union keeps unknown/future notifications fail-closed.
+ */
+const V2ProgressNotificationMethodSchema = z.enum([
+  "item/agentMessage/delta",
+  "item/plan/delta",
+  "item/reasoning/summaryTextDelta",
+  "item/reasoning/summaryPartAdded",
+  "item/reasoning/textDelta",
+  "item/commandExecution/outputDelta",
+  "item/fileChange/outputDelta",
+  "item/fileChange/patchUpdated"
+]);
+
+const V2ProgressNotificationSchema = z.union([
+  z.object({
+    method: z.literal("item/agentMessage/delta"),
+    params: V2ItemProgressDeltaParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("item/plan/delta"),
+    params: V2ItemProgressDeltaParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("item/reasoning/summaryTextDelta"),
+    params: V2ReasoningSummaryTextDeltaParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("item/reasoning/summaryPartAdded"),
+    params: V2ReasoningSummaryPartAddedParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("item/reasoning/textDelta"),
+    params: V2ReasoningTextDeltaParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("item/commandExecution/outputDelta"),
+    params: V2ItemProgressDeltaParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("item/fileChange/outputDelta"),
+    params: V2ItemProgressDeltaParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("item/fileChange/patchUpdated"),
+    params: V2FileChangePatchUpdatedParamsSchema
+  }).strict()
+]);
+
 const V2JsonRpcResponseSchema = z.object({
   error: z.unknown().optional(),
   id: JsonRpcRequestIdSchema,
@@ -370,7 +473,8 @@ export const CodexAppServerV2WireMessageSchema = z.union([
   V2ThreadStartedWireSchema,
   V2TurnStartedWireSchema,
   V2TurnCompletedWireSchema,
-  V2RemoteControlStatusWireSchema
+  V2RemoteControlStatusWireSchema,
+  V2ProgressNotificationSchema
 ]);
 
 const V2CommandApprovalResponseResultSchema = z.object({
@@ -858,6 +962,12 @@ export class CodexAppServerV2WireNormalizer {
           : this.quarantine("v2_remote_control_active", { method });
       }
       default:
+        if (V2ProgressNotificationMethodSchema.safeParse(method).success) {
+          if (V2ProgressNotificationSchema.safeParse({ method, params }).success) {
+            return { status: "ignored", method };
+          }
+          return this.quarantine("v2_progress_notification_schema_invalid", { method });
+        }
         return this.quarantine("v2_wire_method_unsupported", { method });
     }
   }

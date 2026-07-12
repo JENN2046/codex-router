@@ -366,6 +366,107 @@ test("known non-file lifecycle items are ignored without blocking file changes",
   assert.equal(normalizer.normalize(fileStarted).status, "normalized");
 });
 
+test("documented item progress notifications are ignored without quarantining", () => {
+  const normalizer = createNormalizer();
+  const messages = [
+    {
+      method: "item/agentMessage/delta",
+      params: {
+        delta: "working",
+        itemId: "agent-message-1",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    },
+    {
+      method: "item/plan/delta",
+      params: {
+        delta: "inspect repository",
+        itemId: "plan-1",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    },
+    {
+      method: "item/reasoning/summaryTextDelta",
+      params: {
+        delta: "checking",
+        itemId: "reasoning-1",
+        summaryIndex: 0,
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    },
+    {
+      method: "item/reasoning/summaryPartAdded",
+      params: {
+        itemId: "reasoning-1",
+        summaryIndex: 1,
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    },
+    {
+      method: "item/reasoning/textDelta",
+      params: {
+        contentIndex: 0,
+        delta: "detail",
+        itemId: "reasoning-1",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    },
+    {
+      method: "item/commandExecution/outputDelta",
+      params: {
+        delta: "stdout",
+        itemId: "command-1",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    },
+    {
+      method: "item/fileChange/outputDelta",
+      params: {
+        delta: "legacy patch output",
+        itemId: "file-change-1",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    },
+    {
+      method: "item/fileChange/patchUpdated",
+      params: {
+        changes: [{
+          diff: "+new\n",
+          kind: { type: "add" },
+          path: "docs/guide.md"
+        }],
+        itemId: "file-change-1",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    }
+  ];
+
+  for (const message of messages) {
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(message).success, true);
+    assert.deepEqual(normalizer.normalize(message), {
+      status: "ignored",
+      method: message.method
+    });
+  }
+
+  const malformed = normalizer.normalize({
+    method: "item/agentMessage/delta",
+    params: { delta: "missing correlation" }
+  });
+  assert.equal(malformed.status, "blocked");
+  if (malformed.status !== "blocked") return;
+  assert.ok(malformed.reasons.includes("v2_progress_notification_schema_invalid"));
+  assert.ok(malformed.reasons.includes("v2_session_quarantined"));
+});
+
 test("command and permission wire approvals become manual-only normalized events", () => {
   const normalizer = createNormalizer();
   const command = normalizer.normalize({
@@ -375,7 +476,14 @@ test("command and permission wire approvals become manual-only normalized events
       command: "npm test",
       cwd: "/tmp/codex-router",
       additionalPermissions: {
-        fileSystem: { read: ["/tmp/codex-router/docs"], write: null },
+        fileSystem: {
+          entries: [{
+            access: "none",
+            path: { path: "/tmp/codex-router/private", type: "path" }
+          }],
+          read: ["/tmp/codex-router/docs"],
+          write: null
+        },
         network: { enabled: true }
       },
       availableDecisions: ["accept", "decline"],
@@ -402,7 +510,13 @@ test("command and permission wire approvals become manual-only normalized events
       cwd: "/tmp/codex-router",
       itemId: "item-permission",
       permissions: {
-        fileSystem: { write: ["/tmp/codex-router/docs"] },
+        fileSystem: {
+          entries: [{
+            access: "none",
+            path: { path: "/tmp/codex-router/private", type: "path" }
+          }],
+          write: ["/tmp/codex-router/docs"]
+        },
         network: { enabled: null }
       },
       reason: "permission review",
@@ -421,7 +535,13 @@ test("command and permission wire approvals become manual-only normalized events
       id: "permission-request",
       result: {
         permissions: {
-          fileSystem: { write: ["/tmp/codex-router/docs"] },
+          fileSystem: {
+            entries: [{
+              access: "none",
+              path: { path: "/tmp/codex-router/private", type: "path" }
+            }],
+            write: ["/tmp/codex-router/docs"]
+          },
           network: { enabled: null }
         },
         scope: "turn"

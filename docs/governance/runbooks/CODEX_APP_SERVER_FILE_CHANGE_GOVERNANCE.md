@@ -117,6 +117,14 @@ documented startup-disabled snapshot may omit `installationId`; active status
 still quarantines the session. Governed paths containing literal backslashes
 are rejected before path canonicalization.
 
+Documented item progress notifications (`item/agentMessage/delta`,
+`item/plan/delta`, reasoning deltas, command output deltas, and file-change
+patch/output deltas) are validated against their correlation fields and then
+ignored. They carry no authorization input; malformed progress or an unknown
+notification method still quarantines the v2 session. App Server permission
+profiles may encode a no-access filesystem entry as `access: "none"`; this is
+accepted as a distinct non-grant value and preserved for manual review.
+
 ## Procedure
 
 1. Confirm the session attestation matches the normalized fixture profile.
