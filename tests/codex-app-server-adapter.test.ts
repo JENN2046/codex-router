@@ -281,6 +281,47 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
   }
 });
 
+test("v2 unanswered approval cleanup becomes cancellation in the adapter", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+
+    const requested = await bridge.ingest({
+      id: "raw-unanswered-request",
+      method: "item/commandExecution/requestApproval",
+      params: {
+        command: "npm test",
+        cwd: "/tmp/codex-router",
+        itemId: "raw-unanswered-item",
+        threadId: "raw-unanswered-thread",
+        turnId: "raw-unanswered-turn"
+      }
+    });
+    assert.equal(requested.status, "normalized");
+    if (requested.status !== "normalized") return;
+    assert.equal(requested.outcome.status, "manual_required");
+
+    const resolved = await bridge.ingest({
+      method: "serverRequest/resolved",
+      params: {
+        requestId: "raw-unanswered-request",
+        threadId: "raw-unanswered-thread"
+      }
+    });
+    assert.equal(resolved.status, "normalized");
+    if (resolved.status !== "normalized") return;
+    assert.equal(resolved.normalization.event.eventType, "request_resolved");
+    assert.equal(resolved.normalization.event.resolution, "cancelled");
+    assert.equal(resolved.outcome.status, "reconciliation_required");
+    assert.deepEqual(resolved.outcome.reasons, ["approval_request_cancelled"]);
+    assert.equal(fixture.transport.messages.length, 0);
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("v2 remote-control activity and wire reordering quarantine the adapter session", async () => {
   const fixture = await createAdapterFixture();
   try {

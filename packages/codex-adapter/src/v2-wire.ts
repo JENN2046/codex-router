@@ -1067,6 +1067,10 @@ export class CodexAppServerV2WireNormalizer {
       });
     }
     approval.resolved = true;
+    // App Server uses the same notification to clear unanswered requests on
+    // turn start/complete/interrupt. No client decision means cancellation,
+    // not an unknown resolution that would strand the adapter in reconciliation.
+    const resolution = approval.sentDecision ?? "cancelled";
     const event: Extract<CodexAppServerNormalizedEvent, { eventType: "request_resolved" }> = {
       schemaVersion: "codex-app-server-normalized-event.v1",
       schemaProfileId: this.schemaProfileId,
@@ -1077,7 +1081,7 @@ export class CodexAppServerV2WireNormalizer {
       turnId: approval.turnId,
       requestId,
       itemId: approval.itemId,
-      resolution: approval.sentDecision ?? "unknown"
+      resolution
     };
     return { status: "normalized", event };
   }

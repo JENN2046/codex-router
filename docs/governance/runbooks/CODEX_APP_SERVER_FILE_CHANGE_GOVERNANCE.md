@@ -101,6 +101,11 @@ schema compatibility but do not grant authorization. Command and network-only
 requests are always normalized as `manual_required` proposals; they never enter
 policy auto-approval.
 
+When the App Server clears an unanswered approval, `serverRequest/resolved`
+contains no client decision; the normalizer records this as `cancelled` so the
+adapter reconciles the pending request instead of treating cleanup as schema
+drift.
+
 Only `remoteControl/status/changed` with `status: "disabled"` is ignored. The
 documented startup-disabled snapshot may omit `installationId`; active status
 still quarantines the session. Governed paths containing literal backslashes

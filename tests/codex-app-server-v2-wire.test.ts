@@ -124,6 +124,21 @@ test("v2 wire normalizer binds item, approval, resolution, and completion", asyn
   assert.equal(completedResult.event.sequence, 4);
 });
 
+test("unanswered server request cleanup normalizes as cancellation", () => {
+  const normalizer = createNormalizer();
+  const [started, approval, resolved] = fileChangeFlow as unknown[];
+
+  // Correlation is established, but no client response is sent before the
+  // App Server clears the request.
+  assert.equal(normalizer.normalize(started).status, "normalized");
+  assert.equal(normalizer.normalize(approval).status, "normalized");
+  const result = normalizer.normalize(resolved);
+  assert.equal(result.status, "normalized");
+  if (result.status !== "normalized") return;
+  assert.equal(result.event.eventType, "request_resolved");
+  assert.equal(result.event.resolution, "cancelled");
+});
+
 test("v2 wire normalizer requires the initialize response and initialized notification", () => {
   const normalizer = createUninitializedNormalizer();
   const [started] = fileChangeFlow as unknown[];
