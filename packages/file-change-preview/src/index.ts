@@ -1776,7 +1776,11 @@ function parsePorcelainPaths(output: string): string[] {
     if (record.length < 4 || record[2] !== " ") {
       throw new Error("preview_git_status_schema_drift");
     }
-    const path = record.slice(3).replace(/\\/g, "/");
+    const rawPath = record.slice(3);
+    if (rawPath.includes("\\")) {
+      throw new Error("preview_git_status_path_encoding_unsupported");
+    }
+    const path = rawPath;
     paths.push(normalizeAndAssertGovernedPath(path));
   }
   return uniqueStrings(paths);

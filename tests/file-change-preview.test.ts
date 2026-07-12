@@ -1230,6 +1230,33 @@ test("failed prepare and check-side mutation both block preview", async () => {
   }
 });
 
+test("preview rejects literal backslashes in status paths", async () => {
+  const fixture = await createRepositoryFixture();
+  try {
+    const changeSet = updateFixtureChangeSet(fixture.head);
+    const receipt = await createTestPreviewer(fixture.tempRoot).preview({
+      repoRoot: fixture.repoRoot,
+      changeSet,
+      facts: safeFacts(changeSet, "feature/safe", fixture.head),
+      policy: policy(["docs/**"], [{
+        argv: [
+          process.execPath,
+          "-e",
+          "require('node:fs').writeFileSync('docs\\\\guide.md','outside\\n')"
+        ],
+        timeoutMs: 10_000
+      }]),
+      isolation: testIsolation(),
+      now: () => now
+    });
+
+    assert.equal(receipt.status, "blocked");
+    assert.ok(receipt.reasons.includes("preview_git_status_path_encoding_unsupported"));
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("source repository drift signals block before cloning", async () => {
   for (const mode of ["dirty", "branch", "hooks", "filters"] as const) {
     const fixture = await createRepositoryFixture();
