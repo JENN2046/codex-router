@@ -5,6 +5,7 @@ owner: governance
 created: 2026-07-11
 last_verified: 2026-07-12
 verified_by:
+  - node --import tsx --test tests/codex-app-server-v2-wire.test.ts
   - node --import tsx --test tests/codex-app-server-adapter.test.ts
   - node --import tsx --test tests/retain-control.test.ts
   - npm run test:package-consumer
@@ -61,6 +62,26 @@ be invoked directly after `npm ci` without a separate build prerequisite.
 
 Do not substitute a real App Server, Codex CLI, provider, or source-workspace
 write command without new operator authorization for that exact command.
+
+## v2 Wire Normalization Boundary
+
+Raw v2 App Server messages must pass through the exported
+`CodexAppServerV2WireNormalizer` before they reach `CodexAppServerAdapter`.
+The normalizer accepts only the versioned item/approval/resolution/completion
+messages in its wire allowlist and quarantines the session on unknown methods,
+extra fields, replay, correlation drift, or unsupported command/permission
+requests.
+
+The v2 `item/started` payload does not carry a trusted Git HEAD or target
+hashes. Callers must inject an evidence provider that returns one full HEAD and
+the exact before/after hash for every path. Missing or mismatched evidence,
+move paths, and invalid hash semantics fail closed; the normalizer never
+derives these values from a turn diff.
+
+The wire transport maps only internal `accept`/`decline` decisions to the
+App Server JSON-RPC response `{ id, result: { decision } }`. `acceptForSession`,
+`cancel`, command approvals, permission approvals, and unknown request ids are
+not auto-mapped.
 
 ## Procedure
 

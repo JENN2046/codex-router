@@ -4,7 +4,13 @@ export {
   CodexAppServerAdapter,
   CodexAppServerApprovalResponseSchema,
   CodexAppServerNormalizedEventSchema,
-  CodexSdkAdapter
+  CodexSdkAdapter,
+  CodexAppServerV2FileChangeApprovalParamsSchema,
+  CodexAppServerV2FileChangeItemSchema,
+  CodexAppServerV2WireApprovalResponseSchema,
+  CodexAppServerV2WireMessageSchema,
+  CodexAppServerV2WireNormalizer,
+  CodexAppServerV2WireTransport
 } from "../../codex-adapter/src/index.js";
 export type {
   AppServerSessionAttestation,
@@ -16,6 +22,15 @@ export type {
   CodexAppServerAuthorizationMode,
   CodexAppServerMessageTransport,
   CodexAppServerNormalizedEvent,
+  CodexAppServerV2FileChangeApprovalParams,
+  CodexAppServerV2FileChangeEvidence,
+  CodexAppServerV2FileChangeEvidenceInput,
+  CodexAppServerV2FileChangeEvidenceProvider,
+  CodexAppServerV2FileChangeItem,
+  CodexAppServerV2JsonRpcRequestId,
+  CodexAppServerV2NormalizationResult,
+  CodexAppServerV2WireApprovalResponse,
+  CodexAppServerV2WireNormalizerOptions,
   CodexSdkAdapterOptions,
   CodexWorkspaceContext,
   CodexWorkspaceContextProvider

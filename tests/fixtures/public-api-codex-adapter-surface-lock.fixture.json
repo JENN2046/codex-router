@@ -3,6 +3,12 @@
   "CodexAppServerAdapter",
   "CodexAppServerApprovalResponseSchema",
   "CodexAppServerNormalizedEventSchema",
+  "CodexAppServerV2FileChangeApprovalParamsSchema",
+  "CodexAppServerV2FileChangeItemSchema",
+  "CodexAppServerV2WireApprovalResponseSchema",
+  "CodexAppServerV2WireMessageSchema",
+  "CodexAppServerV2WireNormalizer",
+  "CodexAppServerV2WireTransport",
   "CodexApprovalProposalSchema",
   "CodexSdkAdapter"
 ]

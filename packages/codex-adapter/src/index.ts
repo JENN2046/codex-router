@@ -1490,6 +1490,26 @@ export class CodexSdkAdapter {
   }
 }
 
+export {
+  CodexAppServerV2FileChangeApprovalParamsSchema,
+  CodexAppServerV2FileChangeItemSchema,
+  CodexAppServerV2WireApprovalResponseSchema,
+  CodexAppServerV2WireMessageSchema,
+  CodexAppServerV2WireNormalizer,
+  CodexAppServerV2WireTransport
+} from "./v2-wire.js";
+export type {
+  CodexAppServerV2FileChangeApprovalParams,
+  CodexAppServerV2FileChangeEvidence,
+  CodexAppServerV2FileChangeEvidenceInput,
+  CodexAppServerV2FileChangeEvidenceProvider,
+  CodexAppServerV2FileChangeItem,
+  CodexAppServerV2JsonRpcRequestId,
+  CodexAppServerV2NormalizationResult,
+  CodexAppServerV2WireApprovalResponse,
+  CodexAppServerV2WireNormalizerOptions
+} from "./v2-wire.js";
+
 function resolveAuthorizationMode(
   attestation: AppServerSessionAttestation,
   allowTestProfiles: boolean,
