@@ -1230,7 +1230,7 @@ test("failed prepare and check-side mutation both block preview", async () => {
   }
 });
 
-test("preview rejects literal backslashes in status paths", async () => {
+test("preview rejects literal backslashes in status paths", { skip: process.platform === "win32" }, async () => {
   const fixture = await createRepositoryFixture();
   try {
     const changeSet = updateFixtureChangeSet(fixture.head);
