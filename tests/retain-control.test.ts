@@ -562,6 +562,21 @@ test("retain verifies App Server post-state and rollback restores exact targets 
   assert.equal(humanRetained.status, "retained");
   if (humanRetained.status === "retained") {
     assert.equal(humanRetained.receipt.previewReceiptHash, undefined);
+    const humanPendingJournal = createPendingApprovalJournalEntry({
+      journalId: "human-retained-journal",
+      requestId: "human-retained-request",
+      changeSet: fixture.changeSet,
+      authorizationDecision: humanAuthorization,
+      retainPermit: humanPermit,
+      now: issuedAt
+    });
+    const humanRetainedJournal = PendingApprovalJournalEntrySchema.parse({
+      ...humanPendingJournal,
+      state: "retained",
+      retainReceipt: humanRetained.receipt,
+      updatedAt: retainedAt
+    });
+    assert.equal(humanRetainedJournal.previewReceiptHash, undefined);
   }
 
   const retained = await verifyRetainedChange({
@@ -604,6 +619,43 @@ test("retain verifies App Server post-state and rollback restores exact targets 
       ...retained.receipt,
       targetHashes: retained.receipt.targetHashes.slice(0, 1)
     }
+  }).success, false);
+  const receiptWithoutPreviewHash = { ...retained.receipt };
+  delete receiptWithoutPreviewHash.previewReceiptHash;
+  for (const state of ["retained", "post_checked"] as const) {
+    assert.equal(PendingApprovalJournalEntrySchema.safeParse({
+      ...retainedJournal,
+      state,
+      retainReceipt: receiptWithoutPreviewHash
+    }).success, false, `${state}:missing receipt preview hash`);
+    assert.equal(PendingApprovalJournalEntrySchema.safeParse({
+      ...retainedJournal,
+      state,
+      retainReceipt: {
+        ...retained.receipt,
+        previewReceiptHash: "0".repeat(64)
+      }
+    }).success, false, `${state}:different receipt preview hash`);
+  }
+  assert.equal(PendingApprovalJournalEntrySchema.safeParse({
+    ...retainedJournal,
+    previewReceiptHash: "0".repeat(64)
+  }).success, false);
+  assert.equal(PendingApprovalJournalEntrySchema.safeParse({
+    ...retainedJournal,
+    retainPermit: {
+      ...retainedJournal.retainPermit,
+      previewReceiptHash: "0".repeat(64)
+    }
+  }).success, false);
+  const policyAutoJournalWithoutPreviewHash = { ...retainedJournal };
+  const policyAutoPermitWithoutPreviewHash = { ...retainedJournal.retainPermit };
+  delete policyAutoJournalWithoutPreviewHash.previewReceiptHash;
+  delete policyAutoPermitWithoutPreviewHash.previewReceiptHash;
+  assert.equal(PendingApprovalJournalEntrySchema.safeParse({
+    ...policyAutoJournalWithoutPreviewHash,
+    retainPermit: policyAutoPermitWithoutPreviewHash,
+    retainReceipt: receiptWithoutPreviewHash
   }).success, false);
   assert.equal(PendingApprovalJournalEntrySchema.safeParse({
     ...pendingJournal,

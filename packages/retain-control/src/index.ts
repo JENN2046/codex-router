@@ -81,6 +81,19 @@ const PendingApprovalJournalEntryFieldsSchema = z.object({
 export const PendingApprovalJournalEntrySchema = PendingApprovalJournalEntryFieldsSchema
   .superRefine((entry, ctx) => {
     const receiptRequired = entry.state === "retained" || entry.state === "post_checked";
+    if (
+      entry.previewReceiptHash !== entry.retainPermit.previewReceiptHash
+      || (
+        entry.retainPermit.approvalMode === "policy_auto"
+        && entry.previewReceiptHash === undefined
+      )
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "journal retain permit preview binding mismatch",
+        path: ["previewReceiptHash"]
+      });
+    }
     if (receiptRequired && entry.retainReceipt === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -92,6 +105,9 @@ export const PendingApprovalJournalEntrySchema = PendingApprovalJournalEntryFiel
       if (
         entry.retainReceipt.permitId !== entry.retainPermit.permitId
         || entry.retainReceipt.changeSetHash !== entry.changeSetHash
+        || entry.retainReceipt.previewReceiptHash !== entry.previewReceiptHash
+        || entry.retainReceipt.previewReceiptHash
+          !== entry.retainPermit.previewReceiptHash
         || hashKernelObject(entry.retainReceipt.targetHashes) !== hashKernelObject(entry.targetHashes)
       ) {
         ctx.addIssue({

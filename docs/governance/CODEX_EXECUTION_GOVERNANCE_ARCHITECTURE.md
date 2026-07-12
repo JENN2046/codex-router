@@ -179,6 +179,18 @@ caller-supplied object cannot bypass single-use enforcement. Rollback invokes
 the module-private consumption closure captured at registration, not an
 overridable public instance method.
 
+Every journal load revalidates the preview binding. Policy-auto entries must
+carry a preview receipt hash, and the journal, retain permit, and any retain
+receipt must name the same hash. A missing or different value makes retained or
+post-checked state invalid; a human-approved flow with no preview remains valid
+only when the hash is absent from all three records.
+
+These are fail-closed consistency bindings, not a tamper-evident signature. A
+privileged writer that changes the permit approval mode and rewrites every
+bound hash consistently cannot be distinguished from an originally human
+approval in this beta. Operators must protect and quiesce the journal storage;
+signed permits or authenticated journal records remain deferred work.
+
 The accept-adjacent source-target recheck narrows the race window but is not a
 cross-process filesystem transaction. A non-cooperating editor can still mutate
 a target between the final `lstat`/hash read and App Server application, so live

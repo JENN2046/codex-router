@@ -98,6 +98,9 @@ write command without new operator authorization for that exact command.
     paths remain literal and HEAD inputs must be full object IDs. Disable
     sparse/split-index inheritance in that disposable snapshot and prohibit
     lazy fetch. Retain filter inspection must include untracked create targets.
+    For a retained or post-checked policy-auto journal, require the journal,
+    retain permit, and retain receipt to carry one identical preview receipt
+    hash; missing or mismatched bindings must fail journal parsing.
 11. Exercise disconnect, event gap/replay, schema drift, failed preview, drift,
     restart with an unresolved journal, concurrent resolution/operator input,
     and rollback conflict/race cases; each must fail closed and a quarantined
