@@ -283,7 +283,9 @@ const V2TurnPlanUpdatedParamsSchema = z.object({
     status: z.enum(["pending", "inProgress", "completed"]),
     step: z.string()
   }).strict()),
-  threadId: z.string().min(1),
+  // The documented notification is scoped by turnId; some protocol snapshots
+  // include threadId as extra correlation metadata.
+  threadId: z.string().min(1).optional(),
   turnId: z.string().min(1)
 }).strict();
 
@@ -315,6 +317,46 @@ const V2ErrorNotificationParamsSchema = z.object({
   threadId: z.string().min(1),
   turnId: z.string().min(1),
   willRetry: z.boolean()
+}).strict();
+
+const V2ThreadTokenUsageUpdatedParamsSchema = z.object({
+  threadId: z.string().min(1),
+  tokenUsage: z.record(z.unknown()),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2ModelVerificationParamsSchema = z.object({
+  threadId: z.string().min(1),
+  turnId: z.string().min(1),
+  verifications: z.array(z.unknown())
+}).strict();
+
+const V2TurnModerationMetadataParamsSchema = z.object({
+  metadata: z.unknown().refine((value) => value !== undefined, "metadata is required"),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2WarningNotificationParamsSchema = z.object({
+  message: z.string().min(1),
+  threadId: z.string().min(1).nullable().optional()
+}).strict();
+
+const V2GuardianWarningNotificationParamsSchema = z.object({
+  message: z.string().min(1),
+  threadId: z.string().min(1)
+}).strict();
+
+const V2DeprecationNoticeNotificationParamsSchema = z.object({
+  details: z.string().nullable().optional(),
+  summary: z.string().min(1)
+}).strict();
+
+const V2ConfigWarningNotificationParamsSchema = z.object({
+  details: z.string().nullable().optional(),
+  path: z.string().nullable().optional(),
+  range: z.unknown().nullable().optional(),
+  summary: z.string().min(1)
 }).strict();
 
 const V2RemoteControlStatusParamsSchema = z.object({
@@ -379,7 +421,14 @@ const V2NonGovernanceNotificationMethodSchema = z.enum([
   "turn/plan/updated",
   "model/safetyBuffering/updated",
   "model/rerouted",
-  "error"
+  "model/verification",
+  "turn/moderationMetadata",
+  "thread/tokenUsage/updated",
+  "error",
+  "warning",
+  "guardianWarning",
+  "deprecationNotice",
+  "configWarning"
 ]);
 
 /**
@@ -401,8 +450,36 @@ const V2NonGovernanceNotificationSchema = z.union([
     params: V2ModelReroutedParamsSchema
   }).strict(),
   z.object({
+    method: z.literal("model/verification"),
+    params: V2ModelVerificationParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("turn/moderationMetadata"),
+    params: V2TurnModerationMetadataParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("thread/tokenUsage/updated"),
+    params: V2ThreadTokenUsageUpdatedParamsSchema
+  }).strict(),
+  z.object({
     method: z.literal("error"),
     params: V2ErrorNotificationParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("warning"),
+    params: V2WarningNotificationParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("guardianWarning"),
+    params: V2GuardianWarningNotificationParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("deprecationNotice"),
+    params: V2DeprecationNoticeNotificationParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("configWarning"),
+    params: V2ConfigWarningNotificationParamsSchema
   }).strict()
 ]);
 
@@ -778,11 +855,10 @@ export class CodexAppServerV2WireNormalizer {
     }
     const message = envelope.data;
     const wireHash = this.wireHash("wire_message", message);
-    if (!this.recordWireHash("wire_message", message, wireHash)) {
-      return this.quarantine("v2_wire_event_replay");
-    }
-
     if (message.id !== undefined) {
+      if (!this.recordWireHash("wire_request", message, wireHash)) {
+        return this.quarantine("v2_wire_event_replay");
+      }
       return this.normalizeRequest(message.method, message.params, message.id);
     }
     return this.normalizeNotification(message.method, message.params, wireHash);
@@ -983,6 +1059,9 @@ export class CodexAppServerV2WireNormalizer {
         if (!isFileChangeItemStartedParams(parsed.data.params)) {
           return { status: "ignored", method };
         }
+        if (!this.recordWireHash("wire_governed_notification", { method, params }, wireHash)) {
+          return this.quarantine("v2_wire_event_replay");
+        }
         return this.normalizeItemStarted(parsed.data.params, wireHash);
       }
       case "item/completed": {
@@ -993,13 +1072,20 @@ export class CodexAppServerV2WireNormalizer {
         if (!isFileChangeItemCompletedParams(parsed.data.params)) {
           return { status: "ignored", method };
         }
+        if (!this.recordWireHash("wire_governed_notification", { method, params }, wireHash)) {
+          return this.quarantine("v2_wire_event_replay");
+        }
         return this.normalizeItemCompleted(parsed.data.params, wireHash);
       }
       case "serverRequest/resolved": {
         const parsed = V2ServerRequestResolvedWireSchema.safeParse({ method, params });
-        return parsed.success
-          ? this.normalizeRequestResolved(parsed.data.params, wireHash)
-          : this.quarantine("v2_request_resolved_schema_invalid", { method });
+        if (!parsed.success) {
+          return this.quarantine("v2_request_resolved_schema_invalid", { method });
+        }
+        if (!this.recordWireHash("wire_governed_notification", { method, params }, wireHash)) {
+          return this.quarantine("v2_wire_event_replay");
+        }
+        return this.normalizeRequestResolved(parsed.data.params, wireHash);
       }
       case "turn/diff/updated": {
         const parsed = V2TurnDiffUpdatedWireSchema.safeParse({ method, params });

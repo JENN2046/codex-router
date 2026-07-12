@@ -121,13 +121,16 @@ Documented item progress notifications (`item/agentMessage/delta`,
 `item/plan/delta`, reasoning deltas, command output deltas, and file-change
 patch/output deltas) are validated against their correlation fields and then
 ignored. They carry no authorization input; malformed progress or an unknown
-notification method still quarantines the v2 session. The documented
-`turn/plan/updated`, model buffering/reroute, and retryable `error` notifications
-are likewise validated and ignored as non-governance diagnostics. The
-`collabToolCall` ThreadItem tag is accepted for lifecycle-only events. App
-Server permission profiles may encode a no-access filesystem entry as
-`access: "none"`; this is accepted as a distinct non-grant value and preserved
-for manual review.
+notification method still quarantines the v2 session. Repeated valid ignored
+chunks or snapshots are not replay failures: replay protection remains on
+request-id messages and governed file lifecycle/resolution events. The
+documented `turn/plan/updated` shape is keyed by `turnId` (optional `threadId`
+is compatibility metadata). Plan, token-usage, model buffering/reroute/
+verification, moderation, error, and warning diagnostics are validated and
+ignored. The `collabToolCall` ThreadItem tag is accepted for lifecycle-only
+events. App Server permission profiles may encode a no-access filesystem entry
+as `access: "none"`; this is accepted as a distinct non-grant value and
+preserved for manual review.
 
 ## Procedure
 

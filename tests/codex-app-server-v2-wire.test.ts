@@ -353,6 +353,10 @@ test("known non-file lifecycle items are ignored without blocking file changes",
       method: "item/started"
     });
   }
+  assert.deepEqual(normalizer.normalize(startedMessages[0]), {
+    status: "ignored",
+    method: "item/started"
+  });
 
   const completed = {
     method: "item/completed",
@@ -490,6 +494,13 @@ test("documented item progress notifications are ignored without quarantining", 
       method: message.method
     });
   }
+  assert.deepEqual(normalizer.normalize(messages[0]), {
+    status: "ignored",
+    method: "item/agentMessage/delta"
+  });
+
+  const [fileStarted] = fileChangeFlow as unknown[];
+  assert.equal(normalizer.normalize(fileStarted).status, "normalized");
 
   const malformed = normalizer.normalize({
     method: "item/agentMessage/delta",
@@ -509,7 +520,6 @@ test("documented non-governance notifications are ignored without quarantining",
       params: {
         explanation: null,
         plan: [{ status: "inProgress", step: "inspect repository" }],
-        threadId: "thread-non-governance",
         turnId: "turn-non-governance"
       }
     },
@@ -536,6 +546,30 @@ test("documented non-governance notifications are ignored without quarantining",
       }
     },
     {
+      method: "thread/tokenUsage/updated",
+      params: {
+        threadId: "thread-non-governance",
+        tokenUsage: { totalTokens: 1 },
+        turnId: "turn-non-governance"
+      }
+    },
+    {
+      method: "model/verification",
+      params: {
+        threadId: "thread-non-governance",
+        turnId: "turn-non-governance",
+        verifications: [{ type: "trustedAccessForCyber" }]
+      }
+    },
+    {
+      method: "turn/moderationMetadata",
+      params: {
+        metadata: { source: "test" },
+        threadId: "thread-non-governance",
+        turnId: "turn-non-governance"
+      }
+    },
+    {
       method: "error",
       params: {
         error: { message: "upstream retry" },
@@ -543,6 +577,25 @@ test("documented non-governance notifications are ignored without quarantining",
         turnId: "turn-non-governance",
         willRetry: true
       }
+    },
+    {
+      method: "warning",
+      params: { message: "configuration warning" }
+    },
+    {
+      method: "guardianWarning",
+      params: {
+        message: "guardian warning",
+        threadId: "thread-non-governance"
+      }
+    },
+    {
+      method: "deprecationNotice",
+      params: { summary: "deprecated setting" }
+    },
+    {
+      method: "configWarning",
+      params: { summary: "invalid optional config" }
     }
   ];
 
@@ -553,12 +606,15 @@ test("documented non-governance notifications are ignored without quarantining",
       method: message.method
     });
   }
+  assert.deepEqual(normalizer.normalize(messages[0]), {
+    status: "ignored",
+    method: "turn/plan/updated"
+  });
 
   const malformed = normalizer.normalize({
     method: "turn/plan/updated",
     params: {
       plan: [],
-      threadId: "thread-non-governance",
       turnId: "turn-non-governance",
       unexpected: true
     }

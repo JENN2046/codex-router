@@ -251,6 +251,15 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
       const progressResult = await bridge.ingest(progress);
       assert.equal(progressResult.status, "ignored");
     }
+    assert.equal((await bridge.ingest({
+      method: "item/agentMessage/delta",
+      params: {
+        delta: "working",
+        itemId: "agent-message-1",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    })).status, "ignored");
 
     for (const notification of [
       {
@@ -258,7 +267,6 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
         params: {
           explanation: null,
           plan: [{ status: "inProgress", step: "inspect repository" }],
-          threadId: "thread-non-governance",
           turnId: "turn-non-governance"
         }
       },
@@ -281,6 +289,30 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
           reason: "highRiskCyberActivity",
           threadId: "thread-non-governance",
           toModel: "gpt-safe-test",
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "thread/tokenUsage/updated",
+        params: {
+          threadId: "thread-non-governance",
+          tokenUsage: { totalTokens: 1 },
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "model/verification",
+        params: {
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance",
+          verifications: [{ type: "trustedAccessForCyber" }]
+        }
+      },
+      {
+        method: "turn/moderationMetadata",
+        params: {
+          metadata: { source: "test" },
+          threadId: "thread-non-governance",
           turnId: "turn-non-governance"
         }
       },
