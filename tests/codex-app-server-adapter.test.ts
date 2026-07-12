@@ -302,6 +302,15 @@ test("v2 remote-control activity and wire reordering quarantine the adapter sess
     const bridge = createV2WireBridge(remoteFixture);
     await bridge.acceptInitializeResponse(v2InitializeResponse());
     await bridge.acceptInitializedNotification({ method: "initialized" });
+    const disabled = await bridge.ingest({
+      method: "remoteControl/status/changed",
+      params: {
+        environmentId: null,
+        serverName: "remote",
+        status: "disabled"
+      }
+    });
+    assert.equal(disabled.status, "ignored");
     const remote = await bridge.ingest({
       method: "remoteControl/status/changed",
       params: {

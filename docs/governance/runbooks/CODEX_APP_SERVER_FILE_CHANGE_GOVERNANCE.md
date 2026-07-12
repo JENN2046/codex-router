@@ -76,6 +76,9 @@ the bounded type/id check, while unknown item types remain schema drift and
 quarantine the session. Command, network, and permission requests use the
 manual-only codecs described below.
 
+Approval request `startedAtMs` is optional compatibility metadata: when present
+it is strictly validated, but the governance correlation does not require it.
+
 The normalizer is not ready until the exact `initialize` response for its bound
 request id has been accepted and the client `initialized` notification has been
 sent. Pre-handshake events, handshake replay, transport close, and any blocked
@@ -98,9 +101,10 @@ schema compatibility but do not grant authorization. Command and network-only
 requests are always normalized as `manual_required` proposals; they never enter
 policy auto-approval.
 
-Only `remoteControl/status/changed` with `status: "disabled"` is ignored. Any
-other remote-control status quarantines the session. Governed paths containing
-literal backslashes are rejected before path canonicalization.
+Only `remoteControl/status/changed` with `status: "disabled"` is ignored. The
+documented startup-disabled snapshot may omit `installationId`; active status
+still quarantines the session. Governed paths containing literal backslashes
+are rejected before path canonicalization.
 
 ## Procedure
 

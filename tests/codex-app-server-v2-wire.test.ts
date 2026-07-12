@@ -377,6 +377,62 @@ test("command and permission wire approvals become manual-only normalized events
   });
 });
 
+test("approval requests accept documented payloads without lifecycle timestamps", () => {
+  const normalizer = createNormalizer();
+  const [started, approval] = fileChangeFlow as unknown[];
+  assert.equal(normalizer.normalize(started).status, "normalized");
+
+  const timestamplessFileApproval = structuredClone(approval) as {
+    params: Record<string, unknown>;
+  };
+  delete timestamplessFileApproval.params.startedAtMs;
+  assert.equal(
+    CodexAppServerV2WireMessageSchema.safeParse(timestamplessFileApproval).success,
+    true
+  );
+  const fileResult = normalizer.normalize(timestamplessFileApproval);
+  assert.equal(fileResult.status, "normalized");
+  if (fileResult.status !== "normalized") return;
+  assert.equal(fileResult.event.eventType, "approval_requested");
+
+  const command = {
+    id: "timestampless-command-request",
+    method: "item/commandExecution/requestApproval",
+    params: {
+      command: "npm test",
+      cwd: "/tmp/codex-router",
+      itemId: "timestampless-command-item",
+      threadId: "timestampless-command-thread",
+      turnId: "timestampless-command-turn"
+    }
+  };
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(command).success, true);
+  const commandResult = normalizer.normalize(command);
+  assert.equal(commandResult.status, "normalized");
+  if (commandResult.status !== "normalized") return;
+  assert.equal(commandResult.event.eventType, "approval_requested");
+
+  const permission = {
+    id: "timestampless-permission-request",
+    method: "item/permissions/requestApproval",
+    params: {
+      cwd: "/tmp/codex-router",
+      itemId: "timestampless-permission-item",
+      permissions: {
+        fileSystem: { write: ["/tmp/codex-router/docs"] },
+        network: { enabled: null }
+      },
+      threadId: "timestampless-permission-thread",
+      turnId: "timestampless-permission-turn"
+    }
+  };
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(permission).success, true);
+  const permissionResult = normalizer.normalize(permission);
+  assert.equal(permissionResult.status, "normalized");
+  if (permissionResult.status !== "normalized") return;
+  assert.equal(permissionResult.event.eventType, "approval_requested");
+});
+
 test("network-only command approvals remain manual and preserve the network target", () => {
   const normalizer = createNormalizer();
   const network = normalizer.normalize({
@@ -410,6 +466,21 @@ test("network-only command approvals remain manual and preserve the network targ
 });
 
 test("remote-control activity and literal backslash paths quarantine the session", () => {
+  const disabled = createNormalizer();
+  const disabledSnapshot = {
+    method: "remoteControl/status/changed",
+    params: {
+      environmentId: null,
+      serverName: "remote",
+      status: "disabled"
+    }
+  };
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(disabledSnapshot).success, true);
+  assert.deepEqual(disabled.normalize(disabledSnapshot), {
+    status: "ignored",
+    method: "remoteControl/status/changed"
+  });
+
   const remote = createNormalizer();
   const remoteResult = remote.normalize({
     method: "remoteControl/status/changed",

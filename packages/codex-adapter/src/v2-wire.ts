@@ -203,7 +203,9 @@ export const CodexAppServerV2FileChangeApprovalParamsSchema = z.object({
   grantRoot: z.string().nullable().optional(),
   itemId: z.string().min(1),
   reason: z.string().nullable().optional(),
-  startedAtMs: TimestampMsSchema,
+  // The README's approval payloads omit this lifecycle timestamp. Accept it
+  // when present for compatibility, but never use it as authorization input.
+  startedAtMs: TimestampMsSchema.optional(),
   threadId: z.string().min(1),
   turnId: z.string().min(1)
 }).strict();
@@ -230,7 +232,8 @@ const V2CommandExecutionApprovalParamsSchema = z.object({
     .nullable()
     .optional(),
   reason: z.string().nullable().optional(),
-  startedAtMs: TimestampMsSchema,
+  // Older and documented approval payloads may omit this lifecycle timestamp.
+  startedAtMs: TimestampMsSchema.optional(),
   threadId: z.string().min(1),
   turnId: z.string().min(1)
 }).strict();
@@ -241,7 +244,9 @@ const V2PermissionsApprovalParamsSchema = z.object({
   itemId: z.string().min(1),
   permissions: V2PermissionProfileSchema,
   reason: z.string().nullable().optional(),
-  startedAtMs: TimestampMsSchema,
+  // Keep approval parsing compatible with payloads that only carry the
+  // documented correlation and permission fields.
+  startedAtMs: TimestampMsSchema.optional(),
   threadId: z.string().min(1),
   turnId: z.string().min(1)
 }).strict();
@@ -268,7 +273,10 @@ const V2TurnLifecycleParamsSchema = z.object({
 
 const V2RemoteControlStatusParamsSchema = z.object({
   environmentId: z.string().min(1).nullable().optional(),
-  installationId: z.string().min(1),
+  // The startup disabled snapshot is documented without an installation id.
+  // Active states remain quarantined below, so this compatibility widening
+  // cannot grant remote-control capability.
+  installationId: z.string().min(1).optional(),
   serverName: z.string().min(1),
   status: z.enum(["disabled", "connecting", "connected", "errored"])
 }).strict();
