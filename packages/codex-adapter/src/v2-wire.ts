@@ -267,7 +267,9 @@ const V2ThreadStartedParamsSchema = z.object({
 }).strict();
 
 const V2TurnLifecycleParamsSchema = z.object({
-  threadId: z.string().min(1),
+  // The documented lifecycle notification is { turn }. Some protocol
+  // snapshots also include threadId; it is not a governance input.
+  threadId: z.string().min(1).optional(),
   turn: z.record(z.unknown())
 }).strict();
 
@@ -280,6 +282,16 @@ const V2RemoteControlStatusParamsSchema = z.object({
   serverName: z.string().min(1),
   status: z.enum(["disabled", "connecting", "connected", "errored"])
 }).strict();
+
+const V2JsonRpcResponseSchema = z.object({
+  error: z.unknown().optional(),
+  id: JsonRpcRequestIdSchema,
+  result: z.unknown().optional()
+}).strict().refine((value) => {
+  const hasResult = Object.prototype.hasOwnProperty.call(value, "result");
+  const hasError = Object.prototype.hasOwnProperty.call(value, "error");
+  return hasResult !== hasError;
+}, "JSON-RPC response must contain exactly one result or error");
 
 const V2WireEnvelopeSchema = z.object({
   id: JsonRpcRequestIdSchema.optional(),
@@ -347,6 +359,7 @@ const V2RemoteControlStatusWireSchema = z.object({
 
 /** Stable raw-wire allowlist for the v2 governance boundary. */
 export const CodexAppServerV2WireMessageSchema = z.union([
+  V2JsonRpcResponseSchema,
   V2FileChangeApprovalRequestSchema,
   V2CommandExecutionApprovalRequestSchema,
   V2PermissionsApprovalRequestSchema,
@@ -573,6 +586,14 @@ export class CodexAppServerV2WireNormalizer {
     }
     if (this.sessionState !== "ready") {
       return this.quarantine("v2_session_not_initialized");
+    }
+    const response = V2JsonRpcResponseSchema.safeParse(input);
+    if (response.success) {
+      const responseHash = this.wireHash("wire_response", response.data);
+      if (!this.recordWireHash("wire_response", response.data, responseHash)) {
+        return this.quarantine("v2_wire_event_replay");
+      }
+      return { status: "ignored", method: "jsonrpc_response" };
     }
     const envelope = V2WireEnvelopeSchema.safeParse(input);
     if (!envelope.success) {

@@ -176,6 +176,45 @@ test("v2 raw wire flows through the normalizer into the governed adapter", async
   }
 });
 
+test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapter", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+
+    for (const responseMessage of [
+      {
+        id: "turn-start-response",
+        result: { turn: { id: "turn-response" } }
+      },
+      {
+        id: "turn-error-response",
+        error: { code: -32000, message: "turn failed" }
+      }
+    ]) {
+      const response = await bridge.ingest(responseMessage);
+      assert.equal(response.status, "ignored");
+    }
+
+    for (const method of ["turn/started", "turn/completed"] as const) {
+      const lifecycle = await bridge.ingest({
+        method,
+        params: { turn: { id: `turn-${method}` } }
+      });
+      assert.equal(lifecycle.status, "ignored");
+    }
+
+    const [started] = v2WireFileChangeFlowFixture as unknown[];
+    const proposed = await bridge.ingest(started);
+    assert.equal(proposed.status, "normalized");
+    if (proposed.status !== "normalized") return;
+    assert.equal(proposed.outcome.status, "proposed");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("v2 wire disconnect reconciles an open adapter item and blocks later messages", async () => {
   const fixture = await createAdapterFixture();
   try {

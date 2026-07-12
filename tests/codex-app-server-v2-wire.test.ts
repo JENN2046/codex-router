@@ -124,6 +124,44 @@ test("v2 wire normalizer binds item, approval, resolution, and completion", asyn
   assert.equal(completedResult.event.sequence, 4);
 });
 
+test("ordinary JSON-RPC responses and documented turn snapshots are ignored", () => {
+  const normalizer = createNormalizer();
+  const responses = [
+    {
+      id: "turn-start-response",
+      result: { turn: { id: "turn-response" } }
+    },
+    {
+      id: "turn-error-response",
+      error: { code: -32000, message: "turn failed" }
+    }
+  ];
+  for (const responseMessage of responses) {
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(responseMessage).success, true);
+    assert.deepEqual(normalizer.normalize(responseMessage), {
+      status: "ignored",
+      method: "jsonrpc_response"
+    });
+  }
+
+  for (const method of ["turn/started", "turn/completed"] as const) {
+    const turnMessage = {
+      method,
+      params: { turn: { id: `turn-${method}` } }
+    };
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(turnMessage).success, true);
+    assert.deepEqual(normalizer.normalize(turnMessage), {
+      status: "ignored",
+      method
+    });
+  }
+
+  const malformedResponse = normalizer.normalize({ id: "missing-result-or-error" });
+  assert.equal(malformedResponse.status, "blocked");
+  if (malformedResponse.status !== "blocked") return;
+  assert.ok(malformedResponse.reasons.includes("v2_wire_envelope_invalid"));
+});
+
 test("unanswered server request cleanup normalizes as cancellation", () => {
   const normalizer = createNormalizer();
   const [started, approval, resolved] = fileChangeFlow as unknown[];

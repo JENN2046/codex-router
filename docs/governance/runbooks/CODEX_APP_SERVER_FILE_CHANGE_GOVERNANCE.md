@@ -85,6 +85,12 @@ sent. Pre-handshake events, handshake replay, transport close, and any blocked
 wire message must be routed through `CodexAppServerV2WireAdapter`, which emits a
 normalized `transport_disconnected` event to reconcile the governed adapter.
 
+After the handshake, ordinary client-call JSON-RPC responses with `{ id,
+result }` or `{ id, error }` are accepted and ignored by governance; malformed
+responses remain fail-closed. Documented `turn/started` and `turn/completed`
+notifications use `{ turn }`; an optional `threadId` is compatibility metadata
+and is not required for the ignore path.
+
 The v2 `item/started` payload does not carry a trusted Git HEAD or target
 hashes. Callers must inject an evidence provider that returns one full HEAD and
 the exact before/after hash for every path. Missing or mismatched evidence,
