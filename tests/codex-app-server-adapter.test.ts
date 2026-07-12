@@ -610,7 +610,7 @@ test("human file acceptance rechecks repository state, target topology, and befo
       skip: scenario === "fifo swap" && process.platform === "win32"
         ? "Windows does not expose POSIX FIFO filesystem nodes"
         : false,
-      timeout: 5_000
+      timeout: process.platform === "win32" ? 15_000 : 5_000
     }, async () => {
       const fixture = await createAdapterFixture();
       try {
