@@ -217,6 +217,100 @@ test("extra wire fields, unknown methods, and command approvals fail closed", ()
   assert.equal(envelopeDrift.status, "blocked");
   const missingParams = createNormalizer().normalize({ method: "turn/diff/updated" });
   assert.equal(missingParams.status, "blocked");
+
+  const unknownItem = createNormalizer().normalize({
+    method: "item/started",
+    params: {
+      item: { id: "future-item", type: "futureItem" },
+      startedAtMs: 1762732800100,
+      threadId: "thread-future",
+      turnId: "turn-future"
+    }
+  });
+  assert.equal(unknownItem.status, "blocked");
+  if (unknownItem.status !== "blocked") return;
+  assert.ok(unknownItem.reasons.includes("v2_session_quarantined"));
+});
+
+test("known non-file lifecycle items are ignored without blocking file changes", () => {
+  const normalizer = createNormalizer();
+  const startedMessages = [
+    {
+      method: "item/started",
+      params: {
+        item: {
+          id: "agent-message-1",
+          text: "I will inspect the repository first.",
+          type: "agentMessage"
+        },
+        startedAtMs: 1762732800100,
+        threadId: "thread-non-file",
+        turnId: "turn-non-file"
+      }
+    },
+    {
+      method: "item/started",
+      params: {
+        item: {
+          command: "git status --short",
+          commandActions: [],
+          cwd: "/tmp/codex-router",
+          id: "command-execution-1",
+          status: "inProgress",
+          type: "commandExecution"
+        },
+        startedAtMs: 1762732800101,
+        threadId: "thread-non-file",
+        turnId: "turn-non-file"
+      }
+    },
+    {
+      method: "item/started",
+      params: {
+        item: {
+          content: [],
+          id: "reasoning-1",
+          summary: ["checking the workspace"],
+          type: "reasoning"
+        },
+        startedAtMs: 1762732800102,
+        threadId: "thread-non-file",
+        turnId: "turn-non-file"
+      }
+    }
+  ];
+  for (const message of startedMessages) {
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(message).success, true);
+    assert.deepEqual(normalizer.normalize(message), {
+      status: "ignored",
+      method: "item/started"
+    });
+  }
+
+  const completed = {
+    method: "item/completed",
+    params: {
+      item: {
+        command: "git status --short",
+        commandActions: [],
+        cwd: "/tmp/codex-router",
+        id: "command-execution-1",
+        status: "completed",
+        type: "commandExecution"
+      },
+      completedAtMs: 1762732800103,
+      threadId: "thread-non-file",
+      turnId: "turn-non-file"
+    }
+  };
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(completed).success, true);
+  assert.deepEqual(normalizer.normalize(completed), {
+    status: "ignored",
+    method: "item/completed"
+  });
+
+  const [fileStarted] = fileChangeFlow as unknown[];
+  assert.equal(normalizer.normalize(fileStarted).status, "normalized");
 });
 
 test("command and permission wire approvals become manual-only normalized events", () => {
@@ -227,6 +321,11 @@ test("command and permission wire approvals become manual-only normalized events
     params: {
       command: "npm test",
       cwd: "/tmp/codex-router",
+      additionalPermissions: {
+        fileSystem: { read: ["/tmp/codex-router/docs"], write: null },
+        network: { enabled: true }
+      },
+      availableDecisions: ["accept", "decline"],
       itemId: "item-command",
       reason: "operator review",
       startedAtMs: 1762732800100,
@@ -276,6 +375,38 @@ test("command and permission wire approvals become manual-only normalized events
       }
     }
   });
+});
+
+test("network-only command approvals remain manual and preserve the network target", () => {
+  const normalizer = createNormalizer();
+  const network = normalizer.normalize({
+    id: "network-request",
+    method: "item/commandExecution/requestApproval",
+    params: {
+      additionalPermissions: {
+        fileSystem: null,
+        network: { enabled: true }
+      },
+      availableDecisions: ["accept", "decline"],
+      itemId: "item-network",
+      networkApprovalContext: {
+        host: "api.example.test",
+        protocol: "https"
+      },
+      reason: "network access required",
+      startedAtMs: 1762732800100,
+      threadId: "thread-network",
+      turnId: "turn-network"
+    }
+  });
+  assert.equal(network.status, "normalized");
+  if (network.status !== "normalized" || network.event.eventType !== "approval_requested") return;
+  assert.deepEqual(network.event.proposal, {
+    kind: "network",
+    host: "api.example.test",
+    protocol: "https"
+  });
+  assert.equal(normalizer.encodeApprovalResponse(response("network-request", "decline")).status, "encoded");
 });
 
 test("remote-control activity and literal backslash paths quarantine the session", () => {

@@ -226,6 +226,36 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
     assert.equal(command.outcome.status, "manual_required");
     assert.equal(fixture.transport.messages.length, 0);
 
+    const network = await bridge.ingest({
+      id: "raw-network-request",
+      method: "item/commandExecution/requestApproval",
+      params: {
+        additionalPermissions: {
+          fileSystem: null,
+          network: { enabled: true }
+        },
+        availableDecisions: ["accept", "decline"],
+        itemId: "raw-network-item",
+        networkApprovalContext: {
+          host: "api.example.test",
+          protocol: "https"
+        },
+        reason: "operator review",
+        startedAtMs: 1762732800100,
+        threadId: "raw-network-thread",
+        turnId: "raw-network-turn"
+      }
+    });
+    assert.equal(network.status, "normalized");
+    if (network.status !== "normalized") return;
+    assert.equal(network.outcome.status, "manual_required");
+    assert.deepEqual(network.outcome.approvalProposal, {
+      kind: "network",
+      host: "api.example.test",
+      protocol: "https"
+    });
+    assert.equal(fixture.transport.messages.length, 0);
+
     const permission = await bridge.ingest({
       id: "raw-permission-request",
       method: "item/permissions/requestApproval",

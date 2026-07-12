@@ -79,6 +79,11 @@ export const CodexApprovalProposalSchema = z.discriminatedUnion("kind", [
     cwd: z.string().min(1).optional()
   }).strict(),
   z.object({
+    kind: z.literal("network"),
+    host: z.string().min(1),
+    protocol: z.enum(["http", "https", "socks5Tcp", "socks5Udp"])
+  }).strict(),
+  z.object({
     kind: z.literal("permission"),
     scope: z.string().min(1)
   }).strict()
@@ -620,7 +625,11 @@ export class CodexAppServerAdapter {
     };
     this.approvals.set(event.requestId, approval);
 
-    if (event.proposal.kind === "command" || event.proposal.kind === "permission") {
+    if (
+      event.proposal.kind === "command"
+      || event.proposal.kind === "network"
+      || event.proposal.kind === "permission"
+    ) {
       return this.outcome("manual_required", [
         `${event.proposal.kind}_policy_auto_forbidden`
       ], {

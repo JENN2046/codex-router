@@ -138,8 +138,45 @@ export const CodexAppServerV2FileChangeItemSchema = z.object({
   type: z.literal("fileChange")
 }).strict();
 
+const V2NonFileLifecycleItemTypeSchema = z.enum([
+  "userMessage",
+  "hookPrompt",
+  "agentMessage",
+  "plan",
+  "reasoning",
+  "commandExecution",
+  "mcpToolCall",
+  "dynamicToolCall",
+  "collabAgentToolCall",
+  "subAgentActivity",
+  "webSearch",
+  "imageView",
+  "sleep",
+  "imageGeneration",
+  "enteredReviewMode",
+  "exitedReviewMode",
+  "contextCompaction"
+]);
+
+/**
+ * App Server emits item lifecycle notifications for every known ThreadItem,
+ * not only file changes. Keep an explicit non-file type allowlist so ordinary
+ * progress cannot quarantine a session, while unknown future item types still
+ * fail closed as schema drift. Non-file payload details are not governance
+ * inputs and are therefore intentionally ignored after the type/id boundary.
+ */
+const V2NonFileLifecycleItemSchema = z.object({
+  id: z.string().min(1),
+  type: V2NonFileLifecycleItemTypeSchema
+}).passthrough();
+
+const V2LifecycleItemSchema = z.union([
+  CodexAppServerV2FileChangeItemSchema,
+  V2NonFileLifecycleItemSchema
+]);
+
 const V2ItemStartedParamsSchema = z.object({
-  item: CodexAppServerV2FileChangeItemSchema,
+  item: V2LifecycleItemSchema,
   startedAtMs: TimestampMsSchema,
   threadId: z.string().min(1),
   turnId: z.string().min(1)
@@ -147,10 +184,20 @@ const V2ItemStartedParamsSchema = z.object({
 
 const V2ItemCompletedParamsSchema = z.object({
   completedAtMs: TimestampMsSchema,
-  item: CodexAppServerV2FileChangeItemSchema,
+  item: V2LifecycleItemSchema,
   threadId: z.string().min(1),
   turnId: z.string().min(1)
 }).strict();
+
+type V2FileChangeItem = z.infer<typeof CodexAppServerV2FileChangeItemSchema>;
+type V2ItemStartedParams = z.infer<typeof V2ItemStartedParamsSchema>;
+type V2ItemCompletedParams = z.infer<typeof V2ItemCompletedParamsSchema>;
+type V2FileChangeItemStartedParams = Omit<V2ItemStartedParams, "item"> & {
+  item: V2FileChangeItem;
+};
+type V2FileChangeItemCompletedParams = Omit<V2ItemCompletedParams, "item"> & {
+  item: V2FileChangeItem;
+};
 
 export const CodexAppServerV2FileChangeApprovalParamsSchema = z.object({
   grantRoot: z.string().nullable().optional(),
@@ -163,6 +210,15 @@ export const CodexAppServerV2FileChangeApprovalParamsSchema = z.object({
 
 const V2CommandExecutionApprovalParamsSchema = z.object({
   approvalId: z.string().nullable().optional(),
+  additionalPermissions: V2PermissionProfileSchema.nullable().optional(),
+  availableDecisions: z.array(z.enum([
+    "accept",
+    "acceptForSession",
+    "acceptWithExecpolicyAmendment",
+    "applyNetworkPolicyAmendment",
+    "decline",
+    "cancel"
+  ])).nullable().optional(),
   command: z.string().min(1).nullable().optional(),
   commandActions: z.array(V2CommandActionSchema).nullable().optional(),
   cwd: z.string().min(1).nullable().optional(),
@@ -403,7 +459,7 @@ interface TrackedItem {
 }
 
 interface ApprovalBinding {
-  approvalKind: "file_change" | "command" | "permission";
+  approvalKind: "file_change" | "command" | "network" | "permission";
   requestId: string;
   wireRequestId: CodexAppServerV2JsonRpcRequestId;
   threadId: string;
@@ -622,23 +678,43 @@ export class CodexAppServerV2WireNormalizer {
         method,
         params
       });
-      if (!parsed.success || parsed.data.params.command === undefined || parsed.data.params.command === null) {
-        return this.quarantine(
-          parsed.success ? "v2_command_approval_command_missing" : "v2_command_approval_schema_invalid",
-          { method, requestId }
-        );
+      if (!parsed.success) {
+        return this.quarantine("v2_command_approval_schema_invalid", {
+          method,
+          requestId
+        });
       }
+      const command = parsed.data.params.command;
+      const networkApprovalContext = parsed.data.params.networkApprovalContext;
+      if (
+        (command === undefined || command === null)
+        && (networkApprovalContext === undefined || networkApprovalContext === null)
+      ) {
+        return this.quarantine("v2_command_approval_command_missing", {
+          method,
+          requestId
+        });
+      }
+      const approvalKind = command === undefined || command === null
+        ? "network" as const
+        : "command" as const;
       return this.normalizeManualApproval({
-        approvalKind: "command",
+        approvalKind,
         itemId: parsed.data.params.itemId,
         method,
-        proposal: {
-          kind: "command",
-          argv: [parsed.data.params.command],
-          ...(parsed.data.params.cwd === undefined || parsed.data.params.cwd === null
-            ? {}
-            : { cwd: parsed.data.params.cwd })
-        },
+        proposal: approvalKind === "network"
+          ? {
+              kind: "network",
+              host: networkApprovalContext!.host,
+              protocol: networkApprovalContext!.protocol
+            }
+          : {
+              kind: "command",
+              argv: [command!],
+              ...(parsed.data.params.cwd === undefined || parsed.data.params.cwd === null
+                ? {}
+                : { cwd: parsed.data.params.cwd })
+            },
         requestId,
         ...(parsed.data.params.reason === undefined
           ? {}
@@ -695,15 +771,23 @@ export class CodexAppServerV2WireNormalizer {
     switch (method) {
       case "item/started": {
         const parsed = V2ItemStartedWireSchema.safeParse({ method, params });
-        return parsed.success
-          ? this.normalizeItemStarted(parsed.data.params, wireHash)
-          : this.quarantine("v2_item_started_schema_invalid", { method });
+        if (!parsed.success) {
+          return this.quarantine("v2_item_started_schema_invalid", { method });
+        }
+        if (!isFileChangeItemStartedParams(parsed.data.params)) {
+          return { status: "ignored", method };
+        }
+        return this.normalizeItemStarted(parsed.data.params, wireHash);
       }
       case "item/completed": {
         const parsed = V2ItemCompletedWireSchema.safeParse({ method, params });
-        return parsed.success
-          ? this.normalizeItemCompleted(parsed.data.params, wireHash)
-          : this.quarantine("v2_item_completed_schema_invalid", { method });
+        if (!parsed.success) {
+          return this.quarantine("v2_item_completed_schema_invalid", { method });
+        }
+        if (!isFileChangeItemCompletedParams(parsed.data.params)) {
+          return { status: "ignored", method };
+        }
+        return this.normalizeItemCompleted(parsed.data.params, wireHash);
       }
       case "serverRequest/resolved": {
         const parsed = V2ServerRequestResolvedWireSchema.safeParse({ method, params });
@@ -750,7 +834,7 @@ export class CodexAppServerV2WireNormalizer {
   }
 
   private normalizeItemStarted(
-    params: z.infer<typeof V2ItemStartedParamsSchema>,
+    params: V2FileChangeItemStartedParams,
     wireHash: string
   ): CodexAppServerV2NormalizationResult {
     if (params.item.status !== "inProgress") {
@@ -851,7 +935,7 @@ export class CodexAppServerV2WireNormalizer {
   }
 
   private normalizeManualApproval(input: {
-    approvalKind: "command" | "permission";
+    approvalKind: "command" | "network" | "permission";
     itemId: string;
     method: string;
     permissionGrant?: z.infer<typeof V2PermissionProfileSchema>;
@@ -991,7 +1075,7 @@ export class CodexAppServerV2WireNormalizer {
   }
 
   private normalizeItemCompleted(
-    params: z.infer<typeof V2ItemCompletedParamsSchema>,
+    params: V2FileChangeItemCompletedParams,
     wireHash: string
   ): CodexAppServerV2NormalizationResult {
     const key = itemKey(params.threadId, params.turnId, params.item.id);
@@ -1345,6 +1429,18 @@ function rawChangeFingerprint(item: CodexAppServerV2FileChangeItem): string {
       changes: item.changes
     }
   });
+}
+
+function isFileChangeItemStartedParams(
+  params: V2ItemStartedParams
+): params is V2FileChangeItemStartedParams {
+  return params.item.type === "fileChange";
+}
+
+function isFileChangeItemCompletedParams(
+  params: V2ItemCompletedParams
+): params is V2FileChangeItemCompletedParams {
+  return params.item.type === "fileChange";
 }
 
 function uniqueStrings(values: string[]): string[] {

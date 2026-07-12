@@ -70,8 +70,11 @@ Raw v2 App Server messages must pass through the exported
 The normalizer accepts only the versioned item/approval/resolution/completion
 messages in its wire allowlist and quarantines the session on unknown methods,
 extra fields, replay, correlation drift, unsupported methods, or invalid
-command/permission schemas. Command and permission requests use the manual-only
-codecs described below.
+command/permission schemas. `item/started` and `item/completed` cover every
+known App Server `ThreadItem` lifecycle type; non-file items are ignored after
+the bounded type/id check, while unknown item types remain schema drift and
+quarantine the session. Command, network, and permission requests use the
+manual-only codecs described below.
 
 The normalizer is not ready until the exact `initialize` response for its bound
 request id has been accepted and the client `initialized` notification has been
@@ -85,12 +88,15 @@ the exact before/after hash for every path. Missing or mismatched evidence,
 move paths, and invalid hash semantics fail closed; the normalizer never
 derives these values from a turn diff.
 
-The wire transport maps only internal `accept`/`decline` decisions. File and
-command approvals use `{ id, result: { decision } }`; a permission accept echoes
-the exact requested permission profile for the operator-approved turn, while a
-decline sends an empty profile. `acceptForSession`, `cancel`, and unknown request
-ids are never auto-mapped. Command and permission requests are always normalized
-as `manual_required` proposals; they never enter policy auto-approval.
+The wire transport maps only internal `accept`/`decline` decisions. File,
+command, and network approvals use `{ id, result: { decision } }`; a permission
+accept echoes the exact requested permission profile for the operator-approved
+turn, while a decline sends an empty profile. `acceptForSession`, `cancel`, and
+unknown request ids are never auto-mapped. Command approval hints such as
+`availableDecisions` and experimental `additionalPermissions` are accepted for
+schema compatibility but do not grant authorization. Command and network-only
+requests are always normalized as `manual_required` proposals; they never enter
+policy auto-approval.
 
 Only `remoteControl/status/changed` with `status: "disabled"` is ignored. Any
 other remote-control status quarantines the session. Governed paths containing
