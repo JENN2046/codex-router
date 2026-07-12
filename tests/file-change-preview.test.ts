@@ -488,6 +488,9 @@ test("policy re-derives normalized credential signals from proposed diff content
   for (const [label, content] of [
     ["snake assignment", "OPENAI_API_KEY=example-placeholder\n"],
     ["spaced assignment", "API_KEY = example-placeholder\n"],
+    ["password assignment", "password = example-placeholder\n"],
+    ["access token assignment", "ACCESS_TOKEN=example-placeholder\n"],
+    ["client secret yaml", "client_secret: example-placeholder\n"],
     ["private key assignment", "PRIVATE_KEY = example-placeholder\n"],
     ["yaml key", "api_key: example-placeholder\n"],
     ["camel case variable", "const apiKey = 'example-placeholder';\n"],

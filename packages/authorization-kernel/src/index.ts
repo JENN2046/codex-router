@@ -136,6 +136,10 @@ const UNSAFE_GOVERNED_PATH_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*\[\]]/;
 
 const CREDENTIAL_LIKE_COMPACT_FRAGMENTS = [
   "apikey",
+  "password",
+  "passwd",
+  "token",
+  "clientsecret",
   "privatekey",
   "secretaccesskey",
   "githubtoken",
