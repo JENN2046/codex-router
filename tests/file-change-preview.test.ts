@@ -491,6 +491,8 @@ test("policy re-derives normalized credential signals from proposed diff content
     ["password assignment", "password = example-placeholder\n"],
     ["access token assignment", "ACCESS_TOKEN=example-placeholder\n"],
     ["client secret yaml", "client_secret: example-placeholder\n"],
+    ["secret key assignment", "SECRET_KEY=example-placeholder\n"],
+    ["api secret assignment", "API_SECRET=example-placeholder\n"],
     ["private key assignment", "PRIVATE_KEY = example-placeholder\n"],
     ["yaml key", "api_key: example-placeholder\n"],
     ["camel case variable", "const apiKey = 'example-placeholder';\n"],

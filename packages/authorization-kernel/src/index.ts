@@ -140,6 +140,8 @@ const CREDENTIAL_LIKE_COMPACT_FRAGMENTS = [
   "passwd",
   "token",
   "clientsecret",
+  "secret",
+  "secretkey",
   "privatekey",
   "secretaccesskey",
   "githubtoken",
