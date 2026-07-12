@@ -28,6 +28,7 @@ import {
 import {
   createTestOnlyLocalClonePreviewer
 } from "../packages/file-change-preview/src/index.js";
+import type { FileChangePreviewer } from "../packages/file-change-preview/src/index.js";
 import {
   InMemoryPendingApprovalJournalStore,
   type PendingApprovalJournalEntry,
@@ -97,6 +98,29 @@ test("preview and accept status checks do not refresh the source Git index", asy
     { code: "ENOENT" }
   );
   await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("previewer failures decline the pending approval and do not leave previewing state", async () => {
+  const previewer = createTestOnlyLocalClonePreviewer();
+  previewer.preview = async () => {
+    throw new Error("injected_preview_failure");
+  };
+  const fixture = await createAdapterFixture({ previewer });
+  try {
+    const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+    await fixture.adapter.ingest(events[0]);
+    const result = await fixture.adapter.ingest(events[1]);
+
+    assert.equal(result.status, "blocked");
+    assert.deepEqual(result.reasons, ["preview_execution_failed"]);
+    assert.equal(result.lifecycleState, "blocked");
+    assert.equal(fixture.transport.messages.length, 1);
+    assert.equal(fixture.transport.messages[0]?.decision, "decline");
+    assert.equal(fixture.adapter.getItemSnapshot("thread-1", "turn-1", "item-1")?.state, "blocked");
+    assert.deepEqual(await fixture.journal.list(), []);
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
 });
 
 test("terminal journal update failures enter reconciliation and retry durably", async (t) => {
@@ -1920,6 +1944,7 @@ async function createAdapterFixture(options: {
   gitControlSource?: "include" | "attributes" | "global";
   hiddenTrackedCreateTarget?: boolean;
   initialWorktreeLineEnding?: "crlf";
+  previewer?: FileChangePreviewer;
 } = {}) {
   const tempRoot = await mkdtemp(join(tmpdir(), "codex-adapter-"));
   const repoRoot = join(tempRoot, "repo");
@@ -1982,7 +2007,7 @@ async function createAdapterFixture(options: {
     sessionAttestation: attestation,
     transport,
     journalStore: journal,
-    previewer: createTestOnlyLocalClonePreviewer({ tempRoot }),
+    previewer: options.previewer ?? createTestOnlyLocalClonePreviewer({ tempRoot }),
     previewPolicy,
     previewIsolation: options.isolation ?? {
       networkIsolation: "enforced_none",

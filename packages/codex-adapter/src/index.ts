@@ -777,14 +777,30 @@ export class CodexAppServerAdapter {
     }
 
     transitionItem(item, "previewing");
-    const preview = await this.previewer.preview({
-      repoRoot: context.repoRoot,
-      changeSet: item.changeSet,
-      facts,
-      policy: this.previewPolicy,
-      isolation: this.previewIsolation,
-      now: this.now
-    });
+    let preview: PreviewReceipt;
+    try {
+      preview = await this.previewer.preview({
+        repoRoot: context.repoRoot,
+        changeSet: item.changeSet,
+        facts,
+        policy: this.previewPolicy,
+        isolation: this.previewIsolation,
+        now: this.now
+      });
+    } catch {
+      const reason = "preview_execution_failed";
+      const delivery = await this.declineFileItem(approval, item, reason);
+      const sent = delivery === "sent";
+      return this.outcome(sent ? "blocked" : "reconciliation_required", [
+        reason,
+        ...(sent ? [] : ["approval_response_send_failed"])
+      ], {
+        requestId: event.requestId,
+        itemId: event.itemId,
+        lifecycleState: item.state,
+        authorizationDecision: authorization
+      });
+    }
     item.previewReceipt = preview;
     if (preview.status !== "preview_passed") {
       transitionItem(item, "awaiting_approval");

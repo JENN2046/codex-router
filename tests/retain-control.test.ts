@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readFile,
@@ -772,6 +773,44 @@ test("retain preserves pre-accept worktree hashes across checkout conversions", 
       update.beforeHash,
       caseId
     );
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("retain rejects governed target mode drift", { skip: process.platform === "win32" }, async () => {
+  const fixture = await createRetainFixture();
+  try {
+    await applyFakeAppServerChanges(fixture.repoRoot);
+    await chmod(join(fixture.repoRoot, "docs/guide.md"), 0o755);
+    const retained = await verifyRetainedChange({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet,
+      permit: fixture.permit,
+      now: retainedAt
+    });
+
+    assert.equal(retained.status, "reconciliation_required");
+    assert.ok(retained.reasons.includes("retain_target_mode_drift:docs/guide.md"));
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("retain rejects literal backslashes in status paths", { skip: process.platform === "win32" }, async () => {
+  const fixture = await createRetainFixture();
+  try {
+    await applyFakeAppServerChanges(fixture.repoRoot);
+    await writeFile(join(fixture.repoRoot, "docs\\guide.md"), "outside\n", "utf8");
+    const retained = await verifyRetainedChange({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet,
+      permit: fixture.permit,
+      now: retainedAt
+    });
+
+    assert.equal(retained.status, "reconciliation_required");
+    assert.ok(retained.reasons.includes("porcelain_v2_path_encoding_unsupported"));
+  } finally {
     await rm(fixture.tempRoot, { recursive: true, force: true });
   }
 });
@@ -1747,6 +1786,47 @@ test("rollback restore neutralizes filter commands added after final inspection"
       { code: "ENOENT" }
     );
     await assert.rejects(() => readFile(markerPath, "utf8"), { code: "ENOENT" });
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("rollback restore neutralizes a different configured filter activated after final inspection", async () => {
+  const fixture = await createRetainFixture({
+    gitattributes: "docs/guide.md filter=initial-driver\n"
+  });
+  try {
+    await applyFakeAppServerChanges(fixture.repoRoot);
+    const retained = await verifyRetainedChange({
+      cwd: fixture.repoRoot,
+      changeSet: fixture.changeSet,
+      permit: fixture.permit,
+      now: retainedAt
+    });
+    if (retained.status !== "retained") {
+      assert.fail(retained.reasons.join(","));
+    }
+    let markerPath = "";
+    const primitive = createTestOnlyGitWorkspaceTargetRestorePrimitive({
+      async beforeFinalFilterCheck(): Promise<void> {},
+      async beforeRestoreAfterFilterCheck(): Promise<void> {
+        await writeFile(
+          join(fixture.repoRoot, ".gitattributes"),
+          "docs/guide.md filter=late-driver\n",
+          "utf8"
+        );
+        markerPath = await configureRollbackFilterCommand(
+          fixture,
+          "smudge",
+          "late-driver",
+          "late-driver"
+        );
+      }
+    });
+
+    await primitive.restore({ cwd: fixture.repoRoot, receipt: retained.receipt });
+    assert.equal(await readFile(join(fixture.repoRoot, "docs/guide.md"), "utf8"), "old\n");
+    await assert.rejects(() => readFile(markerPath, "utf8"), { code: "ENOENT" });
+  } finally {
     await rm(fixture.tempRoot, { recursive: true, force: true });
   }
 });

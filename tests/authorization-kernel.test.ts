@@ -529,6 +529,7 @@ test("secret paths and credential-like proposed content are hard factual boundar
     ".pypirc",
     ".netrc",
     ".ssh/id_ed25519",
+    "config.env",
     "config/auth.json",
     "keys/client.p12"
   ]) {

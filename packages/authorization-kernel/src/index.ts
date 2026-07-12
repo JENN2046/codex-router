@@ -118,6 +118,7 @@ const SENSITIVE_PATH_COMPONENTS = new Set([
   ".ssh",
   ".codex-home",
   ".omc",
+  "config.env",
   "auth.json",
   "config.json",
   "state-private",

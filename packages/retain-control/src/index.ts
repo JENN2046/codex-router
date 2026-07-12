@@ -602,6 +602,14 @@ export async function verifyRetainedChange(input: {
     const targetHashes: RetainReceipt["targetHashes"] = [];
     for (const change of changeSet.changes) {
       const basePathExists = basePathPresence.get(change.path) === true;
+      const statusMode = repository.pathModes.get(change.path);
+      if (
+        change.kind === "update"
+        && statusMode !== undefined
+        && statusMode.worktree !== statusMode.head
+      ) {
+        reasons.push(`retain_target_mode_drift:${change.path}`);
+      }
       // Governed beforeHash values describe the bytes observed in the worktree
       // immediately before acceptance. Checkout conversions can legitimately
       // make those bytes differ from the normalized Git blob.
@@ -909,9 +917,18 @@ export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestor
         await rollbackRestoreTestHooks.get(this)?.beforeRestoreAfterFilterCheck(
           sortedActiveDrivers
         );
+        const configuredDrivers = await collectConfiguredGitFilterDrivers(
+          input.cwd,
+          "rollback",
+          restoreEnvironment
+        );
+        const restoreDrivers = uniqueStrings([
+          ...sortedActiveDrivers,
+          ...configuredDrivers
+        ]);
         const restoreEnvironmentWithOverrides = appendGitConfigEnvironmentOverrides(
           restoreEnvironment,
-          sortedActiveDrivers.flatMap((driver) => [
+          restoreDrivers.flatMap((driver) => [
             [`filter.${driver}.clean`, ""] as const,
             [`filter.${driver}.smudge`, ""] as const,
             [`filter.${driver}.process`, ""] as const,
@@ -1256,6 +1273,41 @@ async function collectActiveConfiguredGitFilterReasons(
   }
 }
 
+async function collectConfiguredGitFilterDrivers(
+  cwd: string,
+  operation: "retain" | "rollback",
+  env: NodeJS.ProcessEnv
+): Promise<string[]> {
+  try {
+    const configuredFilterKeys = await gitBufferWithEnv(cwd, [
+      "config",
+      "--null",
+      "--name-only",
+      "--get-regexp",
+      "^filter\\..*\\.(clean|smudge|process)$"
+    ], env);
+    return uniqueStrings(
+      splitNullTerminatedBufferFields(
+        configuredFilterKeys,
+        `${operation}_git_filter_inspection_failed`
+      )
+        .map((key) => decodeUtf8BufferField(
+          key,
+          `${operation}_git_filter_inspection_failed`
+        ))
+        .flatMap((key) => {
+          const match = /^filter\.(.*)\.(?:clean|smudge|process)$/u.exec(key);
+          return match?.[1] === undefined ? [] : [match[1]];
+        })
+    );
+  } catch (error) {
+    if (isProcessExitCode(error, 1)) {
+      return [];
+    }
+    throw new Error(`${operation}_git_filter_inspection_failed`);
+  }
+}
+
 async function collectTrackedSubmoduleReasons(
   cwd: string,
   operation: "retain" | "rollback"
@@ -1384,6 +1436,11 @@ type RepositoryInspection = {
   identityHash: string;
   changedPaths: string[];
   indexChanged: boolean;
+  pathModes: Map<string, {
+    head: string;
+    index: string;
+    worktree: string;
+  }>;
 };
 
 async function inspectRepository(
@@ -1438,13 +1495,19 @@ async function inspectRepository(
       gitCommonDir: commonDir
     }),
     changedPaths: parsed.paths,
-    indexChanged: parsed.indexChanged
+    indexChanged: parsed.indexChanged,
+    pathModes: parsed.pathModes
   };
 }
 
-function parsePorcelainV2(output: string): { paths: string[]; indexChanged: boolean } {
+function parsePorcelainV2(output: string): {
+  paths: string[];
+  indexChanged: boolean;
+  pathModes: Map<string, { head: string; index: string; worktree: string }>;
+} {
   const records = output.split("\0").filter((record) => record !== "");
   const paths: string[] = [];
+  const pathModes = new Map<string, { head: string; index: string; worktree: string }>();
   let indexChanged = false;
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
@@ -1452,33 +1515,67 @@ function parsePorcelainV2(output: string): { paths: string[]; indexChanged: bool
       continue;
     }
     if (record.startsWith("? ")) {
-      paths.push(normalizeAndAssertPath(record.slice(2)));
+      paths.push(parseStatusPath(record.slice(2)));
       continue;
     }
     if (record.startsWith("1 ")) {
-      const match = /^1 ([^ ]{2}) [^ ]+ [^ ]+ [^ ]+ [^ ]+ [^ ]+ [^ ]+ (.*)$/s.exec(record);
-      if (match?.[1] === undefined || match[2] === undefined) {
+      const match = /^1 ([^ ]{2}) ([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) (.*)$/s.exec(record);
+      if (
+        match?.[1] === undefined
+        || match[3] === undefined
+        || match[4] === undefined
+        || match[5] === undefined
+        || match[8] === undefined
+      ) {
         throw new Error("porcelain_v2_schema_drift");
       }
       if (match[1][0] !== ".") {
         indexChanged = true;
       }
-      paths.push(normalizeAndAssertPath(match[2]));
+      const path = parseStatusPath(match[8]);
+      paths.push(path);
+      pathModes.set(path, {
+        head: match[3],
+        index: match[4],
+        worktree: match[5]
+      });
       continue;
     }
     if (record.startsWith("2 ")) {
-      const match = /^2 ([^ ]{2}) [^ ]+ [^ ]+ [^ ]+ [^ ]+ [^ ]+ [^ ]+ [^ ]+ (.*)$/s.exec(record);
-      if (match?.[1] === undefined || match[2] === undefined || records[index + 1] === undefined) {
+      const match = /^2 ([^ ]{2}) ([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) (.*)$/s.exec(record);
+      const originalPath = records[index + 1];
+      if (
+        match?.[1] === undefined
+        || match[3] === undefined
+        || match[4] === undefined
+        || match[5] === undefined
+        || match[9] === undefined
+        || originalPath === undefined
+      ) {
         throw new Error("porcelain_v2_schema_drift");
       }
       indexChanged = true;
-      paths.push(normalizeAndAssertPath(match[2]));
+      const path = parseStatusPath(match[9]);
+      parseStatusPath(originalPath);
+      paths.push(path);
+      pathModes.set(path, {
+        head: match[3],
+        index: match[4],
+        worktree: match[5]
+      });
       index += 1;
       continue;
     }
     throw new Error("porcelain_v2_schema_drift");
   }
-  return { paths: uniqueStrings(paths), indexChanged };
+  return { paths: uniqueStrings(paths), indexChanged, pathModes };
+}
+
+function parseStatusPath(rawPath: string): string {
+  if (rawPath.includes("\\")) {
+    throw new Error("porcelain_v2_path_encoding_unsupported");
+  }
+  return normalizeAndAssertPath(rawPath);
 }
 
 async function commitPathExists(
