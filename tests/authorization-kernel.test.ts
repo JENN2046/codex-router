@@ -640,6 +640,46 @@ test("capability ceilings only narrow and never manufacture requested scopes", (
   assert.deepEqual(decision.authorizedCapabilities, []);
 });
 
+test("schema-valid but unsupported capability scopes fail closed as missing", () => {
+  const unsupportedNetworkRead: CapabilityScope = {
+    schemaVersion: "capability-scope.v1",
+    kind: "network",
+    resource: "api.example.com",
+    access: "read",
+    constraints: {}
+  };
+
+  const unsupportedRequested = narrowToCapabilityCeiling(
+    [unsupportedNetworkRead],
+    [writeCeiling]
+  );
+  assert.deepEqual(unsupportedRequested.allowed, []);
+  assert.deepEqual(unsupportedRequested.missing, ["network.read:api.example.com"]);
+
+  const unsupportedCeiling = narrowToCapabilityCeiling(
+    [writeScope],
+    [unsupportedNetworkRead]
+  );
+  assert.deepEqual(unsupportedCeiling.allowed, []);
+  assert.deepEqual(unsupportedCeiling.missing, ["fs.write:docs/guide.md"]);
+
+  const facts = deriveFacts({ kind: "update", path: "docs/guide.md" });
+  const decision = authorizeCapabilityFacts({
+    surface: "codex_app_server",
+    facts,
+    semanticRisk: "low",
+    requestedCapabilities: [unsupportedNetworkRead],
+    capabilityCeiling: [writeCeiling],
+    createdAt: now
+  });
+  assert.equal(decision.disposition, "blocked");
+  assert.equal(decision.approvalMode, "human_required");
+  assert.deepEqual(decision.authorizedCapabilities, []);
+  assert.ok(decision.reasons.includes(
+    "capability_ceiling_missing:network.read:api.example.com"
+  ));
+});
+
 test("the same facts and ceiling produce one authorization shape across surfaces", () => {
   const facts = deriveFacts({ kind: "update", path: "docs/guide.md" });
   const decisions = (["desktop", "provider", "codex_app_server"] as const).map((surface) => (

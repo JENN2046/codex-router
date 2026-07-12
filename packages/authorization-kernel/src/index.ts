@@ -375,7 +375,7 @@ export function narrowToCapabilityCeiling(
   for (const requested of requestedCapabilities) {
     const requestedCanonical = capabilityScopeToCanonicalString(requested);
     const isAllowed = ceilingScopes.some((ceilingScope) => (
-      capabilityImplies(ceilingScope, requestedCanonical)
+      capabilityImpliesSafely(ceilingScope, requestedCanonical)
     ));
     if (isAllowed) {
       allowed.push(structuredClone(requested) as CapabilityScope);
@@ -388,6 +388,17 @@ export function narrowToCapabilityCeiling(
     allowed: dedupeCapabilityScopes(allowed),
     missing: uniqueStrings(missing)
   };
+}
+
+function capabilityImpliesSafely(
+  grantScope: string,
+  requestedScope: string
+): boolean {
+  try {
+    return capabilityImplies(grantScope, requestedScope);
+  } catch {
+    return false;
+  }
 }
 
 export function scoreCapabilityFactsRisk(
