@@ -1557,7 +1557,7 @@ test("cancelled command approval cannot be accepted by a late operator action", 
     itemId: command.itemId,
     resolution: "cancelled"
   });
-  assert.equal(cancelled.status, "blocked");
+  assert.equal(cancelled.status, "reconciliation_required");
   const late = await fixture.adapter.resolveHumanApproval({
     requestId: command.requestId,
     decision: "accept",
@@ -1566,6 +1566,52 @@ test("cancelled command approval cannot be accepted by a late operator action", 
   assert.equal(late.status, "blocked");
   assert.equal(fixture.transport.messages.length, 0);
   await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("cancelling a pending approval reconciles an accepted sibling journal", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+    assert.equal((await fixture.adapter.ingest(events[0])).status, "proposed");
+    assert.equal((await fixture.adapter.ingest(events[1])).status, "accepted");
+    assert.equal((await fixture.journal.list())[0]?.state, "accepted");
+
+    const command = {
+      schemaVersion: "codex-app-server-normalized-event.v1",
+      schemaProfileId: "fake-v2",
+      eventId: "command-request-after-file",
+      eventType: "approval_requested",
+      sequence: 3,
+      threadId: "thread-1",
+      turnId: "turn-1",
+      requestId: "request-command-after-file",
+      itemId: "item-command-after-file",
+      proposal: {
+        kind: "command",
+        argv: ["npm", "test"],
+        cwd: "."
+      }
+    } as const;
+    assert.equal((await fixture.adapter.ingest(command)).status, "manual_required");
+
+    const cancelled = await fixture.adapter.ingest({
+      schemaVersion: command.schemaVersion,
+      schemaProfileId: command.schemaProfileId,
+      eventId: "command-cancelled-after-file",
+      eventType: "request_resolved",
+      sequence: 4,
+      threadId: command.threadId,
+      turnId: command.turnId,
+      requestId: command.requestId,
+      itemId: command.itemId,
+      resolution: "cancelled"
+    });
+    assert.equal(cancelled.status, "reconciliation_required");
+    assert.deepEqual(cancelled.reasons, ["approval_request_cancelled"]);
+    assert.equal((await fixture.journal.list())[0]?.state, "reconciliation_required");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
 });
 
 test("operator acceptance and inbound cancellation share one serial queue", async () => {

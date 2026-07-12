@@ -845,7 +845,7 @@ export class CodexAppServerAdapter {
         event.turnId,
         "approval_request_cancelled"
       );
-      return this.outcome("blocked", ["approval_request_cancelled"], {
+      return this.outcome("reconciliation_required", ["approval_request_cancelled"], {
         requestId: event.requestId,
         itemId: event.itemId
       });
