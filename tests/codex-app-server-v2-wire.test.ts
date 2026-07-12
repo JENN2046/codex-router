@@ -330,6 +330,20 @@ test("known non-file lifecycle items are ignored without blocking file changes",
         threadId: "thread-non-file",
         turnId: "turn-non-file"
       }
+    },
+    {
+      method: "item/started",
+      params: {
+        item: {
+          id: "collab-tool-call-1",
+          prompt: "Inspect the repository",
+          status: "inProgress",
+          type: "collabToolCall"
+        },
+        startedAtMs: 1762732800103,
+        threadId: "thread-non-file",
+        turnId: "turn-non-file"
+      }
     }
   ];
   for (const message of startedMessages) {
@@ -358,6 +372,26 @@ test("known non-file lifecycle items are ignored without blocking file changes",
   };
   assert.equal(CodexAppServerV2WireMessageSchema.safeParse(completed).success, true);
   assert.deepEqual(normalizer.normalize(completed), {
+    status: "ignored",
+    method: "item/completed"
+  });
+
+  const collabCompleted = {
+    method: "item/completed",
+    params: {
+      item: {
+        id: "collab-tool-call-1",
+        prompt: "Inspect the repository",
+        status: "completed",
+        type: "collabToolCall"
+      },
+      completedAtMs: 1762732800104,
+      threadId: "thread-non-file",
+      turnId: "turn-non-file"
+    }
+  };
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(collabCompleted).success, true);
+  assert.deepEqual(normalizer.normalize(collabCompleted), {
     status: "ignored",
     method: "item/completed"
   });
@@ -464,6 +498,74 @@ test("documented item progress notifications are ignored without quarantining", 
   assert.equal(malformed.status, "blocked");
   if (malformed.status !== "blocked") return;
   assert.ok(malformed.reasons.includes("v2_progress_notification_schema_invalid"));
+  assert.ok(malformed.reasons.includes("v2_session_quarantined"));
+});
+
+test("documented non-governance notifications are ignored without quarantining", () => {
+  const normalizer = createNormalizer();
+  const messages = [
+    {
+      method: "turn/plan/updated",
+      params: {
+        explanation: null,
+        plan: [{ status: "inProgress", step: "inspect repository" }],
+        threadId: "thread-non-governance",
+        turnId: "turn-non-governance"
+      }
+    },
+    {
+      method: "model/safetyBuffering/updated",
+      params: {
+        fasterModel: null,
+        model: "gpt-test",
+        reasons: ["safety review"],
+        showBufferingUi: true,
+        threadId: "thread-non-governance",
+        turnId: "turn-non-governance",
+        useCases: ["analysis"]
+      }
+    },
+    {
+      method: "model/rerouted",
+      params: {
+        fromModel: "gpt-test",
+        reason: "highRiskCyberActivity",
+        threadId: "thread-non-governance",
+        toModel: "gpt-safe-test",
+        turnId: "turn-non-governance"
+      }
+    },
+    {
+      method: "error",
+      params: {
+        error: { message: "upstream retry" },
+        threadId: "thread-non-governance",
+        turnId: "turn-non-governance",
+        willRetry: true
+      }
+    }
+  ];
+
+  for (const message of messages) {
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(message).success, true);
+    assert.deepEqual(normalizer.normalize(message), {
+      status: "ignored",
+      method: message.method
+    });
+  }
+
+  const malformed = normalizer.normalize({
+    method: "turn/plan/updated",
+    params: {
+      plan: [],
+      threadId: "thread-non-governance",
+      turnId: "turn-non-governance",
+      unexpected: true
+    }
+  });
+  assert.equal(malformed.status, "blocked");
+  if (malformed.status !== "blocked") return;
+  assert.ok(malformed.reasons.includes("v2_non_governance_notification_schema_invalid"));
   assert.ok(malformed.reasons.includes("v2_session_quarantined"));
 });
 

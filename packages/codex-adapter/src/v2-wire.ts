@@ -150,6 +150,7 @@ const V2NonFileLifecycleItemTypeSchema = z.enum([
   "commandExecution",
   "mcpToolCall",
   "dynamicToolCall",
+  "collabToolCall",
   "collabAgentToolCall",
   "subAgentActivity",
   "webSearch",
@@ -276,6 +277,46 @@ const V2TurnLifecycleParamsSchema = z.object({
   turn: z.record(z.unknown())
 }).strict();
 
+const V2TurnPlanUpdatedParamsSchema = z.object({
+  explanation: z.string().nullable().optional(),
+  plan: z.array(z.object({
+    status: z.enum(["pending", "inProgress", "completed"]),
+    step: z.string()
+  }).strict()),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2ModelSafetyBufferingUpdatedParamsSchema = z.object({
+  fasterModel: z.string().nullable().optional(),
+  model: z.string().min(1),
+  reasons: z.array(z.string()),
+  showBufferingUi: z.boolean(),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1),
+  useCases: z.array(z.string())
+}).strict();
+
+const V2ModelReroutedParamsSchema = z.object({
+  fromModel: z.string().min(1),
+  reason: z.literal("highRiskCyberActivity"),
+  threadId: z.string().min(1),
+  toModel: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2ErrorNotificationParamsSchema = z.object({
+  error: z.object({
+    additionalDetails: z.string().nullable().optional(),
+    // Error metadata is diagnostic only and does not affect governance.
+    codexErrorInfo: z.unknown().nullable().optional(),
+    message: z.string().min(1)
+  }).strict(),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1),
+  willRetry: z.boolean()
+}).strict();
+
 const V2RemoteControlStatusParamsSchema = z.object({
   environmentId: z.string().min(1).nullable().optional(),
   // The startup disabled snapshot is documented without an installation id.
@@ -333,6 +374,37 @@ const V2FileChangePatchUpdatedParamsSchema = z.object({
   threadId: z.string().min(1),
   turnId: z.string().min(1)
 }).strict();
+
+const V2NonGovernanceNotificationMethodSchema = z.enum([
+  "turn/plan/updated",
+  "model/safetyBuffering/updated",
+  "model/rerouted",
+  "error"
+]);
+
+/**
+ * These server notifications carry progress/diagnostic state only. Their
+ * documented fields are checked before they are ignored; unknown methods and
+ * malformed payloads still quarantine the session.
+ */
+const V2NonGovernanceNotificationSchema = z.union([
+  z.object({
+    method: z.literal("turn/plan/updated"),
+    params: V2TurnPlanUpdatedParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("model/safetyBuffering/updated"),
+    params: V2ModelSafetyBufferingUpdatedParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("model/rerouted"),
+    params: V2ModelReroutedParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("error"),
+    params: V2ErrorNotificationParamsSchema
+  }).strict()
+]);
 
 /**
  * Item-specific streaming notifications are informational only. Validate
@@ -474,7 +546,8 @@ export const CodexAppServerV2WireMessageSchema = z.union([
   V2TurnStartedWireSchema,
   V2TurnCompletedWireSchema,
   V2RemoteControlStatusWireSchema,
-  V2ProgressNotificationSchema
+  V2ProgressNotificationSchema,
+  V2NonGovernanceNotificationSchema
 ]);
 
 const V2CommandApprovalResponseResultSchema = z.object({
@@ -967,6 +1040,12 @@ export class CodexAppServerV2WireNormalizer {
             return { status: "ignored", method };
           }
           return this.quarantine("v2_progress_notification_schema_invalid", { method });
+        }
+        if (V2NonGovernanceNotificationMethodSchema.safeParse(method).success) {
+          if (V2NonGovernanceNotificationSchema.safeParse({ method, params }).success) {
+            return { status: "ignored", method };
+          }
+          return this.quarantine("v2_non_governance_notification_schema_invalid", { method });
         }
         return this.quarantine("v2_wire_method_unsupported", { method });
     }

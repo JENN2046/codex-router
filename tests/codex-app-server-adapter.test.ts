@@ -252,6 +252,80 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
       assert.equal(progressResult.status, "ignored");
     }
 
+    for (const notification of [
+      {
+        method: "turn/plan/updated",
+        params: {
+          explanation: null,
+          plan: [{ status: "inProgress", step: "inspect repository" }],
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "model/safetyBuffering/updated",
+        params: {
+          fasterModel: null,
+          model: "gpt-test",
+          reasons: ["safety review"],
+          showBufferingUi: true,
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance",
+          useCases: ["analysis"]
+        }
+      },
+      {
+        method: "model/rerouted",
+        params: {
+          fromModel: "gpt-test",
+          reason: "highRiskCyberActivity",
+          threadId: "thread-non-governance",
+          toModel: "gpt-safe-test",
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "error",
+        params: {
+          error: { message: "upstream retry" },
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance",
+          willRetry: true
+        }
+      },
+      {
+        method: "item/started",
+        params: {
+          item: {
+            id: "collab-tool-call-1",
+            prompt: "Inspect the repository",
+            status: "inProgress",
+            type: "collabToolCall"
+          },
+          startedAtMs: 1762732800100,
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "item/completed",
+        params: {
+          completedAtMs: 1762732800101,
+          item: {
+            id: "collab-tool-call-1",
+            prompt: "Inspect the repository",
+            status: "completed",
+            type: "collabToolCall"
+          },
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance"
+        }
+      }
+    ]) {
+      const notificationResult = await bridge.ingest(notification);
+      assert.equal(notificationResult.status, "ignored");
+    }
+
     const [started] = v2WireFileChangeFlowFixture as unknown[];
     const proposed = await bridge.ingest(started);
     assert.equal(proposed.status, "normalized");
