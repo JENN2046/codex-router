@@ -9,6 +9,7 @@ export {
   CodexAppServerV2FileChangeItemSchema,
   CodexAppServerV2WireApprovalResponseSchema,
   CodexAppServerV2WireMessageSchema,
+  CodexAppServerV2WireAdapter,
   CodexAppServerV2WireNormalizer,
   CodexAppServerV2WireTransport
 } from "../../codex-adapter/src/index.js";
@@ -28,7 +29,10 @@ export type {
   CodexAppServerV2FileChangeEvidenceProvider,
   CodexAppServerV2FileChangeItem,
   CodexAppServerV2JsonRpcRequestId,
+  CodexAppServerV2HandshakeResult,
   CodexAppServerV2NormalizationResult,
+  CodexAppServerV2WireAdapterOptions,
+  CodexAppServerV2WireAdapterResult,
   CodexAppServerV2WireApprovalResponse,
   CodexAppServerV2WireNormalizerOptions,
   CodexSdkAdapterOptions,

@@ -5,6 +5,7 @@
   "CodexAppServerNormalizedEventSchema",
   "CodexAppServerV2FileChangeApprovalParamsSchema",
   "CodexAppServerV2FileChangeItemSchema",
+  "CodexAppServerV2WireAdapter",
   "CodexAppServerV2WireApprovalResponseSchema",
   "CodexAppServerV2WireMessageSchema",
   "CodexAppServerV2WireNormalizer",

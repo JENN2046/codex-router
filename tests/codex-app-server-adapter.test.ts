@@ -15,9 +15,13 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import sessionAttestationFixture from "./fixtures/codex-app-server/fake-v2/session-attestation.json" with { type: "json" };
 import fileChangeFlowFixture from "./fixtures/codex-app-server/fake-v2/file-change-flow.json" with { type: "json" };
+import v2WireFileChangeFlowFixture from "./fixtures/codex-app-server/v2-wire/file-change-flow.json" with { type: "json" };
 import {
   CodexAppServerAdapter,
   CodexSdkAdapter,
+  CodexAppServerV2WireAdapter,
+  CodexAppServerV2WireNormalizer,
+  CodexAppServerV2WireTransport,
   type AppServerSessionAttestation,
   type CodexAppServerApprovalResponse,
   type CodexAppServerMessageTransport
@@ -82,6 +86,206 @@ test("fake App Server flow previews, journals, accepts, and retains without a pa
     "post_checked"
   );
   await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("v2 raw wire flows through the normalizer into the governed adapter", async () => {
+  let repoRoot: string | undefined;
+  let head: string | undefined;
+  let beforeHash: string | undefined;
+  let afterHash: string | undefined;
+  const wireResponses: unknown[] = [];
+  const normalizer = new CodexAppServerV2WireNormalizer({
+    initializeRequestId: "initialize-v2-1",
+    schemaProfileId: "fake-v2",
+    fileChangeEvidence: ({ changes }) => {
+      if (head === undefined || beforeHash === undefined || afterHash === undefined) {
+        return undefined;
+      }
+      const resolvedHead = head;
+      const resolvedBeforeHash = beforeHash;
+      const resolvedAfterHash = afterHash;
+      return {
+        baseHead: resolvedHead,
+        changes: changes.map((change) => ({
+          path: change.path,
+          beforeHash: change.kind === "add" ? null : resolvedBeforeHash,
+          afterHash: change.kind === "delete" ? null : resolvedAfterHash
+        }))
+      };
+    }
+  });
+  const wireTransport = new CodexAppServerV2WireTransport({
+    normalizer,
+    async send(message) {
+      wireResponses.push(message);
+      if (
+        "decision" in message.result
+        && message.result.decision === "accept"
+        && repoRoot !== undefined
+      ) {
+        await writeFile(join(repoRoot, "docs/guide.md"), "new\n", "utf8");
+      }
+    }
+  });
+  const fixture = await createAdapterFixture({ transportOverride: wireTransport });
+  repoRoot = fixture.repoRoot;
+  head = fixture.head;
+  beforeHash = fixture.beforeHash;
+  afterHash = fixture.afterHash;
+  try {
+    const bridge = new CodexAppServerV2WireAdapter({
+      adapter: fixture.adapter,
+      normalizer
+    });
+    assert.equal(
+      (await bridge.acceptInitializeResponse(v2InitializeResponse())).status,
+      "initialize_response_accepted"
+    );
+    assert.equal(
+      (await bridge.acceptInitializedNotification({ method: "initialized" })).status,
+      "initialized"
+    );
+    const [started, approval, resolved, completed] = v2WireFileChangeFlowFixture as unknown[];
+
+    const proposed = await bridge.ingest(started);
+    assert.equal(proposed.status, "normalized");
+    if (proposed.status !== "normalized") return;
+    assert.equal(proposed.outcome.status, "proposed");
+
+    const accepted = await bridge.ingest(approval);
+    assert.equal(accepted.status, "normalized");
+    if (accepted.status !== "normalized") return;
+    assert.equal(accepted.outcome.status, "accepted");
+    assert.deepEqual(wireResponses[0], {
+      id: "request-v2-1",
+      result: { decision: "accept" }
+    });
+
+    const resolvedResult = await bridge.ingest(resolved);
+    assert.equal(resolvedResult.status, "normalized");
+    if (resolvedResult.status !== "normalized") return;
+    assert.equal(resolvedResult.outcome.status, "accepted", resolvedResult.outcome.reasons.join(","));
+
+    const retained = await bridge.ingest(completed);
+    assert.equal(retained.status, "normalized");
+    if (retained.status !== "normalized") return;
+    assert.equal(retained.outcome.status, "retained");
+    assert.equal(fixture.adapter.getItemSnapshot("thread-v2-1", "turn-v2-1", "item-v2-1")?.state, "post_checked");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 wire disconnect reconciles an open adapter item and blocks later messages", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+    const [started, approval] = v2WireFileChangeFlowFixture as unknown[];
+    const proposed = await bridge.ingest(started);
+    assert.equal(proposed.status, "normalized");
+
+    const disconnected = await bridge.disconnect("socket_closed");
+    assert.equal(disconnected.status, "disconnected");
+    assert.equal(disconnected.outcome?.status, "reconciliation_required");
+    assert.equal(
+      fixture.adapter.getItemSnapshot("thread-v2-1", "turn-v2-1", "item-v2-1")?.state,
+      "reconciliation_required"
+    );
+
+    const late = await bridge.ingest(approval);
+    assert.equal(late.status, "blocked");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 raw command and permission approvals stay manual-only in the adapter", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+
+    const command = await bridge.ingest({
+      id: "raw-command-request",
+      method: "item/commandExecution/requestApproval",
+      params: {
+        command: "npm test",
+        cwd: "/tmp/codex-router",
+        itemId: "raw-command-item",
+        reason: "operator review",
+        startedAtMs: 1762732800100,
+        threadId: "raw-command-thread",
+        turnId: "raw-command-turn"
+      }
+    });
+    assert.equal(command.status, "normalized");
+    if (command.status !== "normalized") return;
+    assert.equal(command.outcome.status, "manual_required");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const permission = await bridge.ingest({
+      id: "raw-permission-request",
+      method: "item/permissions/requestApproval",
+      params: {
+        cwd: "/tmp/codex-router",
+        itemId: "raw-permission-item",
+        permissions: {
+          fileSystem: { write: ["/tmp/codex-router/docs"] },
+          network: { enabled: null }
+        },
+        reason: "operator review",
+        startedAtMs: 1762732800100,
+        threadId: "raw-permission-thread",
+        turnId: "raw-permission-turn"
+      }
+    });
+    assert.equal(permission.status, "normalized");
+    if (permission.status !== "normalized") return;
+    assert.equal(permission.outcome.status, "manual_required");
+    assert.equal(fixture.transport.messages.length, 0);
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 remote-control activity and wire reordering quarantine the adapter session", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+    const [started, approval] = v2WireFileChangeFlowFixture as unknown[];
+
+    const approvalFirst = await bridge.ingest(approval);
+    assert.equal(approvalFirst.status, "blocked");
+    assert.equal(approvalFirst.outcome?.status, "reconciliation_required");
+    assert.equal((await bridge.ingest(started)).status, "blocked");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+
+  const remoteFixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(remoteFixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+    const remote = await bridge.ingest({
+      method: "remoteControl/status/changed",
+      params: {
+        installationId: "installation-1",
+        serverName: "remote",
+        status: "connected"
+      }
+    });
+    assert.equal(remote.status, "blocked");
+    assert.ok(remote.reasons.includes("v2_remote_control_active"));
+    assert.equal(remote.outcome?.status, "reconciliation_required");
+  } finally {
+    await rm(remoteFixture.tempRoot, { recursive: true, force: true });
+  }
 });
 
 test("preview and accept status checks do not refresh the source Git index", async () => {
@@ -1864,6 +2068,42 @@ class BlockingTransport extends FakeTransport {
   }
 }
 
+function v2InitializeResponse(): Record<string, unknown> {
+  return {
+    id: "initialize-v2-1",
+    result: {
+      codexHome: "/tmp/codex-home",
+      platformFamily: "unix",
+      platformOs: "linux",
+      userAgent: "codex-test"
+    }
+  };
+}
+
+function createV2WireBridge(fixture: {
+  adapter: CodexAppServerAdapter;
+  head: string;
+  beforeHash: string;
+  afterHash: string;
+}): CodexAppServerV2WireAdapter {
+  const normalizer = new CodexAppServerV2WireNormalizer({
+    initializeRequestId: "initialize-v2-1",
+    schemaProfileId: "fake-v2",
+    fileChangeEvidence: ({ changes }) => ({
+      baseHead: fixture.head,
+      changes: changes.map((change) => ({
+        path: change.path,
+        beforeHash: change.kind === "add" ? null : fixture.beforeHash,
+        afterHash: change.kind === "delete" ? null : fixture.afterHash
+      }))
+    })
+  });
+  return new CodexAppServerV2WireAdapter({
+    adapter: fixture.adapter,
+    normalizer
+  });
+}
+
 class FailingJournalStore extends InMemoryPendingApprovalJournalStore {
   private updateAttempt = 0;
   private failurePositions = new Set<number>();
@@ -1986,6 +2226,7 @@ async function createAdapterFixture(options: {
   };
   journal?: PendingApprovalJournalStore;
   transport?: FakeTransport;
+  transportOverride?: CodexAppServerMessageTransport;
   coreAutocrlf?: "input";
   gitControlSource?: "include" | "attributes" | "global";
   hiddenTrackedCreateTarget?: boolean;
@@ -2051,7 +2292,7 @@ async function createAdapterFixture(options: {
   }
   const adapter = new CodexAppServerAdapter({
     sessionAttestation: attestation,
-    transport,
+    transport: options.transportOverride ?? transport,
     journalStore: journal,
     previewer: options.previewer ?? createTestOnlyLocalClonePreviewer({ tempRoot }),
     previewPolicy,

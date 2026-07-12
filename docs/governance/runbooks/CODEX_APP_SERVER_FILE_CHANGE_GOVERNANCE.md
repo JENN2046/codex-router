@@ -69,8 +69,15 @@ Raw v2 App Server messages must pass through the exported
 `CodexAppServerV2WireNormalizer` before they reach `CodexAppServerAdapter`.
 The normalizer accepts only the versioned item/approval/resolution/completion
 messages in its wire allowlist and quarantines the session on unknown methods,
-extra fields, replay, correlation drift, or unsupported command/permission
-requests.
+extra fields, replay, correlation drift, unsupported methods, or invalid
+command/permission schemas. Command and permission requests use the manual-only
+codecs described below.
+
+The normalizer is not ready until the exact `initialize` response for its bound
+request id has been accepted and the client `initialized` notification has been
+sent. Pre-handshake events, handshake replay, transport close, and any blocked
+wire message must be routed through `CodexAppServerV2WireAdapter`, which emits a
+normalized `transport_disconnected` event to reconcile the governed adapter.
 
 The v2 `item/started` payload does not carry a trusted Git HEAD or target
 hashes. Callers must inject an evidence provider that returns one full HEAD and
@@ -78,10 +85,16 @@ the exact before/after hash for every path. Missing or mismatched evidence,
 move paths, and invalid hash semantics fail closed; the normalizer never
 derives these values from a turn diff.
 
-The wire transport maps only internal `accept`/`decline` decisions to the
-App Server JSON-RPC response `{ id, result: { decision } }`. `acceptForSession`,
-`cancel`, command approvals, permission approvals, and unknown request ids are
-not auto-mapped.
+The wire transport maps only internal `accept`/`decline` decisions. File and
+command approvals use `{ id, result: { decision } }`; a permission accept echoes
+the exact requested permission profile for the operator-approved turn, while a
+decline sends an empty profile. `acceptForSession`, `cancel`, and unknown request
+ids are never auto-mapped. Command and permission requests are always normalized
+as `manual_required` proposals; they never enter policy auto-approval.
+
+Only `remoteControl/status/changed` with `status: "disabled"` is ignored. Any
+other remote-control status quarantines the session. Governed paths containing
+literal backslashes are rejected before path canonicalization.
 
 ## Procedure
 

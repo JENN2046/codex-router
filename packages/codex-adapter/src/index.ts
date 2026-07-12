@@ -1495,6 +1495,7 @@ export {
   CodexAppServerV2FileChangeItemSchema,
   CodexAppServerV2WireApprovalResponseSchema,
   CodexAppServerV2WireMessageSchema,
+  CodexAppServerV2WireAdapter,
   CodexAppServerV2WireNormalizer,
   CodexAppServerV2WireTransport
 } from "./v2-wire.js";
@@ -1506,6 +1507,9 @@ export type {
   CodexAppServerV2FileChangeItem,
   CodexAppServerV2JsonRpcRequestId,
   CodexAppServerV2NormalizationResult,
+  CodexAppServerV2HandshakeResult,
+  CodexAppServerV2WireAdapterOptions,
+  CodexAppServerV2WireAdapterResult,
   CodexAppServerV2WireApprovalResponse,
   CodexAppServerV2WireNormalizerOptions
 } from "./v2-wire.js";
