@@ -2577,7 +2577,9 @@ test("governed rollback uses the registered durable consume closure, not an over
     nonce: "overridden-consume"
   });
   const consumeDir = join(fixture.tempRoot, "overridden-consume-store");
-  const store = new FileRollbackPermitConsumptionStore(consumeDir);
+  const store = process.platform === "win32"
+    ? createTestOnlyFileRollbackPermitConsumptionStore(consumeDir)
+    : new FileRollbackPermitConsumptionStore(consumeDir);
   store.consume = async () => true;
   const result = await runGovernedRollbackWithPrimitive({
     cwd: fixture.repoRoot,
