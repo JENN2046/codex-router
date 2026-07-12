@@ -538,6 +538,10 @@ const V2FileChangePatchUpdatedParamsSchema = z.object({
   turnId: z.string().min(1)
 }).strict();
 
+const V2CurrentTimeReadParamsSchema = z.object({
+  threadId: z.string().min(1)
+}).strict();
+
 const V2NonGovernanceNotificationMethodSchema = z.enum([
   "turn/plan/updated",
   "model/safetyBuffering/updated",
@@ -629,7 +633,6 @@ const V2ProgressNotificationMethodSchema = z.enum([
   "item/commandExecution/outputDelta",
   "item/commandExecution/terminalInteraction",
   "item/fileChange/outputDelta",
-  "item/fileChange/patchUpdated",
   "item/mcpToolCall/progress",
   "item/autoApprovalReview/started",
   "item/autoApprovalReview/completed"
@@ -667,10 +670,6 @@ const V2ProgressNotificationSchema = z.union([
   z.object({
     method: z.literal("item/fileChange/outputDelta"),
     params: V2ItemProgressDeltaParamsSchema
-  }).strict(),
-  z.object({
-    method: z.literal("item/fileChange/patchUpdated"),
-    params: V2FileChangePatchUpdatedParamsSchema
   }).strict(),
   z.object({
     method: z.literal("item/mcpToolCall/progress"),
@@ -731,6 +730,13 @@ const V2PermissionsApprovalRequestSchema = z.object({
   trace: V2TraceContextSchema.optional()
 }).strict();
 
+const V2CurrentTimeReadRequestSchema = z.object({
+  id: JsonRpcRequestIdSchema,
+  method: z.literal("currentTime/read"),
+  params: V2CurrentTimeReadParamsSchema,
+  trace: V2TraceContextSchema.optional()
+}).strict();
+
 const V2ItemStartedWireSchema = z.object({
   method: z.literal("item/started"),
   params: V2ItemStartedParamsSchema
@@ -744,6 +750,11 @@ const V2ItemCompletedWireSchema = z.object({
 const V2ServerRequestResolvedWireSchema = z.object({
   method: z.literal("serverRequest/resolved"),
   params: V2ServerRequestResolvedParamsSchema
+}).strict();
+
+const V2FileChangePatchUpdatedWireSchema = z.object({
+  method: z.literal("item/fileChange/patchUpdated"),
+  params: V2FileChangePatchUpdatedParamsSchema
 }).strict();
 
 const V2TurnDiffUpdatedWireSchema = z.object({
@@ -782,9 +793,11 @@ export const CodexAppServerV2WireMessageSchema = z.union([
   V2FileChangeApprovalRequestSchema,
   V2CommandExecutionApprovalRequestSchema,
   V2PermissionsApprovalRequestSchema,
+  V2CurrentTimeReadRequestSchema,
   V2ItemStartedWireSchema,
   V2ItemCompletedWireSchema,
   V2ServerRequestResolvedWireSchema,
+  V2FileChangePatchUpdatedWireSchema,
   V2TurnDiffUpdatedWireSchema,
   V2ThreadStartedWireSchema,
   V2ThreadStatusChangedWireSchema,
@@ -884,6 +897,10 @@ export type CodexAppServerV2NormalizationResult =
       method: string;
     }
   | {
+      status: "passthrough";
+      request: z.infer<typeof V2CurrentTimeReadRequestSchema>;
+    }
+  | {
       status: "blocked";
       method?: string;
       requestId?: string;
@@ -897,9 +914,17 @@ interface TrackedItem {
   itemId: string;
   changeSet: ReturnType<typeof canonicalizeGovernedFileChangeSet>;
   rawChangeFingerprint: string;
+  snapshotFingerprint: string;
+  seenSnapshotFingerprints: Set<string>;
+  latestSnapshotBound: boolean;
   approvalRequestId?: string;
   completed: boolean;
 }
+
+const MAX_TRACKED_FILE_CHANGE_SNAPSHOTS = 4096;
+const SNAPSHOT_FINGERPRINT_HEAD = "0".repeat(40);
+const SNAPSHOT_FINGERPRINT_HASH = "0".repeat(64);
+const SNAPSHOT_FINGERPRINT_PROPOSED_AT = "1970-01-01T00:00:00.000Z";
 
 interface ApprovalBinding {
   approvalKind: "file_change" | "command" | "network" | "permission";
@@ -1027,7 +1052,7 @@ export class CodexAppServerV2WireNormalizer {
       if (!this.recordWireHash("wire_request", message, wireHash)) {
         return this.quarantine("v2_wire_event_replay");
       }
-      return this.normalizeRequest(message.method, message.params, message.id);
+      return this.normalizeRequest(message.method, message.params, message.id, message.trace);
     }
     return this.normalizeNotification(message.method, message.params, wireHash);
   }
@@ -1099,7 +1124,8 @@ export class CodexAppServerV2WireNormalizer {
   private normalizeRequest(
     method: string,
     params: unknown,
-    wireRequestId: CodexAppServerV2JsonRpcRequestId
+    wireRequestId: CodexAppServerV2JsonRpcRequestId,
+    trace?: z.infer<typeof V2TraceContextSchema>
   ): CodexAppServerV2NormalizationResult {
     const requestId = canonicalRequestId(wireRequestId);
     const wireHash = hashKernelObject({
@@ -1234,6 +1260,21 @@ export class CodexAppServerV2WireNormalizer {
         wireRequestId
       });
     }
+    if (method === "currentTime/read") {
+      const parsed = V2CurrentTimeReadRequestSchema.safeParse({
+        id: wireRequestId,
+        method,
+        params,
+        ...(trace === undefined ? {} : { trace })
+      });
+      if (!parsed.success) {
+        return this.quarantine("v2_current_time_request_schema_invalid", {
+          method,
+          requestId
+        });
+      }
+      return { status: "passthrough", request: parsed.data };
+    }
     return this.quarantine("v2_server_request_unsupported", { method, requestId });
   }
 
@@ -1278,6 +1319,13 @@ export class CodexAppServerV2WireNormalizer {
           return this.quarantine("v2_wire_event_replay");
         }
         return this.normalizeRequestResolved(parsed.data.params, wireHash);
+      }
+      case "item/fileChange/patchUpdated": {
+        const parsed = V2FileChangePatchUpdatedWireSchema.safeParse({ method, params });
+        if (!parsed.success) {
+          return this.quarantine("v2_file_change_patch_schema_invalid", { method });
+        }
+        return this.normalizeFileChangePatchUpdated(parsed.data.params, wireHash);
       }
       case "turn/diff/updated": {
         const parsed = V2TurnDiffUpdatedWireSchema.safeParse({ method, params });
@@ -1356,56 +1404,21 @@ export class CodexAppServerV2WireNormalizer {
     if (this.items.has(key)) {
       return this.quarantine("v2_item_started_duplicate", { method: "item/started" });
     }
-
-    let evidence: CodexAppServerV2FileChangeEvidence | undefined;
-    try {
-      evidence = this.fileChangeEvidence({
-        threadId: params.threadId,
-        turnId: params.turnId,
-        itemId: params.item.id,
-        changes: params.item.changes.map((change) => ({
-          path: change.path,
-          kind: change.kind.type,
-          ...(change.kind.type === "update" && change.kind.move_path !== undefined
-            ? { movePath: change.kind.move_path }
-            : {}),
-          unifiedDiff: change.diff
-        }))
-      });
-    } catch {
-      return this.quarantine("v2_file_change_evidence_provider_failed", {
-        method: "item/started"
-      });
-    }
-    const parsedEvidence = EvidenceSchema.safeParse(evidence);
-    if (!parsedEvidence.success) {
-      return this.quarantine("v2_file_change_evidence_missing", { method: "item/started" });
-    }
-    const draftChanges = this.createDraftChanges(params.item.changes, parsedEvidence.data);
-    if (!draftChanges.success) {
-      return this.quarantine(draftChanges.reason, { method: "item/started" });
-    }
     const proposedAt = timestampToIso(params.startedAtMs);
     if (proposedAt === undefined) {
       return this.quarantine("v2_item_started_timestamp_invalid", { method: "item/started" });
     }
-    let changeSet: ReturnType<typeof canonicalizeGovernedFileChangeSet>;
-    try {
-      changeSet = canonicalizeGovernedFileChangeSet({
-        changeSetId: params.threadId + ":" + params.turnId + ":" + params.item.id,
-        threadId: params.threadId,
-        turnId: params.turnId,
-        itemId: params.item.id,
-        baseHead: parsedEvidence.data.baseHead,
-        proposedAt,
-        sourceSchemaProfile: this.schemaProfileId,
-        changes: draftChanges.changes
-      });
-    } catch {
-      return this.quarantine("v2_file_change_canonicalization_failed", {
-        method: "item/started"
-      });
+    const built = this.buildGovernedChangeSet({
+      threadId: params.threadId,
+      turnId: params.turnId,
+      itemId: params.item.id,
+      proposedAt,
+      changes: params.item.changes
+    });
+    if (!built.success) {
+      return this.quarantine(built.reason, { method: "item/started" });
     }
+    const changeSet = built.changeSet;
     const event: Extract<CodexAppServerNormalizedEvent, { eventType: "item_started" }> = {
       schemaVersion: "codex-app-server-normalized-event.v1",
       schemaProfileId: this.schemaProfileId,
@@ -1429,14 +1442,147 @@ export class CodexAppServerV2WireNormalizer {
         }))
       }
     };
+    const rawFingerprint = rawChangeFingerprint(params.item);
     this.items.set(key, {
       threadId: params.threadId,
       turnId: params.turnId,
       itemId: params.item.id,
       changeSet,
-      rawChangeFingerprint: rawChangeFingerprint(params.item),
+      rawChangeFingerprint: rawFingerprint,
+      snapshotFingerprint: built.snapshotFingerprint,
+      seenSnapshotFingerprints: new Set([built.snapshotFingerprint]),
+      latestSnapshotBound: true,
       completed: false
     });
+    return { status: "normalized", event };
+  }
+
+  private normalizeFileChangePatchUpdated(
+    params: z.infer<typeof V2FileChangePatchUpdatedParamsSchema>,
+    wireHash: string
+  ): CodexAppServerV2NormalizationResult {
+    const method = "item/fileChange/patchUpdated";
+    const key = itemKey(params.threadId, params.turnId, params.itemId);
+    const item = this.items.get(key);
+    if (item === undefined || item.completed || item.approvalRequestId !== undefined) {
+      return this.quarantine("v2_file_change_patch_correlation_failed", {
+        method,
+        itemId: params.itemId
+      });
+    }
+    const paths = new Set<string>();
+    for (const change of params.changes) {
+      if (change.path.includes("\\")) {
+        return this.quarantine("v2_file_change_path_encoding_unsupported", {
+          method,
+          itemId: params.itemId
+        });
+      }
+      if (paths.has(change.path)) {
+        return this.quarantine("v2_file_change_duplicate_path", {
+          method,
+          itemId: params.itemId
+        });
+      }
+      paths.add(change.path);
+      if (
+        change.kind.type === "update"
+        && change.kind.move_path !== undefined
+        && change.kind.move_path !== null
+      ) {
+        return this.quarantine("v2_file_change_move_unsupported", {
+          method,
+          itemId: params.itemId
+        });
+      }
+    }
+    const snapshot: CodexAppServerV2FileChangeItem = {
+      id: params.itemId,
+      type: "fileChange",
+      status: "inProgress",
+      changes: params.changes
+    };
+    const fingerprint = rawChangeFingerprint(snapshot);
+    if (fingerprint === item.rawChangeFingerprint) {
+      return { status: "ignored", method };
+    }
+    if (params.changes.length === 0 || params.changes.some((change) => change.diff === "")) {
+      item.rawChangeFingerprint = fingerprint;
+      item.latestSnapshotBound = false;
+      return { status: "ignored", method };
+    }
+    const built = this.buildGovernedChangeSet({
+      threadId: params.threadId,
+      turnId: params.turnId,
+      itemId: params.itemId,
+      proposedAt: item.changeSet.proposedAt,
+      changes: params.changes
+    });
+    if (!built.success) {
+      return this.quarantine(built.reason, { method, itemId: params.itemId });
+    }
+    if (built.changeSet.baseHead !== item.changeSet.baseHead) {
+      return this.quarantine("v2_file_change_patch_base_head_mismatch", {
+        method,
+        itemId: params.itemId
+      });
+    }
+    if (built.snapshotFingerprint === item.snapshotFingerprint) {
+      if (built.changeSet.canonicalHash !== item.changeSet.canonicalHash) {
+        return this.quarantine("v2_file_change_patch_evidence_drift", {
+          method,
+          itemId: params.itemId
+        });
+      }
+      item.rawChangeFingerprint = fingerprint;
+      item.latestSnapshotBound = true;
+      return { status: "ignored", method };
+    }
+    if (item.seenSnapshotFingerprints.has(built.snapshotFingerprint)) {
+      return this.quarantine("v2_file_change_patch_snapshot_rollback", {
+        method,
+        itemId: params.itemId
+      });
+    }
+    if (item.seenSnapshotFingerprints.size >= MAX_TRACKED_FILE_CHANGE_SNAPSHOTS) {
+      return this.quarantine("v2_file_change_patch_snapshot_limit_exceeded", {
+        method,
+        itemId: params.itemId
+      });
+    }
+    item.seenSnapshotFingerprints.add(built.snapshotFingerprint);
+    item.changeSet = built.changeSet;
+    item.rawChangeFingerprint = fingerprint;
+    item.snapshotFingerprint = built.snapshotFingerprint;
+    item.latestSnapshotBound = true;
+    const sequence = this.nextSequence(params.threadId, params.turnId);
+    const event: Extract<CodexAppServerNormalizedEvent, { eventType: "item_updated" }> = {
+      schemaVersion: "codex-app-server-normalized-event.v1",
+      schemaProfileId: this.schemaProfileId,
+      eventId: eventId(method, hashKernelObject({
+        schemaVersion: "codex-router-app-server-v2-file-change-update-event.v1",
+        wireHash,
+        sequence
+      })),
+      eventType: "item_updated",
+      sequence,
+      threadId: params.threadId,
+      turnId: params.turnId,
+      item: {
+        itemId: params.itemId,
+        itemType: "file_change",
+        baseHead: built.changeSet.baseHead,
+        proposedAt: built.changeSet.proposedAt,
+        changes: built.changeSet.changes.map((change) => ({
+          path: change.path,
+          kind: change.kind,
+          ...(change.oldPath === undefined ? {} : { oldPath: change.oldPath }),
+          unifiedDiff: change.unifiedDiff,
+          ...(change.beforeHash === undefined ? {} : { beforeHash: change.beforeHash }),
+          ...(change.afterHash === undefined ? {} : { afterHash: change.afterHash })
+        }))
+      }
+    };
     return { status: "normalized", event };
   }
 
@@ -1505,6 +1651,13 @@ export class CodexAppServerV2WireNormalizer {
       return this.quarantine("v2_file_approval_correlation_failed", {
         method: "item/fileChange/requestApproval",
         requestId
+      });
+    }
+    if (!item.latestSnapshotBound) {
+      return this.quarantine("v2_file_approval_snapshot_unbound", {
+        method: "item/fileChange/requestApproval",
+        requestId,
+        itemId: params.itemId
       });
     }
     if (params.grantRoot !== undefined && params.grantRoot !== null) {
@@ -1603,9 +1756,19 @@ export class CodexAppServerV2WireNormalizer {
     if (
       item === undefined
       || item.completed
-      || rawChangeFingerprint(params.item) !== item.rawChangeFingerprint
+      || !item.latestSnapshotBound
       || (item.approvalRequestId !== undefined
         && this.approvals.get(item.approvalRequestId)?.resolved !== true)
+    ) {
+      return this.quarantine("v2_item_completed_correlation_failed", {
+        method: "item/completed",
+        itemId: params.item.id
+      });
+    }
+    const completedSnapshot = this.fingerprintRawSnapshot(params.item.changes);
+    if (
+      !completedSnapshot.success
+      || completedSnapshot.snapshotFingerprint !== item.snapshotFingerprint
     ) {
       return this.quarantine("v2_item_completed_correlation_failed", {
         method: "item/completed",
@@ -1625,6 +1788,118 @@ export class CodexAppServerV2WireNormalizer {
       outcome: params.item.status === "completed" ? "applied" : "not_applied"
     };
     return { status: "normalized", event };
+  }
+
+  private buildGovernedChangeSet(input: {
+    threadId: string;
+    turnId: string;
+    itemId: string;
+    proposedAt: string;
+    changes: ReadonlyArray<z.infer<typeof V2FileChangePatchUpdatedChangeSchema>>;
+  }): {
+    success: true;
+    changeSet: ReturnType<typeof canonicalizeGovernedFileChangeSet>;
+    snapshotFingerprint: string;
+  } | {
+    success: false;
+    reason: string;
+  } {
+    let evidence: CodexAppServerV2FileChangeEvidence | undefined;
+    try {
+      evidence = this.fileChangeEvidence({
+        threadId: input.threadId,
+        turnId: input.turnId,
+        itemId: input.itemId,
+        changes: input.changes.map((change) => ({
+          path: change.path,
+          kind: change.kind.type,
+          ...(change.kind.type === "update" && change.kind.move_path !== undefined
+            ? { movePath: change.kind.move_path }
+            : {}),
+          unifiedDiff: change.diff
+        }))
+      });
+    } catch {
+      return { success: false, reason: "v2_file_change_evidence_provider_failed" };
+    }
+    const parsedEvidence = EvidenceSchema.safeParse(evidence);
+    if (!parsedEvidence.success) {
+      return { success: false, reason: "v2_file_change_evidence_missing" };
+    }
+    const draftChanges = this.createDraftChanges(input.changes, parsedEvidence.data);
+    if (!draftChanges.success) {
+      return draftChanges;
+    }
+    try {
+      const changeSet = canonicalizeGovernedFileChangeSet({
+        changeSetId: input.threadId + ":" + input.turnId + ":" + input.itemId,
+        threadId: input.threadId,
+        turnId: input.turnId,
+        itemId: input.itemId,
+        baseHead: parsedEvidence.data.baseHead,
+        proposedAt: input.proposedAt,
+        sourceSchemaProfile: this.schemaProfileId,
+        changes: draftChanges.changes
+      });
+      return {
+        success: true,
+        changeSet,
+        snapshotFingerprint: this.canonicalSnapshotFingerprint(draftChanges.changes)
+      };
+    } catch {
+      return { success: false, reason: "v2_file_change_canonicalization_failed" };
+    }
+  }
+
+  private canonicalSnapshotFingerprint(
+    changes: ReadonlyArray<GovernedFileChangeDraft>
+  ): string {
+    return canonicalizeGovernedFileChangeSet({
+      changeSetId: "snapshot-fingerprint",
+      threadId: "snapshot-fingerprint",
+      turnId: "snapshot-fingerprint",
+      itemId: "snapshot-fingerprint",
+      baseHead: SNAPSHOT_FINGERPRINT_HEAD,
+      proposedAt: SNAPSHOT_FINGERPRINT_PROPOSED_AT,
+      sourceSchemaProfile: "snapshot-fingerprint",
+      changes: changes.map((change) => ({
+        path: change.path,
+        kind: change.kind,
+        ...(change.oldPath === undefined ? {} : { oldPath: change.oldPath }),
+        unifiedDiff: change.unifiedDiff,
+        beforeHash: change.kind === "create" ? null : SNAPSHOT_FINGERPRINT_HASH,
+        afterHash: change.kind === "delete" ? null : SNAPSHOT_FINGERPRINT_HASH
+      }))
+    }).canonicalHash;
+  }
+
+  private fingerprintRawSnapshot(
+    rawChanges: ReadonlyArray<z.infer<typeof V2FileChangeSchema>>
+  ): {
+    success: true;
+    snapshotFingerprint: string;
+  } | {
+    success: false;
+  } {
+    const draftChanges = this.createDraftChanges(rawChanges, {
+      baseHead: SNAPSHOT_FINGERPRINT_HEAD,
+      changes: rawChanges.map((change) => ({
+        path: change.path,
+        beforeHash: change.kind.type === "add" ? null : SNAPSHOT_FINGERPRINT_HASH,
+        afterHash: change.kind.type === "delete" ? null : SNAPSHOT_FINGERPRINT_HASH
+      }))
+    });
+    if (!draftChanges.success) {
+      return { success: false };
+    }
+    try {
+      return {
+        success: true,
+        snapshotFingerprint: this.canonicalSnapshotFingerprint(draftChanges.changes)
+      };
+    } catch {
+      return { success: false };
+    }
   }
 
   private createDraftChanges(
@@ -1803,6 +2078,10 @@ export type CodexAppServerV2WireAdapterResult =
       normalization: Extract<CodexAppServerV2NormalizationResult, { status: "ignored" }>;
     }
   | {
+      status: "passthrough";
+      normalization: Extract<CodexAppServerV2NormalizationResult, { status: "passthrough" }>;
+    }
+  | {
       status: "blocked" | "disconnected";
       normalization: Extract<CodexAppServerV2NormalizationResult, { status: "blocked" | "normalized" }>;
       outcome?: CodexAdapterOutcome;
@@ -1856,6 +2135,9 @@ export class CodexAppServerV2WireAdapter {
     }
     if (normalization.status === "ignored") {
       return { status: "ignored", normalization };
+    }
+    if (normalization.status === "passthrough") {
+      return { status: "passthrough", normalization };
     }
     const blocked = normalization as Extract<
       CodexAppServerV2NormalizationResult,

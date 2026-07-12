@@ -68,9 +68,10 @@ write command without new operator authorization for that exact command.
 Raw v2 App Server messages must pass through the exported
 `CodexAppServerV2WireNormalizer` before they reach `CodexAppServerAdapter`.
 The normalizer accepts only the versioned item/approval/resolution/completion
-messages in its wire allowlist and quarantines the session on unknown methods,
-extra fields, replay, correlation drift, unsupported methods, or invalid
-command/permission schemas. `item/started` and `item/completed` cover every
+messages and explicitly validated non-governance requests in its wire allowlist,
+and quarantines the session on unknown methods, extra fields, replay,
+correlation drift, unsupported methods, or invalid command/permission schemas.
+`item/started` and `item/completed` cover every
 known App Server `ThreadItem` lifecycle type; non-file items are ignored after
 the bounded type/id check, while unknown item types remain schema drift and
 quarantine the session. Command, network, and permission requests use the
@@ -92,6 +93,16 @@ validated only on server requests and is never an authorization input.
 Documented `turn/started` and `turn/completed` notifications use `{ turn }`; an
 optional `threadId` is compatibility metadata and is not required for the
 ignore path.
+
+The experimental `currentTime/read` server request is strictly validated as
+`{ id, method, params: { threadId }, trace? }` and returned as `passthrough`.
+It never enters `CodexAppServerAdapter`, never grants capability, and is not
+answered by codex-router. The owning App Server client must route that validated
+request to its external-clock handler and return the documented timestamp
+response before allowing later server requests on that turn, and must retain
+outstanding JSON-RPC request-id correlation itself. Malformed current-time
+requests, unknown request methods, and request replay still quarantine the
+session.
 
 The v2 `item/started` payload does not carry a trusted Git HEAD or target
 hashes. Callers must inject an evidence provider that returns one full HEAD and
@@ -123,10 +134,10 @@ are rejected before path canonicalization.
 
 Documented item progress notifications (`item/agentMessage/delta`,
 `item/plan/delta`, reasoning deltas, command output/terminal interaction,
-MCP-tool progress, and file-change patch/output deltas) are validated against
+MCP-tool progress, and legacy file-change output deltas) are validated against
 their correlation fields and then ignored. They carry no authorization input;
 malformed progress or an unknown notification method still quarantines the v2
-session. Repeated valid ignored chunks or snapshots are not replay failures:
+session. Repeated valid ignored chunks are not replay failures:
 replay protection remains on request-id messages and governed file
 lifecycle/resolution events. Normal `thread/status/changed` transitions to
 `active` or `idle` are validated and ignored; `systemError`, `notLoaded`,
@@ -143,10 +154,28 @@ for lifecycle-only events. App Server permission profiles may encode a
 no-access filesystem entry as `access: "none"`; this is accepted as a distinct
 non-grant value and preserved for manual review.
 
+`item/fileChange/patchUpdated` is not an ignored hint. Each non-empty structured
+snapshot before approval is rebound to fresh path/hash evidence and emitted to
+the governed adapter as `item_updated`, replacing the still-`proposed` canonical
+change set. A consecutive duplicate of the current snapshot is harmless, but a
+superseded historical canonical snapshot fingerprint may not reappear: that
+rollback-like sequence quarantines the session instead of moving approval
+evidence backward. The fingerprint uses the same diff canonicalization as the
+governed change set, so line-ending and nullable-field encoding variants cannot
+bypass history. Snapshot history is bounded and exceeding the bound also fails
+closed. An
+empty/incomplete snapshot invalidates the current approval binding until a later
+complete snapshot arrives. Unknown items, duplicate paths, moves, literal
+backslashes, base-HEAD drift, snapshots after an approval request, or a
+completion that does not exactly match the latest snapshot quarantine the
+session before stale evidence can be approved.
+
 ## Procedure
 
 1. Confirm the session attestation matches the normalized fixture profile.
 2. Ingest `item_started` and verify the full change set has a canonical hash.
+   When patch streaming is enabled, verify every later `item_updated` replaces
+   that hash before approval and completion binds to the latest snapshot.
 3. Ingest the approval request and verify request/item/thread/turn correlation.
    A duplicate file approval or completion without a stored proposal must mark
    the whole turn reconciliation-required before any later event is processed.

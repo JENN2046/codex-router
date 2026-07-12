@@ -517,19 +517,6 @@ test("documented item progress notifications are ignored without quarantining", 
       }
     },
     {
-      method: "item/fileChange/patchUpdated",
-      params: {
-        changes: [{
-          diff: "+new\n",
-          kind: { type: "add" },
-          path: "docs/guide.md"
-        }],
-        itemId: "file-change-1",
-        threadId: "thread-progress",
-        turnId: "turn-progress"
-      }
-    },
-    {
       method: "item/mcpToolCall/progress",
       params: {
         itemId: "mcp-tool-call-1",
@@ -621,6 +608,274 @@ test("documented item progress notifications are ignored without quarantining", 
   if (malformed.status !== "blocked") return;
   assert.ok(malformed.reasons.includes("v2_progress_notification_schema_invalid"));
   assert.ok(malformed.reasons.includes("v2_session_quarantined"));
+});
+
+test("file-change patch snapshots replace the governed proposal before approval", () => {
+  const normalizer = createNormalizer();
+  const [started, approval, resolved, completed] = fileChangeFlow as unknown[];
+  assert.equal(normalizer.normalize(started).status, "normalized");
+
+  const latestDiff = "diff --git a/docs/guide.md b/docs/guide.md\n"
+    + "--- a/docs/guide.md\n"
+    + "+++ b/docs/guide.md\n"
+    + "@@ -1 +1 @@\n"
+    + "-old\n"
+    + "+latest\n";
+  const patchUpdated = {
+    method: "item/fileChange/patchUpdated",
+    params: {
+      changes: [{
+        diff: latestDiff,
+        kind: { type: "update" as const },
+        path: "docs/guide.md"
+      }],
+      itemId: "item-v2-1",
+      threadId: "thread-v2-1",
+      turnId: "turn-v2-1"
+    }
+  };
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(patchUpdated).success, true);
+  const updated = normalizer.normalize(patchUpdated);
+  assert.equal(updated.status, "normalized");
+  if (updated.status !== "normalized") return;
+  assert.equal(updated.event.eventType, "item_updated");
+  assert.equal(updated.event.sequence, 2);
+  if (updated.event.eventType !== "item_updated") return;
+  assert.equal(updated.event.item.changes[0]?.unifiedDiff, latestDiff);
+  const equivalentCurrent = structuredClone(patchUpdated);
+  equivalentCurrent.params.changes[0]!.diff = latestDiff.replaceAll("\n", "\r\n");
+  assert.deepEqual(normalizer.normalize(equivalentCurrent), {
+    status: "ignored",
+    method: "item/fileChange/patchUpdated"
+  });
+
+  const requested = normalizer.normalize(approval);
+  assert.equal(requested.status, "normalized");
+  if (requested.status !== "normalized") return;
+  assert.equal(requested.event.eventType, "approval_requested");
+  if (requested.event.eventType !== "approval_requested") return;
+  assert.equal(requested.event.sequence, 3);
+  assert.equal(normalizer.encodeApprovalResponse(response("request-v2-1", "accept")).status, "encoded");
+  assert.equal(normalizer.normalize(resolved).status, "normalized");
+
+  const final = structuredClone(completed) as {
+    params: { item: { changes: Array<{ diff: string }> } };
+  };
+  final.params.item.changes[0]!.diff = latestDiff.replaceAll("\n", "\r\n");
+  const completion = normalizer.normalize(final);
+  assert.equal(completion.status, "normalized");
+  if (completion.status !== "normalized") return;
+  assert.equal(completion.event.eventType, "item_completed");
+  assert.equal(completion.event.sequence, 5);
+});
+
+test("a previously superseded patch snapshot cannot roll approval evidence backward", () => {
+  const [started, approval] = fileChangeFlow as unknown[];
+  const snapshot = (replacement: string) => ({
+    method: "item/fileChange/patchUpdated",
+    params: {
+      changes: [{
+        diff: "diff --git a/docs/guide.md b/docs/guide.md\n"
+          + "--- a/docs/guide.md\n"
+          + "+++ b/docs/guide.md\n"
+          + "@@ -1 +1 @@\n"
+          + "-old\n"
+          + `+${replacement}\n`,
+        kind: { type: "update" as const },
+        path: "docs/guide.md"
+      }],
+      itemId: "item-v2-1",
+      threadId: "thread-v2-1",
+      turnId: "turn-v2-1"
+    }
+  });
+  const snapshotA = snapshot("snapshot-a");
+  const snapshotB = snapshot("snapshot-b");
+  const crlfA = structuredClone(snapshotA);
+  crlfA.params.changes[0]!.diff = crlfA.params.changes[0]!.diff.replaceAll("\n", "\r\n");
+  const explicitNullMoveA = {
+    ...structuredClone(snapshotA),
+    params: {
+      ...structuredClone(snapshotA.params),
+      changes: [{
+        ...structuredClone(snapshotA.params.changes[0]!),
+        kind: { type: "update" as const, move_path: null }
+      }]
+    }
+  };
+
+  for (const [caseId, historicalA] of [
+    ["crlf", crlfA],
+    ["explicit-null-move", explicitNullMoveA]
+  ] as const) {
+    const normalizer = createNormalizer();
+    assert.equal(normalizer.normalize(started).status, "normalized", caseId);
+    assert.equal(normalizer.normalize(snapshotA).status, "normalized", caseId);
+    assert.equal(normalizer.normalize(snapshotB).status, "normalized", caseId);
+
+    const rollback = normalizer.normalize(historicalA);
+    assert.equal(rollback.status, "blocked", caseId);
+    if (rollback.status !== "blocked") continue;
+    assert.ok(
+      rollback.reasons.includes("v2_file_change_patch_snapshot_rollback"),
+      caseId
+    );
+    assert.equal(normalizer.normalize(approval).status, "blocked", caseId);
+  }
+});
+
+test("patch snapshots fail closed when stale, late, unbound, or uncorrelated", () => {
+  const [started, approval, , completed] = fileChangeFlow as unknown[];
+  const patchUpdated = {
+    method: "item/fileChange/patchUpdated",
+    params: {
+      changes: [{
+        diff: "diff --git a/docs/guide.md b/docs/guide.md\n"
+          + "--- a/docs/guide.md\n"
+          + "+++ b/docs/guide.md\n"
+          + "@@ -1 +1 @@\n"
+          + "-old\n"
+          + "+latest\n",
+        kind: { type: "update" as const },
+        path: "docs/guide.md"
+      }],
+      itemId: "item-v2-1",
+      threadId: "thread-v2-1",
+      turnId: "turn-v2-1"
+    }
+  };
+
+  const staleCompletion = createNormalizer();
+  assert.equal(staleCompletion.normalize(started).status, "normalized");
+  assert.equal(staleCompletion.normalize(patchUpdated).status, "normalized");
+  const stale = staleCompletion.normalize(completed);
+  assert.equal(stale.status, "blocked");
+  if (stale.status !== "blocked") return;
+  assert.ok(stale.reasons.includes("v2_item_completed_correlation_failed"));
+
+  const latePatch = createNormalizer();
+  assert.equal(latePatch.normalize(started).status, "normalized");
+  assert.equal(latePatch.normalize(approval).status, "normalized");
+  const late = latePatch.normalize(patchUpdated);
+  assert.equal(late.status, "blocked");
+  if (late.status !== "blocked") return;
+  assert.ok(late.reasons.includes("v2_file_change_patch_correlation_failed"));
+
+  const unboundSnapshot = createNormalizer();
+  assert.equal(unboundSnapshot.normalize(started).status, "normalized");
+  assert.deepEqual(unboundSnapshot.normalize({
+    ...patchUpdated,
+    params: { ...patchUpdated.params, changes: [] }
+  }), {
+    status: "ignored",
+    method: "item/fileChange/patchUpdated"
+  });
+  const unboundApproval = unboundSnapshot.normalize(approval);
+  assert.equal(unboundApproval.status, "blocked");
+  if (unboundApproval.status !== "blocked") return;
+  assert.ok(unboundApproval.reasons.includes("v2_file_approval_snapshot_unbound"));
+
+  const unknown = createNormalizer().normalize(patchUpdated);
+  assert.equal(unknown.status, "blocked");
+  if (unknown.status !== "blocked") return;
+  assert.ok(unknown.reasons.includes("v2_file_change_patch_correlation_failed"));
+});
+
+test("patch snapshots reject evidence HEAD drift and unsafe target paths", () => {
+  const [started] = fileChangeFlow as unknown[];
+  let evidenceReads = 0;
+  const headDrift = createNormalizer(() => ({
+    baseHead: (++evidenceReads === 1 ? "a" : "d").repeat(40),
+    changes: [{ path: "docs/guide.md", beforeHash, afterHash }]
+  }));
+  assert.equal(headDrift.normalize(started).status, "normalized");
+  const patchUpdated = {
+    method: "item/fileChange/patchUpdated",
+    params: {
+      changes: [{
+        diff: "diff --git a/docs/guide.md b/docs/guide.md\n"
+          + "--- a/docs/guide.md\n"
+          + "+++ b/docs/guide.md\n"
+          + "@@ -1 +1 @@\n"
+          + "-old\n"
+          + "+latest\n",
+        kind: { type: "update" as const },
+        path: "docs/guide.md"
+      }],
+      itemId: "item-v2-1",
+      threadId: "thread-v2-1",
+      turnId: "turn-v2-1"
+    }
+  };
+  const drifted = headDrift.normalize(patchUpdated);
+  assert.equal(drifted.status, "blocked");
+  if (drifted.status !== "blocked") return;
+  assert.ok(drifted.reasons.includes("v2_file_change_patch_base_head_mismatch"));
+
+  let hashReads = 0;
+  const hashDrift = createNormalizer(() => ({
+    baseHead,
+    changes: [{
+      path: "docs/guide.md",
+      beforeHash,
+      afterHash: ++hashReads === 1 ? afterHash : "d".repeat(64)
+    }]
+  }));
+  assert.equal(hashDrift.normalize(started).status, "normalized");
+  const initialChanges = structuredClone((started as {
+    params: { item: { changes: Array<{ diff: string; kind: { type: "update" }; path: string }> } };
+  }).params.item.changes);
+  initialChanges[0]!.diff = initialChanges[0]!.diff.replaceAll("\n", "\r\n");
+  const driftedHash = hashDrift.normalize({
+    method: "item/fileChange/patchUpdated",
+    params: {
+      changes: initialChanges,
+      itemId: "item-v2-1",
+      threadId: "thread-v2-1",
+      turnId: "turn-v2-1"
+    }
+  });
+  assert.equal(driftedHash.status, "blocked");
+  if (driftedHash.status !== "blocked") return;
+  assert.ok(driftedHash.reasons.includes("v2_file_change_patch_evidence_drift"));
+
+  const unsafePath = createNormalizer();
+  assert.equal(unsafePath.normalize(started).status, "normalized");
+  const backslash = structuredClone(patchUpdated);
+  backslash.params.changes[0]!.path = "docs" + String.fromCharCode(92) + "guide.md";
+  const unsafe = unsafePath.normalize(backslash);
+  assert.equal(unsafe.status, "blocked");
+  if (unsafe.status !== "blocked") return;
+  assert.ok(unsafe.reasons.includes("v2_file_change_path_encoding_unsupported"));
+});
+
+test("currentTime/read is strictly validated and passed through outside governance", () => {
+  const normalizer = createNormalizer();
+  const request = {
+    id: 71,
+    method: "currentTime/read",
+    params: { threadId: "thread-v2-1" },
+    trace: {
+      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    }
+  };
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(request).success, true);
+  assert.deepEqual(normalizer.normalize(request), {
+    status: "passthrough",
+    request
+  });
+
+  const [started] = fileChangeFlow as unknown[];
+  assert.equal(normalizer.normalize(started).status, "normalized");
+
+  const malformed = createNormalizer().normalize({
+    id: 72,
+    method: "currentTime/read",
+    params: { threadId: "thread-v2-1", currentTimeAt: 1781717655 }
+  });
+  assert.equal(malformed.status, "blocked");
+  if (malformed.status !== "blocked") return;
+  assert.ok(malformed.reasons.includes("v2_current_time_request_schema_invalid"));
 });
 
 test("documented non-governance notifications are ignored without quarantining", () => {

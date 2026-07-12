@@ -145,12 +145,48 @@ test("v2 raw wire flows through the normalizer into the governed adapter", async
       (await bridge.acceptInitializedNotification({ method: "initialized" })).status,
       "initialized"
     );
-    const [started, approval, resolved, completed] = v2WireFileChangeFlowFixture as unknown[];
+    const [rawStarted, approval, resolved, completed] = v2WireFileChangeFlowFixture as unknown[];
+    const started = structuredClone(rawStarted) as {
+      params: { item: { changes: Array<{ diff: string }> } };
+    };
+    started.params.item.changes[0]!.diff = "diff --git a/docs/guide.md b/docs/guide.md\n"
+      + "--- a/docs/guide.md\n"
+      + "+++ b/docs/guide.md\n"
+      + "@@ -1 +1 @@\n"
+      + "-old\n"
+      + "+draft\n";
 
     const proposed = await bridge.ingest(started);
     assert.equal(proposed.status, "normalized");
     if (proposed.status !== "normalized") return;
     assert.equal(proposed.outcome.status, "proposed");
+    const initialHash = fixture.adapter.getItemSnapshot(
+      "thread-v2-1",
+      "turn-v2-1",
+      "item-v2-1"
+    )?.changeSetHash;
+
+    const finalChanges = (completed as {
+      params: { item: { changes: unknown[] } };
+    }).params.item.changes;
+    const updated = await bridge.ingest({
+      method: "item/fileChange/patchUpdated",
+      params: {
+        changes: finalChanges,
+        itemId: "item-v2-1",
+        threadId: "thread-v2-1",
+        turnId: "turn-v2-1"
+      }
+    });
+    assert.equal(updated.status, "normalized");
+    if (updated.status !== "normalized") return;
+    assert.equal(updated.normalization.event.eventType, "item_updated");
+    assert.equal(updated.outcome.status, "proposed");
+    assert.notEqual(
+      fixture.adapter.getItemSnapshot("thread-v2-1", "turn-v2-1", "item-v2-1")
+        ?.changeSetHash,
+      initialHash
+    );
 
     const accepted = await bridge.ingest(approval);
     assert.equal(accepted.status, "normalized");
@@ -251,19 +287,6 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
           itemId: "command-1",
           processId: "process-1",
           stdin: "continue\n",
-          threadId: "thread-progress",
-          turnId: "turn-progress"
-        }
-      },
-      {
-        method: "item/fileChange/patchUpdated",
-        params: {
-          changes: [{
-            diff: "+new\n",
-            kind: { type: "add" },
-            path: "docs/guide.md"
-          }],
-          itemId: "file-change-1",
           threadId: "thread-progress",
           turnId: "turn-progress"
         }
@@ -447,6 +470,19 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
       const notificationResult = await bridge.ingest(notification);
       assert.equal(notificationResult.status, "ignored");
     }
+
+    const currentTime = await bridge.ingest({
+      id: "current-time-1",
+      method: "currentTime/read",
+      params: { threadId: "thread-v2-1" }
+    });
+    assert.equal(currentTime.status, "passthrough");
+    if (currentTime.status !== "passthrough") return;
+    assert.deepEqual(currentTime.normalization.request, {
+      id: "current-time-1",
+      method: "currentTime/read",
+      params: { threadId: "thread-v2-1" }
+    });
 
     const [started] = v2WireFileChangeFlowFixture as unknown[];
     const proposed = await bridge.ingest(started);
@@ -1754,6 +1790,29 @@ test("duplicate item starts reconcile an already accepted journal", async () => 
   );
   assert.equal((await fixture.journal.list())[0]?.state, "reconciliation_required");
   assert.equal(fixture.transport.messages.length, 1);
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("normalized file-change updates are accepted only while the item is proposed", async () => {
+  const fixture = await createAdapterFixture();
+  const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+
+  assert.equal((await fixture.adapter.ingest(events[0])).status, "proposed");
+  assert.equal((await fixture.adapter.ingest(events[1])).status, "accepted");
+  const lateUpdate = await fixture.adapter.ingest({
+    ...(events[0] as Record<string, unknown>),
+    eventId: "event-item-updated-after-approval",
+    eventType: "item_updated",
+    sequence: 3
+  });
+
+  assert.equal(lateUpdate.status, "reconciliation_required");
+  assert.deepEqual(lateUpdate.reasons, ["file_change_update_correlation_failed"]);
+  assert.equal(
+    fixture.adapter.getItemSnapshot("thread-1", "turn-1", "item-1")?.state,
+    "reconciliation_required"
+  );
+  assert.equal((await fixture.journal.list())[0]?.state, "reconciliation_required");
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
