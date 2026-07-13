@@ -133,10 +133,24 @@ move paths, and invalid hash semantics fail closed; the normalizer never
 derives these values from a turn diff.
 
 The wire transport maps only internal `accept`/`decline` decisions. File,
-command, and network approvals use `{ id, result: { decision } }`; a permission
-accept echoes the exact requested permission profile for the operator-approved
-turn, while a decline sends an empty profile. `acceptForSession`, `cancel`, and
-unknown request ids are never auto-mapped. Command approval hints such as
+command, and network approvals use `{ id, result: { decision } }`. A permission
+accept must carry an explicit operator-selected `permissionGrant`; both the
+adapter and wire normalizer verify that every selected field, root, and entry
+is a permission-monotone subset of the requested permission profile before
+sending it. Write roots and entries may be narrowed. Read roots and entries may
+also be narrowed only when the selected profile contains no write access; any
+selected write must preserve every requested read carve-out. Every requested
+`deny`/compatibility-`none` entry and the exact `globScanMaxDepth` constraint is
+preserved for file-system grants. Representation rewrites, missing constraints,
+missing grants, and expanded grants remain pending and fail closed. Omitted
+permission families and roots are denied, while a decline sends an empty
+`{ "permissions": {} }` profile. Permission grants remain turn-scoped; session
+persistence and `strictAutoReview` are not exposed by this governance path.
+Permission parsing accepts both README-style omitted nullable fields and the
+generated v2 TypeScript form that serializes those fields as `null`; nullable
+`entries` or `globScanMaxDepth` values remain schema errors.
+`acceptForSession`, `cancel`, and unknown request ids are never auto-mapped.
+Command approval hints such as
 `availableDecisions` do not grant authorization. Experimental
 `additionalPermissions` and `environmentId` are canonicalized into the
 operator-visible command/network proposal so an `accept` decision cannot hide

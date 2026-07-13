@@ -738,7 +738,10 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
       method: "item/commandExecution/requestApproval",
       params: {
         additionalPermissions: {
-          fileSystem: { read: ["/tmp/codex-router/docs"] },
+          fileSystem: {
+            read: ["/tmp/codex-router/docs"],
+            write: null
+          },
           network: null
         },
         command: "npm test",
@@ -759,7 +762,7 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
       argv: ["npm test"],
       cwd: "/tmp/codex-router",
       environmentId: "local",
-      requestedPermissionScope: "{\"fileSystem\":{\"read\":[\"/tmp/codex-router/docs\"]},\"network\":null}"
+      requestedPermissionScope: "{\"fileSystem\":{\"read\":[\"/tmp/codex-router/docs\"],\"write\":null},\"network\":null}"
     });
     assert.equal(fixture.transport.messages.length, 0);
 
@@ -808,9 +811,14 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
               access: "none",
               path: { path: "/tmp/codex-router/private", type: "path" }
             }],
-            write: ["/tmp/codex-router/docs"]
+            globScanMaxDepth: 2,
+            read: null,
+            write: [
+              "/tmp/codex-router/docs",
+              "/tmp/codex-router/shared"
+            ]
           },
-          network: { enabled: null }
+          network: { enabled: true }
         },
         reason: "operator review",
         startedAtMs: 1762732800100,
@@ -822,6 +830,214 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
     if (permission.status !== "normalized") return;
     assert.equal(permission.outcome.status, "manual_required");
     assert.equal(fixture.transport.messages.length, 0);
+    assert.deepEqual(permission.outcome.approvalProposal, {
+      kind: "permission",
+      scope: "{\"cwd\":\"/tmp/codex-router\",\"environmentId\":null,\"permissions\":{\"fileSystem\":{\"entries\":[{\"access\":\"none\",\"path\":{\"path\":\"/tmp/codex-router/private\",\"type\":\"path\"}}],\"globScanMaxDepth\":2,\"read\":null,\"write\":[\"/tmp/codex-router/docs\",\"/tmp/codex-router/shared\"]},\"network\":{\"enabled\":true}}}",
+      requestedPermissions: {
+        fileSystem: {
+          entries: [{
+            access: "none",
+            path: { path: "/tmp/codex-router/private", type: "path" }
+          }],
+          globScanMaxDepth: 2,
+          read: null,
+          write: [
+            "/tmp/codex-router/docs",
+            "/tmp/codex-router/shared"
+          ]
+        },
+        network: { enabled: true }
+      }
+    });
+
+    const ambiguousDecline = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "decline",
+      operatorId: "operator-jenn",
+      permissionGrant: {}
+    });
+    assert.deepEqual(ambiguousDecline.reasons, ["human_permission_grant_unexpected"]);
+    assert.equal(ambiguousDecline.status, "blocked");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const missingGrant = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn"
+    });
+    assert.deepEqual(missingGrant.reasons, ["human_permission_grant_required"]);
+    assert.equal(missingGrant.status, "blocked");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const exposedProposal = permission.outcome.approvalProposal;
+    assert.equal(exposedProposal?.kind, "permission");
+    if (exposedProposal?.kind !== "permission") return;
+    exposedProposal.requestedPermissions.fileSystem?.write?.push(
+      "/tmp/codex-router/unrequested"
+    );
+
+    const expandedGrant = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      permissionGrant: {
+        fileSystem: {
+          read: null,
+          write: ["/tmp/codex-router/unrequested"]
+        }
+      }
+    });
+    assert.deepEqual(expandedGrant.reasons, ["human_permission_grant_not_subset"]);
+    assert.equal(expandedGrant.status, "blocked");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const strippedRestriction = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      permissionGrant: {
+        fileSystem: {
+          globScanMaxDepth: 2,
+          read: null,
+          write: ["/tmp/codex-router/docs"]
+        }
+      }
+    });
+    assert.deepEqual(strippedRestriction.reasons, ["human_permission_grant_not_subset"]);
+    assert.equal(strippedRestriction.status, "blocked");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const strippedConstraint = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      permissionGrant: {
+        fileSystem: {
+          entries: [{
+            access: "none",
+            path: { path: "/tmp/codex-router/private", type: "path" }
+          }],
+          read: null,
+          write: ["/tmp/codex-router/docs"]
+        }
+      }
+    });
+    assert.deepEqual(strippedConstraint.reasons, ["human_permission_grant_not_subset"]);
+    assert.equal(strippedConstraint.status, "blocked");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const selectedGrant = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      permissionGrant: {
+        fileSystem: {
+          entries: [{
+            access: "none",
+            path: { path: "/tmp/codex-router/private", type: "path" }
+          }],
+          globScanMaxDepth: 2,
+          read: null,
+          write: ["/tmp/codex-router/docs"]
+        }
+      }
+    });
+    assert.equal(selectedGrant.status, "accepted");
+    assert.deepEqual(fixture.transport.messages, [{
+      schemaVersion: "codex-app-server-normalized-response.v1",
+      schemaProfileId: "fake-v2",
+      requestId: "raw-permission-request",
+      decision: "accept",
+      reasonCode: "operator_approved",
+      permissionGrant: {
+        fileSystem: {
+          entries: [{
+            access: "none",
+            path: { path: "/tmp/codex-router/private", type: "path" }
+          }],
+          globScanMaxDepth: 2,
+          read: null,
+          write: ["/tmp/codex-router/docs"]
+        }
+      }
+    }]);
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 permission approval carries only the operator-selected subset to the wire", async () => {
+  const wireResponses: unknown[] = [];
+  const normalizer = new CodexAppServerV2WireNormalizer({
+    initializeRequestId: "initialize-v2-1",
+    schemaProfileId: "fake-v2",
+    fileChangeEvidence: () => undefined
+  });
+  const wireTransport = new CodexAppServerV2WireTransport({
+    normalizer,
+    async send(message) {
+      wireResponses.push(message);
+    }
+  });
+  const fixture = await createAdapterFixture({ transportOverride: wireTransport });
+  try {
+    const bridge = new CodexAppServerV2WireAdapter({
+      adapter: fixture.adapter,
+      normalizer
+    });
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+
+    const requested = await bridge.ingest({
+      id: "subset-permission-request",
+      method: "item/permissions/requestApproval",
+      params: {
+        cwd: "/tmp/codex-router",
+        environmentId: "local",
+        itemId: "subset-permission-item",
+        permissions: {
+          fileSystem: {
+            read: null,
+            write: [
+              "/tmp/codex-router/docs",
+              "/tmp/codex-router/shared"
+            ]
+          },
+          network: { enabled: true }
+        },
+        reason: "operator selects the minimum roots",
+        threadId: "subset-permission-thread",
+        turnId: "subset-permission-turn"
+      }
+    });
+    assert.equal(requested.status, "normalized");
+    if (requested.status !== "normalized") return;
+    assert.equal(requested.outcome.status, "manual_required");
+
+    const accepted = await fixture.adapter.resolveHumanApproval({
+      requestId: "subset-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      permissionGrant: {
+        fileSystem: {
+          read: null,
+          write: ["/tmp/codex-router/docs"]
+        }
+      }
+    });
+    assert.equal(accepted.status, "accepted");
+    assert.deepEqual(wireResponses, [{
+      id: "subset-permission-request",
+      result: {
+        permissions: {
+          fileSystem: {
+            read: null,
+            write: ["/tmp/codex-router/docs"]
+          }
+        },
+        scope: "turn"
+      }
+    }]);
   } finally {
     await rm(fixture.tempRoot, { recursive: true, force: true });
   }
@@ -1334,7 +1550,14 @@ test("command and permission approvals are always manual", async () => {
     itemId: "item-permission",
     proposal: {
       kind: "permission",
-      scope: "filesystem.write:docs/guide.md"
+      scope: "filesystem.write:docs/guide.md",
+      requestedPermissions: {
+        fileSystem: {
+          read: null,
+          write: ["docs/guide.md"]
+        },
+        network: null
+      }
     }
   };
 
@@ -1342,6 +1565,16 @@ test("command and permission approvals are always manual", async () => {
   const permissionOutcome = await fixture.adapter.ingest(permission);
   assert.equal(commandOutcome.status, "manual_required");
   assert.equal(permissionOutcome.status, "manual_required");
+  assert.equal(fixture.transport.messages.length, 0);
+
+  const unexpectedGrant = await fixture.adapter.resolveHumanApproval({
+    requestId: "request-command",
+    decision: "accept",
+    operatorId: "operator-jenn",
+    permissionGrant: {}
+  });
+  assert.equal(unexpectedGrant.status, "blocked");
+  assert.deepEqual(unexpectedGrant.reasons, ["human_permission_grant_unexpected"]);
   assert.equal(fixture.transport.messages.length, 0);
 
   const accepted = await fixture.adapter.resolveHumanApproval({
@@ -1916,7 +2149,17 @@ test("command and permission delivery uncertainty blocks the turn and cannot be 
     const fixture = await createAdapterFixture({ transport });
     const proposal = kind === "command"
       ? { kind, argv: ["npm", "test"], cwd: "." }
-      : { kind, scope: "filesystem.write:docs/guide.md" };
+      : {
+          kind,
+          scope: "filesystem.write:docs/guide.md",
+          requestedPermissions: {
+            fileSystem: {
+              read: null,
+              write: ["docs/guide.md"]
+            },
+            network: null
+          }
+        };
     const requested = await fixture.adapter.ingest({
       schemaVersion: "codex-app-server-normalized-event.v1",
       schemaProfileId: "fake-v2",

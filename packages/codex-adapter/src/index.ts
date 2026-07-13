@@ -38,6 +38,12 @@ import {
   type PendingApprovalJournalEntry,
   type PendingApprovalJournalStore
 } from "../../retain-control/src/index.js";
+import {
+  CodexAppServerPermissionGrantSchema,
+  CodexAppServerPermissionProfileSchema,
+  isPermissionGrantSubset,
+  type CodexAppServerPermissionGrant
+} from "./permission-profile.js";
 
 export const AppServerSessionAttestationSchema = z.object({
   schemaVersion: z.literal("app-server-session-attestation.v1").default(
@@ -92,7 +98,8 @@ export const CodexApprovalProposalSchema = z.discriminatedUnion("kind", [
   }).strict(),
   z.object({
     kind: z.literal("permission"),
-    scope: z.string().min(1)
+    scope: z.string().min(1),
+    requestedPermissions: CodexAppServerPermissionProfileSchema
   }).strict()
 ]);
 
@@ -148,7 +155,8 @@ export const CodexAppServerApprovalResponseSchema = z.object({
   schemaProfileId: z.string().min(1),
   requestId: z.string().min(1),
   decision: z.enum(["accept", "decline"]),
-  reasonCode: z.string().min(1)
+  reasonCode: z.string().min(1),
+  permissionGrant: CodexAppServerPermissionGrantSchema.optional()
 }).strict();
 
 export type AppServerSessionAttestation = z.infer<typeof AppServerSessionAttestationSchema>;
@@ -259,7 +267,8 @@ const HumanApprovalInputSchema = z.object({
   requestId: z.string().min(1),
   decision: z.enum(["accept", "decline"]),
   operatorId: z.string().min(1),
-  nonce: z.string().min(1).optional()
+  nonce: z.string().min(1).optional(),
+  permissionGrant: CodexAppServerPermissionGrantSchema.optional()
 }).strict();
 
 type HumanApprovalInput = z.infer<typeof HumanApprovalInputSchema>;
@@ -436,6 +445,40 @@ export class CodexAppServerAdapter {
       );
     }
 
+    if (input.permissionGrant !== undefined && approval.proposal.kind !== "permission") {
+      return this.outcome("blocked", ["human_permission_grant_unexpected"], {
+        requestId: input.requestId,
+        itemId: approval.itemId,
+        approvalProposal: structuredClone(approval.proposal)
+      });
+    }
+    if (input.decision === "decline" && input.permissionGrant !== undefined) {
+      return this.outcome("blocked", ["human_permission_grant_unexpected"], {
+        requestId: input.requestId,
+        itemId: approval.itemId,
+        approvalProposal: structuredClone(approval.proposal)
+      });
+    }
+    if (input.decision === "accept" && approval.proposal.kind === "permission") {
+      if (input.permissionGrant === undefined) {
+        return this.outcome("blocked", ["human_permission_grant_required"], {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          approvalProposal: structuredClone(approval.proposal)
+        });
+      }
+      if (!isPermissionGrantSubset(
+        approval.proposal.requestedPermissions,
+        input.permissionGrant
+      )) {
+        return this.outcome("blocked", ["human_permission_grant_not_subset"], {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          approvalProposal: structuredClone(approval.proposal)
+        });
+      }
+    }
+
     if (input.decision === "decline") {
       const delivery = item === undefined
         ? await this.sendDecision(approval, "decline", "operator_declined")
@@ -451,14 +494,19 @@ export class CodexAppServerAdapter {
     }
 
     if (approval.proposal.kind !== "file_change") {
-      const delivery = await this.sendDecision(approval, "accept", "operator_approved");
+      const delivery = await this.sendDecision(
+        approval,
+        "accept",
+        "operator_approved",
+        input.permissionGrant
+      );
       const sent = delivery === "sent";
       return this.outcome(sent ? "accepted" : "reconciliation_required", [
         sent ? `human_${approval.proposal.kind}_approval` : "approval_response_send_failed"
       ], {
         requestId: input.requestId,
         itemId: approval.itemId,
-        approvalProposal: approval.proposal
+        approvalProposal: structuredClone(approval.proposal)
       });
     }
 
@@ -695,7 +743,7 @@ export class CodexAppServerAdapter {
       threadId: event.threadId,
       turnId: event.turnId,
       itemId: event.itemId,
-      proposal: event.proposal,
+      proposal: cloneAndDeepFreeze(event.proposal),
       resolved: false,
       deliveryState: "pending"
     };
@@ -711,7 +759,7 @@ export class CodexAppServerAdapter {
       ], {
         requestId: event.requestId,
         itemId: event.itemId,
-        approvalProposal: event.proposal
+        approvalProposal: structuredClone(approval.proposal)
       });
     }
 
@@ -861,7 +909,7 @@ export class CodexAppServerAdapter {
         itemId: event.itemId,
         lifecycleState: item.state,
         authorizationDecision: authorization,
-        approvalProposal: event.proposal
+        approvalProposal: structuredClone(approval.proposal)
       });
     }
     if (authorization.approvalMode !== "policy_auto") {
@@ -1315,7 +1363,8 @@ export class CodexAppServerAdapter {
   private async sendDecision(
     approval: ApprovalRecord,
     decision: "accept" | "decline",
-    reasonCode: string
+    reasonCode: string,
+    permissionGrant?: CodexAppServerPermissionGrant
   ): Promise<ApprovalSendResult> {
     if (
       approval.deliveryState !== "pending"
@@ -1335,7 +1384,8 @@ export class CodexAppServerAdapter {
       schemaProfileId: this.attestation.schemaProfileId,
       requestId: approval.requestId,
       decision,
-      reasonCode
+      reasonCode,
+      ...(permissionGrant === undefined ? {} : { permissionGrant })
     });
     approval.deliveryState = "in_flight";
     try {
@@ -1611,6 +1661,10 @@ export type {
   CodexAppServerV2WireApprovalResponse,
   CodexAppServerV2WireNormalizerOptions
 } from "./v2-wire.js";
+export type {
+  CodexAppServerPermissionGrant,
+  CodexAppServerPermissionProfile
+} from "./permission-profile.js";
 
 function resolveAuthorizationMode(
   attestation: AppServerSessionAttestation,
@@ -1670,6 +1724,20 @@ function turnKey(threadId: string, turnId: string): string {
 
 function itemKey(threadId: string, turnId: string, itemId: string): string {
   return `${threadId}\0${turnId}\0${itemId}`;
+}
+
+function cloneAndDeepFreeze<T>(value: T): T {
+  return deepFreeze(structuredClone(value));
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  for (const nested of Object.values(value as Record<string, unknown>)) {
+    deepFreeze(nested);
+  }
+  return Object.freeze(value);
 }
 
 function uniqueStrings(values: string[]): string[] {

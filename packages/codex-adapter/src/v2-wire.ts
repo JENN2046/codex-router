@@ -14,6 +14,11 @@ import type {
   CodexAppServerMessageTransport,
   CodexAppServerNormalizedEvent
 } from "./index.js";
+import {
+  CodexAppServerPermissionGrantSchema as V2PermissionGrantSchema,
+  CodexAppServerPermissionProfileSchema as V2PermissionProfileSchema,
+  isPermissionGrantSubset
+} from "./permission-profile.js";
 
 const JsonRpcRequestIdSchema = z.union([
   z.string().min(1),
@@ -105,55 +110,6 @@ const V2NetworkApprovalContextSchema = z.object({
 const V2NetworkPolicyAmendmentSchema = z.object({
   action: z.enum(["allow", "deny"]),
   host: z.string()
-}).strict();
-
-const V2FileSystemSpecialPathSchema = z.union([
-  z.object({ kind: z.literal("root") }).strict(),
-  z.object({ kind: z.literal("minimal") }).strict(),
-  z.object({
-    kind: z.literal("project_roots"),
-    subpath: z.string().nullable().optional()
-  }).strict(),
-  z.object({ kind: z.literal("tmpdir") }).strict(),
-  z.object({ kind: z.literal("slash_tmp") }).strict(),
-  z.object({
-    kind: z.literal("unknown"),
-    path: z.string(),
-    subpath: z.string().nullable().optional()
-  }).strict()
-]);
-
-const V2FileSystemPathSchema = z.union([
-  z.object({ path: z.string(), type: z.literal("path") }).strict(),
-  z.object({ pattern: z.string(), type: z.literal("glob_pattern") }).strict(),
-  z.object({
-    type: z.literal("special"),
-    value: V2FileSystemSpecialPathSchema
-  }).strict()
-]);
-
-const V2FileSystemSandboxEntrySchema = z.object({
-  // App Server serializes FileSystemAccessMode::None as "none". It is a
-  // no-access entry, not an authorization grant, and must remain distinct
-  // from an omitted entry.
-  access: z.enum(["read", "write", "deny", "none"]),
-  path: V2FileSystemPathSchema
-}).strict();
-
-const V2AdditionalFileSystemPermissionsSchema = z.object({
-  entries: z.array(V2FileSystemSandboxEntrySchema).nullable().optional(),
-  globScanMaxDepth: z.number().int().min(1).nullable().optional(),
-  read: z.array(z.string()).nullable().optional(),
-  write: z.array(z.string()).nullable().optional()
-}).strict();
-
-const V2AdditionalNetworkPermissionsSchema = z.object({
-  enabled: z.boolean().nullable().optional()
-}).strict();
-
-const V2PermissionProfileSchema = z.object({
-  fileSystem: V2AdditionalFileSystemPermissionsSchema.nullable().optional(),
-  network: V2AdditionalNetworkPermissionsSchema.nullable().optional()
 }).strict();
 
 export const CodexAppServerV2FileChangeItemSchema = z.object({
@@ -1153,7 +1109,7 @@ const V2CommandApprovalResponseResultSchema = z.object({
 }).strict();
 
 const V2PermissionsApprovalResponseResultSchema = z.object({
-  permissions: V2PermissionProfileSchema,
+  permissions: V2PermissionGrantSchema,
   scope: z.enum(["turn", "session"]).optional(),
   strictAutoReview: z.boolean().nullable().optional()
 }).strict();
@@ -1297,7 +1253,8 @@ const InternalApprovalResponseSchema = z.object({
   schemaProfileId: z.string().min(1),
   requestId: z.string().min(1),
   decision: z.enum(["accept", "decline"]),
-  reasonCode: z.string().min(1)
+  reasonCode: z.string().min(1),
+  permissionGrant: V2PermissionGrantSchema.optional()
 }).strict();
 
 type V2WireSessionState =
@@ -1438,15 +1395,35 @@ export class CodexAppServerV2WireNormalizer {
     if (binding.resolved || binding.sentDecision !== undefined) {
       return { status: "blocked", reasons: ["v2_approval_response_replay"] };
     }
-    binding.sentDecision = parsed.data.decision;
+    if (binding.approvalKind !== "permission" && parsed.data.permissionGrant !== undefined) {
+      return { status: "blocked", reasons: ["v2_permission_grant_unexpected"] };
+    }
+    if (parsed.data.decision === "decline" && parsed.data.permissionGrant !== undefined) {
+      return { status: "blocked", reasons: ["v2_permission_grant_unexpected"] };
+    }
+    if (binding.approvalKind === "permission" && parsed.data.decision === "accept") {
+      if (parsed.data.permissionGrant === undefined) {
+        return { status: "blocked", reasons: ["v2_permission_grant_required"] };
+      }
+      if (
+        binding.requestedPermissions === undefined
+        || !isPermissionGrantSubset(
+          binding.requestedPermissions,
+          parsed.data.permissionGrant
+        )
+      ) {
+        return { status: "blocked", reasons: ["v2_permission_grant_not_subset"] };
+      }
+    }
     const result = binding.approvalKind === "permission"
       ? {
           permissions: parsed.data.decision === "accept"
-            ? binding.requestedPermissions ?? emptyPermissionProfile()
-            : emptyPermissionProfile(),
+            ? parsed.data.permissionGrant ?? {}
+            : {},
           scope: "turn" as const
         }
       : { decision: parsed.data.decision };
+    binding.sentDecision = parsed.data.decision;
     return {
       status: "encoded",
       message: {
@@ -1599,14 +1576,15 @@ export class CodexAppServerV2WireNormalizer {
         approvalKind: "permission",
         itemId: parsed.data.params.itemId,
         method,
-        permissionGrant: parsed.data.params.permissions,
+        requestedPermissions: parsed.data.params.permissions,
         proposal: {
           kind: "permission",
           scope: stableJson({
             cwd: parsed.data.params.cwd,
             environmentId: parsed.data.params.environmentId ?? null,
             permissions: parsed.data.params.permissions
-          })
+          }),
+          requestedPermissions: parsed.data.params.permissions
         },
         requestId,
         ...(parsed.data.params.reason === undefined
@@ -1980,7 +1958,7 @@ export class CodexAppServerV2WireNormalizer {
     approvalKind: "command" | "network" | "permission";
     itemId: string;
     method: string;
-    permissionGrant?: z.infer<typeof V2PermissionProfileSchema>;
+    requestedPermissions?: z.infer<typeof V2PermissionProfileSchema>;
     proposal: Extract<
       CodexAppServerNormalizedEvent,
       { eventType: "approval_requested" }
@@ -2002,6 +1980,10 @@ export class CodexAppServerV2WireNormalizer {
         itemId: input.itemId
       });
     }
+    const requestedPermissions = input.requestedPermissions === undefined
+      ? undefined
+      : cloneAndDeepFreeze(input.requestedPermissions);
+    const publicProposal = structuredClone(input.proposal);
     this.approvals.set(input.requestId, {
       approvalKind: input.approvalKind,
       requestId: input.requestId,
@@ -2009,9 +1991,9 @@ export class CodexAppServerV2WireNormalizer {
       threadId: input.threadId,
       turnId: input.turnId,
       itemId: input.itemId,
-      ...(input.permissionGrant === undefined
+      ...(requestedPermissions === undefined
         ? {}
-        : { requestedPermissions: input.permissionGrant }),
+        : { requestedPermissions }),
       resolved: false
     });
     const event: Extract<CodexAppServerNormalizedEvent, { eventType: "approval_requested" }> = {
@@ -2024,7 +2006,7 @@ export class CodexAppServerV2WireNormalizer {
       turnId: input.turnId,
       requestId: input.requestId,
       itemId: input.itemId,
-      proposal: input.proposal,
+      proposal: publicProposal,
       ...(input.semanticContext === undefined || input.semanticContext === null
         ? {}
         : { semanticContext: input.semanticContext })
@@ -2786,8 +2768,18 @@ function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
 }
 
-function emptyPermissionProfile(): z.infer<typeof V2PermissionProfileSchema> {
-  return { fileSystem: null, network: null };
+function cloneAndDeepFreeze<T>(value: T): T {
+  return deepFreeze(structuredClone(value));
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  for (const nested of Object.values(value as Record<string, unknown>)) {
+    deepFreeze(nested);
+  }
+  return Object.freeze(value);
 }
 
 function stableJson(value: unknown): string {

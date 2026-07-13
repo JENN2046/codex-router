@@ -23,6 +23,8 @@ export type {
   CodexAppServerAuthorizationMode,
   CodexAppServerMessageTransport,
   CodexAppServerNormalizedEvent,
+  CodexAppServerPermissionGrant,
+  CodexAppServerPermissionProfile,
   CodexAppServerV2FileChangeApprovalParams,
   CodexAppServerV2FileChangeEvidence,
   CodexAppServerV2FileChangeEvidenceInput,

@@ -8,7 +8,8 @@ import {
   CodexAppServerV2WireMessageSchema,
   CodexAppServerV2WireNormalizer,
   CodexAppServerV2WireTransport,
-  type CodexAppServerApprovalResponse
+  type CodexAppServerApprovalResponse,
+  type CodexAppServerPermissionGrant
 } from "../packages/codex-adapter/src/index.js";
 
 const schemaProfileId = "codex-app-server-v2";
@@ -73,6 +74,16 @@ function response(requestId: string, decision: "accept" | "decline"): CodexAppSe
     requestId,
     decision,
     reasonCode: "test"
+  };
+}
+
+function permissionResponse(
+  requestId: string,
+  permissionGrant: CodexAppServerPermissionGrant
+): CodexAppServerApprovalResponse {
+  return {
+    ...response(requestId, "accept"),
+    permissionGrant
   };
 }
 
@@ -1692,7 +1703,10 @@ test("MCP startup and auto-review notifications validate every documented varian
     },
     {
       permissions: {
-        fileSystem: { read: ["/tmp/codex-router/docs"] },
+        fileSystem: {
+          read: ["/tmp/codex-router/docs"],
+          write: null
+        },
         network: null
       },
       reason: "read documentation",
@@ -1779,13 +1793,18 @@ test("command and permission wire approvals become manual-only normalized events
     environmentId: "local",
     requestedPermissionScope: "{\"fileSystem\":{\"entries\":[{\"access\":\"none\",\"path\":{\"path\":\"/tmp/codex-router/private\",\"type\":\"path\"}}],\"read\":[\"/tmp/codex-router/docs\"],\"write\":null},\"network\":{\"enabled\":true}}"
   });
+  assert.deepEqual(
+    normalizer.encodeApprovalResponse(permissionResponse("command-request", {})),
+    { status: "blocked", reasons: ["v2_permission_grant_unexpected"] }
+  );
   assert.equal(normalizer.encodeApprovalResponse(response("command-request", "accept")).status, "encoded");
 
-  const permission = normalizer.normalize({
+  const permissionRequest = {
     id: "permission-request",
     method: "item/permissions/requestApproval",
     params: {
       cwd: "/tmp/codex-router",
+      environmentId: "local",
       itemId: "item-permission",
       permissions: {
         fileSystem: {
@@ -1793,20 +1812,86 @@ test("command and permission wire approvals become manual-only normalized events
             access: "none",
             path: { path: "/tmp/codex-router/private", type: "path" }
           }],
-          write: ["/tmp/codex-router/docs"]
+          globScanMaxDepth: 2,
+          read: null,
+          write: [
+            "/tmp/codex-router/docs",
+            "/tmp/codex-router/shared"
+          ]
         },
-        network: { enabled: null }
+        network: { enabled: true }
       },
       reason: "permission review",
       startedAtMs: 1762732800100,
       threadId: "thread-permission",
       turnId: "turn-permission"
     }
-  });
+  } as const;
+  const permission = normalizer.normalize(permissionRequest);
   assert.equal(permission.status, "normalized");
   if (permission.status !== "normalized" || permission.event.eventType !== "approval_requested") return;
-  assert.equal(permission.event.proposal.kind, "permission");
-  const encodedPermission = normalizer.encodeApprovalResponse(response("permission-request", "accept"));
+  assert.deepEqual(permission.event.proposal, {
+    kind: "permission",
+    scope: "{\"cwd\":\"/tmp/codex-router\",\"environmentId\":\"local\",\"permissions\":{\"fileSystem\":{\"entries\":[{\"access\":\"none\",\"path\":{\"path\":\"/tmp/codex-router/private\",\"type\":\"path\"}}],\"globScanMaxDepth\":2,\"read\":null,\"write\":[\"/tmp/codex-router/docs\",\"/tmp/codex-router/shared\"]},\"network\":{\"enabled\":true}}}",
+    requestedPermissions: permissionRequest.params.permissions
+  });
+
+  assert.deepEqual(
+    normalizer.encodeApprovalResponse(response("permission-request", "accept")),
+    { status: "blocked", reasons: ["v2_permission_grant_required"] }
+  );
+  if (permission.event.proposal.kind !== "permission") return;
+  permission.event.proposal.requestedPermissions.fileSystem?.write?.push(
+    "/tmp/codex-router/unrequested"
+  );
+  assert.deepEqual(
+    normalizer.encodeApprovalResponse(permissionResponse("permission-request", {
+      fileSystem: {
+        read: null,
+        write: ["/tmp/codex-router/unrequested"]
+      }
+    })),
+    { status: "blocked", reasons: ["v2_permission_grant_not_subset"] }
+  );
+
+  assert.deepEqual(
+    normalizer.encodeApprovalResponse(permissionResponse("permission-request", {
+      fileSystem: {
+        globScanMaxDepth: 2,
+        read: null,
+        write: ["/tmp/codex-router/docs"]
+      }
+    })),
+    { status: "blocked", reasons: ["v2_permission_grant_not_subset"] }
+  );
+  assert.deepEqual(
+    normalizer.encodeApprovalResponse(permissionResponse("permission-request", {
+      fileSystem: {
+        entries: [{
+          access: "none",
+          path: { path: "/tmp/codex-router/private", type: "path" }
+        }],
+        read: null,
+        write: ["/tmp/codex-router/docs"]
+      }
+    })),
+    { status: "blocked", reasons: ["v2_permission_grant_not_subset"] }
+  );
+
+  const encodedPermission = normalizer.encodeApprovalResponse(permissionResponse(
+    "permission-request",
+    {
+      fileSystem: {
+        entries: [{
+          access: "none",
+          path: { path: "/tmp/codex-router/private", type: "path" }
+        }],
+        globScanMaxDepth: 2,
+        read: null,
+        write: ["/tmp/codex-router/docs"]
+      }
+    }
+  ));
   assert.deepEqual(encodedPermission, {
     status: "encoded",
     message: {
@@ -1818,14 +1903,28 @@ test("command and permission wire approvals become manual-only normalized events
               access: "none",
               path: { path: "/tmp/codex-router/private", type: "path" }
             }],
+            globScanMaxDepth: 2,
+            read: null,
             write: ["/tmp/codex-router/docs"]
-          },
-          network: { enabled: null }
+          }
         },
         scope: "turn"
       }
     }
   });
+
+  const declining = createNormalizer();
+  assert.equal(declining.normalize(permissionRequest).status, "normalized");
+  assert.deepEqual(
+    declining.encodeApprovalResponse(response("permission-request", "decline")),
+    {
+      status: "encoded",
+      message: {
+        id: "permission-request",
+        result: { permissions: {}, scope: "turn" }
+      }
+    }
+  );
 });
 
 test("approval requests accept documented payloads without lifecycle timestamps", () => {
@@ -1874,8 +1973,7 @@ test("approval requests accept documented payloads without lifecycle timestamps"
       cwd: "/tmp/codex-router",
       itemId: "timestampless-permission-item",
       permissions: {
-        fileSystem: { write: ["/tmp/codex-router/docs"] },
-        network: { enabled: null }
+        fileSystem: { write: ["/tmp/codex-router/docs"] }
       },
       threadId: "timestampless-permission-thread",
       turnId: "timestampless-permission-turn"
