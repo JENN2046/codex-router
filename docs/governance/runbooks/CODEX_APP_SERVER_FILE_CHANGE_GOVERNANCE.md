@@ -136,7 +136,12 @@ The wire transport maps only internal `accept`/`decline` decisions. File,
 command, and network approvals use `{ id, result: { decision } }`. When a
 command approval also carries `networkApprovalContext`, the manual command
 proposal preserves the exact `host` and `protocol`; operators must never be
-shown a command proposal that hides its accompanying network target. A
+shown a command proposal that hides its accompanying network target. Command
+and network proposals also preserve the advertised `availableDecisions`. If
+that list excludes plain `accept` or `decline`, the operator must select an
+exact advertised wire decision, including its exec or network policy amendment
+payload; the adapter and normalizer both reject changed, unadvertised, or
+disposition-mismatched selections instead of collapsing them to `accept`. A
 permission accept must carry an explicit operator-selected `permissionGrant`; both the
 adapter and wire normalizer verify that every selected field, root, and entry
 is a permission-monotone subset of the requested permission profile before

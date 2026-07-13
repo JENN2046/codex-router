@@ -19,6 +19,13 @@ import {
   CodexAppServerPermissionProfileSchema as V2PermissionProfileSchema,
   isPermissionGrantSubset
 } from "./permission-profile.js";
+import {
+  CodexCommandApprovalDecisionSchema,
+  commandApprovalDecisionDisposition,
+  commandApprovalDecisionEquals,
+  isPlainCommandApprovalDecision,
+  type CodexCommandApprovalDecision
+} from "./command-approval.js";
 
 const JsonRpcRequestIdSchema = z.union([
   z.string().min(1),
@@ -112,6 +119,11 @@ const V2NetworkPolicyAmendmentSchema = z.object({
   host: z.string()
 }).strict();
 
+const V2LegacyAmendmentDecisionNameSchema = z.enum([
+  "acceptWithExecpolicyAmendment",
+  "applyNetworkPolicyAmendment"
+]);
+
 export const CodexAppServerV2FileChangeItemSchema = z.object({
   changes: z.array(V2FileChangeSchema).min(1),
   id: z.string().min(1),
@@ -195,13 +207,9 @@ export const CodexAppServerV2FileChangeApprovalParamsSchema = z.object({
 const V2CommandExecutionApprovalParamsSchema = z.object({
   approvalId: z.string().nullable().optional(),
   additionalPermissions: V2PermissionProfileSchema.nullable().optional(),
-  availableDecisions: z.array(z.enum([
-    "accept",
-    "acceptForSession",
-    "acceptWithExecpolicyAmendment",
-    "applyNetworkPolicyAmendment",
-    "decline",
-    "cancel"
+  availableDecisions: z.array(z.union([
+    CodexCommandApprovalDecisionSchema,
+    V2LegacyAmendmentDecisionNameSchema
   ])).nullable().optional(),
   command: z.string().min(1).nullable().optional(),
   commandActions: z.array(V2CommandActionSchema).nullable().optional(),
@@ -232,6 +240,47 @@ const V2PermissionsApprovalParamsSchema = z.object({
   threadId: z.string().min(1),
   turnId: z.string().min(1)
 }).strict();
+
+function normalizeAvailableCommandDecisions(
+  params: z.infer<typeof V2CommandExecutionApprovalParamsSchema>
+): CodexCommandApprovalDecision[] | undefined | null {
+  if (params.availableDecisions === undefined || params.availableDecisions === null) {
+    return undefined;
+  }
+  const normalized: CodexCommandApprovalDecision[] = [];
+  for (const decision of params.availableDecisions) {
+    if (decision === "acceptWithExecpolicyAmendment") {
+      if (params.proposedExecpolicyAmendment === undefined
+        || params.proposedExecpolicyAmendment === null) {
+        return null;
+      }
+      normalized.push({
+        acceptWithExecpolicyAmendment: {
+          execpolicy_amendment: params.proposedExecpolicyAmendment
+        }
+      });
+      continue;
+    }
+    if (decision === "applyNetworkPolicyAmendment") {
+      if (params.proposedNetworkPolicyAmendments === undefined
+        || params.proposedNetworkPolicyAmendments === null
+        || params.proposedNetworkPolicyAmendments.length === 0) {
+        return null;
+      }
+      normalized.push(...params.proposedNetworkPolicyAmendments.map((amendment) => ({
+        applyNetworkPolicyAmendment: {
+          network_policy_amendment: amendment
+        }
+      })));
+      continue;
+    }
+    normalized.push(decision);
+  }
+  return normalized.filter((decision, index) => (
+    normalized.findIndex((candidate) => commandApprovalDecisionEquals(candidate, decision))
+      === index
+  ));
+}
 
 const V2ServerRequestResolvedParamsSchema = z.object({
   requestId: JsonRpcRequestIdSchema,
@@ -1105,7 +1154,7 @@ export const CodexAppServerV2WireMessageSchema = z.union([
 ]);
 
 const V2CommandApprovalResponseResultSchema = z.object({
-  decision: z.enum(["accept", "decline"])
+  decision: CodexCommandApprovalDecisionSchema
 }).strict();
 
 const V2PermissionsApprovalResponseResultSchema = z.object({
@@ -1229,6 +1278,7 @@ interface ApprovalBinding {
   threadId: string;
   turnId: string;
   itemId: string;
+  availableCommandDecisions?: readonly CodexCommandApprovalDecision[];
   requestedPermissions?: z.infer<typeof V2PermissionProfileSchema>;
   sentDecision?: "accept" | "decline";
   resolved: boolean;
@@ -1254,6 +1304,7 @@ const InternalApprovalResponseSchema = z.object({
   requestId: z.string().min(1),
   decision: z.enum(["accept", "decline"]),
   reasonCode: z.string().min(1),
+  commandDecision: CodexCommandApprovalDecisionSchema.optional(),
   permissionGrant: V2PermissionGrantSchema.optional()
 }).strict();
 
@@ -1398,6 +1449,36 @@ export class CodexAppServerV2WireNormalizer {
     if (binding.approvalKind !== "permission" && parsed.data.permissionGrant !== undefined) {
       return { status: "blocked", reasons: ["v2_permission_grant_unexpected"] };
     }
+    const isCommandApproval = binding.approvalKind === "command"
+      || binding.approvalKind === "network";
+    if (!isCommandApproval && parsed.data.commandDecision !== undefined) {
+      return { status: "blocked", reasons: ["v2_command_decision_unexpected"] };
+    }
+    const commandDecision = isCommandApproval
+      ? parsed.data.commandDecision ?? parsed.data.decision
+      : undefined;
+    if (
+      commandDecision !== undefined
+      && commandApprovalDecisionDisposition(commandDecision) !== parsed.data.decision
+    ) {
+      return { status: "blocked", reasons: ["v2_command_decision_disposition_mismatch"] };
+    }
+    if (
+      commandDecision !== undefined
+      && binding.availableCommandDecisions !== undefined
+      && !binding.availableCommandDecisions.some((available) => (
+        commandApprovalDecisionEquals(available, commandDecision)
+      ))
+    ) {
+      return { status: "blocked", reasons: ["v2_command_decision_not_advertised"] };
+    }
+    if (
+      commandDecision !== undefined
+      && binding.availableCommandDecisions === undefined
+      && !isPlainCommandApprovalDecision(commandDecision)
+    ) {
+      return { status: "blocked", reasons: ["v2_command_decision_not_advertised"] };
+    }
     if (parsed.data.decision === "decline" && parsed.data.permissionGrant !== undefined) {
       return { status: "blocked", reasons: ["v2_permission_grant_unexpected"] };
     }
@@ -1422,7 +1503,7 @@ export class CodexAppServerV2WireNormalizer {
             : {},
           scope: "turn" as const
         }
-      : { decision: parsed.data.decision };
+      : { decision: commandDecision ?? parsed.data.decision };
     binding.sentDecision = parsed.data.decision;
     return {
       status: "encoded",
@@ -1497,6 +1578,13 @@ export class CodexAppServerV2WireNormalizer {
       }
       const command = parsed.data.params.command;
       const networkApprovalContext = parsed.data.params.networkApprovalContext;
+      const availableCommandDecisions = normalizeAvailableCommandDecisions(parsed.data.params);
+      if (availableCommandDecisions === null) {
+        return this.quarantine("v2_command_approval_decisions_invalid", {
+          method,
+          requestId
+        });
+      }
       if (
         (command === undefined || command === null)
         && (networkApprovalContext === undefined || networkApprovalContext === null)
@@ -1522,6 +1610,9 @@ export class CodexAppServerV2WireNormalizer {
                 || parsed.data.params.environmentId === null
                 ? {}
                 : { environmentId: parsed.data.params.environmentId }),
+              ...(availableCommandDecisions === undefined
+                ? {}
+                : { availableDecisions: availableCommandDecisions }),
               ...(parsed.data.params.additionalPermissions === undefined
                 || parsed.data.params.additionalPermissions === null
                 ? {}
@@ -1544,6 +1635,9 @@ export class CodexAppServerV2WireNormalizer {
               ...(networkApprovalContext === undefined || networkApprovalContext === null
                 ? {}
                 : { networkApprovalContext }),
+              ...(availableCommandDecisions === undefined
+                ? {}
+                : { availableDecisions: availableCommandDecisions }),
               ...(parsed.data.params.additionalPermissions === undefined
                 || parsed.data.params.additionalPermissions === null
                 ? {}
@@ -1554,6 +1648,9 @@ export class CodexAppServerV2WireNormalizer {
                   })
             },
         requestId,
+        ...(availableCommandDecisions === undefined
+          ? {}
+          : { availableCommandDecisions }),
         ...(parsed.data.params.reason === undefined
           ? {}
           : { semanticContext: parsed.data.params.reason }),
@@ -1959,6 +2056,7 @@ export class CodexAppServerV2WireNormalizer {
 
   private normalizeManualApproval(input: {
     approvalKind: "command" | "network" | "permission";
+    availableCommandDecisions?: CodexCommandApprovalDecision[];
     itemId: string;
     method: string;
     requestedPermissions?: z.infer<typeof V2PermissionProfileSchema>;
@@ -1986,6 +2084,9 @@ export class CodexAppServerV2WireNormalizer {
     const requestedPermissions = input.requestedPermissions === undefined
       ? undefined
       : cloneAndDeepFreeze(input.requestedPermissions);
+    const availableCommandDecisions = input.availableCommandDecisions === undefined
+      ? undefined
+      : cloneAndDeepFreeze(input.availableCommandDecisions);
     const publicProposal = structuredClone(input.proposal);
     this.approvals.set(input.requestId, {
       approvalKind: input.approvalKind,
@@ -1994,6 +2095,9 @@ export class CodexAppServerV2WireNormalizer {
       threadId: input.threadId,
       turnId: input.turnId,
       itemId: input.itemId,
+      ...(availableCommandDecisions === undefined
+        ? {}
+        : { availableCommandDecisions }),
       ...(requestedPermissions === undefined
         ? {}
         : { requestedPermissions }),

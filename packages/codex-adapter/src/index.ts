@@ -44,6 +44,13 @@ import {
   isPermissionGrantSubset,
   type CodexAppServerPermissionGrant
 } from "./permission-profile.js";
+import {
+  CodexCommandApprovalDecisionSchema,
+  commandApprovalDecisionDisposition,
+  commandApprovalDecisionEquals,
+  isPlainCommandApprovalDecision,
+  type CodexCommandApprovalDecision
+} from "./command-approval.js";
 
 export const AppServerSessionAttestationSchema = z.object({
   schemaVersion: z.literal("app-server-session-attestation.v1").default(
@@ -91,6 +98,7 @@ export const CodexApprovalProposalSchema = z.discriminatedUnion("kind", [
       host: z.string().min(1),
       protocol: z.enum(["http", "https", "socks5Tcp", "socks5Udp"])
     }).strict().optional(),
+    availableDecisions: z.array(CodexCommandApprovalDecisionSchema).optional(),
     requestedPermissionScope: z.string().min(1).optional()
   }).strict(),
   z.object({
@@ -98,6 +106,7 @@ export const CodexApprovalProposalSchema = z.discriminatedUnion("kind", [
     host: z.string().min(1),
     protocol: z.enum(["http", "https", "socks5Tcp", "socks5Udp"]),
     environmentId: z.string().min(1).optional(),
+    availableDecisions: z.array(CodexCommandApprovalDecisionSchema).optional(),
     requestedPermissionScope: z.string().min(1).optional()
   }).strict(),
   z.object({
@@ -160,6 +169,7 @@ export const CodexAppServerApprovalResponseSchema = z.object({
   requestId: z.string().min(1),
   decision: z.enum(["accept", "decline"]),
   reasonCode: z.string().min(1),
+  commandDecision: CodexCommandApprovalDecisionSchema.optional(),
   permissionGrant: CodexAppServerPermissionGrantSchema.optional()
 }).strict();
 
@@ -272,6 +282,7 @@ const HumanApprovalInputSchema = z.object({
   decision: z.enum(["accept", "decline"]),
   operatorId: z.string().min(1),
   nonce: z.string().min(1).optional(),
+  commandDecision: CodexCommandApprovalDecisionSchema.optional(),
   permissionGrant: CodexAppServerPermissionGrantSchema.optional()
 }).strict();
 
@@ -456,6 +467,49 @@ export class CodexAppServerAdapter {
         approvalProposal: structuredClone(approval.proposal)
       });
     }
+    const commandProposal = approval.proposal.kind === "command"
+      || approval.proposal.kind === "network"
+      ? approval.proposal
+      : undefined;
+    if (input.commandDecision !== undefined && commandProposal === undefined) {
+      return this.outcome("blocked", ["human_command_decision_unexpected"], {
+        requestId: input.requestId,
+        itemId: approval.itemId,
+        approvalProposal: structuredClone(approval.proposal)
+      });
+    }
+    if (commandProposal !== undefined) {
+      const selectedDecision = input.commandDecision ?? input.decision;
+      if (commandApprovalDecisionDisposition(selectedDecision) !== input.decision) {
+        return this.outcome("blocked", ["human_command_decision_disposition_mismatch"], {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          approvalProposal: structuredClone(approval.proposal)
+        });
+      }
+      if (
+        commandProposal.availableDecisions !== undefined
+        && !commandProposal.availableDecisions.some((available) => (
+          commandApprovalDecisionEquals(available, selectedDecision)
+        ))
+      ) {
+        return this.outcome("blocked", ["human_command_decision_not_advertised"], {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          approvalProposal: structuredClone(approval.proposal)
+        });
+      }
+      if (
+        commandProposal.availableDecisions === undefined
+        && !isPlainCommandApprovalDecision(selectedDecision)
+      ) {
+        return this.outcome("blocked", ["human_command_decision_not_advertised"], {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          approvalProposal: structuredClone(approval.proposal)
+        });
+      }
+    }
     if (input.decision === "decline" && input.permissionGrant !== undefined) {
       return this.outcome("blocked", ["human_permission_grant_unexpected"], {
         requestId: input.requestId,
@@ -485,7 +539,13 @@ export class CodexAppServerAdapter {
 
     if (input.decision === "decline") {
       const delivery = item === undefined
-        ? await this.sendDecision(approval, "decline", "operator_declined")
+        ? await this.sendDecision(
+            approval,
+            "decline",
+            "operator_declined",
+            undefined,
+            input.commandDecision
+          )
         : await this.declineFileItem(approval, item, "operator_declined");
       const sent = delivery === "sent";
       return this.outcome(sent ? "blocked" : "reconciliation_required", [
@@ -502,7 +562,8 @@ export class CodexAppServerAdapter {
         approval,
         "accept",
         "operator_approved",
-        input.permissionGrant
+        input.permissionGrant,
+        input.commandDecision
       );
       const sent = delivery === "sent";
       return this.outcome(sent ? "accepted" : "reconciliation_required", [
@@ -1368,7 +1429,8 @@ export class CodexAppServerAdapter {
     approval: ApprovalRecord,
     decision: "accept" | "decline",
     reasonCode: string,
-    permissionGrant?: CodexAppServerPermissionGrant
+    permissionGrant?: CodexAppServerPermissionGrant,
+    commandDecision?: CodexCommandApprovalDecision
   ): Promise<ApprovalSendResult> {
     if (
       approval.deliveryState !== "pending"
@@ -1389,6 +1451,7 @@ export class CodexAppServerAdapter {
       requestId: approval.requestId,
       decision,
       reasonCode,
+      ...(commandDecision === undefined ? {} : { commandDecision }),
       ...(permissionGrant === undefined ? {} : { permissionGrant })
     });
     approval.deliveryState = "in_flight";

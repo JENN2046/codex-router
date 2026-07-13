@@ -1799,6 +1799,7 @@ test("mixed command/network and permission wire approvals preserve manual propos
       host: "registry.example.test",
       protocol: "https"
     },
+    availableDecisions: ["accept", "decline"],
     requestedPermissionScope: "{\"fileSystem\":{\"entries\":[{\"access\":\"none\",\"path\":{\"path\":\"/tmp/codex-router/private\",\"type\":\"path\"}}],\"read\":[\"/tmp/codex-router/docs\"],\"write\":null},\"network\":{\"enabled\":true}}"
   });
   assert.deepEqual(
@@ -2024,9 +2025,140 @@ test("network-only command approvals remain manual and preserve the network targ
     host: "api.example.test",
     protocol: "https",
     environmentId: "local",
+    availableDecisions: ["accept", "decline"],
     requestedPermissionScope: "{\"fileSystem\":null,\"network\":{\"enabled\":true}}"
   });
   assert.equal(normalizer.encodeApprovalResponse(response("network-request", "decline")).status, "encoded");
+});
+
+test("command approval responses preserve only advertised policy amendment decisions", () => {
+  const execDecision = {
+    acceptWithExecpolicyAmendment: {
+      execpolicy_amendment: ["npm", "test"]
+    }
+  };
+  const normalizer = createNormalizer();
+  const requested = normalizer.normalize({
+    id: "exec-amendment-request",
+    method: "item/commandExecution/requestApproval",
+    params: {
+      availableDecisions: [execDecision, "decline"],
+      command: "npm test",
+      cwd: "/tmp/codex-router",
+      environmentId: "local",
+      itemId: "exec-amendment-item",
+      proposedExecpolicyAmendment: ["npm", "test"],
+      reason: "approve an exact exec policy amendment",
+      threadId: "exec-amendment-thread",
+      turnId: "exec-amendment-turn"
+    }
+  });
+  assert.equal(requested.status, "normalized");
+  if (requested.status !== "normalized" || requested.event.eventType !== "approval_requested") {
+    return;
+  }
+  assert.deepEqual(requested.event.proposal, {
+    kind: "command",
+    argv: ["npm test"],
+    cwd: "/tmp/codex-router",
+    environmentId: "local",
+    availableDecisions: [execDecision, "decline"]
+  });
+  assert.deepEqual(
+    normalizer.encodeApprovalResponse(response("exec-amendment-request", "accept")),
+    { status: "blocked", reasons: ["v2_command_decision_not_advertised"] }
+  );
+  assert.deepEqual(
+    normalizer.encodeApprovalResponse({
+      ...response("exec-amendment-request", "accept"),
+      commandDecision: {
+        acceptWithExecpolicyAmendment: {
+          execpolicy_amendment: ["npm", "publish"]
+        }
+      }
+    }),
+    { status: "blocked", reasons: ["v2_command_decision_not_advertised"] }
+  );
+  assert.deepEqual(
+    normalizer.encodeApprovalResponse({
+      ...response("exec-amendment-request", "accept"),
+      commandDecision: execDecision
+    }),
+    {
+      status: "encoded",
+      message: {
+        id: "exec-amendment-request",
+        result: { decision: execDecision }
+      }
+    }
+  );
+
+  const networkDecision = {
+    applyNetworkPolicyAmendment: {
+      network_policy_amendment: {
+        action: "allow" as const,
+        host: "api.example.test"
+      }
+    }
+  };
+  const networkNormalizer = createNormalizer();
+  const networkRequested = networkNormalizer.normalize({
+    id: "network-amendment-request",
+    method: "item/commandExecution/requestApproval",
+    params: {
+      availableDecisions: ["applyNetworkPolicyAmendment", "decline"],
+      itemId: "network-amendment-item",
+      networkApprovalContext: {
+        host: "api.example.test",
+        protocol: "https"
+      },
+      proposedNetworkPolicyAmendments: [{
+        action: "allow",
+        host: "api.example.test"
+      }],
+      threadId: "network-amendment-thread",
+      turnId: "network-amendment-turn"
+    }
+  });
+  assert.equal(networkRequested.status, "normalized");
+  if (
+    networkRequested.status !== "normalized"
+    || networkRequested.event.eventType !== "approval_requested"
+  ) return;
+  assert.deepEqual(networkRequested.event.proposal, {
+    kind: "network",
+    host: "api.example.test",
+    protocol: "https",
+    availableDecisions: [networkDecision, "decline"]
+  });
+  assert.deepEqual(
+    networkNormalizer.encodeApprovalResponse({
+      ...response("network-amendment-request", "accept"),
+      commandDecision: networkDecision
+    }),
+    {
+      status: "encoded",
+      message: {
+        id: "network-amendment-request",
+        result: { decision: networkDecision }
+      }
+    }
+  );
+
+  const missingAmendment = createNormalizer().normalize({
+    id: "missing-amendment-request",
+    method: "item/commandExecution/requestApproval",
+    params: {
+      availableDecisions: ["acceptWithExecpolicyAmendment", "decline"],
+      command: "npm test",
+      itemId: "missing-amendment-item",
+      threadId: "missing-amendment-thread",
+      turnId: "missing-amendment-turn"
+    }
+  });
+  assert.equal(missingAmendment.status, "blocked");
+  if (missingAmendment.status !== "blocked") return;
+  assert.ok(missingAmendment.reasons.includes("v2_command_approval_decisions_invalid"));
 });
 
 test("remote-control activity and literal backslash paths quarantine the session", () => {

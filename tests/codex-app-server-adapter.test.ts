@@ -803,6 +803,7 @@ test("v2 raw mixed command/network and permission approvals stay fully visible a
       host: "api.example.test",
       protocol: "https",
       environmentId: "local",
+      availableDecisions: ["accept", "decline"],
       requestedPermissionScope: "{\"fileSystem\":null,\"network\":{\"enabled\":true}}"
     });
     assert.equal(fixture.transport.messages.length, 0);
@@ -968,6 +969,107 @@ test("v2 raw mixed command/network and permission approvals stay fully visible a
           write: ["/tmp/codex-router/docs"]
         }
       }
+    }]);
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 adapter requires and forwards the advertised command policy decision", async () => {
+  const wireResponses: unknown[] = [];
+  const normalizer = new CodexAppServerV2WireNormalizer({
+    initializeRequestId: "initialize-v2-1",
+    schemaProfileId: "fake-v2",
+    fileChangeEvidence: () => undefined
+  });
+  const wireTransport = new CodexAppServerV2WireTransport({
+    normalizer,
+    async send(message) {
+      wireResponses.push(message);
+    }
+  });
+  const fixture = await createAdapterFixture({ transportOverride: wireTransport });
+  try {
+    const bridge = new CodexAppServerV2WireAdapter({
+      adapter: fixture.adapter,
+      normalizer
+    });
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+    const execDecision = {
+      acceptWithExecpolicyAmendment: {
+        execpolicy_amendment: ["npm", "test"]
+      }
+    };
+    const requested = await bridge.ingest({
+      id: "adapter-exec-amendment-request",
+      method: "item/commandExecution/requestApproval",
+      params: {
+        availableDecisions: [execDecision, "decline"],
+        command: "npm test",
+        cwd: "/tmp/codex-router",
+        environmentId: "local",
+        itemId: "adapter-exec-amendment-item",
+        proposedExecpolicyAmendment: ["npm", "test"],
+        threadId: "adapter-exec-amendment-thread",
+        turnId: "adapter-exec-amendment-turn"
+      }
+    });
+    assert.equal(requested.status, "normalized");
+    if (requested.status !== "normalized") return;
+    assert.equal(requested.outcome.status, "manual_required");
+    assert.deepEqual(requested.outcome.approvalProposal, {
+      kind: "command",
+      argv: ["npm test"],
+      cwd: "/tmp/codex-router",
+      environmentId: "local",
+      availableDecisions: [execDecision, "decline"]
+    });
+
+    const implicitAccept = await fixture.adapter.resolveHumanApproval({
+      requestId: "adapter-exec-amendment-request",
+      decision: "accept",
+      operatorId: "operator-jenn"
+    });
+    assert.equal(implicitAccept.status, "blocked");
+    assert.deepEqual(implicitAccept.reasons, ["human_command_decision_not_advertised"]);
+
+    const mismatchedDisposition = await fixture.adapter.resolveHumanApproval({
+      requestId: "adapter-exec-amendment-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      commandDecision: "decline"
+    });
+    assert.equal(mismatchedDisposition.status, "blocked");
+    assert.deepEqual(
+      mismatchedDisposition.reasons,
+      ["human_command_decision_disposition_mismatch"]
+    );
+
+    const changedAmendment = await fixture.adapter.resolveHumanApproval({
+      requestId: "adapter-exec-amendment-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      commandDecision: {
+        acceptWithExecpolicyAmendment: {
+          execpolicy_amendment: ["npm", "publish"]
+        }
+      }
+    });
+    assert.equal(changedAmendment.status, "blocked");
+    assert.deepEqual(changedAmendment.reasons, ["human_command_decision_not_advertised"]);
+    assert.deepEqual(wireResponses, []);
+
+    const accepted = await fixture.adapter.resolveHumanApproval({
+      requestId: "adapter-exec-amendment-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      commandDecision: execDecision
+    });
+    assert.equal(accepted.status, "accepted");
+    assert.deepEqual(wireResponses, [{
+      id: "adapter-exec-amendment-request",
+      result: { decision: execDecision }
     }]);
   } finally {
     await rm(fixture.tempRoot, { recursive: true, force: true });
