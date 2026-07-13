@@ -1053,7 +1053,33 @@ test("error diagnostics accept only the documented minimal or complete correlate
       threadId: "thread-error"
     },
     {
+      error: { message: "partial correlation" },
+      turnId: "turn-error"
+    },
+    {
+      error: { message: "partial correlation" },
+      willRetry: true
+    },
+    {
+      error: { message: "partial correlation" },
+      threadId: "thread-error",
+      turnId: "turn-error"
+    },
+    {
+      error: { message: "partial correlation" },
+      threadId: "thread-error",
+      willRetry: true
+    },
+    {
+      error: { message: "partial correlation" },
+      turnId: "turn-error",
+      willRetry: true
+    },
+    {
       error: { message: "" }
+    },
+    {
+      error: { message: "nested unknown field", unexpected: true }
     },
     {
       error: { message: "unknown field" },
@@ -1068,6 +1094,12 @@ test("error diagnostics accept only the documented minimal or complete correlate
     if (result.status !== "blocked") continue;
     assert.ok(result.reasons.includes("v2_non_governance_notification_schema_invalid"));
     assert.ok(result.reasons.includes("v2_session_quarantined"));
+
+    const [started] = fileChangeFlow as unknown[];
+    const afterQuarantine = normalizer.normalize(started);
+    assert.equal(afterQuarantine.status, "blocked");
+    if (afterQuarantine.status !== "blocked") continue;
+    assert.ok(afterQuarantine.reasons.includes("v2_session_quarantined"));
   }
 });
 
