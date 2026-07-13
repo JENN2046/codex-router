@@ -243,7 +243,8 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
 
     for (const status of [
       { activeFlags: ["waitingOnApproval"], type: "active" },
-      { type: "idle" }
+      { type: "idle" },
+      { type: "notLoaded" }
     ]) {
       const statusResult = await bridge.ingest({
         method: "thread/status/changed",
@@ -251,6 +252,10 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
       });
       assert.equal(statusResult.status, "ignored");
     }
+    assert.equal((await bridge.ingest({
+      method: "thread/closed",
+      params: { threadId: "thread-progress" }
+    })).status, "ignored");
 
     for (const progress of [
       {
@@ -468,24 +473,114 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
       assert.equal(notificationResult.status, "ignored");
     }
 
-    const currentTime = await bridge.ingest({
-      id: "current-time-1",
-      method: "currentTime/read",
-      params: { threadId: "thread-v2-1" }
-    });
-    assert.equal(currentTime.status, "passthrough");
-    if (currentTime.status !== "passthrough") return;
-    assert.deepEqual(currentTime.normalization.request, {
-      id: "current-time-1",
-      method: "currentTime/read",
-      params: { threadId: "thread-v2-1" }
-    });
+    const passthroughRequests = [
+      {
+        id: "user-input-bridge-1",
+        method: "item/tool/requestUserInput",
+        params: {
+          itemId: "tool-item-1",
+          questions: [{ header: "Mode", id: "mode", question: "Choose a mode" }],
+          threadId: "thread-v2-1",
+          turnId: "turn-v2-1"
+        }
+      },
+      {
+        id: "mcp-elicitation-bridge-1",
+        method: "mcpServer/elicitation/request",
+        params: {
+          message: "Confirm",
+          mode: "form",
+          requestedSchema: {
+            properties: { approved: { type: "boolean" } },
+            required: ["approved"],
+            type: "object"
+          },
+          serverName: "fixture-mcp",
+          threadId: "thread-v2-1",
+          turnId: "turn-v2-1"
+        }
+      },
+      {
+        id: "dynamic-tool-bridge-1",
+        method: "item/tool/call",
+        params: {
+          arguments: { target: "docs/guide.md" },
+          callId: "call-1",
+          threadId: "thread-v2-1",
+          tool: "fixture_tool",
+          turnId: "turn-v2-1"
+        }
+      },
+      {
+        id: "auth-refresh-bridge-1",
+        method: "account/chatgptAuthTokens/refresh",
+        params: { reason: "unauthorized" }
+      },
+      {
+        id: "attestation-bridge-1",
+        method: "attestation/generate",
+        params: {}
+      },
+      {
+        id: "current-time-bridge-1",
+        method: "currentTime/read",
+        params: { threadId: "thread-v2-1" }
+      }
+    ];
+    for (const request of passthroughRequests) {
+      const passthrough = await bridge.ingest(request);
+      assert.equal(passthrough.status, "passthrough");
+      if (passthrough.status !== "passthrough") return;
+      assert.deepEqual(passthrough.normalization.request, request);
+      if (
+        request.method === "item/tool/requestUserInput"
+        || request.method === "mcpServer/elicitation/request"
+      ) {
+        assert.equal((await bridge.ingest({
+          method: "serverRequest/resolved",
+          params: { requestId: request.id, threadId: "thread-v2-1" }
+        })).status, "ignored");
+      }
+    }
 
     const [started] = v2WireFileChangeFlowFixture as unknown[];
     const proposed = await bridge.ingest(started);
     assert.equal(proposed.status, "normalized");
     if (proposed.status !== "normalized") return;
     assert.equal(proposed.outcome.status, "proposed");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 bridge quarantines deeply nested passthrough payloads without throwing", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+    let deeplyNested: unknown = null;
+    for (let depth = 0; depth < 10_000; depth += 1) {
+      deeplyNested = { nested: deeplyNested };
+    }
+
+    const blocked = await bridge.ingest({
+      id: "dynamic-tool-deep-bridge",
+      method: "item/tool/call",
+      params: {
+        arguments: deeplyNested,
+        callId: "call-deep",
+        threadId: "thread-v2-1",
+        tool: "fixture_tool",
+        turnId: "turn-v2-1"
+      }
+    });
+    assert.equal(blocked.status, "blocked");
+    if (blocked.status !== "blocked") return;
+    assert.ok(blocked.reasons.includes("v2_wire_payload_depth_exceeded"));
+
+    const [started] = v2WireFileChangeFlowFixture as unknown[];
+    assert.equal((await bridge.ingest(started)).status, "blocked");
   } finally {
     await rm(fixture.tempRoot, { recursive: true, force: true });
   }

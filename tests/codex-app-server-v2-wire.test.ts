@@ -158,7 +158,8 @@ test("ordinary JSON-RPC responses and documented turn snapshots are ignored", ()
 
   for (const status of [
     { activeFlags: [], type: "active" as const },
-    { type: "idle" as const }
+    { type: "idle" as const },
+    { type: "notLoaded" as const }
   ]) {
     const statusMessage = {
       method: "thread/status/changed",
@@ -171,6 +172,19 @@ test("ordinary JSON-RPC responses and documented turn snapshots are ignored", ()
     });
   }
 
+  const closedMessage = {
+    method: "thread/closed",
+    params: { threadId: "thread-status" }
+  };
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(closedMessage).success, true);
+  assert.deepEqual(normalizer.normalize(closedMessage), {
+    status: "ignored",
+    method: "thread/closed"
+  });
+
+  const [startedAfterUnload] = fileChangeFlow as unknown[];
+  assert.equal(normalizer.normalize(startedAfterUnload).status, "normalized");
+
   const terminalStatus = createNormalizer().normalize({
     method: "thread/status/changed",
     params: {
@@ -181,6 +195,14 @@ test("ordinary JSON-RPC responses and documented turn snapshots are ignored", ()
   assert.equal(terminalStatus.status, "blocked");
   if (terminalStatus.status !== "blocked") return;
   assert.ok(terminalStatus.reasons.includes("v2_thread_status_terminal"));
+
+  const malformedClosed = createNormalizer().normalize({
+    method: "thread/closed",
+    params: { threadId: "thread-status", reason: "idle timeout" }
+  });
+  assert.equal(malformedClosed.status, "blocked");
+  if (malformedClosed.status !== "blocked") return;
+  assert.ok(malformedClosed.reasons.includes("v2_non_governance_notification_schema_invalid"));
 
   const malformedError = createNormalizer().normalize({
     id: "malformed-error-response",
@@ -194,6 +216,36 @@ test("ordinary JSON-RPC responses and documented turn snapshots are ignored", ()
   assert.equal(malformedResponse.status, "blocked");
   if (malformedResponse.status !== "blocked") return;
   assert.ok(malformedResponse.reasons.includes("v2_wire_envelope_invalid"));
+});
+
+test("thread unload diagnostics fail closed only when governance remains open", () => {
+  const [started] = fileChangeFlow as unknown[];
+  const statusNormalizer = createNormalizer();
+  assert.equal(statusNormalizer.normalize(started).status, "normalized");
+  assert.deepEqual(statusNormalizer.normalize({
+    method: "thread/status/changed",
+    params: { status: { type: "notLoaded" }, threadId: "unrelated-thread" }
+  }), {
+    status: "ignored",
+    method: "thread/status/changed"
+  });
+  const openStatus = statusNormalizer.normalize({
+    method: "thread/status/changed",
+    params: { status: { type: "notLoaded" }, threadId: "thread-v2-1" }
+  });
+  assert.equal(openStatus.status, "blocked");
+  if (openStatus.status !== "blocked") return;
+  assert.ok(openStatus.reasons.includes("v2_thread_unloaded_with_open_governance"));
+
+  const closeNormalizer = createNormalizer();
+  assert.equal(closeNormalizer.normalize(started).status, "normalized");
+  const openClose = closeNormalizer.normalize({
+    method: "thread/closed",
+    params: { threadId: "thread-v2-1" }
+  });
+  assert.equal(openClose.status, "blocked");
+  if (openClose.status !== "blocked") return;
+  assert.ok(openClose.reasons.includes("v2_thread_unloaded_with_open_governance"));
 });
 
 test("unanswered server request cleanup normalizes as cancellation", () => {
@@ -849,33 +901,366 @@ test("patch snapshots reject evidence HEAD drift and unsafe target paths", () =>
   assert.ok(unsafe.reasons.includes("v2_file_change_path_encoding_unsupported"));
 });
 
-test("currentTime/read is strictly validated and passed through outside governance", () => {
+test("documented non-governance server requests are validated and passed through", () => {
   const normalizer = createNormalizer();
-  const request = {
-    id: 71,
-    method: "currentTime/read",
-    params: { threadId: "thread-v2-1" },
-    trace: {
-      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+  const requests = [
+    {
+      id: "user-input-1",
+      method: "item/tool/requestUserInput",
+      params: {
+        autoResolutionMs: null,
+        itemId: "tool-item-1",
+        questions: [{
+          header: "Mode",
+          id: "mode",
+          isOther: false,
+          isSecret: false,
+          options: [{ description: "Continue safely", label: "Safe" }],
+          question: "Which mode should be used?"
+        }],
+        threadId: "thread-v2-1",
+        turnId: "turn-v2-1"
+      }
+    },
+    {
+      id: "mcp-form-1",
+      method: "mcpServer/elicitation/request",
+      params: {
+        _meta: null,
+        message: "Confirm the operation",
+        mode: "form",
+        requestedSchema: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          properties: {
+            approved: {
+              default: null,
+              description: "Whether to continue",
+              title: "Approved",
+              type: "boolean"
+            }
+          },
+          required: ["approved"],
+          type: "object"
+        },
+        serverName: "fixture-mcp",
+        threadId: "thread-v2-1",
+        turnId: null
+      }
+    },
+    {
+      id: "mcp-openai-form-1",
+      method: "mcpServer/elicitation/request",
+      params: {
+        message: "Collect structured input",
+        mode: "openai/form",
+        requestedSchema: {
+          properties: { reason: { type: "string" } },
+          type: "object"
+        },
+        serverName: "fixture-mcp",
+        threadId: "thread-v2-1",
+        turnId: "turn-v2-1"
+      }
+    },
+    {
+      id: "mcp-url-1",
+      method: "mcpServer/elicitation/request",
+      params: {
+        elicitationId: "elicitation-1",
+        message: "Complete the external flow",
+        mode: "url",
+        serverName: "fixture-mcp",
+        threadId: "thread-v2-1",
+        url: "https://example.test/elicitation"
+      }
+    },
+    {
+      id: "dynamic-tool-1",
+      method: "item/tool/call",
+      params: {
+        arguments: {
+          enabled: true,
+          nested: ["docs/guide.md", null, 1]
+        },
+        callId: "call-1",
+        namespace: null,
+        threadId: "thread-v2-1",
+        tool: "fixture_tool",
+        turnId: "turn-v2-1"
+      }
+    },
+    {
+      id: "auth-refresh-1",
+      method: "account/chatgptAuthTokens/refresh",
+      params: { previousAccountId: null, reason: "unauthorized" }
+    },
+    {
+      id: "attestation-1",
+      method: "attestation/generate",
+      params: {}
+    },
+    {
+      id: 71,
+      method: "currentTime/read",
+      params: { threadId: "thread-v2-1" },
+      trace: {
+        traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+      }
     }
-  };
-  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(request).success, true);
-  assert.deepEqual(normalizer.normalize(request), {
-    status: "passthrough",
-    request
-  });
+  ];
+  for (const request of requests) {
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(request).success, true);
+    assert.deepEqual(normalizer.normalize(request), {
+      status: "passthrough",
+      request
+    });
+    if (
+      request.method === "item/tool/requestUserInput"
+      || request.method === "mcpServer/elicitation/request"
+    ) {
+      assert.deepEqual(normalizer.normalize({
+        method: "serverRequest/resolved",
+        params: { requestId: request.id, threadId: "thread-v2-1" }
+      }), {
+        status: "ignored",
+        method: "serverRequest/resolved"
+      });
+    }
+  }
 
   const [started] = fileChangeFlow as unknown[];
   assert.equal(normalizer.normalize(started).status, "normalized");
 
-  const malformed = createNormalizer().normalize({
-    id: 72,
-    method: "currentTime/read",
-    params: { threadId: "thread-v2-1", currentTimeAt: 1781717655 }
+  const malformedRequests = [
+    {
+      request: {
+        id: "attestation-malformed",
+        method: "attestation/generate",
+        params: { nonce: "unexpected" }
+      },
+      reason: "v2_passthrough_request_schema_invalid"
+    },
+    {
+      request: {
+        id: "auth-malformed",
+        method: "account/chatgptAuthTokens/refresh",
+        params: { reason: "expired" }
+      },
+      reason: "v2_passthrough_request_schema_invalid"
+    },
+    {
+      request: {
+        id: "tool-malformed",
+        method: "item/tool/call",
+        params: {
+          arguments: {},
+          threadId: "thread-v2-1",
+          tool: "fixture_tool",
+          turnId: "turn-v2-1"
+        }
+      },
+      reason: "v2_passthrough_request_schema_invalid"
+    },
+    {
+      request: {
+        id: "user-input-malformed",
+        method: "item/tool/requestUserInput",
+        params: {
+          autoResolutionMs: -1,
+          itemId: "tool-item-1",
+          questions: [{ header: "Mode", id: "mode", question: "Choose" }],
+          threadId: "thread-v2-1",
+          turnId: "turn-v2-1"
+        }
+      },
+      reason: "v2_passthrough_request_schema_invalid"
+    },
+    {
+      request: {
+        id: "mcp-malformed",
+        method: "mcpServer/elicitation/request",
+        params: {
+          message: "Choose",
+          mode: "future-mode",
+          serverName: "fixture-mcp",
+          threadId: "thread-v2-1"
+        }
+      },
+      reason: "v2_passthrough_request_schema_invalid"
+    },
+    {
+      request: {
+        id: 72,
+        method: "currentTime/read",
+        params: { threadId: "thread-v2-1", currentTimeAt: 1781717655 }
+      },
+      reason: "v2_current_time_request_schema_invalid"
+    }
+  ];
+  for (const { request, reason } of malformedRequests) {
+    const malformed = createNormalizer().normalize(request);
+    assert.equal(malformed.status, "blocked");
+    if (malformed.status !== "blocked") continue;
+    assert.ok(malformed.reasons.includes(reason));
+  }
+
+  for (const method of ["future/request", "applyPatchApproval", "execCommandApproval"]) {
+    const unsupported = createNormalizer().normalize({
+      id: `unsupported-${method}`,
+      method,
+      params: {}
+    });
+    assert.equal(unsupported.status, "blocked");
+    if (unsupported.status !== "blocked") continue;
+    assert.ok(unsupported.reasons.includes("v2_server_request_unsupported"));
+  }
+});
+
+test("passthrough request replay, resolution correlation, and id collisions remain fail closed", () => {
+  const request = {
+    id: "user-input-replay",
+    method: "item/tool/requestUserInput",
+    params: {
+      itemId: "tool-item-1",
+      questions: [{ header: "Mode", id: "mode", question: "Choose" }],
+      threadId: "thread-v2-1",
+      turnId: "turn-v2-1"
+    }
+  };
+  const replayNormalizer = createNormalizer();
+  assert.equal(replayNormalizer.normalize(request).status, "passthrough");
+  const replay = replayNormalizer.normalize(request);
+  assert.equal(replay.status, "blocked");
+  if (replay.status !== "blocked") return;
+  assert.ok(replay.reasons.includes("v2_wire_event_replay"));
+
+  const mismatchNormalizer = createNormalizer();
+  assert.equal(mismatchNormalizer.normalize(request).status, "passthrough");
+  const mismatch = mismatchNormalizer.normalize({
+    method: "serverRequest/resolved",
+    params: { requestId: request.id, threadId: "thread-other" }
   });
-  assert.equal(malformed.status, "blocked");
-  if (malformed.status !== "blocked") return;
-  assert.ok(malformed.reasons.includes("v2_current_time_request_schema_invalid"));
+  assert.equal(mismatch.status, "blocked");
+  if (mismatch.status !== "blocked") return;
+  assert.ok(mismatch.reasons.includes("v2_request_resolved_correlation_failed"));
+
+  const passthroughFirst = createNormalizer();
+  assert.equal(passthroughFirst.normalize(request).status, "passthrough");
+  const [started, approval] = fileChangeFlow as unknown[];
+  assert.equal(passthroughFirst.normalize(started).status, "normalized");
+  const collidingApproval = structuredClone(approval) as { id: string };
+  collidingApproval.id = request.id;
+  const approvalCollision = passthroughFirst.normalize(collidingApproval);
+  assert.equal(approvalCollision.status, "blocked");
+  if (approvalCollision.status !== "blocked") return;
+  assert.ok(approvalCollision.reasons.includes("v2_request_id_collision"));
+
+  const approvalFirst = createNormalizer();
+  assert.equal(approvalFirst.normalize(started).status, "normalized");
+  assert.equal(approvalFirst.normalize(approval).status, "normalized");
+  const collidingPassthrough = structuredClone(request);
+  collidingPassthrough.id = "request-v2-1";
+  const passthroughCollision = approvalFirst.normalize(collidingPassthrough);
+  assert.equal(passthroughCollision.status, "blocked");
+  if (passthroughCollision.status !== "blocked") return;
+  assert.ok(passthroughCollision.reasons.includes("v2_request_id_collision"));
+});
+
+test("deep, oversized, and non-JSON passthrough payloads fail closed without throwing", () => {
+  let deeplyNested: unknown = null;
+  for (let depth = 0; depth < 10_000; depth += 1) {
+    deeplyNested = { nested: deeplyNested };
+  }
+  const deepRequest = {
+    id: "dynamic-tool-deep",
+    method: "item/tool/call",
+    params: {
+      arguments: deeplyNested,
+      callId: "call-deep",
+      threadId: "thread-v2-1",
+      tool: "fixture_tool",
+      turnId: "turn-v2-1"
+    }
+  };
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(deepRequest).success, false);
+  const deep = createNormalizer().normalize(deepRequest);
+  assert.equal(deep.status, "blocked");
+  if (deep.status !== "blocked") return;
+  assert.ok(deep.reasons.includes("v2_wire_payload_depth_exceeded"));
+
+  const oversized = createNormalizer().normalize({
+    id: "dynamic-tool-oversized",
+    method: "item/tool/call",
+    params: {
+      arguments: "x".repeat(9 * 1024 * 1024),
+      callId: "call-oversized",
+      threadId: "thread-v2-1",
+      tool: "fixture_tool",
+      turnId: "turn-v2-1"
+    }
+  });
+  assert.equal(oversized.status, "blocked");
+  if (oversized.status !== "blocked") return;
+  assert.ok(oversized.reasons.includes("v2_wire_payload_text_limit_exceeded"));
+
+  const cyclicArguments: { self?: unknown } = {};
+  cyclicArguments.self = cyclicArguments;
+  const cyclic = createNormalizer().normalize({
+    id: "dynamic-tool-cyclic",
+    method: "item/tool/call",
+    params: {
+      arguments: cyclicArguments,
+      callId: "call-cyclic",
+      threadId: "thread-v2-1",
+      tool: "fixture_tool",
+      turnId: "turn-v2-1"
+    }
+  });
+  assert.equal(cyclic.status, "blocked");
+  if (cyclic.status !== "blocked") return;
+  assert.ok(cyclic.reasons.includes("v2_wire_payload_not_json"));
+
+  let getterReads = 0;
+  const accessorArray: unknown[] = [];
+  Object.defineProperty(accessorArray, "0", {
+    enumerable: true,
+    get() {
+      getterReads += 1;
+      return { changing: getterReads };
+    }
+  });
+  const accessorRequest = {
+    id: "dynamic-tool-accessor",
+    method: "item/tool/call",
+    params: {
+      arguments: accessorArray,
+      callId: "call-accessor",
+      threadId: "thread-v2-1",
+      tool: "fixture_tool",
+      turnId: "turn-v2-1"
+    }
+  };
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(accessorRequest).success, false);
+  const accessor = createNormalizer().normalize(accessorRequest);
+  assert.equal(accessor.status, "blocked");
+  if (accessor.status !== "blocked") return;
+  assert.ok(accessor.reasons.includes("v2_wire_payload_not_json"));
+  assert.equal(getterReads, 0);
+
+  const wide = createNormalizer().normalize({
+    id: "dynamic-tool-wide",
+    method: "item/tool/call",
+    params: {
+      arguments: Array.from({ length: 50_001 }, () => null),
+      callId: "call-wide",
+      threadId: "thread-v2-1",
+      tool: "fixture_tool",
+      turnId: "turn-v2-1"
+    }
+  });
+  assert.equal(wide.status, "blocked");
+  if (wide.status !== "blocked") return;
+  assert.ok(wide.reasons.includes("v2_wire_payload_node_limit_exceeded"));
 });
 
 test("documented non-governance notifications are ignored without quarantining", () => {

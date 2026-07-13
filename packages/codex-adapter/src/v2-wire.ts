@@ -29,6 +29,23 @@ const TimestampMsSchema = z.number()
   .nonnegative()
   .refine(Number.isSafeInteger, "timestamp must be a safe integer");
 
+const MAX_V2_WIRE_JSON_DEPTH = 64;
+const MAX_V2_WIRE_JSON_NODES = 50_000;
+const MAX_V2_WIRE_JSON_TEXT_CODE_UNITS = 8 * 1024 * 1024;
+
+type V2JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | V2JsonValue[]
+  | { [key: string]: V2JsonValue };
+
+const V2JsonValueSchema = z.custom<V2JsonValue>(
+  (value) => inspectV2WireJsonValue(value).success,
+  "value must be bounded JSON"
+);
+
 const FullGitObjectIdSchema = z.string().regex(
   /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/,
   "baseHead must be a full Git object id"
@@ -287,6 +304,10 @@ const V2ThreadStatusSchema = z.union([
 
 const V2ThreadStatusChangedParamsSchema = z.object({
   status: V2ThreadStatusSchema,
+  threadId: z.string().min(1)
+}).strict();
+
+const V2ThreadClosedParamsSchema = z.object({
   threadId: z.string().min(1)
 }).strict();
 
@@ -553,6 +574,178 @@ const V2CurrentTimeReadParamsSchema = z.object({
   threadId: z.string().min(1)
 }).strict();
 
+const V2AttestationGenerateParamsSchema = z.object({}).strict();
+
+const V2ChatGptAuthTokensRefreshParamsSchema = z.object({
+  previousAccountId: z.string().min(1).nullable().optional(),
+  reason: z.literal("unauthorized")
+}).strict();
+
+const V2DynamicToolCallParamsSchema = z.object({
+  arguments: V2JsonValueSchema,
+  callId: z.string().min(1),
+  namespace: z.string().min(1).nullable().optional(),
+  threadId: z.string().min(1),
+  tool: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2ToolRequestUserInputOptionSchema = z.object({
+  description: z.string(),
+  label: z.string().min(1)
+}).strict();
+
+const V2ToolRequestUserInputQuestionSchema = z.object({
+  header: z.string().min(1),
+  id: z.string().min(1),
+  isOther: z.boolean().optional(),
+  isSecret: z.boolean().optional(),
+  options: z.array(V2ToolRequestUserInputOptionSchema).nullable().optional(),
+  question: z.string().min(1)
+}).strict();
+
+const V2ToolRequestUserInputParamsSchema = z.object({
+  autoResolutionMs: z.number()
+    .int()
+    .finite()
+    .nonnegative()
+    .refine(Number.isSafeInteger, "autoResolutionMs must be a safe integer")
+    .nullable()
+    .optional(),
+  itemId: z.string().min(1),
+  questions: z.array(V2ToolRequestUserInputQuestionSchema).min(1),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1)
+}).strict();
+
+const V2McpElicitationStringSchema = z.object({
+  default: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  format: z.enum(["email", "uri", "date", "date-time"]).nullable().optional(),
+  maxLength: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable().optional(),
+  minLength: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable().optional(),
+  title: z.string().nullable().optional(),
+  type: z.literal("string")
+}).strict();
+
+const V2McpElicitationNumberSchema = z.object({
+  default: z.number().finite().nullable().optional(),
+  description: z.string().nullable().optional(),
+  maximum: z.number().finite().nullable().optional(),
+  minimum: z.number().finite().nullable().optional(),
+  title: z.string().nullable().optional(),
+  type: z.enum(["number", "integer"])
+}).strict();
+
+const V2McpElicitationBooleanSchema = z.object({
+  default: z.boolean().nullable().optional(),
+  description: z.string().nullable().optional(),
+  title: z.string().nullable().optional(),
+  type: z.literal("boolean")
+}).strict();
+
+const V2McpUntitledStringEnumSchema = z.object({
+  default: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  enum: z.array(z.string()).min(1),
+  enumNames: z.array(z.string()).nullable().optional(),
+  title: z.string().nullable().optional(),
+  type: z.literal("string")
+}).strict();
+
+const V2McpTitledEnumValueSchema = z.object({
+  const: z.string(),
+  title: z.string()
+}).strict();
+
+const V2McpTitledStringEnumSchema = z.object({
+  default: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  oneOf: z.array(V2McpTitledEnumValueSchema).min(1),
+  title: z.string().nullable().optional(),
+  type: z.literal("string")
+}).strict();
+
+const V2McpUntitledMultiSelectEnumSchema = z.object({
+  default: z.array(z.string()).nullable().optional(),
+  description: z.string().nullable().optional(),
+  items: z.object({
+    enum: z.array(z.string()).min(1),
+    type: z.literal("string")
+  }).strict(),
+  maxItems: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable().optional(),
+  minItems: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable().optional(),
+  title: z.string().nullable().optional(),
+  type: z.literal("array")
+}).strict();
+
+const V2McpTitledMultiSelectEnumSchema = z.object({
+  default: z.array(z.string()).nullable().optional(),
+  description: z.string().nullable().optional(),
+  items: z.object({
+    anyOf: z.array(V2McpTitledEnumValueSchema).min(1)
+  }).strict(),
+  maxItems: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable().optional(),
+  minItems: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable().optional(),
+  title: z.string().nullable().optional(),
+  type: z.literal("array")
+}).strict();
+
+const V2McpElicitationPrimitiveSchema = z.union([
+  V2McpElicitationStringSchema,
+  V2McpElicitationNumberSchema,
+  V2McpElicitationBooleanSchema,
+  V2McpUntitledStringEnumSchema,
+  V2McpTitledStringEnumSchema,
+  V2McpUntitledMultiSelectEnumSchema,
+  V2McpTitledMultiSelectEnumSchema
+]);
+
+const V2McpElicitationRequestedSchema = z.object({
+  $schema: z.string().nullable().optional(),
+  properties: z.record(V2McpElicitationPrimitiveSchema),
+  required: z.array(z.string()).nullable().optional(),
+  type: z.literal("object")
+}).strict();
+
+const V2McpElicitationCommonParams = {
+  _meta: V2JsonValueSchema.nullable().optional(),
+  serverName: z.string().min(1),
+  threadId: z.string().min(1),
+  turnId: z.string().min(1).nullable().optional()
+};
+
+const V2McpServerElicitationRequestParamsSchema = z.discriminatedUnion("mode", [
+  z.object({
+    ...V2McpElicitationCommonParams,
+    message: z.string(),
+    mode: z.literal("form"),
+    requestedSchema: V2McpElicitationRequestedSchema
+  }).strict(),
+  z.object({
+    ...V2McpElicitationCommonParams,
+    message: z.string(),
+    mode: z.literal("openai/form"),
+    requestedSchema: V2JsonValueSchema
+  }).strict(),
+  z.object({
+    ...V2McpElicitationCommonParams,
+    elicitationId: z.string().min(1),
+    message: z.string(),
+    mode: z.literal("url"),
+    url: z.string().min(1)
+  }).strict()
+]);
+
+const V2PassthroughServerRequestMethodSchema = z.enum([
+  "item/tool/requestUserInput",
+  "mcpServer/elicitation/request",
+  "item/tool/call",
+  "account/chatgptAuthTokens/refresh",
+  "attestation/generate",
+  "currentTime/read"
+]);
+
 const V2NonGovernanceNotificationMethodSchema = z.enum([
   "turn/plan/updated",
   "model/safetyBuffering/updated",
@@ -566,7 +759,8 @@ const V2NonGovernanceNotificationMethodSchema = z.enum([
   "deprecationNotice",
   "configWarning",
   "mcpServer/startupStatus/updated",
-  "thread/compacted"
+  "thread/compacted",
+  "thread/closed"
 ]);
 
 /**
@@ -626,6 +820,10 @@ const V2NonGovernanceNotificationSchema = z.union([
   z.object({
     method: z.literal("thread/compacted"),
     params: V2ContextCompactedParamsSchema
+  }).strict(),
+  z.object({
+    method: z.literal("thread/closed"),
+    params: V2ThreadClosedParamsSchema
   }).strict()
 ]);
 
@@ -748,6 +946,50 @@ const V2CurrentTimeReadRequestSchema = z.object({
   trace: V2TraceContextSchema.optional()
 }).strict();
 
+const V2AttestationGenerateRequestSchema = z.object({
+  id: JsonRpcRequestIdSchema,
+  method: z.literal("attestation/generate"),
+  params: V2AttestationGenerateParamsSchema,
+  trace: V2TraceContextSchema.optional()
+}).strict();
+
+const V2ChatGptAuthTokensRefreshRequestSchema = z.object({
+  id: JsonRpcRequestIdSchema,
+  method: z.literal("account/chatgptAuthTokens/refresh"),
+  params: V2ChatGptAuthTokensRefreshParamsSchema,
+  trace: V2TraceContextSchema.optional()
+}).strict();
+
+const V2DynamicToolCallRequestSchema = z.object({
+  id: JsonRpcRequestIdSchema,
+  method: z.literal("item/tool/call"),
+  params: V2DynamicToolCallParamsSchema,
+  trace: V2TraceContextSchema.optional()
+}).strict();
+
+const V2ToolRequestUserInputRequestSchema = z.object({
+  id: JsonRpcRequestIdSchema,
+  method: z.literal("item/tool/requestUserInput"),
+  params: V2ToolRequestUserInputParamsSchema,
+  trace: V2TraceContextSchema.optional()
+}).strict();
+
+const V2McpServerElicitationRequestSchema = z.object({
+  id: JsonRpcRequestIdSchema,
+  method: z.literal("mcpServer/elicitation/request"),
+  params: V2McpServerElicitationRequestParamsSchema,
+  trace: V2TraceContextSchema.optional()
+}).strict();
+
+const V2PassthroughServerRequestSchema = z.union([
+  V2ToolRequestUserInputRequestSchema,
+  V2McpServerElicitationRequestSchema,
+  V2DynamicToolCallRequestSchema,
+  V2ChatGptAuthTokensRefreshRequestSchema,
+  V2AttestationGenerateRequestSchema,
+  V2CurrentTimeReadRequestSchema
+]);
+
 const V2ItemStartedWireSchema = z.object({
   method: z.literal("item/started"),
   params: V2ItemStartedParamsSchema
@@ -804,7 +1046,7 @@ export const CodexAppServerV2WireMessageSchema = z.union([
   V2FileChangeApprovalRequestSchema,
   V2CommandExecutionApprovalRequestSchema,
   V2PermissionsApprovalRequestSchema,
-  V2CurrentTimeReadRequestSchema,
+  V2PassthroughServerRequestSchema,
   V2ItemStartedWireSchema,
   V2ItemCompletedWireSchema,
   V2ServerRequestResolvedWireSchema,
@@ -909,7 +1151,7 @@ export type CodexAppServerV2NormalizationResult =
     }
   | {
       status: "passthrough";
-      request: z.infer<typeof V2CurrentTimeReadRequestSchema>;
+      request: z.infer<typeof V2PassthroughServerRequestSchema>;
     }
   | {
       status: "blocked";
@@ -949,6 +1191,11 @@ interface ApprovalBinding {
   resolved: boolean;
 }
 
+interface PassthroughResolutionBinding {
+  method: "item/tool/requestUserInput" | "mcpServer/elicitation/request";
+  threadId: string;
+}
+
 const EvidenceSchema = z.object({
   baseHead: FullGitObjectIdSchema,
   changes: z.array(z.object({
@@ -979,6 +1226,7 @@ export class CodexAppServerV2WireNormalizer {
   private readonly sequenceByTurn = new Map<string, number>();
   private readonly items = new Map<string, TrackedItem>();
   private readonly approvals = new Map<string, ApprovalBinding>();
+  private readonly passthroughResolutions = new Map<string, PassthroughResolutionBinding>();
   private sessionState: V2WireSessionState = "awaiting_initialize_response";
   private compromisedReason?: string;
   private disconnectEvent?: Extract<
@@ -1039,11 +1287,23 @@ export class CodexAppServerV2WireNormalizer {
   }
 
   normalize(input: unknown): CodexAppServerV2NormalizationResult {
+    try {
+      return this.normalizeUntrusted(input);
+    } catch {
+      return this.quarantine("v2_wire_normalization_failed");
+    }
+  }
+
+  private normalizeUntrusted(input: unknown): CodexAppServerV2NormalizationResult {
     if (this.compromisedReason !== undefined) {
       return this.quarantinedResult();
     }
     if (this.sessionState !== "ready") {
       return this.quarantine("v2_session_not_initialized");
+    }
+    const jsonInspection = inspectV2WireJsonValue(input);
+    if (!jsonInspection.success) {
+      return this.quarantine(jsonInspection.reason);
     }
     const response = V2JsonRpcResponseSchema.safeParse(input);
     if (response.success) {
@@ -1271,17 +1531,34 @@ export class CodexAppServerV2WireNormalizer {
         wireRequestId
       });
     }
-    if (method === "currentTime/read") {
-      const parsed = V2CurrentTimeReadRequestSchema.safeParse({
+    if (V2PassthroughServerRequestMethodSchema.safeParse(method).success) {
+      const parsed = V2PassthroughServerRequestSchema.safeParse({
         id: wireRequestId,
         method,
         params,
         ...(trace === undefined ? {} : { trace })
       });
       if (!parsed.success) {
-        return this.quarantine("v2_current_time_request_schema_invalid", {
-          method,
-          requestId
+        return this.quarantine(
+          method === "currentTime/read"
+            ? "v2_current_time_request_schema_invalid"
+            : "v2_passthrough_request_schema_invalid",
+          {
+            method,
+            requestId
+          }
+        );
+      }
+      if (
+        parsed.data.method === "item/tool/requestUserInput"
+        || parsed.data.method === "mcpServer/elicitation/request"
+      ) {
+        if (this.approvals.has(requestId) || this.passthroughResolutions.has(requestId)) {
+          return this.quarantine("v2_request_id_collision", { method, requestId });
+        }
+        this.passthroughResolutions.set(requestId, {
+          method: parsed.data.method,
+          threadId: parsed.data.params.threadId
         });
       }
       return { status: "passthrough", request: parsed.data };
@@ -1355,10 +1632,25 @@ export class CodexAppServerV2WireNormalizer {
         if (!parsed.success) {
           return this.quarantine("v2_thread_status_schema_invalid", { method });
         }
-        return parsed.data.params.status.type === "active"
-          || parsed.data.params.status.type === "idle"
-          ? { status: "ignored", method }
-          : this.quarantine("v2_thread_status_terminal", { method });
+        if (parsed.data.params.status.type === "systemError") {
+          return this.quarantine("v2_thread_status_terminal", { method });
+        }
+        if (
+          parsed.data.params.status.type === "notLoaded"
+          && this.threadHasOpenGovernance(parsed.data.params.threadId)
+        ) {
+          return this.quarantine("v2_thread_unloaded_with_open_governance", { method });
+        }
+        return { status: "ignored", method };
+      }
+      case "thread/closed": {
+        const parsed = V2ThreadClosedParamsSchema.safeParse(params);
+        if (!parsed.success) {
+          return this.quarantine("v2_non_governance_notification_schema_invalid", { method });
+        }
+        return this.threadHasOpenGovernance(parsed.data.threadId)
+          ? this.quarantine("v2_thread_unloaded_with_open_governance", { method })
+          : { status: "ignored", method };
       }
       case "turn/started": {
         const parsed = V2TurnStartedWireSchema.safeParse({ method, params });
@@ -1613,7 +1905,10 @@ export class CodexAppServerV2WireNormalizer {
     wireHash: string;
     wireRequestId: CodexAppServerV2JsonRpcRequestId;
   }): CodexAppServerV2NormalizationResult {
-    if (this.approvals.has(input.requestId)) {
+    if (
+      this.approvals.has(input.requestId)
+      || this.passthroughResolutions.has(input.requestId)
+    ) {
       return this.quarantine("v2_request_id_collision", {
         method: input.method,
         requestId: input.requestId,
@@ -1677,8 +1972,7 @@ export class CodexAppServerV2WireNormalizer {
         requestId
       });
     }
-    const existing = this.approvals.get(requestId);
-    if (existing !== undefined) {
+    if (this.approvals.has(requestId) || this.passthroughResolutions.has(requestId)) {
       return this.quarantine("v2_request_id_collision", {
         method: "item/fileChange/requestApproval",
         requestId
@@ -1717,6 +2011,17 @@ export class CodexAppServerV2WireNormalizer {
     wireHash: string
   ): CodexAppServerV2NormalizationResult {
     const requestId = canonicalRequestId(params.requestId);
+    const passthrough = this.passthroughResolutions.get(requestId);
+    if (passthrough !== undefined) {
+      if (passthrough.threadId !== params.threadId) {
+        return this.quarantine("v2_request_resolved_correlation_failed", {
+          method: "serverRequest/resolved",
+          requestId
+        });
+      }
+      this.passthroughResolutions.delete(requestId);
+      return { status: "ignored", method: "serverRequest/resolved" };
+    }
     const approval = this.approvals.get(requestId);
     if (
       approval === undefined
@@ -1746,6 +2051,20 @@ export class CodexAppServerV2WireNormalizer {
       resolution
     };
     return { status: "normalized", event };
+  }
+
+  private threadHasOpenGovernance(threadId: string): boolean {
+    for (const item of this.items.values()) {
+      if (item.threadId === threadId && !item.completed) {
+        return true;
+      }
+    }
+    for (const approval of this.approvals.values()) {
+      if (approval.threadId === threadId && !approval.resolved) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private normalizeItemCompleted(
@@ -2130,7 +2449,20 @@ export class CodexAppServerV2WireAdapter {
   }
 
   async ingest(input: unknown): Promise<CodexAppServerV2WireAdapterResult> {
-    const normalization = this.normalizer.normalize(input);
+    let normalization: CodexAppServerV2NormalizationResult;
+    try {
+      normalization = this.normalizer.normalize(input);
+    } catch {
+      const reason = "v2_wire_normalization_failed";
+      const reasons = [reason, "v2_session_quarantined"];
+      const outcome = await this.notifyDisconnect(reason);
+      return {
+        status: "blocked",
+        normalization: { status: "blocked", reasons },
+        ...(outcome === undefined ? {} : { outcome }),
+        reasons
+      };
+    }
     if (normalization.status === "normalized") {
       try {
         const outcome = await this.adapter.ingest(normalization.event);
@@ -2204,6 +2536,124 @@ export class CodexAppServerV2WireAdapter {
       return undefined;
     }
   }
+}
+
+type V2WireJsonInspection =
+  | { success: true }
+  | {
+      success: false;
+      reason:
+        | "v2_wire_payload_depth_exceeded"
+        | "v2_wire_payload_node_limit_exceeded"
+        | "v2_wire_payload_text_limit_exceeded"
+        | "v2_wire_payload_not_json";
+    };
+
+function inspectV2WireJsonValue(input: unknown): V2WireJsonInspection {
+  const stack: Array<{ value: unknown; depth: number }> = [{ value: input, depth: 0 }];
+  const seenObjects = new WeakSet<object>();
+  let nodes = 0;
+  let textCodeUnits = 0;
+
+  try {
+    while (stack.length > 0) {
+      const entry = stack.pop()!;
+      nodes += 1;
+      if (nodes > MAX_V2_WIRE_JSON_NODES) {
+        return { success: false, reason: "v2_wire_payload_node_limit_exceeded" };
+      }
+      if (entry.depth > MAX_V2_WIRE_JSON_DEPTH) {
+        return { success: false, reason: "v2_wire_payload_depth_exceeded" };
+      }
+
+      if (entry.value === null || typeof entry.value === "boolean") {
+        continue;
+      }
+      if (typeof entry.value === "number") {
+        if (!Number.isFinite(entry.value)) {
+          return { success: false, reason: "v2_wire_payload_not_json" };
+        }
+        continue;
+      }
+      if (typeof entry.value === "string") {
+        textCodeUnits += entry.value.length;
+        if (textCodeUnits > MAX_V2_WIRE_JSON_TEXT_CODE_UNITS) {
+          return { success: false, reason: "v2_wire_payload_text_limit_exceeded" };
+        }
+        continue;
+      }
+      if (typeof entry.value !== "object") {
+        return { success: false, reason: "v2_wire_payload_not_json" };
+      }
+      if (seenObjects.has(entry.value)) {
+        return { success: false, reason: "v2_wire_payload_not_json" };
+      }
+      seenObjects.add(entry.value);
+
+      if (Array.isArray(entry.value)) {
+        if (Object.getPrototypeOf(entry.value) !== Array.prototype) {
+          return { success: false, reason: "v2_wire_payload_not_json" };
+        }
+        if (
+          nodes + stack.length + entry.value.length
+          > MAX_V2_WIRE_JSON_NODES
+        ) {
+          return { success: false, reason: "v2_wire_payload_node_limit_exceeded" };
+        }
+        const keys = Reflect.ownKeys(entry.value);
+        if (
+          keys.length !== entry.value.length + 1
+          || !keys.includes("length")
+        ) {
+          return { success: false, reason: "v2_wire_payload_not_json" };
+        }
+        for (let index = entry.value.length - 1; index >= 0; index -= 1) {
+          const descriptor = Object.getOwnPropertyDescriptor(entry.value, String(index));
+          if (
+            descriptor === undefined
+            || !descriptor.enumerable
+            || !("value" in descriptor)
+          ) {
+            return { success: false, reason: "v2_wire_payload_not_json" };
+          }
+          stack.push({ value: descriptor.value, depth: entry.depth + 1 });
+        }
+        continue;
+      }
+
+      const prototype = Object.getPrototypeOf(entry.value);
+      if (prototype !== Object.prototype && prototype !== null) {
+        return { success: false, reason: "v2_wire_payload_not_json" };
+      }
+      const keys = Reflect.ownKeys(entry.value);
+      if (nodes + stack.length + keys.length > MAX_V2_WIRE_JSON_NODES) {
+        return { success: false, reason: "v2_wire_payload_node_limit_exceeded" };
+      }
+      for (let index = keys.length - 1; index >= 0; index -= 1) {
+        const key = keys[index]!;
+        if (typeof key !== "string") {
+          return { success: false, reason: "v2_wire_payload_not_json" };
+        }
+        const descriptor = Object.getOwnPropertyDescriptor(entry.value, key);
+        if (
+          descriptor === undefined
+          || !descriptor.enumerable
+          || !("value" in descriptor)
+        ) {
+          return { success: false, reason: "v2_wire_payload_not_json" };
+        }
+        textCodeUnits += key.length;
+        if (textCodeUnits > MAX_V2_WIRE_JSON_TEXT_CODE_UNITS) {
+          return { success: false, reason: "v2_wire_payload_text_limit_exceeded" };
+        }
+        stack.push({ value: descriptor.value, depth: entry.depth + 1 });
+      }
+    }
+  } catch {
+    return { success: false, reason: "v2_wire_payload_not_json" };
+  }
+
+  return { success: true };
 }
 
 function canonicalRequestId(id: CodexAppServerV2JsonRpcRequestId): string {

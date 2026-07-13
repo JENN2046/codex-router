@@ -94,15 +94,25 @@ Documented `turn/started` and `turn/completed` notifications use `{ turn }`; an
 optional `threadId` is compatibility metadata and is not required for the
 ignore path.
 
-The experimental `currentTime/read` server request is strictly validated as
-`{ id, method, params: { threadId }, trace? }` and returned as `passthrough`.
-It never enters `CodexAppServerAdapter`, never grants capability, and is not
-answered by codex-router. The owning App Server client must route that validated
-request to its external-clock handler and return the documented timestamp
-response before allowing later server requests on that turn, and must retain
-outstanding JSON-RPC request-id correlation itself. Malformed current-time
-requests, unknown request methods, and request replay still quarantine the
-session.
+The explicit non-governance server-request allowlist is
+`item/tool/requestUserInput`, `mcpServer/elicitation/request`, `item/tool/call`,
+`account/chatgptAuthTokens/refresh`, `attestation/generate`, and experimental
+`currentTime/read`. Each documented payload is strictly validated and returned
+as `passthrough`; these requests never enter `CodexAppServerAdapter`, never
+grant capability, and are not answered by codex-router. The owning App Server
+client must apply its own user-input, MCP, dynamic-tool, credential,
+attestation, or external-clock security boundary before answering. It also
+retains response correlation for the forwarded JSON-RPC request. For user-input
+and MCP elicitation requests, codex-router tracks the request id only so the
+documented matching `serverRequest/resolved` notification can be validated and
+ignored. Malformed passthrough requests, unknown or legacy approval request
+methods, request replay, and resolution drift still quarantine the session.
+Before hashing or schema parsing, every inbound wire message passes an
+iterative JSON-shape check capped at 64 levels, 50,000 values, and 8 MiB of
+string/key code units. Cycles, accessors, non-JSON values, or limit overflow
+quarantine the session without recursive parsing. Unexpected normalizer
+exceptions are also converted into transport disconnect/reconciliation rather
+than escaping the bridge.
 
 The v2 `item/started` payload does not carry a trusted Git HEAD or target
 hashes. Callers must inject an evidence provider that returns one full HEAD and
@@ -140,9 +150,13 @@ malformed progress or an unknown notification method still quarantines the v2
 session. Repeated valid ignored chunks are not replay failures:
 replay protection remains on request-id messages and governed file
 lifecycle/resolution events. Normal `thread/status/changed` transitions to
-`active` or `idle` are validated and ignored; `systemError`, `notLoaded`,
-unknown status variants, and malformed status payloads quarantine the session.
-The deprecated `thread/compacted` diagnostic is also validated and ignored.
+`active`, `idle`, or `notLoaded` are validated and ignored; the paired
+`thread/closed` notification emitted by routine idle unload is also validated
+and ignored when that thread has no open governed item or approval. An unload
+or close with open governance quarantines the session for reconciliation;
+`systemError`, unknown status variants, and malformed status or close payloads
+also quarantine it. The deprecated `thread/compacted` diagnostic is validated
+and ignored.
 The documented `turn/plan/updated` shape is keyed by `turnId` (optional
 `threadId` is compatibility metadata). Plan, token-usage, model
 buffering/reroute/verification, moderation, error, and warning diagnostics are
