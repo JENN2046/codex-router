@@ -72,7 +72,10 @@ const TurnEventBaseSchema = NormalizedEventBaseSchema.extend({
 });
 
 export const CodexApprovalProposalSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("file_change") }).strict(),
+  z.object({
+    kind: z.literal("file_change"),
+    grantRoot: z.string().min(1).optional()
+  }).strict(),
   z.object({
     kind: z.literal("command"),
     argv: z.array(z.string()).min(1),
@@ -846,6 +849,19 @@ export class CodexAppServerAdapter {
         itemId: event.itemId,
         lifecycleState: item.state,
         authorizationDecision: authorization
+      });
+    }
+    if (event.proposal.grantRoot !== undefined) {
+      transitionItem(item, "awaiting_approval");
+      return this.outcome("manual_required", uniqueStrings([
+        ...authorization.reasons,
+        "file_change_grant_root_requires_human_approval"
+      ]), {
+        requestId: event.requestId,
+        itemId: event.itemId,
+        lifecycleState: item.state,
+        authorizationDecision: authorization,
+        approvalProposal: event.proposal
       });
     }
     if (authorization.approvalMode !== "policy_auto") {

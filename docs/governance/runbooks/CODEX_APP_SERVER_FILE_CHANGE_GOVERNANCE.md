@@ -79,6 +79,11 @@ manual-only codecs described below.
 
 Approval request `startedAtMs` is optional compatibility metadata: when present
 it is strictly validated, but the governance correlation does not require it.
+The documented unstable file-approval `grantRoot` field is not wire compromise:
+it is preserved in the operator-visible `file_change` proposal and forces
+`manual_required`. Codex-router never policy-auto approves the session-scoped
+root request and never emits `acceptForSession`; an operator decline is encoded
+as the ordinary file-approval `{ decision: "decline" }` response.
 
 The normalizer is not ready until the exact `initialize` response for its bound
 request id has been accepted and the client `initialized` notification has been
@@ -105,7 +110,11 @@ attestation, or external-clock security boundary before answering. It also
 retains response correlation for the forwarded JSON-RPC request. For user-input
 and MCP elicitation requests, codex-router tracks the request id only so the
 documented matching `serverRequest/resolved` notification can be validated and
-ignored. Malformed passthrough requests, unknown or legacy approval request
+ignored. MCP elicitation metadata accepts both the public README's `meta` and
+the generated protocol schema's `_meta` spelling, but they are mutually
+exclusive within one request. Either value must still pass the bounded JSON
+validator and is never interpreted as capability or approval.
+Malformed passthrough requests, unknown or legacy approval request
 methods, request replay, and resolution drift still quarantine the session.
 Before hashing or schema parsing, every inbound wire message passes an
 iterative JSON-shape check capped at 64 levels, 50,000 values, and 8 MiB of

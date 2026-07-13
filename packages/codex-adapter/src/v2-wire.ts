@@ -226,7 +226,7 @@ type V2FileChangeItemCompletedParams = Omit<V2ItemCompletedParams, "item"> & {
 };
 
 export const CodexAppServerV2FileChangeApprovalParamsSchema = z.object({
-  grantRoot: z.string().nullable().optional(),
+  grantRoot: z.string().min(1).nullable().optional(),
   itemId: z.string().min(1),
   reason: z.string().nullable().optional(),
   // The README's approval payloads omit this lifecycle timestamp. Accept it
@@ -710,6 +710,10 @@ const V2McpElicitationRequestedSchema = z.object({
 
 const V2McpElicitationCommonParams = {
   _meta: V2JsonValueSchema.nullable().optional(),
+  // The generated protocol schema currently emits `_meta`, while the public
+  // App Server README documents `meta` for MCP approval hints. Preserve either
+  // spelling for the owning client; neither value is an authorization input.
+  meta: V2JsonValueSchema.nullable().optional(),
   serverName: z.string().min(1),
   threadId: z.string().min(1),
   turnId: z.string().min(1).nullable().optional()
@@ -735,7 +739,15 @@ const V2McpServerElicitationRequestParamsSchema = z.discriminatedUnion("mode", [
     mode: z.literal("url"),
     url: z.string().min(1)
   }).strict()
-]);
+]).superRefine((params, context) => {
+  if (params.meta !== undefined && params._meta !== undefined) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "meta and _meta cannot both be present",
+      path: ["meta"]
+    });
+  }
+});
 
 const V2PassthroughServerRequestMethodSchema = z.enum([
   "item/tool/requestUserInput",
@@ -1966,12 +1978,6 @@ export class CodexAppServerV2WireNormalizer {
         itemId: params.itemId
       });
     }
-    if (params.grantRoot !== undefined && params.grantRoot !== null) {
-      return this.quarantine("v2_file_approval_grant_root_unsupported", {
-        method: "item/fileChange/requestApproval",
-        requestId
-      });
-    }
     if (this.approvals.has(requestId) || this.passthroughResolutions.has(requestId)) {
       return this.quarantine("v2_request_id_collision", {
         method: "item/fileChange/requestApproval",
@@ -1998,7 +2004,12 @@ export class CodexAppServerV2WireNormalizer {
       turnId: params.turnId,
       requestId,
       itemId: params.itemId,
-      proposal: { kind: "file_change" },
+      proposal: {
+        kind: "file_change",
+        ...(params.grantRoot === undefined || params.grantRoot === null
+          ? {}
+          : { grantRoot: params.grantRoot })
+      },
       ...(params.reason === undefined || params.reason === null
         ? {}
         : { semanticContext: params.reason })

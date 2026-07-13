@@ -212,6 +212,111 @@ test("v2 raw wire flows through the normalizer into the governed adapter", async
   }
 });
 
+test("v2 grantRoot file approvals stay manual and can be declined without quarantine", async () => {
+  let head: string | undefined;
+  let beforeHash: string | undefined;
+  let afterHash: string | undefined;
+  const wireResponses: unknown[] = [];
+  const normalizer = new CodexAppServerV2WireNormalizer({
+    initializeRequestId: "initialize-v2-1",
+    schemaProfileId: "fake-v2",
+    fileChangeEvidence: ({ changes }) => {
+      if (head === undefined || beforeHash === undefined || afterHash === undefined) {
+        return undefined;
+      }
+      return {
+        baseHead: head,
+        changes: changes.map((change) => ({
+          path: change.path,
+          beforeHash: change.kind === "add" ? null : beforeHash!,
+          afterHash: change.kind === "delete" ? null : afterHash!
+        }))
+      };
+    }
+  });
+  const wireTransport = new CodexAppServerV2WireTransport({
+    normalizer,
+    async send(message) {
+      wireResponses.push(message);
+    }
+  });
+  const fixture = await createAdapterFixture({ transportOverride: wireTransport });
+  head = fixture.head;
+  beforeHash = fixture.beforeHash;
+  afterHash = fixture.afterHash;
+
+  try {
+    const bridge = new CodexAppServerV2WireAdapter({
+      adapter: fixture.adapter,
+      normalizer
+    });
+    assert.equal(
+      (await bridge.acceptInitializeResponse(v2InitializeResponse())).status,
+      "initialize_response_accepted"
+    );
+    assert.equal(
+      (await bridge.acceptInitializedNotification({ method: "initialized" })).status,
+      "initialized"
+    );
+
+    const [started, approval] = v2WireFileChangeFlowFixture as unknown[];
+    const proposed = await bridge.ingest(started);
+    assert.equal(proposed.status, "normalized");
+    if (proposed.status !== "normalized") return;
+    assert.equal(proposed.outcome.status, "proposed");
+
+    const grantRootApproval = structuredClone(approval) as {
+      params: { grantRoot?: string };
+    };
+    grantRootApproval.params.grantRoot = "/tmp/codex-router-session-root";
+    const manual = await bridge.ingest(grantRootApproval);
+    assert.equal(manual.status, "normalized");
+    if (manual.status !== "normalized") return;
+    assert.equal(manual.outcome.status, "manual_required");
+    assert.ok(manual.outcome.reasons.includes(
+      "file_change_grant_root_requires_human_approval"
+    ));
+    assert.deepEqual(manual.outcome.approvalProposal, {
+      kind: "file_change",
+      grantRoot: "/tmp/codex-router-session-root"
+    });
+    assert.equal(manual.outcome.previewReceipt, undefined);
+    assert.equal(wireResponses.length, 0);
+    assert.equal(fixture.adapter.getItemSnapshot(
+      "thread-v2-1",
+      "turn-v2-1",
+      "item-v2-1"
+    )?.state, "awaiting_approval");
+
+    const declined = await fixture.adapter.resolveHumanApproval({
+      requestId: "request-v2-1",
+      decision: "decline",
+      operatorId: "operator-jenn",
+      nonce: "grant-root-decline"
+    });
+    assert.equal(declined.status, "blocked");
+    assert.ok(declined.reasons.includes("operator_declined"));
+    assert.deepEqual(wireResponses, [{
+      id: "request-v2-1",
+      result: { decision: "decline" }
+    }]);
+    assert.equal(fixture.adapter.getItemSnapshot(
+      "thread-v2-1",
+      "turn-v2-1",
+      "item-v2-1"
+    )?.state, "blocked");
+    assert.equal(await readFile(join(fixture.repoRoot, "docs/guide.md"), "utf8"), "old\n");
+
+    assert.equal((await bridge.ingest({
+      id: "current-time-after-grant-root",
+      method: "currentTime/read",
+      params: { threadId: "thread-v2-1" }
+    })).status, "passthrough");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapter", async () => {
   const fixture = await createAdapterFixture();
   try {
@@ -488,6 +593,10 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
         id: "mcp-elicitation-bridge-1",
         method: "mcpServer/elicitation/request",
         params: {
+          meta: {
+            codex_approval_kind: "mcp_tool_call",
+            persist: "session"
+          },
           message: "Confirm",
           mode: "form",
           requestedSchema: {

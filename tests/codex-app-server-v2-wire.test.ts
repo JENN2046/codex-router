@@ -124,6 +124,53 @@ test("v2 wire normalizer binds item, approval, resolution, and completion", asyn
   assert.equal(completedResult.event.sequence, 4);
 });
 
+test("grantRoot file approvals remain manual-capable without quarantining the wire session", () => {
+  const normalizer = createNormalizer();
+  const [started, approval] = fileChangeFlow as unknown[];
+  assert.equal(normalizer.normalize(started).status, "normalized");
+
+  const grantRootApproval = structuredClone(approval) as {
+    params: { grantRoot?: string };
+  };
+  grantRootApproval.params.grantRoot = "/tmp/codex-router-session-root";
+  assert.equal(CodexAppServerV2WireMessageSchema.safeParse(grantRootApproval).success, true);
+
+  const requested = normalizer.normalize(grantRootApproval);
+  assert.equal(requested.status, "normalized");
+  if (requested.status !== "normalized") return;
+  assert.equal(requested.event.eventType, "approval_requested");
+  if (requested.event.eventType !== "approval_requested") return;
+  assert.deepEqual(requested.event.proposal, {
+    kind: "file_change",
+    grantRoot: "/tmp/codex-router-session-root"
+  });
+  assert.equal(CodexAppServerNormalizedEventSchema.safeParse(requested.event).success, true);
+
+  assert.deepEqual(normalizer.encodeApprovalResponse(response("request-v2-1", "decline")), {
+    status: "encoded",
+    message: {
+      id: "request-v2-1",
+      result: { decision: "decline" }
+    }
+  });
+  assert.equal(normalizer.normalize({
+    id: "current-time-after-grant-root",
+    method: "currentTime/read",
+    params: { threadId: "thread-v2-1" }
+  }).status, "passthrough");
+
+  const emptyRootNormalizer = createNormalizer();
+  assert.equal(emptyRootNormalizer.normalize(started).status, "normalized");
+  const emptyRootApproval = structuredClone(approval) as {
+    params: { grantRoot?: string };
+  };
+  emptyRootApproval.params.grantRoot = "";
+  const emptyRoot = emptyRootNormalizer.normalize(emptyRootApproval);
+  assert.equal(emptyRoot.status, "blocked");
+  if (emptyRoot.status !== "blocked") return;
+  assert.ok(emptyRoot.reasons.includes("v2_file_approval_schema_invalid"));
+});
+
 test("ordinary JSON-RPC responses and documented turn snapshots are ignored", () => {
   const normalizer = createNormalizer();
   const responses = [
@@ -926,7 +973,10 @@ test("documented non-governance server requests are validated and passed through
       id: "mcp-form-1",
       method: "mcpServer/elicitation/request",
       params: {
-        _meta: null,
+        meta: {
+          codex_approval_kind: "mcp_tool_call",
+          persist: ["session", "always"]
+        },
         message: "Confirm the operation",
         mode: "form",
         requestedSchema: {
@@ -951,6 +1001,7 @@ test("documented non-governance server requests are validated and passed through
       id: "mcp-openai-form-1",
       method: "mcpServer/elicitation/request",
       params: {
+        _meta: { source: "generated-protocol" },
         message: "Collect structured input",
         mode: "openai/form",
         requestedSchema: {
@@ -1082,6 +1133,43 @@ test("documented non-governance server requests are validated and passed through
         params: {
           message: "Choose",
           mode: "future-mode",
+          serverName: "fixture-mcp",
+          threadId: "thread-v2-1"
+        }
+      },
+      reason: "v2_passthrough_request_schema_invalid"
+    },
+    {
+      request: {
+        id: "mcp-meta-misspelled",
+        method: "mcpServer/elicitation/request",
+        params: {
+          message: "Choose",
+          metadata: { codex_approval_kind: "mcp_tool_call" },
+          mode: "form",
+          requestedSchema: {
+            properties: { approved: { type: "boolean" } },
+            type: "object"
+          },
+          serverName: "fixture-mcp",
+          threadId: "thread-v2-1"
+        }
+      },
+      reason: "v2_passthrough_request_schema_invalid"
+    },
+    {
+      request: {
+        id: "mcp-meta-alias-conflict",
+        method: "mcpServer/elicitation/request",
+        params: {
+          _meta: { source: "generated-protocol" },
+          message: "Choose",
+          meta: { codex_approval_kind: "mcp_tool_call" },
+          mode: "form",
+          requestedSchema: {
+            properties: { approved: { type: "boolean" } },
+            type: "object"
+          },
           serverName: "fixture-mcp",
           threadId: "thread-v2-1"
         }
