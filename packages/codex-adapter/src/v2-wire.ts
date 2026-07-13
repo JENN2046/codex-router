@@ -1541,6 +1541,9 @@ export class CodexAppServerV2WireNormalizer {
                 || parsed.data.params.environmentId === null
                 ? {}
                 : { environmentId: parsed.data.params.environmentId }),
+              ...(networkApprovalContext === undefined || networkApprovalContext === null
+                ? {}
+                : { networkApprovalContext }),
               ...(parsed.data.params.additionalPermissions === undefined
                 || parsed.data.params.additionalPermissions === null
                 ? {}

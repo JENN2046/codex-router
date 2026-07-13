@@ -1756,7 +1756,7 @@ test("MCP startup and auto-review notifications validate every documented varian
   assert.ok(invalidReview.reasons.includes("v2_progress_notification_schema_invalid"));
 });
 
-test("command and permission wire approvals become manual-only normalized events", () => {
+test("mixed command/network and permission wire approvals preserve manual proposal scope", () => {
   const normalizer = createNormalizer();
   const command = normalizer.normalize({
     id: "command-request",
@@ -1778,6 +1778,10 @@ test("command and permission wire approvals become manual-only normalized events
       availableDecisions: ["accept", "decline"],
       environmentId: "local",
       itemId: "item-command",
+      networkApprovalContext: {
+        host: "registry.example.test",
+        protocol: "https"
+      },
       reason: "operator review",
       startedAtMs: 1762732800100,
       threadId: "thread-command",
@@ -1791,6 +1795,10 @@ test("command and permission wire approvals become manual-only normalized events
     argv: ["npm test"],
     cwd: "/tmp/codex-router",
     environmentId: "local",
+    networkApprovalContext: {
+      host: "registry.example.test",
+      protocol: "https"
+    },
     requestedPermissionScope: "{\"fileSystem\":{\"entries\":[{\"access\":\"none\",\"path\":{\"path\":\"/tmp/codex-router/private\",\"type\":\"path\"}}],\"read\":[\"/tmp/codex-router/docs\"],\"write\":null},\"network\":{\"enabled\":true}}"
   });
   assert.deepEqual(

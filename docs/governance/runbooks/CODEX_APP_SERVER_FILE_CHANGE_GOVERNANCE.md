@@ -133,8 +133,11 @@ move paths, and invalid hash semantics fail closed; the normalizer never
 derives these values from a turn diff.
 
 The wire transport maps only internal `accept`/`decline` decisions. File,
-command, and network approvals use `{ id, result: { decision } }`. A permission
-accept must carry an explicit operator-selected `permissionGrant`; both the
+command, and network approvals use `{ id, result: { decision } }`. When a
+command approval also carries `networkApprovalContext`, the manual command
+proposal preserves the exact `host` and `protocol`; operators must never be
+shown a command proposal that hides its accompanying network target. A
+permission accept must carry an explicit operator-selected `permissionGrant`; both the
 adapter and wire normalizer verify that every selected field, root, and entry
 is a permission-monotone subset of the requested permission profile before
 sending it. Write roots and entries may be narrowed. Read roots and entries may

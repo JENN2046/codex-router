@@ -87,6 +87,10 @@ export const CodexApprovalProposalSchema = z.discriminatedUnion("kind", [
     argv: z.array(z.string()).min(1),
     cwd: z.string().min(1).optional(),
     environmentId: z.string().min(1).optional(),
+    networkApprovalContext: z.object({
+      host: z.string().min(1),
+      protocol: z.enum(["http", "https", "socks5Tcp", "socks5Udp"])
+    }).strict().optional(),
     requestedPermissionScope: z.string().min(1).optional()
   }).strict(),
   z.object({

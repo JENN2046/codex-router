@@ -726,7 +726,7 @@ test("v2 wire disconnect reconciles an open adapter item and blocks later messag
   }
 });
 
-test("v2 raw command and permission approvals stay manual-only in the adapter", async () => {
+test("v2 raw mixed command/network and permission approvals stay fully visible and manual-only", async () => {
   const fixture = await createAdapterFixture();
   try {
     const bridge = createV2WireBridge(fixture);
@@ -748,6 +748,10 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
         cwd: "/tmp/codex-router",
         environmentId: "local",
         itemId: "raw-command-item",
+        networkApprovalContext: {
+          host: "registry.example.test",
+          protocol: "https"
+        },
         reason: "operator review",
         startedAtMs: 1762732800100,
         threadId: "raw-command-thread",
@@ -762,6 +766,10 @@ test("v2 raw command and permission approvals stay manual-only in the adapter", 
       argv: ["npm test"],
       cwd: "/tmp/codex-router",
       environmentId: "local",
+      networkApprovalContext: {
+        host: "registry.example.test",
+        protocol: "https"
+      },
       requestedPermissionScope: "{\"fileSystem\":{\"read\":[\"/tmp/codex-router/docs\"],\"write\":null},\"network\":null}"
     });
     assert.equal(fixture.transport.messages.length, 0);
