@@ -432,10 +432,7 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
       {
         method: "error",
         params: {
-          error: { message: "upstream retry" },
-          threadId: "thread-non-governance",
-          turnId: "turn-non-governance",
-          willRetry: true
+          error: { message: "upstream quota limit" }
         }
       },
       {

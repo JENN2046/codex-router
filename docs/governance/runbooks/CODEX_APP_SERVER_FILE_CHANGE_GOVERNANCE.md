@@ -146,7 +146,11 @@ The deprecated `thread/compacted` diagnostic is also validated and ignored.
 The documented `turn/plan/updated` shape is keyed by `turnId` (optional
 `threadId` is compatibility metadata). Plan, token-usage, model
 buffering/reroute/verification, moderation, error, and warning diagnostics are
-validated and ignored. MCP startup status and approval auto-review
+validated and ignored. The `error` diagnostic accepts either the documented
+exact `{ error }` payload or the complete generated-protocol
+`{ error, threadId, turnId, willRetry }` payload; partial correlation metadata,
+malformed errors, and unknown fields still quarantine the session. MCP startup
+status and approval auto-review
 start/completion events are also validated and ignored; auto-review status,
 risk, or authorization hints never grant capability or bypass the manual
 command/permission boundary. The `collabToolCall` ThreadItem tag is accepted

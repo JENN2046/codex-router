@@ -938,6 +938,12 @@ test("documented non-governance notifications are ignored without quarantining",
     {
       method: "error",
       params: {
+        error: { message: "upstream quota limit" }
+      }
+    },
+    {
+      method: "error",
+      params: {
         error: { message: "upstream retry" },
         threadId: "thread-non-governance",
         turnId: "turn-non-governance",
@@ -1006,6 +1012,63 @@ test("documented non-governance notifications are ignored without quarantining",
   if (malformed.status !== "blocked") return;
   assert.ok(malformed.reasons.includes("v2_non_governance_notification_schema_invalid"));
   assert.ok(malformed.reasons.includes("v2_session_quarantined"));
+});
+
+test("error diagnostics accept only the documented minimal or complete correlated payload", () => {
+  for (const message of [
+    {
+      method: "error",
+      params: {
+        error: {
+          additionalDetails: null,
+          codexErrorInfo: "usageLimitExceeded",
+          message: "quota exceeded"
+        }
+      }
+    },
+    {
+      method: "error",
+      params: {
+        error: { message: "upstream retry" },
+        threadId: "thread-error",
+        turnId: "turn-error",
+        willRetry: true
+      }
+    }
+  ]) {
+    const normalizer = createNormalizer();
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(message).success, true);
+    assert.deepEqual(normalizer.normalize(message), {
+      status: "ignored",
+      method: "error"
+    });
+
+    const [started] = fileChangeFlow as unknown[];
+    assert.equal(normalizer.normalize(started).status, "normalized");
+  }
+
+  for (const params of [
+    {
+      error: { message: "partial correlation" },
+      threadId: "thread-error"
+    },
+    {
+      error: { message: "" }
+    },
+    {
+      error: { message: "unknown field" },
+      unexpected: true
+    }
+  ]) {
+    const normalizer = createNormalizer();
+    const message = { method: "error", params };
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(message).success, false);
+    const result = normalizer.normalize(message);
+    assert.equal(result.status, "blocked");
+    if (result.status !== "blocked") continue;
+    assert.ok(result.reasons.includes("v2_non_governance_notification_schema_invalid"));
+    assert.ok(result.reasons.includes("v2_session_quarantined"));
+  }
 });
 
 test("MCP startup and auto-review notifications validate every documented variant", () => {

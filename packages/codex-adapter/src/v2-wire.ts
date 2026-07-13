@@ -327,17 +327,28 @@ const V2ModelReroutedParamsSchema = z.object({
   turnId: z.string().min(1)
 }).strict();
 
-const V2ErrorNotificationParamsSchema = z.object({
-  error: z.object({
-    additionalDetails: z.string().nullable().optional(),
-    // Error metadata is diagnostic only and does not affect governance.
-    codexErrorInfo: z.unknown().nullable().optional(),
-    message: z.string().min(1)
-  }).strict(),
-  threadId: z.string().min(1),
-  turnId: z.string().min(1),
-  willRetry: z.boolean()
+const V2TurnErrorSchema = z.object({
+  additionalDetails: z.string().nullable().optional(),
+  // Error metadata is diagnostic only and does not affect governance.
+  codexErrorInfo: z.unknown().nullable().optional(),
+  message: z.string().min(1)
 }).strict();
+
+const V2ErrorNotificationParamsSchema = z.union([
+  // The Events/Errors documentation defines the notification with the same
+  // error-only payload carried by a failed turn status.
+  z.object({
+    error: V2TurnErrorSchema
+  }).strict(),
+  // Generated protocol snapshots also expose correlation/retry metadata.
+  // Accept that complete shape without accepting arbitrary partial variants.
+  z.object({
+    error: V2TurnErrorSchema,
+    threadId: z.string().min(1),
+    turnId: z.string().min(1),
+    willRetry: z.boolean()
+  }).strict()
+]);
 
 const V2ThreadTokenUsageUpdatedParamsSchema = z.object({
   threadId: z.string().min(1),
