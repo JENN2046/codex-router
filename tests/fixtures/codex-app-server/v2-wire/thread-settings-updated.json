@@ -1,0 +1,47 @@
+{
+  "method": "thread/settings/updated",
+  "params": {
+    "threadId": "thread-v2-1",
+    "threadSettings": {
+      "activePermissionProfile": {
+        "extends": null,
+        "id": ":workspace"
+      },
+      "approvalPolicy": {
+        "granular": {
+          "mcp_elicitations": true,
+          "request_permissions": true,
+          "rules": true,
+          "sandbox_approval": true,
+          "skill_approval": false
+        }
+      },
+      "approvalsReviewer": "user",
+      "collaborationMode": {
+        "mode": "default",
+        "settings": {
+          "developer_instructions": null,
+          "model": "gpt-test",
+          "reasoning_effort": "medium"
+        }
+      },
+      "cwd": "/tmp/codex-router",
+      "effort": "medium",
+      "model": "gpt-test",
+      "modelProvider": "openai",
+      "multiAgentMode": "explicitRequestOnly",
+      "personality": "pragmatic",
+      "sandboxPolicy": {
+        "excludeSlashTmp": true,
+        "excludeTmpdirEnvVar": true,
+        "networkAccess": false,
+        "type": "workspaceWrite",
+        "writableRoots": [
+          "/tmp/codex-router"
+        ]
+      },
+      "serviceTier": null,
+      "summary": "concise"
+    }
+  }
+}

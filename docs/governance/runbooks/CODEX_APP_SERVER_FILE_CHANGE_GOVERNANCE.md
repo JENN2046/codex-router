@@ -97,7 +97,10 @@ error envelopes remain fail-closed. Optional W3C `trace` metadata is strictly
 validated only on server requests and is never an authorization input.
 Documented `turn/started` and `turn/completed` notifications use `{ turn }`; an
 optional `threadId` is compatibility metadata and is not required for the
-ignore path.
+ignore path. Experimental `thread/settings/updated` is also a diagnostic-only
+notification: codex-router validates its `threadId` and complete effective
+`threadSettings` snapshot, then ignores it without changing capability,
+authorization, preview, or approval state.
 
 The explicit non-governance server-request allowlist is
 `item/tool/requestUserInput`, `mcpServer/elicitation/request`, `item/tool/call`,

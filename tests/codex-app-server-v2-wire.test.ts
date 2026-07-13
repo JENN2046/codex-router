@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fileChangeFlow from "./fixtures/codex-app-server/v2-wire/file-change-flow.json" with { type: "json" };
+import threadSettingsUpdated from "./fixtures/codex-app-server/v2-wire/thread-settings-updated.json" with { type: "json" };
 import {
   CodexAppServerNormalizedEventSchema,
   CodexAppServerV2WireAdapter,
@@ -1354,6 +1355,7 @@ test("deep, oversized, and non-JSON passthrough payloads fail closed without thr
 test("documented non-governance notifications are ignored without quarantining", () => {
   const normalizer = createNormalizer();
   const messages = [
+    threadSettingsUpdated,
     {
       method: "turn/plan/updated",
       params: {
@@ -1468,7 +1470,7 @@ test("documented non-governance notifications are ignored without quarantining",
       method: message.method
     });
   }
-  assert.deepEqual(normalizer.normalize(messages[0]), {
+  assert.deepEqual(normalizer.normalize(messages[1]), {
     status: "ignored",
     method: "turn/plan/updated"
   });
@@ -1485,6 +1487,62 @@ test("documented non-governance notifications are ignored without quarantining",
   if (malformed.status !== "blocked") return;
   assert.ok(malformed.reasons.includes("v2_non_governance_notification_schema_invalid"));
   assert.ok(malformed.reasons.includes("v2_session_quarantined"));
+});
+
+test("thread settings updates are validated and ignored before file approvals", () => {
+  const normalizer = createNormalizer();
+  assert.equal(
+    CodexAppServerV2WireMessageSchema.safeParse(threadSettingsUpdated).success,
+    true
+  );
+  assert.deepEqual(normalizer.normalize(threadSettingsUpdated), {
+    status: "ignored",
+    method: "thread/settings/updated"
+  });
+
+  const [started, approval] = fileChangeFlow as unknown[];
+  assert.equal(normalizer.normalize(started).status, "normalized");
+  const approvalResult = normalizer.normalize(approval);
+  assert.equal(approvalResult.status, "normalized");
+  if (approvalResult.status !== "normalized") return;
+  assert.equal(approvalResult.event.eventType, "approval_requested");
+
+  type MutableThreadSettingsNotification = {
+    params: {
+      threadId?: string;
+      threadSettings: {
+        model?: string;
+        sandboxPolicy: { type: string };
+        unexpected?: boolean;
+      };
+    };
+  };
+  const mutations: Array<(message: MutableThreadSettingsNotification) => void> = [
+    (message) => {
+      delete message.params.threadId;
+    },
+    (message) => {
+      delete message.params.threadSettings.model;
+    },
+    (message) => {
+      message.params.threadSettings.sandboxPolicy.type = "futureSandbox";
+    },
+    (message) => {
+      message.params.threadSettings.unexpected = true;
+    }
+  ];
+  for (const mutate of mutations) {
+    const malformed = structuredClone(
+      threadSettingsUpdated
+    ) as MutableThreadSettingsNotification;
+    mutate(malformed);
+    assert.equal(CodexAppServerV2WireMessageSchema.safeParse(malformed).success, false);
+    const result = createNormalizer().normalize(malformed);
+    assert.equal(result.status, "blocked");
+    if (result.status !== "blocked") continue;
+    assert.ok(result.reasons.includes("v2_non_governance_notification_schema_invalid"));
+    assert.ok(result.reasons.includes("v2_session_quarantined"));
+  }
 });
 
 test("error diagnostics accept only the documented minimal or complete correlated payload", () => {

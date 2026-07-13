@@ -16,6 +16,7 @@ import { promisify } from "node:util";
 import sessionAttestationFixture from "./fixtures/codex-app-server/fake-v2/session-attestation.json" with { type: "json" };
 import fileChangeFlowFixture from "./fixtures/codex-app-server/fake-v2/file-change-flow.json" with { type: "json" };
 import v2WireFileChangeFlowFixture from "./fixtures/codex-app-server/v2-wire/file-change-flow.json" with { type: "json" };
+import v2ThreadSettingsUpdatedFixture from "./fixtures/codex-app-server/v2-wire/thread-settings-updated.json" with { type: "json" };
 import {
   CodexAppServerAdapter,
   CodexSdkAdapter,
@@ -468,6 +469,7 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
     })).status, "ignored");
 
     for (const notification of [
+      v2ThreadSettingsUpdatedFixture,
       {
         method: "turn/plan/updated",
         params: {
@@ -652,11 +654,15 @@ test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapte
       }
     }
 
-    const [started] = v2WireFileChangeFlowFixture as unknown[];
+    const [started, approval] = v2WireFileChangeFlowFixture as unknown[];
     const proposed = await bridge.ingest(started);
     assert.equal(proposed.status, "normalized");
     if (proposed.status !== "normalized") return;
     assert.equal(proposed.outcome.status, "proposed");
+    const accepted = await bridge.ingest(approval);
+    assert.equal(accepted.status, "normalized");
+    if (accepted.status !== "normalized") return;
+    assert.equal(accepted.outcome.status, "accepted", accepted.outcome.reasons.join(","));
   } finally {
     await rm(fixture.tempRoot, { recursive: true, force: true });
   }

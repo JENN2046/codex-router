@@ -307,6 +307,76 @@ const V2ThreadStatusChangedParamsSchema = z.object({
   threadId: z.string().min(1)
 }).strict();
 
+const V2AskForApprovalSchema = z.union([
+  z.enum(["untrusted", "on-request", "never"]),
+  z.object({
+    granular: z.object({
+      mcp_elicitations: z.boolean(),
+      request_permissions: z.boolean(),
+      rules: z.boolean(),
+      sandbox_approval: z.boolean(),
+      skill_approval: z.boolean()
+    }).strict()
+  }).strict()
+]);
+
+const V2ThreadSandboxPolicySchema = z.union([
+  z.object({ type: z.literal("dangerFullAccess") }).strict(),
+  z.object({
+    networkAccess: z.boolean(),
+    type: z.literal("readOnly")
+  }).strict(),
+  z.object({
+    networkAccess: z.enum(["restricted", "enabled"]),
+    type: z.literal("externalSandbox")
+  }).strict(),
+  z.object({
+    excludeSlashTmp: z.boolean(),
+    excludeTmpdirEnvVar: z.boolean(),
+    networkAccess: z.boolean(),
+    type: z.literal("workspaceWrite"),
+    writableRoots: z.array(z.string().min(1))
+  }).strict()
+]);
+
+const V2MultiAgentModeSchema = z.union([
+  z.enum(["explicitRequestOnly", "proactive"]),
+  z.object({ custom: z.string() }).strict()
+]);
+
+const V2ThreadSettingsSchema = z.object({
+  activePermissionProfile: z.object({
+    extends: z.string().min(1).nullable(),
+    id: z.string().min(1)
+  }).strict().nullable(),
+  approvalPolicy: V2AskForApprovalSchema,
+  approvalsReviewer: z.enum(["user", "auto_review", "guardian_subagent"]),
+  collaborationMode: z.object({
+    mode: z.enum(["plan", "default"]),
+    settings: z.object({
+      developer_instructions: z.string().nullable(),
+      model: z.string().min(1),
+      reasoning_effort: z.string().min(1).nullable()
+    }).strict()
+  }).strict(),
+  cwd: z.string().min(1),
+  effort: z.string().min(1).nullable(),
+  model: z.string().min(1),
+  modelProvider: z.string().min(1),
+  // This deprecated experimental field is omitted from the stable generated
+  // TypeScript projection but may be present on experimental connections.
+  multiAgentMode: V2MultiAgentModeSchema.optional(),
+  personality: z.enum(["none", "friendly", "pragmatic"]).nullable(),
+  sandboxPolicy: V2ThreadSandboxPolicySchema,
+  serviceTier: z.string().min(1).nullable(),
+  summary: z.enum(["auto", "concise", "detailed", "none"]).nullable()
+}).strict();
+
+const V2ThreadSettingsUpdatedParamsSchema = z.object({
+  threadId: z.string().min(1),
+  threadSettings: V2ThreadSettingsSchema
+}).strict();
+
 const V2ThreadClosedParamsSchema = z.object({
   threadId: z.string().min(1)
 }).strict();
@@ -759,6 +829,7 @@ const V2PassthroughServerRequestMethodSchema = z.enum([
 ]);
 
 const V2NonGovernanceNotificationMethodSchema = z.enum([
+  "thread/settings/updated",
   "turn/plan/updated",
   "model/safetyBuffering/updated",
   "model/rerouted",
@@ -781,6 +852,10 @@ const V2NonGovernanceNotificationMethodSchema = z.enum([
  * malformed payloads still quarantine the session.
  */
 const V2NonGovernanceNotificationSchema = z.union([
+  z.object({
+    method: z.literal("thread/settings/updated"),
+    params: V2ThreadSettingsUpdatedParamsSchema
+  }).strict(),
   z.object({
     method: z.literal("turn/plan/updated"),
     params: V2TurnPlanUpdatedParamsSchema
