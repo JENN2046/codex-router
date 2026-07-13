@@ -3,8 +3,9 @@ title: Runbook: Codex App Server File-change Governance
 status: active
 owner: governance
 created: 2026-07-11
-last_verified: 2026-07-12
+last_verified: 2026-07-13
 verified_by:
+  - node --import tsx --test tests/codex-app-server-v2-wire.test.ts
   - node --import tsx --test tests/codex-app-server-adapter.test.ts
   - node --import tsx --test tests/retain-control.test.ts
   - npm run test:package-consumer
@@ -62,10 +63,171 @@ be invoked directly after `npm ci` without a separate build prerequisite.
 Do not substitute a real App Server, Codex CLI, provider, or source-workspace
 write command without new operator authorization for that exact command.
 
+## v2 Wire Normalization Boundary
+
+Raw v2 App Server messages must pass through the exported
+`CodexAppServerV2WireNormalizer` before they reach `CodexAppServerAdapter`.
+The normalizer accepts only the versioned item/approval/resolution/completion
+messages and explicitly validated non-governance requests in its wire allowlist,
+and quarantines the session on unknown methods, extra fields, replay,
+correlation drift, unsupported methods, or invalid command/permission schemas.
+`item/started` and `item/completed` cover every
+known App Server `ThreadItem` lifecycle type; non-file items are ignored after
+the bounded type/id check, while unknown item types remain schema drift and
+quarantine the session. Command, network, and permission requests use the
+manual-only codecs described below.
+
+Approval request `startedAtMs` is optional compatibility metadata: when present
+it is strictly validated, but the governance correlation does not require it.
+The documented unstable file-approval `grantRoot` field is not wire compromise:
+it is preserved in the operator-visible `file_change` proposal and forces
+`manual_required`. Codex-router never policy-auto approves the session-scoped
+root request and never emits `acceptForSession`; an operator decline is encoded
+as the ordinary file-approval `{ decision: "decline" }` response.
+
+The normalizer is not ready until the exact `initialize` response for its bound
+request id has been accepted and the client `initialized` notification has been
+sent. Pre-handshake events, handshake replay, transport close, and any blocked
+wire message must be routed through `CodexAppServerV2WireAdapter`, which emits a
+normalized `transport_disconnected` event to reconcile the governed adapter.
+
+After the handshake, ordinary client-call JSON-RPC responses with `{ id,
+result }` or `{ id, error }` are accepted and ignored by governance; malformed
+error envelopes remain fail-closed. Optional W3C `trace` metadata is strictly
+validated only on server requests and is never an authorization input.
+Documented `turn/started` and `turn/completed` notifications use `{ turn }`; an
+optional `threadId` is compatibility metadata and is not required for the
+ignore path. Experimental `thread/settings/updated` is also a diagnostic-only
+notification: codex-router validates its `threadId` and complete effective
+`threadSettings` snapshot, then ignores it without changing capability,
+authorization, preview, or approval state.
+
+The explicit non-governance server-request allowlist is
+`item/tool/requestUserInput`, `mcpServer/elicitation/request`, `item/tool/call`,
+`account/chatgptAuthTokens/refresh`, `attestation/generate`, and experimental
+`currentTime/read`. Each documented payload is strictly validated and returned
+as `passthrough`; these requests never enter `CodexAppServerAdapter`, never
+grant capability, and are not answered by codex-router. The owning App Server
+client must apply its own user-input, MCP, dynamic-tool, credential,
+attestation, or external-clock security boundary before answering. It also
+retains response correlation for the forwarded JSON-RPC request. For user-input
+and MCP elicitation requests, codex-router tracks the request id only so the
+documented matching `serverRequest/resolved` notification can be validated and
+ignored. MCP elicitation metadata accepts both the public README's `meta` and
+the generated protocol schema's `_meta` spelling, but they are mutually
+exclusive within one request. Either value must still pass the bounded JSON
+validator and is never interpreted as capability or approval.
+Malformed passthrough requests, unknown or legacy approval request
+methods, request replay, and resolution drift still quarantine the session.
+Before hashing or schema parsing, every inbound wire message passes an
+iterative JSON-shape check capped at 64 levels, 50,000 values, and 8 MiB of
+string/key code units. Cycles, accessors, non-JSON values, or limit overflow
+quarantine the session without recursive parsing. Unexpected normalizer
+exceptions are also converted into transport disconnect/reconciliation rather
+than escaping the bridge.
+
+The v2 `item/started` payload does not carry a trusted Git HEAD or target
+hashes. Callers must inject an evidence provider that returns one full HEAD and
+the exact before/after hash for every path. Missing or mismatched evidence,
+move paths, and invalid hash semantics fail closed; the normalizer never
+derives these values from a turn diff.
+
+The wire transport maps only internal `accept`/`decline` decisions. File,
+command, and network approvals use `{ id, result: { decision } }`. When a
+command approval also carries `networkApprovalContext`, the manual command
+proposal preserves the exact `host` and `protocol`; operators must never be
+shown a command proposal that hides its accompanying network target. Command
+and network proposals also preserve the advertised `availableDecisions`. If
+that list excludes plain `accept` or `decline`, the operator must select an
+exact advertised wire decision, including its exec or network policy amendment
+payload; the adapter and normalizer both reject changed, unadvertised, or
+disposition-mismatched selections instead of collapsing them to `accept`. A
+permission accept must carry an explicit operator-selected `permissionGrant`; both the
+adapter and wire normalizer verify that every selected field, root, and entry
+is a permission-monotone subset of the requested permission profile before
+sending it. Write roots and entries may be narrowed. Read roots and entries may
+also be narrowed only when the selected profile contains no write access; any
+selected write must preserve every requested read carve-out. Every requested
+`deny`/compatibility-`none` entry and the exact `globScanMaxDepth` constraint is
+preserved for file-system grants. Representation rewrites, missing constraints,
+missing grants, and expanded grants remain pending and fail closed. Omitted
+permission families and roots are denied, while a decline sends an empty
+`{ "permissions": {} }` profile. Permission grants remain turn-scoped; session
+persistence and `strictAutoReview` are not exposed by this governance path.
+Permission parsing accepts both README-style omitted nullable fields and the
+generated v2 TypeScript form that serializes those fields as `null`; nullable
+`entries` or `globScanMaxDepth` values remain schema errors.
+`acceptForSession`, `cancel`, and unknown request ids are never auto-mapped.
+Command approval hints such as
+`availableDecisions` do not grant authorization. Experimental
+`additionalPermissions` and `environmentId` are canonicalized into the
+operator-visible command/network proposal so an `accept` decision cannot hide
+requested sandbox scope or its execution environment. Command and network-only
+requests are always normalized as `manual_required` proposals; they never enter
+policy auto-approval.
+
+When the App Server clears an unanswered approval, `serverRequest/resolved`
+contains no client decision; the normalizer records this as `cancelled` so the
+adapter reconciles the pending request instead of treating cleanup as schema
+drift.
+
+Only `remoteControl/status/changed` with `status: "disabled"` is ignored. The
+documented startup-disabled snapshot may omit `installationId`; active status
+still quarantines the session. Governed paths containing literal backslashes
+are rejected before path canonicalization.
+
+Documented item progress notifications (`item/agentMessage/delta`,
+`item/plan/delta`, reasoning deltas, command output/terminal interaction,
+MCP-tool progress, and legacy file-change output deltas) are validated against
+their correlation fields and then ignored. They carry no authorization input;
+malformed progress or an unknown notification method still quarantines the v2
+session. Repeated valid ignored chunks are not replay failures:
+replay protection remains on request-id messages and governed file
+lifecycle/resolution events. Normal `thread/status/changed` transitions to
+`active`, `idle`, or `notLoaded` are validated and ignored; the paired
+`thread/closed` notification emitted by routine idle unload is also validated
+and ignored when that thread has no open governed item or approval. An unload
+or close with open governance quarantines the session for reconciliation;
+`systemError`, unknown status variants, and malformed status or close payloads
+also quarantine it. The deprecated `thread/compacted` diagnostic is validated
+and ignored.
+The documented `turn/plan/updated` shape is keyed by `turnId` (optional
+`threadId` is compatibility metadata). Plan, token-usage, model
+buffering/reroute/verification, moderation, error, and warning diagnostics are
+validated and ignored. The `error` diagnostic accepts either the documented
+exact `{ error }` payload or the complete generated-protocol
+`{ error, threadId, turnId, willRetry }` payload; partial correlation metadata,
+malformed errors, and unknown fields still quarantine the session. MCP startup
+status and approval auto-review
+start/completion events are also validated and ignored; auto-review status,
+risk, or authorization hints never grant capability or bypass the manual
+command/permission boundary. The `collabToolCall` ThreadItem tag is accepted
+for lifecycle-only events. App Server permission profiles may encode a
+no-access filesystem entry as `access: "none"`; this is accepted as a distinct
+non-grant value and preserved for manual review.
+
+`item/fileChange/patchUpdated` is not an ignored hint. Each non-empty structured
+snapshot before approval is rebound to fresh path/hash evidence and emitted to
+the governed adapter as `item_updated`, replacing the still-`proposed` canonical
+change set. A consecutive duplicate of the current snapshot is harmless, but a
+superseded historical canonical snapshot fingerprint may not reappear: that
+rollback-like sequence quarantines the session instead of moving approval
+evidence backward. The fingerprint uses the same diff canonicalization as the
+governed change set, so line-ending and nullable-field encoding variants cannot
+bypass history. Snapshot history is bounded and exceeding the bound also fails
+closed. An
+empty/incomplete snapshot invalidates the current approval binding until a later
+complete snapshot arrives. Unknown items, duplicate paths, moves, literal
+backslashes, base-HEAD drift, snapshots after an approval request, or a
+completion that does not exactly match the latest snapshot quarantine the
+session before stale evidence can be approved.
+
 ## Procedure
 
 1. Confirm the session attestation matches the normalized fixture profile.
 2. Ingest `item_started` and verify the full change set has a canonical hash.
+   When patch streaming is enabled, verify every later `item_updated` replaces
+   that hash before approval and completion binds to the latest snapshot.
 3. Ingest the approval request and verify request/item/thread/turn correlation.
    A duplicate file approval or completion without a stored proposal must mark
    the whole turn reconciliation-required before any later event is processed.

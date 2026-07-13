@@ -1,0 +1,64 @@
+[
+  {
+    "method": "item/started",
+    "params": {
+      "item": {
+        "changes": [
+          {
+            "diff": "diff --git a/docs/guide.md b/docs/guide.md\n--- a/docs/guide.md\n+++ b/docs/guide.md\n@@ -1 +1 @@\n-old\n+new\n",
+            "kind": {
+              "type": "update"
+            },
+            "path": "docs/guide.md"
+          }
+        ],
+        "id": "item-v2-1",
+        "status": "inProgress",
+        "type": "fileChange"
+      },
+      "startedAtMs": 1762732800000,
+      "threadId": "thread-v2-1",
+      "turnId": "turn-v2-1"
+    }
+  },
+  {
+    "id": "request-v2-1",
+    "method": "item/fileChange/requestApproval",
+    "params": {
+      "itemId": "item-v2-1",
+      "reason": "structured docs update",
+      "startedAtMs": 1762732800100,
+      "threadId": "thread-v2-1",
+      "turnId": "turn-v2-1"
+    }
+  },
+  {
+    "method": "serverRequest/resolved",
+    "params": {
+      "requestId": "request-v2-1",
+      "threadId": "thread-v2-1"
+    }
+  },
+  {
+    "method": "item/completed",
+    "params": {
+      "completedAtMs": 1762732800200,
+      "item": {
+        "changes": [
+          {
+            "diff": "diff --git a/docs/guide.md b/docs/guide.md\n--- a/docs/guide.md\n+++ b/docs/guide.md\n@@ -1 +1 @@\n-old\n+new\n",
+            "kind": {
+              "type": "update"
+            },
+            "path": "docs/guide.md"
+          }
+        ],
+        "id": "item-v2-1",
+        "status": "completed",
+        "type": "fileChange"
+      },
+      "threadId": "thread-v2-1",
+      "turnId": "turn-v2-1"
+    }
+  }
+]

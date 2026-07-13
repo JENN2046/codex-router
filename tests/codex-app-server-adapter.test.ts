@@ -15,9 +15,14 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import sessionAttestationFixture from "./fixtures/codex-app-server/fake-v2/session-attestation.json" with { type: "json" };
 import fileChangeFlowFixture from "./fixtures/codex-app-server/fake-v2/file-change-flow.json" with { type: "json" };
+import v2WireFileChangeFlowFixture from "./fixtures/codex-app-server/v2-wire/file-change-flow.json" with { type: "json" };
+import v2ThreadSettingsUpdatedFixture from "./fixtures/codex-app-server/v2-wire/thread-settings-updated.json" with { type: "json" };
 import {
   CodexAppServerAdapter,
   CodexSdkAdapter,
+  CodexAppServerV2WireAdapter,
+  CodexAppServerV2WireNormalizer,
+  CodexAppServerV2WireTransport,
   type AppServerSessionAttestation,
   type CodexAppServerApprovalResponse,
   type CodexAppServerMessageTransport
@@ -82,6 +87,1157 @@ test("fake App Server flow previews, journals, accepts, and retains without a pa
     "post_checked"
   );
   await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("v2 raw wire flows through the normalizer into the governed adapter", async () => {
+  let repoRoot: string | undefined;
+  let head: string | undefined;
+  let beforeHash: string | undefined;
+  let afterHash: string | undefined;
+  const wireResponses: unknown[] = [];
+  const normalizer = new CodexAppServerV2WireNormalizer({
+    initializeRequestId: "initialize-v2-1",
+    schemaProfileId: "fake-v2",
+    fileChangeEvidence: ({ changes }) => {
+      if (head === undefined || beforeHash === undefined || afterHash === undefined) {
+        return undefined;
+      }
+      const resolvedHead = head;
+      const resolvedBeforeHash = beforeHash;
+      const resolvedAfterHash = afterHash;
+      return {
+        baseHead: resolvedHead,
+        changes: changes.map((change) => ({
+          path: change.path,
+          beforeHash: change.kind === "add" ? null : resolvedBeforeHash,
+          afterHash: change.kind === "delete" ? null : resolvedAfterHash
+        }))
+      };
+    }
+  });
+  const wireTransport = new CodexAppServerV2WireTransport({
+    normalizer,
+    async send(message) {
+      wireResponses.push(message);
+      if (
+        "decision" in message.result
+        && message.result.decision === "accept"
+        && repoRoot !== undefined
+      ) {
+        await writeFile(join(repoRoot, "docs/guide.md"), "new\n", "utf8");
+      }
+    }
+  });
+  const fixture = await createAdapterFixture({ transportOverride: wireTransport });
+  repoRoot = fixture.repoRoot;
+  head = fixture.head;
+  beforeHash = fixture.beforeHash;
+  afterHash = fixture.afterHash;
+  try {
+    const bridge = new CodexAppServerV2WireAdapter({
+      adapter: fixture.adapter,
+      normalizer
+    });
+    assert.equal(
+      (await bridge.acceptInitializeResponse(v2InitializeResponse())).status,
+      "initialize_response_accepted"
+    );
+    assert.equal(
+      (await bridge.acceptInitializedNotification({ method: "initialized" })).status,
+      "initialized"
+    );
+    const [rawStarted, approval, resolved, completed] = v2WireFileChangeFlowFixture as unknown[];
+    const started = structuredClone(rawStarted) as {
+      params: { item: { changes: Array<{ diff: string }> } };
+    };
+    started.params.item.changes[0]!.diff = "diff --git a/docs/guide.md b/docs/guide.md\n"
+      + "--- a/docs/guide.md\n"
+      + "+++ b/docs/guide.md\n"
+      + "@@ -1 +1 @@\n"
+      + "-old\n"
+      + "+draft\n";
+
+    const proposed = await bridge.ingest(started);
+    assert.equal(proposed.status, "normalized");
+    if (proposed.status !== "normalized") return;
+    assert.equal(proposed.outcome.status, "proposed");
+    const initialHash = fixture.adapter.getItemSnapshot(
+      "thread-v2-1",
+      "turn-v2-1",
+      "item-v2-1"
+    )?.changeSetHash;
+
+    const finalChanges = (completed as {
+      params: { item: { changes: unknown[] } };
+    }).params.item.changes;
+    const updated = await bridge.ingest({
+      method: "item/fileChange/patchUpdated",
+      params: {
+        changes: finalChanges,
+        itemId: "item-v2-1",
+        threadId: "thread-v2-1",
+        turnId: "turn-v2-1"
+      }
+    });
+    assert.equal(updated.status, "normalized");
+    if (updated.status !== "normalized") return;
+    assert.equal(updated.normalization.event.eventType, "item_updated");
+    assert.equal(updated.outcome.status, "proposed");
+    assert.notEqual(
+      fixture.adapter.getItemSnapshot("thread-v2-1", "turn-v2-1", "item-v2-1")
+        ?.changeSetHash,
+      initialHash
+    );
+
+    const accepted = await bridge.ingest(approval);
+    assert.equal(accepted.status, "normalized");
+    if (accepted.status !== "normalized") return;
+    assert.equal(accepted.outcome.status, "accepted");
+    assert.deepEqual(wireResponses[0], {
+      id: "request-v2-1",
+      result: { decision: "accept" }
+    });
+
+    const resolvedResult = await bridge.ingest(resolved);
+    assert.equal(resolvedResult.status, "normalized");
+    if (resolvedResult.status !== "normalized") return;
+    assert.equal(resolvedResult.outcome.status, "accepted", resolvedResult.outcome.reasons.join(","));
+
+    const retained = await bridge.ingest(completed);
+    assert.equal(retained.status, "normalized");
+    if (retained.status !== "normalized") return;
+    assert.equal(retained.outcome.status, "retained");
+    assert.equal(fixture.adapter.getItemSnapshot("thread-v2-1", "turn-v2-1", "item-v2-1")?.state, "post_checked");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 grantRoot file approvals stay manual and can be declined without quarantine", async () => {
+  let head: string | undefined;
+  let beforeHash: string | undefined;
+  let afterHash: string | undefined;
+  const wireResponses: unknown[] = [];
+  const normalizer = new CodexAppServerV2WireNormalizer({
+    initializeRequestId: "initialize-v2-1",
+    schemaProfileId: "fake-v2",
+    fileChangeEvidence: ({ changes }) => {
+      if (head === undefined || beforeHash === undefined || afterHash === undefined) {
+        return undefined;
+      }
+      return {
+        baseHead: head,
+        changes: changes.map((change) => ({
+          path: change.path,
+          beforeHash: change.kind === "add" ? null : beforeHash!,
+          afterHash: change.kind === "delete" ? null : afterHash!
+        }))
+      };
+    }
+  });
+  const wireTransport = new CodexAppServerV2WireTransport({
+    normalizer,
+    async send(message) {
+      wireResponses.push(message);
+    }
+  });
+  const fixture = await createAdapterFixture({ transportOverride: wireTransport });
+  head = fixture.head;
+  beforeHash = fixture.beforeHash;
+  afterHash = fixture.afterHash;
+
+  try {
+    const bridge = new CodexAppServerV2WireAdapter({
+      adapter: fixture.adapter,
+      normalizer
+    });
+    assert.equal(
+      (await bridge.acceptInitializeResponse(v2InitializeResponse())).status,
+      "initialize_response_accepted"
+    );
+    assert.equal(
+      (await bridge.acceptInitializedNotification({ method: "initialized" })).status,
+      "initialized"
+    );
+
+    const [started, approval] = v2WireFileChangeFlowFixture as unknown[];
+    const proposed = await bridge.ingest(started);
+    assert.equal(proposed.status, "normalized");
+    if (proposed.status !== "normalized") return;
+    assert.equal(proposed.outcome.status, "proposed");
+
+    const grantRootApproval = structuredClone(approval) as {
+      params: { grantRoot?: string };
+    };
+    grantRootApproval.params.grantRoot = "/tmp/codex-router-session-root";
+    const manual = await bridge.ingest(grantRootApproval);
+    assert.equal(manual.status, "normalized");
+    if (manual.status !== "normalized") return;
+    assert.equal(manual.outcome.status, "manual_required");
+    assert.ok(manual.outcome.reasons.includes(
+      "file_change_grant_root_requires_human_approval"
+    ));
+    assert.deepEqual(manual.outcome.approvalProposal, {
+      kind: "file_change",
+      grantRoot: "/tmp/codex-router-session-root"
+    });
+    assert.equal(manual.outcome.previewReceipt, undefined);
+    assert.equal(wireResponses.length, 0);
+    assert.equal(fixture.adapter.getItemSnapshot(
+      "thread-v2-1",
+      "turn-v2-1",
+      "item-v2-1"
+    )?.state, "awaiting_approval");
+
+    const declined = await fixture.adapter.resolveHumanApproval({
+      requestId: "request-v2-1",
+      decision: "decline",
+      operatorId: "operator-jenn",
+      nonce: "grant-root-decline"
+    });
+    assert.equal(declined.status, "blocked");
+    assert.ok(declined.reasons.includes("operator_declined"));
+    assert.deepEqual(wireResponses, [{
+      id: "request-v2-1",
+      result: { decision: "decline" }
+    }]);
+    assert.equal(fixture.adapter.getItemSnapshot(
+      "thread-v2-1",
+      "turn-v2-1",
+      "item-v2-1"
+    )?.state, "blocked");
+    assert.equal(await readFile(join(fixture.repoRoot, "docs/guide.md"), "utf8"), "old\n");
+
+    assert.equal((await bridge.ingest({
+      id: "current-time-after-grant-root",
+      method: "currentTime/read",
+      params: { threadId: "thread-v2-1" }
+    })).status, "passthrough");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 raw responses and turn lifecycle snapshots do not quarantine the adapter", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+
+    for (const responseMessage of [
+      {
+        id: "turn-start-response",
+        result: { turn: { id: "turn-response" } }
+      },
+      {
+        id: "turn-error-response",
+        error: { code: -32000, message: "turn failed" }
+      }
+    ]) {
+      const response = await bridge.ingest(responseMessage);
+      assert.equal(response.status, "ignored");
+    }
+
+    for (const method of ["turn/started", "turn/completed"] as const) {
+      const lifecycle = await bridge.ingest({
+        method,
+        params: { turn: { id: `turn-${method}` } }
+      });
+      assert.equal(lifecycle.status, "ignored");
+    }
+
+    for (const status of [
+      { activeFlags: ["waitingOnApproval"], type: "active" },
+      { type: "idle" },
+      { type: "notLoaded" }
+    ]) {
+      const statusResult = await bridge.ingest({
+        method: "thread/status/changed",
+        params: { status, threadId: "thread-progress" }
+      });
+      assert.equal(statusResult.status, "ignored");
+    }
+    assert.equal((await bridge.ingest({
+      method: "thread/closed",
+      params: { threadId: "thread-progress" }
+    })).status, "ignored");
+
+    for (const progress of [
+      {
+        method: "item/agentMessage/delta",
+        params: {
+          delta: "working",
+          itemId: "agent-message-1",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/reasoning/summaryTextDelta",
+        params: {
+          delta: "checking",
+          itemId: "reasoning-1",
+          summaryIndex: 0,
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/commandExecution/outputDelta",
+        params: {
+          delta: "stdout",
+          itemId: "command-1",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/commandExecution/terminalInteraction",
+        params: {
+          itemId: "command-1",
+          processId: "process-1",
+          stdin: "continue\n",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/mcpToolCall/progress",
+        params: {
+          itemId: "mcp-tool-call-1",
+          message: "connecting",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/autoApprovalReview/started",
+        params: {
+          action: {
+            cwd: "/tmp/codex-router",
+            files: ["/tmp/codex-router/docs/guide.md"],
+            type: "applyPatch"
+          },
+          review: {
+            riskLevel: "low",
+            status: "inProgress",
+            userAuthorization: "low"
+          },
+          reviewId: "review-1",
+          startedAtMs: 1762732800200,
+          targetItemId: "file-change-1",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      },
+      {
+        method: "item/autoApprovalReview/completed",
+        params: {
+          action: {
+            cwd: "/tmp/codex-router",
+            files: ["/tmp/codex-router/docs/guide.md"],
+            type: "applyPatch"
+          },
+          completedAtMs: 1762732800201,
+          decisionSource: "agent",
+          review: {
+            rationale: "review complete",
+            riskLevel: "low",
+            status: "approved",
+            userAuthorization: "low"
+          },
+          reviewId: "review-1",
+          startedAtMs: 1762732800200,
+          targetItemId: "file-change-1",
+          threadId: "thread-progress",
+          turnId: "turn-progress"
+        }
+      }
+    ]) {
+      const progressResult = await bridge.ingest(progress);
+      assert.equal(progressResult.status, "ignored");
+    }
+    assert.equal((await bridge.ingest({
+      method: "item/agentMessage/delta",
+      params: {
+        delta: "working",
+        itemId: "agent-message-1",
+        threadId: "thread-progress",
+        turnId: "turn-progress"
+      }
+    })).status, "ignored");
+
+    for (const notification of [
+      v2ThreadSettingsUpdatedFixture,
+      {
+        method: "turn/plan/updated",
+        params: {
+          explanation: null,
+          plan: [{ status: "inProgress", step: "inspect repository" }],
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "model/safetyBuffering/updated",
+        params: {
+          fasterModel: null,
+          model: "gpt-test",
+          reasons: ["safety review"],
+          showBufferingUi: true,
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance",
+          useCases: ["analysis"]
+        }
+      },
+      {
+        method: "model/rerouted",
+        params: {
+          fromModel: "gpt-test",
+          reason: "highRiskCyberActivity",
+          threadId: "thread-non-governance",
+          toModel: "gpt-safe-test",
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "thread/tokenUsage/updated",
+        params: {
+          threadId: "thread-non-governance",
+          tokenUsage: { totalTokens: 1 },
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "model/verification",
+        params: {
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance",
+          verifications: [{ type: "trustedAccessForCyber" }]
+        }
+      },
+      {
+        method: "turn/moderationMetadata",
+        params: {
+          metadata: { source: "test" },
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "mcpServer/startupStatus/updated",
+        params: {
+          error: null,
+          failureReason: null,
+          name: "filesystem",
+          status: "ready",
+          threadId: "thread-non-governance"
+        }
+      },
+      {
+        method: "thread/compacted",
+        params: {
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "error",
+        params: {
+          error: { message: "upstream quota limit" }
+        }
+      },
+      {
+        method: "item/started",
+        params: {
+          item: {
+            id: "collab-tool-call-1",
+            prompt: "Inspect the repository",
+            status: "inProgress",
+            type: "collabToolCall"
+          },
+          startedAtMs: 1762732800100,
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance"
+        }
+      },
+      {
+        method: "item/completed",
+        params: {
+          completedAtMs: 1762732800101,
+          item: {
+            id: "collab-tool-call-1",
+            prompt: "Inspect the repository",
+            status: "completed",
+            type: "collabToolCall"
+          },
+          threadId: "thread-non-governance",
+          turnId: "turn-non-governance"
+        }
+      }
+    ]) {
+      const notificationResult = await bridge.ingest(notification);
+      assert.equal(notificationResult.status, "ignored");
+    }
+
+    const passthroughRequests = [
+      {
+        id: "user-input-bridge-1",
+        method: "item/tool/requestUserInput",
+        params: {
+          itemId: "tool-item-1",
+          questions: [{ header: "Mode", id: "mode", question: "Choose a mode" }],
+          threadId: "thread-v2-1",
+          turnId: "turn-v2-1"
+        }
+      },
+      {
+        id: "mcp-elicitation-bridge-1",
+        method: "mcpServer/elicitation/request",
+        params: {
+          meta: {
+            codex_approval_kind: "mcp_tool_call",
+            persist: "session"
+          },
+          message: "Confirm",
+          mode: "form",
+          requestedSchema: {
+            properties: { approved: { type: "boolean" } },
+            required: ["approved"],
+            type: "object"
+          },
+          serverName: "fixture-mcp",
+          threadId: "thread-v2-1",
+          turnId: "turn-v2-1"
+        }
+      },
+      {
+        id: "dynamic-tool-bridge-1",
+        method: "item/tool/call",
+        params: {
+          arguments: { target: "docs/guide.md" },
+          callId: "call-1",
+          threadId: "thread-v2-1",
+          tool: "fixture_tool",
+          turnId: "turn-v2-1"
+        }
+      },
+      {
+        id: "auth-refresh-bridge-1",
+        method: "account/chatgptAuthTokens/refresh",
+        params: { reason: "unauthorized" }
+      },
+      {
+        id: "attestation-bridge-1",
+        method: "attestation/generate",
+        params: {}
+      },
+      {
+        id: "current-time-bridge-1",
+        method: "currentTime/read",
+        params: { threadId: "thread-v2-1" }
+      }
+    ];
+    for (const request of passthroughRequests) {
+      const passthrough = await bridge.ingest(request);
+      assert.equal(passthrough.status, "passthrough");
+      if (passthrough.status !== "passthrough") return;
+      assert.deepEqual(passthrough.normalization.request, request);
+      if (
+        request.method === "item/tool/requestUserInput"
+        || request.method === "mcpServer/elicitation/request"
+      ) {
+        assert.equal((await bridge.ingest({
+          method: "serverRequest/resolved",
+          params: { requestId: request.id, threadId: "thread-v2-1" }
+        })).status, "ignored");
+      }
+    }
+
+    const [started, approval] = v2WireFileChangeFlowFixture as unknown[];
+    const proposed = await bridge.ingest(started);
+    assert.equal(proposed.status, "normalized");
+    if (proposed.status !== "normalized") return;
+    assert.equal(proposed.outcome.status, "proposed");
+    const accepted = await bridge.ingest(approval);
+    assert.equal(accepted.status, "normalized");
+    if (accepted.status !== "normalized") return;
+    assert.equal(accepted.outcome.status, "accepted", accepted.outcome.reasons.join(","));
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 bridge quarantines deeply nested passthrough payloads without throwing", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+    let deeplyNested: unknown = null;
+    for (let depth = 0; depth < 10_000; depth += 1) {
+      deeplyNested = { nested: deeplyNested };
+    }
+
+    const blocked = await bridge.ingest({
+      id: "dynamic-tool-deep-bridge",
+      method: "item/tool/call",
+      params: {
+        arguments: deeplyNested,
+        callId: "call-deep",
+        threadId: "thread-v2-1",
+        tool: "fixture_tool",
+        turnId: "turn-v2-1"
+      }
+    });
+    assert.equal(blocked.status, "blocked");
+    if (blocked.status !== "blocked") return;
+    assert.ok(blocked.reasons.includes("v2_wire_payload_depth_exceeded"));
+
+    const [started] = v2WireFileChangeFlowFixture as unknown[];
+    assert.equal((await bridge.ingest(started)).status, "blocked");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 wire disconnect reconciles an open adapter item and blocks later messages", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+    const [started, approval] = v2WireFileChangeFlowFixture as unknown[];
+    const proposed = await bridge.ingest(started);
+    assert.equal(proposed.status, "normalized");
+
+    const disconnected = await bridge.disconnect("socket_closed");
+    assert.equal(disconnected.status, "disconnected");
+    assert.equal(disconnected.outcome?.status, "reconciliation_required");
+    assert.equal(
+      fixture.adapter.getItemSnapshot("thread-v2-1", "turn-v2-1", "item-v2-1")?.state,
+      "reconciliation_required"
+    );
+
+    const late = await bridge.ingest(approval);
+    assert.equal(late.status, "blocked");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 raw mixed command/network and permission approvals stay fully visible and manual-only", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+
+    const command = await bridge.ingest({
+      id: "raw-command-request",
+      method: "item/commandExecution/requestApproval",
+      params: {
+        additionalPermissions: {
+          fileSystem: {
+            read: ["/tmp/codex-router/docs"],
+            write: null
+          },
+          network: null
+        },
+        command: "npm test",
+        cwd: "/tmp/codex-router",
+        environmentId: "local",
+        itemId: "raw-command-item",
+        networkApprovalContext: {
+          host: "registry.example.test",
+          protocol: "https"
+        },
+        reason: "operator review",
+        startedAtMs: 1762732800100,
+        threadId: "raw-command-thread",
+        turnId: "raw-command-turn"
+      }
+    });
+    assert.equal(command.status, "normalized");
+    if (command.status !== "normalized") return;
+    assert.equal(command.outcome.status, "manual_required");
+    assert.deepEqual(command.outcome.approvalProposal, {
+      kind: "command",
+      argv: ["npm test"],
+      cwd: "/tmp/codex-router",
+      environmentId: "local",
+      networkApprovalContext: {
+        host: "registry.example.test",
+        protocol: "https"
+      },
+      requestedPermissionScope: "{\"fileSystem\":{\"read\":[\"/tmp/codex-router/docs\"],\"write\":null},\"network\":null}"
+    });
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const network = await bridge.ingest({
+      id: "raw-network-request",
+      method: "item/commandExecution/requestApproval",
+      params: {
+        additionalPermissions: {
+          fileSystem: null,
+          network: { enabled: true }
+        },
+        availableDecisions: ["accept", "decline"],
+        environmentId: "local",
+        itemId: "raw-network-item",
+        networkApprovalContext: {
+          host: "api.example.test",
+          protocol: "https"
+        },
+        reason: "operator review",
+        startedAtMs: 1762732800100,
+        threadId: "raw-network-thread",
+        turnId: "raw-network-turn"
+      }
+    });
+    assert.equal(network.status, "normalized");
+    if (network.status !== "normalized") return;
+    assert.equal(network.outcome.status, "manual_required");
+    assert.deepEqual(network.outcome.approvalProposal, {
+      kind: "network",
+      host: "api.example.test",
+      protocol: "https",
+      environmentId: "local",
+      availableDecisions: ["accept", "decline"],
+      requestedPermissionScope: "{\"fileSystem\":null,\"network\":{\"enabled\":true}}"
+    });
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const permission = await bridge.ingest({
+      id: "raw-permission-request",
+      method: "item/permissions/requestApproval",
+      params: {
+        cwd: "/tmp/codex-router",
+        itemId: "raw-permission-item",
+        permissions: {
+          fileSystem: {
+            entries: [{
+              access: "none",
+              path: { path: "/tmp/codex-router/private", type: "path" }
+            }],
+            globScanMaxDepth: 2,
+            read: null,
+            write: [
+              "/tmp/codex-router/docs",
+              "/tmp/codex-router/shared"
+            ]
+          },
+          network: { enabled: true }
+        },
+        reason: "operator review",
+        startedAtMs: 1762732800100,
+        threadId: "raw-permission-thread",
+        turnId: "raw-permission-turn"
+      }
+    });
+    assert.equal(permission.status, "normalized");
+    if (permission.status !== "normalized") return;
+    assert.equal(permission.outcome.status, "manual_required");
+    assert.equal(fixture.transport.messages.length, 0);
+    assert.deepEqual(permission.outcome.approvalProposal, {
+      kind: "permission",
+      scope: "{\"cwd\":\"/tmp/codex-router\",\"environmentId\":null,\"permissions\":{\"fileSystem\":{\"entries\":[{\"access\":\"none\",\"path\":{\"path\":\"/tmp/codex-router/private\",\"type\":\"path\"}}],\"globScanMaxDepth\":2,\"read\":null,\"write\":[\"/tmp/codex-router/docs\",\"/tmp/codex-router/shared\"]},\"network\":{\"enabled\":true}}}",
+      requestedPermissions: {
+        fileSystem: {
+          entries: [{
+            access: "none",
+            path: { path: "/tmp/codex-router/private", type: "path" }
+          }],
+          globScanMaxDepth: 2,
+          read: null,
+          write: [
+            "/tmp/codex-router/docs",
+            "/tmp/codex-router/shared"
+          ]
+        },
+        network: { enabled: true }
+      }
+    });
+
+    const ambiguousDecline = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "decline",
+      operatorId: "operator-jenn",
+      permissionGrant: {}
+    });
+    assert.deepEqual(ambiguousDecline.reasons, ["human_permission_grant_unexpected"]);
+    assert.equal(ambiguousDecline.status, "blocked");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const missingGrant = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn"
+    });
+    assert.deepEqual(missingGrant.reasons, ["human_permission_grant_required"]);
+    assert.equal(missingGrant.status, "blocked");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const exposedProposal = permission.outcome.approvalProposal;
+    assert.equal(exposedProposal?.kind, "permission");
+    if (exposedProposal?.kind !== "permission") return;
+    exposedProposal.requestedPermissions.fileSystem?.write?.push(
+      "/tmp/codex-router/unrequested"
+    );
+
+    const expandedGrant = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      permissionGrant: {
+        fileSystem: {
+          read: null,
+          write: ["/tmp/codex-router/unrequested"]
+        }
+      }
+    });
+    assert.deepEqual(expandedGrant.reasons, ["human_permission_grant_not_subset"]);
+    assert.equal(expandedGrant.status, "blocked");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const strippedRestriction = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      permissionGrant: {
+        fileSystem: {
+          globScanMaxDepth: 2,
+          read: null,
+          write: ["/tmp/codex-router/docs"]
+        }
+      }
+    });
+    assert.deepEqual(strippedRestriction.reasons, ["human_permission_grant_not_subset"]);
+    assert.equal(strippedRestriction.status, "blocked");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const strippedConstraint = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      permissionGrant: {
+        fileSystem: {
+          entries: [{
+            access: "none",
+            path: { path: "/tmp/codex-router/private", type: "path" }
+          }],
+          read: null,
+          write: ["/tmp/codex-router/docs"]
+        }
+      }
+    });
+    assert.deepEqual(strippedConstraint.reasons, ["human_permission_grant_not_subset"]);
+    assert.equal(strippedConstraint.status, "blocked");
+    assert.equal(fixture.transport.messages.length, 0);
+
+    const selectedGrant = await fixture.adapter.resolveHumanApproval({
+      requestId: "raw-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      permissionGrant: {
+        fileSystem: {
+          entries: [{
+            access: "none",
+            path: { path: "/tmp/codex-router/private", type: "path" }
+          }],
+          globScanMaxDepth: 2,
+          read: null,
+          write: ["/tmp/codex-router/docs"]
+        }
+      }
+    });
+    assert.equal(selectedGrant.status, "accepted");
+    assert.deepEqual(fixture.transport.messages, [{
+      schemaVersion: "codex-app-server-normalized-response.v1",
+      schemaProfileId: "fake-v2",
+      requestId: "raw-permission-request",
+      decision: "accept",
+      reasonCode: "operator_approved",
+      permissionGrant: {
+        fileSystem: {
+          entries: [{
+            access: "none",
+            path: { path: "/tmp/codex-router/private", type: "path" }
+          }],
+          globScanMaxDepth: 2,
+          read: null,
+          write: ["/tmp/codex-router/docs"]
+        }
+      }
+    }]);
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 adapter requires and forwards the advertised command policy decision", async () => {
+  const wireResponses: unknown[] = [];
+  const normalizer = new CodexAppServerV2WireNormalizer({
+    initializeRequestId: "initialize-v2-1",
+    schemaProfileId: "fake-v2",
+    fileChangeEvidence: () => undefined
+  });
+  const wireTransport = new CodexAppServerV2WireTransport({
+    normalizer,
+    async send(message) {
+      wireResponses.push(message);
+    }
+  });
+  const fixture = await createAdapterFixture({ transportOverride: wireTransport });
+  try {
+    const bridge = new CodexAppServerV2WireAdapter({
+      adapter: fixture.adapter,
+      normalizer
+    });
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+    const execDecision = {
+      acceptWithExecpolicyAmendment: {
+        execpolicy_amendment: ["npm", "test"]
+      }
+    };
+    const requested = await bridge.ingest({
+      id: "adapter-exec-amendment-request",
+      method: "item/commandExecution/requestApproval",
+      params: {
+        availableDecisions: [execDecision, "decline"],
+        command: "npm test",
+        cwd: "/tmp/codex-router",
+        environmentId: "local",
+        itemId: "adapter-exec-amendment-item",
+        proposedExecpolicyAmendment: ["npm", "test"],
+        threadId: "adapter-exec-amendment-thread",
+        turnId: "adapter-exec-amendment-turn"
+      }
+    });
+    assert.equal(requested.status, "normalized");
+    if (requested.status !== "normalized") return;
+    assert.equal(requested.outcome.status, "manual_required");
+    assert.deepEqual(requested.outcome.approvalProposal, {
+      kind: "command",
+      argv: ["npm test"],
+      cwd: "/tmp/codex-router",
+      environmentId: "local",
+      availableDecisions: [execDecision, "decline"]
+    });
+
+    const implicitAccept = await fixture.adapter.resolveHumanApproval({
+      requestId: "adapter-exec-amendment-request",
+      decision: "accept",
+      operatorId: "operator-jenn"
+    });
+    assert.equal(implicitAccept.status, "blocked");
+    assert.deepEqual(implicitAccept.reasons, ["human_command_decision_not_advertised"]);
+
+    const mismatchedDisposition = await fixture.adapter.resolveHumanApproval({
+      requestId: "adapter-exec-amendment-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      commandDecision: "decline"
+    });
+    assert.equal(mismatchedDisposition.status, "blocked");
+    assert.deepEqual(
+      mismatchedDisposition.reasons,
+      ["human_command_decision_disposition_mismatch"]
+    );
+
+    const changedAmendment = await fixture.adapter.resolveHumanApproval({
+      requestId: "adapter-exec-amendment-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      commandDecision: {
+        acceptWithExecpolicyAmendment: {
+          execpolicy_amendment: ["npm", "publish"]
+        }
+      }
+    });
+    assert.equal(changedAmendment.status, "blocked");
+    assert.deepEqual(changedAmendment.reasons, ["human_command_decision_not_advertised"]);
+    assert.deepEqual(wireResponses, []);
+
+    const accepted = await fixture.adapter.resolveHumanApproval({
+      requestId: "adapter-exec-amendment-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      commandDecision: execDecision
+    });
+    assert.equal(accepted.status, "accepted");
+    assert.deepEqual(wireResponses, [{
+      id: "adapter-exec-amendment-request",
+      result: { decision: execDecision }
+    }]);
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 permission approval carries only the operator-selected subset to the wire", async () => {
+  const wireResponses: unknown[] = [];
+  const normalizer = new CodexAppServerV2WireNormalizer({
+    initializeRequestId: "initialize-v2-1",
+    schemaProfileId: "fake-v2",
+    fileChangeEvidence: () => undefined
+  });
+  const wireTransport = new CodexAppServerV2WireTransport({
+    normalizer,
+    async send(message) {
+      wireResponses.push(message);
+    }
+  });
+  const fixture = await createAdapterFixture({ transportOverride: wireTransport });
+  try {
+    const bridge = new CodexAppServerV2WireAdapter({
+      adapter: fixture.adapter,
+      normalizer
+    });
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+
+    const requested = await bridge.ingest({
+      id: "subset-permission-request",
+      method: "item/permissions/requestApproval",
+      params: {
+        cwd: "/tmp/codex-router",
+        environmentId: "local",
+        itemId: "subset-permission-item",
+        permissions: {
+          fileSystem: {
+            read: null,
+            write: [
+              "/tmp/codex-router/docs",
+              "/tmp/codex-router/shared"
+            ]
+          },
+          network: { enabled: true }
+        },
+        reason: "operator selects the minimum roots",
+        threadId: "subset-permission-thread",
+        turnId: "subset-permission-turn"
+      }
+    });
+    assert.equal(requested.status, "normalized");
+    if (requested.status !== "normalized") return;
+    assert.equal(requested.outcome.status, "manual_required");
+
+    const accepted = await fixture.adapter.resolveHumanApproval({
+      requestId: "subset-permission-request",
+      decision: "accept",
+      operatorId: "operator-jenn",
+      permissionGrant: {
+        fileSystem: {
+          read: null,
+          write: ["/tmp/codex-router/docs"]
+        }
+      }
+    });
+    assert.equal(accepted.status, "accepted");
+    assert.deepEqual(wireResponses, [{
+      id: "subset-permission-request",
+      result: {
+        permissions: {
+          fileSystem: {
+            read: null,
+            write: ["/tmp/codex-router/docs"]
+          }
+        },
+        scope: "turn"
+      }
+    }]);
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 unanswered approval cleanup becomes cancellation in the adapter", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+
+    const requested = await bridge.ingest({
+      id: "raw-unanswered-request",
+      method: "item/commandExecution/requestApproval",
+      params: {
+        command: "npm test",
+        cwd: "/tmp/codex-router",
+        itemId: "raw-unanswered-item",
+        threadId: "raw-unanswered-thread",
+        turnId: "raw-unanswered-turn"
+      }
+    });
+    assert.equal(requested.status, "normalized");
+    if (requested.status !== "normalized") return;
+    assert.equal(requested.outcome.status, "manual_required");
+
+    const resolved = await bridge.ingest({
+      method: "serverRequest/resolved",
+      params: {
+        requestId: "raw-unanswered-request",
+        threadId: "raw-unanswered-thread"
+      }
+    });
+    assert.equal(resolved.status, "normalized");
+    if (resolved.status !== "normalized") return;
+    assert.equal(resolved.normalization.event.eventType, "request_resolved");
+    assert.equal(resolved.normalization.event.resolution, "cancelled");
+    assert.equal(resolved.outcome.status, "reconciliation_required");
+    assert.deepEqual(resolved.outcome.reasons, ["approval_request_cancelled"]);
+    assert.equal(fixture.transport.messages.length, 0);
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("v2 remote-control activity and wire reordering quarantine the adapter session", async () => {
+  const fixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(fixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+    const [started, approval] = v2WireFileChangeFlowFixture as unknown[];
+
+    const approvalFirst = await bridge.ingest(approval);
+    assert.equal(approvalFirst.status, "blocked");
+    assert.equal(approvalFirst.outcome?.status, "reconciliation_required");
+    assert.equal((await bridge.ingest(started)).status, "blocked");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+
+  const remoteFixture = await createAdapterFixture();
+  try {
+    const bridge = createV2WireBridge(remoteFixture);
+    await bridge.acceptInitializeResponse(v2InitializeResponse());
+    await bridge.acceptInitializedNotification({ method: "initialized" });
+    const disabled = await bridge.ingest({
+      method: "remoteControl/status/changed",
+      params: {
+        environmentId: null,
+        serverName: "remote",
+        status: "disabled"
+      }
+    });
+    assert.equal(disabled.status, "ignored");
+    const remote = await bridge.ingest({
+      method: "remoteControl/status/changed",
+      params: {
+        installationId: "installation-1",
+        serverName: "remote",
+        status: "connected"
+      }
+    });
+    assert.equal(remote.status, "blocked");
+    assert.ok(remote.reasons.includes("v2_remote_control_active"));
+    assert.equal(remote.outcome?.status, "reconciliation_required");
+  } finally {
+    await rm(remoteFixture.tempRoot, { recursive: true, force: true });
+  }
 });
 
 test("preview and accept status checks do not refresh the source Git index", async () => {
@@ -504,7 +1660,14 @@ test("command and permission approvals are always manual", async () => {
     itemId: "item-permission",
     proposal: {
       kind: "permission",
-      scope: "filesystem.write:docs/guide.md"
+      scope: "filesystem.write:docs/guide.md",
+      requestedPermissions: {
+        fileSystem: {
+          read: null,
+          write: ["docs/guide.md"]
+        },
+        network: null
+      }
     }
   };
 
@@ -512,6 +1675,16 @@ test("command and permission approvals are always manual", async () => {
   const permissionOutcome = await fixture.adapter.ingest(permission);
   assert.equal(commandOutcome.status, "manual_required");
   assert.equal(permissionOutcome.status, "manual_required");
+  assert.equal(fixture.transport.messages.length, 0);
+
+  const unexpectedGrant = await fixture.adapter.resolveHumanApproval({
+    requestId: "request-command",
+    decision: "accept",
+    operatorId: "operator-jenn",
+    permissionGrant: {}
+  });
+  assert.equal(unexpectedGrant.status, "blocked");
+  assert.deepEqual(unexpectedGrant.reasons, ["human_permission_grant_unexpected"]);
   assert.equal(fixture.transport.messages.length, 0);
 
   const accepted = await fixture.adapter.resolveHumanApproval({
@@ -1086,7 +2259,17 @@ test("command and permission delivery uncertainty blocks the turn and cannot be 
     const fixture = await createAdapterFixture({ transport });
     const proposal = kind === "command"
       ? { kind, argv: ["npm", "test"], cwd: "." }
-      : { kind, scope: "filesystem.write:docs/guide.md" };
+      : {
+          kind,
+          scope: "filesystem.write:docs/guide.md",
+          requestedPermissions: {
+            fileSystem: {
+              read: null,
+              write: ["docs/guide.md"]
+            },
+            network: null
+          }
+        };
     const requested = await fixture.adapter.ingest({
       schemaVersion: "codex-app-server-normalized-event.v1",
       schemaProfileId: "fake-v2",
@@ -1167,6 +2350,29 @@ test("duplicate item starts reconcile an already accepted journal", async () => 
   );
   assert.equal((await fixture.journal.list())[0]?.state, "reconciliation_required");
   assert.equal(fixture.transport.messages.length, 1);
+  await rm(fixture.tempRoot, { recursive: true, force: true });
+});
+
+test("normalized file-change updates are accepted only while the item is proposed", async () => {
+  const fixture = await createAdapterFixture();
+  const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+
+  assert.equal((await fixture.adapter.ingest(events[0])).status, "proposed");
+  assert.equal((await fixture.adapter.ingest(events[1])).status, "accepted");
+  const lateUpdate = await fixture.adapter.ingest({
+    ...(events[0] as Record<string, unknown>),
+    eventId: "event-item-updated-after-approval",
+    eventType: "item_updated",
+    sequence: 3
+  });
+
+  assert.equal(lateUpdate.status, "reconciliation_required");
+  assert.deepEqual(lateUpdate.reasons, ["file_change_update_correlation_failed"]);
+  assert.equal(
+    fixture.adapter.getItemSnapshot("thread-1", "turn-1", "item-1")?.state,
+    "reconciliation_required"
+  );
+  assert.equal((await fixture.journal.list())[0]?.state, "reconciliation_required");
   await rm(fixture.tempRoot, { recursive: true, force: true });
 });
 
@@ -1864,6 +3070,42 @@ class BlockingTransport extends FakeTransport {
   }
 }
 
+function v2InitializeResponse(): Record<string, unknown> {
+  return {
+    id: "initialize-v2-1",
+    result: {
+      codexHome: "/tmp/codex-home",
+      platformFamily: "unix",
+      platformOs: "linux",
+      userAgent: "codex-test"
+    }
+  };
+}
+
+function createV2WireBridge(fixture: {
+  adapter: CodexAppServerAdapter;
+  head: string;
+  beforeHash: string;
+  afterHash: string;
+}): CodexAppServerV2WireAdapter {
+  const normalizer = new CodexAppServerV2WireNormalizer({
+    initializeRequestId: "initialize-v2-1",
+    schemaProfileId: "fake-v2",
+    fileChangeEvidence: ({ changes }) => ({
+      baseHead: fixture.head,
+      changes: changes.map((change) => ({
+        path: change.path,
+        beforeHash: change.kind === "add" ? null : fixture.beforeHash,
+        afterHash: change.kind === "delete" ? null : fixture.afterHash
+      }))
+    })
+  });
+  return new CodexAppServerV2WireAdapter({
+    adapter: fixture.adapter,
+    normalizer
+  });
+}
+
 class FailingJournalStore extends InMemoryPendingApprovalJournalStore {
   private updateAttempt = 0;
   private failurePositions = new Set<number>();
@@ -1986,6 +3228,7 @@ async function createAdapterFixture(options: {
   };
   journal?: PendingApprovalJournalStore;
   transport?: FakeTransport;
+  transportOverride?: CodexAppServerMessageTransport;
   coreAutocrlf?: "input";
   gitControlSource?: "include" | "attributes" | "global";
   hiddenTrackedCreateTarget?: boolean;
@@ -2051,7 +3294,7 @@ async function createAdapterFixture(options: {
   }
   const adapter = new CodexAppServerAdapter({
     sessionAttestation: attestation,
-    transport,
+    transport: options.transportOverride ?? transport,
     journalStore: journal,
     previewer: options.previewer ?? createTestOnlyLocalClonePreviewer({ tempRoot }),
     previewPolicy,

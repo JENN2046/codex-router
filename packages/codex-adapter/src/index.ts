@@ -38,6 +38,19 @@ import {
   type PendingApprovalJournalEntry,
   type PendingApprovalJournalStore
 } from "../../retain-control/src/index.js";
+import {
+  CodexAppServerPermissionGrantSchema,
+  CodexAppServerPermissionProfileSchema,
+  isPermissionGrantSubset,
+  type CodexAppServerPermissionGrant
+} from "./permission-profile.js";
+import {
+  CodexCommandApprovalDecisionSchema,
+  commandApprovalDecisionDisposition,
+  commandApprovalDecisionEquals,
+  isPlainCommandApprovalDecision,
+  type CodexCommandApprovalDecision
+} from "./command-approval.js";
 
 export const AppServerSessionAttestationSchema = z.object({
   schemaVersion: z.literal("app-server-session-attestation.v1").default(
@@ -72,35 +85,60 @@ const TurnEventBaseSchema = NormalizedEventBaseSchema.extend({
 });
 
 export const CodexApprovalProposalSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("file_change") }).strict(),
+  z.object({
+    kind: z.literal("file_change"),
+    grantRoot: z.string().min(1).optional()
+  }).strict(),
   z.object({
     kind: z.literal("command"),
     argv: z.array(z.string()).min(1),
-    cwd: z.string().min(1).optional()
+    cwd: z.string().min(1).optional(),
+    environmentId: z.string().min(1).optional(),
+    networkApprovalContext: z.object({
+      host: z.string().min(1),
+      protocol: z.enum(["http", "https", "socks5Tcp", "socks5Udp"])
+    }).strict().optional(),
+    availableDecisions: z.array(CodexCommandApprovalDecisionSchema).optional(),
+    requestedPermissionScope: z.string().min(1).optional()
+  }).strict(),
+  z.object({
+    kind: z.literal("network"),
+    host: z.string().min(1),
+    protocol: z.enum(["http", "https", "socks5Tcp", "socks5Udp"]),
+    environmentId: z.string().min(1).optional(),
+    availableDecisions: z.array(CodexCommandApprovalDecisionSchema).optional(),
+    requestedPermissionScope: z.string().min(1).optional()
   }).strict(),
   z.object({
     kind: z.literal("permission"),
-    scope: z.string().min(1)
+    scope: z.string().min(1),
+    requestedPermissions: CodexAppServerPermissionProfileSchema
   }).strict()
 ]);
+
+const NormalizedFileChangeItemSchema = z.object({
+  itemId: z.string().min(1),
+  itemType: z.literal("file_change"),
+  baseHead: z.string().min(1),
+  proposedAt: z.string().min(1),
+  changes: z.array(z.object({
+    path: z.string().min(1),
+    kind: GovernedFileChangeKindSchema,
+    oldPath: z.string().min(1).optional(),
+    unifiedDiff: z.string().min(1),
+    beforeHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional(),
+    afterHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional()
+  }).strict()).min(1)
+}).strict();
 
 export const CodexAppServerNormalizedEventSchema = z.discriminatedUnion("eventType", [
   TurnEventBaseSchema.extend({
     eventType: z.literal("item_started"),
-    item: z.object({
-      itemId: z.string().min(1),
-      itemType: z.literal("file_change"),
-      baseHead: z.string().min(1),
-      proposedAt: z.string().min(1),
-      changes: z.array(z.object({
-        path: z.string().min(1),
-        kind: GovernedFileChangeKindSchema,
-        oldPath: z.string().min(1).optional(),
-        unifiedDiff: z.string().min(1),
-        beforeHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional(),
-        afterHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional()
-      }).strict()).min(1)
-    }).strict()
+    item: NormalizedFileChangeItemSchema
+  }),
+  TurnEventBaseSchema.extend({
+    eventType: z.literal("item_updated"),
+    item: NormalizedFileChangeItemSchema
   }),
   TurnEventBaseSchema.extend({
     eventType: z.literal("approval_requested"),
@@ -130,7 +168,9 @@ export const CodexAppServerApprovalResponseSchema = z.object({
   schemaProfileId: z.string().min(1),
   requestId: z.string().min(1),
   decision: z.enum(["accept", "decline"]),
-  reasonCode: z.string().min(1)
+  reasonCode: z.string().min(1),
+  commandDecision: CodexCommandApprovalDecisionSchema.optional(),
+  permissionGrant: CodexAppServerPermissionGrantSchema.optional()
 }).strict();
 
 export type AppServerSessionAttestation = z.infer<typeof AppServerSessionAttestationSchema>;
@@ -241,7 +281,9 @@ const HumanApprovalInputSchema = z.object({
   requestId: z.string().min(1),
   decision: z.enum(["accept", "decline"]),
   operatorId: z.string().min(1),
-  nonce: z.string().min(1).optional()
+  nonce: z.string().min(1).optional(),
+  commandDecision: CodexCommandApprovalDecisionSchema.optional(),
+  permissionGrant: CodexAppServerPermissionGrantSchema.optional()
 }).strict();
 
 type HumanApprovalInput = z.infer<typeof HumanApprovalInputSchema>;
@@ -343,13 +385,17 @@ export class CodexAppServerAdapter {
     if (sequenceReason !== undefined) {
       await this.markTurnForReconciliation(event.threadId, event.turnId, sequenceReason);
       return this.outcome("reconciliation_required", [sequenceReason], {
-        itemId: event.eventType === "item_started" ? event.item.itemId : event.itemId
+        itemId: event.eventType === "item_started" || event.eventType === "item_updated"
+          ? event.item.itemId
+          : event.itemId
       });
     }
 
     switch (event.eventType) {
       case "item_started":
         return this.handleItemStarted(event);
+      case "item_updated":
+        return this.handleItemUpdated(event);
       case "approval_requested":
         return this.handleApprovalRequested(event);
       case "request_resolved":
@@ -414,9 +460,92 @@ export class CodexAppServerAdapter {
       );
     }
 
+    if (input.permissionGrant !== undefined && approval.proposal.kind !== "permission") {
+      return this.outcome("blocked", ["human_permission_grant_unexpected"], {
+        requestId: input.requestId,
+        itemId: approval.itemId,
+        approvalProposal: structuredClone(approval.proposal)
+      });
+    }
+    const commandProposal = approval.proposal.kind === "command"
+      || approval.proposal.kind === "network"
+      ? approval.proposal
+      : undefined;
+    if (input.commandDecision !== undefined && commandProposal === undefined) {
+      return this.outcome("blocked", ["human_command_decision_unexpected"], {
+        requestId: input.requestId,
+        itemId: approval.itemId,
+        approvalProposal: structuredClone(approval.proposal)
+      });
+    }
+    if (commandProposal !== undefined) {
+      const selectedDecision = input.commandDecision ?? input.decision;
+      if (commandApprovalDecisionDisposition(selectedDecision) !== input.decision) {
+        return this.outcome("blocked", ["human_command_decision_disposition_mismatch"], {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          approvalProposal: structuredClone(approval.proposal)
+        });
+      }
+      if (
+        commandProposal.availableDecisions !== undefined
+        && !commandProposal.availableDecisions.some((available) => (
+          commandApprovalDecisionEquals(available, selectedDecision)
+        ))
+      ) {
+        return this.outcome("blocked", ["human_command_decision_not_advertised"], {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          approvalProposal: structuredClone(approval.proposal)
+        });
+      }
+      if (
+        commandProposal.availableDecisions === undefined
+        && !isPlainCommandApprovalDecision(selectedDecision)
+      ) {
+        return this.outcome("blocked", ["human_command_decision_not_advertised"], {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          approvalProposal: structuredClone(approval.proposal)
+        });
+      }
+    }
+    if (input.decision === "decline" && input.permissionGrant !== undefined) {
+      return this.outcome("blocked", ["human_permission_grant_unexpected"], {
+        requestId: input.requestId,
+        itemId: approval.itemId,
+        approvalProposal: structuredClone(approval.proposal)
+      });
+    }
+    if (input.decision === "accept" && approval.proposal.kind === "permission") {
+      if (input.permissionGrant === undefined) {
+        return this.outcome("blocked", ["human_permission_grant_required"], {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          approvalProposal: structuredClone(approval.proposal)
+        });
+      }
+      if (!isPermissionGrantSubset(
+        approval.proposal.requestedPermissions,
+        input.permissionGrant
+      )) {
+        return this.outcome("blocked", ["human_permission_grant_not_subset"], {
+          requestId: input.requestId,
+          itemId: approval.itemId,
+          approvalProposal: structuredClone(approval.proposal)
+        });
+      }
+    }
+
     if (input.decision === "decline") {
       const delivery = item === undefined
-        ? await this.sendDecision(approval, "decline", "operator_declined")
+        ? await this.sendDecision(
+            approval,
+            "decline",
+            "operator_declined",
+            undefined,
+            input.commandDecision
+          )
         : await this.declineFileItem(approval, item, "operator_declined");
       const sent = delivery === "sent";
       return this.outcome(sent ? "blocked" : "reconciliation_required", [
@@ -429,14 +558,20 @@ export class CodexAppServerAdapter {
     }
 
     if (approval.proposal.kind !== "file_change") {
-      const delivery = await this.sendDecision(approval, "accept", "operator_approved");
+      const delivery = await this.sendDecision(
+        approval,
+        "accept",
+        "operator_approved",
+        input.permissionGrant,
+        input.commandDecision
+      );
       const sent = delivery === "sent";
       return this.outcome(sent ? "accepted" : "reconciliation_required", [
         sent ? `human_${approval.proposal.kind}_approval` : "approval_response_send_failed"
       ], {
         requestId: input.requestId,
         itemId: approval.itemId,
-        approvalProposal: approval.proposal
+        approvalProposal: structuredClone(approval.proposal)
       });
     }
 
@@ -558,23 +693,7 @@ export class CodexAppServerAdapter {
       });
     }
     try {
-      const changeSet = canonicalizeGovernedFileChangeSet({
-        changeSetId: `${event.threadId}:${event.turnId}:${event.item.itemId}`,
-        threadId: event.threadId,
-        turnId: event.turnId,
-        itemId: event.item.itemId,
-        baseHead: event.item.baseHead,
-        proposedAt: event.item.proposedAt,
-        sourceSchemaProfile: event.schemaProfileId,
-        changes: event.item.changes.map((change) => ({
-          path: change.path,
-          kind: change.kind,
-          ...(change.oldPath === undefined ? {} : { oldPath: change.oldPath }),
-          unifiedDiff: change.unifiedDiff,
-          ...(change.beforeHash === undefined ? {} : { beforeHash: change.beforeHash }),
-          ...(change.afterHash === undefined ? {} : { afterHash: change.afterHash })
-        }))
-      });
+      const changeSet = this.canonicalizeNormalizedFileChange(event);
       this.items.set(key, {
         key,
         threadId: event.threadId,
@@ -599,6 +718,81 @@ export class CodexAppServerAdapter {
     }
   }
 
+  private async handleItemUpdated(
+    event: Extract<CodexAppServerNormalizedEvent, { eventType: "item_updated" }>
+  ): Promise<CodexAdapterOutcome> {
+    const item = this.items.get(itemKey(event.threadId, event.turnId, event.item.itemId));
+    if (
+      item === undefined
+      || item.state !== "proposed"
+      || item.approvalRequestId !== undefined
+      || this.turn(event.threadId, event.turnId).blocked
+    ) {
+      await this.markTurnForReconciliation(
+        event.threadId,
+        event.turnId,
+        "file_change_update_correlation_failed"
+      );
+      return this.outcome("reconciliation_required", [
+        "file_change_update_correlation_failed"
+      ], {
+        itemId: event.item.itemId,
+        ...(item === undefined ? {} : { lifecycleState: item.state })
+      });
+    }
+    try {
+      const changeSet = this.canonicalizeNormalizedFileChange(event);
+      if (
+        changeSet.baseHead !== item.changeSet.baseHead
+        || changeSet.proposedAt !== item.changeSet.proposedAt
+      ) {
+        throw new Error("file_change_update_identity_mismatch");
+      }
+      item.changeSet = changeSet;
+      return this.outcome("proposed", [], {
+        itemId: event.item.itemId,
+        lifecycleState: "proposed"
+      });
+    } catch {
+      await this.markTurnForReconciliation(
+        event.threadId,
+        event.turnId,
+        "file_change_update_canonicalization_failed"
+      );
+      return this.outcome("reconciliation_required", [
+        "file_change_update_canonicalization_failed"
+      ], {
+        itemId: event.item.itemId,
+        lifecycleState: item.state
+      });
+    }
+  }
+
+  private canonicalizeNormalizedFileChange(
+    event: Extract<
+      CodexAppServerNormalizedEvent,
+      { eventType: "item_started" | "item_updated" }
+    >
+  ): GovernedFileChangeSet {
+    return canonicalizeGovernedFileChangeSet({
+      changeSetId: `${event.threadId}:${event.turnId}:${event.item.itemId}`,
+      threadId: event.threadId,
+      turnId: event.turnId,
+      itemId: event.item.itemId,
+      baseHead: event.item.baseHead,
+      proposedAt: event.item.proposedAt,
+      sourceSchemaProfile: event.schemaProfileId,
+      changes: event.item.changes.map((change) => ({
+        path: change.path,
+        kind: change.kind,
+        ...(change.oldPath === undefined ? {} : { oldPath: change.oldPath }),
+        unifiedDiff: change.unifiedDiff,
+        ...(change.beforeHash === undefined ? {} : { beforeHash: change.beforeHash }),
+        ...(change.afterHash === undefined ? {} : { afterHash: change.afterHash })
+      }))
+    });
+  }
+
   private async handleApprovalRequested(
     event: Extract<CodexAppServerNormalizedEvent, { eventType: "approval_requested" }>
   ): Promise<CodexAdapterOutcome> {
@@ -614,19 +808,23 @@ export class CodexAppServerAdapter {
       threadId: event.threadId,
       turnId: event.turnId,
       itemId: event.itemId,
-      proposal: event.proposal,
+      proposal: cloneAndDeepFreeze(event.proposal),
       resolved: false,
       deliveryState: "pending"
     };
     this.approvals.set(event.requestId, approval);
 
-    if (event.proposal.kind === "command" || event.proposal.kind === "permission") {
+    if (
+      event.proposal.kind === "command"
+      || event.proposal.kind === "network"
+      || event.proposal.kind === "permission"
+    ) {
       return this.outcome("manual_required", [
         `${event.proposal.kind}_policy_auto_forbidden`
       ], {
         requestId: event.requestId,
         itemId: event.itemId,
-        approvalProposal: event.proposal
+        approvalProposal: structuredClone(approval.proposal)
       });
     }
 
@@ -764,6 +962,19 @@ export class CodexAppServerAdapter {
         itemId: event.itemId,
         lifecycleState: item.state,
         authorizationDecision: authorization
+      });
+    }
+    if (event.proposal.grantRoot !== undefined) {
+      transitionItem(item, "awaiting_approval");
+      return this.outcome("manual_required", uniqueStrings([
+        ...authorization.reasons,
+        "file_change_grant_root_requires_human_approval"
+      ]), {
+        requestId: event.requestId,
+        itemId: event.itemId,
+        lifecycleState: item.state,
+        authorizationDecision: authorization,
+        approvalProposal: structuredClone(approval.proposal)
       });
     }
     if (authorization.approvalMode !== "policy_auto") {
@@ -1217,7 +1428,9 @@ export class CodexAppServerAdapter {
   private async sendDecision(
     approval: ApprovalRecord,
     decision: "accept" | "decline",
-    reasonCode: string
+    reasonCode: string,
+    permissionGrant?: CodexAppServerPermissionGrant,
+    commandDecision?: CodexCommandApprovalDecision
   ): Promise<ApprovalSendResult> {
     if (
       approval.deliveryState !== "pending"
@@ -1237,7 +1450,9 @@ export class CodexAppServerAdapter {
       schemaProfileId: this.attestation.schemaProfileId,
       requestId: approval.requestId,
       decision,
-      reasonCode
+      reasonCode,
+      ...(commandDecision === undefined ? {} : { commandDecision }),
+      ...(permissionGrant === undefined ? {} : { permissionGrant })
     });
     approval.deliveryState = "in_flight";
     try {
@@ -1490,6 +1705,34 @@ export class CodexSdkAdapter {
   }
 }
 
+export {
+  CodexAppServerV2FileChangeApprovalParamsSchema,
+  CodexAppServerV2FileChangeItemSchema,
+  CodexAppServerV2WireApprovalResponseSchema,
+  CodexAppServerV2WireMessageSchema,
+  CodexAppServerV2WireAdapter,
+  CodexAppServerV2WireNormalizer,
+  CodexAppServerV2WireTransport
+} from "./v2-wire.js";
+export type {
+  CodexAppServerV2FileChangeApprovalParams,
+  CodexAppServerV2FileChangeEvidence,
+  CodexAppServerV2FileChangeEvidenceInput,
+  CodexAppServerV2FileChangeEvidenceProvider,
+  CodexAppServerV2FileChangeItem,
+  CodexAppServerV2JsonRpcRequestId,
+  CodexAppServerV2NormalizationResult,
+  CodexAppServerV2HandshakeResult,
+  CodexAppServerV2WireAdapterOptions,
+  CodexAppServerV2WireAdapterResult,
+  CodexAppServerV2WireApprovalResponse,
+  CodexAppServerV2WireNormalizerOptions
+} from "./v2-wire.js";
+export type {
+  CodexAppServerPermissionGrant,
+  CodexAppServerPermissionProfile
+} from "./permission-profile.js";
+
 function resolveAuthorizationMode(
   attestation: AppServerSessionAttestation,
   allowTestProfiles: boolean,
@@ -1548,6 +1791,20 @@ function turnKey(threadId: string, turnId: string): string {
 
 function itemKey(threadId: string, turnId: string, itemId: string): string {
   return `${threadId}\0${turnId}\0${itemId}`;
+}
+
+function cloneAndDeepFreeze<T>(value: T): T {
+  return deepFreeze(structuredClone(value));
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  for (const nested of Object.values(value as Record<string, unknown>)) {
+    deepFreeze(nested);
+  }
+  return Object.freeze(value);
 }
 
 function uniqueStrings(values: string[]): string[] {
