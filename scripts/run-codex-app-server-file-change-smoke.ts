@@ -1,14 +1,22 @@
 #!/usr/bin/env node
 
 import {
-  APP_SERVER_FILE_CHANGE_INTERCEPTION_PROVEN
+  evaluateAppServerFileChangeInterceptionPreflight
 } from "./lib/codex-app-server-live-smoke-safety.js";
+
+const preflight = evaluateAppServerFileChangeInterceptionPreflight({
+  sandboxPolicy: "workspace-write",
+  approvalPolicy: "on-request",
+  proposalMode: "approval-request"
+});
 
 console.error(JSON.stringify({
   schemaVersion: "codex-app-server-file-change-smoke-preflight.v1",
-  status: "blocked",
-  interceptionProven: APP_SERVER_FILE_CHANGE_INTERCEPTION_PROVEN,
-  reason: "app_server_file_change_interception_unproven",
+  status: preflight.status,
+  interceptionProven: preflight.interceptionProven,
+  connectionAllowed: preflight.connectionAllowed,
+  reason: preflight.reason,
+  plan: preflight.plan,
   realAppServerStarted: false,
   clientConnected: false,
   workspaceWriteAttempted: false
