@@ -80,6 +80,7 @@ npm run test:package-consumer
 npm run test:governance-coverage
 npm run test:governance-properties
 npm run test:app-server:offline-harness
+npm run audit:app-server:proposal-capability
 npm run docs:governance
 ```
 
