@@ -41,12 +41,21 @@ Implement a strict offline-only contract with five boundaries:
    exact source content supplied as non-sensitive UTF-8 data.
 4. Verification clones a clean, exactly bound Git source without local or hard
    links, removes the remote, rejects filters, fsmonitor, upload-pack hooks,
-   repository attributes, partial clones, alternates, submodules, unsafe
-   temp-root containment, ignored or ordinary extra paths, and target mode
-   changes. Source preflight rejects
-   executable Git configuration before status inspection, and every Git child
-   receives explicit fsmonitor, hook, and user-attribute overrides. The patch is
-   applied only in that disposable clone and the final hash is verified.
+   repository attributes, local config includes, worktree redirection,
+   external excludes, `commondir`, partial clones, alternates, `.gitmodules`,
+   committed or staged gitlinks, unsafe temp-root containment, ignored or
+   ordinary extra paths, and target mode changes. Source and config reads bind
+   every parent plus the final file identity to a no-follow file handle, so a
+   concurrent symlink or directory replacement fails before content read.
+   Source preflight reads the repository's directly bound local config once,
+   queries only that frozen byte snapshot through stdin with includes disabled,
+   and rejects executable or path-redirecting Git configuration before any
+   worktree inspection. HEAD mismatch and staged
+   gitlinks block before status; worktree-aware Git calls are explicitly bound
+   to the real source root and ignore submodule inspection. Every Git child
+   receives fsmonitor, hook, user-attribute, and safe upload-pack overrides so
+   later source-config replacement cannot introduce a command hook. The patch
+   is applied only in that disposable clone and the final hash is verified.
 5. Source HEAD, status, and target hash are re-read after clone verification.
    Cleanup failure blocks the receipt. Nothing applies the proposal to the
    source workspace.
@@ -96,6 +105,31 @@ the regression suite uses hostile direct/included sentinel hooks plus
 exact-schema, replay, ignored-path, mode-change, and containment negatives. A
 second independent read-only review found no remaining P1/P2. Acceptance here
 is strictly offline-only and does not change any live authorization field.
+
+A subsequent maintainer review found two additional P1 boundaries: an unsafe
+target was still read after topology rejection, and repository-local
+`core.worktree`, include, or `config.worktree` state could redirect worktree
+inspection before rejection. It also found two P2 gaps: standalone source
+credential markers and mode-`160000` gitlinks without `.gitmodules`. The
+preflight now performs no target read on unsafe topology, rejects include and
+worktree redirection before worktree-aware Git, binds those Git calls to the
+real source root, and rejects the expanded secret and gitlink cases. These
+changes require a fresh independent review before this ADR may be considered
+review-complete again.
+
+That fresh review identified a remaining topology-check/read race plus
+`commondir`, staged-gitlink, stale-HEAD, and case-insensitive `.git` alias gaps.
+The verifier now uses identity-bound file-handle reads, rejects `commondir`,
+checks HEAD and index gitlinks before status, disables submodule inspection,
+and rejects case-folded or trailing-dot/space path aliases. Deterministic race
+tests replace both the target parent and `.git` after identity capture and
+prove that neither replacement reaches the content-read boundary. A final
+review then found that later Git children could reopen a replaced config and
+observe a new upload-pack hook. Config queries now consume only the bound
+snapshot, every Git child forces built-in pack-objects behavior, and a sentinel
+race proves post-read config replacement cannot execute the injected hook. A
+final independent review of this additional hardening found no remaining
+P1/P2. This offline review does not authorize live execution.
 
 Any future live consideration requires a separate independent security review
 that mechanically binds the effective tool inventory and exact runtime request.

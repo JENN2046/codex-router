@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
+import { constants } from "node:fs";
 import {
   lstat,
   mkdtemp,
-  readFile,
+  open,
   realpath,
   rm
 } from "node:fs/promises";
@@ -26,7 +27,15 @@ const MAX_PATCH_BYTES = 256 * 1024;
 const MAX_DIFF_LINES = 2_000;
 
 const TargetPathSchema = z.string().min(1).max(1_024).superRefine((value, ctx) => {
-  if (!SAFE_PATH.test(value) || value.includes("//") || value.endsWith("/") || value !== value.normalize("NFC")) {
+  const segments = value.split("/");
+  if (
+    !SAFE_PATH.test(value)
+    || value.includes("//")
+    || value.endsWith("/")
+    || value !== value.normalize("NFC")
+    || segments.some((segment) => segment.endsWith(".") || segment.endsWith(" "))
+    || segments.some((segment) => segment.toLocaleLowerCase("en-US") === ".git")
+  ) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "proposal target path is unsafe" });
   }
 });
@@ -586,6 +595,11 @@ export async function verifyNoEnvironmentProposalInIndependentClone(input: {
   expectedHead: string;
   proposal: NoEnvironmentProposedPatch;
   tempRoot?: string;
+  testOnlyHooks?: {
+    afterInitialSourceBindingsCaptured?: () => Promise<void>;
+    afterLocalConfigRead?: () => Promise<void>;
+    onIdentityBoundRead?: (path: string) => void;
+  };
 }): Promise<OfflineProposalVerificationReceipt> {
   const parsed = NoEnvironmentProposedPatchSchema.safeParse(input.proposal);
   const empty = (reasons: string[]): OfflineProposalVerificationReceipt => ({
@@ -630,10 +644,18 @@ export async function verifyNoEnvironmentProposalInIndependentClone(input: {
   ) {
     return empty(["offline_temp_root_unsafe"]);
   }
-  const before = await captureSourceBinding(root, input.expectedHead, proposal.targetPath, env).catch(() => undefined);
+  const before = await captureSourceBinding(
+    root,
+    input.expectedHead,
+    proposal.targetPath,
+    env,
+    input.testOnlyHooks
+  ).catch(() => undefined);
   if (before === undefined) return empty(["offline_source_preflight_failed"]);
   reasons.push(...before.reasons);
-  if (before.targetHash !== proposal.baseSha256) reasons.push("offline_proposal_base_hash_mismatch");
+  if (before.targetHash !== undefined && before.targetHash !== proposal.baseSha256) {
+    reasons.push("offline_proposal_base_hash_mismatch");
+  }
   if (reasons.length > 0) return empty(unique(reasons));
 
   let cloneParent: string | undefined;
@@ -667,12 +689,11 @@ export async function verifyNoEnvironmentProposalInIndependentClone(input: {
       throw new Error("offline_clone_not_clean");
     }
     independentCloneUsed = true;
-    const cloneTarget = resolveSafeTarget(clone, proposal.targetPath);
-    const cloneTopology = await lstat(cloneTarget);
-    if (!cloneTopology.isFile() || cloneTopology.isSymbolicLink() || cloneTopology.nlink !== 1) {
+    const cloneTargetBinding = await captureSafeRegularPathBinding(clone, proposal.targetPath);
+    if (cloneTargetBinding === undefined) {
       throw new Error("offline_clone_target_topology_unsafe");
     }
-    if (sha256(await readFile(cloneTarget)) !== proposal.baseSha256) {
+    if (sha256(await readIdentityBoundRegularFile(cloneTargetBinding)) !== proposal.baseSha256) {
       throw new Error("offline_clone_base_hash_mismatch");
     }
     await requireGit(clone, ["apply", "--whitespace=nowarn", "--recount", "-"], env, "offline_patch_apply_failed", proposal.unifiedDiff);
@@ -686,11 +707,11 @@ export async function verifyNoEnvironmentProposalInIndependentClone(input: {
     if ((await runGit(clone, ["diff", "--summary", "--", proposal.targetPath], env)).stdout !== "") {
       throw new Error("offline_patch_target_mode_changed");
     }
-    const afterTopology = await lstat(cloneTarget);
-    if (!afterTopology.isFile() || afterTopology.isSymbolicLink() || afterTopology.nlink !== 1) {
+    const afterCloneTargetBinding = await captureSafeRegularPathBinding(clone, proposal.targetPath);
+    if (afterCloneTargetBinding === undefined) {
       throw new Error("offline_patch_target_topology_unsafe");
     }
-    if (sha256(await readFile(cloneTarget)) !== proposal.afterSha256) {
+    if (sha256(await readIdentityBoundRegularFile(afterCloneTargetBinding)) !== proposal.afterSha256) {
       throw new Error("offline_patch_after_hash_mismatch");
     }
     const after = await captureSourceBinding(root, input.expectedHead, proposal.targetPath, env);
@@ -731,7 +752,7 @@ export async function verifyNoEnvironmentProposalInIndependentClone(input: {
 type SourceBinding = {
   head: string;
   status: string;
-  targetHash: string;
+  targetHash?: string;
   reasons: string[];
 };
 
@@ -739,107 +760,391 @@ async function captureSourceBinding(
   root: string,
   expectedHead: string,
   targetPath: string,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  testOnlyHooks?: {
+    afterInitialSourceBindingsCaptured?: () => Promise<void>;
+    afterLocalConfigRead?: () => Promise<void>;
+    onIdentityBoundRead?: (path: string) => void;
+  }
 ): Promise<SourceBinding> {
-  const target = resolveSafeTarget(root, targetPath);
-  const targetTopology = await lstat(target);
-  const gitTopology = await lstat(resolve(root, ".git")).catch(() => undefined);
+  const targetBinding = await captureSafeRegularPathBinding(root, targetPath);
+  if (targetBinding === undefined) {
+    return blockedSourceBinding(["offline_source_target_topology_unsafe"]);
+  }
+  const gitDir = resolve(root, ".git");
+  if (!await hasSafeDirectoryTopology(gitDir)) {
+    return blockedSourceBinding(["offline_source_git_topology_unsafe"]);
+  }
+  const configBinding = await captureSafeRegularPathBinding(root, ".git/config");
+  if (configBinding === undefined) {
+    return blockedSourceBinding(["offline_source_git_config_topology_unsafe"]);
+  }
+  const gitInfo = resolve(gitDir, "info");
+  if (!await hasSafeDirectoryTopology(gitInfo)) {
+    return blockedSourceBinding(["offline_source_git_info_topology_unsafe"]);
+  }
+  const gitObjects = resolve(gitDir, "objects");
+  if (!await hasSafeDirectoryTopology(gitObjects)) {
+    return blockedSourceBinding(["offline_source_git_objects_topology_unsafe"]);
+  }
+  const gitObjectsInfo = resolve(gitObjects, "info");
+  if (!await hasSafeDirectoryTopology(gitObjectsInfo)) {
+    return blockedSourceBinding(["offline_source_git_objects_info_topology_unsafe"]);
+  }
+  if (!await hasSafeOptionalRegularFileTopology(resolve(gitInfo, "exclude"))) {
+    return blockedSourceBinding(["offline_source_git_exclude_topology_unsafe"]);
+  }
+  if (await pathExists(resolve(gitObjectsInfo, "alternates"))) {
+    return blockedSourceBinding(["offline_source_alternates_forbidden"]);
+  }
+  if (await pathExists(resolve(gitInfo, "attributes"))) {
+    return blockedSourceBinding(["offline_source_git_info_attributes_forbidden"]);
+  }
+  if (await pathExists(resolve(gitDir, "config.worktree"))) {
+    return blockedSourceBinding(["offline_source_worktree_config_forbidden"]);
+  }
+  if (await pathExists(resolve(gitDir, "commondir"))) {
+    return blockedSourceBinding(["offline_source_git_commondir_forbidden"]);
+  }
+  await testOnlyHooks?.afterInitialSourceBindingsCaptured?.();
+
+  // Never follow repository-local include directives during preflight. Any
+  // include is itself unsupported because it can read configuration outside
+  // the repository before the verifier has established a safe boundary.
+  const localConfigText = decodeUtf8(await readIdentityBoundRegularFile(
+    configBinding,
+    testOnlyHooks?.onIdentityBoundRead
+  ));
+  if (localConfigText === undefined) {
+    return blockedSourceBinding(["offline_source_git_config_encoding_unsafe"]);
+  }
+  if (/^\s*\[\s*include(?:if)?(?:\s|\])/imu.test(localConfigText)) {
+    return blockedSourceBinding(["offline_source_git_includes_forbidden"]);
+  }
+  await testOnlyHooks?.afterLocalConfigRead?.();
+
+  // Every query consumes the already identity-bound snapshot through stdin.
+  // Never reopen the mutable repository pathname after its bytes were
+  // validated: a concurrent replacement must not change any preflight result.
+  const localConfigArgs = ["config", "--file", "-", "--no-includes"] as const;
+  const localIncludes = await runGitAllowCodeOne(
+    root,
+    [...localConfigArgs, "--get-regexp", "^include"],
+    env,
+    localConfigText
+  );
+  if (localIncludes !== "") {
+    return blockedSourceBinding(["offline_source_git_includes_forbidden"]);
+  }
   const localFilters = await runGitAllowCodeOne(
     root,
-    ["config", "--local", "--includes", "--get-regexp", "^filter\\."],
-    env
+    [...localConfigArgs, "--get-regexp", "^filter\\."],
+    env,
+    localConfigText
   );
   const localFsmonitor = await runGitAllowCodeOne(
     root,
-    ["config", "--local", "--includes", "--get", "core.fsmonitor"],
-    env
+    [...localConfigArgs, "--get", "core.fsmonitor"],
+    env,
+    localConfigText
   );
   const uploadPackHook = await runGitAllowCodeOne(
     root,
-    ["config", "--local", "--includes", "--get", "uploadpack.packObjectsHook"],
-    env
+    [...localConfigArgs, "--get", "uploadpack.packObjectsHook"],
+    env,
+    localConfigText
   );
   const partialClone = await runGitAllowCodeOne(
     root,
-    ["config", "--local", "--includes", "--get", "extensions.partialClone"],
-    env
+    [...localConfigArgs, "--get", "extensions.partialClone"],
+    env,
+    localConfigText
   );
   const promisorRemotes = await runGitAllowCodeOne(
     root,
-    ["config", "--local", "--includes", "--get-regexp", "^remote\\..*\\.promisor$"],
-    env
+    [...localConfigArgs, "--get-regexp", "^remote\\..*\\.promisor$"],
+    env,
+    localConfigText
   );
-  const visibleWorktreePaths = (await runGit(
+  const configuredWorktree = await runGitAllowCodeOne(
     root,
-    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-    env
-  )).stdout.split("\0").filter(Boolean);
-  const ignoredWorktreePaths = (await runGit(
+    [...localConfigArgs, "--get", "core.worktree"],
+    env,
+    localConfigText
+  );
+  const worktreeConfigExtension = await runGitAllowCodeOne(
     root,
-    ["ls-files", "-z", "--others", "--ignored", "--exclude-standard"],
-    env
-  )).stdout.split("\0").filter(Boolean);
-  const worktreeAttributesPresent = [...visibleWorktreePaths, ...ignoredWorktreePaths]
-    .some((path) => path.split("/").some((part) => part.toLocaleLowerCase("en-US") === ".gitattributes"));
-  const earlyReasons = [
+    [...localConfigArgs, "--get", "extensions.worktreeConfig"],
+    env,
+    localConfigText
+  );
+  const externalExcludesFile = await runGitAllowCodeOne(
+    root,
+    [...localConfigArgs, "--get", "core.excludesFile"],
+    env,
+    localConfigText
+  );
+  const configReasons = [
     ...(localFilters === "" ? [] : ["offline_source_git_filters_forbidden"]),
     ...(localFsmonitor === "" || localFsmonitor.trim() === "false"
       ? [] : ["offline_source_git_fsmonitor_forbidden"]),
     ...(uploadPackHook === "" ? [] : ["offline_source_upload_pack_hook_forbidden"]),
-    ...(worktreeAttributesPresent ? ["offline_source_worktree_git_attributes_forbidden"] : []),
     ...(partialClone === "" && promisorRemotes === "" ? [] : ["offline_source_partial_clone_forbidden"]),
-    ...(gitTopology !== undefined && gitTopology.isDirectory() && !gitTopology.isSymbolicLink()
-      ? [] : ["offline_source_git_topology_unsafe"]),
-    ...(await pathExists(resolve(root, ".git/objects/info/alternates"))
-      ? ["offline_source_alternates_forbidden"] : []),
-    ...(await pathExists(resolve(root, ".git/info/attributes"))
-      ? ["offline_source_git_info_attributes_forbidden"] : []),
-    ...(await pathExists(resolve(root, ".git/config.worktree"))
-      ? ["offline_source_worktree_config_forbidden"] : []),
-    ...(!targetTopology.isFile() || targetTopology.isSymbolicLink() || targetTopology.nlink !== 1
-      ? ["offline_source_target_topology_unsafe"] : [])
+    ...(configuredWorktree === "" && worktreeConfigExtension === ""
+      ? [] : ["offline_source_git_worktree_redirection_forbidden"]),
+    ...(externalExcludesFile === "" ? [] : ["offline_source_git_external_excludes_forbidden"])
   ];
-  if (earlyReasons.length > 0) {
-    return {
-      head: "not_captured",
-      status: "not_captured",
-      targetHash: sha256(await readFile(target)),
-      reasons: unique(earlyReasons)
-    };
-  }
+  if (configReasons.length > 0) return blockedSourceBinding(configReasons);
 
   // Object inspection precedes worktree inspection. A tracked attributes file
   // is rejected before `git status`, because status may invoke clean/process
   // filters selected by attributes. `runGit` also overrides fsmonitor, hooks,
   // and user attributes for every Git subprocess as a second boundary.
-  const head = (await runGit(root, ["rev-parse", "HEAD"], env)).stdout.trim();
-  const tracked = (await runGit(root, ["ls-tree", "-r", "-z", expectedHead, "--", targetPath], env)).stdout;
-  const allTracked = (await runGit(root, ["ls-tree", "-r", "--name-only", "-z", expectedHead], env)).stdout.split("\0").filter(Boolean);
+  const boundWorktree = `--work-tree=${root}`;
+  const topLevelRaw = (await runGit(root, [boundWorktree, "rev-parse", "--show-toplevel"], env)).stdout.trim();
+  const topLevel = await realpath(topLevelRaw).catch(() => undefined);
+  if (topLevel === undefined || !samePath(root, topLevel)) {
+    return blockedSourceBinding(["offline_source_git_toplevel_mismatch"]);
+  }
+  const head = (await runGit(root, [boundWorktree, "rev-parse", "HEAD"], env)).stdout.trim();
+  if (head !== expectedHead) {
+    return blockedSourceBinding(["offline_source_head_mismatch"]);
+  }
+  const stagedEntries = (await runGit(
+    root,
+    [boundWorktree, "ls-files", "--stage", "-z"],
+    env
+  )).stdout.split("\0").filter(Boolean);
+  if (stagedEntries.some((entry) => entry.startsWith("160000 "))) {
+    return blockedSourceBinding(["offline_source_submodules_forbidden"]);
+  }
+  const tracked = (await runGit(root, [boundWorktree, "ls-tree", "-r", "-z", expectedHead, "--", targetPath], env)).stdout;
+  const allTrackedEntries = (await runGit(
+    root,
+    [boundWorktree, "ls-tree", "-r", "-z", expectedHead],
+    env
+  )).stdout.split("\0").filter(Boolean);
+  const allTracked = allTrackedEntries.map((entry) => entry.slice(entry.indexOf("\t") + 1));
   const metadataReasons = [
     ...(allTracked.some((path) => path === ".gitattributes" || path.endsWith("/.gitattributes"))
       ? ["offline_source_git_attributes_forbidden"] : []),
-    ...(allTracked.includes(".gitmodules") ? ["offline_source_submodules_forbidden"] : [])
+    ...(allTracked.includes(".gitmodules") || allTrackedEntries.some((entry) => entry.startsWith("160000 commit "))
+      ? ["offline_source_submodules_forbidden"] : [])
   ];
   if (metadataReasons.length > 0) {
     return {
       head,
       status: "not_captured",
-      targetHash: sha256(await readFile(target)),
+      targetHash: sha256(await readIdentityBoundRegularFile(
+        targetBinding,
+        testOnlyHooks?.onIdentityBoundRead
+      )),
       reasons: unique(metadataReasons)
     };
   }
 
-  const status = (await runGit(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], env)).stdout;
+  const visibleWorktreePaths = (await runGit(
+    root,
+    [boundWorktree, "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    env
+  )).stdout.split("\0").filter(Boolean);
+  const ignoredWorktreePaths = (await runGit(
+    root,
+    [boundWorktree, "ls-files", "-z", "--others", "--ignored", "--exclude-standard"],
+    env
+  )).stdout.split("\0").filter(Boolean);
+  const worktreeAttributesPresent = [...visibleWorktreePaths, ...ignoredWorktreePaths]
+    .some((path) => path.split("/").some((part) => part.toLocaleLowerCase("en-US") === ".gitattributes"));
+  if (worktreeAttributesPresent) {
+    return {
+      head,
+      status: "not_captured",
+      targetHash: sha256(await readIdentityBoundRegularFile(
+        targetBinding,
+        testOnlyHooks?.onIdentityBoundRead
+      )),
+      reasons: ["offline_source_worktree_git_attributes_forbidden"]
+    };
+  }
+
+  const status = (await runGit(
+    root,
+    [
+      boundWorktree,
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+      "--ignore-submodules=all"
+    ],
+    env
+  )).stdout;
   const reasons = [
-    ...(head === expectedHead ? [] : ["offline_source_head_mismatch"]),
     ...(status === "" ? [] : ["offline_source_worktree_not_clean"]),
     ...(tracked.startsWith("100644 blob ") ? [] : ["offline_source_target_not_regular_tracked_file"])
   ];
-  return { head, status, targetHash: sha256(await readFile(target)), reasons };
+  return {
+    head,
+    status,
+    targetHash: sha256(await readIdentityBoundRegularFile(
+      targetBinding,
+      testOnlyHooks?.onIdentityBoundRead
+    )),
+    reasons
+  };
+}
+
+function blockedSourceBinding(reasons: string[]): SourceBinding {
+  return {
+    head: "not_captured",
+    status: "not_captured",
+    reasons: unique(reasons)
+  };
 }
 
 function sameSourceBinding(left: SourceBinding, right: SourceBinding): boolean {
   return left.head === right.head && left.status === right.status && left.targetHash === right.targetHash;
+}
+
+type PathIdentity = {
+  path: string;
+  dev: number;
+  ino: number;
+  mode: number;
+  nlink: number;
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+};
+
+type SafeRegularPathBinding = {
+  path: string;
+  components: PathIdentity[];
+};
+
+async function captureSafeRegularPathBinding(
+  root: string,
+  targetPath: string
+): Promise<SafeRegularPathBinding | undefined> {
+  const parts = targetPath.split("/");
+  let current = root;
+  const rootTopology = await lstat(root).catch(() => undefined);
+  if (rootTopology === undefined || rootTopology.isSymbolicLink() || !rootTopology.isDirectory()) {
+    return undefined;
+  }
+  const components = [pathIdentity(root, rootTopology)];
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    if (part === undefined) return undefined;
+    current = join(current, part);
+    const topology = await lstat(current).catch(() => undefined);
+    if (topology === undefined || topology.isSymbolicLink()) return undefined;
+    components.push(pathIdentity(current, topology));
+    if (index === parts.length - 1) {
+      return topology.isFile() && topology.nlink === 1
+        ? { path: current, components }
+        : undefined;
+    }
+    if (!topology.isDirectory()) return undefined;
+  }
+  return undefined;
+}
+
+async function readIdentityBoundRegularFile(
+  binding: SafeRegularPathBinding,
+  onRead?: (path: string) => void
+): Promise<Buffer> {
+  await assertPathBindingCurrent(binding);
+  const flags = process.platform === "win32"
+    ? constants.O_RDONLY
+    : constants.O_RDONLY | constants.O_NOFOLLOW;
+  const handle = await open(binding.path, flags);
+  try {
+    const expected = binding.components.at(-1);
+    if (expected === undefined || !samePathIdentity(expected, await handle.stat())) {
+      throw new Error("offline_identity_bound_file_changed");
+    }
+    await assertPathBindingCurrent(binding);
+    onRead?.(binding.path);
+    const content = await handle.readFile();
+    if (!samePathIdentity(expected, await handle.stat())) {
+      throw new Error("offline_identity_bound_file_changed");
+    }
+    return content;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function assertPathBindingCurrent(binding: SafeRegularPathBinding): Promise<void> {
+  for (const expected of binding.components) {
+    const current = await lstat(expected.path).catch(() => undefined);
+    if (current === undefined || current.isSymbolicLink() || !samePathIdentity(expected, current)) {
+      throw new Error("offline_identity_bound_path_changed");
+    }
+  }
+}
+
+function pathIdentity(path: string, stats: {
+  dev: number;
+  ino: number;
+  mode: number;
+  nlink: number;
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+}): PathIdentity {
+  return {
+    path,
+    dev: stats.dev,
+    ino: stats.ino,
+    mode: stats.mode,
+    nlink: stats.nlink,
+    size: stats.size,
+    mtimeMs: stats.mtimeMs,
+    ctimeMs: stats.ctimeMs
+  };
+}
+
+function samePathIdentity(expected: PathIdentity, actual: {
+  dev: number;
+  ino: number;
+  mode: number;
+  nlink: number;
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+}): boolean {
+  return expected.dev === actual.dev
+    && expected.ino === actual.ino
+    && expected.mode === actual.mode
+    && expected.nlink === actual.nlink
+    && expected.size === actual.size
+    && expected.mtimeMs === actual.mtimeMs
+    && expected.ctimeMs === actual.ctimeMs;
+}
+
+async function hasSafeDirectoryTopology(path: string): Promise<boolean> {
+  const topology = await lstat(path).catch(() => undefined);
+  return topology !== undefined
+    && topology.isDirectory()
+    && !topology.isSymbolicLink();
+}
+
+async function hasSafeOptionalRegularFileTopology(path: string): Promise<boolean> {
+  const topology = await lstat(path).catch((error: unknown) => {
+    if (isErrno(error, "ENOENT")) return undefined;
+    throw error;
+  });
+  return topology === undefined || (
+    topology.isFile()
+    && !topology.isSymbolicLink()
+    && topology.nlink === 1
+  );
+}
+
+function samePath(left: string, right: string): boolean {
+  return isWithin(left, right) && isWithin(right, left);
 }
 
 function sanitizedGitEnv(tempRoot: string): NodeJS.ProcessEnv {
@@ -873,6 +1178,10 @@ async function runGit(
       "-c", "core.fsmonitor=false",
       "-c", `core.hooksPath=${process.platform === "win32" ? "NUL" : "/dev/null"}`,
       "-c", `core.attributesFile=${process.platform === "win32" ? "NUL" : "/dev/null"}`,
+      // A local transport starts upload-pack in the source repository. Force
+      // its only command hook back to Git's built-in pack-objects behavior so
+      // a config replacement after preflight cannot execute a new hook.
+      "-c", "uploadpack.packObjectsHook=git pack-objects",
       ...argv
     ];
     const child = spawn("git", hardenedArgv, { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
@@ -921,9 +1230,14 @@ async function requireGit(
   }
 }
 
-async function runGitAllowCodeOne(cwd: string, argv: string[], env: NodeJS.ProcessEnv): Promise<string> {
+async function runGitAllowCodeOne(
+  cwd: string,
+  argv: string[],
+  env: NodeJS.ProcessEnv,
+  stdin?: string
+): Promise<string> {
   try {
-    return (await runGit(cwd, argv, env)).stdout;
+    return (await runGit(cwd, argv, env, stdin)).stdout;
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("git_failed:1:")) return "";
     throw error;
@@ -1000,7 +1314,8 @@ function decodeUtf8(value: Uint8Array): string | undefined {
 }
 
 function containsSensitiveSourceContent(value: string): boolean {
-  return /(?:password|passphrase|access[_-]?token|api[_-]?secret|secret[_-]?key|client[_-]?secret|api[_-]?key)\s*[:=]\s*\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|authorization\s*:\s*bearer\s+\S+/iu.test(value);
+  const normalized = value.normalize("NFKC");
+  return /(?:password|passphrase|passwd|token|secret|private[_-]?key|api[_-]?key)\s*[:=]\s*\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|authorization\s*:\s*bearer\s+\S+/iu.test(normalized);
 }
 
 async function pathExists(path: string): Promise<boolean> {

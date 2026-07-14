@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -81,6 +81,10 @@ test("no-environment contract rejects sensitive source content and credential-li
     "PASSWORD=hunter2\n",
     "access_token: abc123\n",
     "client_secret = private\n",
+    "TOKEN=abc123\n",
+    "REFRESH_TOKEN=abc123\n",
+    "SECRET=abc123\n",
+    "PRIVATE_KEY=abc123\n",
     "-----BEGIN PRIVATE KEY-----\n"
   ]) {
     assert.throws(() => contractFor(content), /no_environment_proposal_source_content_sensitive/u);
@@ -89,6 +93,12 @@ test("no-environment contract rejects sensitive source content and credential-li
     ...proposalFor("hello\n", "SECRET_KEY=abc123\n"),
     unifiedDiff: diff("docs/guide.md", "hello", "SECRET_KEY=abc123")
   }).success, false);
+  for (const targetPath of [".GIT/config", "docs/guide.md.", "docs/guide.md "]) {
+    assert.equal(NoEnvironmentProposedPatchSchema.safeParse({
+      ...proposalFor("hello\n", "hello governed\n"),
+      targetPath
+    }).success, false, targetPath);
+  }
 });
 
 test("event gate accepts only agent-message lifecycle and binds the final proposal", () => {
@@ -369,7 +379,7 @@ test("offline verification rejects target expansion, base drift, filters, attrib
         await git(fixture.repoRoot, ["commit", "-m", "attributes"]);
         fixture.head = (await git(fixture.repoRoot, ["rev-parse", "HEAD"])).trim();
       },
-      reason: "offline_source_worktree_git_attributes_forbidden"
+      reason: "offline_source_git_attributes_forbidden"
     },
     {
       prepare: async (fixture) => { await writeFile(join(fixture.repoRoot, "untracked.txt"), "dirty\n"); },
@@ -426,11 +436,230 @@ test("offline source preflight rejects direct/included hooks before any sentinel
       assert.equal(receipt.status, "blocked");
       const expectedReason = kind === "fsmonitor"
         ? "offline_source_git_fsmonitor_forbidden"
-        : kind === "filter" || kind === "include-filter"
+        : kind === "include-filter"
+          ? "offline_source_git_includes_forbidden"
+          : kind === "filter"
           ? "offline_source_git_filters_forbidden"
           : "offline_source_upload_pack_hook_forbidden";
       assert.ok(receipt.reasons.includes(expectedReason), JSON.stringify(receipt));
       assert.equal(await fileExists(marker), false, `${kind} sentinel executed during preflight`);
+    } finally {
+      await rm(fixture.tempRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test("offline source preflight rejects unsafe target and Git redirection before following them", async () => {
+  const scenarios: Array<{
+    name: string;
+    prepare: (fixture: RepoFixture) => Promise<void>;
+    reason: string;
+  }> = [
+    {
+      name: "target parent symlink",
+      prepare: async (fixture) => {
+        const outside = join(fixture.tempRoot, "outside-target");
+        await mkdir(outside);
+        await rm(join(fixture.repoRoot, "docs"), { recursive: true, force: true });
+        await symlink(
+          outside,
+          join(fixture.repoRoot, "docs"),
+          process.platform === "win32" ? "junction" : "dir"
+        );
+      },
+      reason: "offline_source_target_topology_unsafe"
+    },
+    {
+      name: "core.worktree",
+      prepare: async (fixture) => {
+        const outside = join(fixture.tempRoot, "outside-worktree");
+        await mkdir(outside);
+        await git(fixture.repoRoot, ["config", "core.worktree", outside]);
+      },
+      reason: "offline_source_git_worktree_redirection_forbidden"
+    },
+    {
+      name: "include.path",
+      prepare: async (fixture) => {
+        const malformed = join(fixture.tempRoot, "must-not-be-read.config");
+        await writeFile(malformed, "this is not valid git config\n");
+        await git(fixture.repoRoot, ["config", "--add", "include.path", malformed]);
+      },
+      reason: "offline_source_git_includes_forbidden"
+    },
+    {
+      name: "config.worktree",
+      prepare: async (fixture) => {
+        await writeFile(
+          join(fixture.repoRoot, ".git/config.worktree"),
+          `[core]\n\tworktree = ${join(fixture.tempRoot, "outside-config-worktree")}\n`
+        );
+      },
+      reason: "offline_source_worktree_config_forbidden"
+    },
+    {
+      name: "commondir",
+      prepare: async (fixture) => {
+        await writeFile(join(fixture.repoRoot, ".git/commondir"), "../outside-common-git\n");
+      },
+      reason: "offline_source_git_commondir_forbidden"
+    }
+  ];
+  for (const scenario of scenarios) {
+    const fixture = await createRepo("hello\n");
+    try {
+      await scenario.prepare(fixture);
+      const receipt = await verifyNoEnvironmentProposalInIndependentClone({
+        sourceRepo: fixture.repoRoot,
+        expectedHead: fixture.head,
+        proposal: proposalFor("hello\n", "hello governed\n"),
+        tempRoot: fixture.tempRoot
+      });
+      assert.equal(receipt.status, "blocked", scenario.name);
+      assert.ok(receipt.reasons.includes(scenario.reason), `${scenario.name}: ${JSON.stringify(receipt)}`);
+      assert.equal(receipt.reasons.includes("offline_source_preflight_failed"), false, scenario.name);
+    } finally {
+      await rm(fixture.tempRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test("identity-bound source reads reject target and config replacement before reading content", async () => {
+  for (const kind of ["target", "config"] as const) {
+    const fixture = await createRepo("hello\n");
+    const identityReads: string[] = [];
+    try {
+      const receipt = await verifyNoEnvironmentProposalInIndependentClone({
+        sourceRepo: fixture.repoRoot,
+        expectedHead: fixture.head,
+        proposal: proposalFor("hello\n", "hello governed\n"),
+        tempRoot: fixture.tempRoot,
+        testOnlyHooks: {
+          afterInitialSourceBindingsCaptured: async () => {
+            if (kind === "target") {
+              const outside = join(fixture.tempRoot, "race-target");
+              await mkdir(outside);
+              await writeFile(join(outside, "guide.md"), "must not be read\n");
+              await rm(join(fixture.repoRoot, "docs"), { recursive: true, force: true });
+              await symlink(
+                outside,
+                join(fixture.repoRoot, "docs"),
+                process.platform === "win32" ? "junction" : "dir"
+              );
+              return;
+            }
+            const originalGit = join(fixture.tempRoot, "original-git");
+            const outsideGit = join(fixture.tempRoot, "race-git");
+            await rename(join(fixture.repoRoot, ".git"), originalGit);
+            await mkdir(outsideGit);
+            await writeFile(join(outsideGit, "config"), "[include]\n\tpath = /must-not-be-read\n");
+            await symlink(
+              outsideGit,
+              join(fixture.repoRoot, ".git"),
+              process.platform === "win32" ? "junction" : "dir"
+            );
+          },
+          onIdentityBoundRead: (path) => identityReads.push(path)
+        }
+      });
+      assert.equal(receipt.status, "blocked", `${kind}: ${JSON.stringify(receipt)}`);
+      const forbiddenSuffix = kind === "target" ? "docs/guide.md" : ".git/config";
+      assert.equal(
+        identityReads.some((path) => path.replaceAll("\\", "/").endsWith(forbiddenSuffix)),
+        false,
+        `${kind} replacement reached content read: ${JSON.stringify(identityReads)}`
+      );
+    } finally {
+      await rm(fixture.tempRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test("config replacement after its bound read cannot execute a new upload-pack hook", async () => {
+  const fixture = await createRepo("hello\n");
+  const marker = join(fixture.tempRoot, "post-config-read-uploadpack-executed");
+  let replaced = false;
+  try {
+    const hook = await writeSentinelHook(fixture.tempRoot, "post-config-read-uploadpack", marker);
+    const replacement = join(fixture.tempRoot, "replacement.config");
+    await writeFile(replacement, await readFile(join(fixture.repoRoot, ".git/config")));
+    await git(fixture.repoRoot, ["config", "--file", replacement, "uploadpack.packObjectsHook", hook]);
+    await rm(marker, { force: true });
+
+    const receipt = await verifyNoEnvironmentProposalInIndependentClone({
+      sourceRepo: fixture.repoRoot,
+      expectedHead: fixture.head,
+      proposal: proposalFor("hello\n", "hello governed\n"),
+      tempRoot: fixture.tempRoot,
+      testOnlyHooks: {
+        afterLocalConfigRead: async () => {
+          if (replaced) return;
+          replaced = true;
+          await rename(replacement, join(fixture.repoRoot, ".git/config"));
+        }
+      }
+    });
+
+    assert.equal(replaced, true);
+    assert.equal(receipt.status, "blocked", JSON.stringify(receipt));
+    assert.equal(receipt.sourceWorkspaceUnchanged, false, JSON.stringify(receipt));
+    assert.equal(await fileExists(marker), false, "replacement upload-pack hook executed");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("offline source preflight rejects gitlinks even when .gitmodules is absent", async () => {
+  const fixture = await createRepo("hello\n");
+  try {
+    await git(fixture.repoRoot, [
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      `160000,${fixture.head},vendor/dependency`
+    ]);
+    await git(fixture.repoRoot, ["commit", "-m", "synthetic gitlink without metadata"]);
+    fixture.head = (await git(fixture.repoRoot, ["rev-parse", "HEAD"])).trim();
+    assert.equal(await fileExists(join(fixture.repoRoot, ".gitmodules")), false);
+
+    const receipt = await verifyNoEnvironmentProposalInIndependentClone({
+      sourceRepo: fixture.repoRoot,
+      expectedHead: fixture.head,
+      proposal: proposalFor("hello\n", "hello governed\n"),
+      tempRoot: fixture.tempRoot
+    });
+    assert.equal(receipt.status, "blocked", JSON.stringify(receipt));
+    assert.ok(receipt.reasons.includes("offline_source_submodules_forbidden"), JSON.stringify(receipt));
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("offline source preflight rejects staged gitlinks and stale expected HEAD before status", async () => {
+  for (const kind of ["staged", "head-mismatch"] as const) {
+    const fixture = await createRepo("hello\n");
+    const expectedHead = fixture.head;
+    try {
+      await git(fixture.repoRoot, [
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        `160000,${fixture.head},vendor/dependency`
+      ]);
+      if (kind === "head-mismatch") {
+        await git(fixture.repoRoot, ["commit", "-m", "advance HEAD with synthetic gitlink"]);
+      }
+      const receipt = await verifyNoEnvironmentProposalInIndependentClone({
+        sourceRepo: fixture.repoRoot,
+        expectedHead,
+        proposal: proposalFor("hello\n", "hello governed\n"),
+        tempRoot: fixture.tempRoot
+      });
+      const expectedReason = kind === "staged"
+        ? "offline_source_submodules_forbidden"
+        : "offline_source_head_mismatch";
+      assert.equal(receipt.status, "blocked", `${kind}: ${JSON.stringify(receipt)}`);
+      assert.ok(receipt.reasons.includes(expectedReason), `${kind}: ${JSON.stringify(receipt)}`);
     } finally {
       await rm(fixture.tempRoot, { recursive: true, force: true });
     }

@@ -143,11 +143,21 @@ The contract requires all of the following:
 - only one strict `0.144.1`, nonce/sequence-bound, replay-consumed and
   correlated `agentMessage` lifecycle may produce the final proposal;
 - schema version, exact target, base SHA-256, after SHA-256, operation, diff
-  size, credential markers, and event order are fail-closed;
+  size, standalone password/token/secret/private-key markers, and event order
+  are fail-closed;
 - verification rejects dirty sources, Git attributes, filters, fsmonitor and
-  upload-pack hooks, partial clones, alternates, submodules, unsafe target/temp
-  topology, ordinary and ignored extra paths, mode drift, hash drift, and
-  cleanup failure;
+  upload-pack hooks, local config includes, `core.worktree`, worktree config,
+  external excludes, `commondir`, partial clones, alternates, `.gitmodules`,
+  committed or staged mode-`160000` gitlinks, unsafe target/temp topology,
+  ordinary and ignored extra paths, mode drift, hash drift, and cleanup failure;
+- case-folded `.git` and trailing-dot/space path aliases are rejected;
+- source target and local config reads bind parent and file identities to a
+  no-follow handle; concurrent replacement blocks before content read;
+- local config is read once, all config queries consume that frozen snapshot
+  through stdin, and Git children force safe built-in upload-pack behavior;
+- HEAD mismatch and index gitlinks block before status, while every
+  worktree-aware source Git query is explicitly bound to the real source root
+  and uses `--ignore-submodules=all` where status is inspected;
 - the patch is applied only in an independent clone with its remote removed;
   source HEAD, status, and target hash must remain unchanged.
 
