@@ -91,6 +91,13 @@ authorization, preview, and retain/permit/rollback. CI is configured for Node
 Ordinary CI does not run a real Codex CLI, real App Server, provider execution,
 real source-workspace write, or external canary.
 
+Real App Server file-change smoke is currently blocked because file-change
+approval interception before execution has not been proven. The repository's
+`npm run smoke:app-server:file-change:preflight` command is intentionally a
+non-networked blocking check; it does not start App Server or a client. A future
+authorized harness must use an independent remote-free clone, a durable
+sanitized wire transcript, and post-disconnect quiet-period hash verification.
+
 ## Documentation
 
 - [Architecture](docs/governance/CODEX_EXECUTION_GOVERNANCE_ARCHITECTURE.md)

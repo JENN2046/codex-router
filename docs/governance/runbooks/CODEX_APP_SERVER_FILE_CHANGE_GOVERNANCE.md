@@ -3,12 +3,13 @@ title: Runbook: Codex App Server File-change Governance
 status: active
 owner: governance
 created: 2026-07-11
-last_verified: 2026-07-13
+last_verified: 2026-07-14
 verified_by:
   - node --import tsx --test tests/codex-app-server-v2-wire.test.ts
   - node --import tsx --test tests/codex-app-server-adapter.test.ts
   - node --import tsx --test tests/retain-control.test.ts
   - npm run test:package-consumer
+  - node --import tsx --test tests/codex-app-server-live-smoke-safety.test.ts
 applies_to:
   - codex-app-server
   - file-change
@@ -62,6 +63,44 @@ be invoked directly after `npm ci` without a separate build prerequisite.
 
 Do not substitute a real App Server, Codex CLI, provider, or source-workspace
 write command without new operator authorization for that exact command.
+
+The repository exposes a fail-closed preflight only:
+
+```bash
+npm run smoke:app-server:file-change:preflight
+```
+
+It must report `app_server_file_change_interception_unproven` and must not start
+App Server, connect a client, or attempt workspace write. `workspace-write`
+together with `on-request` permits in-sandbox edits; it is not evidence that a
+file-change approval will be intercepted. Do not run another live file-change
+smoke until a separately reviewed protocol mechanism proves interception before
+execution.
+
+Any future authorized live harness must run App Server against an independent
+`git clone --no-local --no-hardlinks --no-checkout` fixture. It must remove the
+clone's remote before checkout, reject object alternates, tracked
+`.gitattributes`, configured Git filters, dirty state, HEAD drift, and unsafe
+target topology. Clone inspection, checkout, later Git verification, and the App
+Server process must all use the same returned sanitized process environment;
+host global/system Git configuration is disabled and repository-local filters
+remain forbidden. The source repository is never the App Server workspace.
+
+Before each inbound message reaches the v2 normalizer, and before each outbound
+message is sent, the harness must durably append a mode-`0600` sanitized JSONL
+wire entry. Entries preserve direction, sequence, safe method name, hashed
+request/correlation identities, payload shape, and explicit approval decision.
+They never retain prompts, diffs, commands, tokens, arbitrary metadata, raw
+provider responses, or raw request ids.
+
+After every disconnect or failure, the harness must continue sampling HEAD,
+porcelain status, safe target topology, target hashes, and a recursive workspace
+filesystem-metadata fingerprint for a complete quiet period. The fingerprint
+includes file/directory topology, inode identity, size, ctime, and mtime, so an
+ordinary write-and-revert between content samples remains monotonic evidence of
+mutation. Any mutation visible in these retained metadata or content/status
+samples permanently blocks the result. Only an unchanged final snapshot under
+this explicit detection model may be reported as an unchanged smoke workspace.
 
 ## v2 Wire Normalization Boundary
 
@@ -288,6 +327,10 @@ interception from configuration alone.
 - effective approval policy is not `on-request`;
 - sandbox is not `workspace-write`;
 - file-change interception is not proven for the session;
+- a sanitized wire transcript was not durably recorded before normalization and
+  before each outbound response;
+- the App Server workspace is not a remote-free, no-alternates, independent
+  no-hardlink clone, or a post-disconnect quiet period was not observed;
 - schema profile, event identity, sequence, or correlation is missing/mismatched;
 - file facts omit a matching requested write scope or a derived sensitive path;
 - the proposed set is not fully canonical, including duplicate/case-alias paths,
