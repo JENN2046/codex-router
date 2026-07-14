@@ -1,65 +1,15 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { open, lstat, readFile, readdir, realpath } from "node:fs/promises";
+import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 
-const execFileAsync = promisify(execFile);
-const SAFE_WIRE_METHODS = new Set([
-  "account/chatgptAuthTokens/refresh", "attestation/generate", "currentTime/read",
-  "error", "initialize", "initialized", "item/agentMessage/delta",
-  "item/autoApprovalReview/completed", "item/autoApprovalReview/started",
-  "item/commandExecution/outputDelta", "item/commandExecution/requestApproval",
-  "item/commandExecution/terminalInteraction", "item/completed",
-  "item/fileChange/outputDelta", "item/fileChange/patchUpdated",
-  "item/fileChange/requestApproval", "item/mcpToolCall/progress",
-  "item/permissions/requestApproval", "item/plan/delta",
-  "item/reasoning/summaryPartAdded", "item/reasoning/summaryTextDelta",
-  "item/reasoning/textDelta", "item/started", "item/tool/call",
-  "item/tool/requestUserInput", "mcpServer/elicitation/request",
-  "mcpServer/startupStatus/updated", "model/rerouted",
-  "model/safetyBuffering/updated", "model/verification", "openai/form",
-  "remoteControl/status/changed", "serverRequest/resolved", "thread/closed",
-  "thread/compacted", "thread/settings/updated", "thread/start",
-  "thread/started", "thread/status/changed", "thread/tokenUsage/updated",
-  "turn/completed", "turn/diff/updated", "turn/moderationMetadata",
-  "turn/plan/updated", "turn/start", "turn/started", "warning"
-]);
-const SAFE_DECISIONS = new Set([
-  "accept", "acceptForSession", "acceptWithExecpolicyAmendment",
-  "applyNetworkPolicyAmendment", "cancel", "decline"
-]);
+export * from "./codex-app-server-wire-transcript.js";
+export * from "./codex-app-server-offline-interception-harness.js";
 
 export const APP_SERVER_FILE_CHANGE_INTERCEPTION_PROVEN = false;
 
-export interface SanitizedWireTranscriptEntry {
-  schemaVersion: "codex-app-server-sanitized-wire-entry.v1";
-  sequence: number;
-  observedAt: string;
-  direction: "inbound" | "outbound";
-  envelope: "notification" | "request" | "response" | "invalid";
-  method?: string;
-  methodHash?: string;
-  requestIdHash?: string;
-  correlationHashes: Record<string, string>;
-  approvalDecision?: string;
-  permissionGrantEmpty?: boolean;
-  payloadShapeHash: string;
-  stringCodeUnits: number;
-  redactedScalarCount: number;
-}
-
-interface ShapeSummary {
-  shape: unknown;
-  stringCodeUnits: number;
-  redactedScalarCount: number;
-}
-
-export interface SanitizedWireTranscriptHandle {
-  appendFile(data: string, encoding: "utf8"): Promise<unknown>;
-  sync(): Promise<unknown>;
-  close(): Promise<unknown>;
-}
+const execFileAsync = promisify(execFile);
 
 function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
@@ -67,210 +17,6 @@ function sha256(value: string | Uint8Array): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function summarizeShape(value: unknown): ShapeSummary {
-  let stringCodeUnits = 0;
-  let redactedScalarCount = 0;
-  let values = 0;
-  const seen = new Set<object>();
-  const visit = (candidate: unknown, depth: number): unknown => {
-    values += 1;
-    if (values > 50_000 || depth > 64) throw new Error("wire_transcript_shape_limit_exceeded");
-    if (candidate === null) return "null";
-    if (typeof candidate === "string") {
-      stringCodeUnits += candidate.length;
-      redactedScalarCount += 1;
-      return "string";
-    }
-    if (typeof candidate === "number") {
-      if (!Number.isFinite(candidate)) throw new Error("wire_transcript_non_json_value");
-      redactedScalarCount += 1;
-      return "number";
-    }
-    if (typeof candidate === "boolean") {
-      redactedScalarCount += 1;
-      return "boolean";
-    }
-    if (Array.isArray(candidate)) {
-      if (seen.has(candidate)) throw new Error("wire_transcript_cycle");
-      seen.add(candidate);
-      const result = candidate.map((entry) => visit(entry, depth + 1));
-      seen.delete(candidate);
-      return result;
-    }
-    if (isRecord(candidate)) {
-      if (seen.has(candidate)) throw new Error("wire_transcript_cycle");
-      seen.add(candidate);
-      const result: Record<string, unknown> = {};
-      for (const key of Object.keys(candidate).sort()) {
-        const descriptor = Object.getOwnPropertyDescriptor(candidate, key);
-        if (descriptor?.get !== undefined || descriptor?.set !== undefined) {
-          throw new Error("wire_transcript_accessor_forbidden");
-        }
-        stringCodeUnits += key.length;
-        result[sha256(key).slice(0, 16)] = visit(candidate[key], depth + 1);
-      }
-      seen.delete(candidate);
-      return result;
-    }
-    throw new Error("wire_transcript_non_json_value");
-  };
-  return { shape: visit(value, 0), stringCodeUnits, redactedScalarCount };
-}
-
-function hashScalar(value: unknown): string | undefined {
-  if (typeof value !== "string" && typeof value !== "number") return undefined;
-  return sha256(String(value));
-}
-
-function correlationHashes(message: Record<string, unknown>): Record<string, string> {
-  const params = isRecord(message.params) ? message.params : undefined;
-  const item = params !== undefined && isRecord(params.item) ? params.item : undefined;
-  const output: Record<string, string> = {};
-  for (const [name, value] of [
-    ["threadId", params?.threadId],
-    ["turnId", params?.turnId],
-    ["itemId", params?.itemId ?? item?.id]
-  ] as const) {
-    const hashed = hashScalar(value);
-    if (hashed !== undefined) output[name] = hashed;
-  }
-  return output;
-}
-
-export function sanitizeWireTranscriptEntry(input: {
-  sequence: number;
-  observedAt: string;
-  direction: "inbound" | "outbound";
-  message: unknown;
-}): SanitizedWireTranscriptEntry {
-  const summary = summarizeShape(input.message);
-  const message = isRecord(input.message) ? input.message : undefined;
-  const rawMethod = typeof message?.method === "string" ? message.method : undefined;
-  const method = rawMethod !== undefined && SAFE_WIRE_METHODS.has(rawMethod)
-    ? rawMethod
-    : undefined;
-  const methodHash = rawMethod === undefined ? undefined : sha256(rawMethod);
-  const idHash = message === undefined ? undefined : hashScalar(message.id);
-  const hasResult = message !== undefined && Object.hasOwn(message, "result");
-  const hasError = message !== undefined && Object.hasOwn(message, "error");
-  const envelope = message === undefined
-    ? "invalid"
-    : rawMethod !== undefined && idHash !== undefined
-      ? "request"
-      : rawMethod !== undefined
-        ? "notification"
-        : idHash !== undefined && (hasResult || hasError)
-          ? "response"
-          : "invalid";
-  const result = message !== undefined && isRecord(message.result) ? message.result : undefined;
-  const decision = typeof result?.decision === "string" && SAFE_DECISIONS.has(result.decision)
-    ? result.decision
-    : undefined;
-  const permissionGrantEmpty = result !== undefined
-    && isRecord(result.permissions)
-    && Object.keys(result.permissions).length === 0;
-  return {
-    schemaVersion: "codex-app-server-sanitized-wire-entry.v1",
-    sequence: input.sequence,
-    observedAt: input.observedAt,
-    direction: input.direction,
-    envelope,
-    ...(method === undefined ? {} : { method }),
-    ...(methodHash === undefined ? {} : { methodHash }),
-    ...(idHash === undefined ? {} : { requestIdHash: idHash }),
-    correlationHashes: message === undefined ? {} : correlationHashes(message),
-    ...(decision === undefined ? {} : { approvalDecision: decision }),
-    ...(permissionGrantEmpty ? { permissionGrantEmpty: true } : {}),
-    payloadShapeHash: sha256(JSON.stringify(summary.shape)),
-    stringCodeUnits: summary.stringCodeUnits,
-    redactedScalarCount: summary.redactedScalarCount
-  };
-}
-
-export class SanitizedWireTranscriptRecorder {
-  private sequence = 0;
-  private closed = false;
-  private pending: Promise<void> = Promise.resolve();
-  private persistenceFailed = false;
-  private persistenceFailure: unknown;
-  private constructor(
-    private readonly handle: SanitizedWireTranscriptHandle,
-    private readonly clock: () => Date
-  ) {}
-
-  static async create(path: string, clock: () => Date = () => new Date()): Promise<SanitizedWireTranscriptRecorder> {
-    if (!isAbsolute(path)) throw new Error("wire_transcript_path_must_be_absolute");
-    return new SanitizedWireTranscriptRecorder(await open(path, "wx", 0o600), clock);
-  }
-
-  static createTestOnly(
-    handle: SanitizedWireTranscriptHandle,
-    clock: () => Date = () => new Date()
-  ): SanitizedWireTranscriptRecorder {
-    return new SanitizedWireTranscriptRecorder(handle, clock);
-  }
-
-  async record(direction: "inbound" | "outbound", message: unknown): Promise<SanitizedWireTranscriptEntry> {
-    if (this.closed) throw new Error("wire_transcript_closed");
-    const entry = sanitizeWireTranscriptEntry({
-      sequence: ++this.sequence,
-      observedAt: this.clock().toISOString(),
-      direction,
-      message
-    });
-    const operation = this.pending.then(async () => {
-      if (this.persistenceFailed) throw this.persistenceFailure;
-      try {
-        await this.handle.appendFile(`${JSON.stringify(entry)}\n`, "utf8");
-        await this.handle.sync();
-      } catch (error) {
-        this.persistenceFailed = true;
-        this.persistenceFailure = error;
-        throw error;
-      }
-    });
-    this.pending = operation.then(
-      () => undefined,
-      () => undefined
-    );
-    await operation;
-    return entry;
-  }
-
-  async close(): Promise<void> {
-    if (this.closed) return;
-    this.closed = true;
-    try {
-      await this.pending;
-      if (this.persistenceFailed) throw this.persistenceFailure;
-      await this.handle.sync();
-    } finally {
-      await this.handle.close();
-    }
-  }
-}
-
-export interface AppServerWireTranscriptSink {
-  record(
-    direction: "inbound" | "outbound",
-    message: unknown
-  ): Promise<SanitizedWireTranscriptEntry>;
-}
-
-export class RecordedAppServerWireBoundary {
-  constructor(private readonly transcript: AppServerWireTranscriptSink) {}
-
-  async ingest<T>(message: unknown, normalize: (message: unknown) => Promise<T> | T): Promise<T> {
-    await this.transcript.record("inbound", message);
-    return normalize(message);
-  }
-
-  async send<T>(message: unknown, transportSend: (message: unknown) => Promise<T> | T): Promise<T> {
-    await this.transcript.record("outbound", message);
-    return transportSend(message);
-  }
 }
 
 export function createAppServerSmokeProcessEnv(tempRoot: string): NodeJS.ProcessEnv {
@@ -461,6 +207,7 @@ function snapshotsEqual(left: WorkspaceSnapshot, right: WorkspaceSnapshot): bool
     .map((path) => [path, hashes[path]]);
   return left.head === right.head
     && left.statusHash === right.statusHash
+    && left.statusEmpty === right.statusEmpty
     && left.workspaceMetadataHash === right.workspaceMetadataHash
     && JSON.stringify(orderedHashes(left.targetHashes)) === JSON.stringify(orderedHashes(right.targetHashes));
 }
@@ -534,8 +281,19 @@ export async function disconnectAndWaitForAppServerSmokeQuiescence(input: {
   capture?: () => Promise<WorkspaceSnapshot>;
   sleep?: (milliseconds: number) => Promise<void>;
 }): ReturnType<typeof waitForAppServerSmokeQuiescence> {
-  await input.disconnect();
-  return waitForAppServerSmokeQuiescence(input);
+  let disconnectFailed = false;
+  try {
+    await input.disconnect();
+  } catch {
+    disconnectFailed = true;
+  }
+  const quiescence = await waitForAppServerSmokeQuiescence(input);
+  if (!disconnectFailed) return quiescence;
+  return {
+    ...quiescence,
+    status: "blocked",
+    reason: "live_smoke_disconnect_failed"
+  };
 }
 
 export function assertAppServerFileChangeInterceptionProven(): never {

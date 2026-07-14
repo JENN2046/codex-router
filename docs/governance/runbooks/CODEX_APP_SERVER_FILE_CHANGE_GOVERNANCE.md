@@ -10,6 +10,7 @@ verified_by:
   - node --import tsx --test tests/retain-control.test.ts
   - npm run test:package-consumer
   - node --import tsx --test tests/codex-app-server-live-smoke-safety.test.ts
+  - npm run test:app-server:offline-harness
 applies_to:
   - codex-app-server
   - file-change
@@ -77,6 +78,34 @@ file-change approval will be intercepted. Do not run another live file-change
 smoke until a separately reviewed protocol mechanism proves interception before
 execution.
 
+The offline decline-only harness is validated with:
+
+```bash
+npm run test:app-server:offline-harness
+```
+
+This deterministic offline suite uses versioned wire fixtures, an in-memory
+server sink, and a `test_only` observe-only adapter. Its safety and quiescence
+tests also create disposable local Git repositories and files below the host
+temporary directory. It does not start Codex or App Server, create a socket,
+access a provider, call a workspace context provider, run preview commands,
+apply an App Server file change, or modify the source workspace. Raw fixtures are serialized through the
+recorded boundary, v2 normalizer, and governed adapter. Every file-change,
+command, network, and permission approval is then bound to exactly one decline.
+The terminal wire guard rejects accept, session accept, cancel, policy
+amendments, and non-empty permission grants before the fake server sink.
+
+The offline proof receipt deliberately reports
+`appServerApplyTimingProven: false` and `liveSmokeEligible: false`. It proves the
+harness ordering and response restriction, not when a real App Server applies a
+file change. `APP_SERVER_FILE_CHANGE_INTERCEPTION_PROVEN` therefore remains
+`false` and the real preflight remains blocked.
+
+Validated non-governance server requests are returned by the general v2 bridge
+for an owning client. This restricted harness has no credential, dynamic-tool,
+attestation, MCP, user-input, or external-clock owner, so any passthrough request
+stops and disconnects the harness instead of being answered or ignored.
+
 Any future authorized live harness must run App Server against an independent
 `git clone --no-local --no-hardlinks --no-checkout` fixture. It must remove the
 clone's remote before checkout, reject object alternates, tracked
@@ -93,6 +122,17 @@ request/correlation identities, payload shape, and explicit approval decision.
 They never retain prompts, diffs, commands, tokens, arbitrary metadata, raw
 provider responses, or raw request ids.
 
+After the fake sink confirms an outbound response, the recorder durably appends
+a separate sanitized delivery acknowledgement. The offline proof requires the
+ordered triple `inbound approval request → outbound decline attempt → delivery
+acknowledgement`. A send failure or acknowledgement persistence failure enters
+delivery-uncertain reconciliation and can never produce a passing proof.
+
+The client-originated `initialize` request and `initialized` notification are
+recorded as outbound; the initialize response and all server events are recorded
+as inbound. Raw intake, immediate manual decline, and disconnect share one
+serial queue so a later resolution frame cannot overtake the decline.
+
 After every disconnect or failure, the harness must continue sampling HEAD,
 porcelain status, safe target topology, target hashes, and a recursive workspace
 filesystem-metadata fingerprint for a complete quiet period. The fingerprint
@@ -101,6 +141,8 @@ ordinary write-and-revert between content samples remains monotonic evidence of
 mutation. Any mutation visible in these retained metadata or content/status
 samples permanently blocks the result. Only an unchanged final snapshot under
 this explicit detection model may be reported as an unchanged smoke workspace.
+Disconnect failure does not skip this sampling; it forces a blocked result even
+when the subsequent quiet-period snapshots are unchanged.
 
 ## v2 Wire Normalization Boundary
 

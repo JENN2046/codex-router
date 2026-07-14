@@ -79,6 +79,7 @@ npm run build
 npm run test:package-consumer
 npm run test:governance-coverage
 npm run test:governance-properties
+npm run test:app-server:offline-harness
 npm run docs:governance
 ```
 
@@ -97,6 +98,9 @@ approval interception before execution has not been proven. The repository's
 non-networked blocking check; it does not start App Server or a client. A future
 authorized harness must use an independent remote-free clone, a durable
 sanitized wire transcript, and post-disconnect quiet-period hash verification.
+The deterministic offline harness proves raw transcript ordering and exact
+decline responses for file, command, network, and permission approvals, but it
+explicitly does not prove the real App Server file-application timing.
 
 ## Documentation
 
