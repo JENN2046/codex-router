@@ -738,6 +738,17 @@ test("offline verification rejects ignored extra paths, mode changes, and source
   }> = [
     {
       prepare: async (fixture) => {
+        await writeFile(join(fixture.repoRoot, ".gitignore"), "ignored.local\n");
+        await git(fixture.repoRoot, ["add", ".gitignore"]);
+        await git(fixture.repoRoot, ["commit", "-m", "ignore local artifact"]);
+        fixture.head = (await git(fixture.repoRoot, ["rev-parse", "HEAD"])).trim();
+        await writeFile(join(fixture.repoRoot, "ignored.local"), "local-only fixture\n");
+      },
+      proposal: proposalFor("hello\n", "hello governed\n"),
+      reason: "offline_source_worktree_not_clean"
+    },
+    {
+      prepare: async (fixture) => {
         await mkdir(join(fixture.repoRoot, "scratch"));
         await writeFile(join(fixture.repoRoot, "scratch/.keep"), "tracked\n");
         await writeFile(join(fixture.repoRoot, ".gitignore"), "scratch/payload\n");

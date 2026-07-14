@@ -1098,6 +1098,17 @@ async function inspectBoundSourceWorktree(input: {
       reasons: ["offline_source_worktree_git_attributes_forbidden"]
     };
   }
+  if (ignoredWorktreePaths.length > 0) {
+    return {
+      head: input.head,
+      status: "ignored_paths_present",
+      targetHash: sha256(await readIdentityBoundRegularFile(
+        input.targetBinding,
+        input.testOnlyHooks?.onIdentityBoundRead
+      )),
+      reasons: ["offline_source_worktree_not_clean"]
+    };
+  }
 
   const status = (await runGit(
     input.root,
