@@ -14,6 +14,8 @@ as historical evidence unless a current authority document links them.
 - [App Server governance adapter ADR](decisions/ADR_006_CODEX_APP_SERVER_GOVERNANCE_ADAPTER.md):
   why App Server remains the runtime and why unproven interception is
   observe-only.
+- [Runtime tool-inventory attestation ADR](decisions/ADR_010_RUNTIME_TOOL_INVENTORY_ATTESTATION.md):
+  the test-only runtime-owned issuer contract and continuing live `NO-GO`.
 - [App Server file-change governance runbook](runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md):
   deterministic fake-transport acceptance and the explicit live-acceptance
   authorization stop.
@@ -331,3 +333,8 @@ single historical slice changes, update the specific PR document only.
 - [ADR 003: Codex CLI real execution gates](decisions/ADR_003_CODEX_CLI_REAL_EXECUTION_GATES.md)
 - [ADR 004: Evidence and redaction policy](decisions/ADR_004_EVIDENCE_AND_REDACTION_POLICY.md)
 - [ADR 005: Workspace-write permit v2](decisions/ADR_005_WORKSPACE_WRITE_PERMIT_V2.md)
+- [ADR 006: Codex App Server governance adapter](decisions/ADR_006_CODEX_APP_SERVER_GOVERNANCE_ADAPTER.md)
+- [ADR 007: App Server proposal-before-apply](decisions/ADR_007_APP_SERVER_PROPOSAL_BEFORE_APPLY.md)
+- [ADR 008: App Server exact-version security review](decisions/ADR_008_APP_SERVER_EXACT_VERSION_SECURITY_REVIEW.md)
+- [ADR 009: App Server no-environment proposal contract](decisions/ADR_009_APP_SERVER_NO_ENVIRONMENT_PROPOSAL_CONTRACT.md)
+- [ADR 010: Runtime tool-inventory attestation](decisions/ADR_010_RUNTIME_TOOL_INVENTORY_ATTESTATION.md)

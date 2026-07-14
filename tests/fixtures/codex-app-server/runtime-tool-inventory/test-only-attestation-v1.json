@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "codex-app-server-runtime-tool-inventory-attestation.v1",
+  "attestationId": "0123456789abcdef0123456789abcdef",
+  "issuer": {
+    "interfaceKind": "runtime_owned",
+    "issuerId": "test-only-runtime-attestor-v1",
+    "scope": "test_only",
+    "evidenceSource": "fake_fixture"
+  },
+  "runtime": {
+    "codexVersion": "0.144.1-test-fixture",
+    "protocolVersion": "app-server-v2-test-fixture",
+    "runtimeInstanceId": "runtime-instance-test-1",
+    "processIdentity": {
+      "pid": 4242,
+      "startNonce": "abcdef0123456789abcdef0123456789",
+      "executableSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceCommit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schemaBundleSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  },
+  "requestBinding": {
+    "challengeNonce": "fedcba9876543210fedcba9876543210",
+    "threadStartCanonicalSha256": "4edb98a3d889ac964a2fa671e7d44d841250178b451995e05d5282a38a44bdc0",
+    "turnStartCanonicalSha256": "8001005462985c54e8dd7d3c56cc12e90c1455e3d5823a092b3b1f58eea5d89f"
+  },
+  "effectiveConfig": {
+    "canonicalSha256": "6b09a48be90967cb19906571f9d20ccfe9849194717b9ce46ae2f91dfc870758",
+    "securityProjection": {
+      "approvalPolicy": "never",
+      "sandboxPolicy": "read-only",
+      "environments": [],
+      "dynamicTools": [],
+      "networkAccess": "none"
+    }
+  },
+  "resolvedPermissions": {
+    "filesystem": "read-only",
+    "writableRoots": [],
+    "network": false,
+    "externalAccess": false,
+    "credentialAccess": false
+  },
+  "tools": [],
+  "hooks": {
+    "permissionRequest": "absent",
+    "toolCall": "absent",
+    "mcp": "absent",
+    "provider": "absent"
+  },
+  "grants": [],
+  "cachedApprovals": [],
+  "approvalStore": {
+    "state": "empty",
+    "generation": 7,
+    "canonicalSha256": "27d8a958e600591435ee366276d2a4f8ff79f7608d40048808c85a72ae67452f"
+  },
+  "issuedAt": "2026-07-15T00:00:00.000Z"
+}
