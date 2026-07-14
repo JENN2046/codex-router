@@ -131,6 +131,10 @@ environment is the offline contract in
 npm run test:app-server:no-environment-proposal
 ```
 
+This module is internal and intentionally is not exported from either the
+codex-adapter package index or the published `codex-router/codex-adapter`
+facade. Do not treat internal test imports as a supported consumer API.
+
 The contract requires all of the following:
 
 - `thread/start.environments` and `turn/start.environments` are exactly `[]`;

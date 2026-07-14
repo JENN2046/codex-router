@@ -82,6 +82,9 @@ relax this decision.
   offline verification;
 - no successful offline receipt can authorize live execution or source writes;
 - inherited live tool inventory remains the blocking trust boundary.
+- the implementation remains an internal module and is intentionally absent
+  from the published `codex-router/codex-adapter` facade; promotion requires a
+  separate public-API and security review after the live boundary is proven.
 
 ## Verification and change control
 

@@ -16,7 +16,7 @@ import {
   createNoEnvironmentProposalContract,
   verifyNoEnvironmentProposalInIndependentClone,
   type NoEnvironmentProposedPatch
-} from "../packages/codex-adapter/src/index.js";
+} from "../packages/codex-adapter/src/no-environment-proposal.js";
 
 const execFileAsync = promisify(execFile);
 const TRANSCRIPT_NONCE = "0123456789abcdef0123456789abcdef";
