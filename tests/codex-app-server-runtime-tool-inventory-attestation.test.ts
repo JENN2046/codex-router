@@ -418,7 +418,8 @@ test("fixture itself is strict-schema valid", () => {
 test("offline audit CLI reports NO-GO and rejects a tampered fixture", async () => {
   const script = join(process.cwd(), "scripts/run-codex-app-server-runtime-tool-inventory-audit.ts");
   const success = await execFileAsync(process.execPath, ["--import", "tsx", script], {
-    cwd: process.cwd()
+    cwd: process.cwd(),
+    env: isolatedCliEnvironment()
   });
   const output = JSON.parse(success.stdout) as {
     status?: unknown;
@@ -445,7 +446,8 @@ test("offline audit CLI reports NO-GO and rejects a tampered fixture", async () 
     await writeFile(tamperedPath, JSON.stringify(tampered), "utf8");
     await assert.rejects(
       () => execFileAsync(process.execPath, ["--import", "tsx", script, tamperedPath], {
-        cwd: process.cwd()
+        cwd: process.cwd(),
+        env: isolatedCliEnvironment()
       }),
       (error: unknown) => {
         const candidate = error as { code?: unknown; stdout?: unknown };
@@ -465,6 +467,27 @@ test("offline audit CLI reports NO-GO and rejects a tampered fixture", async () 
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+function isolatedCliEnvironment(): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = { NO_COLOR: "1" };
+  for (const name of [
+    "PATH",
+    "Path",
+    "PATHEXT",
+    "SystemRoot",
+    "SYSTEMROOT",
+    "WINDIR",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "HOME",
+    "USERPROFILE"
+  ]) {
+    const value = process.env[name];
+    if (value !== undefined) environment[name] = value;
+  }
+  return environment;
+}
 
 async function evaluateFixture(
   attestation: unknown = fixture,
