@@ -342,7 +342,7 @@ test("offline verification rejects target expansion, base drift, filters, attrib
         ...proposalFor("hello\n", "hello governed\n"),
         unifiedDiff: newFileDiff("docs/new.md", "new")
       },
-      reason: "offline_patch_target_set_mismatch"
+      reason: "offline_proposal_invalid"
     },
     {
       proposal: proposalFor("different\n", "changed\n"),
@@ -457,14 +457,14 @@ test("offline verification rejects ignored extra paths, mode changes, and source
         ...proposalFor("hello\n", "hello governed\n"),
         unifiedDiff: `${diff("docs/guide.md", "hello", "hello governed")}${newFileDiff("scratch/payload", "hidden")}`
       },
-      reason: "offline_patch_status_target_set_mismatch"
+      reason: "offline_proposal_invalid"
     },
     {
       proposal: {
         ...proposalFor("hello\n", "hello governed\n"),
         unifiedDiff: modeChangeDiff("docs/guide.md", "hello", "hello governed")
       },
-      reason: "offline_patch_target_mode_changed"
+      reason: "offline_proposal_invalid"
     },
     {
       proposal: proposalFor("hello\n", "hello governed\n"),
@@ -599,7 +599,6 @@ function newFileDiff(path: string, content: string): string {
   return [
     `diff --git a/${path} b/${path}`,
     "new file mode 100644",
-    "index 0000000..3e75765",
     "--- /dev/null",
     `+++ b/${path}`,
     "@@ -0,0 +1 @@",

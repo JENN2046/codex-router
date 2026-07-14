@@ -45,6 +45,13 @@ export const NoEnvironmentProposedPatchSchema = z.object({
   if (countDiffLines(proposal.unifiedDiff) > MAX_DIFF_LINES) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["unifiedDiff"], message: "proposal diff is too large" });
   }
+  if (/^(?:old mode|new mode|new file mode|deleted file mode|rename from|rename to|copy from|copy to|similarity index|dissimilarity index|GIT binary patch|Binary files )/mu.test(proposal.unifiedDiff)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["unifiedDiff"],
+      message: "proposal diff contains forbidden metadata"
+    });
+  }
   if (containsCredentialLikeDiffContent(proposal.unifiedDiff)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["unifiedDiff"], message: "proposal diff contains credential-like content" });
   }
