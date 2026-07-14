@@ -121,6 +121,44 @@ The command's successful exit means the recorded fail-closed receipt is intact;
 it does not mean a live run is eligible. The existing preflight must remain
 blocked.
 
+## Offline no-environment proposal contract
+
+The only implemented proposal candidate that does not expose a workspace
+environment is the offline contract in
+`packages/codex-adapter/src/no-environment-proposal.ts`. Validate it with:
+
+```bash
+npm run test:app-server:no-environment-proposal
+```
+
+The contract requires all of the following:
+
+- `thread/start.environments` and `turn/start.environments` are exactly `[]`;
+- thread `dynamicTools` is exactly `[]`, input is one text item, approval is
+  `never`, permissions are `:read-only`, and the final message uses the pinned
+  structured `outputSchema`;
+- local image, skill, MCP, web, dynamic, provider, collaboration, extension,
+  process, shell, command, permission, approval, and file-change activity is
+  prohibited;
+- only one strict `0.144.1`, nonce/sequence-bound, replay-consumed and
+  correlated `agentMessage` lifecycle may produce the final proposal;
+- schema version, exact target, base SHA-256, after SHA-256, operation, diff
+  size, credential markers, and event order are fail-closed;
+- verification rejects dirty sources, Git attributes, filters, fsmonitor and
+  upload-pack hooks, partial clones, alternates, submodules, unsafe target/temp
+  topology, ordinary and ignored extra paths, mode drift, hash drift, and
+  cleanup failure;
+- the patch is applied only in an independent clone with its remote removed;
+  source HEAD, status, and target hash must remain unchanged.
+
+The contract deliberately records
+`effectiveToolInventoryMechanicallyBound: false`,
+`liveExecutionAuthorized: false`, and
+`realWorkspaceWriteAuthorized: false`. A passing offline test proves only the
+local contract and disposable-clone verifier. It does not prove that a live App
+Server has no inherited MCP, web, extension, collaboration, or other tool
+surface, and it never authorizes starting App Server or a client.
+
 The offline decline-only harness is validated with:
 
 ```bash

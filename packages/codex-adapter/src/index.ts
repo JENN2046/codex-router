@@ -52,6 +52,25 @@ import {
   type CodexCommandApprovalDecision
 } from "./command-approval.js";
 
+export {
+  NO_ENVIRONMENT_PROPOSAL_CONTRACT_VERSION,
+  NO_ENVIRONMENT_PROPOSAL_SCHEMA_VERSION,
+  NO_ENVIRONMENT_PROPOSAL_SOURCE_COMMIT,
+  NoEnvironmentProposedPatchSchema,
+  NoEnvironmentProposalContractSchema,
+  NoEnvironmentProposalEventGate,
+  createInMemoryNoEnvironmentProposalReplayStore,
+  createNoEnvironmentProposalContract,
+  verifyNoEnvironmentProposalInIndependentClone
+} from "./no-environment-proposal.js";
+export type {
+  NoEnvironmentProposalContract,
+  NoEnvironmentProposalSessionOutcome,
+  NoEnvironmentProposalReplayStore,
+  NoEnvironmentProposedPatch,
+  OfflineProposalVerificationReceipt
+} from "./no-environment-proposal.js";
+
 export const AppServerSessionAttestationSchema = z.object({
   schemaVersion: z.literal("app-server-session-attestation.v1").default(
     "app-server-session-attestation.v1"

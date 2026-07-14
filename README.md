@@ -80,6 +80,7 @@ npm run test:package-consumer
 npm run test:governance-coverage
 npm run test:governance-properties
 npm run test:app-server:offline-harness
+npm run test:app-server:no-environment-proposal
 npm run audit:app-server:proposal-capability
 npm run audit:app-server:exact-version-security-review
 npm run docs:governance
@@ -113,11 +114,30 @@ proposal-before-apply ordering cannot be proven without crossing the live
 boundary. The review therefore does not relax the preflight or authorize a
 real workspace-write smoke.
 
+The offline no-environment proposal contract is a narrower, non-live path. It
+requires `environments: []` at thread and turn scope, text-only input, an exact
+structured `outputSchema`, `approvalPolicy: "never"`, `:read-only`, and an
+empty dynamic-tool list. Its raw-event gate accepts only a strict
+`0.144.1`, nonce/sequence-bound, replay-consumed `agentMessage` lifecycle and
+rejects every tool, approval, file-change, command, MCP, web, provider,
+collaboration, process, or shell event. A proposed
+update is bound to one target path and its base/after SHA-256 values, then
+applied only inside a disposable, remote-free clone for verification. Git
+fsmonitor/filter execution, ignored extra paths, mode drift, and
+source-contained temporary roots are rejected before a verified receipt. The
+source workspace is rechecked and must remain unchanged.
+
+This remains an offline contract, not a live capability attestation. Effective
+tool inventory is mechanically unbound, so `liveSmokeEligible` and
+`realWorkspaceWriteAuthorized` remain `false`. It does not relax the existing
+App Server preflight.
+
 ## Documentation
 
 - [Architecture](docs/governance/CODEX_EXECUTION_GOVERNANCE_ARCHITECTURE.md)
 - [App Server adapter ADR](docs/governance/decisions/ADR_006_CODEX_APP_SERVER_GOVERNANCE_ADAPTER.md)
 - [Exact-version security review](docs/governance/decisions/ADR_008_APP_SERVER_EXACT_VERSION_SECURITY_REVIEW.md)
+- [No-environment proposal contract](docs/governance/decisions/ADR_009_APP_SERVER_NO_ENVIRONMENT_PROPOSAL_CONTRACT.md)
 - [File-change governance runbook](docs/governance/runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md)
 - [Gate 0 baseline](docs/governance/CODEX_GOVERNANCE_BASELINE.md)
 
