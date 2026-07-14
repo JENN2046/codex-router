@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -259,7 +259,7 @@ test("independent smoke clone filters inherited Git config from the App Server e
       expectedHead: head,
       targetPaths: ["docs/guide.md"]
     });
-    assert.deepEqual(result.appServerEnv, createAppServerSmokeProcessEnv(root));
+    assert.deepEqual(result.appServerEnv, createAppServerSmokeProcessEnv(await realpath(root)));
     await assert.rejects(
       execFileAsync("git", ["config", "--get-regexp", "^filter\\."], {
         cwd: clone,
@@ -271,6 +271,38 @@ test("independent smoke clone filters inherited Git config from the App Server e
   } finally {
     if (inheritedGlobalConfig === undefined) delete process.env.GIT_CONFIG_GLOBAL;
     else process.env.GIT_CONFIG_GLOBAL = inheritedGlobalConfig;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("independent smoke clone accepts canonical parent aliases but rejects a symlink source", async (context) => {
+  if (process.platform === "win32") {
+    context.skip("Windows symlink creation requires host-specific privileges");
+    return;
+  }
+  const root = await mkdtemp(join(tmpdir(), "codex-router-live-smoke-source-link-"));
+  const source = join(root, "source");
+  const sourceLink = join(root, "source-link");
+  try {
+    await mkdir(join(source, "docs"), { recursive: true });
+    await git(root, ["init", source]);
+    await git(source, ["config", "user.name", "codex-router test"]);
+    await git(source, ["config", "user.email", "codex-router@example.invalid"]);
+    await writeFile(join(source, "docs/guide.md"), "baseline\n", "utf8");
+    await git(source, ["add", "docs/guide.md"]);
+    await git(source, ["commit", "-m", "fixture"]);
+    await symlink(source, sourceLink, "dir");
+    const head = (await git(source, ["rev-parse", "HEAD"])).trim();
+    await assert.rejects(
+      createIndependentAppServerSmokeClone({
+        sourceRepo: sourceLink,
+        destinationRepo: join(root, "clone"),
+        expectedHead: head,
+        targetPaths: ["docs/guide.md"]
+      }),
+      /live_smoke_source_topology_unsafe/u
+    );
+  } finally {
     await rm(root, { recursive: true, force: true });
   }
 });

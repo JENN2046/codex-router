@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { open, lstat, readFile, realpath } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { basename, isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -331,10 +331,21 @@ export async function createIndependentAppServerSmokeClone(input: {
     throw new Error("live_smoke_clone_paths_must_be_absolute");
   }
   for (const path of input.targetPaths) assertSafeRelativePath(path);
+  const sourceTopology = await lstat(resolve(input.sourceRepo));
+  if (!sourceTopology.isDirectory() || sourceTopology.isSymbolicLink()) {
+    throw new Error("live_smoke_source_topology_unsafe");
+  }
   const sourceRoot = await realpath(input.sourceRepo);
-  const tempRoot = resolve(input.destinationRepo, "..");
+  const tempRoot = await realpath(resolve(input.destinationRepo, ".."));
+  const destinationRoot = resolve(tempRoot, basename(input.destinationRepo));
+  try {
+    await lstat(destinationRoot);
+    throw new Error("live_smoke_destination_exists");
+  } catch (error) {
+    if (error instanceof Error && error.message === "live_smoke_destination_exists") throw error;
+    if (!(isRecord(error) && error.code === "ENOENT")) throw error;
+  }
   const appServerEnv = createAppServerSmokeProcessEnv(tempRoot);
-  if (sourceRoot !== resolve(input.sourceRepo)) throw new Error("live_smoke_source_realpath_mismatch");
   if ((await git(sourceRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], appServerEnv)) !== "") {
     throw new Error("live_smoke_source_dirty");
   }
@@ -351,31 +362,31 @@ export async function createIndependentAppServerSmokeClone(input: {
   }
   await execFileAsync("git", [
     "clone", "--no-local", "--no-hardlinks", "--no-checkout", "--",
-    sourceRoot, input.destinationRepo
+    sourceRoot, destinationRoot
   ], {
     cwd: tempRoot,
     encoding: "utf8",
     env: appServerEnv,
     maxBuffer: 4 * 1024 * 1024
   });
-  await git(input.destinationRepo, ["remote", "remove", "origin"], appServerEnv);
-  if ((await gitFilterInventory(input.destinationRepo, appServerEnv)) !== "") {
+  await git(destinationRoot, ["remote", "remove", "origin"], appServerEnv);
+  if ((await gitFilterInventory(destinationRoot, appServerEnv)) !== "") {
     throw new Error("live_smoke_git_filters_forbidden");
   }
-  await git(input.destinationRepo, ["checkout", "--detach", input.expectedHead, "--"], appServerEnv);
-  if ((await git(input.destinationRepo, ["remote"], appServerEnv)) !== "") throw new Error("live_smoke_clone_remote_present");
+  await git(destinationRoot, ["checkout", "--detach", input.expectedHead, "--"], appServerEnv);
+  if ((await git(destinationRoot, ["remote"], appServerEnv)) !== "") throw new Error("live_smoke_clone_remote_present");
   try {
-    await lstat(resolve(input.destinationRepo, ".git/objects/info/alternates"));
+    await lstat(resolve(destinationRoot, ".git/objects/info/alternates"));
     throw new Error("live_smoke_clone_alternates_present");
   } catch (error) {
     if (error instanceof Error && error.message === "live_smoke_clone_alternates_present") throw error;
     if (!(isRecord(error) && error.code === "ENOENT")) throw error;
   }
-  if ((await git(input.destinationRepo, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], appServerEnv)) !== "") {
+  if ((await git(destinationRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], appServerEnv)) !== "") {
     throw new Error("live_smoke_clone_dirty");
   }
   return {
-    repoRoot: await realpath(input.destinationRepo),
+    repoRoot: await realpath(destinationRoot),
     head: input.expectedHead,
     appServerEnv: { ...appServerEnv }
   };
