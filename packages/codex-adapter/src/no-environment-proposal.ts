@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { types as utilTypes } from "node:util";
 import { z } from "zod";
 import { containsCredentialLikeDiffContent } from "../../authorization-kernel/src/index.js";
 
@@ -416,15 +417,19 @@ export class NoEnvironmentProposalEventGate {
       return this.block("no_environment_transcript_binding_invalid");
     }
     this.nextSequence += 1;
-    if (!isPlainRecord(input)) return this.block("no_environment_wire_envelope_invalid");
-    const method = ownString(input, "method");
+    const snapshot = snapshotJsonData(input);
+    if (!snapshot.ok || !isPlainRecord(snapshot.value)) {
+      return this.block("no_environment_wire_envelope_invalid");
+    }
+    const envelope = snapshot.value;
+    const method = ownString(envelope, "method");
     if (method === undefined) return this.block("no_environment_wire_method_missing");
     if (isProhibitedMethod(method)) return this.block("no_environment_prohibited_event_observed");
-    if (method === "turn/started") return this.ingestTurnStarted(input);
-    if (method === "item/started") return this.ingestItemStarted(input);
-    if (method === "item/agentMessage/delta") return this.ingestAgentDelta(input);
-    if (method === "item/completed") return this.ingestItemCompleted(input);
-    if (method === "turn/completed") return this.ingestTurnCompleted(input);
+    if (method === "turn/started") return this.ingestTurnStarted(envelope);
+    if (method === "item/started") return this.ingestItemStarted(envelope);
+    if (method === "item/agentMessage/delta") return this.ingestAgentDelta(envelope);
+    if (method === "item/completed") return this.ingestItemCompleted(envelope);
+    if (method === "turn/completed") return this.ingestTurnCompleted(envelope);
     return this.block("no_environment_unexpected_event_observed");
   }
 
@@ -1403,6 +1408,86 @@ function isWithin(parent: string, candidate: string): boolean {
 
 function isProhibitedMethod(method: string): boolean {
   return /(?:approval|permission|filechange|command|mcp|web|tool|collab|provider|process|shell)/iu.test(method);
+}
+
+type JsonSnapshotResult =
+  | { ok: true; value: unknown }
+  | { ok: false };
+
+function snapshotJsonData(input: unknown): JsonSnapshotResult {
+  const active = new WeakSet<object>();
+  let nodes = 0;
+
+  const visit = (value: unknown, depth: number): JsonSnapshotResult => {
+    if (
+      value === null
+      || typeof value === "string"
+      || typeof value === "boolean"
+      || (typeof value === "number" && Number.isFinite(value))
+    ) {
+      return { ok: true, value };
+    }
+    if (typeof value !== "object" || depth > 64 || nodes >= 10_000 || utilTypes.isProxy(value)) {
+      return { ok: false };
+    }
+    nodes += 1;
+    if (active.has(value)) return { ok: false };
+    active.add(value);
+    try {
+      const prototype = Object.getPrototypeOf(value);
+      if (Array.isArray(value)) {
+        if (prototype !== Array.prototype) return { ok: false };
+        const descriptors = Object.getOwnPropertyDescriptors(value);
+        const keys = Reflect.ownKeys(descriptors);
+        if (keys.some((key) => typeof key === "symbol")) return { ok: false };
+        const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
+        if (lengthDescriptor === undefined || !("value" in lengthDescriptor)) return { ok: false };
+        const length = lengthDescriptor.value;
+        if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
+          return { ok: false };
+        }
+        const copy: unknown[] = [];
+        for (let index = 0; index < length; index += 1) {
+          const descriptor = descriptors[String(index)];
+          if (descriptor === undefined || !("value" in descriptor)) return { ok: false };
+          const child = visit(descriptor.value, depth + 1);
+          if (!child.ok) return child;
+          copy.push(child.value);
+        }
+        if (keys.length !== length + 1 || keys.some((key) => {
+          if (key === "length") return false;
+          if (typeof key !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(key)) return true;
+          const index = Number(key);
+          return !Number.isSafeInteger(index) || index < 0 || index >= length || String(index) !== key;
+        })) {
+          return { ok: false };
+        }
+        return { ok: true, value: copy };
+      }
+      if (prototype !== Object.prototype && prototype !== null) return { ok: false };
+      const descriptors = Object.getOwnPropertyDescriptors(value);
+      if (Reflect.ownKeys(descriptors).some((key) => typeof key === "symbol")) return { ok: false };
+      const copy: Record<string, unknown> = {};
+      for (const [key, descriptor] of Object.entries(descriptors)) {
+        if (!("value" in descriptor)) return { ok: false };
+        const child = visit(descriptor.value, depth + 1);
+        if (!child.ok) return child;
+        Object.defineProperty(copy, key, {
+          value: child.value,
+          enumerable: true,
+          configurable: true,
+          writable: true
+        });
+      }
+      return { ok: true, value: copy };
+    } catch {
+      return { ok: false };
+    } finally {
+      active.delete(value);
+    }
+  };
+
+  return visit(input, 0);
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

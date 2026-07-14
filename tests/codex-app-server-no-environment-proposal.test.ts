@@ -331,6 +331,64 @@ test("event gate enforces exact 0.144.1 fields, transcript ordering, replay cons
   }).reasons, ["no_environment_exact_event_schema_invalid"]);
 });
 
+test("event gate rejects accessor-backed and proxied transcript data without invoking it", () => {
+  let getterCalls = 0;
+  const accessorGate = gateFor(contractFor("hello\n"));
+  const accessorEvent = { method: "turn/started" } as Record<string, unknown>;
+  Object.defineProperty(accessorEvent, "params", {
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      return { threadId: "thread-no-environment", turn: exactTurn("turn", "inProgress") };
+    }
+  });
+  assert.deepEqual(observe(accessorGate, accessorEvent).reasons, [
+    "no_environment_wire_envelope_invalid"
+  ]);
+  assert.equal(getterCalls, 0);
+
+  const nestedAccessorGate = gateFor(contractFor("hello\n"));
+  const nestedParams = { threadId: "thread-no-environment" } as Record<string, unknown>;
+  Object.defineProperty(nestedParams, "turn", {
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      return exactTurn("turn", "inProgress");
+    }
+  });
+  assert.deepEqual(observe(nestedAccessorGate, {
+    method: "turn/started",
+    params: nestedParams
+  }).reasons, ["no_environment_wire_envelope_invalid"]);
+  assert.equal(getterCalls, 0);
+
+  let proxyTrapCalls = 0;
+  const proxiedParams = new Proxy({}, {
+    get() {
+      proxyTrapCalls += 1;
+      return undefined;
+    },
+    getOwnPropertyDescriptor() {
+      proxyTrapCalls += 1;
+      return undefined;
+    },
+    getPrototypeOf() {
+      proxyTrapCalls += 1;
+      return Object.prototype;
+    },
+    ownKeys() {
+      proxyTrapCalls += 1;
+      return [];
+    }
+  });
+  const proxyGate = gateFor(contractFor("hello\n"));
+  assert.deepEqual(observe(proxyGate, {
+    method: "turn/started",
+    params: proxiedParams
+  }).reasons, ["no_environment_wire_envelope_invalid"]);
+  assert.equal(proxyTrapCalls, 0);
+});
+
 test("offline verification applies the proposal only in an independent clone and preserves source hashes", async () => {
   const fixture = await createRepo("hello\n");
   try {
