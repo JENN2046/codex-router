@@ -19,6 +19,15 @@ async function fixture(url = READ_ONLY_FIXTURE): Promise<Record<string, unknown>
   return JSON.parse(await readFile(url, "utf8")) as Record<string, unknown>;
 }
 
+function assertInvalidEvidence(input: unknown, label?: string): void {
+  const result = evaluateCodexAppServerProposalCapabilityEvidence(input);
+  assert.equal(result.status, "blocked", label);
+  assert.equal(result.disposition, "no_go", label);
+  assert.equal(result.sourceReviewConditionalPathIdentified, false, label);
+  assert.equal(result.sourceCommit, null, label);
+  assert.ok(result.reasons.includes("proposal_capability_evidence_invalid"), label);
+}
+
 test("pinned source-review claims identify only a blocked conditional path", async () => {
   const result = evaluateCodexAppServerProposalCapabilityEvidence(await fixture());
 
@@ -111,18 +120,16 @@ test("evidence cannot claim live actions or relax the existing preflight", async
 test("schema drift, source drift, extra keys, accessors, and proxies fail closed", async () => {
   const extra = await fixture();
   extra.untrusted = true;
-  assert.equal(evaluateCodexAppServerProposalCapabilityEvidence(extra).status, "blocked");
+  assertInvalidEvidence(extra, "extra key");
 
   const sourceDrift = await fixture();
   (sourceDrift.source as Record<string, unknown>).commit = "0".repeat(40);
-  assert.equal(evaluateCodexAppServerProposalCapabilityEvidence(sourceDrift).status, "blocked");
+  assertInvalidEvidence(sourceDrift, "source drift");
 
   for (const field of ["exactEffectiveConfigurationBound", "sourceEvidenceMechanicallyVerified"]) {
     const unsupportedProofClaim = await fixture();
     (unsupportedProofClaim.facts as Record<string, unknown>)[field] = true;
-    const result = evaluateCodexAppServerProposalCapabilityEvidence(unsupportedProofClaim);
-    assert.equal(result.disposition, "no_go", field);
-    assert.ok(result.reasons.includes("proposal_capability_evidence_invalid"), field);
+    assertInvalidEvidence(unsupportedProofClaim, field);
   }
 
   let getterRead = false;
@@ -133,7 +140,7 @@ test("schema drift, source drift, extra keys, accessors, and proxies fail closed
       return "codex-app-server-proposal-capability-evidence.v1";
     }
   });
-  assert.equal(evaluateCodexAppServerProposalCapabilityEvidence(accessor).status, "blocked");
+  assertInvalidEvidence(accessor, "accessor");
   assert.equal(getterRead, false);
 
   const proxy = new Proxy({}, {
@@ -142,7 +149,7 @@ test("schema drift, source drift, extra keys, accessors, and proxies fail closed
     }
   });
   assert.doesNotThrow(() => evaluateCodexAppServerProposalCapabilityEvidence(proxy));
-  assert.equal(evaluateCodexAppServerProposalCapabilityEvidence(proxy).status, "blocked");
+  assertInvalidEvidence(proxy, "proxy");
 });
 
 test("offline audit command reports blocked conditional path without constructing a transport", () => {
@@ -170,4 +177,30 @@ test("offline audit command reports blocked conditional path without constructin
     networkActivityObserved: false,
     externalToolActivityObserved: false
   });
+});
+
+test("offline audit command exits non-zero for workspace-write no-go evidence", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      "scripts/run-codex-app-server-proposal-capability-audit.ts",
+      "tests/fixtures/codex-app-server/proposal-capability/workspace-write-on-request-5bed644.json"
+    ],
+    { cwd: process.cwd(), encoding: "utf8" }
+  );
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.stderr, "");
+  const output = JSON.parse(result.stdout) as {
+    status: string;
+    disposition: string;
+    sourceReviewConditionalPathIdentified: boolean;
+    liveSmokeEligible: boolean;
+  };
+  assert.equal(output.status, "blocked");
+  assert.equal(output.disposition, "no_go");
+  assert.equal(output.sourceReviewConditionalPathIdentified, false);
+  assert.equal(output.liveSmokeEligible, false);
 });
