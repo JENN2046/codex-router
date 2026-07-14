@@ -38,7 +38,10 @@ Implement a strict offline-only contract with five boundaries:
    error, or correlation drift blocks the session.
 3. The final JSON proposal is one `update` bound to schema version, canonical
    target path, base SHA-256, after SHA-256, a bounded unified diff, and the
-   exact source content supplied as non-sensitive UTF-8 data.
+   exact source content supplied as non-sensitive UTF-8 data. One canonical
+   prompt builder binds task, proposal schema version, target path, base hash,
+   and base-content bytes; any field, extra-key, ordering, or formatting drift
+   makes the contract invalid.
 4. Verification clones a clean, exactly bound Git source without local or hard
    links, removes the remote, rejects filters, fsmonitor, upload-pack hooks,
    repository attributes, local config includes, worktree redirection,

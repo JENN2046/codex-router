@@ -76,6 +76,34 @@ test("no-environment contract rejects environment inheritance, alternate inputs,
   }
 });
 
+test("no-environment contract binds the complete canonical prompt bytes to its target", () => {
+  const base = contractFor("hello\n");
+  const canonicalText = base.turnStart.params.input[0].text;
+  const payload = JSON.parse(canonicalText) as Record<string, unknown>;
+  const driftedTexts = [
+    JSON.stringify({ ...payload, task: "Return a different task." }),
+    JSON.stringify({ ...payload, schemaVersion: "different-schema.v1" }),
+    JSON.stringify({ ...payload, baseContentBase64: Buffer.from("different\n").toString("base64") }),
+    JSON.stringify({ ...payload, extra: true }),
+    JSON.stringify(payload, null, 2)
+  ];
+
+  for (const text of driftedTexts) {
+    const candidate = {
+      ...base,
+      turnStart: {
+        ...base.turnStart,
+        params: {
+          ...base.turnStart.params,
+          input: [{ type: "text", text }]
+        }
+      }
+    };
+    assert.equal(NoEnvironmentProposalContractSchema.safeParse(candidate).success, false, text);
+  }
+  assert.equal(NoEnvironmentProposalContractSchema.safeParse(base).success, true);
+});
+
 test("no-environment contract rejects sensitive source content and credential-like proposed diffs", () => {
   for (const content of [
     "PASSWORD=hunter2\n",

@@ -149,6 +149,8 @@ The contract requires all of the following:
 - schema version, exact target, base SHA-256, after SHA-256, operation, diff
   size, standalone password/token/secret/private-key markers, and event order
   are fail-closed;
+- task, schema version, target, base hash, and base content must match the
+  canonical prompt bytes exactly; extra fields or formatting drift are blocked;
 - verification rejects dirty sources, Git attributes, filters, fsmonitor and
   upload-pack hooks, local config includes, `core.worktree`, worktree config,
   external excludes, `commondir`, partial clones, alternates, `.gitmodules`,
