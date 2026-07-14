@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { open, lstat, readFile, realpath } from "node:fs/promises";
+import { open, lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 
@@ -397,6 +397,37 @@ export interface WorkspaceSnapshot {
   statusHash: string;
   statusEmpty: boolean;
   targetHashes: Record<string, string>;
+  workspaceMetadataHash: string;
+}
+
+async function hashWorkspaceMetadata(root: string): Promise<string> {
+  const records: string[][] = [];
+  const visit = async (relativePath: string): Promise<void> => {
+    const absolute = relativePath === "" ? root : resolve(root, relativePath);
+    const topology = await lstat(absolute, { bigint: true });
+    records.push([
+      relativePath,
+      topology.isDirectory() ? "directory"
+        : topology.isFile() ? "file"
+          : topology.isSymbolicLink() ? "symlink"
+            : "other",
+      topology.dev.toString(),
+      topology.ino.toString(),
+      topology.mode.toString(),
+      topology.nlink.toString(),
+      topology.size.toString(),
+      topology.mtimeNs.toString(),
+      topology.ctimeNs.toString()
+    ]);
+    if (!topology.isDirectory() || topology.isSymbolicLink()) return;
+    const children = await readdir(absolute);
+    children.sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
+    for (const child of children) {
+      await visit(relativePath === "" ? child : `${relativePath}/${child}`);
+    }
+  };
+  await visit("");
+  return sha256(JSON.stringify(records));
 }
 
 export async function captureAppServerSmokeWorkspace(repoRoot: string, targetPaths: string[]): Promise<WorkspaceSnapshot> {
@@ -419,7 +450,8 @@ export async function captureAppServerSmokeWorkspace(repoRoot: string, targetPat
     head: (await git(root, ["rev-parse", "HEAD"], gitEnv)).trim(),
     statusHash: sha256(status),
     statusEmpty: status === "",
-    targetHashes
+    targetHashes,
+    workspaceMetadataHash: await hashWorkspaceMetadata(root)
   };
 }
 
@@ -429,6 +461,7 @@ function snapshotsEqual(left: WorkspaceSnapshot, right: WorkspaceSnapshot): bool
     .map((path) => [path, hashes[path]]);
   return left.head === right.head
     && left.statusHash === right.statusHash
+    && left.workspaceMetadataHash === right.workspaceMetadataHash
     && JSON.stringify(orderedHashes(left.targetHashes)) === JSON.stringify(orderedHashes(right.targetHashes));
 }
 
@@ -437,6 +470,7 @@ export async function waitForAppServerSmokeQuiescence(input: {
   targetPaths: string[];
   expectedHead: string;
   expectedTargetHashes: Record<string, string>;
+  expectedWorkspaceMetadataHash: string;
   quietPeriodMs: number;
   timeoutMs: number;
   sampleIntervalMs?: number;
@@ -460,7 +494,8 @@ export async function waitForAppServerSmokeQuiescence(input: {
     head: input.expectedHead,
     statusHash: sha256(""),
     statusEmpty: true,
-    targetHashes: input.expectedTargetHashes
+    targetHashes: input.expectedTargetHashes,
+    workspaceMetadataHash: input.expectedWorkspaceMetadataHash
   };
   let previous = await capture();
   let samples = 1;
@@ -492,6 +527,7 @@ export async function disconnectAndWaitForAppServerSmokeQuiescence(input: {
   targetPaths: string[];
   expectedHead: string;
   expectedTargetHashes: Record<string, string>;
+  expectedWorkspaceMetadataHash: string;
   quietPeriodMs: number;
   timeoutMs: number;
   sampleIntervalMs?: number;

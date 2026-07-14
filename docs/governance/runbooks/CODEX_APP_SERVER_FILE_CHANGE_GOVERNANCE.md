@@ -94,10 +94,13 @@ They never retain prompts, diffs, commands, tokens, arbitrary metadata, raw
 provider responses, or raw request ids.
 
 After every disconnect or failure, the harness must continue sampling HEAD,
-porcelain status, safe target topology, and target hashes for a complete quiet
-period. A late write, even if later reverted, permanently blocks the result.
-Only an unchanged final snapshot after the quiet period may be reported as an
-unchanged smoke workspace.
+porcelain status, safe target topology, target hashes, and a recursive workspace
+filesystem-metadata fingerprint for a complete quiet period. The fingerprint
+includes file/directory topology, inode identity, size, ctime, and mtime, so an
+ordinary write-and-revert between content samples remains monotonic evidence of
+mutation. Any mutation visible in these retained metadata or content/status
+samples permanently blocks the result. Only an unchanged final snapshot under
+this explicit detection model may be reported as an unchanged smoke workspace.
 
 ## v2 Wire Normalization Boundary
 

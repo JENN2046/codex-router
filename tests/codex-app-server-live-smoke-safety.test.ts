@@ -352,13 +352,15 @@ test("quiescence gate observes the full quiet period and passes unchanged state"
     head: "a".repeat(40),
     statusHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     statusEmpty: true,
-    targetHashes: { "docs/guide.md": "b".repeat(64) }
+    targetHashes: { "docs/guide.md": "b".repeat(64) },
+    workspaceMetadataHash: "c".repeat(64)
   };
   const result = await waitForAppServerSmokeQuiescence({
     repoRoot: "/unused",
     targetPaths: ["docs/guide.md"],
     expectedHead: expected.head,
     expectedTargetHashes: expected.targetHashes,
+    expectedWorkspaceMetadataHash: expected.workspaceMetadataHash,
     quietPeriodMs: 30,
     timeoutMs: 50,
     sampleIntervalMs: 10,
@@ -375,7 +377,8 @@ test("quiescence sampling cannot start before disconnect completes", async () =>
     head: "a".repeat(40),
     statusHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     statusEmpty: true,
-    targetHashes: { "docs/guide.md": "b".repeat(64) }
+    targetHashes: { "docs/guide.md": "b".repeat(64) },
+    workspaceMetadataHash: "c".repeat(64)
   };
   const result = await disconnectAndWaitForAppServerSmokeQuiescence({
     disconnect: async () => { order.push("disconnect"); },
@@ -383,6 +386,7 @@ test("quiescence sampling cannot start before disconnect completes", async () =>
     targetPaths: ["docs/guide.md"],
     expectedHead: expected.head,
     expectedTargetHashes: expected.targetHashes,
+    expectedWorkspaceMetadataHash: expected.workspaceMetadataHash,
     quietPeriodMs: 10,
     timeoutMs: 20,
     sampleIntervalMs: 10,
@@ -398,7 +402,8 @@ test("quiescence gate blocks a late write even when the workspace later reverts"
     head: "a".repeat(40),
     statusHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     statusEmpty: true,
-    targetHashes: { "docs/guide.md": "b".repeat(64) }
+    targetHashes: { "docs/guide.md": "b".repeat(64) },
+    workspaceMetadataHash: "c".repeat(64)
   };
   const changed: WorkspaceSnapshot = {
     ...expected,
@@ -413,10 +418,40 @@ test("quiescence gate blocks a late write even when the workspace later reverts"
     targetPaths: ["docs/guide.md"],
     expectedHead: expected.head,
     expectedTargetHashes: expected.targetHashes,
+    expectedWorkspaceMetadataHash: expected.workspaceMetadataHash,
     quietPeriodMs: 20,
     timeoutMs: 60,
     sampleIntervalMs: 10,
     capture: async () => snapshots[Math.min(index++, snapshots.length - 1)]!,
+    sleep: async () => {}
+  });
+  assert.equal(result.status, "blocked");
+  assert.equal(result.reason, "live_smoke_workspace_mutation_observed");
+  assert.equal(result.mutationObserved, true);
+});
+
+test("quiescence gate blocks a reverted write preserved only in workspace metadata", async () => {
+  const expected: WorkspaceSnapshot = {
+    head: "a".repeat(40),
+    statusHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    statusEmpty: true,
+    targetHashes: { "docs/guide.md": "b".repeat(64) },
+    workspaceMetadataHash: "c".repeat(64)
+  };
+  const reverted: WorkspaceSnapshot = {
+    ...expected,
+    workspaceMetadataHash: "d".repeat(64)
+  };
+  const result = await waitForAppServerSmokeQuiescence({
+    repoRoot: "/unused",
+    targetPaths: ["docs/guide.md"],
+    expectedHead: expected.head,
+    expectedTargetHashes: expected.targetHashes,
+    expectedWorkspaceMetadataHash: expected.workspaceMetadataHash,
+    quietPeriodMs: 20,
+    timeoutMs: 40,
+    sampleIntervalMs: 10,
+    capture: async () => reverted,
     sleep: async () => {}
   });
   assert.equal(result.status, "blocked");
@@ -439,9 +474,17 @@ test("workspace capture hashes a clean fixed target", async () => {
     await writeFile(join(root, "docs/guide.md"), "baseline\n", "utf8");
     await git(root, ["add", "docs/guide.md"]);
     await git(root, ["commit", "-m", "fixture"]);
-    const snapshot = await captureAppServerSmokeWorkspace(root, ["docs/guide.md"]);
-    assert.equal(snapshot.statusEmpty, true);
-    assert.equal(snapshot.targetHashes["docs/guide.md"]?.length, 64);
+    const before = await captureAppServerSmokeWorkspace(root, ["docs/guide.md"]);
+    assert.equal(before.statusEmpty, true);
+    assert.equal(before.targetHashes["docs/guide.md"]?.length, 64);
+    const unchanged = await captureAppServerSmokeWorkspace(root, ["docs/guide.md"]);
+    assert.equal(unchanged.workspaceMetadataHash, before.workspaceMetadataHash);
+    await writeFile(join(root, "docs/guide.md"), "changed\n", "utf8");
+    await writeFile(join(root, "docs/guide.md"), "baseline\n", "utf8");
+    const afterRevert = await captureAppServerSmokeWorkspace(root, ["docs/guide.md"]);
+    assert.equal(afterRevert.statusEmpty, true);
+    assert.deepEqual(afterRevert.targetHashes, before.targetHashes);
+    assert.notEqual(afterRevert.workspaceMetadataHash, before.workspaceMetadataHash);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
