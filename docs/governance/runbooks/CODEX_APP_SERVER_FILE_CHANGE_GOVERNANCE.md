@@ -71,12 +71,22 @@ The repository exposes a fail-closed preflight only:
 npm run smoke:app-server:file-change:preflight
 ```
 
-It must report `app_server_file_change_interception_unproven` and must not start
-App Server, connect a client, or attempt workspace write. `workspace-write`
-together with `on-request` permits in-sandbox edits; it is not evidence that a
-file-change approval will be intercepted. Do not run another live file-change
-smoke until a separately reviewed protocol mechanism proves interception before
-execution.
+For the historical `workspace-write` + `on-request` plan it must report
+`workspace_write_on_request_cannot_prove_file_change_interception` with
+`connectionAllowed: false`; it must not start App Server, construct a socket,
+connect a client, or attempt workspace write. That configuration permits
+in-sandbox edits and is not evidence that a file-change approval will be
+intercepted. Every future live harness must call
+`assertAppServerFileChangeInterceptionPreConnection(...)` before constructing
+its transport. The current gate has no eligible branch: even a safe-shaped plan
+remains blocked with `app_server_file_change_interception_unproven`. A future
+change may introduce eligibility only after an enforcement layer produces
+evidence bound to the exact App Server version, transport, runtime
+configuration, and plan for either a deferred patch that cannot be applied
+before governance or a proposal channel enforced as `read-only`. Changing a
+global boolean or accepting a caller-declared proposal mode is insufficient. Do
+not run another live file-change smoke before that separately reviewed
+mechanism exists.
 
 The offline decline-only harness is validated with:
 

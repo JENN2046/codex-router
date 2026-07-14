@@ -9,6 +9,127 @@ export * from "./codex-app-server-offline-interception-harness.js";
 
 export const APP_SERVER_FILE_CHANGE_INTERCEPTION_PROVEN = false;
 
+export type AppServerFileChangeSmokeSandboxPolicy =
+  | "read-only"
+  | "workspace-write"
+  | "danger-full-access";
+
+export type AppServerFileChangeSmokeApprovalPolicy =
+  | "untrusted"
+  | "on-request"
+  | "never";
+
+export type AppServerFileChangeProposalMode =
+  | "approval-request"
+  | "deferred-patch"
+  | "read-only-proposal";
+
+export interface AppServerFileChangeInterceptionPlan {
+  sandboxPolicy: AppServerFileChangeSmokeSandboxPolicy;
+  approvalPolicy: AppServerFileChangeSmokeApprovalPolicy;
+  proposalMode: AppServerFileChangeProposalMode;
+}
+
+export interface AppServerFileChangeInterceptionPreflight {
+  schemaVersion: "app-server-file-change-interception-preflight.v1";
+  status: "blocked";
+  reason: string;
+  connectionAllowed: false;
+  interceptionProven: false;
+  plan: AppServerFileChangeInterceptionPlan | null;
+}
+
+const APP_SERVER_FILE_CHANGE_SMOKE_SANDBOX_POLICIES = new Set<string>([
+  "read-only",
+  "workspace-write",
+  "danger-full-access"
+]);
+
+const APP_SERVER_FILE_CHANGE_SMOKE_APPROVAL_POLICIES = new Set<string>([
+  "untrusted",
+  "on-request",
+  "never"
+]);
+
+const APP_SERVER_FILE_CHANGE_PROPOSAL_MODES = new Set<string>([
+  "approval-request",
+  "deferred-patch",
+  "read-only-proposal"
+]);
+
+function parseAppServerFileChangeInterceptionPlan(
+  input: unknown
+): AppServerFileChangeInterceptionPlan | undefined {
+  try {
+    if (!isRecord(input) || Object.getPrototypeOf(input) !== Object.prototype) return undefined;
+    const expectedKeys = ["approvalPolicy", "proposalMode", "sandboxPolicy"];
+    const ownKeys = Reflect.ownKeys(input);
+    if (
+      ownKeys.length !== expectedKeys.length
+      || ownKeys.some((key) => typeof key !== "string" || !expectedKeys.includes(key))
+    ) return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(input);
+    for (const key of expectedKeys) {
+      const descriptor = descriptors[key];
+      if (descriptor === undefined || !("value" in descriptor) || typeof descriptor.value !== "string") {
+        return undefined;
+      }
+    }
+    const sandboxPolicy = descriptors.sandboxPolicy?.value as string;
+    const approvalPolicy = descriptors.approvalPolicy?.value as string;
+    const proposalMode = descriptors.proposalMode?.value as string;
+    if (
+      !APP_SERVER_FILE_CHANGE_SMOKE_SANDBOX_POLICIES.has(sandboxPolicy)
+      || !APP_SERVER_FILE_CHANGE_SMOKE_APPROVAL_POLICIES.has(approvalPolicy)
+      || !APP_SERVER_FILE_CHANGE_PROPOSAL_MODES.has(proposalMode)
+    ) return undefined;
+    return Object.freeze({
+      sandboxPolicy,
+      approvalPolicy,
+      proposalMode
+    }) as AppServerFileChangeInterceptionPlan;
+  } catch {
+    return undefined;
+  }
+}
+
+export function evaluateAppServerFileChangeInterceptionPreflight(
+  input: unknown
+): AppServerFileChangeInterceptionPreflight {
+  const blocked = (
+    reason: string,
+    plan: AppServerFileChangeInterceptionPlan | null
+  ): AppServerFileChangeInterceptionPreflight => ({
+    schemaVersion: "app-server-file-change-interception-preflight.v1",
+    status: "blocked",
+    reason,
+    connectionAllowed: false,
+    interceptionProven: false,
+    plan
+  });
+  const plan = parseAppServerFileChangeInterceptionPlan(input);
+  if (plan === undefined) {
+    return blocked("app_server_file_change_preflight_configuration_invalid", null);
+  }
+  if (plan.sandboxPolicy === "workspace-write" && plan.approvalPolicy === "on-request") {
+    return blocked("workspace_write_on_request_cannot_prove_file_change_interception", plan);
+  }
+  if (plan.proposalMode === "approval-request") {
+    return blocked("app_server_pre_apply_proposal_mechanism_required", plan);
+  }
+  if (plan.proposalMode === "read-only-proposal" && plan.sandboxPolicy !== "read-only") {
+    return blocked("app_server_read_only_proposal_requires_read_only_sandbox", plan);
+  }
+  return blocked("app_server_file_change_interception_unproven", plan);
+}
+
+export function assertAppServerFileChangeInterceptionPreConnection(
+  input: unknown
+): never {
+  const preflight = evaluateAppServerFileChangeInterceptionPreflight(input);
+  throw new Error(preflight.reason);
+}
+
 const execFileAsync = promisify(execFile);
 
 function sha256(value: string | Uint8Array): string {

@@ -26,11 +26,13 @@ import {
   RecordedDeclineOnlyAppServerV2WireTransport,
   SanitizedWireTranscriptRecorder,
   assertAppServerFileChangeInterceptionProven,
+  assertAppServerFileChangeInterceptionPreConnection,
   captureAppServerSmokeWorkspace,
   createIndependentAppServerSmokeClone,
   createAppServerSmokeProcessEnv,
   createSanitizedWireTranscriptEvidenceBinding,
   disconnectAndWaitForAppServerSmokeQuiescence,
+  evaluateAppServerFileChangeInterceptionPreflight,
   evaluateOfflineApprovalInterceptionProof,
   sanitizeWireTranscriptEntry,
   waitForAppServerSmokeQuiescence,
@@ -1354,6 +1356,133 @@ test("quiescence gate rejects an inconsistent clean-status claim", async () => {
 test("live file-change smoke remains blocked until interception is proven", () => {
   assert.equal(APP_SERVER_FILE_CHANGE_INTERCEPTION_PROVEN, false);
   assert.throws(() => assertAppServerFileChangeInterceptionProven(), /app_server_file_change_interception_unproven/u);
+});
+
+test("pre-connection gate rejects workspace-write on-request as interception evidence", () => {
+  for (const proposalMode of ["approval-request", "deferred-patch", "read-only-proposal"] as const) {
+    const preflight = evaluateAppServerFileChangeInterceptionPreflight({
+      sandboxPolicy: "workspace-write",
+      approvalPolicy: "on-request",
+      proposalMode
+    });
+    assert.deepEqual(preflight, {
+      schemaVersion: "app-server-file-change-interception-preflight.v1",
+      status: "blocked",
+      reason: "workspace_write_on_request_cannot_prove_file_change_interception",
+      connectionAllowed: false,
+      interceptionProven: false,
+      plan: {
+        sandboxPolicy: "workspace-write",
+        approvalPolicy: "on-request",
+        proposalMode
+      }
+    });
+    assert.throws(
+      () => assertAppServerFileChangeInterceptionPreConnection(preflight.plan),
+      /workspace_write_on_request_cannot_prove_file_change_interception/u
+    );
+  }
+});
+
+test("pre-connection gate requires a deferred patch or a genuinely read-only proposal", () => {
+  assert.equal(evaluateAppServerFileChangeInterceptionPreflight({
+    sandboxPolicy: "read-only",
+    approvalPolicy: "on-request",
+    proposalMode: "approval-request"
+  }).reason, "app_server_pre_apply_proposal_mechanism_required");
+  assert.equal(evaluateAppServerFileChangeInterceptionPreflight({
+    sandboxPolicy: "workspace-write",
+    approvalPolicy: "never",
+    proposalMode: "read-only-proposal"
+  }).reason, "app_server_read_only_proposal_requires_read_only_sandbox");
+  for (const plan of [
+    {
+      sandboxPolicy: "read-only",
+      approvalPolicy: "on-request",
+      proposalMode: "read-only-proposal"
+    },
+    {
+      sandboxPolicy: "read-only",
+      approvalPolicy: "never",
+      proposalMode: "deferred-patch"
+    }
+  ] as const) {
+    const preflight = evaluateAppServerFileChangeInterceptionPreflight(plan);
+    assert.equal(preflight.status, "blocked");
+    assert.equal(preflight.connectionAllowed, false);
+    assert.equal(preflight.reason, "app_server_file_change_interception_unproven");
+  }
+});
+
+test("pre-connection gate fails closed on unsupported runtime values", () => {
+  const inherited = Object.create({
+    sandboxPolicy: "workspace-write",
+    approvalPolicy: "on-request",
+    proposalMode: "deferred-patch"
+  }) as Record<string, unknown>;
+  const accessor = {
+    approvalPolicy: "on-request",
+    proposalMode: "deferred-patch",
+    get sandboxPolicy() { return "workspace-write"; }
+  };
+  const boxed = {
+    sandboxPolicy: new String("workspace-write"),
+    approvalPolicy: "on-request",
+    proposalMode: "deferred-patch"
+  };
+  const unexpectedSymbol = Symbol("unexpected");
+  const symbolBearing = {
+    sandboxPolicy: "read-only",
+    approvalPolicy: "on-request",
+    proposalMode: "read-only-proposal",
+    [unexpectedSymbol]: true
+  };
+  const throwingProxy = new Proxy({}, {
+    getPrototypeOf() { throw new Error("must_not_escape"); }
+  });
+  for (const input of [null, {}, inherited, accessor, boxed, symbolBearing, throwingProxy, {
+    sandboxPolicy: "future-sandbox",
+    approvalPolicy: "future-policy",
+    proposalMode: "future-proposal"
+  }, {
+    sandboxPolicy: "read-only",
+    approvalPolicy: "on-request",
+    proposalMode: "read-only-proposal",
+    unexpected: true
+  }]) {
+    const preflight = evaluateAppServerFileChangeInterceptionPreflight(input);
+    assert.equal(preflight.status, "blocked");
+    assert.equal(preflight.connectionAllowed, false);
+    assert.equal(preflight.reason, "app_server_file_change_preflight_configuration_invalid");
+    assert.equal(preflight.plan, null);
+  }
+});
+
+test("file-change smoke CLI reports the pre-connection hard block without side effects", async () => {
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      "--import",
+      "tsx",
+      "scripts/run-codex-app-server-file-change-smoke.ts"
+    ], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: { ...process.env }
+    }),
+    (error: unknown) => {
+      const failure = error as { code?: number; stdout?: string; stderr?: string };
+      assert.equal(failure.code, 1);
+      assert.equal(failure.stdout, "");
+      const output = JSON.parse(failure.stderr ?? "") as Record<string, unknown>;
+      assert.equal(output.status, "blocked");
+      assert.equal(output.connectionAllowed, false);
+      assert.equal(output.reason, "workspace_write_on_request_cannot_prove_file_change_interception");
+      assert.equal(output.realAppServerStarted, false);
+      assert.equal(output.clientConnected, false);
+      assert.equal(output.workspaceWriteAttempted, false);
+      return true;
+    }
+  );
 });
 
 test("workspace capture hashes a clean fixed target", async () => {
