@@ -81,7 +81,10 @@ Any future authorized live harness must run App Server against an independent
 `git clone --no-local --no-hardlinks --no-checkout` fixture. It must remove the
 clone's remote before checkout, reject object alternates, tracked
 `.gitattributes`, configured Git filters, dirty state, HEAD drift, and unsafe
-target topology. The source repository is never the App Server workspace.
+target topology. Clone inspection, checkout, later Git verification, and the App
+Server process must all use the same returned sanitized process environment;
+host global/system Git configuration is disabled and repository-local filters
+remain forbidden. The source repository is never the App Server workspace.
 
 Before each inbound message reaches the v2 normalizer, and before each outbound
 message is sent, the harness must durably append a mode-`0600` sanitized JSONL

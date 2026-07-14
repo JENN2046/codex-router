@@ -55,6 +55,12 @@ interface ShapeSummary {
   redactedScalarCount: number;
 }
 
+export interface SanitizedWireTranscriptHandle {
+  appendFile(data: string, encoding: "utf8"): Promise<unknown>;
+  sync(): Promise<unknown>;
+  close(): Promise<unknown>;
+}
+
 function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -186,14 +192,24 @@ export function sanitizeWireTranscriptEntry(input: {
 export class SanitizedWireTranscriptRecorder {
   private sequence = 0;
   private closed = false;
+  private pending: Promise<void> = Promise.resolve();
+  private persistenceFailed = false;
+  private persistenceFailure: unknown;
   private constructor(
-    private readonly handle: Awaited<ReturnType<typeof open>>,
+    private readonly handle: SanitizedWireTranscriptHandle,
     private readonly clock: () => Date
   ) {}
 
   static async create(path: string, clock: () => Date = () => new Date()): Promise<SanitizedWireTranscriptRecorder> {
     if (!isAbsolute(path)) throw new Error("wire_transcript_path_must_be_absolute");
     return new SanitizedWireTranscriptRecorder(await open(path, "wx", 0o600), clock);
+  }
+
+  static createTestOnly(
+    handle: SanitizedWireTranscriptHandle,
+    clock: () => Date = () => new Date()
+  ): SanitizedWireTranscriptRecorder {
+    return new SanitizedWireTranscriptRecorder(handle, clock);
   }
 
   async record(direction: "inbound" | "outbound", message: unknown): Promise<SanitizedWireTranscriptEntry> {
@@ -204,16 +220,35 @@ export class SanitizedWireTranscriptRecorder {
       direction,
       message
     });
-    await this.handle.appendFile(`${JSON.stringify(entry)}\n`, "utf8");
-    await this.handle.sync();
+    const operation = this.pending.then(async () => {
+      if (this.persistenceFailed) throw this.persistenceFailure;
+      try {
+        await this.handle.appendFile(`${JSON.stringify(entry)}\n`, "utf8");
+        await this.handle.sync();
+      } catch (error) {
+        this.persistenceFailed = true;
+        this.persistenceFailure = error;
+        throw error;
+      }
+    });
+    this.pending = operation.then(
+      () => undefined,
+      () => undefined
+    );
+    await operation;
     return entry;
   }
 
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    await this.handle.sync();
-    await this.handle.close();
+    try {
+      await this.pending;
+      if (this.persistenceFailed) throw this.persistenceFailure;
+      await this.handle.sync();
+    } finally {
+      await this.handle.close();
+    }
   }
 }
 
@@ -238,19 +273,41 @@ export class RecordedAppServerWireBoundary {
   }
 }
 
-async function git(cwd: string, args: string[]): Promise<string> {
+export function createAppServerSmokeProcessEnv(tempRoot: string): NodeJS.ProcessEnv {
+  if (!isAbsolute(tempRoot)) throw new Error("live_smoke_environment_root_must_be_absolute");
+  const env: NodeJS.ProcessEnv = {
+    CI: "true",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    HOME: tempRoot,
+    TMP: tempRoot,
+    TEMP: tempRoot,
+    TMPDIR: tempRoot
+  };
+  for (const key of ["PATH", "SystemRoot", "COMSPEC", "PATHEXT", "WINDIR"] as const) {
+    const value = process.env[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
+}
+
+async function git(cwd: string, args: string[], env: NodeJS.ProcessEnv): Promise<string> {
   const result = await execFileAsync("git", args, {
     cwd,
     encoding: "utf8",
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, GIT_TERMINAL_PROMPT: "0" },
+    env,
     maxBuffer: 4 * 1024 * 1024
   });
   return result.stdout;
 }
 
-async function gitFilterInventory(cwd: string): Promise<string> {
+async function gitFilterInventory(cwd: string, env: NodeJS.ProcessEnv): Promise<string> {
   try {
-    return await git(cwd, ["config", "--get-regexp", "^filter\\."]);
+    return await git(cwd, ["config", "--get-regexp", "^filter\\."], env);
   } catch (error) {
     if (isRecord(error) && error.code === 1) return "";
     throw new Error("live_smoke_git_filter_inventory_failed", { cause: error });
@@ -268,40 +325,45 @@ export async function createIndependentAppServerSmokeClone(input: {
   destinationRepo: string;
   expectedHead: string;
   targetPaths: string[];
-}): Promise<{ repoRoot: string; head: string }> {
+}): Promise<{ repoRoot: string; head: string; appServerEnv: NodeJS.ProcessEnv }> {
   if (!/^[a-f0-9]{40,64}$/u.test(input.expectedHead)) throw new Error("live_smoke_expected_head_invalid");
   if (!isAbsolute(input.sourceRepo) || !isAbsolute(input.destinationRepo)) {
     throw new Error("live_smoke_clone_paths_must_be_absolute");
   }
   for (const path of input.targetPaths) assertSafeRelativePath(path);
   const sourceRoot = await realpath(input.sourceRepo);
+  const tempRoot = resolve(input.destinationRepo, "..");
+  const appServerEnv = createAppServerSmokeProcessEnv(tempRoot);
   if (sourceRoot !== resolve(input.sourceRepo)) throw new Error("live_smoke_source_realpath_mismatch");
-  if ((await git(sourceRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])) !== "") {
+  if ((await git(sourceRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], appServerEnv)) !== "") {
     throw new Error("live_smoke_source_dirty");
   }
-  if ((await git(sourceRoot, ["rev-parse", "HEAD"])).trim() !== input.expectedHead) {
+  if ((await git(sourceRoot, ["rev-parse", "HEAD"], appServerEnv)).trim() !== input.expectedHead) {
     throw new Error("live_smoke_source_head_mismatch");
   }
-  const trackedPaths = (await git(sourceRoot, ["ls-tree", "-r", "--name-only", input.expectedHead]))
+  const trackedPaths = (await git(sourceRoot, ["ls-tree", "-r", "--name-only", input.expectedHead], appServerEnv))
     .split("\n").filter(Boolean);
   if (trackedPaths.some((path) => path === ".gitattributes" || path.endsWith("/.gitattributes"))) {
     throw new Error("live_smoke_git_attributes_forbidden");
   }
-  if ((await gitFilterInventory(sourceRoot)) !== "") {
+  if ((await gitFilterInventory(sourceRoot, appServerEnv)) !== "") {
     throw new Error("live_smoke_git_filters_forbidden");
   }
   await execFileAsync("git", [
     "clone", "--no-local", "--no-hardlinks", "--no-checkout", "--",
     sourceRoot, input.destinationRepo
   ], {
-    cwd: resolve(input.destinationRepo, ".."),
+    cwd: tempRoot,
     encoding: "utf8",
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, GIT_TERMINAL_PROMPT: "0" },
+    env: appServerEnv,
     maxBuffer: 4 * 1024 * 1024
   });
-  await git(input.destinationRepo, ["remote", "remove", "origin"]);
-  await git(input.destinationRepo, ["checkout", "--detach", input.expectedHead, "--"]);
-  if ((await git(input.destinationRepo, ["remote"])) !== "") throw new Error("live_smoke_clone_remote_present");
+  await git(input.destinationRepo, ["remote", "remove", "origin"], appServerEnv);
+  if ((await gitFilterInventory(input.destinationRepo, appServerEnv)) !== "") {
+    throw new Error("live_smoke_git_filters_forbidden");
+  }
+  await git(input.destinationRepo, ["checkout", "--detach", input.expectedHead, "--"], appServerEnv);
+  if ((await git(input.destinationRepo, ["remote"], appServerEnv)) !== "") throw new Error("live_smoke_clone_remote_present");
   try {
     await lstat(resolve(input.destinationRepo, ".git/objects/info/alternates"));
     throw new Error("live_smoke_clone_alternates_present");
@@ -309,10 +371,14 @@ export async function createIndependentAppServerSmokeClone(input: {
     if (error instanceof Error && error.message === "live_smoke_clone_alternates_present") throw error;
     if (!(isRecord(error) && error.code === "ENOENT")) throw error;
   }
-  if ((await git(input.destinationRepo, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])) !== "") {
+  if ((await git(input.destinationRepo, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], appServerEnv)) !== "") {
     throw new Error("live_smoke_clone_dirty");
   }
-  return { repoRoot: await realpath(input.destinationRepo), head: input.expectedHead };
+  return {
+    repoRoot: await realpath(input.destinationRepo),
+    head: input.expectedHead,
+    appServerEnv: { ...appServerEnv }
+  };
 }
 
 export interface WorkspaceSnapshot {
@@ -324,7 +390,8 @@ export interface WorkspaceSnapshot {
 
 export async function captureAppServerSmokeWorkspace(repoRoot: string, targetPaths: string[]): Promise<WorkspaceSnapshot> {
   const root = await realpath(repoRoot);
-  const status = await git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+  const gitEnv = createAppServerSmokeProcessEnv(resolve(root, ".."));
+  const status = await git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], gitEnv);
   const targetHashes: Record<string, string> = {};
   for (const path of targetPaths) {
     assertSafeRelativePath(path);
@@ -338,7 +405,7 @@ export async function captureAppServerSmokeWorkspace(repoRoot: string, targetPat
     targetHashes[path] = sha256(await readFile(absolute));
   }
   return {
-    head: (await git(root, ["rev-parse", "HEAD"])).trim(),
+    head: (await git(root, ["rev-parse", "HEAD"], gitEnv)).trim(),
     statusHash: sha256(status),
     statusEmpty: status === "",
     targetHashes

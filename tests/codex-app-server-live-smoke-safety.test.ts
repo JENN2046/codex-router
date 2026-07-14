@@ -13,6 +13,7 @@ import {
   assertAppServerFileChangeInterceptionProven,
   captureAppServerSmokeWorkspace,
   createIndependentAppServerSmokeClone,
+  createAppServerSmokeProcessEnv,
   disconnectAndWaitForAppServerSmokeQuiescence,
   waitForAppServerSmokeQuiescence,
   type WorkspaceSnapshot
@@ -120,6 +121,87 @@ test("recorded wire boundary blocks side effects when transcript persistence fai
   assert.equal(called, false);
 });
 
+test("sanitized wire transcript serializes concurrent records and close", async () => {
+  const writes: string[] = [];
+  const events: string[] = [];
+  let releaseFirstWrite!: () => void;
+  const firstWriteBlocked = new Promise<void>((resolve) => { releaseFirstWrite = resolve; });
+  let firstWriteStarted!: () => void;
+  const firstWriteObserved = new Promise<void>((resolve) => { firstWriteStarted = resolve; });
+  const recorder = SanitizedWireTranscriptRecorder.createTestOnly({
+    async appendFile(data) {
+      const sequence = (JSON.parse(data) as { sequence: number }).sequence;
+      events.push(`append:${sequence}:start`);
+      if (sequence === 1) {
+        firstWriteStarted();
+        await firstWriteBlocked;
+      }
+      writes.push(data);
+      events.push(`append:${sequence}:end`);
+    },
+    async sync() { events.push("sync"); },
+    async close() { events.push("close"); }
+  }, () => new Date("2026-07-14T01:00:00.000Z"));
+
+  const first = recorder.record("inbound", { method: "turn/started" });
+  const second = recorder.record("inbound", { method: "turn/completed" });
+  await firstWriteObserved;
+  const closing = recorder.close();
+  await Promise.resolve();
+  assert.deepEqual(events, ["append:1:start"]);
+  releaseFirstWrite();
+  await Promise.all([first, second, closing]);
+
+  assert.deepEqual(
+    writes.map((line) => (JSON.parse(line) as { sequence: number }).sequence),
+    [1, 2]
+  );
+  assert.deepEqual(events, [
+    "append:1:start", "append:1:end", "sync",
+    "append:2:start", "append:2:end", "sync", "sync", "close"
+  ]);
+  await assert.rejects(
+    recorder.record("inbound", { method: "turn/started" }),
+    /wire_transcript_closed/u
+  );
+});
+
+test("sanitized wire transcript makes persistence failure terminal", async () => {
+  let appends = 0;
+  const recorder = SanitizedWireTranscriptRecorder.createTestOnly({
+    async appendFile() {
+      appends += 1;
+      throw new Error("disk_failed");
+    },
+    async sync() {},
+    async close() {}
+  });
+  const first = recorder.record("inbound", { method: "turn/started" });
+  const second = recorder.record("inbound", { method: "turn/completed" });
+  await assert.rejects(first, /disk_failed/u);
+  await assert.rejects(second, /disk_failed/u);
+  await assert.rejects(recorder.close(), /disk_failed/u);
+  assert.equal(appends, 1);
+});
+
+test("sanitized wire transcript treats an undefined thrown value as terminal", async () => {
+  let appends = 0;
+  const recorder = SanitizedWireTranscriptRecorder.createTestOnly({
+    async appendFile() {
+      appends += 1;
+      throw undefined;
+    },
+    async sync() {},
+    async close() {}
+  });
+  const first = recorder.record("inbound", { method: "turn/started" });
+  const second = recorder.record("inbound", { method: "turn/completed" });
+  await assert.rejects(first);
+  await assert.rejects(second);
+  await assert.rejects(recorder.close());
+  assert.equal(appends, 1);
+});
+
 test("independent App Server smoke clone has no remote or object alternates", async () => {
   const root = await mkdtemp(join(tmpdir(), "codex-router-live-smoke-clone-"));
   const source = join(root, "source");
@@ -140,10 +222,55 @@ test("independent App Server smoke clone has no remote or object alternates", as
       targetPaths: ["docs/guide.md"]
     });
     assert.equal(result.head, head);
+    assert.equal(result.appServerEnv.GIT_CONFIG_NOSYSTEM, "1");
+    assert.equal(
+      result.appServerEnv.GIT_CONFIG_GLOBAL,
+      process.platform === "win32" ? "NUL" : "/dev/null"
+    );
     assert.equal((await git(clone, ["remote"])).trim(), "");
     assert.equal((await git(clone, ["status", "--porcelain=v1"])).trim(), "");
     assert.equal(await readFile(join(clone, "docs/guide.md"), "utf8"), "baseline\n");
   } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("independent smoke clone filters inherited Git config from the App Server environment", async () => {
+  const root = await mkdtemp(join(tmpdir(), "codex-router-live-smoke-global-filter-"));
+  const source = join(root, "source");
+  const clone = join(root, "clone");
+  const globalConfig = join(root, "host.gitconfig");
+  const inheritedGlobalConfig = process.env.GIT_CONFIG_GLOBAL;
+  try {
+    await mkdir(join(source, "docs"), { recursive: true });
+    await git(root, ["init", source]);
+    await git(source, ["config", "user.name", "codex-router test"]);
+    await git(source, ["config", "user.email", "codex-router@example.invalid"]);
+    await writeFile(join(source, "docs/guide.md"), "baseline\n", "utf8");
+    await git(source, ["add", "docs/guide.md"]);
+    await git(source, ["commit", "-m", "fixture"]);
+    await writeFile(globalConfig, "[filter \"host\"]\n\tsmudge = unsafe-host-command\n", "utf8");
+    process.env.GIT_CONFIG_GLOBAL = globalConfig;
+
+    const head = (await git(source, ["rev-parse", "HEAD"])).trim();
+    const result = await createIndependentAppServerSmokeClone({
+      sourceRepo: source,
+      destinationRepo: clone,
+      expectedHead: head,
+      targetPaths: ["docs/guide.md"]
+    });
+    assert.deepEqual(result.appServerEnv, createAppServerSmokeProcessEnv(root));
+    await assert.rejects(
+      execFileAsync("git", ["config", "--get-regexp", "^filter\\."], {
+        cwd: clone,
+        encoding: "utf8",
+        env: result.appServerEnv
+      }),
+      (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === 1
+    );
+  } finally {
+    if (inheritedGlobalConfig === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+    else process.env.GIT_CONFIG_GLOBAL = inheritedGlobalConfig;
     await rm(root, { recursive: true, force: true });
   }
 });
