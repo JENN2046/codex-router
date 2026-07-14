@@ -6,7 +6,8 @@ import {
   mkdtemp,
   open,
   realpath,
-  rm
+  rm,
+  writeFile
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
@@ -662,6 +663,7 @@ export async function verifyNoEnvironmentProposalInIndependentClone(input: {
     input.expectedHead,
     proposal.targetPath,
     env,
+    requestedTempRoot,
     input.testOnlyHooks
   ).catch(() => undefined);
   if (before === undefined) return empty(["offline_source_preflight_failed"]);
@@ -727,7 +729,13 @@ export async function verifyNoEnvironmentProposalInIndependentClone(input: {
     if (sha256(await readIdentityBoundRegularFile(afterCloneTargetBinding)) !== proposal.afterSha256) {
       throw new Error("offline_patch_after_hash_mismatch");
     }
-    const after = await captureSourceBinding(root, input.expectedHead, proposal.targetPath, env);
+    const after = await captureSourceBinding(
+      root,
+      input.expectedHead,
+      proposal.targetPath,
+      env,
+      requestedTempRoot
+    );
     sourceWorkspaceUnchanged = after.reasons.length === 0 && sameSourceBinding(before, after);
     if (!sourceWorkspaceUnchanged) throw new Error("offline_source_workspace_changed");
   } catch (error) {
@@ -774,6 +782,7 @@ async function captureSourceBinding(
   expectedHead: string,
   targetPath: string,
   env: NodeJS.ProcessEnv,
+  tempRoot: string,
   testOnlyHooks?: {
     afterInitialSourceBindingsCaptured?: () => Promise<void>;
     afterLocalConfigRead?: () => Promise<void>;
@@ -791,6 +800,10 @@ async function captureSourceBinding(
   const configBinding = await captureSafeRegularPathBinding(root, ".git/config");
   if (configBinding === undefined) {
     return blockedSourceBinding(["offline_source_git_config_topology_unsafe"]);
+  }
+  const indexBinding = await captureSafeRegularPathBinding(root, ".git/index");
+  if (indexBinding === undefined) {
+    return blockedSourceBinding(["offline_source_git_index_topology_unsafe"]);
   }
   const gitInfo = resolve(gitDir, "info");
   if (!await hasSafeDirectoryTopology(gitInfo)) {
@@ -909,33 +922,139 @@ async function captureSourceBinding(
   ];
   if (configReasons.length > 0) return blockedSourceBinding(configReasons);
 
-  // Object inspection precedes worktree inspection. A tracked attributes file
-  // is rejected before `git status`, because status may invoke clean/process
-  // filters selected by attributes. `runGit` also overrides fsmonitor, hooks,
-  // and user attributes for every Git subprocess as a second boundary.
-  const boundWorktree = `--work-tree=${root}`;
-  const topLevelRaw = (await runGit(root, [boundWorktree, "rev-parse", "--show-toplevel"], env)).stdout.trim();
-  const topLevel = await realpath(topLevelRaw).catch(() => undefined);
-  if (topLevel === undefined || !samePath(root, topLevel)) {
-    return blockedSourceBinding(["offline_source_git_toplevel_mismatch"]);
-  }
-  const head = (await runGit(root, [boundWorktree, "rev-parse", "HEAD"], env)).stdout.trim();
-  if (head !== expectedHead) {
-    return blockedSourceBinding(["offline_source_head_mismatch"]);
-  }
-  const stagedEntries = (await runGit(
+  return await captureSourceBindingWithInspectionClone({
     root,
-    [boundWorktree, "ls-files", "--stage", "-z"],
-    env
+    expectedHead,
+    targetPath,
+    targetBinding,
+    indexBinding,
+    env,
+    tempRoot,
+    ...(testOnlyHooks === undefined ? {} : { testOnlyHooks })
+  });
+}
+
+async function captureSourceBindingWithInspectionClone(input: {
+  root: string;
+  expectedHead: string;
+  targetPath: string;
+  targetBinding: SafeRegularPathBinding;
+  indexBinding: SafeRegularPathBinding;
+  env: NodeJS.ProcessEnv;
+  tempRoot: string;
+  testOnlyHooks?: {
+    onIdentityBoundRead?: (path: string) => void;
+  };
+}): Promise<SourceBinding> {
+  let inspectionParent: string | undefined;
+  let result: SourceBinding;
+  try {
+    inspectionParent = await mkdtemp(join(input.tempRoot, "codex-router-source-inspection-"));
+    const inspectionRepo = join(inspectionParent, "repo");
+    await requireGit(inspectionParent, [
+      "clone", "--no-local", "--no-hardlinks", "--no-checkout",
+      "--config", `core.hooksPath=${process.platform === "win32" ? "NUL" : "/dev/null"}`,
+      "--config", "submodule.recurse=false", "--", input.root, inspectionRepo
+    ], input.env, "offline_source_inspection_clone_failed");
+    await requireGit(
+      inspectionRepo,
+      ["remote", "remove", "origin"],
+      input.env,
+      "offline_source_inspection_remote_remove_failed"
+    );
+    if (await pathExists(resolve(inspectionRepo, ".git/objects/info/alternates"))) {
+      throw new Error("offline_source_inspection_alternates_present");
+    }
+    const inspectionEnv = { ...input.env, GIT_ATTR_SOURCE: input.expectedHead };
+    const boundRepository = [
+      `--git-dir=${resolve(inspectionRepo, ".git")}`,
+      `--work-tree=${input.root}`
+    ];
+    await writeFile(
+      resolve(inspectionRepo, ".git/index"),
+      await readIdentityBoundRegularFile(
+        input.indexBinding,
+        input.testOnlyHooks?.onIdentityBoundRead
+      )
+    );
+
+    // Object inspection precedes worktree inspection. A tracked attributes file
+    // is rejected before `git status`, because status may invoke clean/process
+    // filters selected by attributes. Every command below uses a disposable Git
+    // directory whose config/info state cannot be replaced through the source
+    // repository, while GIT_ATTR_SOURCE binds per-directory attributes to the
+    // already attested commit instead of the mutable source worktree.
+    const topLevelRaw = (await runGit(
+      input.root,
+      [...boundRepository, "rev-parse", "--show-toplevel"],
+      inspectionEnv
+    )).stdout.trim();
+    const topLevel = await realpath(topLevelRaw).catch(() => undefined);
+    if (topLevel === undefined || !samePath(input.root, topLevel)) {
+      result = blockedSourceBinding(["offline_source_git_toplevel_mismatch"]);
+    } else {
+      const head = (await runGit(
+        input.root,
+        [...boundRepository, "rev-parse", "HEAD"],
+        inspectionEnv
+      )).stdout.trim();
+      if (head !== input.expectedHead) {
+        result = blockedSourceBinding(["offline_source_head_mismatch"]);
+      } else {
+        result = await inspectBoundSourceWorktree({
+          root: input.root,
+          expectedHead: input.expectedHead,
+          targetPath: input.targetPath,
+          targetBinding: input.targetBinding,
+          boundRepository,
+          env: inspectionEnv,
+          head,
+          ...(input.testOnlyHooks === undefined ? {} : { testOnlyHooks: input.testOnlyHooks })
+        });
+      }
+    }
+  } catch {
+    result = blockedSourceBinding(["offline_source_inspection_snapshot_failed"]);
+  }
+  if (inspectionParent !== undefined) {
+    try {
+      await rm(inspectionParent, { recursive: true, force: true, maxRetries: 2 });
+    } catch {
+      result = blockedSourceBinding(["offline_source_inspection_cleanup_failed"]);
+    }
+  }
+  return result;
+}
+
+async function inspectBoundSourceWorktree(input: {
+  root: string;
+  expectedHead: string;
+  targetPath: string;
+  targetBinding: SafeRegularPathBinding;
+  boundRepository: string[];
+  env: NodeJS.ProcessEnv;
+  head: string;
+  testOnlyHooks?: {
+    onIdentityBoundRead?: (path: string) => void;
+  };
+}): Promise<SourceBinding> {
+  const stagedEntries = (await runGit(
+    input.root,
+    [...input.boundRepository, "ls-files", "--stage", "-z"],
+    input.env
   )).stdout.split("\0").filter(Boolean);
   if (stagedEntries.some((entry) => entry.startsWith("160000 "))) {
     return blockedSourceBinding(["offline_source_submodules_forbidden"]);
   }
-  const tracked = (await runGit(root, [boundWorktree, "ls-tree", "-r", "-z", expectedHead, "--", targetPath], env)).stdout;
+  const tracked = (await runGit(
+    input.root,
+    [...input.boundRepository, "ls-tree", "-r", "-z", input.expectedHead, "--", input.targetPath],
+    input.env
+  )).stdout;
   const allTrackedEntries = (await runGit(
-    root,
-    [boundWorktree, "ls-tree", "-r", "-z", expectedHead],
-    env
+    input.root,
+    [...input.boundRepository, "ls-tree", "-r", "-z", input.expectedHead],
+    input.env
   )).stdout.split("\0").filter(Boolean);
   const allTracked = allTrackedEntries.map((entry) => entry.slice(entry.indexOf("\t") + 1));
   const metadataReasons = [
@@ -946,62 +1065,62 @@ async function captureSourceBinding(
   ];
   if (metadataReasons.length > 0) {
     return {
-      head,
+      head: input.head,
       status: "not_captured",
       targetHash: sha256(await readIdentityBoundRegularFile(
-        targetBinding,
-        testOnlyHooks?.onIdentityBoundRead
+        input.targetBinding,
+        input.testOnlyHooks?.onIdentityBoundRead
       )),
       reasons: unique(metadataReasons)
     };
   }
 
   const visibleWorktreePaths = (await runGit(
-    root,
-    [boundWorktree, "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-    env
+    input.root,
+    [...input.boundRepository, "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    input.env
   )).stdout.split("\0").filter(Boolean);
   const ignoredWorktreePaths = (await runGit(
-    root,
-    [boundWorktree, "ls-files", "-z", "--others", "--ignored", "--exclude-standard"],
-    env
+    input.root,
+    [...input.boundRepository, "ls-files", "-z", "--others", "--ignored", "--exclude-standard"],
+    input.env
   )).stdout.split("\0").filter(Boolean);
   const worktreeAttributesPresent = [...visibleWorktreePaths, ...ignoredWorktreePaths]
     .some((path) => path.split("/").some((part) => part.toLocaleLowerCase("en-US") === ".gitattributes"));
   if (worktreeAttributesPresent) {
     return {
-      head,
+      head: input.head,
       status: "not_captured",
       targetHash: sha256(await readIdentityBoundRegularFile(
-        targetBinding,
-        testOnlyHooks?.onIdentityBoundRead
+        input.targetBinding,
+        input.testOnlyHooks?.onIdentityBoundRead
       )),
       reasons: ["offline_source_worktree_git_attributes_forbidden"]
     };
   }
 
   const status = (await runGit(
-    root,
+    input.root,
     [
-      boundWorktree,
+      ...input.boundRepository,
       "status",
       "--porcelain=v1",
       "-z",
       "--untracked-files=all",
       "--ignore-submodules=all"
     ],
-    env
+    input.env
   )).stdout;
   const reasons = [
     ...(status === "" ? [] : ["offline_source_worktree_not_clean"]),
     ...(tracked.startsWith("100644 blob ") ? [] : ["offline_source_target_not_regular_tracked_file"])
   ];
   return {
-    head,
+    head: input.head,
     status,
     targetHash: sha256(await readIdentityBoundRegularFile(
-      targetBinding,
-      testOnlyHooks?.onIdentityBoundRead
+      input.targetBinding,
+      input.testOnlyHooks?.onIdentityBoundRead
     )),
     reasons
   };

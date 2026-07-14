@@ -637,6 +637,41 @@ test("config replacement after its bound read cannot execute a new upload-pack h
   }
 });
 
+test("post-config filter and info-attributes replacement cannot execute during source status", async () => {
+  const fixture = await createRepo("hello\n");
+  const marker = join(fixture.tempRoot, "post-config-read-filter-executed");
+  let replaced = false;
+  try {
+    const filter = await writeSentinelHook(fixture.tempRoot, "post-config-read-filter", marker);
+    const replacement = join(fixture.tempRoot, "replacement-filter.config");
+    await writeFile(replacement, await readFile(join(fixture.repoRoot, ".git/config")));
+    await git(fixture.repoRoot, ["config", "--file", replacement, "filter.hostile.clean", filter]);
+    await rm(marker, { force: true });
+
+    const receipt = await verifyNoEnvironmentProposalInIndependentClone({
+      sourceRepo: fixture.repoRoot,
+      expectedHead: fixture.head,
+      proposal: proposalFor("hello\n", "hello governed\n"),
+      tempRoot: fixture.tempRoot,
+      testOnlyHooks: {
+        afterLocalConfigRead: async () => {
+          if (replaced) return;
+          replaced = true;
+          await rename(replacement, join(fixture.repoRoot, ".git/config"));
+          await writeFile(join(fixture.repoRoot, ".git/info/attributes"), "*.md filter=hostile\n");
+        }
+      }
+    });
+
+    assert.equal(replaced, true);
+    assert.equal(receipt.status, "blocked", JSON.stringify(receipt));
+    assert.equal(receipt.sourceWorkspaceUnchanged, false, JSON.stringify(receipt));
+    assert.equal(await fileExists(marker), false, "replacement clean filter executed");
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("offline source preflight rejects gitlinks even when .gitmodules is absent", async () => {
   const fixture = await createRepo("hello\n");
   try {

@@ -161,9 +161,12 @@ The contract requires all of the following:
   no-follow handle; concurrent replacement blocks before content read;
 - local config is read once, all config queries consume that frozen snapshot
   through stdin, and Git children force safe built-in upload-pack behavior;
-- HEAD mismatch and index gitlinks block before status, while every
-  worktree-aware source Git query is explicitly bound to the real source root
-  and uses `--ignore-submodules=all` where status is inspected;
+- HEAD mismatch and index gitlinks block before status; worktree-aware source
+  Git queries use a disposable inspection clone with isolated config/info,
+  an identity-bound copy of the source index, commit-bound attributes, and the
+  real source root as its explicit worktree;
+- concurrent replacement of source config or `.git/info/attributes` must not
+  execute filter commands and must fail the post-verification source binding;
 - the patch is applied only in an independent clone with its remote removed;
   source HEAD, status, and target hash must remain unchanged.
 

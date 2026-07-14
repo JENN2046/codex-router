@@ -54,11 +54,15 @@ Implement a strict offline-only contract with five boundaries:
    queries only that frozen byte snapshot through stdin with includes disabled,
    and rejects executable or path-redirecting Git configuration before any
    worktree inspection. HEAD mismatch and staged
-   gitlinks block before status; worktree-aware Git calls are explicitly bound
-   to the real source root and ignore submodule inspection. Every Git child
-   receives fsmonitor, hook, user-attribute, and safe upload-pack overrides so
-   later source-config replacement cannot introduce a command hook. The patch
-   is applied only in that disposable clone and the final hash is verified.
+   gitlinks block before status. Worktree-aware source inspection uses a second
+   disposable clone whose config and info directory are isolated from the
+   source, whose index is copied from an identity-bound source snapshot, and
+   whose attribute source is bound to the expected commit. Later replacement
+   of source config or `.git/info/attributes` therefore cannot introduce a
+   filter command before the source-drift rejection. Every Git child also
+   receives fsmonitor, hook, user-attribute, and safe upload-pack overrides.
+   The patch is applied only in the independent verification clone and the
+   final hash is verified.
 5. Source HEAD, status, and target hash are re-read after clone verification.
    Cleanup failure blocks the receipt. Nothing applies the proposal to the
    source workspace.
@@ -132,10 +136,13 @@ tests replace both the target parent and `.git` after identity capture and
 prove that neither replacement reaches the content-read boundary. A final
 review then found that later Git children could reopen a replaced config and
 observe a new upload-pack hook. Config queries now consume only the bound
-snapshot, every Git child forces built-in pack-objects behavior, and a sentinel
-race proves post-read config replacement cannot execute the injected hook. A
-final independent review of this additional hardening found no remaining
-P1/P2. This offline review does not authorize live execution.
+snapshot and every Git child forces built-in pack-objects behavior. The next
+review found that source status could still reopen raced local filter config
+and `.git/info/attributes`. Source status and related worktree inspection now
+run through isolated inspection metadata with an identity-bound index and
+commit-bound attributes; sentinel races prove neither the upload-pack hook nor
+the clean filter executes. This offline hardening does not authorize live
+execution.
 
 Any future live consideration requires a separate independent security review
 that mechanically binds the effective tool inventory and exact runtime request.
