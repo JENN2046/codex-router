@@ -11,6 +11,7 @@ verified_by:
   - npm run test:package-consumer
   - node --import tsx --test tests/codex-app-server-live-smoke-safety.test.ts
   - npm run test:app-server:offline-harness
+  - npm run audit:app-server:proposal-capability
 applies_to:
   - codex-app-server
   - file-change
@@ -57,6 +58,7 @@ npm run test:governance-properties
 npm run typecheck
 npm run build
 npm run test:package-consumer
+npm run audit:app-server:proposal-capability
 ```
 
 The package-consumer command runs `npm run build` before `npm pack`, so it can
@@ -87,6 +89,15 @@ before governance or a proposal channel enforced as `read-only`. Changing a
 global boolean or accepting a caller-declared proposal mode is insufficient. Do
 not run another live file-change smoke before that separately reviewed
 mechanism exists.
+
+The commit-pinned offline feasibility decision is recorded in
+`docs/governance/decisions/ADR_007_APP_SERVER_PROPOSAL_BEFORE_APPLY.md`. It found
+no delayed-apply protocol contract. It identified a narrower managed
+`read-only` + `on-request` + user-review + decline-only conditional source path,
+but the fixture contains review claims rather than mechanically bound runtime
+evidence. The assessment remains `blocked`, `liveSmokeEligible` remains `false`,
+the current preflight remains fully blocked, and a separate security review plus
+exact new authorization are required before any live client is considered.
 
 The offline decline-only harness is validated with:
 
