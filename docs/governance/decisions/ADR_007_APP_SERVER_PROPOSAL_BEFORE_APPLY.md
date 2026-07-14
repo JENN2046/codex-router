@@ -134,6 +134,11 @@ Server or a client requires a new, exact operator authorization.
 - The read-only conditional path can advance only through a separate
   security-review PR that replaces self-reported claims with mechanically bound
   evidence. This ADR and its fixtures do not authorize a real smoke.
+- ADR 008 completed that exact-version review for installed version `0.144.1`
+  with a `NO-GO` disposition. It recorded artifact, source, and schema digests,
+  but its durable receipt checker does not re-bind current files and could not
+  bind effective runtime configuration or proposal-before-apply ordering; live
+  smoke therefore remains prohibited.
 
 ## Verification
 

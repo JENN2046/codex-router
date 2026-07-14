@@ -265,6 +265,27 @@ test("public and legacy-internal source facade export surfaces are lock-stable",
   }
 });
 
+test("offline no-environment proposal remains outside the public codex-adapter facade", async () => {
+  const moduleExports = await import("../packages/public-api/src/codex-adapter.js");
+  for (const internalName of [
+    "NO_ENVIRONMENT_PROPOSAL_CONTRACT_VERSION",
+    "NO_ENVIRONMENT_PROPOSAL_SCHEMA_VERSION",
+    "NO_ENVIRONMENT_PROPOSAL_SOURCE_COMMIT",
+    "NoEnvironmentProposedPatchSchema",
+    "NoEnvironmentProposalContractSchema",
+    "NoEnvironmentProposalEventGate",
+    "createInMemoryNoEnvironmentProposalReplayStore",
+    "createNoEnvironmentProposalContract",
+    "verifyNoEnvironmentProposalInIndependentClone"
+  ]) {
+    assert.equal(
+      internalName in moduleExports,
+      false,
+      `${internalName} must remain internal while the contract is offline-only`
+    );
+  }
+});
+
 test("public-api support SPI facade export surface is lock-stable", async () => {
   const moduleExports = await import("../packages/public-api/src/support.js");
   const actualExports = Object.keys(moduleExports)

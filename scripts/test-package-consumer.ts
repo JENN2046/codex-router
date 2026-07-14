@@ -126,6 +126,10 @@ export async function testPackageConsumer(
 import { CapabilityFactsSchema } from "codex-router/protocol";
 import { deriveCapabilityFacts } from "codex-router/policy";
 import { CodexSdkAdapter } from "codex-router/codex-adapter";
+// @ts-expect-error offline-only proposal runtime must not be public
+import { NoEnvironmentProposalEventGate } from "codex-router/codex-adapter";
+// @ts-expect-error offline-only proposal types must not be public
+import type { NoEnvironmentProposalContract } from "codex-router/codex-adapter";
 import { RetainReceiptSchema } from "codex-router/evidence";
 import { ProviderManifestSchema } from "codex-router/provider";
 

@@ -99,6 +99,85 @@ evidence. The assessment remains `blocked`, `liveSmokeEligible` remains `false`,
 the current preflight remains fully blocked, and a separate security review plus
 exact new authorization are required before any live client is considered.
 
+That independent review is recorded in
+`docs/governance/decisions/ADR_008_APP_SERVER_EXACT_VERSION_SECURITY_REVIEW.md`
+and is reproducibly checked with:
+
+```bash
+npm run audit:app-server:exact-version-security-review
+```
+
+The review receipt records that the installed `0.144.1` Linux binary matched
+the official release archive during the review session, together with the
+observed `rust-v0.144.1` source commit and semantic schema digests. The
+repository command checks that this receipt still matches pinned literals; it
+does not re-read the current binary, release archive, source checkout, or
+generated schema, so all three current `*Bound` fields remain `false`. Its
+result is `blocked / no_go`: effective
+configuration, session and turn grants, cached approvals, native path
+resolution, hook state, approval-store state, terminal client binding,
+proposal-before-apply runtime order, and final clone hashes remain unobserved.
+The command's successful exit means the recorded fail-closed receipt is intact;
+it does not mean a live run is eligible. The existing preflight must remain
+blocked.
+
+## Offline no-environment proposal contract
+
+The only implemented proposal candidate that does not expose a workspace
+environment is the offline contract in
+`packages/codex-adapter/src/no-environment-proposal.ts`. Validate it with:
+
+```bash
+npm run test:app-server:no-environment-proposal
+```
+
+This module is internal and intentionally is not exported from either the
+codex-adapter package index or the published `codex-router/codex-adapter`
+facade. Do not treat internal test imports as a supported consumer API.
+
+The contract requires all of the following:
+
+- `thread/start.environments` and `turn/start.environments` are exactly `[]`;
+- thread `dynamicTools` is exactly `[]`, input is one text item, approval is
+  `never`, permissions are `:read-only`, and the final message uses the pinned
+  structured `outputSchema`;
+- local image, skill, MCP, web, dynamic, provider, collaboration, extension,
+  process, shell, command, permission, approval, and file-change activity is
+  prohibited;
+- only one strict `0.144.1`, nonce/sequence-bound, replay-consumed and
+  correlated `agentMessage` lifecycle may produce the final proposal;
+- schema version, exact target, base SHA-256, after SHA-256, operation, diff
+  size, standalone password/token/secret/private-key markers, and event order
+  are fail-closed;
+- task, schema version, target, base hash, and base content must match the
+  canonical prompt bytes exactly; extra fields or formatting drift are blocked;
+- verification rejects dirty sources, Git attributes, filters, fsmonitor and
+  upload-pack hooks, local config includes, `core.worktree`, worktree config,
+  external excludes, `commondir`, partial clones, alternates, `.gitmodules`,
+  committed or staged mode-`160000` gitlinks, unsafe target/temp topology,
+  ordinary and ignored extra paths, mode drift, hash drift, and cleanup failure;
+- case-folded `.git` and trailing-dot/space path aliases are rejected;
+- source target and local config reads bind parent and file identities to a
+  no-follow handle; concurrent replacement blocks before content read;
+- local config is read once, all config queries consume that frozen snapshot
+  through stdin, and Git children force safe built-in upload-pack behavior;
+- HEAD mismatch and index gitlinks block before status; worktree-aware source
+  Git queries use a disposable inspection clone with isolated config/info,
+  an identity-bound copy of the source index, commit-bound attributes, and the
+  real source root as its explicit worktree;
+- concurrent replacement of source config or `.git/info/attributes` must not
+  execute filter commands and must fail the post-verification source binding;
+- the patch is applied only in an independent clone with its remote removed;
+  source HEAD, status, and target hash must remain unchanged.
+
+The contract deliberately records
+`effectiveToolInventoryMechanicallyBound: false`,
+`liveExecutionAuthorized: false`, and
+`realWorkspaceWriteAuthorized: false`. A passing offline test proves only the
+local contract and disposable-clone verifier. It does not prove that a live App
+Server has no inherited MCP, web, extension, collaboration, or other tool
+surface, and it never authorizes starting App Server or a client.
+
 The offline decline-only harness is validated with:
 
 ```bash

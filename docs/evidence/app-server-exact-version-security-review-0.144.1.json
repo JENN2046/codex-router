@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "codex-app-server-exact-version-security-evidence.v1",
+  "observedAt": "2026-07-14",
+  "installedArtifact": {
+    "packageVersion": "0.144.1",
+    "target": "x86_64-unknown-linux-musl",
+    "variant": "codex",
+    "binarySha256": "a96f944d1a596dbfb7fdd84f482be5c50e34b04bb371126840d873e4ebf26902",
+    "officialReleaseArchive": "codex-x86_64-unknown-linux-musl.tar.gz",
+    "officialReleaseArchiveSha256": "84091ae20c65fcc7d4120db97d1bd57d7ff8df9c7609fb781c78c2ebbd4f5a28",
+    "releaseArchiveDigestObserved": true,
+    "installedBinaryMatchObserved": true
+  },
+  "source": {
+    "repository": "openai/codex",
+    "tag": "rust-v0.144.1",
+    "tagObject": "db75c19352d29ef29c17dbcf73a7244f1b1a8d10",
+    "commit": "44918ea10c0f99151c6710411b4322c2f5c96bea",
+    "checkedOutCommitMatchObserved": true,
+    "files": {
+      "codex-rs/app-server/README.md": "5eef644bb96cc1e07b142e3523036456f880700c703f5633414ad1c1b1dac336",
+      "codex-rs/core/src/safety.rs": "dd4d65e11b6aeee2cc6434b9b9090c646edeadc90b0c72e9da50f41c174d66b9",
+      "codex-rs/core/src/apply_patch.rs": "86d2894e5c0af015bb29109ecde33512e9091a30a7169dc3dbacd47472e3f139",
+      "codex-rs/core/src/tools/handlers/apply_patch.rs": "da6919735a77b8c4d44ee963bb434dae27e5d519b6184fa4b7577917984ed8a8",
+      "codex-rs/core/src/tools/runtimes/apply_patch.rs": "565061fd88acda43dfc5eea93aacf49fca06a9deca7c4918e14655f7d3139db1",
+      "codex-rs/core/src/tools/orchestrator.rs": "25d4963e7e5bdbfeb0f4283aa45f8d545d5a7d7af51fe76ffa55d7d05b509020",
+      "codex-rs/app-server/src/bespoke_event_handling.rs": "08cdd76278ad2985f34512229c948638e1a9aba66a4551d9226a3e6a6b6557aa",
+      "codex-rs/core/src/session/mod.rs": "0a1045a7c54655df6743f2bab9275001e772c5b3e695dc8e07d63d1fd9d39a14",
+      "codex-rs/app-server/tests/suite/v2/turn_start.rs": "61059a76ad85665e4b7241ab6d8e87921bd175dfa8da9e9aaaa6250d1a8599c2",
+      "codex-rs/app-server-protocol/src/protocol/v2/item.rs": "da4846f64b75a4eb352e1963db763d43b1ddcfdfe834f0b17be51fa81000af3f",
+      "codex-rs/features/src/lib.rs": "67438e073ef25f02ed2b526e79e4034092345d323dc13bd1dec0100ae47a628b"
+    }
+  },
+  "generatedSchema": {
+    "source": "previously-authorized-installed-cli-output",
+    "rawSha256": {
+      "fileChangeRequestApprovalParams": "7b465f7c5671adffdc5c339f50799860950307456e2a2b52c5ce1d3018f4babd",
+      "fileChangeRequestApprovalResponse": "7ccbd29e5f8840c7c8aa96c5c3b6d52bc71ec5c5d7e1ad05ab958afd44c0c94c",
+      "threadStartParams": "8f5db1d50208255f4746f32f583c68df544e9ac62abf34d97ecb9800700917fb",
+      "v2Bundle": "5d483645db5309cff913516ce6f5dc16ca4797a59711fb610563b8b8164b581e"
+    },
+    "semanticSha256": {
+      "fileChangeRequestApprovalParams": "1683d378ee81b2d4d2aeab348d4aa8236a8070c6ee44a1548a8d206ee947411d",
+      "fileChangeRequestApprovalResponse": "f522e127a6160afd094932f6b0a58b736a171ebfb767d58b3d70c0bd7ff7ab97",
+      "threadStartParams": "d960450fe2d0c1bf65f5aad42b070faefd59973ea9645d021b011ebdf23b5c03",
+      "v2Bundle": "f76d741a299026cf4a1c75847b41562078d54c6f0aab9faae8781831e73d97d4"
+    },
+    "semanticMatchObserved": true
+  },
+  "sourceReview": {
+    "noDelayedApplyFieldOrMethod": true,
+    "readOnlyManagedNoWritableRootsRequiresApproval": true,
+    "itemStartedPrecedesApprovalRequestInPinnedTests": true,
+    "declineReturnsBeforePatchRuntimeInPinnedSource": true,
+    "permissionResolutionFailureCanUseUnrestrictedFallback": true,
+    "cachedOrPreapprovedPatchCanSkipClientApproval": true,
+    "permissionRequestHookCanDecideBeforeClient": true,
+    "applyPatchStreamingEventsUnderDevelopmentAndDisabledByDefault": true
+  },
+  "runtimeBinding": {
+    "exactEffectiveConfigurationBound": false,
+    "managedReadOnlyWithNoWritableRootsBound": false,
+    "onRequestUserReviewerBound": false,
+    "strictAutoReviewDisabledBound": false,
+    "noSessionOrTurnWriteGrantBound": false,
+    "noCachedApprovalOrPreapprovalBound": false,
+    "nativeLocalPathResolutionBound": false,
+    "allHooksDisabledBound": false,
+    "freshSessionAndEmptyApprovalStoreBound": false,
+    "terminalDeclineOnlyClientBoundToRuntime": false,
+    "proposalBeforeApplyObserved": false,
+    "finalWorkspaceHashReceiptPresent": false
+  },
+  "evaluationSideEffects": {
+    "codexBinaryExecuted": false,
+    "appServerStarted": false,
+    "liveClientConnected": false,
+    "providerCalled": false,
+    "workspaceWriteAttempted": false
+  }
+}
