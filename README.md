@@ -81,6 +81,7 @@ npm run test:governance-coverage
 npm run test:governance-properties
 npm run test:app-server:offline-harness
 npm run audit:app-server:proposal-capability
+npm run audit:app-server:exact-version-security-review
 npm run docs:governance
 ```
 
@@ -103,10 +104,20 @@ The deterministic offline harness proves raw transcript ordering and exact
 decline responses for file, command, network, and permission approvals, but it
 explicitly does not prove the real App Server file-application timing.
 
+The exact-version security review records the Linux `0.144.1` artifact, source
+tag, and generated-schema digests observed during the independent review, and
+still returns `blocked / no_go`. Its repository command checks only receipt
+integrity; it does not re-read or re-bind the current installed files. Effective runtime configuration, grants,
+cached approvals, permission resolution, hooks, approval-store state, and
+proposal-before-apply ordering cannot be proven without crossing the live
+boundary. The review therefore does not relax the preflight or authorize a
+real workspace-write smoke.
+
 ## Documentation
 
 - [Architecture](docs/governance/CODEX_EXECUTION_GOVERNANCE_ARCHITECTURE.md)
 - [App Server adapter ADR](docs/governance/decisions/ADR_006_CODEX_APP_SERVER_GOVERNANCE_ADAPTER.md)
+- [Exact-version security review](docs/governance/decisions/ADR_008_APP_SERVER_EXACT_VERSION_SECURITY_REVIEW.md)
 - [File-change governance runbook](docs/governance/runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md)
 - [Gate 0 baseline](docs/governance/CODEX_GOVERNANCE_BASELINE.md)
 

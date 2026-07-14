@@ -99,6 +99,28 @@ evidence. The assessment remains `blocked`, `liveSmokeEligible` remains `false`,
 the current preflight remains fully blocked, and a separate security review plus
 exact new authorization are required before any live client is considered.
 
+That independent review is recorded in
+`docs/governance/decisions/ADR_008_APP_SERVER_EXACT_VERSION_SECURITY_REVIEW.md`
+and is reproducibly checked with:
+
+```bash
+npm run audit:app-server:exact-version-security-review
+```
+
+The review receipt records that the installed `0.144.1` Linux binary matched
+the official release archive during the review session, together with the
+observed `rust-v0.144.1` source commit and semantic schema digests. The
+repository command checks that this receipt still matches pinned literals; it
+does not re-read the current binary, release archive, source checkout, or
+generated schema, so all three current `*Bound` fields remain `false`. Its
+result is `blocked / no_go`: effective
+configuration, session and turn grants, cached approvals, native path
+resolution, hook state, approval-store state, terminal client binding,
+proposal-before-apply runtime order, and final clone hashes remain unobserved.
+The command's successful exit means the recorded fail-closed receipt is intact;
+it does not mean a live run is eligible. The existing preflight must remain
+blocked.
+
 The offline decline-only harness is validated with:
 
 ```bash
