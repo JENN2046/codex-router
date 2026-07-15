@@ -130,6 +130,16 @@ export function verifyOfflineCapsuleCandidate(
         receipt.outputRoot
       );
     }
+    if (
+      containsCredentialLikeTreeContent(inputTree.files)
+      || containsCredentialLikeTreeContent(outputTree.files)
+    ) {
+      return blockedAssessment(
+        ["offline_capsule_credential_like_content_forbidden"],
+        manifest,
+        receipt.outputRoot
+      );
+    }
     const comparison = compareCompleteTrees(
       inputTree.files,
       outputTree.files,
@@ -170,18 +180,6 @@ export function verifyOfflineCapsuleCandidate(
       const beforeText = change.before === undefined
         ? undefined
         : decodeChangedText(change.before.content);
-      if (
-        containsCredentialLikeDiffContent(afterText)
-        || containsRawCredentialMaterial(afterText)
-        || (beforeText !== undefined && containsCredentialLikeDiffContent(beforeText))
-        || (beforeText !== undefined && containsRawCredentialMaterial(beforeText))
-      ) {
-        return blockedAssessment(
-          ["offline_capsule_credential_like_content_forbidden"],
-          manifest,
-          receipt.outputRoot
-        );
-      }
       governedChanges.push(toGovernedChange(change.before, change.after, beforeText, afterText));
     }
 
@@ -401,6 +399,21 @@ function decodeChangedText(bytes: Uint8Array): string {
     throw new Error("offline_capsule_changed_binary_forbidden");
   }
   return text;
+}
+
+function containsCredentialLikeTreeContent(files: LoadedContentTreeFile[]): boolean {
+  return files.some((file) => {
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(file.content);
+    } catch {
+      return false;
+    }
+    if (BINARY_CONTROL_CHARACTERS.test(text)) {
+      return false;
+    }
+    return containsCredentialLikeDiffContent(text) || containsRawCredentialMaterial(text);
+  });
 }
 
 function toGovernedChange(
