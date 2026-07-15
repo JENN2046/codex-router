@@ -274,6 +274,10 @@ export function reviewOfflineExecutionCapsuleBoundary(
     independentDigestVerificationPresent: includesAll(input.sourceText, [
       "loadCapsuleTask",
       "loadContentTree",
+      "loadContentTreeManifest",
+      "maxTreeManifestBytes",
+      "maxTotalTreeFiles",
+      "maxTotalTreeBytes",
       "hashGovernedFileChangeSetContent",
       "offline-execution-capsule.v1",
       "offline_capsule_receipt_or_nonce_replay"

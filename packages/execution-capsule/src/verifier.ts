@@ -17,6 +17,7 @@ import {
   sameContentDigest,
   type CapsuleTaskContract,
   type ContentDigest,
+  type ContentTreeManifest,
   type OfflineCapsuleAssessment,
   type OfflineExecutionCapsuleManifest,
   type OfflineOutputTreeReceipt
@@ -24,6 +25,7 @@ import {
 import {
   loadCapsuleTask,
   loadContentTree,
+  loadContentTreeManifest,
   type ContentAddressedStore,
   type LoadedContentTreeFile
 } from "./content-addressed-store.js";
@@ -104,6 +106,16 @@ export function verifyOfflineCapsuleCandidate(
       receipt.outputRoot
     );
   }
+  if (
+    manifest.inputRoot.size > manifest.limits.maxTreeManifestBytes
+    || receipt.outputRoot.size > manifest.limits.maxTreeManifestBytes
+  ) {
+    return blockedAssessment(
+      ["offline_capsule_tree_manifest_byte_limit_exceeded"],
+      manifest,
+      receipt.outputRoot
+    );
+  }
 
   try {
     const task = loadCapsuleTask(input.store, manifest.taskDigest, "verification_task");
@@ -125,6 +137,24 @@ export function verifyOfflineCapsuleCandidate(
       );
     }
 
+    const inputTreeManifest = loadContentTreeManifest(
+      input.store,
+      manifest.inputRoot,
+      "verification_input"
+    );
+    const outputTreeManifest = loadContentTreeManifest(
+      input.store,
+      receipt.outputRoot,
+      "verification_output"
+    );
+    const treeLimitReasons = collectCompleteTreeLimitReasons(
+      inputTreeManifest.manifest,
+      outputTreeManifest.manifest,
+      manifest
+    );
+    if (treeLimitReasons.length > 0) {
+      return blockedAssessment(treeLimitReasons, manifest, receipt.outputRoot);
+    }
     const inputTree = loadContentTree(
       input.store,
       manifest.inputRoot,
@@ -357,6 +387,31 @@ function collectBindingReasons(
 interface CandidateChange {
   before?: LoadedContentTreeFile;
   after: LoadedContentTreeFile;
+}
+
+function collectCompleteTreeLimitReasons(
+  inputManifest: ContentTreeManifest,
+  outputManifest: ContentTreeManifest,
+  manifest: OfflineExecutionCapsuleManifest
+): string[] {
+  const treeManifests = [inputManifest, outputManifest];
+  const totalFiles = treeManifests.reduce(
+    (total, treeManifest) => total + treeManifest.entries.length,
+    0
+  );
+  if (totalFiles > manifest.limits.maxTotalTreeFiles) {
+    return ["offline_capsule_total_tree_file_limit_exceeded"];
+  }
+  let remainingBytes = manifest.limits.maxTotalTreeBytes;
+  for (const treeManifest of treeManifests) {
+    for (const entry of treeManifest.entries) {
+      if (entry.blob.size > remainingBytes) {
+        return ["offline_capsule_total_tree_byte_limit_exceeded"];
+      }
+      remainingBytes -= entry.blob.size;
+    }
+  }
+  return [];
 }
 
 function compareCompleteTrees(

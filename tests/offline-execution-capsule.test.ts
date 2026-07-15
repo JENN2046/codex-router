@@ -647,6 +647,66 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     ], encoding);
   }
 
+  const treeManifestLimit = createFixture({
+    limits: { maxTreeManifestBytes: 1 }
+  });
+  let preflightReads = 0;
+  const manifestLimitedStore: ContentAddressedStore = {
+    put: (...args) => treeManifestLimit.store.put(...args),
+    read(digest) {
+      preflightReads += 1;
+      return treeManifestLimit.store.read(digest);
+    }
+  };
+  const manifestLimitedAssessment = verifyOfflineCapsuleCandidate({
+    store: manifestLimitedStore,
+    manifest: treeManifestLimit.manifest,
+    receipt: treeManifestLimit.receipt,
+    replayStore: createInMemoryOfflineCapsuleReplayStore(),
+    now: () => verifiedAt
+  });
+  assert.deepEqual(manifestLimitedAssessment.reasons, [
+    "offline_capsule_tree_manifest_byte_limit_exceeded"
+  ]);
+  assert.equal(preflightReads, 0);
+
+  for (const [limits, reason] of [
+    [
+      { maxTotalTreeFiles: 5 },
+      "offline_capsule_total_tree_file_limit_exceeded"
+    ],
+    [
+      { maxTotalTreeBytes: 1 },
+      "offline_capsule_total_tree_byte_limit_exceeded"
+    ]
+  ] as const) {
+    const completeTreeLimit = createFixture({ limits });
+    const allowedPreBlobReads = new Set([
+      completeTreeLimit.manifest.taskDigest.hash,
+      completeTreeLimit.manifest.inputRoot.hash,
+      completeTreeLimit.receipt.outputRoot.hash
+    ]);
+    let treeBlobReads = 0;
+    const completeTreeLimitedStore: ContentAddressedStore = {
+      put: (...args) => completeTreeLimit.store.put(...args),
+      read(digest) {
+        if (!allowedPreBlobReads.has(digest.hash)) {
+          treeBlobReads += 1;
+        }
+        return completeTreeLimit.store.read(digest);
+      }
+    };
+    const assessment = verifyOfflineCapsuleCandidate({
+      store: completeTreeLimitedStore,
+      manifest: completeTreeLimit.manifest,
+      receipt: completeTreeLimit.receipt,
+      replayStore: createInMemoryOfflineCapsuleReplayStore(),
+      now: () => verifiedAt
+    });
+    assert.deepEqual(assessment.reasons, [reason]);
+    assert.equal(treeBlobReads, 0, reason);
+  }
+
   const fileLimit = createFixture({
     targets: ["docs/extra.md", "docs/guide.md"],
     limits: { maxChangedFiles: 1, maxChangedBytes: 4096, maxDiffBytes: 8192 },
@@ -881,7 +941,7 @@ interface Fixture {
 interface FixtureOptions {
   targets?: string[];
   task?: ReturnType<typeof baseTask>;
-  limits?: OfflineExecutionCapsuleManifest["limits"];
+  limits?: Partial<OfflineExecutionCapsuleManifest["limits"]>;
   inputFiles?: TestOnlyFakeWorkerFile[];
   transform?: (
     files: readonly TestOnlyFakeWorkerFile[]
@@ -930,10 +990,14 @@ function createFixture(options: FixtureOptions = {}): Fixture {
       inputTreeAccess: "immutable_content_tree_only",
       outputForm: "complete_content_tree"
     },
-    limits: options.limits ?? {
+    limits: {
+      maxTreeManifestBytes: 64 * 1024,
+      maxTotalTreeFiles: 16,
+      maxTotalTreeBytes: 64 * 1024,
       maxChangedFiles: 2,
       maxChangedBytes: 4096,
-      maxDiffBytes: 8192
+      maxDiffBytes: 8192,
+      ...options.limits
     },
     nonce: "fixture-nonce-0123456789abcdef01",
     issuedAt,

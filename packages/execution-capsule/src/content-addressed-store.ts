@@ -145,13 +145,8 @@ export function loadContentTree(
   digest: ContentDigest,
   context = "tree"
 ): LoadedContentTree {
-  const manifest = readCanonicalObject(
-    store,
-    digest,
-    ContentTreeManifestSchema,
-    `offline_capsule_${context}_manifest`
-  );
-  const files = manifest.entries.map((entry) => ({
+  const storedTree = loadContentTreeManifest(store, digest, context);
+  const files = storedTree.manifest.entries.map((entry) => ({
     path: entry.path,
     mode: entry.mode,
     digest: { ...entry.blob },
@@ -161,10 +156,23 @@ export function loadContentTree(
       `offline_capsule_${context}_blob`
     )
   }));
+  return { ...storedTree, files };
+}
+
+export function loadContentTreeManifest(
+  store: ContentAddressedStore,
+  digest: ContentDigest,
+  context = "tree"
+): StoredContentTree {
+  const manifest = readCanonicalObject(
+    store,
+    digest,
+    ContentTreeManifestSchema,
+    `offline_capsule_${context}_manifest`
+  );
   return {
     manifest,
-    digest: ContentDigestSchema.parse(digest),
-    files
+    digest: ContentDigestSchema.parse(digest)
   };
 }
 
