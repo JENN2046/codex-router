@@ -275,6 +275,7 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "loadCapsuleTask",
       "loadContentTree",
       "loadContentTreeManifest",
+      "maxTaskBytes",
       "maxTreeManifestBytes",
       "maxTotalTreeFiles",
       "maxTotalTreeBytes",

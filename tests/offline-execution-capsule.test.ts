@@ -647,28 +647,35 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     ], encoding);
   }
 
-  const treeManifestLimit = createFixture({
-    limits: { maxTreeManifestBytes: 1 }
-  });
-  let preflightReads = 0;
-  const manifestLimitedStore: ContentAddressedStore = {
-    put: (...args) => treeManifestLimit.store.put(...args),
-    read(digest) {
-      preflightReads += 1;
-      return treeManifestLimit.store.read(digest);
-    }
-  };
-  const manifestLimitedAssessment = verifyOfflineCapsuleCandidate({
-    store: manifestLimitedStore,
-    manifest: treeManifestLimit.manifest,
-    receipt: treeManifestLimit.receipt,
-    replayStore: createInMemoryOfflineCapsuleReplayStore(),
-    now: () => verifiedAt
-  });
-  assert.deepEqual(manifestLimitedAssessment.reasons, [
-    "offline_capsule_tree_manifest_byte_limit_exceeded"
-  ]);
-  assert.equal(preflightReads, 0);
+  for (const [limits, reason] of [
+    [
+      { maxTaskBytes: 1 },
+      "offline_capsule_task_byte_limit_exceeded"
+    ],
+    [
+      { maxTreeManifestBytes: 1 },
+      "offline_capsule_tree_manifest_byte_limit_exceeded"
+    ]
+  ] as const) {
+    const preflightLimit = createFixture({ limits });
+    let preflightReads = 0;
+    const preflightLimitedStore: ContentAddressedStore = {
+      put: (...args) => preflightLimit.store.put(...args),
+      read(digest) {
+        preflightReads += 1;
+        return preflightLimit.store.read(digest);
+      }
+    };
+    const assessment = verifyOfflineCapsuleCandidate({
+      store: preflightLimitedStore,
+      manifest: preflightLimit.manifest,
+      receipt: preflightLimit.receipt,
+      replayStore: createInMemoryOfflineCapsuleReplayStore(),
+      now: () => verifiedAt
+    });
+    assert.deepEqual(assessment.reasons, [reason]);
+    assert.equal(preflightReads, 0, reason);
+  }
 
   for (const [limits, reason] of [
     [
@@ -991,6 +998,7 @@ function createFixture(options: FixtureOptions = {}): Fixture {
       outputForm: "complete_content_tree"
     },
     limits: {
+      maxTaskBytes: 64 * 1024,
       maxTreeManifestBytes: 64 * 1024,
       maxTotalTreeFiles: 16,
       maxTotalTreeBytes: 64 * 1024,

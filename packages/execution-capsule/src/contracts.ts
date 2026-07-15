@@ -109,6 +109,7 @@ export const OfflineCapsuleRestrictionsSchema = z.object({
 }).strict();
 
 export const OfflineCapsuleLimitsSchema = z.object({
+  maxTaskBytes: z.number().int().positive().max(2 * 1024 * 1024),
   maxTreeManifestBytes: z.number().int().positive().max(10 * 1024 * 1024),
   maxTotalTreeFiles: z.number().int().positive().max(20_000),
   maxTotalTreeBytes: z.number().int().positive().max(200 * 1024 * 1024),

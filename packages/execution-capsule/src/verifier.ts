@@ -106,6 +106,13 @@ export function verifyOfflineCapsuleCandidate(
       receipt.outputRoot
     );
   }
+  if (manifest.taskDigest.size > manifest.limits.maxTaskBytes) {
+    return blockedAssessment(
+      ["offline_capsule_task_byte_limit_exceeded"],
+      manifest,
+      receipt.outputRoot
+    );
+  }
   if (
     manifest.inputRoot.size > manifest.limits.maxTreeManifestBytes
     || receipt.outputRoot.size > manifest.limits.maxTreeManifestBytes
