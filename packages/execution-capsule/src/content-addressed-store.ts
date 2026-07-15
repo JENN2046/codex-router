@@ -113,12 +113,12 @@ export function storeContentTree(
   filesInput: OfflineContentTreeFile[],
   reuseFrom?: LoadedContentTree
 ): StoredContentTree {
-  assertPassiveFileArray(filesInput);
+  const files = snapshotPassiveFileArray(filesInput);
   const reuseEntries = new Map(
     (reuseFrom?.files ?? []).map((file) => [file.path, file] as const)
   );
-  const entries: ContentTreeEntry[] = filesInput.map((file) => {
-    const content = new Uint8Array(file.content);
+  const entries: ContentTreeEntry[] = files.map((file) => {
+    const content = file.content;
     const reusable = reuseEntries.get(file.path);
     const blob = reusable !== undefined
       && reusable.mode === file.mode
@@ -237,12 +237,24 @@ export function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
   return true;
 }
 
-function assertPassiveFileArray(input: OfflineContentTreeFile[]): void {
-  if (!Array.isArray(input)) {
+function snapshotPassiveFileArray(
+  input: OfflineContentTreeFile[]
+): OfflineContentTreeFile[] {
+  if (!Array.isArray(input) || isProxy(input)) {
     throw new Error("offline_capsule_tree_files_invalid");
   }
   const aliases = new Set<string>();
-  for (const file of input) {
+  const snapshots: OfflineContentTreeFile[] = [];
+  for (let index = 0; index < input.length; index += 1) {
+    const elementDescriptor = Object.getOwnPropertyDescriptor(input, String(index));
+    if (
+      elementDescriptor === undefined
+      || elementDescriptor.get !== undefined
+      || elementDescriptor.set !== undefined
+    ) {
+      throw new Error("offline_capsule_tree_file_invalid");
+    }
+    const file = elementDescriptor.value as unknown;
     if (file === null || typeof file !== "object" || isProxy(file)) {
       throw new Error("offline_capsule_tree_file_invalid");
     }
@@ -257,13 +269,30 @@ function assertPassiveFileArray(input: OfflineContentTreeFile[]): void {
         throw new Error("offline_capsule_tree_file_accessor");
       }
     }
-    if (!(file.content instanceof Uint8Array) || isProxy(file.content)) {
+    const pathDescriptor = Object.getOwnPropertyDescriptor(file, "path");
+    const modeDescriptor = Object.getOwnPropertyDescriptor(file, "mode");
+    const contentDescriptor = Object.getOwnPropertyDescriptor(file, "content");
+    if (
+      pathDescriptor === undefined
+      || modeDescriptor === undefined
+      || contentDescriptor === undefined
+      || typeof pathDescriptor.value !== "string"
+      || (modeDescriptor.value !== "100644" && modeDescriptor.value !== "100755")
+    ) {
+      throw new Error("offline_capsule_tree_file_invalid");
+    }
+    const content = contentDescriptor.value as unknown;
+    if (isProxy(content) || !(content instanceof Uint8Array)) {
       throw new Error("offline_capsule_tree_content_invalid");
     }
-    const alias = file.path.normalize("NFC").toLocaleLowerCase("en-US");
+    const path = pathDescriptor.value;
+    const mode = modeDescriptor.value;
+    const alias = path.normalize("NFC").toLocaleLowerCase("en-US");
     if (aliases.has(alias)) {
       throw new Error("offline_capsule_tree_path_alias_collision");
     }
     aliases.add(alias);
+    snapshots.push({ path, mode, content: new Uint8Array(content) });
   }
+  return snapshots;
 }

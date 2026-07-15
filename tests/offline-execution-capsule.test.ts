@@ -214,6 +214,49 @@ test("in-memory CAS is immutable and fails closed on missing, mismatch, and corr
   assertAllRuntimeFieldsFalse(assessment);
 });
 
+test("tree construction validates own primitive fields before reading path methods", () => {
+  const store = createInMemoryContentAddressedStore();
+  let inheritedPathGetterCalls = 0;
+  const inheritedPathFile = Object.create({
+    get path() {
+      inheritedPathGetterCalls += 1;
+      return "docs/inherited.md";
+    }
+  }) as Record<string, unknown>;
+  Object.defineProperties(inheritedPathFile, {
+    mode: { enumerable: true, value: "100644" },
+    content: { enumerable: true, value: text("fixture\n") }
+  });
+  assert.throws(
+    () => storeContentTree(store, [
+      inheritedPathFile as unknown as {
+        path: string;
+        mode: "100644";
+        content: Uint8Array;
+      }
+    ]),
+    /offline_capsule_tree_file_invalid/u
+  );
+  assert.equal(inheritedPathGetterCalls, 0);
+
+  let customNormalizeCalls = 0;
+  const executablePath = {
+    normalize() {
+      customNormalizeCalls += 1;
+      return "docs/executable.md";
+    }
+  };
+  assert.throws(
+    () => storeContentTree(store, [{
+      path: executablePath as unknown as string,
+      mode: "100644",
+      content: text("fixture\n")
+    }]),
+    /offline_capsule_tree_file_invalid/u
+  );
+  assert.equal(customNormalizeCalls, 0);
+});
+
 test("missing, corrupt, and size-drifted tree blobs are rejected on independent consumption", () => {
   const missingFixture = createFixture();
   const missingTree = outputTreeRecord(missingFixture);
