@@ -120,6 +120,16 @@ export function verifyOfflineCapsuleCandidate(
       receipt.outputRoot,
       "verification_output"
     );
+    if (
+      inputTree.files.some((file) => isSensitiveGovernedPath(file.path))
+      || outputTree.files.some((file) => isSensitiveGovernedPath(file.path))
+    ) {
+      return blockedAssessment(
+        ["offline_capsule_sensitive_path_forbidden"],
+        manifest,
+        receipt.outputRoot
+      );
+    }
     const comparison = compareCompleteTrees(
       inputTree.files,
       outputTree.files,
@@ -156,13 +166,6 @@ export function verifyOfflineCapsuleCandidate(
 
     const governedChanges: GovernedFileChange[] = [];
     for (const change of comparison.changes) {
-      if (isSensitiveGovernedPath(change.after.path)) {
-        return blockedAssessment(
-          ["offline_capsule_sensitive_path_forbidden"],
-          manifest,
-          receipt.outputRoot
-        );
-      }
       const afterText = decodeChangedText(change.after.content);
       const beforeText = change.before === undefined
         ? undefined

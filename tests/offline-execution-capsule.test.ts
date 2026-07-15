@@ -545,6 +545,16 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     "offline_capsule_sensitive_path_forbidden"
   ]);
 
+  const unchangedSensitive = createFixture({
+    inputFiles: [
+      { path: ".env", mode: "100644", content: text("synthetic=fixture\n") },
+      { path: "docs/guide.md", mode: "100644", content: text("old\n") }
+    ]
+  });
+  assert.deepEqual(verifyFixture(unchangedSensitive).reasons, [
+    "offline_capsule_sensitive_path_forbidden"
+  ]);
+
   const fileLimit = createFixture({
     targets: ["docs/extra.md", "docs/guide.md"],
     limits: { maxChangedFiles: 1, maxChangedBytes: 4096, maxDiffBytes: 8192 },
@@ -712,6 +722,7 @@ interface Fixture {
 interface FixtureOptions {
   targets?: string[];
   limits?: OfflineExecutionCapsuleManifest["limits"];
+  inputFiles?: TestOnlyFakeWorkerFile[];
   transform?: (
     files: readonly TestOnlyFakeWorkerFile[]
   ) => readonly TestOnlyFakeWorkerFile[];
@@ -724,7 +735,7 @@ function createFixture(options: FixtureOptions = {}): Fixture {
   const targets = [...(options.targets ?? ["docs/guide.md"])].sort();
   const task = baseTask(targets);
   const taskDigest = storeCapsuleTask(store, task);
-  const inputTree = storeContentTree(store, [
+  const inputTree = storeContentTree(store, options.inputFiles ?? [
     { path: "assets/unchanged.bin", mode: "100644", content: new Uint8Array([0xff, 0x00]) },
     { path: "docs/guide.md", mode: "100644", content: text("old\n") },
     { path: "scripts/existing.sh", mode: "100755", content: text("echo fixture\n") }
