@@ -170,7 +170,17 @@ function validateWorkerOutput(
   if (!Array.isArray(output) || isProxy(output)) {
     throw new Error("offline_fake_worker_output_invalid");
   }
-  return output.map((file) => {
+  const files: OfflineContentTreeFile[] = [];
+  for (let index = 0; index < output.length; index += 1) {
+    const slotDescriptor = Object.getOwnPropertyDescriptor(output, String(index));
+    if (
+      slotDescriptor === undefined
+      || slotDescriptor.get !== undefined
+      || slotDescriptor.set !== undefined
+    ) {
+      throw new Error("offline_fake_worker_output_invalid");
+    }
+    const file = slotDescriptor.value as unknown;
     if (
       file === null
       || typeof file !== "object"
@@ -181,32 +191,42 @@ function validateWorkerOutput(
     }
     const ownKeys = Reflect.ownKeys(file);
     const stringKeys = ownKeys.filter((key): key is string => typeof key === "string");
+    const pathDescriptor = Object.getOwnPropertyDescriptor(file, "path");
+    const modeDescriptor = Object.getOwnPropertyDescriptor(file, "mode");
+    const contentDescriptor = Object.getOwnPropertyDescriptor(file, "content");
     if (
       stringKeys.length !== ownKeys.length
       || stringKeys.sort().join("\0") !== "content\0mode\0path"
-      || ownKeys.some((key) => {
-        const descriptor = Object.getOwnPropertyDescriptor(file, key);
-        return descriptor === undefined
-          || descriptor.get !== undefined
-          || descriptor.set !== undefined;
-      })
+      || pathDescriptor === undefined
+      || modeDescriptor === undefined
+      || contentDescriptor === undefined
+      || pathDescriptor.get !== undefined
+      || pathDescriptor.set !== undefined
+      || modeDescriptor.get !== undefined
+      || modeDescriptor.set !== undefined
+      || contentDescriptor.get !== undefined
+      || contentDescriptor.set !== undefined
     ) {
       throw new Error("offline_fake_worker_output_invalid");
     }
+    const path = pathDescriptor.value as unknown;
+    const mode = modeDescriptor.value as unknown;
+    const content = contentDescriptor.value as unknown;
     if (
-      typeof file.path !== "string"
-      || (file.mode !== "100644" && file.mode !== "100755")
-      || !(file.content instanceof Uint8Array)
-      || isProxy(file.content)
+      typeof path !== "string"
+      || (mode !== "100644" && mode !== "100755")
+      || isProxy(content)
+      || !(content instanceof Uint8Array)
     ) {
       throw new Error("offline_fake_worker_output_invalid");
     }
-    return {
-      path: file.path,
-      mode: file.mode,
-      content: new Uint8Array(file.content)
-    };
-  });
+    files.push({
+      path,
+      mode,
+      content: new Uint8Array(content)
+    });
+  }
+  return files;
 }
 
 function isTimestampWithinManifest(

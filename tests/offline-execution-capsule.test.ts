@@ -655,6 +655,52 @@ test("worker transform failure and executable output objects fail closed", () =>
   );
 });
 
+test("worker output array slots are validated before getters can execute", () => {
+  let slotGetterCalls = 0;
+  const ownAccessorOutput = createFixture({
+    createReceipt: false,
+    transform() {
+      const output: TestOnlyFakeWorkerFile[] = [];
+      Object.defineProperty(output, "0", {
+        enumerable: true,
+        get() {
+          slotGetterCalls += 1;
+          return { path: "docs/guide.md", mode: "100644", content: text("new\n") };
+        }
+      });
+      output.length = 1;
+      return output;
+    }
+  });
+  assert.throws(
+    () => simulateWithWorker(ownAccessorOutput, ownAccessorOutput.worker),
+    /offline_fake_worker_output_invalid/u
+  );
+  assert.equal(slotGetterCalls, 0);
+
+  const inheritedAccessorOutput = createFixture({
+    createReceipt: false,
+    transform() {
+      const output: TestOnlyFakeWorkerFile[] = [];
+      const prototype = Object.create(Array.prototype) as object;
+      Object.defineProperty(prototype, "0", {
+        get() {
+          slotGetterCalls += 1;
+          return { path: "docs/guide.md", mode: "100644", content: text("new\n") };
+        }
+      });
+      Object.setPrototypeOf(output, prototype);
+      output.length = 1;
+      return output;
+    }
+  });
+  assert.throws(
+    () => simulateWithWorker(inheritedAccessorOutput, inheritedAccessorOutput.worker),
+    /offline_fake_worker_output_invalid/u
+  );
+  assert.equal(slotGetterCalls, 0);
+});
+
 interface Fixture {
   store: ContentAddressedStore;
   manifest: OfflineExecutionCapsuleManifest;

@@ -161,6 +161,21 @@ test("offline execution capsule boundary blocks process and public export broade
   assert.ok(exportResult.reasons.includes(
     "offline_execution_capsule_boundary_publicExportAbsent"
   ));
+
+  const aliasedPackageJson = structuredClone(packageJson);
+  delete aliasedPackageJson.exports["./execution-capsule"];
+  aliasedPackageJson.exports["./offline-capsule"] = {
+    types: ["./dist/packages/execution-capsule/src/index.d.ts"],
+    default: "./dist/packages/offline-capsule/src/index.js"
+  };
+  const aliasedExportResult = reviewOfflineExecutionCapsuleBoundary({
+    ...input,
+    packageJsonText: JSON.stringify(aliasedPackageJson)
+  });
+  assert.equal(aliasedExportResult.status, "blocked");
+  assert.ok(aliasedExportResult.reasons.includes(
+    "offline_execution_capsule_boundary_publicExportAbsent"
+  ));
 });
 
 test("offline execution capsule boundary blocks approval, retain, provider, and remote store coupling", async () => {

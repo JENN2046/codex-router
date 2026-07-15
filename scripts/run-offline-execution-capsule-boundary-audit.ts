@@ -83,7 +83,7 @@ export function reviewOfflineExecutionCapsuleBoundary(
   input: OfflineExecutionCapsuleBoundaryAuditInput
 ): OfflineExecutionCapsuleBoundaryAuditResult {
   const packageJson = parsePackageJson(input.packageJsonText);
-  const packageExports = packageJson?.exports ?? {};
+  const packageExports = packageJson?.exports;
   const sourceAnalysis = analyzeCapsuleSource(input.sourceText);
   const sourceImports = sourceAnalysis.moduleSpecifiers;
   const checks = {
@@ -132,7 +132,7 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "offline_capsule_receipt_or_nonce_replay"
     ]),
     publicExportAbsent: packageJson !== undefined
-      && !Object.keys(packageExports).some((key) => key.includes("execution-capsule"))
+      && !containsExecutionCapsuleReference(packageExports)
       && !input.publicApiText.includes("execution-capsule"),
     negativeCoverageRecorded: includesAll(input.testText, [
       "tree manifests sort canonically",
@@ -186,16 +186,32 @@ export function formatOfflineExecutionCapsuleBoundaryAuditResult(
   return `${JSON.stringify(result, null, 2)}\n`;
 }
 
-function parsePackageJson(text: string): { exports?: Record<string, unknown> } | undefined {
+function parsePackageJson(text: string): { exports?: unknown } | undefined {
   try {
     const value = JSON.parse(text) as unknown;
     if (value === null || typeof value !== "object") {
       return undefined;
     }
-    return value as { exports?: Record<string, unknown> };
+    return value as { exports?: unknown };
   } catch {
     return undefined;
   }
+}
+
+function containsExecutionCapsuleReference(value: unknown): boolean {
+  if (typeof value === "string") {
+    return value.toLocaleLowerCase("en-US").includes("execution-capsule");
+  }
+  if (Array.isArray(value)) {
+    return value.some(containsExecutionCapsuleReference);
+  }
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  return Object.entries(value).some(([key, target]) => (
+    key.toLocaleLowerCase("en-US").includes("execution-capsule")
+    || containsExecutionCapsuleReference(target)
+  ));
 }
 
 function includesAll(text: string, markers: string[]): boolean {
