@@ -263,6 +263,17 @@ function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
     ) {
       hasFunctionConstructorReference = true;
     }
+    if (
+      (
+        ts.isBinaryExpression(node)
+        || ts.isCallExpression(node)
+        || ts.isParenthesizedExpression(node)
+        || ts.isTemplateExpression(node)
+      )
+      && staticStringValue(node) === "constructor"
+    ) {
+      hasFunctionConstructorReference = true;
+    }
     if (ts.isIdentifier(node)) {
       identifiers.push(node.text);
     }
@@ -306,6 +317,61 @@ function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
     hasRequireCall,
     parseSucceeded: parseDiagnostics.length === 0
   };
+}
+
+function staticStringValue(expression: ts.Expression): string | undefined {
+  if (ts.isStringLiteralLike(expression)) {
+    return expression.text;
+  }
+  if (ts.isParenthesizedExpression(expression)) {
+    return staticStringValue(expression.expression);
+  }
+  if (
+    ts.isBinaryExpression(expression)
+    && expression.operatorToken.kind === ts.SyntaxKind.PlusToken
+  ) {
+    const left = staticStringValue(expression.left);
+    const right = staticStringValue(expression.right);
+    return left === undefined || right === undefined ? undefined : `${left}${right}`;
+  }
+  if (ts.isTemplateExpression(expression)) {
+    let value = expression.head.text;
+    for (const span of expression.templateSpans) {
+      const part = staticStringValue(span.expression);
+      if (part === undefined) {
+        return undefined;
+      }
+      value += `${part}${span.literal.text}`;
+    }
+    return value;
+  }
+  if (
+    ts.isCallExpression(expression)
+    && ts.isPropertyAccessExpression(expression.expression)
+    && expression.expression.name.text === "join"
+    && ts.isArrayLiteralExpression(expression.expression.expression)
+    && expression.arguments.length <= 1
+  ) {
+    const separator = expression.arguments.length === 0
+      ? ","
+      : staticStringValue(expression.arguments[0]!);
+    if (separator === undefined) {
+      return undefined;
+    }
+    const parts: string[] = [];
+    for (const element of expression.expression.expression.elements) {
+      if (ts.isSpreadElement(element)) {
+        return undefined;
+      }
+      const part = staticStringValue(element);
+      if (part === undefined) {
+        return undefined;
+      }
+      parts.push(part);
+    }
+    return parts.join(separator);
+  }
+  return undefined;
 }
 
 function isForbiddenRuntimeIoModule(specifier: string): boolean {

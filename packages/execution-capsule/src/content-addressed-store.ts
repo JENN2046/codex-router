@@ -123,7 +123,7 @@ export function storeContentTree(
     const blob = reusable !== undefined
       && reusable.mode === file.mode
       && sameBytes(reusable.content, content)
-      ? { ...reusable.digest }
+      ? store.put(content, reusable.digest)
       : store.put(content);
     return {
       path: file.path,

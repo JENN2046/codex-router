@@ -16,6 +16,7 @@ import {
   createOfflineOutputTreeReceipt,
   createTestOnlyFakeCapsuleWorker,
   digestCanonicalJson,
+  loadContentTree,
   simulateOfflineCapsuleCandidate,
   storeCapsuleTask,
   storeContentTree,
@@ -212,6 +213,26 @@ test("in-memory CAS is immutable and fails closed on missing, mismatch, and corr
     "offline_capsule_verification_output_manifest_digest_mismatch"
   ]);
   assertAllRuntimeFieldsFalse(assessment);
+});
+
+test("tree reuse materializes reused blobs in a different target CAS", () => {
+  const sourceStore = createInMemoryContentAddressedStore();
+  const sourceTree = storeContentTree(sourceStore, [{
+    path: "docs/guide.md",
+    mode: "100644",
+    content: text("fixture\n")
+  }]);
+  const reusable = loadContentTree(sourceStore, sourceTree.digest);
+  const targetStore = createInMemoryContentAddressedStore();
+  const targetTree = storeContentTree(targetStore, [{
+    path: "docs/guide.md",
+    mode: "100644",
+    content: text("fixture\n")
+  }], reusable);
+
+  assert.deepEqual(targetTree.manifest.entries[0]?.blob, reusable.files[0]?.digest);
+  const loaded = loadContentTree(targetStore, targetTree.digest);
+  assert.equal(new TextDecoder().decode(loaded.files[0]?.content), "fixture\n");
 });
 
 test("tree construction validates own primitive fields before reading path methods", () => {
