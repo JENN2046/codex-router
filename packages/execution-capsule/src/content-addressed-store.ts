@@ -114,6 +114,7 @@ export function storeContentTree(
   reuseFrom?: LoadedContentTree
 ): StoredContentTree {
   const files = snapshotPassiveFileArray(filesInput);
+  validateContentTreeFilesBeforeStore(files);
   const reuseEntries = new Map(
     (reuseFrom?.files ?? []).map((file) => [file.path, file] as const)
   );
@@ -295,4 +296,18 @@ function snapshotPassiveFileArray(
     snapshots.push({ path, mode, content: new Uint8Array(content) });
   }
   return snapshots;
+}
+
+function validateContentTreeFilesBeforeStore(files: OfflineContentTreeFile[]): void {
+  const placeholderBlob: ContentDigest = {
+    algorithm: "sha256",
+    hash: "0".repeat(64),
+    size: 0
+  };
+  createContentTreeManifest(files.map((file) => ({
+    path: file.path,
+    nodeType: "regular_file" as const,
+    mode: file.mode,
+    blob: placeholderBlob
+  })));
 }

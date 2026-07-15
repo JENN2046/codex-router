@@ -278,6 +278,29 @@ test("tree construction validates own primitive fields before reading path metho
   assert.equal(customNormalizeCalls, 0);
 });
 
+test("tree construction validates canonical entries before writing any blob", () => {
+  let putCalls = 0;
+  const store: ContentAddressedStore = {
+    put() {
+      putCalls += 1;
+      throw new Error("unexpected_store_write");
+    },
+    read() {
+      throw new Error("unexpected_store_read");
+    }
+  };
+
+  assert.throws(
+    () => storeContentTree(store, [{
+      path: "../outside.md",
+      mode: "100644",
+      content: text("must not be stored\n")
+    }]),
+    /offline capsule path must be canonical/u
+  );
+  assert.equal(putCalls, 0);
+});
+
 test("missing, corrupt, and size-drifted tree blobs are rejected on independent consumption", () => {
   const missingFixture = createFixture();
   const missingTree = outputTreeRecord(missingFixture);
