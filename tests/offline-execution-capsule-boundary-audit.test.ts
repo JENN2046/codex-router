@@ -229,12 +229,27 @@ test("offline execution capsule boundary discovers facade files from package exp
   const cwd = await mkdtemp(join(tmpdir(), "offline-capsule-export-facade-"));
   try {
     const publicApiDirectory = join(cwd, "packages", "public-api", "src");
-    await mkdir(publicApiDirectory, { recursive: true });
+    const bridgeDirectory = join(cwd, "packages", "capsule-bridge", "src");
+    const capsuleDirectory = join(cwd, "packages", "execution-capsule", "src");
+    await Promise.all([
+      mkdir(publicApiDirectory, { recursive: true }),
+      mkdir(bridgeDirectory, { recursive: true }),
+      mkdir(capsuleDirectory, { recursive: true })
+    ]);
     await writeFile(join(publicApiDirectory, "protocol.ts"), "export const safe = true;\n");
     await writeFile(
       join(publicApiDirectory, "capsule-facade.ts"),
+      'export * from "./capsule-helper.js";\n'
+    );
+    await writeFile(
+      join(publicApiDirectory, "capsule-helper.ts"),
+      'export * from "../../capsule-bridge/src/index.js";\n'
+    );
+    await writeFile(
+      join(bridgeDirectory, "index.ts"),
       'export * from "../../execution-capsule/src/index.js";\n'
     );
+    await writeFile(join(capsuleDirectory, "index.ts"), "export const internal = true;\n");
     const packageJsonText = JSON.stringify({
       exports: {
         "./protocol": {
@@ -246,6 +261,8 @@ test("offline execution capsule boundary discovers facade files from package exp
     });
     const publicApiText = await collectExportedPublicFacadeText(packageJsonText, cwd);
     assert.match(publicApiText, /capsule-facade\.ts/u);
+    assert.match(publicApiText, /capsule-helper\.ts/u);
+    assert.match(publicApiText, /capsule-bridge/u);
     assert.match(publicApiText, /execution-capsule/u);
 
     const result = reviewOfflineExecutionCapsuleBoundary({
@@ -257,6 +274,66 @@ test("offline execution capsule boundary discovers facade files from package exp
     assert.ok(result.reasons.includes(
       "offline_execution_capsule_boundary_publicExportAbsent"
     ));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("offline execution capsule boundary maps NodeNext facade targets", async () => {
+  const input = await collectOfflineExecutionCapsuleBoundaryAuditInput();
+  const cwd = await mkdtemp(join(tmpdir(), "offline-capsule-nodenext-facade-"));
+  try {
+    const publicApiDirectory = join(cwd, "packages", "public-api", "src");
+    await mkdir(publicApiDirectory, { recursive: true });
+    await writeFile(join(publicApiDirectory, "hidden.mts"), "export const safe = true;\n");
+    const packageJsonText = JSON.stringify({
+      exports: {
+        "./hidden": {
+          types: "./dist/packages/public-api/src/hidden.d.mts",
+          import: "./dist/packages/public-api/src/hidden.mjs"
+        }
+      }
+    });
+    const publicApiText = await collectExportedPublicFacadeText(packageJsonText, cwd);
+    assert.match(publicApiText, /hidden\.mts/u);
+    const result = reviewOfflineExecutionCapsuleBoundary({
+      ...input,
+      packageJsonText,
+      publicApiText
+    });
+    assert.equal(result.status, "passed");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("offline execution capsule boundary fails closed on unmapped local facade targets", async () => {
+  await assert.rejects(
+    collectExportedPublicFacadeText(JSON.stringify({
+      exports: { "./hidden": "./dist/packages/public-api/src/hidden.json" }
+    })),
+    /offline_capsule_public_facade_target_unmapped/u
+  );
+});
+
+test("offline execution capsule boundary fails closed on missing local facade dependencies", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "offline-capsule-missing-facade-dependency-"));
+  try {
+    const publicApiDirectory = join(cwd, "packages", "public-api", "src");
+    await mkdir(publicApiDirectory, { recursive: true });
+    await writeFile(
+      join(publicApiDirectory, "capsule-facade.ts"),
+      'export * from "./missing-helper.js";\n'
+    );
+    const packageJsonText = JSON.stringify({
+      exports: {
+        "./capsule-facade": "./packages/public-api/src/capsule-facade.ts"
+      }
+    });
+    await assert.rejects(
+      collectExportedPublicFacadeText(packageJsonText, cwd),
+      /offline_capsule_public_facade_dependency_missing/u
+    );
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

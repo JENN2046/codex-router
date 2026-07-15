@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { readdir, readFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
@@ -81,12 +81,146 @@ export async function collectExportedPublicFacadeText(
   cwd = process.cwd()
 ): Promise<string> {
   const packageJson = parsePackageJson(packageJsonText);
-  const sourcePaths = exportTargetStrings(packageJson?.exports)
-    .map((target) => exportedFacadeSourcePath(target, cwd))
-    .filter((path): path is string => path !== undefined);
-  return (await Promise.all([...new Set(sourcePaths)].sort().map(async (path) => (
-    `// ${relative(cwd, path)}\n${await readFile(path, "utf8")}`
-  )))).join("\n");
+  const sourcePaths: string[] = [];
+  for (const target of [...new Set(exportTargetStrings(packageJson?.exports))].sort()) {
+    const sourcePath = await resolveExportedFacadeSourcePath(target, cwd);
+    if (sourcePath === undefined) {
+      if (target.replaceAll("\\", "/").startsWith("./")) {
+        throw new Error(`offline_capsule_public_facade_target_unmapped:${target}`);
+      }
+      continue;
+    }
+    sourcePaths.push(sourcePath);
+  }
+  const collectedFiles = new Map<string, string>();
+  for (const sourcePath of [...new Set(sourcePaths)].sort()) {
+    await collectRepositoryFacadeDependencyClosure(sourcePath, cwd, collectedFiles);
+  }
+  return [...collectedFiles.entries()]
+    .sort(([left], [right]) => left.localeCompare(right, "en-US"))
+    .map(([path, text]) => `// ${relative(cwd, path)}\n${text}`)
+    .join("\n");
+}
+
+async function collectRepositoryFacadeDependencyClosure(
+  entryPath: string,
+  cwd: string,
+  collectedFiles: Map<string, string>
+): Promise<void> {
+  const packagesRoot = resolve(cwd, "packages");
+  if (!isContainedPath(relative(packagesRoot, entryPath))) {
+    throw new Error(`offline_capsule_public_facade_outside_package:${relative(cwd, entryPath)}`);
+  }
+  const pending = [entryPath];
+  const queued = new Set(pending);
+  while (pending.length > 0) {
+    const sourcePath = pending.shift()!;
+    if (collectedFiles.has(sourcePath)) {
+      continue;
+    }
+    const sourceText = await readFile(sourcePath, "utf8");
+    const dependencyAnalysis = analyzeStaticFacadeDependencies(sourceText);
+    if (!dependencyAnalysis.parseSucceeded) {
+      throw new Error(`offline_capsule_public_facade_parse_failed:${relative(cwd, sourcePath)}`);
+    }
+    collectedFiles.set(sourcePath, sourceText);
+    for (const specifier of dependencyAnalysis.moduleSpecifiers.sort()) {
+      const dependencyPath = await resolveRepositoryFacadeDependency(
+        sourcePath,
+        specifier,
+        packagesRoot
+      );
+      if (
+        dependencyPath !== undefined
+        && !queued.has(dependencyPath)
+        && !collectedFiles.has(dependencyPath)
+      ) {
+        queued.add(dependencyPath);
+        pending.push(dependencyPath);
+      }
+    }
+  }
+}
+
+async function resolveRepositoryFacadeDependency(
+  importerPath: string,
+  rawSpecifier: string,
+  packagesRoot: string
+): Promise<string | undefined> {
+  let specifier: string;
+  try {
+    specifier = decodeURIComponent(rawSpecifier);
+  } catch {
+    throw new Error(`offline_capsule_public_facade_specifier_invalid:${rawSpecifier}`);
+  }
+  if (!specifier.startsWith("./") && !specifier.startsWith("../")) {
+    return undefined;
+  }
+  const unresolvedPath = resolve(dirname(importerPath), specifier);
+  const packagesRelativePath = relative(packagesRoot, unresolvedPath);
+  if (!isContainedPath(packagesRelativePath)) {
+    throw new Error(`offline_capsule_public_facade_dependency_outside_packages:${rawSpecifier}`);
+  }
+  const candidates = facadeDependencyCandidates(unresolvedPath);
+  for (const candidate of candidates) {
+    try {
+      const resolvedPath = await realpath(candidate);
+      const resolvedRelativePath = relative(packagesRoot, resolvedPath);
+      if (!isContainedPath(resolvedRelativePath)) {
+        throw new Error(
+          `offline_capsule_public_facade_dependency_outside_packages:${rawSpecifier}`
+        );
+      }
+      if ((await stat(resolvedPath)).isFile()) {
+        return resolvedPath;
+      }
+    } catch (error) {
+      if (isMissingPathError(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error(`offline_capsule_public_facade_dependency_missing:${rawSpecifier}`);
+}
+
+function facadeDependencyCandidates(unresolvedPath: string): string[] {
+  const extension = extname(unresolvedPath);
+  if (extension === ".js") {
+    return [
+      `${unresolvedPath.slice(0, -extension.length)}.ts`,
+      `${unresolvedPath.slice(0, -extension.length)}.tsx`
+    ];
+  }
+  if (extension === ".mjs") {
+    return [`${unresolvedPath.slice(0, -extension.length)}.mts`];
+  }
+  if (extension === ".cjs") {
+    return [`${unresolvedPath.slice(0, -extension.length)}.cts`];
+  }
+  if (extension !== "") {
+    return [unresolvedPath];
+  }
+  return [
+    unresolvedPath,
+    `${unresolvedPath}.ts`,
+    `${unresolvedPath}.tsx`,
+    join(unresolvedPath, "index.ts"),
+    join(unresolvedPath, "index.tsx")
+  ];
+}
+
+function isContainedPath(relativePath: string): boolean {
+  return relativePath !== ""
+    && relativePath !== ".."
+    && !relativePath.startsWith(`..${sep}`)
+    && !isAbsolute(relativePath);
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return error instanceof Error
+    && "code" in error
+    && (error.code === "ENOENT" || error.code === "ENOTDIR");
 }
 
 export function reviewOfflineExecutionCapsuleBoundary(
@@ -250,37 +384,69 @@ function exportTargetStrings(value: unknown): string[] {
   return Object.values(value).flatMap(exportTargetStrings);
 }
 
-function exportedFacadeSourcePath(target: string, cwd: string): string | undefined {
-  let sourcePath = target.replaceAll("\\", "/");
-  if (sourcePath.startsWith("./")) {
-    sourcePath = sourcePath.slice(2);
+async function resolveExportedFacadeSourcePath(
+  target: string,
+  cwd: string
+): Promise<string | undefined> {
+  let sourcePath: string;
+  try {
+    sourcePath = decodeURIComponent(target.replaceAll("\\", "/"));
+  } catch {
+    return undefined;
   }
+  if (!sourcePath.startsWith("./")) {
+    return undefined;
+  }
+  sourcePath = sourcePath.slice(2);
   if (sourcePath.startsWith("dist/")) {
     sourcePath = sourcePath.slice("dist/".length);
   }
   if (!sourcePath.startsWith("packages/")) {
     return undefined;
   }
-  if (sourcePath.endsWith(".d.ts")) {
-    sourcePath = `${sourcePath.slice(0, -".d.ts".length)}.ts`;
-  } else if (sourcePath.endsWith(".js")) {
-    sourcePath = `${sourcePath.slice(0, -".js".length)}.ts`;
-  } else if (!sourcePath.endsWith(".ts")) {
-    return undefined;
-  }
   const repositoryRoot = resolve(cwd);
   const packagesRoot = resolve(repositoryRoot, "packages");
-  const absolutePath = resolve(repositoryRoot, sourcePath);
-  const packagesRelativePath = relative(packagesRoot, absolutePath);
-  if (
-    packagesRelativePath === ""
-    || packagesRelativePath === ".."
-    || packagesRelativePath.startsWith(`..${sep}`)
-    || isAbsolute(packagesRelativePath)
-  ) {
+  const unresolvedPath = resolve(repositoryRoot, sourcePath);
+  if (!isContainedPath(relative(packagesRoot, unresolvedPath))) {
     return undefined;
   }
-  return absolutePath;
+  for (const candidate of exportedFacadeSourceCandidates(unresolvedPath)) {
+    try {
+      const resolvedPath = await realpath(candidate);
+      if (!isContainedPath(relative(packagesRoot, resolvedPath))) {
+        return undefined;
+      }
+      if ((await stat(resolvedPath)).isFile()) {
+        return resolvedPath;
+      }
+    } catch (error) {
+      if (isMissingPathError(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+  return undefined;
+}
+
+function exportedFacadeSourceCandidates(unresolvedPath: string): string[] {
+  for (const [outputSuffix, sourceSuffixes] of [
+    [".d.mts", [".mts"]],
+    [".d.cts", [".cts"]],
+    [".d.ts", [".ts", ".tsx"]],
+    [".mjs", [".mts"]],
+    [".cjs", [".cts"]],
+    [".js", [".ts", ".tsx"]]
+  ] as const) {
+    if (unresolvedPath.endsWith(outputSuffix)) {
+      const stem = unresolvedPath.slice(0, -outputSuffix.length);
+      return sourceSuffixes.map((sourceSuffix) => `${stem}${sourceSuffix}`);
+    }
+  }
+  if ([".ts", ".tsx", ".mts", ".cts"].some((suffix) => unresolvedPath.endsWith(suffix))) {
+    return [unresolvedPath];
+  }
+  return [];
 }
 
 function includesAll(text: string, markers: string[]): boolean {
@@ -297,6 +463,40 @@ interface CapsuleSourceAnalysis {
   hasImportEquals: boolean;
   hasRequireCall: boolean;
   parseSucceeded: boolean;
+}
+
+interface StaticFacadeDependencyAnalysis {
+  moduleSpecifiers: string[];
+  parseSucceeded: boolean;
+}
+
+function analyzeStaticFacadeDependencies(text: string): StaticFacadeDependencyAnalysis {
+  const sourceFile = ts.createSourceFile(
+    "offline-execution-capsule-public-facade.ts",
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const parseDiagnostics = (
+    sourceFile as ts.SourceFile & { parseDiagnostics?: readonly ts.Diagnostic[] }
+  ).parseDiagnostics ?? [];
+  const moduleSpecifiers: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
+      && node.moduleSpecifier !== undefined
+      && ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      moduleSpecifiers.push(node.moduleSpecifier.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return {
+    moduleSpecifiers,
+    parseSucceeded: parseDiagnostics.length === 0
+  };
 }
 
 function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
