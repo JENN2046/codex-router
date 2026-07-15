@@ -106,6 +106,14 @@ test("offline execution capsule boundary blocks bare builtins, environment acces
       reasons: ["offline_execution_capsule_boundary_noProviderOrHostExecutionCoupling"]
     },
     {
+      source: '(() => {}).constructor("return process")().getBuiltinModule("fs");',
+      reasons: ["offline_execution_capsule_boundary_noProviderOrHostExecutionCoupling"]
+    },
+    {
+      source: 'const key = "constructor"; (() => {})[key]("return process")();',
+      reasons: ["offline_execution_capsule_boundary_noProviderOrHostExecutionCoupling"]
+    },
+    {
       source: "class DiskCAS {}",
       reasons: ["offline_execution_capsule_boundary_inMemoryContentStoreOnly"]
     },

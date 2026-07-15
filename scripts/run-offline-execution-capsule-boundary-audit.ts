@@ -118,7 +118,9 @@ export function reviewOfflineExecutionCapsuleBoundary(
     noFilesystemProcessOrSocketImports: !sourceImports.some(isForbiddenRuntimeIoModule),
     noProviderOrHostExecutionCoupling: !sourceImports.some((specifier) => (
       /(?:provider|codex-cli|desktop-live|host-executor)/u.test(specifier)
-    )) && !sourceAnalysis.identifiers.some(isForbiddenAmbientIdentifier),
+    ))
+      && !sourceAnalysis.identifiers.some(isForbiddenAmbientIdentifier)
+      && !sourceAnalysis.hasFunctionConstructorReference,
     noApprovalRetainApplyCoupling: !sourceImports.some((specifier) => (
       /(?:file-change-preview|retain-control|approval-permit|approval-gate|workspace-write)/u.test(
         specifier
@@ -221,6 +223,7 @@ function includesAll(text: string, markers: string[]): boolean {
 interface CapsuleSourceAnalysis {
   classNames: string[];
   hasAnonymousClass: boolean;
+  hasFunctionConstructorReference: boolean;
   identifiers: string[];
   moduleSpecifiers: string[];
   hasDynamicImport: boolean;
@@ -245,6 +248,7 @@ function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
   const classNames: string[] = [];
   let hasDynamicImport = false;
   let hasAnonymousClass = false;
+  let hasFunctionConstructorReference = false;
   let hasImportEquals = false;
   let hasRequireCall = false;
   const recordModuleSpecifier = (expression: ts.Expression | undefined): void => {
@@ -253,6 +257,12 @@ function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
     }
   };
   const visit = (node: ts.Node): void => {
+    if (
+      (ts.isIdentifier(node) || ts.isStringLiteralLike(node))
+      && node.text === "constructor"
+    ) {
+      hasFunctionConstructorReference = true;
+    }
     if (ts.isIdentifier(node)) {
       identifiers.push(node.text);
     }
@@ -288,6 +298,7 @@ function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
   return {
     classNames: classNames.sort(),
     hasAnonymousClass,
+    hasFunctionConstructorReference,
     identifiers,
     moduleSpecifiers,
     hasDynamicImport,
