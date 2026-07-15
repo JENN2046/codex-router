@@ -411,6 +411,10 @@ function decodeChangedText(bytes: Uint8Array): string {
 
 function containsCredentialLikeTreeContent(files: LoadedContentTreeFile[]): boolean {
   return files.some((file) => {
+    const bytePreservingText = new TextDecoder("latin1").decode(file.content);
+    if (containsCredentialLikeText(bytePreservingText)) {
+      return true;
+    }
     let text: string;
     try {
       text = new TextDecoder("utf-8", { fatal: true }).decode(file.content);
@@ -420,7 +424,7 @@ function containsCredentialLikeTreeContent(files: LoadedContentTreeFile[]): bool
     if (BINARY_CONTROL_CHARACTERS.test(text)) {
       return false;
     }
-    return containsCredentialLikeDiffContent(text) || containsRawCredentialMaterial(text);
+    return containsCredentialLikeText(text);
   });
 }
 
@@ -431,9 +435,11 @@ function containsCredentialLikeTaskContent(task: CapsuleTaskContract): boolean {
     ...task.successCriteria,
     ...task.outOfScope,
     ...task.targetPaths
-  ].some((text) => (
-    containsCredentialLikeDiffContent(text) || containsRawCredentialMaterial(text)
-  ));
+  ].some(containsCredentialLikeText);
+}
+
+function containsCredentialLikeText(text: string): boolean {
+  return containsCredentialLikeDiffContent(text) || containsRawCredentialMaterial(text);
 }
 
 function toGovernedChange(

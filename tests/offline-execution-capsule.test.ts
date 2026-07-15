@@ -613,6 +613,24 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     "offline_capsule_credential_like_content_forbidden"
   ]);
 
+  const unchangedBinaryCredential = createFixture({
+    inputFiles: [
+      { path: "docs/guide.md", mode: "100644", content: text("old\n") },
+      {
+        path: "assets/credential.bin",
+        mode: "100644",
+        content: new Uint8Array([
+          ...text("Bearer synthetic-fixture-value"),
+          0,
+          0xff
+        ])
+      }
+    ]
+  });
+  assert.deepEqual(verifyFixture(unchangedBinaryCredential).reasons, [
+    "offline_capsule_credential_like_content_forbidden"
+  ]);
+
   const fileLimit = createFixture({
     targets: ["docs/extra.md", "docs/guide.md"],
     limits: { maxChangedFiles: 1, maxChangedBytes: 4096, maxDiffBytes: 8192 },
