@@ -17,6 +17,11 @@ import {
   type ContentTreeManifest
 } from "./contracts.js";
 
+const TYPED_ARRAY_BYTE_LENGTH_GETTER = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),
+  "byteLength"
+)?.get;
+
 export interface ContentAddressedStore {
   put(bytes: Uint8Array, expectedDigest?: ContentDigest): ContentDigest;
   read(digest: ContentDigest): Uint8Array;
@@ -192,8 +197,20 @@ export function readVerifiedBytes(
     }
     throw new Error(`${context}_read_failed`);
   }
-  if (!(bytes instanceof Uint8Array)) {
+  if (isProxy(bytes) || !(bytes instanceof Uint8Array)) {
     throw new Error(`${context}_non_bytes`);
+  }
+  if (TYPED_ARRAY_BYTE_LENGTH_GETTER === undefined) {
+    throw new Error(`${context}_non_bytes`);
+  }
+  let actualByteLength: unknown;
+  try {
+    actualByteLength = Reflect.apply(TYPED_ARRAY_BYTE_LENGTH_GETTER, bytes, []);
+  } catch {
+    throw new Error(`${context}_non_bytes`);
+  }
+  if (actualByteLength !== digest.size) {
+    throw new Error(`${context}_digest_mismatch`);
   }
   const copy = new Uint8Array(bytes);
   if (!sameContentDigest(digestBytes(copy), digest)) {

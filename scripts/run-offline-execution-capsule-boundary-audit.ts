@@ -279,6 +279,11 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "maxTreeManifestBytes",
       "maxTotalTreeFiles",
       "maxTotalTreeBytes",
+      "isProxy(bytes)",
+      "TYPED_ARRAY_BYTE_LENGTH_GETTER",
+      "actualByteLength !== digest.size",
+      "inputTreeManifest.manifest.entries.some",
+      "outputTreeManifest.manifest.entries.some",
       "hashGovernedFileChangeSetContent",
       "offline-execution-capsule.v1",
       "offline_capsule_receipt_or_nonce_replay"
@@ -296,6 +301,11 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "schema drift or extra fields fail closed",
       "delete, rename, mode drift, outside target, and no-change",
       "changed binary, credential-like content, sensitive path, and size limits",
+      "copyIterations",
+      "ownByteLengthGetterCalls",
+      "ownSpeciesGetterCalls",
+      "offline_capsule_detached_read",
+      "sensitiveReadHashes",
       "unregistered, proxy, and accessor workers"
     ]),
     governanceBoundaryRecorded: input.governanceRunnerText.includes(
@@ -547,6 +557,7 @@ function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
     if (
       (ts.isIdentifier(node) || ts.isStringLiteralLike(node))
       && isForbiddenCapabilityPropertyName(node.text)
+      && !isApprovedTypedArrayByteLengthDescriptorReference(node)
     ) {
       hasFunctionConstructorReference = true;
     }
@@ -561,7 +572,7 @@ function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
     ) {
       hasFunctionConstructorReference = true;
     }
-    if (ts.isIdentifier(node)) {
+    if (ts.isIdentifier(node) && !isApprovedTypedArrayByteLengthReflectApply(node)) {
       identifiers.push(node.text);
     }
     if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
@@ -667,6 +678,70 @@ function isStaticallyKnownPropertyKey(expression: ts.Expression): boolean {
 
 function isForbiddenCapabilityPropertyName(value: string | undefined): boolean {
   return value === "constructor" || value === "getOwnPropertyDescriptor";
+}
+
+function isApprovedTypedArrayByteLengthDescriptorReference(node: ts.Node): boolean {
+  if (
+    !ts.isIdentifier(node)
+    || node.text !== "getOwnPropertyDescriptor"
+    || !ts.isPropertyAccessExpression(node.parent)
+    || node.parent.name !== node
+    || !ts.isIdentifier(node.parent.expression)
+    || node.parent.expression.text !== "Object"
+    || !ts.isCallExpression(node.parent.parent)
+    || node.parent.parent.expression !== node.parent
+  ) {
+    return false;
+  }
+  const [target, property, ...extraArguments] = node.parent.parent.arguments;
+  return extraArguments.length === 0
+    && target !== undefined
+    && ts.isCallExpression(target)
+    && ts.isPropertyAccessExpression(target.expression)
+    && ts.isIdentifier(target.expression.expression)
+    && target.expression.expression.text === "Object"
+    && target.expression.name.text === "getPrototypeOf"
+    && target.arguments.length === 1
+    && target.arguments[0] !== undefined
+    && isNamedPropertyAccess(target.arguments[0], "Uint8Array", "prototype")
+    && property !== undefined
+    && ts.isStringLiteralLike(property)
+    && property.text === "byteLength";
+}
+
+function isApprovedTypedArrayByteLengthReflectApply(node: ts.Identifier): boolean {
+  if (
+    node.text !== "Reflect"
+    || !ts.isPropertyAccessExpression(node.parent)
+    || node.parent.expression !== node
+    || node.parent.name.text !== "apply"
+    || !ts.isCallExpression(node.parent.parent)
+    || node.parent.parent.expression !== node.parent
+  ) {
+    return false;
+  }
+  const [callable, receiver, argumentList, ...extraArguments] = node.parent.parent.arguments;
+  return extraArguments.length === 0
+    && callable !== undefined
+    && ts.isIdentifier(callable)
+    && callable.text === "TYPED_ARRAY_BYTE_LENGTH_GETTER"
+    && receiver !== undefined
+    && ts.isIdentifier(receiver)
+    && receiver.text === "bytes"
+    && argumentList !== undefined
+    && ts.isArrayLiteralExpression(argumentList)
+    && argumentList.elements.length === 0;
+}
+
+function isNamedPropertyAccess(
+  expression: ts.Expression,
+  objectName: string,
+  propertyName: string
+): boolean {
+  return ts.isPropertyAccessExpression(expression)
+    && ts.isIdentifier(expression.expression)
+    && expression.expression.text === objectName
+    && expression.name.text === propertyName;
 }
 
 function isForbiddenRuntimeIoModule(specifier: string): boolean {

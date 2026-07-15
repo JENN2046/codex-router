@@ -17,6 +17,7 @@ import {
   createTestOnlyFakeCapsuleWorker,
   digestCanonicalJson,
   loadContentTree,
+  readVerifiedBytes,
   simulateOfflineCapsuleCandidate,
   storeCapsuleTask,
   storeContentTree,
@@ -213,6 +214,83 @@ test("in-memory CAS is immutable and fails closed on missing, mismatch, and corr
     "offline_capsule_verification_output_manifest_digest_mismatch"
   ]);
   assertAllRuntimeFieldsFalse(assessment);
+
+  const declared = store.put(text("x"));
+  assert.deepEqual(readVerifiedBytes(store, declared), text("x"));
+  const declaredEmpty = store.put(new Uint8Array());
+  assert.equal(readVerifiedBytes(store, declaredEmpty).byteLength, 0);
+  const undersizedStore: ContentAddressedStore = {
+    put: (...args) => store.put(...args),
+    read: () => new Uint8Array()
+  };
+  assert.throws(
+    () => readVerifiedBytes(undersizedStore, declared, "offline_capsule_undersized_read"),
+    /offline_capsule_undersized_read_digest_mismatch/u
+  );
+
+  const oversized = new Uint8Array(declared.size + 1);
+  let copyIterations = 0;
+  const observableOversized = new Proxy(oversized, {
+    get(target, property) {
+      if (property === "byteLength") {
+        return declared.size;
+      }
+      if (property === Symbol.iterator) {
+        return function* observeCopy() {
+          copyIterations += 1;
+          yield* target;
+        };
+      }
+      return Reflect.get(target, property, target) as unknown;
+    }
+  });
+  const oversizedStore: ContentAddressedStore = {
+    put: (...args) => store.put(...args),
+    read: () => observableOversized
+  };
+  assert.throws(
+    () => readVerifiedBytes(oversizedStore, declared, "offline_capsule_oversized_read"),
+    /offline_capsule_oversized_read_non_bytes/u
+  );
+  assert.equal(copyIterations, 0);
+
+  let ownByteLengthGetterCalls = 0;
+  let ownSpeciesGetterCalls = 0;
+  Object.defineProperty(oversized, "byteLength", {
+    get() {
+      ownByteLengthGetterCalls += 1;
+      return declared.size;
+    }
+  });
+  Object.defineProperty(oversized, "constructor", {
+    value: {
+      get [Symbol.species]() {
+        ownSpeciesGetterCalls += 1;
+        return Uint8Array;
+      }
+    }
+  });
+  const ownByteLengthStore: ContentAddressedStore = {
+    put: (...args) => store.put(...args),
+    read: () => oversized
+  };
+  assert.throws(
+    () => readVerifiedBytes(ownByteLengthStore, declared, "offline_capsule_own_size_read"),
+    /offline_capsule_own_size_read_digest_mismatch/u
+  );
+  assert.equal(ownByteLengthGetterCalls, 0);
+  assert.equal(ownSpeciesGetterCalls, 0);
+
+  const detached = new Uint8Array([0]);
+  structuredClone(detached.buffer, { transfer: [detached.buffer] });
+  const detachedStore: ContentAddressedStore = {
+    put: (...args) => store.put(...args),
+    read: () => detached
+  };
+  assert.throws(
+    () => readVerifiedBytes(detachedStore, declared, "offline_capsule_detached_read"),
+    /offline_capsule_detached_read_digest_mismatch/u
+  );
 });
 
 test("tree reuse materializes reused blobs in a different target CAS", () => {
@@ -587,6 +665,29 @@ test("changed binary, credential-like content, sensitive path, and size limits f
   });
   assert.deepEqual(verifyFixture(sensitive).reasons, [
     "offline_capsule_sensitive_path_forbidden"
+  ]);
+  const sensitiveReadHashes: string[] = [];
+  const sensitiveStore: ContentAddressedStore = {
+    put: (...args) => sensitive.store.put(...args),
+    read(digest) {
+      sensitiveReadHashes.push(digest.hash);
+      return sensitive.store.read(digest);
+    }
+  };
+  const sensitiveAssessment = verifyOfflineCapsuleCandidate({
+    store: sensitiveStore,
+    manifest: sensitive.manifest,
+    receipt: sensitive.receipt,
+    replayStore: createInMemoryOfflineCapsuleReplayStore(),
+    now: () => verifiedAt
+  });
+  assert.deepEqual(sensitiveAssessment.reasons, [
+    "offline_capsule_sensitive_path_forbidden"
+  ]);
+  assert.deepEqual(sensitiveReadHashes, [
+    sensitive.manifest.taskDigest.hash,
+    sensitive.manifest.inputRoot.hash,
+    sensitive.receipt.outputRoot.hash
   ]);
 
   const unchangedSensitive = createFixture({

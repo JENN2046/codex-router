@@ -162,6 +162,16 @@ export function verifyOfflineCapsuleCandidate(
     if (treeLimitReasons.length > 0) {
       return blockedAssessment(treeLimitReasons, manifest, receipt.outputRoot);
     }
+    if (
+      inputTreeManifest.manifest.entries.some((entry) => isSensitiveGovernedPath(entry.path))
+      || outputTreeManifest.manifest.entries.some((entry) => isSensitiveGovernedPath(entry.path))
+    ) {
+      return blockedAssessment(
+        ["offline_capsule_sensitive_path_forbidden"],
+        manifest,
+        receipt.outputRoot
+      );
+    }
     const inputTree = loadContentTree(
       input.store,
       manifest.inputRoot,
@@ -172,16 +182,6 @@ export function verifyOfflineCapsuleCandidate(
       receipt.outputRoot,
       "verification_output"
     );
-    if (
-      inputTree.files.some((file) => isSensitiveGovernedPath(file.path))
-      || outputTree.files.some((file) => isSensitiveGovernedPath(file.path))
-    ) {
-      return blockedAssessment(
-        ["offline_capsule_sensitive_path_forbidden"],
-        manifest,
-        receipt.outputRoot
-      );
-    }
     if (
       containsCredentialLikeTreeContent(inputTree.files)
       || containsCredentialLikeTreeContent(outputTree.files)
