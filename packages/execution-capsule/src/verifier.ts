@@ -97,6 +97,13 @@ export function verifyOfflineCapsuleCandidate(
   if (bindingReasons.length > 0) {
     return blockedAssessment(bindingReasons, manifest, receipt.outputRoot);
   }
+  if (containsCredentialLikeMetadataContent(manifest, receipt)) {
+    return blockedAssessment(
+      ["offline_capsule_credential_like_content_forbidden"],
+      manifest,
+      receipt.outputRoot
+    );
+  }
 
   try {
     const task = loadCapsuleTask(input.store, manifest.taskDigest, "verification_task");
@@ -440,6 +447,27 @@ function containsCredentialLikeTaskContent(task: CapsuleTaskContract): boolean {
     ...task.outOfScope,
     ...task.targetPaths
   ].some(containsCredentialLikeText);
+}
+
+function containsCredentialLikeMetadataContent(
+  manifest: OfflineExecutionCapsuleManifest,
+  receipt: OfflineOutputTreeReceipt
+): boolean {
+  return containsCredentialLikeStringValue(manifest)
+    || containsCredentialLikeStringValue(receipt);
+}
+
+function containsCredentialLikeStringValue(value: unknown): boolean {
+  if (typeof value === "string") {
+    return containsCredentialLikeText(value);
+  }
+  if (Array.isArray(value)) {
+    return value.some(containsCredentialLikeStringValue);
+  }
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  return Object.values(value).some(containsCredentialLikeStringValue);
 }
 
 function containsCredentialLikeText(text: string): boolean {

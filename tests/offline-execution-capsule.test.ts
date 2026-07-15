@@ -684,6 +684,45 @@ test("credential-like task text is blocked before candidate verification", () =>
   }
 });
 
+test("credential-like manifest and receipt metadata is blocked before change-set emission", () => {
+  const manifestFields = [
+    {
+      correlation: {
+        threadId: "Bearer synthetic-fixture-value",
+        turnId: "opaque-turn",
+        itemId: "opaque-item"
+      }
+    },
+    { baseHead: "sk-proj-synthetic-fixture-value" }
+  ];
+  for (const fields of manifestFields) {
+    const fixture = createFixture();
+    const manifest = rehashManifest({ ...fixture.manifest, ...fields });
+    const receipt = rehashReceipt({
+      ...fixture.receipt,
+      manifestHash: manifest.manifestHash,
+      baseHead: manifest.baseHead,
+      correlation: manifest.correlation
+    });
+    assert.deepEqual(verifyFixture(fixture, { manifest, receipt }).reasons, [
+      "offline_capsule_credential_like_content_forbidden"
+    ]);
+  }
+
+  const receiptFixture = createFixture();
+  const receipt = rehashReceipt({
+    ...receiptFixture.receipt,
+    checks: [{
+      checkId: "simulated-check",
+      status: "simulated",
+      summary: "Bearer synthetic-fixture-value"
+    }]
+  });
+  assert.deepEqual(verifyFixture(receiptFixture, { receipt }).reasons, [
+    "offline_capsule_credential_like_content_forbidden"
+  ]);
+});
+
 test("unregistered, proxy, and accessor workers are rejected before their code runs", () => {
   const fixture = createFixture({ createReceipt: false });
   let calls = 0;
