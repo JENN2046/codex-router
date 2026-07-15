@@ -138,6 +138,7 @@ test("governance check runner default list shows current checks only", () => {
   assert.ok(checks.audit.includes("agent-task-control-review-boundary"));
   assert.ok(checks.audit.includes("agent-task-control-sandbox-boundary"));
   assert.ok(checks.audit.includes("sub-agent-runtime-boundary"));
+  assert.ok(checks.audit.includes("offline-execution-capsule-boundary"));
   assert.ok(checks.audit.includes("execution-boundary-current-surface"));
   assert.ok(checks.acceptance.includes("readonly-chain"));
   assert.ok(checks.acceptance.includes("controlled-readonly-provider-execution"));
@@ -423,6 +424,10 @@ test("governance check runner resolves registered checks with passthrough args",
   const subAgentRuntimeAudit = resolveGovernanceCheck(
     "audit",
     "sub-agent-runtime-boundary"
+  );
+  const offlineExecutionCapsuleAudit = resolveGovernanceCheck(
+    "audit",
+    "offline-execution-capsule-boundary"
   );
   const executionBoundarySurfaceAudit = resolveGovernanceCheck(
     "audit",
@@ -728,6 +733,10 @@ test("governance check runner resolves registered checks with passthrough args",
   assert.deepEqual(
     subAgentRuntimeAudit.args,
     expectedTsxArgs(["scripts/run-sub-agent-runtime-boundary-audit.ts"])
+  );
+  assert.deepEqual(
+    offlineExecutionCapsuleAudit.args,
+    expectedTsxArgs(["scripts/run-offline-execution-capsule-boundary-audit.ts"])
   );
   assert.deepEqual(
     executionBoundarySurfaceAudit.args,
