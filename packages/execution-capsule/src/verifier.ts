@@ -31,6 +31,7 @@ import {
 } from "./content-addressed-store.js";
 
 const BINARY_CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
+const SENSITIVE_OFFLINE_FILE_STEM = /^(?:credential|credentials|secret|secrets)(?:[._-].*)?$/u;
 const RAW_CREDENTIAL_MATERIAL_PATTERNS = [
   /\bsk-(?:proj-)?[a-z0-9_-]{8,}\b/iu,
   /\bgh[pousr]_[a-z0-9_]{8,}\b/iu,
@@ -163,8 +164,8 @@ export function verifyOfflineCapsuleCandidate(
       return blockedAssessment(treeLimitReasons, manifest, receipt.outputRoot);
     }
     if (
-      inputTreeManifest.manifest.entries.some((entry) => isSensitiveGovernedPath(entry.path))
-      || outputTreeManifest.manifest.entries.some((entry) => isSensitiveGovernedPath(entry.path))
+      inputTreeManifest.manifest.entries.some((entry) => isSensitiveOfflineTreePath(entry.path))
+      || outputTreeManifest.manifest.entries.some((entry) => isSensitiveOfflineTreePath(entry.path))
     ) {
       return blockedAssessment(
         ["offline_capsule_sensitive_path_forbidden"],
@@ -506,6 +507,17 @@ function containsCredentialLikeTreeContent(files: LoadedContentTreeFile[]): bool
     }
     return containsCredentialLikeText(text);
   });
+}
+
+function isSensitiveOfflineTreePath(path: string): boolean {
+  if (isSensitiveGovernedPath(path)) {
+    return true;
+  }
+  return path
+    .normalize("NFKC")
+    .toLocaleLowerCase("en-US")
+    .split("/")
+    .some((component) => SENSITIVE_OFFLINE_FILE_STEM.test(component));
 }
 
 function containsCredentialLikeTaskContent(task: CapsuleTaskContract): boolean {

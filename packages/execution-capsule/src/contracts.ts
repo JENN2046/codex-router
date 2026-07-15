@@ -244,10 +244,15 @@ const OfflineCapsuleAssessmentFieldsSchema = z.object({
 export const OfflineCapsuleAssessmentSchema =
   OfflineCapsuleAssessmentFieldsSchema.superRefine((assessment, ctx) => {
     if (assessment.status === "verified_offline") {
-      if (!assessment.contractSatisfied || assessment.changeSet === undefined) {
+      if (
+        !assessment.contractSatisfied
+        || assessment.manifestHash === undefined
+        || assessment.outputRoot === undefined
+        || assessment.changeSet === undefined
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "verified offline assessment requires a canonical change set"
+          message: "verified offline assessment requires capsule bindings and a canonical change set"
         });
       }
     } else if (assessment.contractSatisfied || assessment.changeSet !== undefined) {

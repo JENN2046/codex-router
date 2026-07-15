@@ -282,8 +282,10 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "isProxy(bytes)",
       "TYPED_ARRAY_BYTE_LENGTH_GETTER",
       "actualByteLength !== digest.size",
+      "isSensitiveOfflineTreePath",
       "inputTreeManifest.manifest.entries.some",
       "outputTreeManifest.manifest.entries.some",
+      "verified offline assessment requires capsule bindings",
       "hashGovernedFileChangeSetContent",
       "offline-execution-capsule.v1",
       "offline_capsule_receipt_or_nonce_replay"
@@ -306,6 +308,9 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "ownSpeciesGetterCalls",
       "offline_capsule_detached_read",
       "sensitiveReadHashes",
+      "credentials.json",
+      "withoutManifestHash",
+      "withoutOutputRoot",
       "unregistered, proxy, and accessor workers"
     ]),
     governanceBoundaryRecorded: input.governanceRunnerText.includes(

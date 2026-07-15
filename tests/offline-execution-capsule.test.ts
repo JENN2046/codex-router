@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   CapsuleTaskContractSchema,
+  OfflineCapsuleAssessmentSchema,
   ContentTreeManifestSchema,
   InMemoryContentAddressedStore,
   canonicalJsonBytes,
@@ -70,6 +71,11 @@ test("complete input tree becomes a verified-offline canonical GovernedFileChang
   assert.ok(outputManifest.byteLength > 0);
   assert.equal(fixture.receipt.checks[0]?.status, "simulated");
   assert.equal("argv" in (fixture.receipt.checks[0] ?? {}), false);
+
+  const { manifestHash: _manifestHash, ...withoutManifestHash } = assessment;
+  const { outputRoot: _outputRoot, ...withoutOutputRoot } = assessment;
+  assert.equal(OfflineCapsuleAssessmentSchema.safeParse(withoutManifestHash).success, false);
+  assert.equal(OfflineCapsuleAssessmentSchema.safeParse(withoutOutputRoot).success, false);
 });
 
 test("an allowed 100644 create maps to a canonical create change", () => {
@@ -690,6 +696,36 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     sensitive.receipt.outputRoot.hash
   ]);
 
+  const credentialStem = createFixture({
+    inputFiles: [
+      { path: "credentials.json", mode: "100644", content: text("synthetic=fixture\n") },
+      { path: "docs/guide.md", mode: "100644", content: text("old\n") }
+    ]
+  });
+  const credentialStemReadHashes: string[] = [];
+  const credentialStemStore: ContentAddressedStore = {
+    put: (...args) => credentialStem.store.put(...args),
+    read(digest) {
+      credentialStemReadHashes.push(digest.hash);
+      return credentialStem.store.read(digest);
+    }
+  };
+  const credentialStemAssessment = verifyOfflineCapsuleCandidate({
+    store: credentialStemStore,
+    manifest: credentialStem.manifest,
+    receipt: credentialStem.receipt,
+    replayStore: createInMemoryOfflineCapsuleReplayStore(),
+    now: () => verifiedAt
+  });
+  assert.deepEqual(credentialStemAssessment.reasons, [
+    "offline_capsule_sensitive_path_forbidden"
+  ]);
+  assert.deepEqual(credentialStemReadHashes, [
+    credentialStem.manifest.taskDigest.hash,
+    credentialStem.manifest.inputRoot.hash,
+    credentialStem.receipt.outputRoot.hash
+  ]);
+
   const unchangedSensitive = createFixture({
     inputFiles: [
       { path: ".env", mode: "100644", content: text("synthetic=fixture\n") },
@@ -718,7 +754,7 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     inputFiles: [
       { path: "docs/guide.md", mode: "100644", content: text("old\n") },
       {
-        path: "assets/credential.bin",
+        path: "assets/opaque.bin",
         mode: "100644",
         content: new Uint8Array([
           ...text("Bearer synthetic-fixture-value"),
@@ -737,7 +773,7 @@ test("changed binary, credential-like content, sensitive path, and size limits f
       inputFiles: [
         { path: "docs/guide.md", mode: "100644", content: text("old\n") },
         {
-          path: `assets/credential-${encoding}.bin`,
+          path: `assets/encoded-${encoding}.bin`,
           mode: "100644",
           content: utf16Bytes("Bearer synthetic-fixture-value", encoding)
         }
