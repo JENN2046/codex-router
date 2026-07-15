@@ -309,6 +309,8 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "offline_capsule_detached_read",
       "sensitiveReadHashes",
       "credentials.json",
+      "client_secret.json",
+      "oauth-credentials.json",
       "withoutManifestHash",
       "withoutOutputRoot",
       "unregistered, proxy, and accessor workers"

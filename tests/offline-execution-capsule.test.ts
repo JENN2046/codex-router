@@ -696,35 +696,41 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     sensitive.receipt.outputRoot.hash
   ]);
 
-  const credentialStem = createFixture({
-    inputFiles: [
-      { path: "credentials.json", mode: "100644", content: text("synthetic=fixture\n") },
-      { path: "docs/guide.md", mode: "100644", content: text("old\n") }
-    ]
-  });
-  const credentialStemReadHashes: string[] = [];
-  const credentialStemStore: ContentAddressedStore = {
-    put: (...args) => credentialStem.store.put(...args),
-    read(digest) {
-      credentialStemReadHashes.push(digest.hash);
-      return credentialStem.store.read(digest);
-    }
-  };
-  const credentialStemAssessment = verifyOfflineCapsuleCandidate({
-    store: credentialStemStore,
-    manifest: credentialStem.manifest,
-    receipt: credentialStem.receipt,
-    replayStore: createInMemoryOfflineCapsuleReplayStore(),
-    now: () => verifiedAt
-  });
-  assert.deepEqual(credentialStemAssessment.reasons, [
-    "offline_capsule_sensitive_path_forbidden"
-  ]);
-  assert.deepEqual(credentialStemReadHashes, [
-    credentialStem.manifest.taskDigest.hash,
-    credentialStem.manifest.inputRoot.hash,
-    credentialStem.receipt.outputRoot.hash
-  ]);
+  for (const credentialPath of [
+    "credentials.json",
+    "client_secret.json",
+    "oauth-credentials.json"
+  ]) {
+    const credentialStem = createFixture({
+      inputFiles: [
+        { path: credentialPath, mode: "100644", content: text("synthetic=fixture\n") },
+        { path: "docs/guide.md", mode: "100644", content: text("old\n") }
+      ]
+    });
+    const credentialStemReadHashes: string[] = [];
+    const credentialStemStore: ContentAddressedStore = {
+      put: (...args) => credentialStem.store.put(...args),
+      read(digest) {
+        credentialStemReadHashes.push(digest.hash);
+        return credentialStem.store.read(digest);
+      }
+    };
+    const credentialStemAssessment = verifyOfflineCapsuleCandidate({
+      store: credentialStemStore,
+      manifest: credentialStem.manifest,
+      receipt: credentialStem.receipt,
+      replayStore: createInMemoryOfflineCapsuleReplayStore(),
+      now: () => verifiedAt
+    });
+    assert.deepEqual(credentialStemAssessment.reasons, [
+      "offline_capsule_sensitive_path_forbidden"
+    ], credentialPath);
+    assert.deepEqual(credentialStemReadHashes, [
+      credentialStem.manifest.taskDigest.hash,
+      credentialStem.manifest.inputRoot.hash,
+      credentialStem.receipt.outputRoot.hash
+    ], credentialPath);
+  }
 
   const unchangedSensitive = createFixture({
     inputFiles: [

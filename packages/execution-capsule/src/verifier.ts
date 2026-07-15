@@ -31,7 +31,7 @@ import {
 } from "./content-addressed-store.js";
 
 const BINARY_CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
-const SENSITIVE_OFFLINE_FILE_STEM = /^(?:credential|credentials|secret|secrets)(?:[._-].*)?$/u;
+const SENSITIVE_OFFLINE_FILE_TOKEN = /(?:^|[._-])(?:credential|credentials|secret|secrets)(?:[._-]|$)/u;
 const RAW_CREDENTIAL_MATERIAL_PATTERNS = [
   /\bsk-(?:proj-)?[a-z0-9_-]{8,}\b/iu,
   /\bgh[pousr]_[a-z0-9_]{8,}\b/iu,
@@ -517,7 +517,7 @@ function isSensitiveOfflineTreePath(path: string): boolean {
     .normalize("NFKC")
     .toLocaleLowerCase("en-US")
     .split("/")
-    .some((component) => SENSITIVE_OFFLINE_FILE_STEM.test(component));
+    .some((component) => SENSITIVE_OFFLINE_FILE_TOKEN.test(component));
 }
 
 function containsCredentialLikeTaskContent(task: CapsuleTaskContract): boolean {
