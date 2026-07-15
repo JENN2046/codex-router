@@ -81,8 +81,10 @@ npm run test:governance-coverage
 npm run test:governance-properties
 npm run test:app-server:offline-harness
 npm run test:app-server:no-environment-proposal
+npm run test:app-server:runtime-tool-inventory
 npm run audit:app-server:proposal-capability
 npm run audit:app-server:exact-version-security-review
+npm run audit:app-server:runtime-tool-inventory
 npm run docs:governance
 ```
 
@@ -132,12 +134,25 @@ tool inventory is mechanically unbound, so `liveSmokeEligible` and
 `realWorkspaceWriteAuthorized` remain `false`. It does not relax the existing
 App Server preflight.
 
+The runtime tool-inventory contract is the next offline boundary. It accepts
+attestations only from a module-registered attestor, binds a static test
+challenge, runtime process identity, canonical thread/turn request hashes, the full effective
+configuration hash, strict resolved permissions, the exhaustive empty tool
+inventory, absent hooks, empty grants/cached approvals, and an empty versioned
+approval store. The repository ships only a `test_only` fake attestor. A
+passing fixture therefore reports `verified_offline / no_go`; all live and
+workspace-write authorization fields remain `false`, including challenge
+freshness and durable replay protection. A future live candidate
+requires a genuine runtime-owned issuer and a separate independent security
+review before any separately authorized loopback probe.
+
 ## Documentation
 
 - [Architecture](docs/governance/CODEX_EXECUTION_GOVERNANCE_ARCHITECTURE.md)
 - [App Server adapter ADR](docs/governance/decisions/ADR_006_CODEX_APP_SERVER_GOVERNANCE_ADAPTER.md)
 - [Exact-version security review](docs/governance/decisions/ADR_008_APP_SERVER_EXACT_VERSION_SECURITY_REVIEW.md)
 - [No-environment proposal contract](docs/governance/decisions/ADR_009_APP_SERVER_NO_ENVIRONMENT_PROPOSAL_CONTRACT.md)
+- [Runtime tool-inventory attestation](docs/governance/decisions/ADR_010_RUNTIME_TOOL_INVENTORY_ATTESTATION.md)
 - [File-change governance runbook](docs/governance/runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md)
 - [Gate 0 baseline](docs/governance/CODEX_GOVERNANCE_BASELINE.md)
 

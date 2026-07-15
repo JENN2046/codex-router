@@ -178,6 +178,52 @@ local contract and disposable-clone verifier. It does not prove that a live App
 Server has no inherited MCP, web, extension, collaboration, or other tool
 surface, and it never authorizes starting App Server or a client.
 
+## Offline runtime tool-inventory attestation
+
+Validate the next offline trust-boundary contract with:
+
+```bash
+npm run test:app-server:runtime-tool-inventory
+npm run audit:app-server:runtime-tool-inventory
+```
+
+`packages/codex-adapter/src/runtime-tool-inventory-attestation.ts` is internal
+and deliberately has no published facade export. Its trusted-attestor registry
+is module-private. The repository supplies only a `test_only` fake attestor;
+an arbitrary client object is rejected before its `attest()` implementation is
+called.
+
+The fixture binds a static test challenge, process/runtime identity, canonical
+`thread/start` and `turn/start` request hashes, the complete effective-config
+hash, a strict read-only/no-network security projection, resolved permissions,
+the exhaustive empty tool inventory, absent hooks, empty grants and cached
+approvals, and an empty approval-store generation/hash. Any non-empty or
+drifted surface blocks. Accessor/proxy data is rejected without invocation and
+attestation IDs are consumed only within a trusted in-process replay store.
+This does not prove challenge freshness or durable cross-process replay
+protection.
+
+The positive fake fixture reports `verified_offline / no_go`. It always keeps
+`runtimeOwnedIssuerMechanicallyBound`,
+`effectiveToolInventoryMechanicallyBound`,
+`exactRuntimeRequestMechanicallyBound`,
+`challengeFreshnessMechanicallyBound`,
+`durableReplayProtectionMechanicallyBound`, `liveExecutionAuthorized`,
+`liveSmokeEligible`, and `realWorkspaceWriteAuthorized` false. It does not
+start Codex or App Server, connect a client, call a provider, or attempt a
+workspace write.
+
+A future candidate must obtain the same attestation from a genuine
+runtime-owned interface after effective configuration, permission resolution,
+tool registration, hooks, grants, cached approvals, and approval-store state
+are finalized. The issuer must be bound to the exact process receiving the
+hashed requests and prove the inventory is exhaustive. Client declarations,
+wrapper fixtures, config files, and environment variables do not satisfy this
+gate. The future issuer must also supply an unpredictable per-session challenge
+and durable runtime/host replay consumption. Adding a live issuer requires an
+independent security review; any later loopback probe requires separate
+authorization.
+
 The offline decline-only harness is validated with:
 
 ```bash
