@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -306,6 +306,28 @@ test("offline execution capsule boundary maps NodeNext facade targets", async ()
     await rm(cwd, { recursive: true, force: true });
   }
 });
+
+test(
+  "offline execution capsule boundary canonicalizes symlinked facade roots",
+  { skip: process.platform === "win32" },
+  async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "offline-capsule-linked-facade-root-"));
+    try {
+      const repositoryRoot = join(cwd, "repository");
+      const linkedRoot = join(cwd, "repository-link");
+      const publicApiDirectory = join(repositoryRoot, "packages", "public-api", "src");
+      await mkdir(publicApiDirectory, { recursive: true });
+      await writeFile(join(publicApiDirectory, "protocol.ts"), "export const safe = true;\n");
+      await symlink(repositoryRoot, linkedRoot, "dir");
+      const publicApiText = await collectExportedPublicFacadeText(JSON.stringify({
+        exports: { "./protocol": "./dist/packages/public-api/src/protocol.js" }
+      }), linkedRoot);
+      assert.match(publicApiText, /protocol\.ts/u);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  }
+);
 
 test("offline execution capsule boundary fails closed on unmapped local facade targets", async () => {
   await assert.rejects(

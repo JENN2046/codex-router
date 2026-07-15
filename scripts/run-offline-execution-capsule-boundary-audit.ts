@@ -107,7 +107,7 @@ async function collectRepositoryFacadeDependencyClosure(
   cwd: string,
   collectedFiles: Map<string, string>
 ): Promise<void> {
-  const packagesRoot = resolve(cwd, "packages");
+  const packagesRoot = await realpath(resolve(cwd, "packages"));
   if (!isContainedPath(relative(packagesRoot, entryPath))) {
     throw new Error(`offline_capsule_public_facade_outside_package:${relative(cwd, entryPath)}`);
   }
@@ -405,10 +405,19 @@ async function resolveExportedFacadeSourcePath(
     return undefined;
   }
   const repositoryRoot = resolve(cwd);
-  const packagesRoot = resolve(repositoryRoot, "packages");
+  const lexicalPackagesRoot = resolve(repositoryRoot, "packages");
   const unresolvedPath = resolve(repositoryRoot, sourcePath);
-  if (!isContainedPath(relative(packagesRoot, unresolvedPath))) {
+  if (!isContainedPath(relative(lexicalPackagesRoot, unresolvedPath))) {
     return undefined;
+  }
+  let packagesRoot: string;
+  try {
+    packagesRoot = await realpath(lexicalPackagesRoot);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return undefined;
+    }
+    throw error;
   }
   for (const candidate of exportedFacadeSourceCandidates(unresolvedPath)) {
     try {
