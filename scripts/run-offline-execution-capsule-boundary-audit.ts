@@ -95,6 +95,7 @@ export function reviewOfflineExecutionCapsuleBoundary(
   const packageJson = parsePackageJson(input.packageJsonText);
   const packageExports = packageJson?.exports;
   const sourceAnalysis = analyzeCapsuleSource(input.sourceText);
+  const publicApiAnalysis = analyzeCapsuleSource(input.publicApiText);
   const sourceImports = sourceAnalysis.moduleSpecifiers;
   const checks = {
     offlineContractFixed: includesAll(input.sourceText, [
@@ -145,7 +146,11 @@ export function reviewOfflineExecutionCapsuleBoundary(
     ]),
     publicExportAbsent: packageJson !== undefined
       && !containsExecutionCapsuleReference(packageExports)
-      && !input.publicApiText.includes("execution-capsule"),
+      && publicApiAnalysis.parseSucceeded
+      && !publicApiAnalysis.moduleSpecifiers.some(containsExecutionCapsuleReference)
+      && !publicApiAnalysis.hasDynamicImport
+      && !publicApiAnalysis.hasImportEquals
+      && !publicApiAnalysis.hasRequireCall,
     negativeCoverageRecorded: includesAll(input.testText, [
       "tree manifests sort canonically",
       "CAS is immutable",
@@ -212,7 +217,13 @@ function parsePackageJson(text: string): { exports?: unknown } | undefined {
 
 function containsExecutionCapsuleReference(value: unknown): boolean {
   if (typeof value === "string") {
-    return value.toLocaleLowerCase("en-US").includes("execution-capsule");
+    try {
+      return [value, decodeURIComponent(value)].some((candidate) => (
+        candidate.toLocaleLowerCase("en-US").includes("execution-capsule")
+      ));
+    } catch {
+      return true;
+    }
   }
   if (Array.isArray(value)) {
     return value.some(containsExecutionCapsuleReference);
@@ -221,7 +232,7 @@ function containsExecutionCapsuleReference(value: unknown): boolean {
     return false;
   }
   return Object.entries(value).some(([key, target]) => (
-    key.toLocaleLowerCase("en-US").includes("execution-capsule")
+    containsExecutionCapsuleReference(key)
     || containsExecutionCapsuleReference(target)
   ));
 }

@@ -262,6 +262,29 @@ test("offline execution capsule boundary discovers facade files from package exp
   }
 });
 
+test("offline execution capsule boundary parses and constrains public facade module loading", async () => {
+  const input = await collectOfflineExecutionCapsuleBoundaryAuditInput();
+  const scenarios = [
+    'export * from "../execution\\u002dcapsule/src/index.js";',
+    'export * from "../execution%2dcapsule/src/index.js";',
+    'export const load = () => import("../execution-" + "capsule/src/index.js");',
+    'const path = "../execution-capsule/src/index.js"; export const load = () => import(path);',
+    'export const load = () => require("../execution-capsule/src/index.js");',
+    'import capsule = require("../execution-capsule/src/index.js"); export { capsule };',
+    "export * from;"
+  ];
+  for (const publicApiText of scenarios) {
+    const result = reviewOfflineExecutionCapsuleBoundary({
+      ...input,
+      publicApiText: `${publicApiText}\n`
+    });
+    assert.equal(result.status, "blocked", publicApiText);
+    assert.ok(result.reasons.includes(
+      "offline_execution_capsule_boundary_publicExportAbsent"
+    ), publicApiText);
+  }
+});
+
 test("offline execution capsule boundary blocks approval, retain, provider, and remote store coupling", async () => {
   const input = await collectOfflineExecutionCapsuleBoundaryAuditInput();
   const result = reviewOfflineExecutionCapsuleBoundary({

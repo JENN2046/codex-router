@@ -631,6 +631,22 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     "offline_capsule_credential_like_content_forbidden"
   ]);
 
+  for (const encoding of ["utf16le", "utf16be"] as const) {
+    const unchangedUtf16Credential = createFixture({
+      inputFiles: [
+        { path: "docs/guide.md", mode: "100644", content: text("old\n") },
+        {
+          path: `assets/credential-${encoding}.bin`,
+          mode: "100644",
+          content: utf16Bytes("Bearer synthetic-fixture-value", encoding)
+        }
+      ]
+    });
+    assert.deepEqual(verifyFixture(unchangedUtf16Credential).reasons, [
+      "offline_capsule_credential_like_content_forbidden"
+    ], encoding);
+  }
+
   const fileLimit = createFixture({
     targets: ["docs/extra.md", "docs/guide.md"],
     limits: { maxChangedFiles: 1, maxChangedBytes: 4096, maxDiffBytes: 8192 },
@@ -1021,6 +1037,16 @@ function replaceGuide(
 
 function text(value: string): Uint8Array {
   return new TextEncoder().encode(value);
+}
+
+function utf16Bytes(value: string, encoding: "utf16le" | "utf16be"): Uint8Array {
+  return Uint8Array.from([...value].flatMap((character) => {
+    const codeUnit = character.charCodeAt(0);
+    const littleEndian = [codeUnit & 0xff, codeUnit >>> 8];
+    return encoding === "utf16le"
+      ? littleEndian
+      : [littleEndian[1]!, littleEndian[0]!];
+  }));
 }
 
 function entry(path: string, hash: string, size: number) {

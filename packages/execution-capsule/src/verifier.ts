@@ -426,6 +426,13 @@ function containsCredentialLikeTreeContent(files: LoadedContentTreeFile[]): bool
     if (containsCredentialLikeText(bytePreservingText)) {
       return true;
     }
+    const nullStrippedText = bytePreservingText.replaceAll("\u0000", "");
+    if (
+      nullStrippedText !== bytePreservingText
+      && containsCredentialLikeText(nullStrippedText)
+    ) {
+      return true;
+    }
     let text: string;
     try {
       text = new TextDecoder("utf-8", { fatal: true }).decode(file.content);
