@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
+  collectExportedPublicFacadeText,
   collectOfflineExecutionCapsuleBoundaryAuditInput,
   formatOfflineExecutionCapsuleBoundaryAuditResult,
   reviewOfflineExecutionCapsuleBoundary
@@ -218,6 +222,44 @@ test("offline execution capsule boundary blocks process and public export broade
   assert.ok(aliasedExportResult.reasons.includes(
     "offline_execution_capsule_boundary_publicExportAbsent"
   ));
+});
+
+test("offline execution capsule boundary discovers facade files from package exports", async () => {
+  const input = await collectOfflineExecutionCapsuleBoundaryAuditInput();
+  const cwd = await mkdtemp(join(tmpdir(), "offline-capsule-export-facade-"));
+  try {
+    const publicApiDirectory = join(cwd, "packages", "public-api", "src");
+    await mkdir(publicApiDirectory, { recursive: true });
+    await writeFile(join(publicApiDirectory, "protocol.ts"), "export const safe = true;\n");
+    await writeFile(
+      join(publicApiDirectory, "capsule-facade.ts"),
+      'export * from "../../execution-capsule/src/index.js";\n'
+    );
+    const packageJsonText = JSON.stringify({
+      exports: {
+        "./protocol": {
+          types: "./dist/packages/public-api/src/protocol.d.ts",
+          import: "./dist/packages/public-api/src/protocol.js"
+        },
+        "./capsule-facade": "./packages/public-api/src/capsule-facade.ts"
+      }
+    });
+    const publicApiText = await collectExportedPublicFacadeText(packageJsonText, cwd);
+    assert.match(publicApiText, /capsule-facade\.ts/u);
+    assert.match(publicApiText, /execution-capsule/u);
+
+    const result = reviewOfflineExecutionCapsuleBoundary({
+      ...input,
+      packageJsonText,
+      publicApiText
+    });
+    assert.equal(result.status, "blocked");
+    assert.ok(result.reasons.includes(
+      "offline_execution_capsule_boundary_publicExportAbsent"
+    ));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("offline execution capsule boundary blocks approval, retain, provider, and remote store coupling", async () => {

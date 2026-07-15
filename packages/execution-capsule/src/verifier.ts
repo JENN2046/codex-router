@@ -171,7 +171,11 @@ export function verifyOfflineCapsuleCandidate(
       );
     }
     const changedBytes = comparison.changes.reduce(
-      (total, change) => total + change.after.content.byteLength,
+      (total, change) => (
+        total
+        + (change.before?.content.byteLength ?? 0)
+        + change.after.content.byteLength
+      ),
       0
     );
     if (changedBytes > manifest.limits.maxChangedBytes) {

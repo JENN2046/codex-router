@@ -650,6 +650,19 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     "offline_capsule_changed_byte_limit_exceeded"
   ]);
 
+  const shrinkingByteLimit = createFixture({
+    inputFiles: [{
+      path: "docs/guide.md",
+      mode: "100644",
+      content: text("content removed by shrinking rewrite\n")
+    }],
+    limits: { maxChangedFiles: 2, maxChangedBytes: 1, maxDiffBytes: 8192 },
+    transform: (files) => replaceGuide(files, text("x"))
+  });
+  assert.deepEqual(verifyFixture(shrinkingByteLimit).reasons, [
+    "offline_capsule_changed_byte_limit_exceeded"
+  ]);
+
   const diffLimit = createFixture({
     limits: { maxChangedFiles: 2, maxChangedBytes: 4096, maxDiffBytes: 10 }
   });

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { readdir, readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
@@ -62,14 +62,11 @@ export async function collectOfflineExecutionCapsuleBoundaryAuditInput(
   const sourceText = (await Promise.all(sourceFiles.map(async (name) => (
     `// ${name}\n${await readFile(join(sourceDirectory, name), "utf8")}`
   )))).join("\n");
-  const publicApiFiles = ["protocol.ts", "policy.ts", "codex-adapter.ts", "evidence.ts", "provider.ts"];
-  const publicApiText = (await Promise.all(publicApiFiles.map((name) => (
-    readFile(resolve(cwd, "packages/public-api/src", name), "utf8")
-  )))).join("\n");
+  const packageJsonText = await readFile(resolve(cwd, "package.json"), "utf8");
   return {
     sourceText,
-    packageJsonText: await readFile(resolve(cwd, "package.json"), "utf8"),
-    publicApiText,
+    packageJsonText,
+    publicApiText: await collectExportedPublicFacadeText(packageJsonText, cwd),
     testText: await readFile(resolve(cwd, "tests/offline-execution-capsule.test.ts"), "utf8"),
     adrText: await readFile(
       resolve(cwd, "docs/governance/decisions/ADR_011_OFFLINE_EXECUTION_CAPSULE.md"),
@@ -77,6 +74,19 @@ export async function collectOfflineExecutionCapsuleBoundaryAuditInput(
     ),
     governanceRunnerText: await readFile(resolve(cwd, "scripts/run-governance-check.ts"), "utf8")
   };
+}
+
+export async function collectExportedPublicFacadeText(
+  packageJsonText: string,
+  cwd = process.cwd()
+): Promise<string> {
+  const packageJson = parsePackageJson(packageJsonText);
+  const sourcePaths = exportTargetStrings(packageJson?.exports)
+    .map((target) => exportedFacadeSourcePath(target, cwd))
+    .filter((path): path is string => path !== undefined);
+  return (await Promise.all([...new Set(sourcePaths)].sort().map(async (path) => (
+    `// ${relative(cwd, path)}\n${await readFile(path, "utf8")}`
+  )))).join("\n");
 }
 
 export function reviewOfflineExecutionCapsuleBoundary(
@@ -214,6 +224,52 @@ function containsExecutionCapsuleReference(value: unknown): boolean {
     key.toLocaleLowerCase("en-US").includes("execution-capsule")
     || containsExecutionCapsuleReference(target)
   ));
+}
+
+function exportTargetStrings(value: unknown): string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap(exportTargetStrings);
+  }
+  if (value === null || typeof value !== "object") {
+    return [];
+  }
+  return Object.values(value).flatMap(exportTargetStrings);
+}
+
+function exportedFacadeSourcePath(target: string, cwd: string): string | undefined {
+  let sourcePath = target.replaceAll("\\", "/");
+  if (sourcePath.startsWith("./")) {
+    sourcePath = sourcePath.slice(2);
+  }
+  if (sourcePath.startsWith("dist/")) {
+    sourcePath = sourcePath.slice("dist/".length);
+  }
+  if (!sourcePath.startsWith("packages/")) {
+    return undefined;
+  }
+  if (sourcePath.endsWith(".d.ts")) {
+    sourcePath = `${sourcePath.slice(0, -".d.ts".length)}.ts`;
+  } else if (sourcePath.endsWith(".js")) {
+    sourcePath = `${sourcePath.slice(0, -".js".length)}.ts`;
+  } else if (!sourcePath.endsWith(".ts")) {
+    return undefined;
+  }
+  const repositoryRoot = resolve(cwd);
+  const packagesRoot = resolve(repositoryRoot, "packages");
+  const absolutePath = resolve(repositoryRoot, sourcePath);
+  const packagesRelativePath = relative(packagesRoot, absolutePath);
+  if (
+    packagesRelativePath === ""
+    || packagesRelativePath === ".."
+    || packagesRelativePath.startsWith(`..${sep}`)
+    || isAbsolute(packagesRelativePath)
+  ) {
+    return undefined;
+  }
+  return absolutePath;
 }
 
 function includesAll(text: string, markers: string[]): boolean {
