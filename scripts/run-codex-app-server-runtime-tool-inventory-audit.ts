@@ -2,6 +2,7 @@
 
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   createInMemoryRuntimeToolInventoryAttestationReplayStore,
   createTestOnlyRuntimeToolInventoryAttestor,
@@ -95,4 +96,10 @@ async function main(): Promise<void> {
     : 1;
 }
 
-await main();
+const invokedPath = process.argv[1];
+if (
+  invokedPath !== undefined
+  && pathToFileURL(resolve(invokedPath)).href === import.meta.url
+) {
+  await main();
+}

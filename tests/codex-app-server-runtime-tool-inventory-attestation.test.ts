@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import fixture from "./fixtures/codex-app-server/runtime-tool-inventory/test-only-attestation-v1.json" with { type: "json" };
 import {
@@ -417,6 +418,19 @@ test("fixture itself is strict-schema valid", () => {
 
 test("offline audit CLI reports NO-GO and rejects a tampered fixture", async () => {
   const script = join(process.cwd(), "scripts/run-codex-app-server-runtime-tool-inventory-audit.ts");
+  const imported = await execFileAsync(process.execPath, [
+    "--import",
+    "tsx",
+    "--input-type=module",
+    "--eval",
+    `await import(${JSON.stringify(pathToFileURL(script).href)}); process.stdout.write("imported\\n");`
+  ], {
+    cwd: process.cwd(),
+    env: isolatedCliEnvironment()
+  });
+  assert.equal(imported.stdout, "imported\n");
+  assert.equal(imported.stderr, "");
+
   const success = await execFileAsync(process.execPath, ["--import", "tsx", script], {
     cwd: process.cwd(),
     env: isolatedCliEnvironment()
