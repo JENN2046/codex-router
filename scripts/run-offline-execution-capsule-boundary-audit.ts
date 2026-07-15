@@ -258,6 +258,12 @@ function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
   };
   const visit = (node: ts.Node): void => {
     if (
+      ts.isElementAccessExpression(node)
+      && !isStaticallyKnownPropertyKey(node.argumentExpression)
+    ) {
+      hasFunctionConstructorReference = true;
+    }
+    if (
       (ts.isIdentifier(node) || ts.isStringLiteralLike(node))
       && node.text === "constructor"
     ) {
@@ -372,6 +378,10 @@ function staticStringValue(expression: ts.Expression): string | undefined {
     return parts.join(separator);
   }
   return undefined;
+}
+
+function isStaticallyKnownPropertyKey(expression: ts.Expression): boolean {
+  return ts.isNumericLiteral(expression) || staticStringValue(expression) !== undefined;
 }
 
 function isForbiddenRuntimeIoModule(specifier: string): boolean {

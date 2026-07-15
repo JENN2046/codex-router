@@ -230,7 +230,7 @@ export function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
     return false;
   }
   for (let index = 0; index < left.byteLength; index += 1) {
-    if (left[index] !== right[index]) {
+    if (left.at(index) !== right.at(index)) {
       return false;
     }
   }

@@ -122,6 +122,10 @@ test("offline execution capsule boundary blocks bare builtins, environment acces
       reasons: ["offline_execution_capsule_boundary_noProviderOrHostExecutionCoupling"]
     },
     {
+      source: '(() => {})[String.fromCharCode(99,111,110,115,116,114,117,99,116,111,114)]("return process")();',
+      reasons: ["offline_execution_capsule_boundary_noProviderOrHostExecutionCoupling"]
+    },
+    {
       source: "class DiskCAS {}",
       reasons: ["offline_execution_capsule_boundary_inMemoryContentStoreOnly"]
     },
@@ -148,6 +152,16 @@ test("offline execution capsule boundary blocks bare builtins, environment acces
       assert.ok(result.reasons.includes(reason), `${scenario.source}: ${reason}`);
     }
   }
+});
+
+test("offline execution capsule boundary permits statically known computed data keys", async () => {
+  const input = await collectOfflineExecutionCapsuleBoundaryAuditInput();
+  const result = reviewOfflineExecutionCapsuleBoundary({
+    ...input,
+    sourceText: `${input.sourceText}\nconst safeValue = ({ value: 1 })["value"]; const first = [1][0];`
+  });
+  assert.equal(result.status, "passed");
+  assert.deepEqual(result.reasons, []);
 });
 
 test("offline execution capsule boundary blocks process and public export broadening", async () => {

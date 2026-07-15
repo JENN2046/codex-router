@@ -377,7 +377,7 @@ function addCanonicalPathSetIssues(
   const aliases = new Set<string>();
   let previous: string | undefined;
   for (let index = 0; index < paths.length; index += 1) {
-    const path = paths[index];
+    const path = paths.at(index);
     if (path === undefined) {
       continue;
     }
@@ -450,8 +450,20 @@ function stableJson(input: unknown): string {
   }
   const record = input as Record<string, unknown>;
   return `{${Object.keys(record).sort(compareCodeUnits).map((key) => (
-    `${JSON.stringify(key)}:${stableJson(record[key])}`
+    `${JSON.stringify(key)}:${stableJson(ownDataPropertyValue(record, key))}`
   )).join(",")}}`;
+}
+
+function ownDataPropertyValue(record: Record<string, unknown>, key: string): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(record, key);
+  if (
+    descriptor === undefined
+    || descriptor.get !== undefined
+    || descriptor.set !== undefined
+  ) {
+    throw new Error("offline_capsule_descriptor_input_invalid");
+  }
+  return descriptor.value;
 }
 
 function hasUnpairedUtf16Surrogate(input: string): boolean {
