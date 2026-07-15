@@ -15,6 +15,7 @@ import {
   compareCodeUnits,
   sameCanonicalJson,
   sameContentDigest,
+  type CapsuleTaskContract,
   type ContentDigest,
   type OfflineCapsuleAssessment,
   type OfflineExecutionCapsuleManifest,
@@ -105,6 +106,13 @@ export function verifyOfflineCapsuleCandidate(
     ) {
       return blockedAssessment(
         ["offline_capsule_task_binding_mismatch"],
+        manifest,
+        receipt.outputRoot
+      );
+    }
+    if (containsCredentialLikeTaskContent(task)) {
+      return blockedAssessment(
+        ["offline_capsule_credential_like_content_forbidden"],
         manifest,
         receipt.outputRoot
       );
@@ -414,6 +422,18 @@ function containsCredentialLikeTreeContent(files: LoadedContentTreeFile[]): bool
     }
     return containsCredentialLikeDiffContent(text) || containsRawCredentialMaterial(text);
   });
+}
+
+function containsCredentialLikeTaskContent(task: CapsuleTaskContract): boolean {
+  return [
+    task.taskId,
+    task.instruction,
+    ...task.successCriteria,
+    ...task.outOfScope,
+    ...task.targetPaths
+  ].some((text) => (
+    containsCredentialLikeDiffContent(text) || containsRawCredentialMaterial(text)
+  ));
 }
 
 function toGovernedChange(

@@ -107,7 +107,7 @@ export function reviewOfflineExecutionCapsuleBoundary(
     ]),
     passiveWorkerInputsRequired: includesAll(input.sourceText, [
       "isProxy(worker)",
-      "Reflect.ownKeys(worker)",
+      "ownPassiveKeys(worker)",
       "offline_fake_worker_output_invalid"
     ]),
     sourceImportsAllowlisted: sourceAnalysis.parseSucceeded
@@ -265,7 +265,7 @@ function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
     }
     if (
       (ts.isIdentifier(node) || ts.isStringLiteralLike(node))
-      && node.text === "constructor"
+      && isForbiddenCapabilityPropertyName(node.text)
     ) {
       hasFunctionConstructorReference = true;
     }
@@ -276,7 +276,7 @@ function analyzeCapsuleSource(text: string): CapsuleSourceAnalysis {
         || ts.isParenthesizedExpression(node)
         || ts.isTemplateExpression(node)
       )
-      && staticStringValue(node) === "constructor"
+      && isForbiddenCapabilityPropertyName(staticStringValue(node))
     ) {
       hasFunctionConstructorReference = true;
     }
@@ -384,6 +384,10 @@ function isStaticallyKnownPropertyKey(expression: ts.Expression): boolean {
   return ts.isNumericLiteral(expression) || staticStringValue(expression) !== undefined;
 }
 
+function isForbiddenCapabilityPropertyName(value: string | undefined): boolean {
+  return value === "constructor" || value === "getOwnPropertyDescriptor";
+}
+
 function isForbiddenRuntimeIoModule(specifier: string): boolean {
   return /^(?:node:)?(?:child_process|fs|fs\/promises|net|tls|dgram|http|https|worker_threads)$/u.test(
     specifier
@@ -395,6 +399,7 @@ function isForbiddenAmbientIdentifier(identifier: string): boolean {
     "Bun",
     "Deno",
     "Function",
+    "Reflect",
     "WebSocket",
     "XMLHttpRequest",
     "createConnection",

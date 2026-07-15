@@ -3,6 +3,8 @@ import {
   OfflineExecutionCapsuleManifestSchema,
   assertPassiveJsonValue,
   createOfflineOutputTreeReceipt,
+  ownPassiveKeys,
+  ownStringPropertyDescriptor,
   sameCanonicalJson,
   type CapsuleTaskContract,
   type OfflineExecutionCapsuleManifest,
@@ -154,7 +156,7 @@ function getTrustedFakeWorker(worker: unknown): TrustedFakeWorkerDefinition {
   if (worker === null || typeof worker !== "object" || isProxy(worker)) {
     throw new Error("offline_fake_worker_untrusted");
   }
-  if (Reflect.ownKeys(worker).length !== 0) {
+  if (ownPassiveKeys(worker).length !== 0) {
     throw new Error("offline_fake_worker_untrusted");
   }
   const definition = trustedFakeWorkers.get(worker);
@@ -172,7 +174,7 @@ function validateWorkerOutput(
   }
   const files: OfflineContentTreeFile[] = [];
   for (let index = 0; index < output.length; index += 1) {
-    const slotDescriptor = Object.getOwnPropertyDescriptor(output, String(index));
+    const slotDescriptor = ownStringPropertyDescriptor(output, String(index));
     if (
       slotDescriptor === undefined
       || slotDescriptor.get !== undefined
@@ -189,11 +191,11 @@ function validateWorkerOutput(
     ) {
       throw new Error("offline_fake_worker_output_invalid");
     }
-    const ownKeys = Reflect.ownKeys(file);
+    const ownKeys = ownPassiveKeys(file);
     const stringKeys = ownKeys.filter((key): key is string => typeof key === "string");
-    const pathDescriptor = Object.getOwnPropertyDescriptor(file, "path");
-    const modeDescriptor = Object.getOwnPropertyDescriptor(file, "mode");
-    const contentDescriptor = Object.getOwnPropertyDescriptor(file, "content");
+    const pathDescriptor = ownStringPropertyDescriptor(file, "path");
+    const modeDescriptor = ownStringPropertyDescriptor(file, "mode");
+    const contentDescriptor = ownStringPropertyDescriptor(file, "content");
     if (
       stringKeys.length !== ownKeys.length
       || stringKeys.sort().join("\0") !== "content\0mode\0path"

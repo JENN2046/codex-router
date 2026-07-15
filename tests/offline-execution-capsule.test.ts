@@ -638,6 +638,21 @@ test("changed binary, credential-like content, sensitive path, and size limits f
   assert.deepEqual(verifyFixture(diffLimit).reasons, ["offline_capsule_diff_limit_exceeded"]);
 });
 
+test("credential-like task text is blocked before candidate verification", () => {
+  const tasks = [
+    { ...baseTask(), instruction: "Use Bearer synthetic-fixture-value." },
+    { ...baseTask(), successCriteria: ["Return sk-proj-synthetic-fixture-value."] },
+    { ...baseTask(), outOfScope: ["Never expose ghp_syntheticfixturevalue."] }
+  ];
+
+  for (const task of tasks) {
+    const fixture = createFixture({ task });
+    assert.deepEqual(verifyFixture(fixture).reasons, [
+      "offline_capsule_credential_like_content_forbidden"
+    ]);
+  }
+});
+
 test("unregistered, proxy, and accessor workers are rejected before their code runs", () => {
   const fixture = createFixture({ createReceipt: false });
   let calls = 0;
@@ -779,6 +794,7 @@ interface Fixture {
 
 interface FixtureOptions {
   targets?: string[];
+  task?: ReturnType<typeof baseTask>;
   limits?: OfflineExecutionCapsuleManifest["limits"];
   inputFiles?: TestOnlyFakeWorkerFile[];
   transform?: (
@@ -791,7 +807,7 @@ interface FixtureOptions {
 function createFixture(options: FixtureOptions = {}): Fixture {
   const store = createInMemoryContentAddressedStore();
   const targets = [...(options.targets ?? ["docs/guide.md"])].sort();
-  const task = baseTask(targets);
+  const task = options.task ?? baseTask(targets);
   const taskDigest = storeCapsuleTask(store, task);
   const inputTree = storeContentTree(store, options.inputFiles ?? [
     { path: "assets/unchanged.bin", mode: "100644", content: new Uint8Array([0xff, 0x00]) },

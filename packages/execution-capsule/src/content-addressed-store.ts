@@ -8,6 +8,8 @@ import {
   canonicalJsonBytes,
   createContentTreeManifest,
   digestBytes,
+  ownPassiveKeys,
+  ownStringPropertyDescriptor,
   sameContentDigest,
   type CapsuleTaskContract,
   type ContentDigest,
@@ -247,7 +249,7 @@ function snapshotPassiveFileArray(
   const aliases = new Set<string>();
   const snapshots: OfflineContentTreeFile[] = [];
   for (let index = 0; index < input.length; index += 1) {
-    const elementDescriptor = Object.getOwnPropertyDescriptor(input, String(index));
+    const elementDescriptor = ownStringPropertyDescriptor(input, String(index));
     if (
       elementDescriptor === undefined
       || elementDescriptor.get !== undefined
@@ -259,20 +261,22 @@ function snapshotPassiveFileArray(
     if (file === null || typeof file !== "object" || isProxy(file)) {
       throw new Error("offline_capsule_tree_file_invalid");
     }
-    for (const key of Reflect.ownKeys(file)) {
-      const descriptor = Object.getOwnPropertyDescriptor(file, key);
+    for (const key of ownPassiveKeys(file)) {
+      if (typeof key === "symbol") {
+        throw new Error("offline_capsule_tree_file_accessor");
+      }
+      const descriptor = ownStringPropertyDescriptor(file, key);
       if (
-        typeof key === "symbol"
-        || descriptor === undefined
+        descriptor === undefined
         || descriptor.get !== undefined
         || descriptor.set !== undefined
       ) {
         throw new Error("offline_capsule_tree_file_accessor");
       }
     }
-    const pathDescriptor = Object.getOwnPropertyDescriptor(file, "path");
-    const modeDescriptor = Object.getOwnPropertyDescriptor(file, "mode");
-    const contentDescriptor = Object.getOwnPropertyDescriptor(file, "content");
+    const pathDescriptor = ownStringPropertyDescriptor(file, "path");
+    const modeDescriptor = ownStringPropertyDescriptor(file, "mode");
+    const contentDescriptor = ownStringPropertyDescriptor(file, "content");
     if (
       pathDescriptor === undefined
       || modeDescriptor === undefined

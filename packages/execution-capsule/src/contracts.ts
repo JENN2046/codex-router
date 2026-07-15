@@ -421,11 +421,11 @@ function visitPassiveJsonValue(input: unknown, seen: Set<object>): void {
     throw new Error("offline_capsule_non_plain_input");
   }
   seen.add(input);
-  for (const key of Reflect.ownKeys(input)) {
+  for (const key of ownPassiveKeys(input)) {
     if (typeof key === "symbol") {
       throw new Error("offline_capsule_symbol_key_input");
     }
-    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    const descriptor = ownStringPropertyDescriptor(input, key);
     if (descriptor === undefined) {
       throw new Error("offline_capsule_descriptor_input_invalid");
     }
@@ -455,7 +455,7 @@ function stableJson(input: unknown): string {
 }
 
 function ownDataPropertyValue(record: Record<string, unknown>, key: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(record, key);
+  const descriptor = ownStringPropertyDescriptor(record, key);
   if (
     descriptor === undefined
     || descriptor.get !== undefined
@@ -464,6 +464,27 @@ function ownDataPropertyValue(record: Record<string, unknown>, key: string): unk
     throw new Error("offline_capsule_descriptor_input_invalid");
   }
   return descriptor.value;
+}
+
+export function ownPassiveKeys(input: object): Array<string | symbol> {
+  return [
+    ...Object.getOwnPropertyNames(input),
+    ...Object.getOwnPropertySymbols(input)
+  ];
+}
+
+export function ownStringPropertyDescriptor(
+  input: object,
+  key: string
+): PropertyDescriptor | undefined {
+  for (const [candidate, descriptor] of Object.entries(
+    Object.getOwnPropertyDescriptors(input)
+  )) {
+    if (candidate === key) {
+      return descriptor;
+    }
+  }
+  return undefined;
 }
 
 function hasUnpairedUtf16Surrogate(input: string): boolean {
