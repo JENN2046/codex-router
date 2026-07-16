@@ -3,11 +3,37 @@ import assert from "node:assert/strict";
 import {
   createInMemoryContentAddressedStore,
   loadContentTree,
+  loadContentTreeManifest,
   storeContentTree,
   type ContentAddressedStore,
   type LoadedContentTree,
   type OfflineContentTreeFile
 } from "../packages/execution-capsule/src/content-addressed-store.js";
+import { isCanonicalCapsulePath } from "../packages/execution-capsule/src/contracts.js";
+
+test("capsule prestore path validation covers platform-sensitive aliases", () => {
+  assert.equal(isCanonicalCapsulePath("docs/guide.md"), true);
+  for (const path of [
+    "",
+    ".",
+    "..",
+    "../escape.md",
+    "/absolute.md",
+    "C:/drive.md",
+    "//server/share.md",
+    "docs\\guide.md",
+    "docs/./guide.md",
+    "docs//guide.md",
+    ".git/config",
+    "docs/control\u0000.md",
+    "docs/trailing.",
+    "con.txt",
+    "e\u0301.md",
+    "\ud800.md"
+  ]) {
+    assert.equal(isCanonicalCapsulePath(path), false, path);
+  }
+});
 
 test("tree storage rejects active and malformed file arrays before any CAS put", () => {
   let putCalls = 0;
@@ -41,11 +67,14 @@ test("tree storage rejects active and malformed file arrays before any CAS put",
     new Proxy([validFile()], {}),
     sparseFiles,
     [null],
+    [42],
     [new Proxy(validFile(), {})],
     [symbolFile],
     [accessorFile],
     [{ path: "docs/guide.md", mode: "100644" }],
+    [{ ...validFile(), path: 42 }],
     [{ ...validFile(), mode: "100600" }],
+    [{ ...validFile(), content: [] }],
     [{ ...validFile(), content: new Proxy(text("fixture\n"), {}) }]
   ];
 
@@ -196,6 +225,10 @@ test("validated tree reuse still materializes blobs in the target CAS", () => {
     mode: "100644",
     content: text("fixture\n")
   }]);
+  assert.deepEqual(
+    loadContentTreeManifest(sourceStore, sourceTree.digest),
+    sourceTree
+  );
   const reusable = loadContentTree(sourceStore, sourceTree.digest);
   const targetStore = createInMemoryContentAddressedStore();
   const targetTree = storeContentTree(targetStore, [{

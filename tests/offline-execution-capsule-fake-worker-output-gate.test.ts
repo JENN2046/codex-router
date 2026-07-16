@@ -192,9 +192,14 @@ test("fake worker rejects active and malformed output shapes before any CAS put"
   const scenarios = [
     () => ({}) as unknown as readonly TestOnlyFakeWorkerFile[],
     () => new Proxy([] as TestOnlyFakeWorkerFile[], {}),
+    () => [null as unknown as TestOnlyFakeWorkerFile],
+    () => [42 as unknown as TestOnlyFakeWorkerFile],
+    () => [new Proxy(baseFile(), {})],
     () => [nullPrototypeFile as TestOnlyFakeWorkerFile],
     () => [{ ...baseFile(), extra: true } as unknown as TestOnlyFakeWorkerFile],
+    () => [{ ...baseFile(), path: 42 } as unknown as TestOnlyFakeWorkerFile],
     () => [{ ...baseFile(), mode: "100600" } as unknown as TestOnlyFakeWorkerFile],
+    () => [{ ...baseFile(), content: [] } as unknown as TestOnlyFakeWorkerFile],
     () => [{ ...baseFile(), content: proxiedContent }]
   ];
 
@@ -237,6 +242,49 @@ test("fake worker stores output only after exact prestore budgets pass", () => {
   assert.equal(receipt.executionMode, "test_only_simulated");
   assert.equal(receipt.checks[0]?.checkId, "prestore-boundary");
   assert.equal(putCalls, 2);
+});
+
+test("fake worker preflight accepts unchanged, created, and differently sized files", () => {
+  const unchanged = createOutputFixture({
+    inputFiles: [
+      { path: "docs/guide.md", mode: "100755", content: text("old\n") }
+    ]
+  });
+  const unchangedReceipt = simulate(
+    unchanged.store,
+    unchanged.manifest,
+    createTestOnlyFakeCapsuleWorker({
+      transform: (files) => files,
+      cleanupStatus: "failed"
+    })
+  );
+  assert.equal(unchangedReceipt.cleanup.status, "failed");
+
+  const created = createOutputFixture({
+    allowedTargets: ["docs/guide.md", "docs/new.md"]
+  });
+  const createdReceipt = simulate(
+    created.store,
+    created.manifest,
+    createTestOnlyFakeCapsuleWorker({
+      transform: (files) => [...files, {
+        path: "docs/new.md",
+        mode: "100644",
+        content: text("new fixture\n")
+      }]
+    })
+  );
+  assert.equal(createdReceipt.executionMode, "test_only_simulated");
+
+  const resized = createOutputFixture();
+  const resizedReceipt = simulate(
+    resized.store,
+    resized.manifest,
+    createTestOnlyFakeCapsuleWorker({
+      transform: (files) => replaceGuide(files, text("longer replacement\n"))
+    })
+  );
+  assert.equal(resizedReceipt.executionMode, "test_only_simulated");
 });
 
 interface OutputFixtureOptions {
