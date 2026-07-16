@@ -148,6 +148,7 @@ const GOVERNANCE_CHECKS: readonly GovernanceCheckDefinition[] = [
   auditCheck("agent-task-control-review-boundary", "scripts/run-agent-task-control-review-boundary-audit.ts"),
   auditCheck("agent-task-control-sandbox-boundary", "scripts/run-agent-task-control-sandbox-boundary-audit.ts"),
   auditCheck("sub-agent-runtime-boundary", "scripts/run-sub-agent-runtime-boundary-audit.ts"),
+  auditCheck("offline-execution-capsule-boundary", "scripts/run-offline-execution-capsule-boundary-audit.ts"),
   auditCheck("execution-boundary-current-surface", "scripts/run-execution-boundary-current-surface-audit.ts"),
   auditCheck("controlled-provider-execution-taskbook-boundary", "scripts/run-controlled-provider-execution-taskbook-boundary-audit.ts"),
   auditCheck("controlled-provider-execution-taskbook-review-boundary", "scripts/run-controlled-provider-execution-taskbook-review-boundary-audit.ts"),
