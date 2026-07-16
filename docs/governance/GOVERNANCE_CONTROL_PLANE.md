@@ -108,9 +108,33 @@ The default posture is local, deterministic, inspectable, and non-live:
    summaries rather than raw prompts, responses, patches, or credentials.
 6. Treat every unlisted capability as blocked.
 
-The current freeze excludes ADR 012, a real worker, remote CAS, new App Server
-execution probes, and further capability expansion until
-`R2_GOVERNANCE_INTEGRITY_CLOSEOUT` is completed and reviewed.
+PR #189 merged the first Merge Integrity implementation candidate into `main`
+at `2c723ea181fe1aebb78a9eaf60961a0cb1f7929d`. It did not complete
+`R2_GOVERNANCE_INTEGRITY_CLOSEOUT`: GitHub has no required `Merge Integrity`
+status or repository ruleset, no locked canary has proved platform behavior,
+and structured-lock correctness remains open.
+
+The current authority is `R3_CLOSEOUT_SEQUENCE`, which may not be skipped or
+parallelized:
+
+1. `R3-0` finalizes the post-merge state without code, ruleset, or build changes.
+2. `R3A-1` defines structured merge-lock semantics and tests only.
+3. `R3A-2` requires Jenn's separate authorization for the exact GitHub ruleset
+   and harmless, never-merged locked-canary procedure.
+4. `R3A-3` records closeout only after independent review.
+5. `R3B` inventories the parallel runtime before staged clean-build, core-only
+   artifact, and runtime-import-firewall work.
+
+Before `R3A-2`, the preflight must state the exact ruleset diff, required
+status, administrator-bypass policy, canary sequence, rollback, and sanitized
+evidence. Blocking must be proved through required-status state, ruleset
+evaluation, and PR merge state, not a merge attempt that could unexpectedly
+succeed.
+
+The freeze excludes ADR 012, a real worker, remote CAS, new App Server execution
+probes, real workspace-write, and further capability expansion throughout all
+five R3 stages. Completion of the sequence does not itself authorize later
+expansion.
 
 ## Current Operating Entry Points
 

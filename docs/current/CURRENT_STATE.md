@@ -87,14 +87,39 @@ small PRs:
    covered successful decline plus uncertain-send reconciliation.
 2. PR #187 added capsule prestore output boundaries, corrected the injected
    store trust claim, and added an independent capsule branch-coverage gate.
-3. `docs/current-governance-reanchor` replaces stale current-state navigation,
-   adds ADR 011 to current surfaces, and classifies old routes as history.
-4. `ci/merge-integrity-hardening` remains separately gated because workflow
-   modification requires Jenn's explicit authorization for the concrete diff.
+3. PR #188 replaced stale current-state navigation, added ADR 011 to current
+   surfaces, and classified old routes as history.
+4. PR #189 merged the first Merge Integrity implementation candidate into
+   `main` at merge commit `2c723ea181fe1aebb78a9eaf60961a0cb1f7929d`
+   on 2026-07-16.
 
-Until this closeout is reviewed, do not add ADR 012, a real worker, remote CAS,
-new App Server execution probes, retain/apply promotion, or other execution
-capability expansion.
+PR #189 did not complete the closeout. The `Merge Integrity` status is not a
+required GitHub check because no branch protection or repository ruleset is
+configured, and no real locked canary PR has exercised failure, exact-head
+unlock, comment revocation, head invalidation, or administrator-bypass policy.
+The implementation also requires structured-lock correctness work before any
+platform activation. `R2_GOVERNANCE_INTEGRITY_CLOSEOUT` therefore remains open.
+
+The only current route is `R3_CLOSEOUT_SEQUENCE`, in this fixed order:
+
+1. `R3-0`: post-merge state finalization represented by this state update.
+2. `R3A-1`: structured merge-lock semantics and tests only.
+3. `R3A-2`: separately authorized GitHub ruleset configuration and a harmless,
+   never-merged locked canary.
+4. `R3A-3`: independent review and Merge Integrity closeout.
+5. `R3B`: parallel-runtime inventory followed by staged build and artifact
+   separation.
+
+Do not skip or parallelize these stages. Before `R3A-2`, Jenn must authorize an
+exact preflight covering the ruleset diff, required status, administrator
+bypass policy, canary sequence, rollback, and sanitized evidence. The canary
+must not use a merge attempt that could unexpectedly succeed.
+
+The capability-expansion freeze remains active throughout all five R3 stages.
+Do not add ADR 012, a real worker, remote CAS, new App Server execution probes,
+retain/apply promotion, real workspace-write, or other execution capability
+expansion. Completion of this sequence does not itself authorize later
+expansion.
 
 ## Historical Routes
 
@@ -193,11 +218,15 @@ explicitly simulated, and it cannot authorize merge.
 
 ## Next Governed Step
 
-After `ci/merge-integrity-hardening` is merged and independently reviewed,
-perform the final closeout decision on whether the repository has formed a
-parallel runtime surface. Do not use that review to add ADR 012, a real worker,
-remote CAS, new App Server execution probes, release automation, or any live
-execution authority.
+The next implementation entry is `R3A-1`: replace natural-language merge-lock
+state with structured metadata, define the fail-closed metadata scope, bind an
+unlock to `lockId` plus the exact head and base ref, state the precise
+invalidation conditions, and test positive and negative paths. It must not
+configure a GitHub ruleset or perform a live canary.
+
+After `R3A-1`, stop for Jenn's separate authorization before `R3A-2`. Do not use
+R3 work to add ADR 012, a real worker, remote CAS, new App Server execution
+probes, release automation, or any live execution authority.
 
 
 ## Historical Audit Compatibility
