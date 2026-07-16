@@ -123,7 +123,7 @@ export function storeContentTree(
   const files = snapshotPassiveFileArray(filesInput);
   validateContentTreeFilesBeforeStore(files);
   const reuseEntries = new Map(
-    (reuseFrom?.files ?? []).map((file) => [file.path, file] as const)
+    snapshotPassiveReuseFiles(reuseFrom).map((file) => [file.path, file] as const)
   );
   const entries: ContentTreeEntry[] = files.map((file) => {
     const content = file.content;
@@ -324,6 +324,113 @@ function snapshotPassiveFileArray(
     }
     aliases.add(alias);
     snapshots.push({ path, mode, content: new Uint8Array(content) });
+  }
+  return snapshots;
+}
+
+function snapshotPassiveReuseFiles(
+  input: LoadedContentTree | undefined
+): LoadedContentTreeFile[] {
+  if (input === undefined) {
+    return [];
+  }
+  if (
+    input === null
+    || typeof input !== "object"
+    || isProxy(input)
+    || Object.getPrototypeOf(input) !== Object.prototype
+  ) {
+    throw new Error("offline_capsule_reuse_tree_invalid");
+  }
+  for (const key of ownPassiveKeys(input)) {
+    if (typeof key === "symbol") {
+      throw new Error("offline_capsule_reuse_tree_invalid");
+    }
+    const descriptor = ownStringPropertyDescriptor(input, key);
+    if (
+      descriptor === undefined
+      || descriptor.get !== undefined
+      || descriptor.set !== undefined
+    ) {
+      throw new Error("offline_capsule_reuse_tree_invalid");
+    }
+  }
+  const filesDescriptor = ownStringPropertyDescriptor(input, "files");
+  const filesInput = filesDescriptor?.value as unknown;
+  if (
+    filesDescriptor === undefined
+    || filesDescriptor.get !== undefined
+    || filesDescriptor.set !== undefined
+    || !Array.isArray(filesInput)
+    || isProxy(filesInput)
+    || Object.getPrototypeOf(filesInput) !== Array.prototype
+  ) {
+    throw new Error("offline_capsule_reuse_tree_invalid");
+  }
+
+  const snapshots: LoadedContentTreeFile[] = [];
+  for (let index = 0; index < filesInput.length; index += 1) {
+    const elementDescriptor = ownStringPropertyDescriptor(filesInput, String(index));
+    if (
+      elementDescriptor === undefined
+      || elementDescriptor.get !== undefined
+      || elementDescriptor.set !== undefined
+    ) {
+      throw new Error("offline_capsule_reuse_file_invalid");
+    }
+    const file = elementDescriptor.value as unknown;
+    if (
+      file === null
+      || typeof file !== "object"
+      || isProxy(file)
+      || Object.getPrototypeOf(file) !== Object.prototype
+    ) {
+      throw new Error("offline_capsule_reuse_file_invalid");
+    }
+    for (const key of ownPassiveKeys(file)) {
+      if (typeof key === "symbol") {
+        throw new Error("offline_capsule_reuse_file_invalid");
+      }
+      const descriptor = ownStringPropertyDescriptor(file, key);
+      if (
+        descriptor === undefined
+        || descriptor.get !== undefined
+        || descriptor.set !== undefined
+      ) {
+        throw new Error("offline_capsule_reuse_file_invalid");
+      }
+    }
+    const pathDescriptor = ownStringPropertyDescriptor(file, "path");
+    const modeDescriptor = ownStringPropertyDescriptor(file, "mode");
+    const contentDescriptor = ownStringPropertyDescriptor(file, "content");
+    const digestDescriptor = ownStringPropertyDescriptor(file, "digest");
+    if (
+      pathDescriptor === undefined
+      || modeDescriptor === undefined
+      || contentDescriptor === undefined
+      || digestDescriptor === undefined
+      || typeof pathDescriptor.value !== "string"
+      || (modeDescriptor.value !== "100644" && modeDescriptor.value !== "100755")
+    ) {
+      throw new Error("offline_capsule_reuse_file_invalid");
+    }
+    const content = contentDescriptor.value as unknown;
+    if (isProxy(content) || !(content instanceof Uint8Array)) {
+      throw new Error("offline_capsule_reuse_file_invalid");
+    }
+    let digest: ContentDigest;
+    try {
+      assertPassiveJsonValue(digestDescriptor.value);
+      digest = ContentDigestSchema.parse(digestDescriptor.value);
+    } catch {
+      throw new Error("offline_capsule_reuse_file_invalid");
+    }
+    snapshots.push({
+      path: pathDescriptor.value,
+      mode: modeDescriptor.value,
+      content: new Uint8Array(content),
+      digest: { ...digest }
+    });
   }
   return snapshots;
 }
