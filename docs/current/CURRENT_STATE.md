@@ -125,8 +125,9 @@ The only current route is `R3_CLOSEOUT_SEQUENCE`, in this fixed order:
 3. `R3A-2`: executed and independently accepted with disclosed residual risk.
 4. `R3A-3`: independently reviewed and closed by the R3A-3 closeout record when
    this record enters `main`.
-5. `R3B`: the only next entry point, beginning with read-only parallel-runtime
-   inventory before any staged build or artifact separation.
+5. `R3B`: R3B-1 read-only parallel-runtime inventory is complete. R3B-2A is
+   now limited to the clean-build determinism implementation candidate; no
+   artifact separation follows automatically.
 
 `R2_GOVERNANCE_INTEGRITY_CLOSEOUT` and the Merge Integrity mainline are closed
 by R3A-3. Active Merge Integrity enforcement remains an operational governance
@@ -137,6 +138,28 @@ Do not add ADR 012, a real worker, remote CAS, new App Server execution probes,
 retain/apply promotion, real workspace-write, or other execution capability
 expansion. Completion of this sequence does not itself authorize later
 expansion.
+
+## R3B Build Boundary Status
+
+The accepted R3B-1 read-only inventory established that the five public export
+paths are narrow while the default TypeScript compile and package artifact
+remain broad. Current source includes governance core, historical
+compatibility, and runnable Runtime packages in the default build surface.
+
+R3B-2A is the only active implementation candidate. The default build now
+validates and removes repository-local `dist` before TypeScript compilation.
+The isolated `npm run audit:clean-build-determinism` fixture proves that:
+
+- output from a subsequently deleted synthetic source package is removed;
+- a build starting with stale output and a build starting with empty `dist`
+  produce identical file paths and file digests;
+- `npm pack --dry-run` reports an identical file manifest for both builds.
+
+This is only a determinism claim. It does not establish a core-only artifact:
+`tsconfig.json` still compiles the existing package surface and
+`package.json.files` still includes the existing `dist/packages` tree. R3B-2A
+must stop for independent review and merge authorization; artifact allowlisting
+and import-firewall work are not authorized by this candidate.
 
 ## Historical Routes
 
@@ -245,16 +268,17 @@ separate PR-readiness signal rather than a GitHub ruleset requirement.
 
 ## Next Governed Step
 
-Current status:
+Merge-governance status:
 `R2 CLOSED / R3A-2 PASS_WITH_DISCLOSED_RESIDUAL_RISK / R3A-3 CLOSED`.
 
-The only current entry point is `R3B` parallel-runtime inventory. First map the
-actual dependency closure of the five public entrypoints and classify all
-source packages as governance core, historical compatibility, or runnable
-runtime; record which packages are imported, compiled, emitted to `dist`, and
-included by `npm pack`. Inventory is read-only architecture evidence. It does
-not authorize clean-build changes, core-only artifact changes, import-firewall
-implementation, repository migration, or runtime deletion.
+R3B status:
+`R3B-1 COMPLETE / R3B-2A IMPLEMENTATION CANDIDATE / R3B-2B NOT AUTHORIZED`.
+
+The only current entry point is independent review of the R3B-2A clean-build
+determinism candidate. It may validate stale-output removal and dirty/empty
+build plus pack-manifest equality. It must not claim core-only packaging or
+advance to artifact allowlisting, import-firewall implementation, repository
+migration, or Runtime deletion without a separate governed scope.
 
 Do not use R3A closeout or R3B inventory to modify ruleset `19069032`, add CI
 required contexts, bind a GitHub App, add a merge bot or timer, address Node 20
