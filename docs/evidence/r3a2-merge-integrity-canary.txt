@@ -1,0 +1,3 @@
+R3A-2 Merge Integrity canary.
+Synthetic and non-sensitive.
+This PR must never be merged.
