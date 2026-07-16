@@ -156,8 +156,14 @@ that context explicitly on a clean checkout:
 ```bash
 PR_HEAD_SHA="$(git rev-parse HEAD)"
 PR_HEAD_BRANCH="$(git branch --show-current)"
+EVENT_DIR="$(mktemp -d)"
+EVENT_PATH="$EVENT_DIR/event.json"
+node -e 'require("node:fs").writeFileSync(process.argv[1], JSON.stringify({pull_request:{head:{sha:process.argv[2]}}}))' \
+  "$EVENT_PATH" "$PR_HEAD_SHA"
 env \
+  GITHUB_ACTIONS=true \
   GITHUB_EVENT_NAME=pull_request \
+  GITHUB_EVENT_PATH="$EVENT_PATH" \
   GITHUB_REPOSITORY=JENN2046/codex-router \
   GITHUB_REPOSITORY_ID=1220937060 \
   GITHUB_REF=refs/pull/0/merge \
@@ -165,6 +171,7 @@ env \
   GITHUB_HEAD_REF="$PR_HEAD_BRANCH" \
   GITHUB_SHA="$PR_HEAD_SHA" \
   npm run validate:pr
+rm -rf "$EVENT_DIR"
 ```
 
 The exact PR head must match the structured source-tree digest. No real Codex
