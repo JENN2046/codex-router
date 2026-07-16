@@ -1250,9 +1250,11 @@ function createFixture(options: FixtureOptions = {}): Fixture {
 
 function isFakeWorkerPrestoreRejection(error: unknown): boolean {
   return error instanceof Error && new Set([
+    "offline_fake_worker_changed_binary_forbidden",
     "offline_fake_worker_changed_byte_limit_exceeded",
     "offline_fake_worker_changed_file_limit_exceeded",
     "offline_fake_worker_credential_like_content_forbidden",
+    "offline_fake_worker_diff_limit_exceeded",
     "offline_fake_worker_sensitive_path_forbidden",
     "offline_fake_worker_task_byte_limit_exceeded",
     "offline_fake_worker_total_tree_byte_limit_exceeded",

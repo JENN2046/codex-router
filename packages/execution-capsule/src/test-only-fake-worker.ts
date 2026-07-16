@@ -26,6 +26,7 @@ import {
   containsCredentialLikeTreeContent,
   isSensitiveOfflineTreePath
 } from "./input-safety.js";
+import { createCanonicalUnifiedDiff, decodeChangedText } from "./verifier.js";
 
 declare const testOnlyFakeWorkerBrand: unique symbol;
 
@@ -383,6 +384,7 @@ function assertFakeWorkerChangedBudgetSafe(
   const inputByPath = new Map(inputFiles.map((file) => [file.path, file] as const));
   let remainingChangedFiles = manifest.limits.maxChangedFiles;
   let remainingChangedBytes = manifest.limits.maxChangedBytes;
+  let remainingDiffBytes = manifest.limits.maxDiffBytes;
   for (let index = 0; index < outputFiles.length; index += 1) {
     const outputFile = outputFiles.at(index)!;
     const outputByteLength = outputByteLengths.at(index)!;
@@ -410,6 +412,27 @@ function assertFakeWorkerChangedBudgetSafe(
       throw new Error("offline_fake_worker_changed_byte_limit_exceeded");
     }
     remainingChangedBytes -= inputByteLength + outputByteLength;
+    let unifiedDiff: string;
+    try {
+      unifiedDiff = createCanonicalUnifiedDiff(
+        outputFile.path,
+        inputFile === undefined ? undefined : decodeChangedText(inputFile.content),
+        decodeChangedText(outputFile.content)
+      );
+    } catch (error: unknown) {
+      if (
+        error instanceof Error
+        && error.message === "offline_capsule_changed_binary_forbidden"
+      ) {
+        throw new Error("offline_fake_worker_changed_binary_forbidden");
+      }
+      throw new Error("offline_fake_worker_output_invalid");
+    }
+    const diffBytes = new TextEncoder().encode(unifiedDiff).byteLength;
+    if (diffBytes > remainingDiffBytes) {
+      throw new Error("offline_fake_worker_diff_limit_exceeded");
+    }
+    remainingDiffBytes -= diffBytes;
   }
 }
 

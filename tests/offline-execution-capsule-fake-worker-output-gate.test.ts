@@ -130,6 +130,20 @@ test("fake worker rejects changed budgets before any CAS put", () => {
     (files) => replaceGuide(files, text("new\n")),
     /offline_fake_worker_changed_byte_limit_exceeded/u
   );
+
+  const diffLimit = createOutputFixture({ limits: { maxDiffBytes: 10 } });
+  assertPrestoreRejection(
+    diffLimit,
+    (files) => replaceGuide(files, text("new\n")),
+    /offline_fake_worker_diff_limit_exceeded/u
+  );
+
+  const changedBinary = createOutputFixture();
+  assertPrestoreRejection(
+    changedBinary,
+    (files) => replaceGuide(files, new Uint8Array([0xff, 0x00])),
+    /offline_fake_worker_changed_binary_forbidden/u
+  );
 });
 
 test("fake worker rejects sensitive, credential-like, and invalid output before any CAS put", () => {

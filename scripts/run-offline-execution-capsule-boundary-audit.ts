@@ -280,12 +280,14 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "offline_fake_worker_tree_manifest_byte_limit_exceeded",
       "offline_fake_worker_changed_file_limit_exceeded",
       "offline_fake_worker_changed_byte_limit_exceeded",
+      "offline_fake_worker_diff_limit_exceeded",
       "offline_fake_worker_sensitive_path_forbidden",
       "offline_fake_worker_credential_like_content_forbidden"
     ]) && includesAll(input.testText, [
       "fake worker rejects output tree budgets before any CAS put",
       "fake worker rejects changed budgets before any CAS put",
       "fake worker rejects sensitive, credential-like, and invalid output before any CAS put",
+      "maxDiffBytes: 10",
       "assert.equal(putCalls, 0"
     ]),
     sourceImportsAllowlisted: sourceAnalysis.parseSucceeded

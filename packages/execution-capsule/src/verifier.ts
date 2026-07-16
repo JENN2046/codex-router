@@ -461,7 +461,7 @@ function compareCompleteTrees(
   return { changes, reasons: uniqueStrings(reasons) };
 }
 
-function decodeChangedText(bytes: Uint8Array): string {
+export function decodeChangedText(bytes: Uint8Array): string {
   let text: string;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);

@@ -63,7 +63,8 @@ boundaries:
    target-outside, changed binary, and no-change results fail closed.
    Before the fake worker copies or stores transform output, a prestore gate also
    validates the complete-tree file, byte, and manifest budgets; sensitive paths;
-   credential-like content; and changed-file and changed-byte budgets.
+   credential-like content; and changed-file, changed-byte, and canonical-diff
+   byte budgets.
 6. A successful result is only `verified_offline`. The output receipt is
    simulated contract evidence: its checks are marked `simulated` and cannot
    claim that an argv or real check ran. It does not enter `PreviewReceipt`,
