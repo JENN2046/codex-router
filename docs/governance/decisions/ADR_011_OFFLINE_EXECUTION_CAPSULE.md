@@ -4,6 +4,7 @@ status: accepted
 date: 2026-07-15
 validation:
   - node --import tsx --test tests/offline-execution-capsule.test.ts
+  - npm run test:coverage:offline-execution-capsule
   - npm run governance -- audit offline-execution-capsule-boundary
   - npm run docs:governance
   - npm run typecheck
@@ -40,9 +41,14 @@ boundaries:
    stored in the content-addressed store must use exact canonical JSON bytes.
    Tree entries permit only regular files; existing `100644` and `100755`
    files may remain, updates must preserve mode, and creates must use `100644`.
-3. The only store implementation is in memory. It copies on write and read,
-   verifies SHA-256 and size on every consumption, rejects missing or corrupt
-   data, and reuses an unchanged blob digest in the output manifest.
+3. The only store implementation shipped by this module is in memory. It copies
+   on write and read, verifies SHA-256 and size on every consumption, rejects
+   missing or corrupt data, and reuses an unchanged blob digest in the output
+   manifest. The internal `ContentAddressedStore` interface still accepts a
+   caller-injected implementation so tests can observe corruption and I/O
+   boundaries. Caller-injected store side effects are not mechanically excluded;
+   the boundary audit reports this limitation instead of treating the interface
+   as an in-memory-only runtime guarantee.
 4. The fake worker is registered through a module-private `WeakMap`. Arbitrary
    objects, proxies, accessors, executable output objects, and unregistered
    workers are rejected before caller code can be invoked. Registration marks
@@ -55,6 +61,10 @@ boundaries:
    mode stability, text encoding, credential-like content, sensitive paths,
    file/byte/diff limits, and canonical change hashing. Delete, rename,
    target-outside, changed binary, and no-change results fail closed.
+   Before the fake worker copies or stores transform output, a prestore gate also
+   validates the complete-tree file, byte, and manifest budgets; sensitive paths;
+   credential-like content; and changed-file, changed-byte, and canonical-diff
+   byte budgets.
 6. A successful result is only `verified_offline`. The output receipt is
    simulated contract evidence: its checks are marked `simulated` and cannot
    claim that an argv or real check ran. It does not enter `PreviewReceipt`,
@@ -103,6 +113,9 @@ external write.
   all public facade modules.
 - CAS identity and a fake receipt remain contract evidence, not trustworthy
   worker attestation or runtime authorization.
+- The shipped CAS is in-memory-only, while an injected store remains trusted
+  caller code whose filesystem, network, logging, and other side effects are not
+  mechanically excluded.
 - In-process transform determinism and side-effect freedom remain caller-trusted
   test-fixture assumptions, recorded explicitly as mechanically unproven.
 
@@ -110,6 +123,7 @@ external write.
 
 ```bash
 node --import tsx --test tests/offline-execution-capsule.test.ts
+npm run test:coverage:offline-execution-capsule
 npm run governance -- audit offline-execution-capsule-boundary
 npm run docs:governance
 npm run validate:pr

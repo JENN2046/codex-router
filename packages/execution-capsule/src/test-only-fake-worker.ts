@@ -2,6 +2,8 @@ import { isProxy } from "node:util/types";
 import {
   OfflineExecutionCapsuleManifestSchema,
   assertPassiveJsonValue,
+  canonicalJsonBytes,
+  createContentTreeManifest,
   createOfflineOutputTreeReceipt,
   ownPassiveKeys,
   ownStringPropertyDescriptor,
@@ -24,6 +26,7 @@ import {
   containsCredentialLikeTreeContent,
   isSensitiveOfflineTreePath
 } from "./input-safety.js";
+import { createCanonicalUnifiedDiff, decodeChangedText } from "./verifier.js";
 
 declare const testOnlyFakeWorkerBrand: unique symbol;
 
@@ -66,6 +69,12 @@ interface TrustedFakeWorkerDefinition {
     summary: string;
   }>;
 }
+
+const TYPED_ARRAY_BYTE_LENGTH_GETTER = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),
+  "byteLength"
+)?.get;
+const TYPED_ARRAY_AT = Uint8Array.prototype.at;
 
 const trustedFakeWorkers = new WeakMap<object, TrustedFakeWorkerDefinition>();
 
@@ -139,6 +148,12 @@ export function simulateOfflineCapsuleCandidate(
     throw new Error("offline_fake_worker_transform_failed");
   }
   const outputFiles = validateWorkerOutput(output);
+  assertFakeWorkerOutputPrestoreSafe(
+    outputFiles,
+    inputTree.files,
+    inputTreeManifest.manifest,
+    manifest
+  );
   const outputTree = storeContentTree(input.store, outputFiles, inputTree);
   const completedAt = input.now();
 
@@ -282,10 +297,184 @@ function validateWorkerOutput(
     files.push({
       path,
       mode,
-      content: new Uint8Array(content)
+      content
     });
   }
   return files;
+}
+
+function assertFakeWorkerOutputPrestoreSafe(
+  outputFiles: readonly OfflineContentTreeFile[],
+  inputFiles: readonly OfflineContentTreeFile[],
+  inputTreeManifest: ContentTreeManifest,
+  manifest: OfflineExecutionCapsuleManifest
+): void {
+  let remainingFiles = manifest.limits.maxTotalTreeFiles
+    - inputTreeManifest.entries.length;
+  let remainingTreeBytes = manifest.limits.maxTotalTreeBytes;
+  for (const entry of inputTreeManifest.entries) {
+    if (entry.blob.size > remainingTreeBytes) {
+      throw new Error("offline_fake_worker_total_tree_byte_limit_exceeded");
+    }
+    remainingTreeBytes -= entry.blob.size;
+  }
+
+  const outputByteLengths: number[] = [];
+  for (const file of outputFiles) {
+    if (remainingFiles <= 0) {
+      throw new Error("offline_fake_worker_total_tree_file_limit_exceeded");
+    }
+    remainingFiles -= 1;
+    if (isSensitiveOfflineTreePath(file.path)) {
+      throw new Error("offline_fake_worker_sensitive_path_forbidden");
+    }
+    const byteLength = readPassiveUint8ArrayByteLength(file.content);
+    if (byteLength > remainingTreeBytes) {
+      throw new Error("offline_fake_worker_total_tree_byte_limit_exceeded");
+    }
+    remainingTreeBytes -= byteLength;
+    outputByteLengths.push(byteLength);
+  }
+
+  // Digest hashes have a fixed width, so placeholder hashes plus the real byte
+  // lengths produce the exact canonical output-manifest byte length without
+  // copying or storing transform output.
+  const placeholderHash = "0".repeat(64);
+  let outputManifest: ContentTreeManifest;
+  try {
+    outputManifest = createContentTreeManifest(outputFiles.map((file, index) => ({
+      path: file.path,
+      nodeType: "regular_file" as const,
+      mode: file.mode,
+      blob: {
+        algorithm: "sha256" as const,
+        hash: placeholderHash,
+        size: outputByteLengths.at(index)!
+      }
+    })));
+  } catch {
+    throw new Error("offline_fake_worker_output_invalid");
+  }
+  if (canonicalJsonBytes(outputManifest).byteLength > manifest.limits.maxTreeManifestBytes) {
+    throw new Error("offline_fake_worker_tree_manifest_byte_limit_exceeded");
+  }
+
+  assertFakeWorkerChangedBudgetSafe(outputFiles, outputByteLengths, inputFiles, manifest);
+  try {
+    if (containsCredentialLikeTreeContent(outputFiles)) {
+      throw new Error("offline_fake_worker_credential_like_content_forbidden");
+    }
+  } catch (error: unknown) {
+    if (
+      error instanceof Error
+      && error.message === "offline_fake_worker_credential_like_content_forbidden"
+    ) {
+      throw error;
+    }
+    throw new Error("offline_fake_worker_output_invalid");
+  }
+}
+
+function assertFakeWorkerChangedBudgetSafe(
+  outputFiles: readonly OfflineContentTreeFile[],
+  outputByteLengths: readonly number[],
+  inputFiles: readonly OfflineContentTreeFile[],
+  manifest: OfflineExecutionCapsuleManifest
+): void {
+  const inputByPath = new Map(inputFiles.map((file) => [file.path, file] as const));
+  let remainingChangedFiles = manifest.limits.maxChangedFiles;
+  let remainingChangedBytes = manifest.limits.maxChangedBytes;
+  let remainingDiffBytes = manifest.limits.maxDiffBytes;
+  for (let index = 0; index < outputFiles.length; index += 1) {
+    const outputFile = outputFiles.at(index)!;
+    const outputByteLength = outputByteLengths.at(index)!;
+    const inputFile = inputByPath.get(outputFile.path);
+    if (
+      inputFile !== undefined
+      && samePassiveBytes(
+        inputFile.content,
+        outputFile.content,
+        inputFile.content.byteLength,
+        outputByteLength
+      )
+    ) {
+      continue;
+    }
+    if (remainingChangedFiles === 0) {
+      throw new Error("offline_fake_worker_changed_file_limit_exceeded");
+    }
+    remainingChangedFiles -= 1;
+    const inputByteLength = inputFile?.content.byteLength ?? 0;
+    if (
+      inputByteLength > remainingChangedBytes
+      || outputByteLength > remainingChangedBytes - inputByteLength
+    ) {
+      throw new Error("offline_fake_worker_changed_byte_limit_exceeded");
+    }
+    remainingChangedBytes -= inputByteLength + outputByteLength;
+    let unifiedDiff: string;
+    try {
+      unifiedDiff = createCanonicalUnifiedDiff(
+        outputFile.path,
+        inputFile === undefined ? undefined : decodeChangedText(inputFile.content),
+        decodeChangedText(outputFile.content)
+      );
+    } catch (error: unknown) {
+      if (
+        error instanceof Error
+        && error.message === "offline_capsule_changed_binary_forbidden"
+      ) {
+        throw new Error("offline_fake_worker_changed_binary_forbidden");
+      }
+      throw new Error("offline_fake_worker_output_invalid");
+    }
+    const diffBytes = new TextEncoder().encode(unifiedDiff).byteLength;
+    if (diffBytes > remainingDiffBytes) {
+      throw new Error("offline_fake_worker_diff_limit_exceeded");
+    }
+    remainingDiffBytes -= diffBytes;
+  }
+}
+
+function readPassiveUint8ArrayByteLength(content: Uint8Array): number {
+  if (TYPED_ARRAY_BYTE_LENGTH_GETTER === undefined) {
+    throw new Error("offline_fake_worker_output_invalid");
+  }
+  let byteLength: unknown;
+  try {
+    byteLength = TYPED_ARRAY_BYTE_LENGTH_GETTER.call(content);
+    TYPED_ARRAY_AT.call(content, 0);
+  } catch {
+    throw new Error("offline_fake_worker_output_invalid");
+  }
+  if (!Number.isSafeInteger(byteLength) || (byteLength as number) < 0) {
+    throw new Error("offline_fake_worker_output_invalid");
+  }
+  return byteLength as number;
+}
+
+function samePassiveBytes(
+  left: Uint8Array,
+  right: Uint8Array,
+  leftByteLength: number,
+  rightByteLength: number
+): boolean {
+  if (leftByteLength !== rightByteLength) {
+    return false;
+  }
+  try {
+    for (let index = 0; index < leftByteLength; index += 1) {
+      if (
+        TYPED_ARRAY_AT.call(left, index)
+        !== TYPED_ARRAY_AT.call(right, index)
+      ) {
+        return false;
+      }
+    }
+  } catch {
+    throw new Error("offline_fake_worker_output_invalid");
+  }
+  return true;
 }
 
 function isTimestampWithinManifest(

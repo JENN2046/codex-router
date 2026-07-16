@@ -152,6 +152,17 @@ test("tree manifests sort canonically, bind every entry, and reject aliases", ()
   for (const paths of [
     ["docs/A.md", "docs/a.md"],
     ["docs/a.md", "docs/a.md"],
+    [""],
+    ["."],
+    [".."],
+    ["../guide.md"],
+    ["/absolute.md"],
+    ["C:/absolute.md"],
+    ["//server/share.md"],
+    ["docs//guide.md"],
+    ["docs/./guide.md"],
+    ["docs/<unsafe>.md"],
+    ["docs/CON"],
     ["docs/e\u0301.md"],
     ["docs/../guide.md"],
     ["docs\\guide.md"],
@@ -1216,7 +1227,7 @@ function createFixture(options: FixtureOptions = {}): Fixture {
     try {
       fixture.receipt = simulateWithWorker(fixture, worker);
     } catch (error: unknown) {
-      if (!isFakeWorkerInputSafetyRejection(error)) {
+      if (!isFakeWorkerPrestoreRejection(error)) {
         throw error;
       }
       const transform = options.transform ?? ((input) => replaceGuide(input, text("new\n")));
@@ -1237,9 +1248,13 @@ function createFixture(options: FixtureOptions = {}): Fixture {
   return fixture;
 }
 
-function isFakeWorkerInputSafetyRejection(error: unknown): boolean {
+function isFakeWorkerPrestoreRejection(error: unknown): boolean {
   return error instanceof Error && new Set([
+    "offline_fake_worker_changed_binary_forbidden",
+    "offline_fake_worker_changed_byte_limit_exceeded",
+    "offline_fake_worker_changed_file_limit_exceeded",
     "offline_fake_worker_credential_like_content_forbidden",
+    "offline_fake_worker_diff_limit_exceeded",
     "offline_fake_worker_sensitive_path_forbidden",
     "offline_fake_worker_task_byte_limit_exceeded",
     "offline_fake_worker_total_tree_byte_limit_exceeded",

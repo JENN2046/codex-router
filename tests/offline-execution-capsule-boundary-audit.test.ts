@@ -18,7 +18,8 @@ test("offline execution capsule boundary audit passes for the internal test-only
   assert.deepEqual(result.reasons, []);
   assert.ok(Object.values(result.checks).every(Boolean));
   assert.equal(result.summary.executionMode, "test_only_simulated");
-  assert.equal(result.summary.contentStoreMode, "in_memory_only");
+  assert.equal(result.summary.shippedContentStoreImplementation, "in_memory_only");
+  assert.equal(result.summary.injectedStoreSideEffectsMechanicallyExcluded, false);
   assert.equal(result.summary.publicExported, false);
   assert.equal(result.summary.liveExecutionAuthorized, false);
   assert.equal(result.summary.autoApprovalEligible, false);
@@ -66,6 +67,24 @@ test("offline execution capsule boundary requires fake-worker input safety gates
   assert.equal(result.status, "blocked");
   assert.ok(result.reasons.includes(
     "offline_execution_capsule_boundary_fakeWorkerInputSafetyGated"
+  ));
+});
+
+test("offline execution capsule boundary requires fake-worker output prestore gates", async () => {
+  const input = await collectOfflineExecutionCapsuleBoundaryAuditInput();
+  const weakenedSource = input.sourceText.replace(
+    "assertFakeWorkerOutputPrestoreSafe(\n    outputFiles,",
+    "void (\n    outputFiles,"
+  );
+  assert.notEqual(weakenedSource, input.sourceText);
+
+  const result = reviewOfflineExecutionCapsuleBoundary({
+    ...input,
+    sourceText: weakenedSource
+  });
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes(
+    "offline_execution_capsule_boundary_fakeWorkerOutputPrestoreSafetyGated"
   ));
 });
 
@@ -127,7 +146,9 @@ test("offline execution capsule boundary blocks bare builtins, environment acces
     },
     {
       source: "class DiskCas {}",
-      reasons: ["offline_execution_capsule_boundary_inMemoryContentStoreOnly"]
+      reasons: [
+        "offline_execution_capsule_boundary_shippedContentStoreImplementationInMemoryOnly"
+      ]
     },
     {
       source: "const ambient = process.env.OFFLINE_CAPSULE_FIXTURE_SECRET;",
@@ -179,19 +200,27 @@ test("offline execution capsule boundary blocks bare builtins, environment acces
     },
     {
       source: "class DiskCAS {}",
-      reasons: ["offline_execution_capsule_boundary_inMemoryContentStoreOnly"]
+      reasons: [
+        "offline_execution_capsule_boundary_shippedContentStoreImplementationInMemoryOnly"
+      ]
     },
     {
       source: "class DiskStore {}",
-      reasons: ["offline_execution_capsule_boundary_inMemoryContentStoreOnly"]
+      reasons: [
+        "offline_execution_capsule_boundary_shippedContentStoreImplementationInMemoryOnly"
+      ]
     },
     {
       source: "class/* capsule */DiskStore {}",
-      reasons: ["offline_execution_capsule_boundary_inMemoryContentStoreOnly"]
+      reasons: [
+        "offline_execution_capsule_boundary_shippedContentStoreImplementationInMemoryOnly"
+      ]
     },
     {
       source: "const diskStore = class {};",
-      reasons: ["offline_execution_capsule_boundary_inMemoryContentStoreOnly"]
+      reasons: [
+        "offline_execution_capsule_boundary_shippedContentStoreImplementationInMemoryOnly"
+      ]
     }
   ];
   for (const scenario of scenarios) {
@@ -431,7 +460,7 @@ class RemoteContentAddressedStore {}`
   });
   assert.equal(result.status, "blocked");
   assert.ok(result.reasons.includes(
-    "offline_execution_capsule_boundary_inMemoryContentStoreOnly"
+    "offline_execution_capsule_boundary_shippedContentStoreImplementationInMemoryOnly"
   ));
   assert.ok(result.reasons.includes(
     "offline_execution_capsule_boundary_noProviderOrHostExecutionCoupling"
