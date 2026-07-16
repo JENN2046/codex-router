@@ -238,9 +238,17 @@ test("CI hardening pins actions, narrows permissions, and names Canary risk", as
     "edited",
     "ready_for_review"
   ]);
+  assert.deepEqual(ci.on.pull_request_target?.types, ci.on.pull_request?.types);
   const mergeIntegrity = ci.jobs["merge-integrity"];
   assert.ok(mergeIntegrity);
-  assert.equal(mergeIntegrity?.name, "Merge Integrity");
+  assert.equal(
+    mergeIntegrity?.name,
+    "Merge Integrity (${{ github.event_name }})"
+  );
+  assert.equal(
+    mergeIntegrity?.if,
+    "github.event_name == 'pull_request_target'"
+  );
   assert.deepEqual(mergeIntegrity?.permissions, {
     contents: "read",
     "pull-requests": "read"
@@ -250,6 +258,30 @@ test("CI hardening pins actions, narrows permissions, and names Canary risk", as
     && step.env?.MERGE_INTEGRITY_ALLOWED_APPROVERS === "${{ github.repository_owner }}"
     && step.env?.GITHUB_TOKEN === "${{ github.token }}"
   ));
+  const trustedCheckout = mergeIntegrity?.steps.find((step) =>
+    step.name === "Check out trusted base revision"
+  );
+  assert.equal(trustedCheckout?.uses, PINNED_ACTIONS.checkout);
+  assert.equal(
+    trustedCheckout?.with?.ref,
+    "${{ github.event.pull_request.base.sha }}"
+  );
+  assert.equal(trustedCheckout?.with?.["persist-credentials"], false);
+
+  const ordinaryJobNames = Object.keys(ci.jobs).filter((name) =>
+    name !== "merge-integrity" && name !== "evidence"
+  );
+  for (const name of ordinaryJobNames) {
+    assert.equal(
+      ci.jobs[name]?.if,
+      "github.event_name != 'pull_request_target'",
+      `${name} must not execute in the privileged event context`
+    );
+  }
+  assert.equal(
+    ci.jobs.evidence?.if,
+    "${{ always() && github.event_name != 'pull_request_target' }}"
+  );
   assert.equal(
     ci.jobs.canary?.name,
     "Canary (${{ matrix.risk }}, Node ${{ matrix.node }})"
@@ -326,13 +358,16 @@ function event(body: string): Record<string, unknown> {
 }
 
 interface WorkflowStep {
+  name?: string;
   uses?: string;
   run?: string;
   env?: Record<string, string>;
+  with?: Record<string, string | number | boolean>;
 }
 
 interface WorkflowJob {
   name?: string;
+  if?: string;
   permissions?: Record<string, string>;
   steps: WorkflowStep[];
 }
@@ -343,9 +378,14 @@ interface Workflow {
       branches: string[];
       types?: string[];
     };
+    pull_request_target?: {
+      branches: string[];
+      types?: string[];
+    };
   };
   permissions?: Record<string, string>;
   jobs: Record<string, WorkflowJob> & {
     canary?: WorkflowJob;
+    evidence?: WorkflowJob;
   };
 }

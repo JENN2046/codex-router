@@ -184,7 +184,7 @@ test("CI runs governance audits before evidence collection", async () => {
   assert.deepEqual(workflow.on.push.branches, ["main"]);
   assert.deepEqual(workflow.on.pull_request.branches, ["main"]);
   assert.equal(stateSyncJob.needs, "test");
-  assert.equal(stateSyncJob.if, undefined);
+  assert.equal(stateSyncJob.if, "github.event_name != 'pull_request_target'");
   assert.equal(checkoutStep?.with?.["fetch-depth"], 0);
   assert.equal(checkoutStep?.with?.ref, "${{ github.sha }}");
   assert.ok(gateStep?.run?.includes('${{ github.event_name }}'));
@@ -207,7 +207,10 @@ test("CI runs governance audits before evidence collection", async () => {
   assert.equal(auditStep?.if, "steps.state-sync-gate.outputs.run_audit == 'true'");
   assert.ok(auditStep);
   assert.equal(executionBoundaryJob.needs, "test");
-  assert.equal(executionBoundaryJob.if, undefined);
+  assert.equal(
+    executionBoundaryJob.if,
+    "github.event_name != 'pull_request_target'"
+  );
   assert.ok(executionBoundaryJob.steps.some((step) => step.run === "npm ci"));
   assert.ok(executionBoundaryJob.steps.some(
     (step) => step.run === "npm run governance -- audit execution-boundary-current-surface"
