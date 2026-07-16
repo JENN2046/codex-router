@@ -47,7 +47,7 @@ authorize execution.
 | `EVIDENCE_POLICY.md` | Evidence retention and redaction boundary. |
 | `THREAT_MODEL.md` | Current threat and control map. |
 | `CHANGE_CONTROL.md` | Requirements for changing a governance boundary. |
-| `MERGE_INTEGRITY.md` | First implementation candidate for merge-lock evaluation; it is not active enforcement until structured semantics, a required ruleset status, and a locked canary are independently established. |
+| `MERGE_INTEGRITY.md` | Structured protected-path lock and exact-head unlock implementation candidate; it is not active platform enforcement until a required ruleset status and locked canary are separately authorized and established. |
 | `WORKSPACE_WRITE_RELEASE_GATE.md` | Defensive promotion stop; not a workspace-write roadmap or permit. |
 | ADR 006-011 | Accepted App Server and offline-contract decisions listed in the current governance surface. |
 | App Server file-change runbook | Current deterministic harness procedure and live-execution stop. |
@@ -76,7 +76,7 @@ external side effect.
 | Real workspace-write or external write | blocked | No | Offline fixtures, local temporary repositories, fake canaries, and permits do not promote this class. |
 | Release, deploy, publish, tag, production mutation | blocked by default | No | Requires a separately authorized release path and passing release gates. |
 | Secret, credential, token, cookie, env, provider-auth mutation | blocked by default | No | Never expose values; any named mutation requires explicit authorization. |
-| Pull-request merge authorization | implementation candidate / not platform-enforced | No merge from tests alone | Current checks are evidence only: structured-lock semantics remain open, and GitHub does not require the status. |
+| Pull-request merge authorization | structured implementation candidate / not platform-enforced | No merge from tests alone | Protected paths require one exact structured lock; unlock binds its digest, repository, PR, base, head, author, and unedited GitHub comment timestamps. GitHub still does not require the status. |
 
 ## Accepted Decision Chain
 
@@ -112,13 +112,14 @@ PR #189 merged the first Merge Integrity implementation candidate into `main`
 at `2c723ea181fe1aebb78a9eaf60961a0cb1f7929d`. It did not complete
 `R2_GOVERNANCE_INTEGRITY_CLOSEOUT`: GitHub has no required `Merge Integrity`
 status or repository ruleset, no locked canary has proved platform behavior,
-and structured-lock correctness remains open.
+and the structured-lock source candidate still requires current-head review.
 
 The current authority is `R3_CLOSEOUT_SEQUENCE`, which may not be skipped or
 parallelized:
 
 1. `R3-0` finalizes the post-merge state without code, ruleset, or build changes.
-2. `R3A-1` defines structured merge-lock semantics and tests only.
+2. `R3A-1` defines structured merge-lock semantics and tests only; its source
+   candidate does not configure repository rules or prove platform closure.
 3. `R3A-2` requires Jenn's separate authorization for the exact GitHub ruleset
    and harmless, never-merged locked-canary procedure.
 4. `R3A-3` records closeout only after independent review.

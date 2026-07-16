@@ -1,8 +1,18 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
+const LOCK_MARKER = "codex-router-merge-lock:v1";
+const LOCK_BLOCK = new RegExp(
+  String.raw`<!--\s*${LOCK_MARKER}\s*\r?\n([\s\S]*?)\r?\n\s*-->`,
+  "g"
+);
+const LOCK_PREFIX = new RegExp(
+  String.raw`<!--\s*${LOCK_MARKER}`,
+  "g"
+);
 const AUTHORIZATION_MARKER = "codex-router-merge-authorization:v1";
 const AUTHORIZATION_BLOCK = new RegExp(
   String.raw`<!--\s*${AUTHORIZATION_MARKER}\s*\r?\n([\s\S]*?)\r?\n\s*-->`,
@@ -17,32 +27,49 @@ const GITHUB_PAGE_SIZE = 100;
 const AUTHORIZATION_CLOCK_SKEW_MS = 60_000;
 const AUTHORIZATION_MAX_AGE_MS = 15 * 60_000;
 export const MERGE_INTEGRITY_STATUS_CONTEXT = "Merge Integrity";
-
-const LOCK_MARKERS = [
-  { id: "must_remain_draft", pattern: /\bmust\s+remain\s+draft\b/iu },
-  { id: "do_not_merge", pattern: /\bdo\s+not\s+merge\b/iu },
-  { id: "dont_merge", pattern: /\bdon['’]t\s+merge\b/iu },
-  { id: "must_keep_draft_zh", pattern: /必须(?:保持|维持)\s*(?:为\s*)?draft/iu },
-  { id: "do_not_merge_zh", pattern: /不得合并/u },
-  { id: "forbid_merge_zh", pattern: /禁止合并/u }
+export const MERGE_LOCK_PROTECTED_PATHS = [
+  ".github/actions/**",
+  ".github/workflows/**",
+  "package-lock.json",
+  "package.json",
+  "scripts/run-governance-check.ts",
+  "scripts/run-merge-integrity-check.ts",
+  "tests/merge-integrity-check.test.ts",
+  "docs/governance/MERGE_INTEGRITY.md",
+  "docs/governance/RELEASE_GATE_MATRIX.md"
 ] as const;
+
+const PROTECTED_PATH_PREFIXES = [
+  ".github/actions/",
+  ".github/workflows/"
+] as const;
+const PROTECTED_EXACT_PATHS = new Set<string>(
+  MERGE_LOCK_PROTECTED_PATHS.filter((path) => !path.endsWith("/**"))
+);
 
 const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
-export interface MergeAuthorizationScope {
-  operation: "merge";
+export interface MergeLockMetadata {
+  schemaVersion: 1;
+  lockId: string;
+  repository: string;
+  pullRequest: number;
   baseRef: string;
+  reason: string;
+  locked: true;
 }
 
 export interface MergeAuthorization {
   schemaVersion: 1;
   decision: "unlock";
+  lockId: string;
+  lockDigest: string;
   repository: string;
   pullRequest: number;
+  baseRef: string;
   headSha: string;
   approver: string;
   approvedAt: string;
-  scope: MergeAuthorizationScope;
 }
 
 export interface MergeIntegrityComment {
@@ -50,6 +77,7 @@ export interface MergeIntegrityComment {
   body: string;
   authorLogin: string;
   authorAssociation: string;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -59,6 +87,7 @@ export interface MergeIntegrityInput {
   baseRef: string;
   headSha: string;
   body: string;
+  changedPaths: string[];
   allowedApprovers: string[];
   comments: MergeIntegrityComment[];
 }
@@ -68,21 +97,39 @@ export interface MergeIntegrityAuthorizationEvidence {
   sourceId: string;
   approver: string;
   approvedAt: string;
-  scope: MergeAuthorizationScope;
+  commentUpdatedAt: string;
+  lockId: string;
+  lockDigest: string;
+  baseRef: string;
   headSha: string;
+}
+
+export interface MergeIntegrityLockEvidence {
+  lockId: string;
+  lockDigest: string;
 }
 
 export interface MergeIntegrityResult {
   status: "passed" | "blocked";
+  lockRequired: boolean;
   lockActive: boolean;
   reason:
-    | "no_active_merge_lock"
+    | "no_merge_lock_required"
     | "merge_lock_authorized"
+    | "merge_lock_metadata_required"
+    | "invalid_merge_lock_metadata"
     | "merge_lock_active"
-    | "invalid_authorization_claim"
+    | "invalid_unlock_claim"
     | "invalid_gate_input";
-  matchedMarkers: string[];
+  protectedPaths: string[];
+  lock?: MergeIntegrityLockEvidence;
   authorization?: MergeIntegrityAuthorizationEvidence;
+}
+
+interface LockBlockParseResult {
+  lock?: MergeLockMetadata;
+  present: boolean;
+  malformed: boolean;
 }
 
 interface AuthorizationBlockParseResult {
@@ -110,31 +157,80 @@ export type MergeIntegrityGateRun =
 
 type FetchLike = typeof fetch;
 
-export function findMergeLockMarkers(body: string): string[] {
-  return LOCK_MARKERS
-    .filter(({ pattern }) => pattern.test(body))
-    .map(({ id }) => id);
+export function isMergeLockProtectedPath(path: string): boolean {
+  return PROTECTED_EXACT_PATHS.has(path)
+    || PROTECTED_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+export function computeMergeLockDigest(lock: MergeLockMetadata): string {
+  const canonical = JSON.stringify({
+    schemaVersion: lock.schemaVersion,
+    lockId: lock.lockId,
+    repository: lock.repository,
+    pullRequest: lock.pullRequest,
+    baseRef: lock.baseRef,
+    reason: lock.reason,
+    locked: lock.locked
+  });
+  return createHash("sha256").update(canonical, "utf8").digest("hex");
 }
 
 export function evaluateMergeIntegrity(
   input: MergeIntegrityInput
 ): MergeIntegrityResult {
-  const matchedMarkers = findMergeLockMarkers(input.body);
+  const protectedPaths = collectProtectedPaths(input.changedPaths);
+  const lockRequired = protectedPaths.length > 0;
+  const parsedLock = parseLockBlock(input.body);
   if (!validGateInput(input)) {
     return {
       status: "blocked",
-      lockActive: matchedMarkers.length > 0,
+      lockRequired,
+      lockActive: parsedLock.present,
       reason: "invalid_gate_input",
-      matchedMarkers
+      protectedPaths
     };
   }
 
-  if (matchedMarkers.length === 0) {
+  if (parsedLock.malformed) {
+    return {
+      status: "blocked",
+      lockRequired,
+      lockActive: true,
+      reason: "invalid_merge_lock_metadata",
+      protectedPaths
+    };
+  }
+
+  if (parsedLock.lock === undefined) {
+    if (lockRequired) {
+      return {
+        status: "blocked",
+        lockRequired: true,
+        lockActive: false,
+        reason: "merge_lock_metadata_required",
+        protectedPaths
+      };
+    }
     return {
       status: "passed",
+      lockRequired: false,
       lockActive: false,
-      reason: "no_active_merge_lock",
-      matchedMarkers
+      reason: "no_merge_lock_required",
+      protectedPaths
+    };
+  }
+
+  const lock = parsedLock.lock;
+  const lockDigest = computeMergeLockDigest(lock);
+  const lockEvidence = { lockId: lock.lockId, lockDigest };
+  if (!validLockBinding(input, lock)) {
+    return {
+      status: "blocked",
+      lockRequired,
+      lockActive: true,
+      reason: "invalid_merge_lock_metadata",
+      protectedPaths,
+      lock: lockEvidence
     };
   }
 
@@ -142,6 +238,11 @@ export function evaluateMergeIntegrity(
     input.allowedApprovers.map(normalizeLogin)
   );
   let trustedMalformedClaim = false;
+  let supersededHeadClaim = false;
+  let validAuthorization: {
+    comment: MergeIntegrityComment;
+    claim: MergeAuthorization;
+  } | undefined;
 
   for (const comment of input.comments) {
     if (
@@ -154,20 +255,49 @@ export function evaluateMergeIntegrity(
     const parsed = parseAuthorizationBlocks(comment.body);
     trustedMalformedClaim ||= parsed.malformed;
     for (const claim of parsed.claims) {
-      if (validCommentAuthorization(input, comment, claim, allowedApprovers)) {
-        return authorizedResult(matchedMarkers, comment.id, claim);
+      if (validCommentAuthorization(
+        input,
+        lock,
+        lockDigest,
+        comment,
+        claim,
+        allowedApprovers
+      )) {
+        validAuthorization ??= { comment, claim };
+      } else if (validSupersededHeadAuthorization(
+        input,
+        lock,
+        lockDigest,
+        comment,
+        claim,
+        allowedApprovers
+      )) {
+        supersededHeadClaim = true;
+      } else {
+        trustedMalformedClaim = true;
       }
-      trustedMalformedClaim = true;
     }
+  }
+
+  if (!trustedMalformedClaim && validAuthorization !== undefined) {
+    return authorizedResult(
+      lockRequired,
+      protectedPaths,
+      lockEvidence,
+      validAuthorization.comment,
+      validAuthorization.claim
+    );
   }
 
   return {
     status: "blocked",
+    lockRequired,
     lockActive: true,
-    reason: trustedMalformedClaim
-      ? "invalid_authorization_claim"
+    reason: trustedMalformedClaim || supersededHeadClaim
+      ? "invalid_unlock_claim"
       : "merge_lock_active",
-    matchedMarkers
+    protectedPaths,
+    lock: lockEvidence
   };
 }
 
@@ -325,22 +455,28 @@ async function collectMergeIntegrityInputForFacts(
     fetchImpl?: FetchLike;
   }
 ): Promise<MergeIntegrityInput> {
+  if (options.token.trim() === "") {
+    throw new Error("github_token_missing_for_changed_file_inventory");
+  }
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const apiUrl = normalizedApiUrl(options.apiUrl);
+  const encodedRepository = encodeRepository(facts.repository);
+  const changedPaths = await fetchChangedPaths(
+    `${apiUrl}/repos/${encodedRepository}/pulls/${facts.pullRequest}/files`,
+    options.token,
+    fetchImpl
+  );
   const baseInput: MergeIntegrityInput = {
     ...facts,
+    changedPaths,
     allowedApprovers: options.allowedApprovers,
     comments: []
   };
 
-  if (findMergeLockMarkers(facts.body).length === 0) {
+  const parsedLock = parseLockBlock(facts.body);
+  if (parsedLock.lock === undefined) {
     return baseInput;
   }
-  if (options.token.trim() === "") {
-    throw new Error("github_token_missing_for_active_merge_lock");
-  }
-
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const apiUrl = normalizedApiUrl(options.apiUrl);
-  const encodedRepository = encodeRepository(facts.repository);
   const comments = await fetchAllPages(
     `${apiUrl}/repos/${encodedRepository}/issues/${facts.pullRequest}/comments`,
     options.token,
@@ -358,34 +494,89 @@ function validGateInput(input: MergeIntegrityInput): boolean {
     && input.pullRequest > 0
     && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/u.test(input.baseRef)
     && isFullSha(input.headSha)
+    && typeof input.body === "string"
+    && input.changedPaths.every(isRepositoryPath)
     && input.allowedApprovers.length > 0
     && input.allowedApprovers.every((login) => /^[A-Za-z0-9-]+$/u.test(login));
 }
 
 function validCommentAuthorization(
   input: MergeIntegrityInput,
+  lock: MergeLockMetadata,
+  lockDigest: string,
   comment: MergeIntegrityComment,
   claim: MergeAuthorization,
   allowedApprovers: Set<string>
 ): boolean {
-  return validCommonAuthorization(input, claim, allowedApprovers)
+  return validCommonAuthorization(
+    input,
+    lock,
+    lockDigest,
+    claim,
+    allowedApprovers
+  )
     && sameSha(claim.headSha, input.headSha)
     && normalizeLogin(claim.approver) === normalizeLogin(comment.authorLogin)
+    && commentWasNotEdited(comment)
+    && authorizationTimeMatches(claim.approvedAt, comment.updatedAt);
+}
+
+function validSupersededHeadAuthorization(
+  input: MergeIntegrityInput,
+  lock: MergeLockMetadata,
+  lockDigest: string,
+  comment: MergeIntegrityComment,
+  claim: MergeAuthorization,
+  allowedApprovers: Set<string>
+): boolean {
+  return validCommonAuthorization(
+    input,
+    lock,
+    lockDigest,
+    claim,
+    allowedApprovers
+  )
+    && !sameSha(claim.headSha, input.headSha)
+    && normalizeLogin(claim.approver) === normalizeLogin(comment.authorLogin)
+    && commentWasNotEdited(comment)
     && authorizationTimeMatches(claim.approvedAt, comment.updatedAt);
 }
 
 function validCommonAuthorization(
   input: MergeIntegrityInput,
+  lock: MergeLockMetadata,
+  lockDigest: string,
   claim: MergeAuthorization,
   allowedApprovers: Set<string>
 ): boolean {
   return claim.schemaVersion === 1
     && claim.decision === "unlock"
+    && claim.lockId === lock.lockId
+    && claim.lockDigest === lockDigest
     && claim.repository === input.repository
     && claim.pullRequest === input.pullRequest
+    && claim.baseRef === input.baseRef
     && allowedApprovers.has(normalizeLogin(claim.approver))
-    && claim.scope.operation === "merge"
-    && claim.scope.baseRef === input.baseRef;
+    && claim.repository === lock.repository
+    && claim.pullRequest === lock.pullRequest
+    && claim.baseRef === lock.baseRef;
+}
+
+function validLockBinding(
+  input: MergeIntegrityInput,
+  lock: MergeLockMetadata
+): boolean {
+  return lock.repository === input.repository
+    && lock.pullRequest === input.pullRequest
+    && lock.baseRef === input.baseRef;
+}
+
+function commentWasNotEdited(comment: MergeIntegrityComment): boolean {
+  const createdMs = Date.parse(comment.createdAt);
+  const updatedMs = Date.parse(comment.updatedAt);
+  return Number.isFinite(createdMs)
+    && Number.isFinite(updatedMs)
+    && createdMs === updatedMs;
 }
 
 function authorizationTimeMatches(declared: string, observed: string): boolean {
@@ -400,97 +591,168 @@ function authorizationTimeMatches(declared: string, observed: string): boolean {
 }
 
 function authorizedResult(
-  matchedMarkers: string[],
-  sourceId: string,
+  lockRequired: boolean,
+  protectedPaths: string[],
+  lock: MergeIntegrityLockEvidence,
+  comment: MergeIntegrityComment,
   claim: MergeAuthorization
 ): MergeIntegrityResult {
   return {
     status: "passed",
+    lockRequired,
     lockActive: true,
     reason: "merge_lock_authorized",
-    matchedMarkers,
+    protectedPaths,
+    lock,
     authorization: {
       source: "comment",
-      sourceId,
+      sourceId: comment.id,
       approver: claim.approver,
       approvedAt: claim.approvedAt,
-      scope: claim.scope,
+      commentUpdatedAt: comment.updatedAt,
+      lockId: claim.lockId,
+      lockDigest: claim.lockDigest,
+      baseRef: claim.baseRef,
       headSha: claim.headSha
     }
+  };
+}
+
+function parseLockBlock(text: string): LockBlockParseResult {
+  const prefixCount = [...text.matchAll(LOCK_PREFIX)].length;
+  const matches = [...text.matchAll(LOCK_BLOCK)];
+  if (prefixCount === 0) {
+    return { present: false, malformed: false };
+  }
+  if (prefixCount !== 1 || matches.length !== 1) {
+    return { present: true, malformed: true };
+  }
+  const rawJson = matches[0]?.[1];
+  if (rawJson === undefined) {
+    return { present: true, malformed: true };
+  }
+  try {
+    const lock = parseLockMetadata(JSON.parse(rawJson) as unknown);
+    return lock === undefined
+      ? { present: true, malformed: true }
+      : { present: true, malformed: false, lock };
+  } catch {
+    return { present: true, malformed: true };
+  }
+}
+
+function parseLockMetadata(value: unknown): MergeLockMetadata | undefined {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "schemaVersion",
+    "lockId",
+    "repository",
+    "pullRequest",
+    "baseRef",
+    "reason",
+    "locked"
+  ])) {
+    return undefined;
+  }
+  if (
+    value.schemaVersion !== 1
+    || typeof value.lockId !== "string"
+    || !isLockId(value.lockId)
+    || typeof value.repository !== "string"
+    || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(value.repository)
+    || typeof value.pullRequest !== "number"
+    || !Number.isSafeInteger(value.pullRequest)
+    || value.pullRequest <= 0
+    || typeof value.baseRef !== "string"
+    || !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/u.test(value.baseRef)
+    || typeof value.reason !== "string"
+    || !isLockReason(value.reason)
+    || value.locked !== true
+  ) {
+    return undefined;
+  }
+  return {
+    schemaVersion: 1,
+    lockId: value.lockId,
+    repository: value.repository,
+    pullRequest: value.pullRequest,
+    baseRef: value.baseRef,
+    reason: value.reason,
+    locked: true
   };
 }
 
 function parseAuthorizationBlocks(text: string): AuthorizationBlockParseResult {
   const prefixCount = [...text.matchAll(AUTHORIZATION_PREFIX)].length;
   const matches = [...text.matchAll(AUTHORIZATION_BLOCK)];
-  const claims: MergeAuthorization[] = [];
-  let malformed = prefixCount !== matches.length;
-
-  for (const match of matches) {
-    const rawJson = match[1];
-    if (rawJson === undefined) {
-      malformed = true;
-      continue;
-    }
-    try {
-      const claim = parseAuthorization(JSON.parse(rawJson) as unknown);
-      if (claim === undefined) {
-        malformed = true;
-      } else {
-        claims.push(claim);
-      }
-    } catch {
-      malformed = true;
-    }
+  if (prefixCount === 0) {
+    return { claims: [], malformed: false };
   }
+  if (prefixCount !== 1 || matches.length !== 1) {
+    return { claims: [], malformed: true };
+  }
+  const rawJson = matches[0]?.[1];
+  if (rawJson === undefined) {
+    return { claims: [], malformed: true };
+  }
+  try {
+    const claim = parseAuthorization(JSON.parse(rawJson) as unknown);
+    if (claim === undefined || text !== canonicalAuthorizationBlock(claim)) {
+      return { claims: [], malformed: true };
+    }
+    return { claims: [claim], malformed: false };
+  } catch {
+    return { claims: [], malformed: true };
+  }
+}
 
-  return { claims, malformed };
+function canonicalAuthorizationBlock(claim: MergeAuthorization): string {
+  return `<!-- ${AUTHORIZATION_MARKER}\n${JSON.stringify(claim)}\n-->`;
 }
 
 function parseAuthorization(value: unknown): MergeAuthorization | undefined {
   if (!isRecord(value) || !hasExactKeys(value, [
     "schemaVersion",
     "decision",
+    "lockId",
+    "lockDigest",
     "repository",
     "pullRequest",
+    "baseRef",
     "headSha",
     "approver",
-    "approvedAt",
-    "scope"
+    "approvedAt"
   ])) {
-    return undefined;
-  }
-  const scope = value.scope;
-  if (!isRecord(scope) || !hasExactKeys(scope, ["operation", "baseRef"])) {
     return undefined;
   }
   if (
     value.schemaVersion !== 1
     || value.decision !== "unlock"
+    || typeof value.lockId !== "string"
+    || !isLockId(value.lockId)
+    || typeof value.lockDigest !== "string"
+    || !isSha256(value.lockDigest)
     || typeof value.repository !== "string"
     || !Number.isSafeInteger(value.pullRequest)
     || typeof value.pullRequest !== "number"
+    || typeof value.baseRef !== "string"
     || typeof value.headSha !== "string"
     || !isFullSha(value.headSha)
     || typeof value.approver !== "string"
     || typeof value.approvedAt !== "string"
-    || scope.operation !== "merge"
-    || typeof scope.baseRef !== "string"
   ) {
     return undefined;
   }
   return {
     schemaVersion: 1,
     decision: "unlock",
+    lockId: value.lockId,
+    lockDigest: value.lockDigest,
     repository: value.repository,
     pullRequest: value.pullRequest,
+    baseRef: value.baseRef,
     headSha: value.headSha,
     approver: value.approver,
-    approvedAt: value.approvedAt,
-    scope: {
-      operation: "merge",
-      baseRef: scope.baseRef
-    }
+    approvedAt: value.approvedAt
   };
 }
 
@@ -590,6 +852,40 @@ async function fetchAllPages(
   throw new Error("github_inventory_page_limit_exceeded");
 }
 
+async function fetchChangedPaths(
+  url: string,
+  token: string,
+  fetchImpl: FetchLike
+): Promise<string[]> {
+  const files = await fetchAllPages(url, token, fetchImpl);
+  const paths = files.flatMap((file) => {
+    if (!isRecord(file) || typeof file.filename !== "string") {
+      throw new Error("github_changed_file_inventory_invalid");
+    }
+    if (
+      file.previous_filename !== undefined
+      && typeof file.previous_filename !== "string"
+    ) {
+      throw new Error("github_changed_file_inventory_invalid");
+    }
+    const observed = [
+      file.filename,
+      ...(typeof file.previous_filename === "string"
+        ? [file.previous_filename]
+        : [])
+    ];
+    if (!observed.every(isRepositoryPath)) {
+      throw new Error("github_changed_file_path_invalid");
+    }
+    return observed;
+  });
+  return [...new Set(paths)].sort();
+}
+
+function collectProtectedPaths(paths: string[]): string[] {
+  return [...new Set(paths.filter(isMergeLockProtectedPath))].sort();
+}
+
 function normalizedApiUrl(value: string | undefined): string {
   return (value ?? "https://api.github.com").replace(/\/$/u, "");
 }
@@ -621,6 +917,7 @@ function parseComment(value: unknown): MergeIntegrityComment {
     || typeof value.body !== "string"
     || typeof value.user.login !== "string"
     || typeof value.author_association !== "string"
+    || typeof value.created_at !== "string"
     || typeof value.updated_at !== "string"
   ) {
     throw new Error("github_comment_inventory_invalid");
@@ -630,6 +927,7 @@ function parseComment(value: unknown): MergeIntegrityComment {
     body: value.body,
     authorLogin: value.user.login,
     authorAssociation: value.author_association,
+    createdAt: value.created_at,
     updatedAt: value.updated_at
   };
 }
@@ -649,6 +947,36 @@ function isFullSha(value: string): boolean {
   return /^[0-9a-f]{40}$/iu.test(value);
 }
 
+function isSha256(value: string): boolean {
+  return /^[0-9a-f]{64}$/iu.test(value);
+}
+
+function isLockId(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(value);
+}
+
+function isLockReason(value: string): boolean {
+  return value.length > 0
+    && value.length <= 256
+    && value.trim() === value
+    && !/[\u0000-\u001f\u007f]/u.test(value);
+}
+
+function isRepositoryPath(value: string): boolean {
+  if (
+    value.length === 0
+    || value.length > 4096
+    || value.startsWith("/")
+    || value.includes("\\")
+    || /[\u0000-\u001f\u007f]/u.test(value)
+  ) {
+    return false;
+  }
+  return value.split("/").every((segment) =>
+    segment !== "" && segment !== "." && segment !== ".."
+  );
+}
+
 function sameSha(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
 }
@@ -661,17 +989,27 @@ function formatResult(result: MergeIntegrityResult): string {
   const lines = [
     "Merge integrity gate",
     `status: ${result.status}`,
+    `lock required: ${result.lockRequired}`,
     `lock active: ${result.lockActive}`,
     `reason: ${result.reason}`,
-    `matched markers: ${result.matchedMarkers.join(",") || "none"}`
+    `protected paths: ${result.protectedPaths.join(",") || "none"}`
   ];
+  if (result.lock !== undefined) {
+    lines.push(
+      `lock id: ${result.lock.lockId}`,
+      `lock digest: ${result.lock.lockDigest}`
+    );
+  }
   if (result.authorization !== undefined) {
     lines.push(
       `authorization source: ${result.authorization.source}`,
       `authorization source id: ${result.authorization.sourceId}`,
       `authorization approver: ${result.authorization.approver}`,
       `authorization time: ${result.authorization.approvedAt}`,
-      `authorization scope: ${result.authorization.scope.operation}:${result.authorization.scope.baseRef}`,
+      `authorization comment updated at: ${result.authorization.commentUpdatedAt}`,
+      `authorization lock id: ${result.authorization.lockId}`,
+      `authorization lock digest: ${result.authorization.lockDigest}`,
+      `authorization base ref: ${result.authorization.baseRef}`,
       `authorization head binding: ${result.authorization.headSha}`
     );
   }

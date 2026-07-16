@@ -23,9 +23,9 @@ explicitly promotes them.
 - [threat model](THREAT_MODEL.md): current threats and controls.
 - [change control](CHANGE_CONTROL.md): required docs and validation for a
   governance boundary change.
-- [merge integrity gate](MERGE_INTEGRITY.md): fail-closed PR-body merge locks,
-  exact-head authorization records, minimum workflow permissions, and pinned
-  GitHub Action revisions.
+- [merge integrity gate](MERGE_INTEGRITY.md): protected-path structured lock
+  metadata, lock-digest and exact-head unlock records, fail-closed GitHub
+  inventory, minimum workflow permissions, and pinned GitHub Action revisions.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [App Server file-change governance runbook](runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md):
   deterministic offline acceptance and the explicit live-acceptance stop.

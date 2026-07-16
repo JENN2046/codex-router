@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `dc4466aa97b81c1c28db9cbabc8ce39387e784fb790fbf920d1421b359852e96` |
+| Source tree digest | `09575568cf0221bb1dfb4720353c9e754241d7e58406bb6fb905a74384e5f375` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -97,7 +97,7 @@ PR #189 did not complete the closeout. The `Merge Integrity` status is not a
 required GitHub check because no branch protection or repository ruleset is
 configured, and no real locked canary PR has exercised failure, exact-head
 unlock, comment revocation, head invalidation, or administrator-bypass policy.
-The implementation also requires structured-lock correctness work before any
+The structured-lock source candidate requires current-head review before any
 platform activation. `R2_GOVERNANCE_INTEGRITY_CLOSEOUT` therefore remains open.
 
 The only current route is `R3_CLOSEOUT_SEQUENCE`, in this fixed order:
@@ -207,10 +207,14 @@ The `Merge Integrity Evaluation` job in
 `.github/workflows/state-sync-reanchor-pr.yml` runs on trusted GitHub
 `pull_request_target` and PR-only `issue_comment` events. It checks out the exact
 base SHA or immutable default-branch event SHA before running
-`npm run governance -- audit merge-integrity`; PR body, exact head, complete
-current comment inventory, actor, and comment `updated_at` timestamp inputs come
-from GitHub-owned events and API inventory. Comment creation, edit, and deletion
-all re-evaluate the current authorization. The job publishes the independent `Merge Integrity`
+`npm run governance -- audit merge-integrity`; changed paths, structured PR-body
+lock metadata, exact head, complete current comment inventory, actor, and
+GitHub-owned `created_at` / `updated_at` timestamps come from trusted events and
+API inventory. Protected paths require exactly one valid lock, and unlock binds
+the lock digest plus repository, PR, base, exact head, and an unedited allowed
+author comment. Natural-language merge instructions are not authoritative.
+Comment creation, edit, and deletion all re-evaluate the current authorization.
+The job publishes the independent `Merge Integrity`
 commit status to the exact current PR head with only `statuses: write`; the
 ordinary `pull_request` workflow does not emit this context. A bare local
 invocation is only a non-applicable runner check unless a trusted event is
@@ -218,15 +222,15 @@ explicitly simulated, and it cannot authorize merge.
 
 ## Next Governed Step
 
-The next implementation entry is `R3A-1`: replace natural-language merge-lock
-state with structured metadata, define the fail-closed metadata scope, bind an
-unlock to `lockId` plus the exact head and base ref, state the precise
-invalidation conditions, and test positive and negative paths. It must not
-configure a GitHub ruleset or perform a live canary.
+The current source candidate is `R3A-1` only: structured lock metadata,
+protected-path fail-closed scope, lock-digest and exact-head unlock binding,
+mechanical edit/delete/head/base/metadata invalidation, and positive/negative
+tests. Current-head review must complete before this step can close.
 
-After `R3A-1`, stop for Jenn's separate authorization before `R3A-2`. Do not use
-R3 work to add ADR 012, a real worker, remote CAS, new App Server execution
-probes, release automation, or any live execution authority.
+After R3A-1 review, stop for Jenn's separate authorization before `R3A-2`.
+Do not configure a GitHub ruleset, execute a real locked canary, or use R3 work
+to add ADR 012, a real worker, remote CAS, new App Server execution probes,
+release automation, or any live execution authority.
 
 
 ## Historical Audit Compatibility

@@ -3,7 +3,7 @@ title: Merge Integrity Gate
 status: active
 owner: governance
 created: 2026-07-16
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 verified_by:
   - node --import tsx --test tests/merge-integrity-check.test.ts
   - npm run typecheck
@@ -19,108 +19,162 @@ applies_to:
 
 # Merge Integrity Gate
 
-This gate prevents code validation from being treated as merge authorization.
-It applies only to GitHub pull requests targeting `main`; it does not grant
-release, deploy, publish, tag, provider, runtime, or workspace-write authority.
+This implementation candidate prevents code validation from being treated as
+merge authorization. It applies only to GitHub pull requests targeting `main`;
+it does not grant release, deploy, publish, tag, provider, runtime, worker,
+remote-CAS, App Server live-execution, or workspace-write authority.
 
-## Lock Detection
+No GitHub ruleset currently requires this status, and no locked canary has been
+executed. Those platform changes remain behind the separate `R3A-2`
+authorization gate.
 
-`scripts/run-merge-integrity-check.ts` treats the following instructions in the
-current PR body as an active merge lock, case-insensitively where applicable:
+## Structured Lock Metadata
 
-- `must remain draft`;
-- `do not merge` or `don't merge`;
-- `必须保持 Draft`;
-- `不得合并`;
-- `禁止合并`.
+Natural-language phrases such as `do not merge`, `must remain draft`, or
+`不得合并` are explanatory prose only. They are not parsed and never determine
+the authoritative lock state.
 
-A locked PR fails the exact-head `Merge Integrity` commit status even when
-typecheck, tests, build, state-sync, and every other CI check succeeds. The lock text stays in the PR
-body under the governance procedure so the authorization record cannot be
-confused with removal of the original instruction. The validator evaluates the
-current event body; repository rules and authorized maintainers remain
-responsible for preserving that source record.
-
-## Structured Authorization
-
-The current workflow allows only the repository owner named by
-`github.repository_owner` to authorize a locked PR. The authorization must be
-an exact JSON object inside this block:
+The authoritative lock is exactly one JSON object inside this PR-body block:
 
 ```text
-<!-- codex-router-merge-authorization:v1
-{"schemaVersion":1,"decision":"unlock","repository":"JENN2046/codex-router","pullRequest":189,"headSha":"<40-hex-sha>","approver":"JENN2046","approvedAt":"2026-07-16T12:00:00.000Z","scope":{"operation":"merge","baseRef":"main"}}
+<!-- codex-router-merge-lock:v1
+{"schemaVersion":1,"lockId":"example-lock-123","repository":"OWNER/REPOSITORY","pullRequest":123,"baseRef":"main","reason":"awaiting_owner_authorization","locked":true}
 -->
 ```
 
-Unknown or missing fields, malformed JSON, a different repository, PR, base
-branch, actor, scope, or stale head binding fail closed. `approvedAt` must be a
-valid timestamp no more than fifteen minutes before the GitHub-owned comment
-`updated_at` timestamp, with one minute of clock-skew tolerance. The original
-`created_at` is not an authorization clock: editing an old comment refreshes
-`updated_at`, so backfilling a block with an approval time near the old creation
-time fails closed.
+Every field is required, unknown fields are rejected, `schemaVersion` is fixed
+at `1`, and `locked` must be exactly `true`. The `lockId` is an opaque stable
+identifier; `reason` is a bounded non-empty explanation. Repository, PR number,
+and base ref must match the current GitHub PR facts.
 
-### PR Comment Route
+Missing metadata, duplicate blocks, conflicting blocks, malformed JSON,
+unknown fields, `locked: false`, or mismatched bindings fail closed whenever a
+lock is required. If any lock marker is present, malformed or contradictory
+metadata also blocks an otherwise non-protected PR.
 
-An allowed approver may post the structured block as a top-level PR comment.
-The gate checks the GitHub comment author and association, not only the
-self-declared `approver` field. `headSha` must equal the exact current PR head.
+## Fail-Closed Metadata Scope
 
-Creating, editing, or deleting any top-level PR comment automatically
-re-evaluates the current PR body, current head, and complete current comment
-inventory. A later code push changes the head and invalidates the old comment
-authorization. An explicitly authorized workflow rerun remains available for a
-transient platform failure.
+The trusted gate always reads the current PR changed-file inventory. Exactly
+one valid structured lock is required when any changed path is in this set:
 
-## Fail-Closed Inputs
+```text
+.github/actions/**
+.github/workflows/**
+package-lock.json
+package.json
+scripts/run-governance-check.ts
+scripts/run-merge-integrity-check.ts
+tests/merge-integrity-check.test.ts
+docs/governance/MERGE_INTEGRITY.md
+docs/governance/RELEASE_GATE_MATRIX.md
+```
 
-When a lock is active, the gate reads the PR's top-level comments using a
-short-lived `GITHUB_TOKEN`. The trusted job has only `contents: read`,
-`pull-requests: read`, and `statuses: write`; the write permission is limited to
-publishing the gate result on the exact current PR head. Missing credentials,
-API errors, malformed inventories, or 1,000 or more comments block the gate.
-Raw comment bodies are not printed in the result or status.
+These paths cover the privileged workflow source, locally referenced actions,
+dependency graph, governance dispatcher, validator, regression contract, and
+human authority documents. Rename records check both `filename` and
+`previous_filename`, so moving a protected file cannot escape the scope. A PR
+that changes none of these paths and contains
+no structured lock passes with `no_merge_lock_required`; natural-language prose
+does not change that result. A valid structured lock on an otherwise
+non-protected PR remains active and requires a valid unlock.
 
-The ordinary CI workflow has top-level `contents: read` only. The combined
-governance workflow retains write permissions for its manual legacy state-sync
-reanchor job because creating its narrowly scoped fallback PR requires them;
-the merge-integrity job overrides those permissions with `contents: read`,
-`pull-requests: read`, and `statuses: write` only.
+Missing credentials, API errors, malformed file records, invalid paths,
+pagination overflow, or any inability to read the complete changed-file
+inventory fail closed.
+
+## Structured Unlock
+
+An unlock is an exact JSON object in a top-level GitHub PR comment:
+
+```text
+<!-- codex-router-merge-authorization:v1
+{"schemaVersion":1,"decision":"unlock","lockId":"example-lock-123","lockDigest":"<64-hex-sha256>","repository":"OWNER/REPOSITORY","pullRequest":123,"baseRef":"main","headSha":"<40-hex-sha>","approver":"OWNER","approvedAt":"2026-07-17T12:00:00.000Z"}
+-->
+```
+
+The gate computes `lockDigest` as SHA-256 over UTF-8 bytes of the canonical
+JSON object whose keys are ordered as `schemaVersion`, `lockId`, `repository`,
+`pullRequest`, `baseRef`, `reason`, and `locked`. This binds every current lock
+field, so changing the reason or any other lock metadata invalidates an old
+unlock even if its `lockId` is reused.
+
+The comment body must contain exactly one canonical authorization block and no
+additional prose. Duplicate claims, reordered or reformatted JSON, unknown
+fields, and malformed blocks fail closed.
+
+The unlock must bind the current `lockId`, computed `lockDigest`, exact head
+SHA, base ref, repository, and PR number. The self-declared `approver` must equal
+the GitHub-owned comment author, that author must be in the configured owner
+allowlist, and the GitHub author association must be `OWNER`, `MEMBER`, or
+`COLLABORATOR`.
+
+`approvedAt` is not a wall-clock expiry. It is a comment-update binding window:
+it must be no more than fifteen minutes before the GitHub `updated_at` value,
+with one minute of future clock-skew tolerance. The gate also requires
+GitHub-owned `created_at` and `updated_at` to be equal, so any comment edit
+invalidates the authorization even when the edited timestamp remains inside
+that window.
+
+## Mechanical Invalidation
+
+The gate re-evaluates and blocks an old unlock when any of these facts changes:
+
+- the exact PR head SHA;
+- the base ref;
+- any structured lock metadata field or its digest;
+- the authorization comment body or GitHub `updated_at` timestamp;
+- deletion of the authorization comment;
+- the `lockId` binding;
+- repository or PR identity;
+- allowed author or association;
+- the complete file or comment inventory becoming unavailable.
+
+Creating, editing, or deleting a top-level PR comment triggers re-evaluation.
+PR synchronize and edited events re-evaluate current head, base, body metadata,
+and changed paths.
+
+A head change leaves the earlier exact-head comment in GitHub as superseded
+audit evidence. That old comment cannot unlock the new head and, by itself, the
+lock remains blocked. A fresh valid authorization for the current head may
+re-authorize the PR without deleting the earlier comment. Malformed claims or
+claims with a wrong lock, digest, base, repository, PR, author, edit state, or
+timestamp remain fail-closed even when a current-head authorization exists.
+
+## Fail-Closed GitHub Inputs
+
+The trusted job reads changed files for every applicable PR and reads the full
+top-level comment inventory for a valid active lock. Each inventory is bounded
+to ten pages of 100 items. Missing credentials, non-array responses, malformed
+records, API errors, or reaching the page limit fail the workflow after it
+attempts to replace `pending` with a failure status. Raw PR bodies and comment
+bodies are never printed in status output.
+
+The job has only `contents: read`, `pull-requests: read`, and `statuses: write`;
+the write permission is limited to the exact-head `Merge Integrity` commit
+status. The ordinary CI workflow retains top-level `contents: read` only.
 
 ## Trusted Execution Source
 
-The gate runs for `pull_request_target` and for PR-only `issue_comment`
-`created`, `edited`, and `deleted` events. A target event explicitly checks out
-`github.event.pull_request.base.sha`; a comment event checks out the immutable
-default-branch `github.sha` supplied by that event. Both routes execute only the
-trusted base/default-branch validator and never check out or execute the PR head
-in the privileged event context. All build, test, canary, state-sync, and
-evidence jobs remain restricted to `push` or ordinary `pull_request` events.
+The gate runs for `pull_request_target` and PR-only `issue_comment` events. A
+target event checks out `github.event.pull_request.base.sha`; a comment event
+checks out the immutable default-branch `github.sha`. Neither route checks out
+or executes the PR head in the privileged context.
 
-The trusted job first publishes `pending`, then `success` or `failure`, to the
-exact refreshed PR head SHA using the fixed `Merge Integrity` context. The
-Actions job is deliberately named `Merge Integrity Evaluation`, so repository
-rules can require the exact `Merge Integrity` commit status without selecting a
-same-named workflow check. The workflow does not handle ordinary
-`pull_request` events.
+The job first publishes `pending`, then `success` or `failure`, to the refreshed
+exact PR head. It is named `Merge Integrity Evaluation`, keeping the commit
+status context distinct from the workflow check name.
 
-If GitHub cannot return the current PR head or cannot accept a status write, the
-trusted workflow fails. No gate can revoke an earlier status while the status
-API itself is unavailable, so maintainers must treat that platform failure as a
-manual merge block and rerun the trusted event after service recovery.
-
-The PR that first introduces this design is a bootstrap change: the trusted
-base workflow cannot enforce code that is not yet on the base. Its review and
-merge authorization therefore remain manual, and the required status may only
-be configured after the trusted workflow lands.
+This R3A-1 implementation is another bootstrap change: until it is in the
+trusted base, the existing base validator cannot enforce the new metadata
+schema against its own PR. Even after landing, it remains an implementation
+candidate until Jenn separately authorizes the exact `R3A-2` ruleset and
+harmless never-merged locked-canary preflight.
 
 ## Supply-Chain Boundary
 
-All shipped `actions/checkout`, `actions/setup-node`,
-`actions/upload-artifact`, and `actions/download-artifact` uses are pinned to
-full commit SHAs. A major-version comment remains beside each pin for human
-upgrade review; a floating tag is not execution authority.
+All existing GitHub Actions remain pinned to full commit SHAs. R3A-1 does not
+modify workflows, configure repository rules, add a merge bot, or add a timed
+workflow.
 
 ## Validation
 
@@ -133,6 +187,7 @@ npm test
 npm run build
 ```
 
-No real provider, Codex CLI, App Server file apply, remote CAS, real worker,
-source-workspace execution, release, deploy, or package publish belongs in this
-gate or its validation.
+After R3A-1 review, stop at the `R3A-2` authorization gate. Do not configure a
+GitHub ruleset, execute a real locked canary, add a merge bot or timer, split
+runtime artifacts, enter R3B, or add provider, worker, App Server live,
+remote-CAS, or workspace-write capability.
