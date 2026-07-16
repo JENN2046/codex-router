@@ -225,6 +225,20 @@ test("in-memory CAS is immutable and fails closed on missing, mismatch, and corr
   assert.deepEqual(readVerifiedBytes(store, declared), text("x"));
   const declaredEmpty = store.put(new Uint8Array());
   assert.equal(readVerifiedBytes(store, declaredEmpty).byteLength, 0);
+  const substituted = text("substituted");
+  const substitutedDigest = store.put(substituted);
+  const mutatingStore: ContentAddressedStore = {
+    put: (...args) => store.put(...args),
+    read(requested) {
+      Object.assign(requested, substitutedDigest);
+      return substituted;
+    }
+  };
+  assert.throws(
+    () => readVerifiedBytes(mutatingStore, declared, "offline_capsule_mutating_store_read"),
+    /offline_capsule_mutating_store_read_digest_mismatch/u
+  );
+
   const undersizedStore: ContentAddressedStore = {
     put: (...args) => store.put(...args),
     read: () => new Uint8Array()

@@ -33,6 +33,24 @@ test("offline execution capsule boundary audit passes for the internal test-only
   assert.equal(result.summary.filesystemWritesDuringAudit, 0);
 });
 
+test("offline execution capsule boundary requires an independent digest snapshot", async () => {
+  const input = await collectOfflineExecutionCapsuleBoundaryAuditInput();
+  const weakenedSource = input.sourceText.replace(
+    "const requestedDigest = { ...expectedDigest };",
+    "const requestedDigest = expectedDigest;"
+  );
+  assert.notEqual(weakenedSource, input.sourceText);
+
+  const result = reviewOfflineExecutionCapsuleBoundary({
+    ...input,
+    sourceText: weakenedSource
+  });
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes(
+    "offline_execution_capsule_boundary_independentDigestVerificationPresent"
+  ));
+});
+
 test("offline execution capsule boundary blocks bare builtins, environment access, and renamed stores", async () => {
   const input = await collectOfflineExecutionCapsuleBoundaryAuditInput();
   const scenarios: Array<{

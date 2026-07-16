@@ -186,10 +186,11 @@ export function readVerifiedBytes(
   digestInput: ContentDigest,
   context = "content"
 ): Uint8Array {
-  const digest = ContentDigestSchema.parse(digestInput);
+  const expectedDigest = ContentDigestSchema.parse(digestInput);
+  const requestedDigest = { ...expectedDigest };
   let bytes: Uint8Array;
   try {
-    bytes = store.read(digest);
+    bytes = store.read(requestedDigest);
   } catch (error: unknown) {
     const reason = error instanceof Error ? error.message : "unknown";
     if (reason === "offline_cas_content_missing") {
@@ -209,11 +210,11 @@ export function readVerifiedBytes(
   } catch {
     throw new Error(`${context}_non_bytes`);
   }
-  if (actualByteLength !== digest.size) {
+  if (actualByteLength !== expectedDigest.size) {
     throw new Error(`${context}_digest_mismatch`);
   }
   const copy = new Uint8Array(bytes);
-  if (!sameContentDigest(digestBytes(copy), digest)) {
+  if (!sameContentDigest(digestBytes(copy), expectedDigest)) {
     throw new Error(`${context}_digest_mismatch`);
   }
   return copy;
