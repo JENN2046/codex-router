@@ -1,62 +1,76 @@
 # Documentation Map
 
-This repository keeps current operating facts separate from historical evidence.
-Start with the current docs below; use dated and PR-specific files only when you
-need the audit trail behind a decision.
+This repository separates current operating facts from historical evidence.
+Start with the surfaces below. Dated, phase-numbered, provider-runtime,
+Desktop, DGP, and Agent OS documents remain available for audit, but they do
+not define the active roadmap unless a current authority document links them.
 
 ## Current Entry Points
 
-- [current state](current/CURRENT_STATE.md): branch, validation baseline,
-  execution boundary, and next safe action.
-- [governance control plane](governance/GOVERNANCE_CONTROL_PLANE.md): current
-  capability status and authority model.
+- [current state](current/CURRENT_STATE.md): machine authority, capability
+  posture, active freeze, validation baseline, and next governed step.
+- [governance current surface](governance/README.md): compact index of the
+  active control plane, ADRs, runbooks, and audit entry points.
+- [governance control plane](governance/GOVERNANCE_CONTROL_PLANE.md): authority
+  model and default runtime posture.
 - [release gate matrix](governance/RELEASE_GATE_MATRIX.md): PR, main, and
   release gate policy.
-- [evidence policy](governance/EVIDENCE_POLICY.md): what evidence may be
-  stored and what must stay out of docs and PRs.
+- [evidence policy](governance/EVIDENCE_POLICY.md): allowed evidence and
+  forbidden raw material.
 - [threat model](governance/THREAT_MODEL.md): current governance threats and
   controls.
-- [change control](governance/CHANGE_CONTROL.md): required docs/tests for
-  governance boundary changes.
-- [workspace-write release gate](governance/WORKSPACE_WRITE_RELEASE_GATE.md):
-  workspace-write promotion and block rules.
-- [future Codex CLI canary execution gate](governance/FUTURE_CODEX_CLI_CANARY_EXECUTION_GATE.md):
-  archived pre-execution authorization surface for a later bounded canary packet.
-- [governance docs automation spec](governance/DOCS_AUTOMATION_SPEC.md):
-  lightweight documentation check scope.
-- [read-only controlled execution runbook](governance/runbooks/READONLY_CONTROLLED_EXECUTION_RUNBOOK.md):
-  current guarded read-only procedure.
-- [workspace-write canary runbook](governance/runbooks/WORKSPACE_WRITE_CANARY_RUNBOOK.md):
-  blocked-by-default workspace-write canary procedure.
-- [validation tiers](validation-tiers.md): daily, PR, release, and explicit
-  local smoke boundaries.
-- [governance docs](governance/README.md): compact map for audit, acceptance,
-  and controlled-execution evidence.
-- [Codex CLI host](codex-cli-host.md): guarded `codex exec --json` planning,
-  JSONL inspection, and smoke boundaries.
-- [Desktop live host](codex-desktop-live-host.md): composed Desktop runtime,
-  memory, and host-client wiring.
-- [Agent OS roadmap](agent-os-transformation/current-roadmap-20260610.md):
-  current transformation context and next execution-foundation work.
+- [change control](governance/CHANGE_CONTROL.md): required documentation and
+  validation for governance boundary changes.
+- [validation tiers](validation-tiers.md): deterministic local and CI
+  validation entry points plus explicit live-smoke stops.
+
+## Current Decisions And Runbook
+
+- [ADR 006: App Server governance adapter](governance/decisions/ADR_006_CODEX_APP_SERVER_GOVERNANCE_ADAPTER.md)
+- [ADR 007: proposal before apply](governance/decisions/ADR_007_APP_SERVER_PROPOSAL_BEFORE_APPLY.md)
+- [ADR 008: exact-version security review](governance/decisions/ADR_008_APP_SERVER_EXACT_VERSION_SECURITY_REVIEW.md)
+- [ADR 009: no-environment proposal contract](governance/decisions/ADR_009_APP_SERVER_NO_ENVIRONMENT_PROPOSAL_CONTRACT.md)
+- [ADR 010: runtime tool-inventory attestation](governance/decisions/ADR_010_RUNTIME_TOOL_INVENTORY_ATTESTATION.md)
+- [ADR 011: offline execution capsule contract](governance/decisions/ADR_011_OFFLINE_EXECUTION_CAPSULE.md)
+- [App Server file-change governance runbook](governance/runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md)
+
+These decisions preserve the same boundary: offline evidence may strengthen a
+contract, but it does not authorize a live App Server file change, real Codex
+CLI or provider execution, a real worker, a remote CAS, or a source-workspace
+write.
 
 ## Navigation Rules
 
 - Put machine state facts in `docs/current/state-sync-record.json`.
-- Put operator state display in `docs/current/CURRENT_STATE.md`.
-- Put current governance capability facts in
+- Put the operator-facing interpretation in `docs/current/CURRENT_STATE.md`.
+- Put current capability facts in
   `docs/governance/GOVERNANCE_CONTROL_PLANE.md`.
-- Put validation command policy in `docs/governance/RELEASE_GATE_MATRIX.md` and
-  `docs/validation-tiers.md`.
-- Put governance evidence pointers in `docs/governance/README.md`.
-- Keep historical closeouts and packets in place; do not make them current
-  entry points unless the boundary is still active.
-- Avoid adding a new top-level governance document when an existing current
-  surface can be updated.
+- Put active governance links in `docs/governance/README.md`.
+- Keep PR taskbooks, closeouts, packets, receipts, dated roadmaps, and phase
+  documents as historical evidence unless explicitly promoted by current
+  change control.
+- Do not infer execution authorization from an archived plan, acceptance
+  fixture, fake canary, or old phase closeout.
 
 ## Historical Areas
 
-- `docs/governance/PR_*`: PR-local taskbooks, packets, closeouts, and receipts.
-- `docs/evidence/`: sanitized local evidence artifacts.
-- `docs/patches/`: external patch artifacts and host integration notes.
-- `docs/harness-adoption/`: adoption planning and dry-run records.
-- `docs/strategy/`: strategy notes and field feedback.
+- `docs/governance/PHASE_*` and `docs/governance/PR_*`: completed or proposed
+  phase-local evidence; not the active roadmap.
+- `docs/phase-*`, DGP notes, TaskGraph migration notes, and recovery-contract
+  notes: historical DGP implementation and closeout evidence.
+- `docs/codex-cli-*`, controlled-provider taskbooks, and provider execution
+  evidence: historical or separately gated provider/host work; not current live
+  authorization.
+- `docs/codex-desktop-*`, `docs/desktop-*`, and host-client notes: historical
+  Desktop integration evidence.
+- `docs/agent-os-transformation/` and Agent OS SDK/CLI/app-server documents:
+  historical transformation route, not a current expansion plan.
+- `docs/harness-adoption/`, `docs/strategy/`, and `docs/patches/`: research,
+  field feedback, and external integration notes.
+- `docs/evidence/`: sanitized evidence artifacts; evidence does not become
+  authority merely because it is retained.
+
+GitHub Issue #2 is governed by
+[`phase-21-closeout-audit-20260611.md`](phase-21-closeout-audit-20260611.md):
+its Phase 21.1-21.6 acceptance items are complete, so it is historical rather
+than a source for new Phase 22 work.

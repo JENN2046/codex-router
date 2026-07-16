@@ -2,82 +2,201 @@
 
 CURRENT_STATE_RECORDED
 
-This is the compact operator-facing state surface for the repository. The
-machine-authoritative state-sync claim is now:
+This is the compact operator-facing interpretation of repository state. The
+machine-authoritative state-sync claim is:
 
 - `docs/current/state-sync-record.json`
 
-Markdown and `.agent_board/*` remain evidence and handoff surfaces. They are not
-the authority for core machine facts such as validated source commit, upstream
-divergence, transition kind, or allowed state-only paths.
+This Markdown file and `.agent_board/*` are display and handoff surfaces. They
+do not override the structured record, CI, the reviewed commit, or runtime
+audit results.
 
-## Snapshot
+## Machine Authority
 
-| Field | Value |
+| Field | Current value |
 | --- | --- |
-| Workspace | `codex-router/repo` |
-| Current branch | `content-attestation` |
-| Current head | `observed at audit time` |
-| Validated source commit | `content digest only` |
-| Upstream | `refs/remotes/origin/main` |
-| Upstream divergence | `observed at audit time` |
-| Latest validated commit | `content digest only` |
-| State record mode | `content attestation` |
-| Stale after commit | `true` |
-| Synthetic review checkout | `allowed` |
+| Schema | `2` |
+| Policy | `state-sync-policy.v2` |
+| Repository | `JENN2046/codex-router` (`1220937060`) |
+| Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
+| Source tree digest | `716d5f57f4316d5ddbeeba3e5e3e6aa84aab92fb30d569d92aea343c916ca076` |
+| Target | `refs/heads/main` |
+| Allowed events | local, pull request, and push to the main target |
 
-The `Current head` row records the validated source head represented by the
-structured state-sync claim. A later state-only record commit may descend from
-this source commit without making Markdown the source of truth again.
+The record intentionally does not persist a branch name, HEAD SHA, divergence,
+or a `stale after commit` flag. The audit observes branch, commit, clean-tree,
+repository identity, target context, and the filtered digest at runtime.
 
-## Structured Record
+The digest excludes only the structured record, this display, and the declared
+`.agent_board/*` handoff files. It therefore covers README, governance indexes,
+ADRs, source, tests, scripts, package metadata, and workflows.
 
-The structured claim records:
+## Active Product Boundary
 
-- schema version: `2`
-- policy version: `state-sync-policy.v2`
-- transition kind: `content_attestation`
-- validated source commit: `content digest only`
-- latest validated commit: `content digest only`
-- upstream baseline: `refs/remotes/origin/main`
-- recorded divergence baseline: `observed at audit time`
-- source tree digest: `git-ls-tree-sha256`
-  `cb94f15df53bf17f2f4da2a547e4687e72b8a23494f9f0a67a4e77fb33ed5de5`
+`codex-router` is an auditable pre-production governance layer above the
+official Codex App Server and SDK. It owns capability classification,
+authorization, approval correlation, preview/evidence, reconciliation, retain
+verification, and explicit Git rollback. Codex remains responsible for
+authentication, conversations, streaming, and applying accepted changes.
 
-Source digest excluded paths:
+The repository does not currently prove that a real App Server approval is
+intercepted before file application. It therefore does not authorize a live App
+Server file-change smoke or a real source-workspace write.
 
-- `docs/current/state-sync-record.json`
-- `docs/current/CURRENT_STATE.md`
-- `.agent_board/CHECKPOINT.md`
-- `.agent_board/HANDOFF.md`
-- `.agent_board/RUN_STATE.md`
-- `.agent_board/TASK_QUEUE.md`
-- `.agent_board/VALIDATION_LOG.md`
+## Current Capability Posture
+
+| Surface | Disposition |
+| --- | --- |
+| Authorization, preview, retain, reconciliation, rollback | Strong experimental / pre-production contracts |
+| App Server wire normalization and deterministic decline harness | Offline contract evidence |
+| Exact-version App Server file change | `blocked / no_go` |
+| No-environment proposal | `verified_offline / no_go` |
+| Runtime tool-inventory attestation | Test-only fake issuer; `verified_offline / no_go` |
+| Offline execution capsule | `synthetic_non_sensitive`, `test_only_simulated`, non-promotable |
+| Shipped capsule store | In-memory implementation only |
+| Caller-injected capsule store/transform side effects | Not mechanically excluded |
+| Real isolated worker or remote CAS | Not implemented or authorized |
+| Real Codex CLI/provider execution | Not authorized |
+| Real workspace-write, retain/apply promotion, release/deploy/publish | Not authorized |
+
+The capsule prestore gate checks complete-tree, manifest, changed-file,
+changed-byte, canonical-diff, sensitive-path, and credential-like-content
+boundaries before output copying or CAS writes. Passing those checks produces
+only `verified_offline` fixture evidence; it is not an execution permit.
+
+## Active Decisions
+
+- ADR 006 keeps Codex App Server as the runtime while unproven interception
+  remains observe-only.
+- ADR 007 requires an exact proposal before apply.
+- ADR 008 records the exact-version security review and continuing live
+  `NO-GO`.
+- ADR 009 limits no-environment proposal verification to an offline contract.
+- ADR 010 limits runtime tool-inventory attestation to a test-only fake issuer.
+- ADR 011 limits offline execution capsules to synthetic, in-process,
+  non-promotable test fixtures.
+
+See `docs/governance/README.md` for the linked current decision surface.
+
+## Governance Integrity Closeout
+
+`R2_GOVERNANCE_INTEGRITY_CLOSEOUT` is one closeout project delivered through
+small PRs:
+
+1. PR #186 made the complete authorization-evaluation stage fail closed and
+   covered successful decline plus uncertain-send reconciliation.
+2. PR #187 added capsule prestore output boundaries, corrected the injected
+   store trust claim, and added an independent capsule branch-coverage gate.
+3. `docs/current-governance-reanchor` replaces stale current-state navigation,
+   adds ADR 011 to current surfaces, and classifies old routes as history.
+4. `ci/merge-integrity-hardening` remains separately gated because workflow
+   modification requires Jenn's explicit authorization for the concrete diff.
+
+Until this closeout is reviewed, do not add ADR 012, a real worker, remote CAS,
+new App Server execution probes, retain/apply promotion, or other execution
+capability expansion.
+
+## Historical Routes
+
+Phase-numbered runtime work, DGP, provider execution, Desktop host, VCPToolBox,
+and Agent OS SDK/CLI/app-server documents remain available as implementation
+and audit history. They are not parallel current roadmaps and do not authorize
+new execution work.
+
+GitHub Issue #2 tracked Phase 21 DGP hardening. The repository's
+`docs/phase-21-closeout-audit-20260611.md` maps all 21.1-21.6 requirements to
+implemented code, tests, and documentation. Issue #2 is therefore a completed
+historical line, not a Phase 22 entry point.
 
 ## Current Entrypoints
 
-- Current docs map: `docs/README.md`
-- Governance docs map: `docs/governance/README.md`
-- Validation policy: `docs/validation-tiers.md`
-- Current state audit: `npm run governance -- audit state-sync`
+- Documentation map: `docs/README.md`
+- Governance current surface: `docs/governance/README.md`
+- Governance runner discovery: `npm run governance -- list`
+- Documentation validation: `npm run docs:governance`
+- State-sync audit: `npm run governance -- audit state-sync`
+- State-sync static boundary: `npm run governance -- audit state-sync-boundary`
 - Execution boundary current surface:
   `npm run governance -- audit execution-boundary-current-surface`
 - Workspace-write release gate:
   `npm run governance -- audit workspace-write-release-gate`
-- Controlled generic workspace-write acceptance:
-  `npm run governance -- acceptance controlled-generic-workspace-write -- --check`
-- Controlled generic workspace-write completion audit:
-  `npm run governance -- audit controlled-generic-workspace-write-completion`
-- Workspace-write real canary authorization design:
+- Real-canary authorization design:
   `npm run governance -- audit workspace-write-real-canary-authorization-design`
 - Source/release package boundary:
   `npm run governance -- audit source-release-package-boundary`
-- Governance runner discovery: `npm run governance -- list`
+- Offline capsule boundary:
+  `npm run governance -- audit offline-execution-capsule-boundary`
 
 Run the execution-boundary current surface before claiming source/release
 package separation.
 
-## Current Scope
+These are audit and validation entry points, not execution authorization.
+Historical commands remain discoverable through `list --all` only for
+deliberate evidence review.
+
+## Validation Baseline
+
+For an ordinary non-`main` feature branch, the required local ladder is:
+
+```bash
+git diff --check
+npm run docs:governance
+npm run governance -- audit execution-boundary-current-surface
+npm run typecheck
+npm test
+npm run build
+```
+
+Do not run bare `npm run governance -- audit state-sync` or
+`npm run validate:pr` on a feature branch: without an explicit GitHub event,
+the audit correctly treats the checkout as `local` and requires `main`. Let the
+GitHub `pull_request` State Sync Audit validate the exact PR head, or simulate
+that context explicitly on a clean checkout:
+
+```bash
+PR_HEAD_SHA="$(git rev-parse HEAD)"
+PR_HEAD_BRANCH="$(git branch --show-current)"
+EVENT_DIR="$(mktemp -d)"
+EVENT_PATH="$EVENT_DIR/event.json"
+node -e 'require("node:fs").writeFileSync(process.argv[1], JSON.stringify({pull_request:{head:{sha:process.argv[2]}}}))' \
+  "$EVENT_PATH" "$PR_HEAD_SHA"
+env \
+  GITHUB_ACTIONS=true \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_EVENT_PATH="$EVENT_PATH" \
+  GITHUB_REPOSITORY=JENN2046/codex-router \
+  GITHUB_REPOSITORY_ID=1220937060 \
+  GITHUB_REF=refs/pull/0/merge \
+  GITHUB_BASE_REF=main \
+  GITHUB_HEAD_REF="$PR_HEAD_BRANCH" \
+  GITHUB_SHA="$PR_HEAD_SHA" \
+  npm run validate:pr
+rm -rf "$EVENT_DIR"
+```
+
+The exact PR head must match the structured source-tree digest. No real Codex
+CLI, App Server, provider, worker, remote CAS, source-workspace write, release,
+deploy, or package publish belongs in this validation.
+
+## Next Governed Step
+
+After this docs reanchor is merged and independently reviewed, prepare a
+preflight for `ci/merge-integrity-hardening`: structured merge lock, pinned
+GitHub Action SHAs, minimum workflow permissions, and risk-specific Canary job
+names. Do not modify `.github/workflows/*` without Jenn's separate current
+authorization for that concrete workflow change.
+
+
+## Historical Audit Compatibility
+
+The deterministic boundary audits predate this reanchor and require exact
+module, document, and command markers in this display. The registry below
+preserves those fail-closed checks. Within this section, words such as
+`current`, `active`, or `authority` describe the original source-boundary
+record consumed by the audit; they do not make the route an active roadmap,
+live capability, or execution authorization. The active posture and freeze
+above take precedence for planning.
+## Historical Boundary Compatibility Registry
 
 Current repository governance status:
 
@@ -268,38 +387,7 @@ Current repository governance status:
   changes, workflow changes, and direct `main` pushes remain outside normal
   display-only pruning work.
 
-## Validation Baseline
-
-Validation recorded for source commit `content digest only`:
-
-Current validation posture:
-
-- non-`main` PR branch validation should use `npm run validate:daily`,
-  targeted `npm test` / `npm run build` when warranted, the execution-boundary
-  current surface audit, display sync checks, and GitHub CI's `pull_request`
-  State Sync Audit or an explicit local pull-request context simulation;
-- bare `npm run validate:pr` includes the local execution-boundary audit and
-  local state-sync audit tier, and is only appropriate on local `main` or when
-  the state-sync audit has an explicit PR event context;
-- runtime, package, workflow, dependency, or provider changes require their
-  own targeted tests and broader validation.
-
-Current structured state-sync audit status:
-
-- structured claim: `state-sync-policy.v2` content attestation
-- upstream target: `refs/remotes/origin/main`
-- source identity: filtered tree digest, not a recorded commit SHA
-- branch, commit, and divergence are observed by the audit at runtime
-- branch-head audit command:
-  `node --import tsx scripts/run-state-sync-audit.ts --json`
-- expected audit source: `claimSource: structured`
-- Source-tree digest, allowed context, clean worktree, and read-only
-  checks remain enforced by the state-sync audit.
-- Generated display, Markdown mirrors, and `.agent_board/*` mirrors are
-  optional operator-facing views derived from `docs/current/state-sync-record.json`.
-- Display drift is informational; branch-head audit reads the structured
-  record directly and does not require display sync.
-## Execution Boundary
+### Historical Execution Boundary Markers
 
 Current allowed-by-default behavior is local and non-executing unless a specific
 task and approval gate says otherwise. The controlled provider execution
@@ -541,40 +629,35 @@ Boundary facts for display/handoff-only pruning:
 - release, deploy, provider execution, and environment/configuration changes
   remain out of scope.
 
-## Current State-Only Record
 
-The machine state-only record line is limited to:
+### Historical State-Sync Validation Markers
 
-- `docs/current/state-sync-record.json`
+Validation recorded for source commit `content digest only`:
 
-Markdown and `.agent_board/*` display updates are optional operator evidence,
-not state-only authority.
+Current validation posture:
 
-## State Sync Expectations
+- non-`main` PR branch validation should use `npm run validate:daily`,
+  targeted `npm test` / `npm run build` when warranted, the execution-boundary
+  current surface audit, display sync checks, and GitHub CI's `pull_request`
+  State Sync Audit or an explicit local pull-request context simulation;
+- bare `npm run validate:pr` includes the local execution-boundary audit and
+  local state-sync audit tier, and is only appropriate on local `main` or when
+  the state-sync audit has an explicit PR event context;
+- runtime, package, workflow, dependency, or provider changes require their
+  own targeted tests and broader validation.
 
-The structured claim records:
+Current structured state-sync audit status:
 
-- branch: `content-attestation`
-- upstream: `refs/remotes/origin/main`
-- validated source commit: `content digest only`
-- recorded divergence baseline: `observed at audit time`
-- transition: `content_attestation`
-
-Policy v2 records bind the filtered source tree digest to explicit local, pull_request, and push contexts; branch identity, commit identity, and divergence are audit-time observations.
-
-The collector uses the structured claim's `refs/remotes/origin/main` value as
-the bounded upstream baseline ref. It must resolve that ref locally and then
-compute divergence from Git. If the ref does not resolve, upstream-dependent
-checks remain blocked.
-
-Current state line:
-
-- State-sync authority: `docs/current/state-sync-record.json` using
-  `state-sync-policy.v2` content attestation.
-- Main path: local, pull_request, and main-push audits verify the filtered
-  source tree digest; squash merges do not require routine post-merge
-  reanchors.
-- Markdown and `.agent_board/*`: evidence/display surfaces only; display sync is
-  an optional freshness helper, not a governance authority.
-- Legacy v1 reanchor tooling and workflow: retained only as explicit
-  compatibility fallback for old v1 state-only records.
+- structured claim: `state-sync-policy.v2` content attestation
+- upstream target: `refs/remotes/origin/main`
+- source identity: filtered tree digest, not a recorded commit SHA
+- branch, commit, and divergence are observed by the audit at runtime
+- branch-head audit command:
+  `node --import tsx scripts/run-state-sync-audit.ts --json`
+- expected audit source: `claimSource: structured`
+- Source-tree digest, allowed context, clean worktree, and read-only
+  checks remain enforced by the state-sync audit.
+- Generated display, Markdown mirrors, and `.agent_board/*` mirrors are
+  optional operator-facing views derived from `docs/current/state-sync-record.json`.
+- Display drift is informational; branch-head audit reads the structured
+  record directly and does not require display sync.
