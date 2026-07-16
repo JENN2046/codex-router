@@ -6,6 +6,7 @@ import {
   collectMergeIntegrityInput,
   evaluateMergeIntegrity,
   findMergeLockMarkers,
+  isMergeIntegrityEventName,
   type MergeAuthorization,
   type MergeIntegrityInput
 } from "../scripts/run-merge-integrity-check.js";
@@ -35,6 +36,13 @@ test("merge lock detector covers the prohibited instruction tokens", () => {
   for (const [body, expected] of cases) {
     assert.ok(findMergeLockMarkers(body).includes(expected), body);
   }
+});
+
+test("merge integrity entrypoint runs only for the trusted target event", () => {
+  assert.equal(isMergeIntegrityEventName("pull_request_target"), true);
+  assert.equal(isMergeIntegrityEventName("pull_request"), false);
+  assert.equal(isMergeIntegrityEventName("push"), false);
+  assert.equal(isMergeIntegrityEventName(""), false);
 });
 
 test("merge integrity passes an ordinary PR without a lock", () => {

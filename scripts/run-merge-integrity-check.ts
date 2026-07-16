@@ -473,8 +473,12 @@ function formatResult(result: MergeIntegrityResult): string {
   return lines.join("\n");
 }
 
+export function isMergeIntegrityEventName(value: string): boolean {
+  return value === "pull_request_target";
+}
+
 async function main(): Promise<void> {
-  if ((process.env.GITHUB_EVENT_NAME ?? "") !== "pull_request") {
+  if (!isMergeIntegrityEventName(process.env.GITHUB_EVENT_NAME ?? "")) {
     console.log("Merge integrity gate\nstatus: passed\nreason: not_applicable");
     return;
   }
