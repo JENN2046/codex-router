@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `fcfe9d9226ac5468a37cff512f9c90cb17324674fef781d5b01fe96a30d2ac79` |
+| Source tree digest | `d0dd9026e9e939536e1896a9d9f6602e36b084bce7d39b13c9b309ebbc4ed440` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -232,9 +232,13 @@ Current status: `R3A-1 CLOSED / R3A-2 AUTHORIZATION REQUIRED`.
 The only current entry point is an exact `R3A-2` preflight covering the proposed
 ruleset diff, required status, administrator-bypass policy, harmless canary
 sequence, rollback plan, and sanitized evidence-retention scope, followed by
-Jenn's explicit authorization decision. Until that authorization is granted,
-do not modify a GitHub ruleset or required-status configuration and do not
-execute a real locked canary.
+Jenn's explicit authorization decision. The proposal-only package is
+`docs/governance/R3A2_MERGE_INTEGRITY_PLATFORM_PREFLIGHT.md`. It records the
+observed no-ruleset baseline, exact active rule, any-source status limitation,
+empty bypass list, never-merged canary sequence, failure rollback, retained
+evidence, and exact confirmation text. Until that authorization is granted, do
+not modify a GitHub ruleset or required-status configuration and do not execute
+a real locked canary.
 
 Do not use this finalization or `R3A-2` to add ADR 012, a real worker, remote
 CAS, new App Server execution probes, release automation, workspace-write, or

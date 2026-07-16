@@ -26,6 +26,9 @@ explicitly promotes them.
 - [merge integrity gate](MERGE_INTEGRITY.md): protected-path structured lock
   metadata, lock-digest and exact-head unlock records, fail-closed GitHub
   inventory, minimum workflow permissions, and pinned GitHub Action revisions.
+- [R3A-2 Merge Integrity platform preflight](R3A2_MERGE_INTEGRITY_PLATFORM_PREFLIGHT.md):
+  proposal-only exact ruleset diff, required-status limitation, no-bypass
+  policy, never-merged canary, rollback, evidence scope, and confirmation text.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [App Server file-change governance runbook](runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md):
   deterministic offline acceptance and the explicit live-acceptance stop.
