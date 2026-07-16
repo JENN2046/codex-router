@@ -109,19 +109,22 @@ The default posture is local, deterministic, inspectable, and non-live:
 6. Treat every unlisted capability as blocked.
 
 PR #189 merged the first Merge Integrity implementation candidate into `main`
-at `2c723ea181fe1aebb78a9eaf60961a0cb1f7929d`. It did not complete
-`R2_GOVERNANCE_INTEGRITY_CLOSEOUT`: GitHub has no required `Merge Integrity`
-status or repository ruleset, no locked canary has proved platform behavior,
-and the structured-lock source candidate still requires current-head review.
+at `2c723ea181fe1aebb78a9eaf60961a0cb1f7929d`. PR #191 then merged the
+reviewed structured merge-lock semantics and tests at
+`78fe9c33a0b6ef7df5a14b09b844d1782071cf40`, closing `R3A-1`. These changes
+do not complete `R2_GOVERNANCE_INTEGRITY_CLOSEOUT` or activate platform
+enforcement: GitHub has no required `Merge Integrity` status or repository
+ruleset, and no locked canary has proved platform behavior.
 
 The current authority is `R3_CLOSEOUT_SEQUENCE`, which may not be skipped or
 parallelized:
 
-1. `R3-0` finalizes the post-merge state without code, ruleset, or build changes.
-2. `R3A-1` defines structured merge-lock semantics and tests only; its source
-   candidate does not configure repository rules or prove platform closure.
-3. `R3A-2` requires Jenn's separate authorization for the exact GitHub ruleset
-   and harmless, never-merged locked-canary procedure.
+1. `R3-0` is closed by the post-PR-#189 state finalization.
+2. `R3A-1` is closed by PR #191; its implementation candidate does not
+   configure repository rules or prove platform closure.
+3. `R3A-2` is the only current entry point and requires an exact preflight plus
+   Jenn's separate authorization before the GitHub ruleset or harmless,
+   never-merged locked-canary procedure is changed or executed.
 4. `R3A-3` records closeout only after independent review.
 5. `R3B` inventories the parallel runtime before staged clean-build, core-only
    artifact, and runtime-import-firewall work.
@@ -130,7 +133,10 @@ Before `R3A-2`, the preflight must state the exact ruleset diff, required
 status, administrator-bypass policy, canary sequence, rollback, and sanitized
 evidence. Blocking must be proved through required-status state, ruleset
 evaluation, and PR merge state, not a merge attempt that could unexpectedly
-succeed.
+succeed. Current status is
+`R3A-1 CLOSED / R3A-2 AUTHORIZATION REQUIRED`; before Jenn grants that exact
+authorization, do not modify GitHub rulesets or required-status configuration
+and do not execute a real locked canary.
 
 The freeze excludes ADR 012, a real worker, remote CAS, new App Server execution
 probes, real workspace-write, and further capability expansion throughout all
