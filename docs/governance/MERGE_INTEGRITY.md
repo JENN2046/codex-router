@@ -133,6 +133,13 @@ Creating, editing, or deleting a top-level PR comment triggers re-evaluation.
 PR synchronize and edited events re-evaluate current head, base, body metadata,
 and changed paths.
 
+A head change leaves the earlier exact-head comment in GitHub as superseded
+audit evidence. That old comment cannot unlock the new head and, by itself, the
+lock remains blocked. A fresh valid authorization for the current head may
+re-authorize the PR without deleting the earlier comment. Malformed claims or
+claims with a wrong lock, digest, base, repository, PR, author, edit state, or
+timestamp remain fail-closed even when a current-head authorization exists.
+
 ## Fail-Closed GitHub Inputs
 
 The trusted job reads changed files for every applicable PR and reads the full

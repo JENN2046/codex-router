@@ -216,6 +216,26 @@ test("unlock fails closed for wrong lockId, stale head, wrong base, repository, 
   }
 });
 
+test("a superseded exact-head unlock does not block fresh re-authorization", () => {
+  const lock = mergeLock();
+  const stale = comment(authorization(lock, {
+    headSha: STALE_HEAD_SHA,
+    approvedAt: "2026-07-16T11:54:00.000Z"
+  }), {
+    id: "stale-head-comment",
+    createdAt: "2026-07-16T11:55:00.000Z",
+    updatedAt: "2026-07-16T11:55:00.000Z"
+  });
+  const fresh = comment(authorization(lock), { id: "fresh-head-comment" });
+
+  const result = evaluateMergeIntegrity(input({ comments: [stale, fresh] }));
+
+  assert.equal(result.status, "passed");
+  assert.equal(result.reason, "merge_lock_authorized");
+  assert.equal(result.authorization?.sourceId, "fresh-head-comment");
+  assert.equal(result.authorization?.headSha, HEAD_SHA);
+});
+
 test("changing lock metadata invalidates an earlier unlock even when lockId is reused", () => {
   const oldLock = mergeLock();
   const changedLock = mergeLock({ reason: "security_review_reopened" });

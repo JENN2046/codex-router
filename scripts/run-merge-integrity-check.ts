@@ -238,6 +238,7 @@ export function evaluateMergeIntegrity(
     input.allowedApprovers.map(normalizeLogin)
   );
   let trustedMalformedClaim = false;
+  let supersededHeadClaim = false;
   let validAuthorization: {
     comment: MergeIntegrityComment;
     claim: MergeAuthorization;
@@ -263,6 +264,15 @@ export function evaluateMergeIntegrity(
         allowedApprovers
       )) {
         validAuthorization ??= { comment, claim };
+      } else if (validSupersededHeadAuthorization(
+        input,
+        lock,
+        lockDigest,
+        comment,
+        claim,
+        allowedApprovers
+      )) {
+        supersededHeadClaim = true;
       } else {
         trustedMalformedClaim = true;
       }
@@ -283,7 +293,7 @@ export function evaluateMergeIntegrity(
     status: "blocked",
     lockRequired,
     lockActive: true,
-    reason: trustedMalformedClaim
+    reason: trustedMalformedClaim || supersededHeadClaim
       ? "invalid_unlock_claim"
       : "merge_lock_active",
     protectedPaths,
@@ -506,6 +516,27 @@ function validCommentAuthorization(
     allowedApprovers
   )
     && sameSha(claim.headSha, input.headSha)
+    && normalizeLogin(claim.approver) === normalizeLogin(comment.authorLogin)
+    && commentWasNotEdited(comment)
+    && authorizationTimeMatches(claim.approvedAt, comment.updatedAt);
+}
+
+function validSupersededHeadAuthorization(
+  input: MergeIntegrityInput,
+  lock: MergeLockMetadata,
+  lockDigest: string,
+  comment: MergeIntegrityComment,
+  claim: MergeAuthorization,
+  allowedApprovers: Set<string>
+): boolean {
+  return validCommonAuthorization(
+    input,
+    lock,
+    lockDigest,
+    claim,
+    allowedApprovers
+  )
+    && !sameSha(claim.headSha, input.headSha)
     && normalizeLogin(claim.approver) === normalizeLogin(comment.authorLogin)
     && commentWasNotEdited(comment)
     && authorizationTimeMatches(claim.approvedAt, comment.updatedAt);
