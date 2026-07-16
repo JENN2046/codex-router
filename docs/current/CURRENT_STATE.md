@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `1196f33fb83f956e9609b3693f895d8c10217c150861deaf61cb96d37f56fdee` |
+| Source tree digest | `dc4466aa97b81c1c28db9cbabc8ce39387e784fb790fbf920d1421b359852e96` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
