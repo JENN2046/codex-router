@@ -1,19 +1,46 @@
-name: State Sync Reanchor PR (Legacy v1 Manual Fallback)
+name: Merge Integrity and State Sync Reanchor
 
 on:
   workflow_dispatch:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: state-sync-reanchor-main
+  group: merge-integrity-state-sync-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  merge-integrity:
+    name: Merge Integrity
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out trusted base revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run governance -- audit merge-integrity
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MERGE_INTEGRITY_ALLOWED_APPROVERS: ${{ github.repository_owner }}
+
   reanchor-pr:
     name: Prepare State Sync Reanchor PR (Legacy v1 Manual Fallback)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

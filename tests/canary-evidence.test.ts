@@ -184,7 +184,7 @@ test("CI runs governance audits before evidence collection", async () => {
   assert.deepEqual(workflow.on.push.branches, ["main"]);
   assert.deepEqual(workflow.on.pull_request.branches, ["main"]);
   assert.equal(stateSyncJob.needs, "test");
-  assert.equal(stateSyncJob.if, "github.event_name != 'pull_request_target'");
+  assert.equal(stateSyncJob.if, undefined);
   assert.equal(checkoutStep?.with?.["fetch-depth"], 0);
   assert.equal(checkoutStep?.with?.ref, "${{ github.sha }}");
   assert.ok(gateStep?.run?.includes('${{ github.event_name }}'));
@@ -207,10 +207,7 @@ test("CI runs governance audits before evidence collection", async () => {
   assert.equal(auditStep?.if, "steps.state-sync-gate.outputs.run_audit == 'true'");
   assert.ok(auditStep);
   assert.equal(executionBoundaryJob.needs, "test");
-  assert.equal(
-    executionBoundaryJob.if,
-    "github.event_name != 'pull_request_target'"
-  );
+  assert.equal(executionBoundaryJob.if, undefined);
   assert.ok(executionBoundaryJob.steps.some((step) => step.run === "npm ci"));
   assert.ok(executionBoundaryJob.steps.some(
     (step) => step.run === "npm run governance -- audit execution-boundary-current-surface"
@@ -219,7 +216,7 @@ test("CI runs governance audits before evidence collection", async () => {
   assert.ok(workflow.jobs.evidence.needs.includes("execution-boundary"));
 });
 
-test("state-sync reanchor workflow is a manual legacy fallback", async () => {
+test("combined governance workflow isolates target checks from manual reanchor", async () => {
   const workflow = parse(
     await readFile(
       new URL("../.github/workflows/state-sync-reanchor-pr.yml", import.meta.url),
@@ -230,6 +227,7 @@ test("state-sync reanchor workflow is a manual legacy fallback", async () => {
     on: {
       push?: { branches: string[] };
       workflow_dispatch?: Record<string, never> | null;
+      pull_request_target?: { branches: string[]; types: string[] };
     };
     permissions: {
       contents: string;
@@ -242,6 +240,7 @@ test("state-sync reanchor workflow is a manual legacy fallback", async () => {
     jobs: {
       "reanchor-pr": {
         name: string;
+        if?: string;
         steps: WorkflowStep[];
       };
     };
@@ -257,16 +256,24 @@ test("state-sync reanchor workflow is a manual legacy fallback", async () => {
     step.name === "Create or update state-sync reanchor PR"
   );
 
-  assert.equal(workflow.name, "State Sync Reanchor PR (Legacy v1 Manual Fallback)");
+  assert.equal(workflow.name, "Merge Integrity and State Sync Reanchor");
   assert.equal(
     workflow.jobs["reanchor-pr"].name,
     "Prepare State Sync Reanchor PR (Legacy v1 Manual Fallback)"
   );
   assert.ok(workflow.on.workflow_dispatch !== undefined);
+  assert.deepEqual(workflow.on.pull_request_target?.branches, ["main"]);
   assert.equal(workflow.on.push, undefined);
   assert.equal(workflow.permissions.contents, "write");
   assert.equal(workflow.permissions["pull-requests"], "write");
-  assert.equal(workflow.concurrency.group, "state-sync-reanchor-main");
+  assert.equal(
+    workflow.jobs["reanchor-pr"].if,
+    "github.event_name == 'workflow_dispatch'"
+  );
+  assert.equal(
+    workflow.concurrency.group,
+    "merge-integrity-state-sync-${{ github.event.pull_request.number || github.ref }}"
+  );
   assert.equal(workflow.concurrency["cancel-in-progress"], true);
   assert.equal(checkout?.with?.ref, "main");
   assert.equal(checkout?.with?.["fetch-depth"], 0);

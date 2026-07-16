@@ -34,7 +34,7 @@ current PR body as an active merge lock, case-insensitively where applicable:
 - `不得合并`;
 - `禁止合并`.
 
-A locked PR fails the `Merge Integrity (pull_request_target)` check even when
+A locked PR fails the `Merge Integrity` check even when
 typecheck, tests, build, state-sync, and every other CI check succeeds. The lock text stays in the PR
 body under the governance procedure so the authorization record cannot be
 confused with removal of the original instruction. The validator evaluates the
@@ -77,9 +77,11 @@ short-lived `GITHUB_TOKEN` with only `contents: read` and
 or 1,000 or more comments block the gate. Raw comment bodies are not printed
 in the result.
 
-The ordinary CI workflow has top-level `contents: read` only. The manual legacy
-state-sync reanchor workflow retains its separately declared write permissions
-because creating its narrowly scoped fallback PR requires them.
+The ordinary CI workflow has top-level `contents: read` only. The combined
+governance workflow retains write permissions for its manual legacy state-sync
+reanchor job because creating its narrowly scoped fallback PR requires them;
+the merge-integrity job overrides those permissions with `contents: read` and
+`pull-requests: read` only.
 
 ## Trusted Execution Source
 
@@ -89,9 +91,9 @@ base revision; it never checks out or executes the PR head in the privileged
 event context. All build, test, canary, state-sync, and evidence jobs are
 restricted to `push` or ordinary `pull_request` events.
 
-Repository rules must require the exact
-`Merge Integrity (pull_request_target)` status. The distinct event-qualified
-name prevents a skipped job in the ordinary PR run from satisfying this gate.
+Repository rules must require the exact `Merge Integrity` status. The gate
+lives in a workflow that does not handle ordinary `pull_request` events, so the
+ordinary PR run cannot emit a skipped status with the same name.
 The PR that first introduces this design is a bootstrap change: the trusted
 base workflow cannot enforce code that is not yet on the base. Its review and
 merge authorization therefore remain manual, and the required status may only

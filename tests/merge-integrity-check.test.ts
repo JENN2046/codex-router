@@ -246,13 +246,14 @@ test("CI hardening pins actions, narrows permissions, and names Canary risk", as
     "edited",
     "ready_for_review"
   ]);
-  assert.deepEqual(ci.on.pull_request_target?.types, ci.on.pull_request?.types);
-  const mergeIntegrity = ci.jobs["merge-integrity"];
-  assert.ok(mergeIntegrity);
-  assert.equal(
-    mergeIntegrity?.name,
-    "Merge Integrity (${{ github.event_name }})"
+  assert.equal(ci.on.pull_request_target, undefined);
+  assert.deepEqual(
+    reanchor.on.pull_request_target?.types,
+    ci.on.pull_request?.types
   );
+  const mergeIntegrity = reanchor.jobs["merge-integrity"];
+  assert.ok(mergeIntegrity);
+  assert.equal(mergeIntegrity?.name, "Merge Integrity");
   assert.equal(
     mergeIntegrity?.if,
     "github.event_name == 'pull_request_target'"
@@ -276,20 +277,7 @@ test("CI hardening pins actions, narrows permissions, and names Canary risk", as
   );
   assert.equal(trustedCheckout?.with?.["persist-credentials"], false);
 
-  const ordinaryJobNames = Object.keys(ci.jobs).filter((name) =>
-    name !== "merge-integrity" && name !== "evidence"
-  );
-  for (const name of ordinaryJobNames) {
-    assert.equal(
-      ci.jobs[name]?.if,
-      "github.event_name != 'pull_request_target'",
-      `${name} must not execute in the privileged event context`
-    );
-  }
-  assert.equal(
-    ci.jobs.evidence?.if,
-    "${{ always() && github.event_name != 'pull_request_target' }}"
-  );
+  assert.equal(ci.jobs["merge-integrity"], undefined);
   assert.equal(
     ci.jobs.canary?.name,
     "Canary (${{ matrix.risk }}, Node ${{ matrix.node }})"
@@ -394,6 +382,5 @@ interface Workflow {
   permissions?: Record<string, string>;
   jobs: Record<string, WorkflowJob> & {
     canary?: WorkflowJob;
-    evidence?: WorkflowJob;
   };
 }

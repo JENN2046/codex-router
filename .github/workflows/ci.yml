@@ -6,40 +6,12 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, edited, ready_for_review]
-  pull_request_target:
-    branches: [main]
-    types: [opened, synchronize, reopened, edited, ready_for_review]
-
 permissions:
   contents: read
 
 jobs:
-  merge-integrity:
-    name: Merge Integrity (${{ github.event_name }})
-    if: github.event_name == 'pull_request_target'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Check out trusted base revision
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run governance -- audit merge-integrity
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          MERGE_INTEGRITY_ALLOWED_APPROVERS: ${{ github.repository_owner }}
-
   typecheck:
     name: TypeCheck (Node ${{ matrix.node }})
-    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -55,7 +27,6 @@ jobs:
 
   build:
     name: Build (Node ${{ matrix.node }})
-    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
     needs: typecheck
     strategy:
@@ -72,7 +43,6 @@ jobs:
 
   test:
     name: Cross-platform Acceptance (${{ matrix.os }}, Node ${{ matrix.node }})
-    if: github.event_name != 'pull_request_target'
     runs-on: ${{ matrix.os }}
     needs: build
     strategy:
@@ -93,7 +63,6 @@ jobs:
 
   governance-coverage:
     name: Governance Branch Coverage (Node 22)
-    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
     needs: build
     steps:
@@ -108,7 +77,6 @@ jobs:
 
   state-sync:
     name: State Sync Audit
-    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -162,7 +130,6 @@ jobs:
 
   execution-boundary:
     name: Execution Boundary Audit
-    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -176,7 +143,6 @@ jobs:
 
   canary:
     name: Canary (${{ matrix.risk }}, Node ${{ matrix.node }})
-    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
     needs: build
     strategy:
@@ -209,7 +175,6 @@ jobs:
 
   smoke-contract:
     name: Smoke Contract (Node ${{ matrix.node }})
-    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
     needs: build
     strategy:
@@ -241,7 +206,7 @@ jobs:
     name: Evidence Collection
     runs-on: ubuntu-latest
     needs: [canary, smoke-contract, state-sync, execution-boundary]
-    if: ${{ always() && github.event_name != 'pull_request_target' }}
+    if: always()
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
