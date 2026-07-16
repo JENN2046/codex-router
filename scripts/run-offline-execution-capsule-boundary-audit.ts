@@ -20,10 +20,11 @@ export interface OfflineExecutionCapsuleBoundaryAuditResult {
   status: "passed" | "blocked";
   checks: {
     offlineContractFixed: boolean;
-    inMemoryContentStoreOnly: boolean;
+    shippedContentStoreImplementationInMemoryOnly: boolean;
     testWorkerRegistryGuarded: boolean;
     passiveWorkerInputsRequired: boolean;
     fakeWorkerInputSafetyGated: boolean;
+    fakeWorkerOutputPrestoreSafetyGated: boolean;
     sourceImportsAllowlisted: boolean;
     noFilesystemProcessOrSocketImports: boolean;
     noProviderOrHostExecutionCoupling: boolean;
@@ -36,7 +37,8 @@ export interface OfflineExecutionCapsuleBoundaryAuditResult {
   };
   summary: {
     executionMode: "test_only_simulated";
-    contentStoreMode: "in_memory_only";
+    shippedContentStoreImplementation: "in_memory_only";
+    injectedStoreSideEffectsMechanicallyExcluded: false;
     publicExported: false;
     liveExecutionAuthorized: false;
     autoApprovalEligible: false;
@@ -70,7 +72,8 @@ export async function collectOfflineExecutionCapsuleBoundaryAuditInput(
     publicApiText: await collectExportedPublicFacadeText(packageJsonText, cwd),
     testText: (await Promise.all([
       "tests/offline-execution-capsule.test.ts",
-      "tests/offline-execution-capsule-fake-worker-input-gate.test.ts"
+      "tests/offline-execution-capsule-fake-worker-input-gate.test.ts",
+      "tests/offline-execution-capsule-fake-worker-output-gate.test.ts"
     ].map((path) => readFile(resolve(cwd, path), "utf8")))).join("\n"),
     adrText: await readFile(
       resolve(cwd, "docs/governance/decisions/ADR_011_OFFLINE_EXECUTION_CAPSULE.md"),
@@ -243,7 +246,7 @@ export function reviewOfflineExecutionCapsuleBoundary(
       'z.literal("none")',
       'z.literal(false)'
     ]),
-    inMemoryContentStoreOnly: includesAll(input.sourceText, [
+    shippedContentStoreImplementationInMemoryOnly: includesAll(input.sourceText, [
       "class InMemoryContentAddressedStore",
       "new Map<string, Uint8Array>()",
       "readVerifiedBytes",
@@ -269,6 +272,21 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "fake worker rejects credential-like task content before invoking transform",
       "fake worker rejects sensitive input paths before tree blob reads or transform",
       "fake worker rejects credential-like input content before invoking transform"
+    ]),
+    fakeWorkerOutputPrestoreSafetyGated: includesAll(input.sourceText, [
+      "assertFakeWorkerOutputPrestoreSafe(\n    outputFiles,",
+      "offline_fake_worker_total_tree_file_limit_exceeded",
+      "offline_fake_worker_total_tree_byte_limit_exceeded",
+      "offline_fake_worker_tree_manifest_byte_limit_exceeded",
+      "offline_fake_worker_changed_file_limit_exceeded",
+      "offline_fake_worker_changed_byte_limit_exceeded",
+      "offline_fake_worker_sensitive_path_forbidden",
+      "offline_fake_worker_credential_like_content_forbidden"
+    ]) && includesAll(input.testText, [
+      "fake worker rejects output tree budgets before any CAS put",
+      "fake worker rejects changed budgets before any CAS put",
+      "fake worker rejects sensitive, credential-like, and invalid output before any CAS put",
+      "assert.equal(putCalls, 0"
     ]),
     sourceImportsAllowlisted: sourceAnalysis.parseSucceeded
       && sourceImports.every(isAllowedCapsuleModuleSpecifier)
@@ -342,7 +360,8 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "new schema version",
       "App Server exact-apply gap remains unresolved",
       "real workspace promotion",
-      "Injected transform side effects are not mechanically excluded"
+      "Injected transform side effects are not mechanically excluded",
+      "Caller-injected store side effects are not mechanically excluded"
     ])
   };
   const reasons = Object.entries(checks)
@@ -353,7 +372,8 @@ export function reviewOfflineExecutionCapsuleBoundary(
     checks,
     summary: {
       executionMode: "test_only_simulated",
-      contentStoreMode: "in_memory_only",
+      shippedContentStoreImplementation: "in_memory_only",
+      injectedStoreSideEffectsMechanicallyExcluded: false,
       publicExported: false,
       liveExecutionAuthorized: false,
       autoApprovalEligible: false,

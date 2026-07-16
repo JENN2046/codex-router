@@ -60,9 +60,10 @@
     "evidence:collect": "node --import tsx scripts/collect-evidence.ts",
     "test:package-consumer": "node --import tsx scripts/test-package-consumer.ts",
     "test:coverage:authorization": "node --experimental-test-coverage --test-coverage-include=\"packages/authorization-kernel/src/**\" --test-coverage-branches=90 --import tsx --test tests/authorization-kernel.test.ts",
+    "test:coverage:offline-execution-capsule": "node --experimental-test-coverage --test-coverage-include=\"packages/execution-capsule/src/**\" --test-coverage-branches=90 --import tsx --test tests/offline-execution-capsule.test.ts tests/offline-execution-capsule-fake-worker-input-gate.test.ts tests/offline-execution-capsule-fake-worker-output-gate.test.ts tests/offline-execution-capsule-review-closeout.test.ts",
     "test:coverage:preview": "node --experimental-test-coverage --test-coverage-include=\"packages/file-change-preview/src/**\" --test-coverage-branches=90 --import tsx --test tests/file-change-preview.test.ts",
     "test:coverage:retain": "node --experimental-test-coverage --test-coverage-include=\"packages/retain-control/src/**\" --test-coverage-branches=90 --import tsx --test tests/retain-control.test.ts",
-    "test:governance-coverage": "npm run test:coverage:authorization && npm run test:coverage:preview && npm run test:coverage:retain",
+    "test:governance-coverage": "npm run test:coverage:authorization && npm run test:coverage:preview && npm run test:coverage:retain && npm run test:coverage:offline-execution-capsule",
     "test:governance-properties": "node --import tsx --test --test-name-pattern=property tests/file-change-preview.test.ts tests/retain-control.test.ts tests/codex-app-server-adapter.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx scripts/run-tests.ts"
