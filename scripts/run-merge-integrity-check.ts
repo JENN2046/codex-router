@@ -50,7 +50,7 @@ export interface MergeIntegrityComment {
   body: string;
   authorLogin: string;
   authorAssociation: string;
-  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MergeIntegrityInput {
@@ -371,7 +371,7 @@ function validCommentAuthorization(
   return validCommonAuthorization(input, claim, allowedApprovers)
     && sameSha(claim.headSha, input.headSha)
     && normalizeLogin(claim.approver) === normalizeLogin(comment.authorLogin)
-    && authorizationTimeMatches(claim.approvedAt, comment.createdAt);
+    && authorizationTimeMatches(claim.approvedAt, comment.updatedAt);
 }
 
 function validCommonAuthorization(
@@ -621,7 +621,7 @@ function parseComment(value: unknown): MergeIntegrityComment {
     || typeof value.body !== "string"
     || typeof value.user.login !== "string"
     || typeof value.author_association !== "string"
-    || typeof value.created_at !== "string"
+    || typeof value.updated_at !== "string"
   ) {
     throw new Error("github_comment_inventory_invalid");
   }
@@ -630,7 +630,7 @@ function parseComment(value: unknown): MergeIntegrityComment {
     body: value.body,
     authorLogin: value.user.login,
     authorAssociation: value.author_association,
-    createdAt: value.created_at
+    updatedAt: value.updated_at
   };
 }
 

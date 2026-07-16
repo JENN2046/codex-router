@@ -18,7 +18,7 @@ import { resolveGovernanceCheck } from "../scripts/run-governance-check.js";
 
 const HEAD_SHA = "a".repeat(40);
 const APPROVED_AT = "2026-07-16T12:00:00.000Z";
-const COMMENTED_AT = "2026-07-16T12:01:00.000Z";
+const COMMENT_UPDATED_AT = "2026-07-16T12:01:00.000Z";
 
 const PINNED_ACTIONS = {
   checkout: "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
@@ -88,7 +88,7 @@ test("an owner comment can authorize the exact PR head and scope", () => {
       body: authorizationBlock(claim),
       authorLogin: "JENN2046",
       authorAssociation: "OWNER",
-      createdAt: COMMENTED_AT
+      updatedAt: COMMENT_UPDATED_AT
     }]
   }));
 
@@ -122,7 +122,7 @@ test("comment authorization fails closed on actor, association, head, time, and 
       reason: "invalid_authorization_claim"
     },
     {
-      comment: { createdAt: "2026-07-16T13:00:00.000Z" },
+      comment: { updatedAt: "2026-07-16T13:00:00.000Z" },
       claim: {},
       reason: "invalid_authorization_claim"
     },
@@ -142,7 +142,7 @@ test("comment authorization fails closed on actor, association, head, time, and 
       })),
       authorLogin: "JENN2046",
       authorAssociation: "OWNER",
-      createdAt: COMMENTED_AT,
+      updatedAt: COMMENT_UPDATED_AT,
       ...variant.comment
     };
     const result = evaluateMergeIntegrity(input({ comments: [comment] }));
@@ -158,7 +158,7 @@ test("malformed trusted authorization blocks fail closed without exposing text",
       body: "<!-- codex-router-merge-authorization:v1\n{not-json}\n-->",
       authorLogin: "JENN2046",
       authorAssociation: "OWNER",
-      createdAt: COMMENTED_AT
+      updatedAt: COMMENT_UPDATED_AT
     }]
   }));
 
@@ -198,7 +198,8 @@ test("GitHub collection reads the comment inventory for a lock", async () => {
     body: authorizationBlock(authorization({ headSha: HEAD_SHA })),
     user: { login: "JENN2046" },
     author_association: "OWNER",
-    created_at: COMMENTED_AT
+    created_at: "2025-01-01T00:00:00.000Z",
+    updated_at: COMMENT_UPDATED_AT
   }];
   let call = 0;
   const collected = await collectMergeIntegrityInput(event("Must remain draft."), {
@@ -212,6 +213,7 @@ test("GitHub collection reads the comment inventory for a lock", async () => {
 
   assert.equal(call, 1);
   assert.equal(collected.comments[0]?.id, "42");
+  assert.equal(collected.comments[0]?.updatedAt, COMMENT_UPDATED_AT);
 });
 
 test("GitHub collection fails closed when the locked inventory cannot be read", async () => {

@@ -183,9 +183,9 @@ The `Merge Integrity Evaluation` job in
 `pull_request_target` and PR-only `issue_comment` events. It checks out the exact
 base SHA or immutable default-branch event SHA before running
 `npm run governance -- audit merge-integrity`; PR body, exact head, complete
-current comment inventory, actor, and timestamp inputs come from GitHub-owned
-events and API inventory. Comment creation, edit, and deletion all re-evaluate
-the current authorization. The job publishes the independent `Merge Integrity`
+current comment inventory, actor, and comment `updated_at` timestamp inputs come
+from GitHub-owned events and API inventory. Comment creation, edit, and deletion
+all re-evaluate the current authorization. The job publishes the independent `Merge Integrity`
 commit status to the exact current PR head with only `statuses: write`; the
 ordinary `pull_request` workflow does not emit this context. A bare local
 invocation is only a non-applicable runner check unless a trusted event is

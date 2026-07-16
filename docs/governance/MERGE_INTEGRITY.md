@@ -56,7 +56,10 @@ an exact JSON object inside this block:
 Unknown or missing fields, malformed JSON, a different repository, PR, base
 branch, actor, scope, or stale head binding fail closed. `approvedAt` must be a
 valid timestamp no more than fifteen minutes before the GitHub-owned comment
-timestamp, with one minute of clock-skew tolerance.
+`updated_at` timestamp, with one minute of clock-skew tolerance. The original
+`created_at` is not an authorization clock: editing an old comment refreshes
+`updated_at`, so backfilling a block with an approval time near the old creation
+time fails closed.
 
 ### PR Comment Route
 
