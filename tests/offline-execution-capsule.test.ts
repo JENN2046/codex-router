@@ -710,42 +710,6 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     sensitive.receipt.outputRoot.hash
   ]);
 
-  for (const credentialPath of [
-    "credentials.json",
-    "client_secret.json",
-    "oauth-credentials.json"
-  ]) {
-    const credentialStem = createFixture({
-      inputFiles: [
-        { path: credentialPath, mode: "100644", content: text("synthetic=fixture\n") },
-        { path: "docs/guide.md", mode: "100644", content: text("old\n") }
-      ]
-    });
-    const credentialStemReadHashes: string[] = [];
-    const credentialStemStore: ContentAddressedStore = {
-      put: (...args) => credentialStem.store.put(...args),
-      read(digest) {
-        credentialStemReadHashes.push(digest.hash);
-        return credentialStem.store.read(digest);
-      }
-    };
-    const credentialStemAssessment = verifyOfflineCapsuleCandidate({
-      store: credentialStemStore,
-      manifest: credentialStem.manifest,
-      receipt: credentialStem.receipt,
-      replayStore: createInMemoryOfflineCapsuleReplayStore(),
-      now: () => verifiedAt
-    });
-    assert.deepEqual(credentialStemAssessment.reasons, [
-      "offline_capsule_sensitive_path_forbidden"
-    ], credentialPath);
-    assert.deepEqual(credentialStemReadHashes, [
-      credentialStem.manifest.taskDigest.hash,
-      credentialStem.manifest.inputRoot.hash,
-      credentialStem.receipt.outputRoot.hash
-    ], credentialPath);
-  }
-
   const unchangedSensitive = createFixture({
     inputFiles: [
       { path: ".env", mode: "100644", content: text("synthetic=fixture\n") },
@@ -907,6 +871,44 @@ test("changed binary, credential-like content, sensitive path, and size limits f
     limits: { maxChangedFiles: 2, maxChangedBytes: 4096, maxDiffBytes: 10 }
   });
   assert.deepEqual(verifyFixture(diffLimit).reasons, ["offline_capsule_diff_limit_exceeded"]);
+});
+
+test("credential filename tokens are blocked before tree blob reads", () => {
+  for (const credentialPath of [
+    "credentials.json",
+    "client_secret.json",
+    "oauth-credentials.json"
+  ]) {
+    const fixture = createFixture({
+      inputFiles: [
+        { path: credentialPath, mode: "100644", content: text("synthetic=fixture\n") },
+        { path: "docs/guide.md", mode: "100644", content: text("old\n") }
+      ]
+    });
+    const readHashes: string[] = [];
+    const store: ContentAddressedStore = {
+      put: (...args) => fixture.store.put(...args),
+      read(digest) {
+        readHashes.push(digest.hash);
+        return fixture.store.read(digest);
+      }
+    };
+    const assessment = verifyOfflineCapsuleCandidate({
+      store,
+      manifest: fixture.manifest,
+      receipt: fixture.receipt,
+      replayStore: createInMemoryOfflineCapsuleReplayStore(),
+      now: () => verifiedAt
+    });
+    assert.deepEqual(assessment.reasons, [
+      "offline_capsule_sensitive_path_forbidden"
+    ], credentialPath);
+    assert.deepEqual(readHashes, [
+      fixture.manifest.taskDigest.hash,
+      fixture.manifest.inputRoot.hash,
+      fixture.receipt.outputRoot.hash
+    ], credentialPath);
+  }
 });
 
 test("credential-like task text is blocked before candidate verification", () => {
