@@ -34,7 +34,7 @@ current PR body as an active merge lock, case-insensitively where applicable:
 - `不得合并`;
 - `禁止合并`.
 
-A locked PR fails the `Merge Integrity` check even when
+A locked PR fails the exact-head `Merge Integrity` commit status even when
 typecheck, tests, build, state-sync, and every other CI check succeeds. The lock text stays in the PR
 body under the governance procedure so the authorization record cannot be
 confused with removal of the original instruction. The validator evaluates the
@@ -64,36 +64,49 @@ An allowed approver may post the structured block as a top-level PR comment.
 The gate checks the GitHub comment author and association, not only the
 self-declared `approver` field. `headSha` must equal the exact current PR head.
 
-If the check already failed, leave the lock text in place and re-evaluate the
-same head by editing and saving the PR body or by an explicitly authorized
-workflow rerun. A later code push changes the head and invalidates the old
-comment authorization.
+Creating, editing, or deleting any top-level PR comment automatically
+re-evaluates the current PR body, current head, and complete current comment
+inventory. A later code push changes the head and invalidates the old comment
+authorization. An explicitly authorized workflow rerun remains available for a
+transient platform failure.
 
 ## Fail-Closed Inputs
 
 When a lock is active, the gate reads the PR's top-level comments using a
-short-lived `GITHUB_TOKEN` with only `contents: read` and
-`pull-requests: read`. Missing credentials, API errors, malformed inventories,
-or 1,000 or more comments block the gate. Raw comment bodies are not printed
-in the result.
+short-lived `GITHUB_TOKEN`. The trusted job has only `contents: read`,
+`pull-requests: read`, and `statuses: write`; the write permission is limited to
+publishing the gate result on the exact current PR head. Missing credentials,
+API errors, malformed inventories, or 1,000 or more comments block the gate.
+Raw comment bodies are not printed in the result or status.
 
 The ordinary CI workflow has top-level `contents: read` only. The combined
 governance workflow retains write permissions for its manual legacy state-sync
 reanchor job because creating its narrowly scoped fallback PR requires them;
-the merge-integrity job overrides those permissions with `contents: read` and
-`pull-requests: read` only.
+the merge-integrity job overrides those permissions with `contents: read`,
+`pull-requests: read`, and `statuses: write` only.
 
 ## Trusted Execution Source
 
-The gate runs only for `pull_request_target`. It explicitly checks out
-`github.event.pull_request.base.sha` and executes the validator from that trusted
-base revision; it never checks out or executes the PR head in the privileged
-event context. All build, test, canary, state-sync, and evidence jobs are
-restricted to `push` or ordinary `pull_request` events.
+The gate runs for `pull_request_target` and for PR-only `issue_comment`
+`created`, `edited`, and `deleted` events. A target event explicitly checks out
+`github.event.pull_request.base.sha`; a comment event checks out the immutable
+default-branch `github.sha` supplied by that event. Both routes execute only the
+trusted base/default-branch validator and never check out or execute the PR head
+in the privileged event context. All build, test, canary, state-sync, and
+evidence jobs remain restricted to `push` or ordinary `pull_request` events.
 
-Repository rules must require the exact `Merge Integrity` status. The gate
-lives in a workflow that does not handle ordinary `pull_request` events, so the
-ordinary PR run cannot emit a skipped status with the same name.
+The trusted job first publishes `pending`, then `success` or `failure`, to the
+exact refreshed PR head SHA using the fixed `Merge Integrity` context. The
+Actions job is deliberately named `Merge Integrity Evaluation`, so repository
+rules can require the exact `Merge Integrity` commit status without selecting a
+same-named workflow check. The workflow does not handle ordinary
+`pull_request` events.
+
+If GitHub cannot return the current PR head or cannot accept a status write, the
+trusted workflow fails. No gate can revoke an earlier status while the status
+API itself is unavailable, so maintainers must treat that platform failure as a
+manual merge block and rerun the trusted event after service recovery.
+
 The PR that first introduces this design is a bootstrap change: the trusted
 base workflow cannot enforce code that is not yet on the base. Its review and
 merge authorization therefore remain manual, and the required status may only

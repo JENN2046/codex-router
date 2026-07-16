@@ -272,7 +272,7 @@ test("combined governance workflow isolates target checks from manual reanchor",
   );
   assert.equal(
     workflow.concurrency.group,
-    "merge-integrity-state-sync-${{ github.event.pull_request.number || github.ref }}"
+    "merge-integrity-state-sync-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}"
   );
   assert.equal(workflow.concurrency["cancel-in-progress"], true);
   assert.equal(checkout?.with?.ref, "main");

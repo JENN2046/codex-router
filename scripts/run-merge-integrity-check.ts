@@ -16,6 +16,7 @@ const MAX_GITHUB_PAGES = 10;
 const GITHUB_PAGE_SIZE = 100;
 const AUTHORIZATION_CLOCK_SKEW_MS = 60_000;
 const AUTHORIZATION_MAX_AGE_MS = 15 * 60_000;
+export const MERGE_INTEGRITY_STATUS_CONTEXT = "Merge Integrity";
 
 const LOCK_MARKERS = [
   { id: "must_remain_draft", pattern: /\bmust\s+remain\s+draft\b/iu },
@@ -89,13 +90,23 @@ interface AuthorizationBlockParseResult {
   malformed: boolean;
 }
 
-interface PullRequestEventFacts {
+export interface PullRequestEventFacts {
   repository: string;
   pullRequest: number;
   baseRef: string;
   headSha: string;
   body: string;
 }
+
+export type MergeIntegrityGateRun =
+  | {
+    mode: "not_applicable";
+    reason: "event" | "base";
+  }
+  | {
+    mode: "evaluated";
+    result: MergeIntegrityResult;
+  };
 
 type FetchLike = typeof fetch;
 
@@ -169,7 +180,151 @@ export async function collectMergeIntegrityInput(
     fetchImpl?: FetchLike;
   }
 ): Promise<MergeIntegrityInput> {
-  const facts = parsePullRequestEvent(event);
+  const facts = await resolvePullRequestEventFacts(event, options);
+  return collectMergeIntegrityInputForFacts(facts, options);
+}
+
+export async function resolvePullRequestEventFacts(
+  event: unknown,
+  options: {
+    token: string;
+    apiUrl?: string;
+    fetchImpl?: FetchLike;
+  }
+): Promise<PullRequestEventFacts> {
+  if (isRecord(event) && isRecord(event.pull_request)) {
+    return parsePullRequestTargetEvent(event);
+  }
+  const envelope = parseIssueCommentEvent(event);
+  if (options.token.trim() === "") {
+    throw new Error("github_token_missing_for_pull_request_refresh");
+  }
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const apiUrl = normalizedApiUrl(options.apiUrl);
+  const encodedRepository = encodeRepository(envelope.repository);
+  const response = await fetchImpl(
+    `${apiUrl}/repos/${encodedRepository}/pulls/${envelope.pullRequest}`,
+    githubRequest(options.token)
+  );
+  if (!response.ok) {
+    throw new Error(`github_pull_request_failed_status_${response.status}`);
+  }
+  const pullRequest = await response.json() as unknown;
+  return parsePullRequestRecord(
+    envelope.repository,
+    pullRequest,
+    envelope.pullRequest
+  );
+}
+
+export async function publishMergeIntegrityStatus(
+  input: {
+    repository: string;
+    headSha: string;
+    state: "pending" | "success" | "failure";
+    description: string;
+    token: string;
+    apiUrl?: string;
+    fetchImpl?: FetchLike;
+  }
+): Promise<void> {
+  if (
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(input.repository)
+    || !isFullSha(input.headSha)
+    || input.token.trim() === ""
+    || input.description.length === 0
+    || input.description.length > 140
+  ) {
+    throw new Error("github_commit_status_input_invalid");
+  }
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const apiUrl = normalizedApiUrl(input.apiUrl);
+  const encodedRepository = encodeRepository(input.repository);
+  const response = await fetchImpl(
+    `${apiUrl}/repos/${encodedRepository}/statuses/${input.headSha}`,
+    {
+      headers: {
+        ...githubHeaders(input.token),
+        "content-type": "application/json"
+      },
+      method: "POST",
+      body: JSON.stringify({
+        state: input.state,
+        description: input.description,
+        context: MERGE_INTEGRITY_STATUS_CONTEXT
+      })
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`github_commit_status_failed_status_${response.status}`);
+  }
+}
+
+export async function runMergeIntegrityGate(
+  event: unknown,
+  options: {
+    eventName: string;
+    token: string;
+    allowedApprovers: string[];
+    apiUrl?: string;
+    fetchImpl?: FetchLike;
+  }
+): Promise<MergeIntegrityGateRun> {
+  if (!isMergeIntegrityEventName(options.eventName)) {
+    return { mode: "not_applicable", reason: "event" };
+  }
+  const facts = await resolvePullRequestEventFacts(event, options);
+  if (facts.baseRef !== "main") {
+    return { mode: "not_applicable", reason: "base" };
+  }
+  const statusInput = {
+    repository: facts.repository,
+    headSha: facts.headSha,
+    token: options.token,
+    ...(options.apiUrl === undefined ? {} : { apiUrl: options.apiUrl }),
+    ...(options.fetchImpl === undefined
+      ? {}
+      : { fetchImpl: options.fetchImpl })
+  };
+  await publishMergeIntegrityStatus({
+    ...statusInput,
+    state: "pending",
+    description: "Merge authorization evaluation in progress."
+  });
+  try {
+    const input = await collectMergeIntegrityInputForFacts(facts, options);
+    const result = evaluateMergeIntegrity(input);
+    await publishMergeIntegrityStatus({
+      ...statusInput,
+      state: result.status === "passed" ? "success" : "failure",
+      description: result.status === "passed"
+        ? "Merge authorization evaluation passed."
+        : `Merge authorization blocked: ${result.reason}.`
+    });
+    return { mode: "evaluated", result };
+  } catch (error) {
+    try {
+      await publishMergeIntegrityStatus({
+        ...statusInput,
+        state: "failure",
+        description: "Merge authorization evaluation failed closed."
+      });
+    } catch {
+      // Keep the pending status and fail the trusted workflow when publishing fails.
+    }
+    throw error;
+  }
+}
+
+async function collectMergeIntegrityInputForFacts(
+  facts: PullRequestEventFacts,
+  options: {
+    token: string;
+    allowedApprovers: string[];
+    apiUrl?: string;
+    fetchImpl?: FetchLike;
+  }
+): Promise<MergeIntegrityInput> {
   const baseInput: MergeIntegrityInput = {
     ...facts,
     allowedApprovers: options.allowedApprovers,
@@ -184,11 +339,8 @@ export async function collectMergeIntegrityInput(
   }
 
   const fetchImpl = options.fetchImpl ?? fetch;
-  const apiUrl = (options.apiUrl ?? "https://api.github.com").replace(/\/$/u, "");
-  const encodedRepository = facts.repository
-    .split("/")
-    .map(encodeURIComponent)
-    .join("/");
+  const apiUrl = normalizedApiUrl(options.apiUrl);
+  const encodedRepository = encodeRepository(facts.repository);
   const comments = await fetchAllPages(
     `${apiUrl}/repos/${encodedRepository}/issues/${facts.pullRequest}/comments`,
     options.token,
@@ -342,7 +494,7 @@ function parseAuthorization(value: unknown): MergeAuthorization | undefined {
   };
 }
 
-function parsePullRequestEvent(event: unknown): PullRequestEventFacts {
+function parsePullRequestTargetEvent(event: unknown): PullRequestEventFacts {
   if (!isRecord(event)) {
     throw new Error("pull_request_event_invalid");
   }
@@ -351,14 +503,27 @@ function parsePullRequestEvent(event: unknown): PullRequestEventFacts {
   if (!isRecord(repository) || !isRecord(pullRequest)) {
     throw new Error("pull_request_event_invalid");
   }
+  if (typeof repository.full_name !== "string") {
+    throw new Error("pull_request_event_invalid");
+  }
+  return parsePullRequestRecord(repository.full_name, pullRequest);
+}
+
+function parsePullRequestRecord(
+  repository: string,
+  pullRequest: unknown,
+  expectedNumber?: number
+): PullRequestEventFacts {
+  if (!isRecord(pullRequest)) {
+    throw new Error("pull_request_event_invalid");
+  }
   const head = pullRequest.head;
   const base = pullRequest.base;
   if (!isRecord(head) || !isRecord(base)) {
     throw new Error("pull_request_event_invalid");
   }
   if (
-    typeof repository.full_name !== "string"
-    || typeof pullRequest.number !== "number"
+    typeof pullRequest.number !== "number"
     || !Number.isSafeInteger(pullRequest.number)
     || typeof head.sha !== "string"
     || typeof base.ref !== "string"
@@ -366,12 +531,36 @@ function parsePullRequestEvent(event: unknown): PullRequestEventFacts {
   ) {
     throw new Error("pull_request_event_invalid");
   }
+  if (expectedNumber !== undefined && pullRequest.number !== expectedNumber) {
+    throw new Error("pull_request_event_invalid");
+  }
   return {
-    repository: repository.full_name,
+    repository,
     pullRequest: pullRequest.number,
     baseRef: base.ref,
     headSha: head.sha,
     body: pullRequest.body ?? ""
+  };
+}
+
+function parseIssueCommentEvent(event: unknown): {
+  repository: string;
+  pullRequest: number;
+} {
+  if (!isRecord(event) || !isRecord(event.repository) || !isRecord(event.issue)) {
+    throw new Error("pull_request_comment_event_invalid");
+  }
+  if (
+    typeof event.repository.full_name !== "string"
+    || typeof event.issue.number !== "number"
+    || !Number.isSafeInteger(event.issue.number)
+    || !isRecord(event.issue.pull_request)
+  ) {
+    throw new Error("pull_request_comment_event_invalid");
+  }
+  return {
+    repository: event.repository.full_name,
+    pullRequest: event.issue.number
   };
 }
 
@@ -384,13 +573,7 @@ async function fetchAllPages(
   for (let page = 1; page <= MAX_GITHUB_PAGES; page += 1) {
     const response = await fetchImpl(
       `${url}?per_page=${GITHUB_PAGE_SIZE}&page=${page}`,
-      {
-        headers: {
-          accept: "application/vnd.github+json",
-          authorization: `Bearer ${token}`,
-          "x-github-api-version": "2022-11-28"
-        }
-      }
+      githubRequest(token)
     );
     if (!response.ok) {
       throw new Error(`github_inventory_failed_status_${response.status}`);
@@ -405,6 +588,28 @@ async function fetchAllPages(
     }
   }
   throw new Error("github_inventory_page_limit_exceeded");
+}
+
+function normalizedApiUrl(value: string | undefined): string {
+  return (value ?? "https://api.github.com").replace(/\/$/u, "");
+}
+
+function encodeRepository(repository: string): string {
+  return repository.split("/").map(encodeURIComponent).join("/");
+}
+
+function githubRequest(token: string): RequestInit {
+  return {
+    headers: githubHeaders(token)
+  };
+}
+
+function githubHeaders(token: string): Record<string, string> {
+  return {
+    accept: "application/vnd.github+json",
+    authorization: `Bearer ${token}`,
+    "x-github-api-version": "2022-11-28"
+  };
 }
 
 function parseComment(value: unknown): MergeIntegrityComment {
@@ -474,34 +679,36 @@ function formatResult(result: MergeIntegrityResult): string {
 }
 
 export function isMergeIntegrityEventName(value: string): boolean {
-  return value === "pull_request_target";
+  return value === "pull_request_target" || value === "issue_comment";
 }
 
 async function main(): Promise<void> {
-  if (!isMergeIntegrityEventName(process.env.GITHUB_EVENT_NAME ?? "")) {
-    console.log("Merge integrity gate\nstatus: passed\nreason: not_applicable");
-    return;
-  }
-
   const eventPath = process.env.GITHUB_EVENT_PATH?.trim() ?? "";
-  if (eventPath === "") {
+  const eventName = process.env.GITHUB_EVENT_NAME ?? "";
+  if (isMergeIntegrityEventName(eventName) && eventPath === "") {
     throw new Error("github_event_path_missing");
   }
-  const event = JSON.parse(await readFile(eventPath, "utf8")) as unknown;
+  const event = eventPath === ""
+    ? undefined
+    : JSON.parse(await readFile(eventPath, "utf8")) as unknown;
   const allowedApprovers = (process.env.MERGE_INTEGRITY_ALLOWED_APPROVERS ?? "")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
-  const input = await collectMergeIntegrityInput(event, {
+  const run = await runMergeIntegrityGate(event, {
+    eventName,
     token: process.env.GITHUB_TOKEN ?? "",
     allowedApprovers,
     ...(process.env.GITHUB_API_URL === undefined
       ? {}
       : { apiUrl: process.env.GITHUB_API_URL })
   });
-  const result = evaluateMergeIntegrity(input);
-  console.log(formatResult(result));
-  if (result.status !== "passed") {
+  if (run.mode === "not_applicable") {
+    console.log(`Merge integrity gate\nstatus: passed\nreason: not_applicable_${run.reason}`);
+    return;
+  }
+  console.log(formatResult(run.result));
+  if (run.result.status !== "passed") {
     process.exitCode = 1;
   }
 }

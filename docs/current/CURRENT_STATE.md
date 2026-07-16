@@ -178,14 +178,18 @@ The exact PR head must match the structured source-tree digest. No real Codex
 CLI, App Server, provider, worker, remote CAS, source-workspace write, release,
 deploy, or package publish belongs in this validation.
 
-The `Merge Integrity` job in
-`.github/workflows/state-sync-reanchor-pr.yml` runs only on GitHub
-`pull_request_target`. It checks out the exact base SHA before running
-`npm run governance -- audit merge-integrity`; PR body, exact head, comment,
-actor, and timestamp inputs come from the GitHub event and read-only API
-inventory. The ordinary `pull_request` workflow does not emit this status.
-A bare local invocation is only a non-applicable runner check unless the
-trusted target event is explicitly simulated, and it cannot authorize merge.
+The `Merge Integrity Evaluation` job in
+`.github/workflows/state-sync-reanchor-pr.yml` runs on trusted GitHub
+`pull_request_target` and PR-only `issue_comment` events. It checks out the exact
+base SHA or immutable default-branch event SHA before running
+`npm run governance -- audit merge-integrity`; PR body, exact head, complete
+current comment inventory, actor, and timestamp inputs come from GitHub-owned
+events and API inventory. Comment creation, edit, and deletion all re-evaluate
+the current authorization. The job publishes the independent `Merge Integrity`
+commit status to the exact current PR head with only `statuses: write`; the
+ordinary `pull_request` workflow does not emit this context. A bare local
+invocation is only a non-applicable runner check unless a trusted event is
+explicitly simulated, and it cannot authorize merge.
 
 ## Next Governed Step
 

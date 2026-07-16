@@ -5,28 +5,31 @@ on:
   pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened, edited, ready_for_review]
+  issue_comment:
+    types: [created, edited, deleted]
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: merge-integrity-state-sync-${{ github.event.pull_request.number || github.ref }}
+  group: merge-integrity-state-sync-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   merge-integrity:
-    name: Merge Integrity
-    if: github.event_name == 'pull_request_target'
+    name: Merge Integrity Evaluation
+    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
+      statuses: write
     steps:
       - name: Check out trusted base revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:

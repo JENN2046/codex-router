@@ -7,6 +7,10 @@ import {
   evaluateMergeIntegrity,
   findMergeLockMarkers,
   isMergeIntegrityEventName,
+  MERGE_INTEGRITY_STATUS_CONTEXT,
+  publishMergeIntegrityStatus,
+  resolvePullRequestEventFacts,
+  runMergeIntegrityGate,
   type MergeAuthorization,
   type MergeIntegrityInput
 } from "../scripts/run-merge-integrity-check.js";
@@ -38,8 +42,9 @@ test("merge lock detector covers the prohibited instruction tokens", () => {
   }
 });
 
-test("merge integrity entrypoint runs only for the trusted target event", () => {
+test("merge integrity entrypoint runs only for trusted target and comment events", () => {
   assert.equal(isMergeIntegrityEventName("pull_request_target"), true);
+  assert.equal(isMergeIntegrityEventName("issue_comment"), true);
   assert.equal(isMergeIntegrityEventName("pull_request"), false);
   assert.equal(isMergeIntegrityEventName("push"), false);
   assert.equal(isMergeIntegrityEventName(""), false);
@@ -227,6 +232,150 @@ test("GitHub collection fails closed when the locked inventory cannot be read", 
   );
 });
 
+test("issue comment events refresh current PR facts before evaluation", async () => {
+  const calls: string[] = [];
+  const facts = await resolvePullRequestEventFacts(issueCommentEvent(), {
+    token: "token-for-test",
+    apiUrl: "https://github.example/api/v3/",
+    fetchImpl: (async (url) => {
+      calls.push(String(url));
+      return new Response(JSON.stringify({
+        number: 189,
+        body: "Must remain draft.",
+        head: { sha: HEAD_SHA },
+        base: { ref: "main" }
+      }));
+    }) as typeof fetch
+  });
+
+  assert.deepEqual(facts, {
+    repository: "JENN2046/codex-router",
+    pullRequest: 189,
+    baseRef: "main",
+    headSha: HEAD_SHA,
+    body: "Must remain draft."
+  });
+  assert.deepEqual(calls, [
+    "https://github.example/api/v3/repos/JENN2046/codex-router/pulls/189"
+  ]);
+  await assert.rejects(
+    resolvePullRequestEventFacts({
+      repository: { full_name: "JENN2046/codex-router" },
+      issue: { number: 189 }
+    }, { token: "token-for-test" }),
+    /pull_request_comment_event_invalid/
+  );
+});
+
+test("merge integrity publishes a sanitized status to the exact PR head", async () => {
+  let observedUrl = "";
+  let observedInit: RequestInit | undefined;
+  await publishMergeIntegrityStatus({
+    repository: "JENN2046/codex-router",
+    headSha: HEAD_SHA,
+    state: "failure",
+    description: "Merge authorization evaluation failed closed.",
+    token: "token-for-test",
+    fetchImpl: (async (url, init) => {
+      observedUrl = String(url);
+      observedInit = init;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch
+  });
+
+  assert.equal(
+    observedUrl,
+    `https://api.github.com/repos/JENN2046/codex-router/statuses/${HEAD_SHA}`
+  );
+  assert.equal(observedInit?.method, "POST");
+  assert.deepEqual(JSON.parse(String(observedInit?.body)), {
+    state: "failure",
+    description: "Merge authorization evaluation failed closed.",
+    context: MERGE_INTEGRITY_STATUS_CONTEXT
+  });
+  assert.equal(
+    (observedInit?.headers as Record<string, string>).authorization,
+    "Bearer token-for-test"
+  );
+  assert.equal(
+    (observedInit?.headers as Record<string, string>)["content-type"],
+    "application/json"
+  );
+});
+
+test("comment deletion re-evaluates the current inventory and blocks the exact head", async () => {
+  const requests: Array<{ url: string; method: string; body?: unknown }> = [];
+  const run = await runMergeIntegrityGate(issueCommentEvent(), {
+    eventName: "issue_comment",
+    token: "token-for-test",
+    allowedApprovers: ["JENN2046"],
+    fetchImpl: (async (url, init) => {
+      const method = init?.method ?? "GET";
+      requests.push({
+        url: String(url),
+        method,
+        ...(init?.body === undefined
+          ? {}
+          : { body: JSON.parse(String(init.body)) as unknown })
+      });
+      if (String(url).endsWith("/pulls/189")) {
+        return new Response(JSON.stringify({
+          number: 189,
+          body: "Must remain draft.",
+          head: { sha: HEAD_SHA },
+          base: { ref: "main" }
+        }));
+      }
+      if (String(url).includes("/issues/189/comments")) {
+        return new Response("[]");
+      }
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch
+  });
+
+  assert.equal(run.mode, "evaluated");
+  assert.equal(run.mode === "evaluated" && run.result.status, "blocked");
+  assert.deepEqual(
+    requests.filter((request) => request.method === "POST").map((request) => request.body),
+    [
+      {
+        state: "pending",
+        description: "Merge authorization evaluation in progress.",
+        context: MERGE_INTEGRITY_STATUS_CONTEXT
+      },
+      {
+        state: "failure",
+        description: "Merge authorization blocked: merge_lock_active.",
+        context: MERGE_INTEGRITY_STATUS_CONTEXT
+      }
+    ]
+  );
+  assert.ok(requests.filter((request) => request.method === "POST").every(
+    (request) => request.url.endsWith(`/statuses/${HEAD_SHA}`)
+  ));
+});
+
+test("inventory errors replace pending with a fail-closed status", async () => {
+  const states: string[] = [];
+  await assert.rejects(
+    runMergeIntegrityGate(event("不得合并。"), {
+      eventName: "pull_request_target",
+      token: "token-for-test",
+      allowedApprovers: ["JENN2046"],
+      fetchImpl: (async (url, init) => {
+        if ((init?.method ?? "GET") === "POST") {
+          states.push((JSON.parse(String(init?.body)) as { state: string }).state);
+          return new Response("{}", { status: 201 });
+        }
+        assert.ok(String(url).includes("/issues/189/comments"));
+        return new Response("denied", { status: 403 });
+      }) as typeof fetch
+    }),
+    /github_inventory_failed_status_403/
+  );
+  assert.deepEqual(states, ["pending", "failure"]);
+});
+
 test("CI hardening pins actions, narrows permissions, and names Canary risk", async () => {
   const ci = parse(
     await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")
@@ -251,16 +400,22 @@ test("CI hardening pins actions, narrows permissions, and names Canary risk", as
     reanchor.on.pull_request_target?.types,
     ci.on.pull_request?.types
   );
+  assert.deepEqual(reanchor.on.issue_comment?.types, [
+    "created",
+    "edited",
+    "deleted"
+  ]);
   const mergeIntegrity = reanchor.jobs["merge-integrity"];
   assert.ok(mergeIntegrity);
-  assert.equal(mergeIntegrity?.name, "Merge Integrity");
+  assert.equal(mergeIntegrity?.name, "Merge Integrity Evaluation");
   assert.equal(
     mergeIntegrity?.if,
-    "github.event_name == 'pull_request_target'"
+    "github.event_name == 'pull_request_target' || github.event.issue.pull_request"
   );
   assert.deepEqual(mergeIntegrity?.permissions, {
     contents: "read",
-    "pull-requests": "read"
+    "pull-requests": "read",
+    statuses: "write"
   });
   assert.ok(mergeIntegrity?.steps.some((step) =>
     step.run === "npm run governance -- audit merge-integrity"
@@ -273,7 +428,7 @@ test("CI hardening pins actions, narrows permissions, and names Canary risk", as
   assert.equal(trustedCheckout?.uses, PINNED_ACTIONS.checkout);
   assert.equal(
     trustedCheckout?.with?.ref,
-    "${{ github.event.pull_request.base.sha }}"
+    "${{ github.event.pull_request.base.sha || github.sha }}"
   );
   assert.equal(trustedCheckout?.with?.["persist-credentials"], false);
 
@@ -353,6 +508,18 @@ function event(body: string): Record<string, unknown> {
   };
 }
 
+function issueCommentEvent(): Record<string, unknown> {
+  return {
+    repository: { full_name: "JENN2046/codex-router" },
+    issue: {
+      number: 189,
+      pull_request: {
+        url: "https://api.github.com/repos/JENN2046/codex-router/pulls/189"
+      }
+    }
+  };
+}
+
 interface WorkflowStep {
   name?: string;
   uses?: string;
@@ -376,6 +543,9 @@ interface Workflow {
     };
     pull_request_target?: {
       branches: string[];
+      types?: string[];
+    };
+    issue_comment?: {
       types?: string[];
     };
   };
