@@ -178,11 +178,14 @@ The exact PR head must match the structured source-tree digest. No real Codex
 CLI, App Server, provider, worker, remote CAS, source-workspace write, release,
 deploy, or package publish belongs in this validation.
 
-GitHub `pull_request` CI also runs
-`npm run governance -- audit merge-integrity`. Its PR body, exact head,
-comment, actor, and timestamp inputs come from the GitHub event and
-read-only API inventory; a bare local invocation is only a non-applicable
-runner check and cannot authorize merge.
+The `Merge Integrity` job in
+`.github/workflows/state-sync-reanchor-pr.yml` runs only on GitHub
+`pull_request_target`. It checks out the exact base SHA before running
+`npm run governance -- audit merge-integrity`; PR body, exact head, comment,
+actor, and timestamp inputs come from the GitHub event and read-only API
+inventory. The ordinary `pull_request` workflow does not emit this status.
+A bare local invocation is only a non-applicable runner check unless the
+trusted target event is explicitly simulated, and it cannot authorize merge.
 
 ## Next Governed Step
 
