@@ -9,8 +9,8 @@ verified_by:
   - npm run docs:governance
   - npm run governance -- audit execution-boundary-current-surface
   - npm run governance -- audit offline-execution-capsule-boundary
-  - npm run governance -- audit state-sync
-  - npm run validate:pr
+  - "pull_request -> refs/heads/main context (see docs/current/CURRENT_STATE.md): npm run governance -- audit state-sync"
+  - "pull_request -> refs/heads/main context (see docs/current/CURRENT_STATE.md): npm run validate:pr"
 supersedes: []
 superseded_by: null
 applies_to:
