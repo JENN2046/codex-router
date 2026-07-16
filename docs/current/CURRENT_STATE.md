@@ -178,13 +178,19 @@ The exact PR head must match the structured source-tree digest. No real Codex
 CLI, App Server, provider, worker, remote CAS, source-workspace write, release,
 deploy, or package publish belongs in this validation.
 
+GitHub `pull_request` CI also runs
+`npm run governance -- audit merge-integrity`. Its PR body, exact head,
+comment, actor, and timestamp inputs come from the GitHub event and
+read-only API inventory; a bare local invocation is only a non-applicable
+runner check and cannot authorize merge.
+
 ## Next Governed Step
 
-After this docs reanchor is merged and independently reviewed, prepare a
-preflight for `ci/merge-integrity-hardening`: structured merge lock, pinned
-GitHub Action SHAs, minimum workflow permissions, and risk-specific Canary job
-names. Do not modify `.github/workflows/*` without Jenn's separate current
-authorization for that concrete workflow change.
+After `ci/merge-integrity-hardening` is merged and independently reviewed,
+perform the final closeout decision on whether the repository has formed a
+parallel runtime surface. Do not use that review to add ADR 012, a real worker,
+remote CAS, new App Server execution probes, release automation, or any live
+execution authority.
 
 
 ## Historical Audit Compatibility
