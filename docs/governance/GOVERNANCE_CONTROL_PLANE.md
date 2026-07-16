@@ -47,6 +47,7 @@ authorize execution.
 | `EVIDENCE_POLICY.md` | Evidence retention and redaction boundary. |
 | `THREAT_MODEL.md` | Current threat and control map. |
 | `CHANGE_CONTROL.md` | Requirements for changing a governance boundary. |
+| `MERGE_INTEGRITY.md` | PR-body merge locks and exact-head merge authorization records; passing code checks never replace authorization. |
 | `WORKSPACE_WRITE_RELEASE_GATE.md` | Defensive promotion stop; not a workspace-write roadmap or permit. |
 | ADR 006-011 | Accepted App Server and offline-contract decisions listed in the current governance surface. |
 | App Server file-change runbook | Current deterministic harness procedure and live-execution stop. |
@@ -75,6 +76,7 @@ external side effect.
 | Real workspace-write or external write | blocked | No | Offline fixtures, local temporary repositories, fake canaries, and permits do not promote this class. |
 | Release, deploy, publish, tag, production mutation | blocked by default | No | Requires a separately authorized release path and passing release gates. |
 | Secret, credential, token, cookie, env, provider-auth mutation | blocked by default | No | Never expose values; any named mutation requires explicit authorization. |
+| Pull-request merge authorization | fail-closed / exact-head | No merge from tests alone | An active PR-body lock requires an allowed approver's structured, scoped, time-bound top-level PR comment. |
 
 ## Accepted Decision Chain
 

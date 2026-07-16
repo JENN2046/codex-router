@@ -12,6 +12,13 @@ import {
   type RiskLevel
 } from "../scripts/run-canary-test.js";
 
+const PINNED_CHECKOUT =
+  "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5";
+const PINNED_UPLOAD_ARTIFACT =
+  "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02";
+const PINNED_DOWNLOAD_ARTIFACT =
+  "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093";
+
 test("canary evidence paths are risk-specific while preserving latest alias", () => {
   const evidenceDir = "/tmp/codex-router-evidence";
   const lowPaths = getCanaryEvidencePaths("low", evidenceDir).map((path) =>
@@ -97,12 +104,12 @@ test("CI uploads node-scoped canary evidence before collecting the manifest", as
   };
 
   const canaryUpload = workflow.jobs.canary.steps.find((step) =>
-    step.uses === "actions/upload-artifact@v4"
+    step.uses === PINNED_UPLOAD_ARTIFACT
     && step.with?.name === "canary-evidence-node${{ matrix.node }}-${{ matrix.risk }}"
   );
   const canaryUploadPaths = splitWorkflowPath(canaryUpload?.with?.path);
   const evidenceDownload = workflow.jobs.evidence.steps.find((step) =>
-    step.uses === "actions/download-artifact@v4"
+    step.uses === PINNED_DOWNLOAD_ARTIFACT
   );
   const nodeScopedCopy = workflow.jobs.canary.steps.find((step) =>
     step.name === "Preserve node-scoped canary evidence"
@@ -164,7 +171,7 @@ test("CI runs governance audits before evidence collection", async () => {
   const stateSyncJob = workflow.jobs["state-sync"];
   const executionBoundaryJob = workflow.jobs["execution-boundary"];
   const checkoutStep = stateSyncJob.steps.find((step) =>
-    step.uses === "actions/checkout@v4"
+    step.uses === PINNED_CHECKOUT
   );
   const gateStep = stateSyncJob.steps.find((step) =>
     step.id === "state-sync-gate"
@@ -209,7 +216,7 @@ test("CI runs governance audits before evidence collection", async () => {
   assert.ok(workflow.jobs.evidence.needs.includes("execution-boundary"));
 });
 
-test("state-sync reanchor workflow is a manual legacy fallback", async () => {
+test("combined governance workflow isolates target checks from manual reanchor", async () => {
   const workflow = parse(
     await readFile(
       new URL("../.github/workflows/state-sync-reanchor-pr.yml", import.meta.url),
@@ -220,6 +227,7 @@ test("state-sync reanchor workflow is a manual legacy fallback", async () => {
     on: {
       push?: { branches: string[] };
       workflow_dispatch?: Record<string, never> | null;
+      pull_request_target?: { branches: string[]; types: string[] };
     };
     permissions: {
       contents: string;
@@ -232,13 +240,14 @@ test("state-sync reanchor workflow is a manual legacy fallback", async () => {
     jobs: {
       "reanchor-pr": {
         name: string;
+        if?: string;
         steps: WorkflowStep[];
       };
     };
   };
 
   const steps = workflow.jobs["reanchor-pr"].steps;
-  const checkout = steps.find((step) => step.uses === "actions/checkout@v4");
+  const checkout = steps.find((step) => step.uses === PINNED_CHECKOUT);
   const gate = steps.find((step) => step.id === "reanchor-gate");
   const prepare = steps.find((step) => step.name === "Prepare state-sync reanchor");
   const commit = steps.find((step) => step.name === "Commit state-sync reanchor branch");
@@ -247,16 +256,24 @@ test("state-sync reanchor workflow is a manual legacy fallback", async () => {
     step.name === "Create or update state-sync reanchor PR"
   );
 
-  assert.equal(workflow.name, "State Sync Reanchor PR (Legacy v1 Manual Fallback)");
+  assert.equal(workflow.name, "Merge Integrity and State Sync Reanchor");
   assert.equal(
     workflow.jobs["reanchor-pr"].name,
     "Prepare State Sync Reanchor PR (Legacy v1 Manual Fallback)"
   );
   assert.ok(workflow.on.workflow_dispatch !== undefined);
+  assert.deepEqual(workflow.on.pull_request_target?.branches, ["main"]);
   assert.equal(workflow.on.push, undefined);
   assert.equal(workflow.permissions.contents, "write");
   assert.equal(workflow.permissions["pull-requests"], "write");
-  assert.equal(workflow.concurrency.group, "state-sync-reanchor-main");
+  assert.equal(
+    workflow.jobs["reanchor-pr"].if,
+    "github.event_name == 'workflow_dispatch'"
+  );
+  assert.equal(
+    workflow.concurrency.group,
+    "merge-integrity-state-sync-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}"
+  );
   assert.equal(workflow.concurrency["cancel-in-progress"], true);
   assert.equal(checkout?.with?.ref, "main");
   assert.equal(checkout?.with?.["fetch-depth"], 0);

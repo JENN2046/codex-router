@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `716d5f57f4316d5ddbeeba3e5e3e6aa84aab92fb30d569d92aea343c916ca076` |
+| Source tree digest | `963a08a18ed68af8604eec28c0a5e5c4fe45b6af323878b3c752d0b5dc011a75` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -178,13 +178,26 @@ The exact PR head must match the structured source-tree digest. No real Codex
 CLI, App Server, provider, worker, remote CAS, source-workspace write, release,
 deploy, or package publish belongs in this validation.
 
+The `Merge Integrity Evaluation` job in
+`.github/workflows/state-sync-reanchor-pr.yml` runs on trusted GitHub
+`pull_request_target` and PR-only `issue_comment` events. It checks out the exact
+base SHA or immutable default-branch event SHA before running
+`npm run governance -- audit merge-integrity`; PR body, exact head, complete
+current comment inventory, actor, and comment `updated_at` timestamp inputs come
+from GitHub-owned events and API inventory. Comment creation, edit, and deletion
+all re-evaluate the current authorization. The job publishes the independent `Merge Integrity`
+commit status to the exact current PR head with only `statuses: write`; the
+ordinary `pull_request` workflow does not emit this context. A bare local
+invocation is only a non-applicable runner check unless a trusted event is
+explicitly simulated, and it cannot authorize merge.
+
 ## Next Governed Step
 
-After this docs reanchor is merged and independently reviewed, prepare a
-preflight for `ci/merge-integrity-hardening`: structured merge lock, pinned
-GitHub Action SHAs, minimum workflow permissions, and risk-specific Canary job
-names. Do not modify `.github/workflows/*` without Jenn's separate current
-authorization for that concrete workflow change.
+After `ci/merge-integrity-hardening` is merged and independently reviewed,
+perform the final closeout decision on whether the repository has formed a
+parallel runtime surface. Do not use that review to add ADR 012, a real worker,
+remote CAS, new App Server execution probes, release automation, or any live
+execution authority.
 
 
 ## Historical Audit Compatibility

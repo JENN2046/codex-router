@@ -23,6 +23,9 @@ explicitly promotes them.
 - [threat model](THREAT_MODEL.md): current threats and controls.
 - [change control](CHANGE_CONTROL.md): required docs and validation for a
   governance boundary change.
+- [merge integrity gate](MERGE_INTEGRITY.md): fail-closed PR-body merge locks,
+  exact-head authorization records, minimum workflow permissions, and pinned
+  GitHub Action revisions.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [App Server file-change governance runbook](runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md):
   deterministic offline acceptance and the explicit live-acceptance stop.
@@ -78,6 +81,7 @@ Use the consolidated runner for discovery and read-only audits:
 npm run governance -- list
 npm run governance -- list --all
 npm run docs:governance
+npm run governance -- audit merge-integrity
 npm run governance -- audit state-sync
 npm run governance -- audit state-sync-boundary
 npm run governance -- audit execution-boundary-current-surface
