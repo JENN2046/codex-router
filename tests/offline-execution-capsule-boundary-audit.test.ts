@@ -51,6 +51,24 @@ test("offline execution capsule boundary requires an independent digest snapshot
   ));
 });
 
+test("offline execution capsule boundary requires fake-worker input safety gates", async () => {
+  const input = await collectOfflineExecutionCapsuleBoundaryAuditInput();
+  const weakenedSource = input.sourceText.replace(
+    "assertFakeWorkerTaskSafe(task);",
+    "void task;"
+  );
+  assert.notEqual(weakenedSource, input.sourceText);
+
+  const result = reviewOfflineExecutionCapsuleBoundary({
+    ...input,
+    sourceText: weakenedSource
+  });
+  assert.equal(result.status, "blocked");
+  assert.ok(result.reasons.includes(
+    "offline_execution_capsule_boundary_fakeWorkerInputSafetyGated"
+  ));
+});
+
 test("offline execution capsule boundary blocks bare builtins, environment access, and renamed stores", async () => {
   const input = await collectOfflineExecutionCapsuleBoundaryAuditInput();
   const scenarios: Array<{

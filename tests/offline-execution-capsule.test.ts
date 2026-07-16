@@ -1119,11 +1119,12 @@ function createFixture(options: FixtureOptions = {}): Fixture {
   const targets = [...(options.targets ?? ["docs/guide.md"])].sort();
   const task = options.task ?? baseTask(targets);
   const taskDigest = storeCapsuleTask(store, task);
-  const inputTree = storeContentTree(store, options.inputFiles ?? [
+  const inputFiles = options.inputFiles ?? [
     { path: "assets/unchanged.bin", mode: "100644", content: new Uint8Array([0xff, 0x00]) },
     { path: "docs/guide.md", mode: "100644", content: text("old\n") },
     { path: "scripts/existing.sh", mode: "100755", content: text("echo fixture\n") }
-  ]);
+  ];
+  const inputTree = storeContentTree(store, inputFiles);
   const inputGuideDigest = inputTree.manifest.entries.find(
     (entryValue) => entryValue.path === "docs/guide.md"
   )!.blob;
@@ -1210,9 +1211,39 @@ function createFixture(options: FixtureOptions = {}): Fixture {
     inputGuideDigest
   };
   if (options.createReceipt !== false) {
-    fixture.receipt = simulateWithWorker(fixture, worker);
+    try {
+      fixture.receipt = simulateWithWorker(fixture, worker);
+    } catch (error: unknown) {
+      if (!isFakeWorkerInputSafetyRejection(error)) {
+        throw error;
+      }
+      const transform = options.transform ?? ((input) => replaceGuide(input, text("new\n")));
+      const outputFiles = transform(inputFiles.map((file) => ({
+        ...file,
+        content: new Uint8Array(file.content)
+      })));
+      const outputTree = storeContentTree(store, [...outputFiles]);
+      fixture.receipt = rehashReceipt({
+        ...placeholderReceipt,
+        receiptId: `${manifest.capsuleId}:offline-output`,
+        outputRoot: outputTree.digest,
+        startedAt,
+        completedAt
+      });
+    }
   }
   return fixture;
+}
+
+function isFakeWorkerInputSafetyRejection(error: unknown): boolean {
+  return error instanceof Error && new Set([
+    "offline_fake_worker_credential_like_content_forbidden",
+    "offline_fake_worker_sensitive_path_forbidden",
+    "offline_fake_worker_task_byte_limit_exceeded",
+    "offline_fake_worker_total_tree_byte_limit_exceeded",
+    "offline_fake_worker_total_tree_file_limit_exceeded",
+    "offline_fake_worker_tree_manifest_byte_limit_exceeded"
+  ]).has(error.message);
 }
 
 function simulateWithWorker(fixture: Fixture, worker: unknown): OfflineOutputTreeReceipt {

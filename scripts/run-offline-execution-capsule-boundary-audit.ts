@@ -23,6 +23,7 @@ export interface OfflineExecutionCapsuleBoundaryAuditResult {
     inMemoryContentStoreOnly: boolean;
     testWorkerRegistryGuarded: boolean;
     passiveWorkerInputsRequired: boolean;
+    fakeWorkerInputSafetyGated: boolean;
     sourceImportsAllowlisted: boolean;
     noFilesystemProcessOrSocketImports: boolean;
     noProviderOrHostExecutionCoupling: boolean;
@@ -67,7 +68,10 @@ export async function collectOfflineExecutionCapsuleBoundaryAuditInput(
     sourceText,
     packageJsonText,
     publicApiText: await collectExportedPublicFacadeText(packageJsonText, cwd),
-    testText: await readFile(resolve(cwd, "tests/offline-execution-capsule.test.ts"), "utf8"),
+    testText: (await Promise.all([
+      "tests/offline-execution-capsule.test.ts",
+      "tests/offline-execution-capsule-fake-worker-input-gate.test.ts"
+    ].map((path) => readFile(resolve(cwd, path), "utf8")))).join("\n"),
     adrText: await readFile(
       resolve(cwd, "docs/governance/decisions/ADR_011_OFFLINE_EXECUTION_CAPSULE.md"),
       "utf8"
@@ -254,6 +258,17 @@ export function reviewOfflineExecutionCapsuleBoundary(
       "isProxy(worker)",
       "ownPassiveKeys(worker)",
       "offline_fake_worker_output_invalid"
+    ]),
+    fakeWorkerInputSafetyGated: includesAll(input.sourceText, [
+      "assertFakeWorkerTaskSafe(task);",
+      "assertFakeWorkerInputTreeManifestSafe(inputTreeManifest.manifest, manifest);",
+      "assertFakeWorkerInputTreeContentSafe(inputTree.files);",
+      "offline_fake_worker_sensitive_path_forbidden",
+      "offline_fake_worker_credential_like_content_forbidden"
+    ]) && includesAll(input.testText, [
+      "fake worker rejects credential-like task content before invoking transform",
+      "fake worker rejects sensitive input paths before tree blob reads or transform",
+      "fake worker rejects credential-like input content before invoking transform"
     ]),
     sourceImportsAllowlisted: sourceAnalysis.parseSucceeded
       && sourceImports.every(isAllowedCapsuleModuleSpecifier)
@@ -791,6 +806,7 @@ function isAllowedCapsuleModuleSpecifier(specifier: string): boolean {
     "../../kernel-contracts/src/index.js",
     "./content-addressed-store.js",
     "./contracts.js",
+    "./input-safety.js",
     "./test-only-fake-worker.js",
     "./verifier.js"
   ]).has(specifier);

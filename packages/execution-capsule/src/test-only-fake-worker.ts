@@ -7,16 +7,23 @@ import {
   ownStringPropertyDescriptor,
   sameCanonicalJson,
   type CapsuleTaskContract,
+  type ContentTreeManifest,
   type OfflineExecutionCapsuleManifest,
   type OfflineOutputTreeReceipt
 } from "./contracts.js";
 import {
   loadCapsuleTask,
   loadContentTree,
+  loadContentTreeManifest,
   storeContentTree,
   type ContentAddressedStore,
   type OfflineContentTreeFile
 } from "./content-addressed-store.js";
+import {
+  containsCredentialLikeTaskContent,
+  containsCredentialLikeTreeContent,
+  isSensitiveOfflineTreePath
+} from "./input-safety.js";
 
 declare const testOnlyFakeWorkerBrand: unique symbol;
 
@@ -97,6 +104,9 @@ export function simulateOfflineCapsuleCandidate(
   if (!isTimestampWithinManifest(startedAt, manifest)) {
     throw new Error("offline_fake_worker_manifest_not_current");
   }
+  if (manifest.taskDigest.size > manifest.limits.maxTaskBytes) {
+    throw new Error("offline_fake_worker_task_byte_limit_exceeded");
+  }
   const task = loadCapsuleTask(input.store, manifest.taskDigest, "worker_task");
   if (
     task.taskId !== manifest.capsuleId
@@ -104,7 +114,18 @@ export function simulateOfflineCapsuleCandidate(
   ) {
     throw new Error("offline_fake_worker_task_binding_mismatch");
   }
+  assertFakeWorkerTaskSafe(task);
+  if (manifest.inputRoot.size > manifest.limits.maxTreeManifestBytes) {
+    throw new Error("offline_fake_worker_tree_manifest_byte_limit_exceeded");
+  }
+  const inputTreeManifest = loadContentTreeManifest(
+    input.store,
+    manifest.inputRoot,
+    "worker_input"
+  );
+  assertFakeWorkerInputTreeManifestSafe(inputTreeManifest.manifest, manifest);
   const inputTree = loadContentTree(input.store, manifest.inputRoot, "worker_input");
+  assertFakeWorkerInputTreeContentSafe(inputTree.files);
   const workerInput = Object.freeze(inputTree.files.map((file) => Object.freeze({
     path: file.path,
     mode: file.mode,
@@ -150,6 +171,42 @@ export function simulateOfflineCapsuleCandidate(
       status: definition.cleanupStatus
     }
   });
+}
+
+function assertFakeWorkerTaskSafe(task: CapsuleTaskContract): void {
+  if (task.targetPaths.some(isSensitiveOfflineTreePath)) {
+    throw new Error("offline_fake_worker_sensitive_path_forbidden");
+  }
+  if (containsCredentialLikeTaskContent(task)) {
+    throw new Error("offline_fake_worker_credential_like_content_forbidden");
+  }
+}
+
+function assertFakeWorkerInputTreeManifestSafe(
+  inputTreeManifest: ContentTreeManifest,
+  manifest: OfflineExecutionCapsuleManifest
+): void {
+  if (inputTreeManifest.entries.length > manifest.limits.maxTotalTreeFiles) {
+    throw new Error("offline_fake_worker_total_tree_file_limit_exceeded");
+  }
+  let remainingBytes = manifest.limits.maxTotalTreeBytes;
+  for (const entry of inputTreeManifest.entries) {
+    if (entry.blob.size > remainingBytes) {
+      throw new Error("offline_fake_worker_total_tree_byte_limit_exceeded");
+    }
+    remainingBytes -= entry.blob.size;
+  }
+  if (inputTreeManifest.entries.some((entry) => isSensitiveOfflineTreePath(entry.path))) {
+    throw new Error("offline_fake_worker_sensitive_path_forbidden");
+  }
+}
+
+function assertFakeWorkerInputTreeContentSafe(
+  files: readonly OfflineContentTreeFile[]
+): void {
+  if (containsCredentialLikeTreeContent(files)) {
+    throw new Error("offline_fake_worker_credential_like_content_forbidden");
+  }
 }
 
 function getTrustedFakeWorker(worker: unknown): TrustedFakeWorkerDefinition {
