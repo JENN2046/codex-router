@@ -136,20 +136,40 @@ deliberate evidence review.
 
 ## Validation Baseline
 
-For this documentation reanchor, the required local ladder is:
+For an ordinary non-`main` feature branch, the required local ladder is:
 
 ```bash
 git diff --check
 npm run docs:governance
 npm run governance -- audit execution-boundary-current-surface
-npm run governance -- audit state-sync
-npm run validate:pr
+npm run typecheck
+npm test
+npm run build
 ```
 
-The exact PR head must match the structured source-tree digest. GitHub CI must
-then validate the same head. No real Codex CLI, App Server, provider, worker,
-remote CAS, source-workspace write, release, deploy, or package publish belongs
-in this validation.
+Do not run bare `npm run governance -- audit state-sync` or
+`npm run validate:pr` on a feature branch: without an explicit GitHub event,
+the audit correctly treats the checkout as `local` and requires `main`. Let the
+GitHub `pull_request` State Sync Audit validate the exact PR head, or simulate
+that context explicitly on a clean checkout:
+
+```bash
+PR_HEAD_SHA="$(git rev-parse HEAD)"
+PR_HEAD_BRANCH="$(git branch --show-current)"
+env \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_REPOSITORY=JENN2046/codex-router \
+  GITHUB_REPOSITORY_ID=1220937060 \
+  GITHUB_REF=refs/pull/0/merge \
+  GITHUB_BASE_REF=main \
+  GITHUB_HEAD_REF="$PR_HEAD_BRANCH" \
+  GITHUB_SHA="$PR_HEAD_SHA" \
+  npm run validate:pr
+```
+
+The exact PR head must match the structured source-tree digest. No real Codex
+CLI, App Server, provider, worker, remote CAS, source-workspace write, release,
+deploy, or package publish belongs in this validation.
 
 ## Next Governed Step
 
