@@ -25,6 +25,7 @@ import {
   CodexAppServerV2WireTransport,
   type AppServerSessionAttestation,
   type CodexAppServerApprovalResponse,
+  type CodexAppServerAdapterOptions,
   type CodexAppServerMessageTransport
 } from "../packages/codex-adapter/src/index.js";
 import {
@@ -1273,6 +1274,116 @@ test("previewer failures decline the pending approval and do not leave previewin
     assert.equal(fixture.transport.messages.length, 1);
     assert.equal(fixture.transport.messages[0]?.decision, "decline");
     assert.equal(fixture.adapter.getItemSnapshot("thread-1", "turn-1", "item-1")?.state, "blocked");
+    assert.deepEqual(await fixture.journal.list(), []);
+  } finally {
+    await rm(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("authorization evaluation failures decline the pending approval", async (t) => {
+  const scenarios = [
+    {
+      name: "workspace context provider throws",
+      options: {
+        workspaceContextProvider: {
+          async getContext() {
+            throw new Error("injected_workspace_context_failure");
+          }
+        }
+      }
+    },
+    {
+      name: "workspace context produces invalid capability facts",
+      options: {
+        workspaceContextProvider: {
+          async getContext() {
+            return {
+              repoRoot: "/tmp/invalid-context",
+              repository: {
+                branch: "",
+                protectedBranch: false,
+                worktreeClean: true
+              }
+            } as never;
+          }
+        }
+      }
+    },
+    {
+      name: "semantic risk callback throws",
+      options: {
+        semanticRisk: () => {
+          throw new Error("injected_semantic_risk_failure");
+        }
+      }
+    },
+    {
+      name: "semantic risk callback returns an invalid risk",
+      options: {
+        semanticRisk: () => "invalid" as never
+      }
+    }
+  ] satisfies Array<{
+    name: string;
+    options: Partial<Pick<
+      CodexAppServerAdapterOptions,
+      "semanticRisk" | "workspaceContextProvider"
+    >>;
+  }>;
+
+  for (const scenario of scenarios) {
+    await t.test(scenario.name, async () => {
+      const fixture = await createAdapterFixture(scenario.options);
+      try {
+        const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+        await fixture.adapter.ingest(events[0]);
+        const result = await fixture.adapter.ingest(events[1]);
+
+        assert.equal(result.status, "blocked");
+        assert.deepEqual(result.reasons, ["authorization_evaluation_failed"]);
+        assert.equal(result.lifecycleState, "blocked");
+        assert.equal(fixture.transport.messages.length, 1);
+        assert.equal(fixture.transport.messages[0]?.decision, "decline");
+        assert.equal(
+          fixture.transport.messages[0]?.reasonCode,
+          "authorization_evaluation_failed"
+        );
+        assert.equal(
+          fixture.adapter.getItemSnapshot("thread-1", "turn-1", "item-1")?.state,
+          "blocked"
+        );
+        assert.deepEqual(await fixture.journal.list(), []);
+      } finally {
+        await rm(fixture.tempRoot, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test("authorization evaluation decline uncertainty requires reconciliation", async () => {
+  const transport = new FailingTransport();
+  const fixture = await createAdapterFixture({
+    transportOverride: transport,
+    semanticRisk: () => "invalid" as never
+  });
+  try {
+    const events = hydrateFlow(fixture.head, fixture.beforeHash, fixture.afterHash);
+    await fixture.adapter.ingest(events[0]);
+    const result = await fixture.adapter.ingest(events[1]);
+
+    assert.equal(result.status, "reconciliation_required");
+    assert.deepEqual(result.reasons, [
+      "approval_response_send_failed",
+      "authorization_evaluation_failed"
+    ]);
+    assert.equal(result.lifecycleState, "reconciliation_required");
+    assert.equal(transport.messages.length, 1);
+    assert.equal(transport.messages[0]?.decision, "decline");
+    assert.equal(transport.messages[0]?.reasonCode, "authorization_evaluation_failed");
+    assert.equal(
+      fixture.adapter.getItemSnapshot("thread-1", "turn-1", "item-1")?.state,
+      "reconciliation_required"
+    );
     assert.deepEqual(await fixture.journal.list(), []);
   } finally {
     await rm(fixture.tempRoot, { recursive: true, force: true });
@@ -3234,6 +3345,8 @@ async function createAdapterFixture(options: {
   hiddenTrackedCreateTarget?: boolean;
   initialWorktreeLineEnding?: "crlf";
   previewer?: FileChangePreviewer;
+  semanticRisk?: CodexAppServerAdapterOptions["semanticRisk"];
+  workspaceContextProvider?: CodexAppServerAdapterOptions["workspaceContextProvider"];
 } = {}) {
   const tempRoot = await mkdtemp(join(tmpdir(), "codex-adapter-"));
   const repoRoot = join(tempRoot, "repo");
@@ -3304,7 +3417,7 @@ async function createAdapterFixture(options: {
       scope: "test_only",
       enforcerId: "disposable-test-harness"
     },
-    workspaceContextProvider: {
+    workspaceContextProvider: options.workspaceContextProvider ?? {
       async getContext(changeSet) {
         return {
           repoRoot,
@@ -3328,6 +3441,7 @@ async function createAdapterFixture(options: {
       access: "write",
       constraints: {}
     }],
+    ...(options.semanticRisk === undefined ? {} : { semanticRisk: options.semanticRisk }),
     allowTestProfiles: options.allowTestProfiles ?? true,
     now: () => now,
     nonce: (requestId) => `nonce-${requestId}`

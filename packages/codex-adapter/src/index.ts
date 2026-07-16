@@ -893,17 +893,49 @@ export class CodexAppServerAdapter {
     }
 
     let context: CodexWorkspaceContext;
+    let facts: CapabilityFacts;
+    let authorization: AuthorizationDecision;
     try {
       context = await this.workspaceContextProvider.getContext(item.changeSet);
+      facts = deriveCapabilityFactsFromChangeSet(item.changeSet, {
+        repository: context.repository,
+        ...(context.networkAccess === undefined ? {} : { networkAccess: context.networkAccess }),
+        ...(context.credentialAccess === undefined
+          ? {}
+          : { credentialAccess: context.credentialAccess }),
+        ...(context.externalTargets === undefined
+          ? {}
+          : { externalTargets: context.externalTargets }),
+        ...(context.releaseAction === undefined ? {} : { releaseAction: context.releaseAction }),
+        ...(context.exactTargets === undefined ? {} : { exactTargets: context.exactTargets }),
+        ...(context.ambiguous === undefined ? {} : { ambiguous: context.ambiguous }),
+        ...(context.unknowns === undefined ? {} : { unknowns: context.unknowns })
+      });
+      const requestedCapabilities = item.changeSet.changes.map((change) => (
+        CapabilityScopeSchema.parse({
+          kind: "file",
+          resource: change.path,
+          access: "write",
+          constraints: {}
+        })
+      ));
+      authorization = authorizeCapabilityFacts({
+        surface: "codex_app_server",
+        facts,
+        semanticRisk: this.semanticRisk(item.changeSet, event.semanticContext),
+        requestedCapabilities,
+        capabilityCeiling: this.capabilityCeiling,
+        createdAt: this.now()
+      });
     } catch {
       const delivery = await this.declineFileItem(
         approval,
         item,
-        "workspace_context_unavailable"
+        "authorization_evaluation_failed"
       );
       const sent = delivery === "sent";
       return this.outcome(sent ? "blocked" : "reconciliation_required", [
-        "workspace_context_unavailable",
+        "authorization_evaluation_failed",
         ...(sent ? [] : ["approval_response_send_failed"])
       ], {
         requestId: event.requestId,
@@ -915,36 +947,6 @@ export class CodexAppServerAdapter {
     if (context.repository.branch !== undefined) {
       item.expectedBranch = context.repository.branch;
     }
-    const facts = deriveCapabilityFactsFromChangeSet(item.changeSet, {
-      repository: context.repository,
-      ...(context.networkAccess === undefined ? {} : { networkAccess: context.networkAccess }),
-      ...(context.credentialAccess === undefined
-        ? {}
-        : { credentialAccess: context.credentialAccess }),
-      ...(context.externalTargets === undefined
-        ? {}
-        : { externalTargets: context.externalTargets }),
-      ...(context.releaseAction === undefined ? {} : { releaseAction: context.releaseAction }),
-      ...(context.exactTargets === undefined ? {} : { exactTargets: context.exactTargets }),
-      ...(context.ambiguous === undefined ? {} : { ambiguous: context.ambiguous }),
-      ...(context.unknowns === undefined ? {} : { unknowns: context.unknowns })
-    });
-    const requestedCapabilities = item.changeSet.changes.map((change) => (
-      CapabilityScopeSchema.parse({
-        kind: "file",
-        resource: change.path,
-        access: "write",
-        constraints: {}
-      })
-    ));
-    const authorization = authorizeCapabilityFacts({
-      surface: "codex_app_server",
-      facts,
-      semanticRisk: this.semanticRisk(item.changeSet, event.semanticContext),
-      requestedCapabilities,
-      capabilityCeiling: this.capabilityCeiling,
-      createdAt: this.now()
-    });
     item.authorizationDecision = authorization;
     transitionItem(item, "policy_checked");
     if (authorization.disposition === "blocked") {
