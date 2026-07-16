@@ -3,11 +3,13 @@ title: Release Gate Matrix
 status: active
 owner: governance
 created: 2026-07-03
-last_verified: 2026-07-03
+last_verified: 2026-07-17
 verified_by:
   - npm run governance -- list
   - npm run validate:daily
   - pull_request-context state-sync audit
+  - read-only GitHub ruleset and applicable-rule inventory
+  - R3A-2 closed, unmerged PR #194 canary
 supersedes: []
 superseded_by: null
 applies_to:
@@ -34,7 +36,7 @@ simulation.
 | Test suite | `npm test` | Unit/integration regression coverage. | PR readiness when it fails. |
 | Build | `npm run build` | Production TypeScript build. | PR readiness and release readiness. |
 | Governance docs check | `npm run docs:governance` | Lightweight current documentation structure check. | PR readiness when governance docs drift structurally. |
-| Merge integrity | GitHub `pull_request_target` plus PR `issue_comment` evaluation, executed from the trusted base/default-branch SHA and published as the exact-head `Merge Integrity` commit status | Reads the changed-file inventory, requires exactly one structured lock for the protected merge-integrity surface, rejects malformed or conflicting metadata, and validates a comment author's exact lock digest, repository, PR, base, head, and GitHub timestamps without executing PR code in the privileged context. Natural-language prose is not authority. | Merge when required lock metadata is absent or invalid, an active lock lacks a valid exact-head unlock, a comment was edited/deleted, or the trusted GitHub inventory/status API is unavailable. |
+| Merge integrity | Active ruleset `19069032` requires the exact `Merge Integrity` context for `main`; GitHub `pull_request_target` plus PR `issue_comment` evaluation runs from the trusted base/default-branch SHA and publishes to the exact PR head | Reads the changed-file inventory, requires exactly one structured lock for the protected merge-integrity surface, rejects malformed or conflicting metadata, and validates a comment author's exact lock digest, repository, PR, base, head, and GitHub timestamps without executing PR code in the privileged context. Natural-language prose is not authority. The ruleset is strict, has no bypass actors, and currently accepts any status source. | Updating `main` when required lock metadata is absent or invalid, an active lock lacks a valid exact-head unlock, a comment was edited/deleted, the head changes, or trusted GitHub inventory/status input is unavailable. |
 | Execution boundary current surface | `npm run governance -- audit execution-boundary-current-surface` | Verifies strategy router, execution profiles, policy config, capability taxonomy, capability taxonomy escalation policy, routing engine, recovery control orchestration, runtime control, operator action executor gate, Codex CLI host, public API facade, Agent OS local runtime, Agent OS MCP server manifest, Protocol MCP provider skeleton, Protocol A2A remote provider skeleton, Agent OS SDK, Agent OS CLI, Agent OS app-server wrapper, Agent OS public surfaces, Codex provider, preflight, approval permit, approval gate, approval consumption dispatch matrix, approval consumption dispatch, admission control, delegation policy, execution eligibility, execution observation, governance failure reducer, task graph, scheduler, execution planner, provider registry, controlled provider execution taskbook, controlled provider execution taskbook review, controlled provider execution dispatch preflight, controlled provider execution dispatcher, provider execution runner, provider-core primitives, tool invocation planner, desktop agent strategy, desktop decision runner, final host locator, host-dispatcher provider, Codex desktop bridge, Codex desktop live host, Codex memory MCP client, Codex memory host client, desktop host client, desktop live adapter dispatch, host-client example, target host embedding, host executor, host executor taskbook, host-client executor review, host executor receipt, agent-backed recovery executor, agent executor adapter taskbook, agent executor adapter review, agent executor adapter sandbox, task-control taskbook, task-control review, sub-agent runtime, and task-control sandbox boundaries stay registered, non-broadened, and non-executing. The authority lattice mode is `narrow_readonly_provider_dispatch_without_boundary_inheritance`: read-only provider dispatch does not inherit into host executor authorization, read-only provider dispatch does not inherit into sub-agent runtime authorization, read-only provider dispatch does not inherit into workspace-write authorization, and read-only provider dispatch does not inherit into release authorization. Codex CLI host does not authorize host executor or sub-agent runtime; sub-agent runtime does not invoke Codex CLI or provider execution; host executor does not execute provider or sub-agent runtime. | PR readiness when execution boundaries drift or broaden. |
 | PR state-sync | GitHub `pull_request` State Sync Audit or explicit simulation | Verifies structured state-sync claim for PR context. | PR merge and state authority. |
 | Main state-sync | `node --import tsx scripts/run-state-sync-audit.ts --json` on local `main` | Post-merge/main closeout. | Main state authority when it fails. |
@@ -45,6 +47,22 @@ simulation.
 | Release tier | `npm run validate:release` | Deterministic release-sensitive local validation. | Release/tag/deploy/package publish. |
 | Current governance list | `npm run governance -- list` | Shows current operating checks. | Documentation claims about available current checks. |
 | Archived governance list | `npm run governance -- list --all` | Historical inspection only. | Nothing by itself. |
+
+## Merge Authorization Versus CI Quality
+
+Ruleset `19069032` requires only `Merge Integrity`. It does not currently make
+typecheck, tests, build, state-sync, package-consumer, or another ordinary CI
+job a GitHub required context. Passing merge authorization therefore does not
+replace the repository's PR-readiness checks and does not prove that a PR with
+failing ordinary CI cannot enter `main`.
+
+The required status also has no expected GitHub App source binding. Its
+any-source publisher model is accepted only while every repository writer and
+principal with `statuses: write` is treated as an owner-equivalent trusted
+principal. See `R3A3_MERGE_INTEGRITY_CLOSEOUT.md` for the exact platform
+evidence and residual-risk decision. Adding required CI contexts or publisher
+source binding is a separate ruleset change and requires separate design and
+authorization.
 
 ## Recommended Local PR Branch Sequence
 

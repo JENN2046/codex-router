@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `d0dd9026e9e939536e1896a9d9f6602e36b084bce7d39b13c9b309ebbc4ed440` |
+| Source tree digest | `28bbcaa5c5d5686eefa95755b3e79894c9d088f19c3dda3de08f62447432c614` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -55,6 +55,8 @@ Server file-change smoke or a real source-workspace write.
 | Offline execution capsule | `synthetic_non_sensitive`, `test_only_simulated`, non-promotable |
 | Shipped capsule store | In-memory implementation only |
 | Caller-injected capsule store/transform side effects | Not mechanically excluded |
+| Pull-request merge authorization | Active for `main` through ruleset `19069032`; strict exact `Merge Integrity` context, no bypass actors, accepted any-source publisher risk |
+| Ordinary CI as GitHub required status | Not configured by the Merge Integrity ruleset |
 | Real isolated worker or remote CAS | Not implemented or authorized |
 | Real Codex CLI/provider execution | Not authorized |
 | Real workspace-write, retain/apply promotion, release/deploy/publish | Not authorized |
@@ -80,8 +82,7 @@ See `docs/governance/README.md` for the linked current decision surface.
 
 ## Governance Integrity Closeout
 
-`R2_GOVERNANCE_INTEGRITY_CLOSEOUT` is one closeout project delivered through
-small PRs:
+`R2_GOVERNANCE_INTEGRITY_CLOSEOUT` was delivered through small PRs:
 
 1. PR #186 made the complete authorization-evaluation stage fail closed and
    covered successful decline plus uncertain-send reconciliation.
@@ -95,32 +96,43 @@ small PRs:
 5. PR #191 merged the reviewed structured merge-lock semantics into `main` at
    merge commit `78fe9c33a0b6ef7df5a14b09b844d1782071cf40` on 2026-07-16,
    closing `R3A-1`.
+6. R3A-2 activated separately authorized ruleset `19069032`
+   (`codex-router-merge-integrity-v1`) and exercised harmless, never-merged
+   PR #194 against unchanged
+   `main@97d391ec24d0ca6c5c58c746e9de13224650c4de`.
+7. Independent review accepted the structured-lock failure, exact-head unlock,
+   comment-deletion revocation, fresh unlock, and head-update invalidation
+   sequence as `PASS_WITH_DISCLOSED_RESIDUAL_RISK`.
 
-PR #191 closes `R3A-1`; it does not complete the closeout or activate platform
-enforcement. Structured Merge Integrity remains an implementation candidate.
-The `Merge Integrity` status is not required because no GitHub repository
-ruleset or equivalent required-status configuration exists, and no real locked
-canary PR has exercised failure, exact-head unlock, comment revocation, head
-invalidation, or administrator-bypass policy.
-`R2_GOVERNANCE_INTEGRITY_CLOSEOUT` therefore remains open.
+The ruleset is active only for `refs/heads/main`, requires exactly
+`Merge Integrity`, uses strict required-status semantics, and has no bypass
+actors. PR #194 is closed with `merged=false`; its branch is absent and main is
+unchanged. R3A-3 records the closeout in
+`docs/governance/R3A3_MERGE_INTEGRITY_CLOSEOUT.md`.
+
+This establishes merge authorization enforcement, not a complete CI quality
+gate. The ruleset does not require typecheck, tests, build, state-sync, or other
+ordinary CI, and the `Merge Integrity` status has no GitHub App
+`integration_id` binding. Any-source status publication is accepted only under
+the current personal-repository model where every writer and principal with
+`statuses: write` is owner-equivalent and trusted.
 
 The only current route is `R3_CLOSEOUT_SEQUENCE`, in this fixed order:
 
 1. `R3-0`: closed by the post-PR-#189 state finalization.
 2. `R3A-1`: closed by reviewed structured merge-lock semantics and tests in
    PR #191.
-3. `R3A-2`: authorization required before GitHub ruleset configuration and a
-   harmless, never-merged locked canary.
-4. `R3A-3`: independent review and Merge Integrity closeout.
-5. `R3B`: parallel-runtime inventory followed by staged build and artifact
-   separation.
+3. `R3A-2`: executed and independently accepted with disclosed residual risk.
+4. `R3A-3`: independently reviewed and closed by the R3A-3 closeout record when
+   this record enters `main`.
+5. `R3B`: the only next entry point, beginning with read-only parallel-runtime
+   inventory before any staged build or artifact separation.
 
-Do not skip or parallelize these stages. Before `R3A-2`, Jenn must authorize an
-exact preflight covering the ruleset diff, required status, administrator
-bypass policy, canary sequence, rollback, and sanitized evidence. The canary
-must not use a merge attempt that could unexpectedly succeed.
+`R2_GOVERNANCE_INTEGRITY_CLOSEOUT` and the Merge Integrity mainline are closed
+by R3A-3. Active Merge Integrity enforcement remains an operational governance
+dependency and must be re-read before future current-state claims.
 
-The capability-expansion freeze remains active throughout all five R3 stages.
+The capability-expansion freeze remains active after R3A closeout.
 Do not add ADR 012, a real worker, remote CAS, new App Server execution probes,
 retain/apply promotion, real workspace-write, or other execution capability
 expansion. Completion of this sequence does not itself authorize later
@@ -225,24 +237,30 @@ ordinary `pull_request` workflow does not emit this context. A bare local
 invocation is only a non-applicable runner check unless a trusted event is
 explicitly simulated, and it cannot authorize merge.
 
+Ruleset `19069032` now requires that exact context for `main`, with strict
+required-status semantics and no bypass actors. The required status accepts any
+publisher source and is safe only under the documented owner-equivalent
+trusted-writer model. It is the sole required context; ordinary CI remains a
+separate PR-readiness signal rather than a GitHub ruleset requirement.
+
 ## Next Governed Step
 
-Current status: `R3A-1 CLOSED / R3A-2 AUTHORIZATION REQUIRED`.
+Current status:
+`R2 CLOSED / R3A-2 PASS_WITH_DISCLOSED_RESIDUAL_RISK / R3A-3 CLOSED`.
 
-The only current entry point is an exact `R3A-2` preflight covering the proposed
-ruleset diff, required status, administrator-bypass policy, harmless canary
-sequence, rollback plan, and sanitized evidence-retention scope, followed by
-Jenn's explicit authorization decision. The proposal-only package is
-`docs/governance/R3A2_MERGE_INTEGRITY_PLATFORM_PREFLIGHT.md`. It records the
-observed no-ruleset baseline, exact active rule, any-source status limitation,
-empty bypass list, never-merged canary sequence, failure rollback, retained
-evidence, and exact confirmation text. Until that authorization is granted, do
-not modify a GitHub ruleset or required-status configuration and do not execute
-a real locked canary.
+The only current entry point is `R3B` parallel-runtime inventory. First map the
+actual dependency closure of the five public entrypoints and classify all
+source packages as governance core, historical compatibility, or runnable
+runtime; record which packages are imported, compiled, emitted to `dist`, and
+included by `npm pack`. Inventory is read-only architecture evidence. It does
+not authorize clean-build changes, core-only artifact changes, import-firewall
+implementation, repository migration, or runtime deletion.
 
-Do not use this finalization or `R3A-2` to add ADR 012, a real worker, remote
-CAS, new App Server execution probes, release automation, workspace-write, or
-any live execution authority.
+Do not use R3A closeout or R3B inventory to modify ruleset `19069032`, add CI
+required contexts, bind a GitHub App, add a merge bot or timer, address Node 20
+maintenance, fix unrelated macOS CI, add ADR 012, implement a real worker or
+remote CAS, start new App Server execution probes, enable workspace-write, or
+grant any live execution authority.
 
 
 ## Historical Audit Compatibility

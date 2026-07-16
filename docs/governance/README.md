@@ -27,8 +27,12 @@ explicitly promotes them.
   metadata, lock-digest and exact-head unlock records, fail-closed GitHub
   inventory, minimum workflow permissions, and pinned GitHub Action revisions.
 - [R3A-2 Merge Integrity platform preflight](R3A2_MERGE_INTEGRITY_PLATFORM_PREFLIGHT.md):
-  proposal-only exact ruleset diff, required-status limitation, no-bypass
-  policy, never-merged canary, rollback, evidence scope, and confirmation text.
+  executed authorization package containing the exact ruleset diff,
+  required-status limitation, no-bypass policy, never-merged canary, rollback,
+  evidence scope, and confirmation text.
+- [R3A-3 Merge Integrity closeout](R3A3_MERGE_INTEGRITY_CLOSEOUT.md):
+  independent platform evidence, accepted any-source threat model, ordinary-CI
+  limitation, and R2/R3A closeout disposition.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [App Server file-change governance runbook](runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md):
   deterministic offline acceptance and the explicit live-acceptance stop.
@@ -67,14 +71,17 @@ They do not independently open an execution path.
 | App Server exact-version file change | `NO-GO` |
 | No-environment proposal and runtime inventory | `verified_offline / no_go` |
 | Offline execution capsule | `test_only_simulated`; non-promotable |
+| Pull-request merge authorization | Active for `main` through ruleset `19069032`; exact `Merge Integrity` context only, strict, no bypass actors, any-source publisher risk accepted under the owner-equivalent trusted-writer model |
+| Ordinary CI as GitHub required status | Not configured by the Merge Integrity ruleset |
 | Real App Server file apply | Not authorized |
 | Real Codex CLI or provider execution | Not authorized |
 | Real worker, remote CAS, retain/apply integration | Not implemented or authorized |
 | Real source-workspace write, release, deploy, publish | Not authorized |
 
-The current closeout freezes ADR 012, a real worker, remote CAS, and further App
-Server execution probes. Any such work requires a separately reviewed boundary
-change after governance integrity closeout.
+R3A closes Merge Integrity and `R2_GOVERNANCE_INTEGRITY_CLOSEOUT`. The only next
+entry is R3B parallel-runtime inventory; no clean-build, artifact separation,
+import firewall, ADR 012, real worker, remote CAS, or further App Server
+execution probe is authorized by this closeout.
 
 ## Runner Entry Points
 
