@@ -29,6 +29,12 @@ ineligible. No live isolation enforcer ships in `0.1.0`, so live App Server
 profiles remain `observe_only`. The repository-internal test factory is not a
 live security claim.
 
+The internal offline execution capsule is also test-only. It accepts synthetic,
+non-sensitive fixtures, uses the shipped in-memory content store, runs only a
+registered in-process fake transform, and produces non-promotable
+`verified_offline` evidence. It is not a sandbox, worker, live execution path,
+or workspace-write authorization.
+
 ## Public Package Surface
 
 There is no root convenience export. The complete supported package surface is:
@@ -148,11 +154,14 @@ review before any separately authorized loopback probe.
 
 ## Documentation
 
+- [Current governance state](docs/current/CURRENT_STATE.md)
+- [Governance current surface](docs/governance/README.md)
 - [Architecture](docs/governance/CODEX_EXECUTION_GOVERNANCE_ARCHITECTURE.md)
 - [App Server adapter ADR](docs/governance/decisions/ADR_006_CODEX_APP_SERVER_GOVERNANCE_ADAPTER.md)
 - [Exact-version security review](docs/governance/decisions/ADR_008_APP_SERVER_EXACT_VERSION_SECURITY_REVIEW.md)
 - [No-environment proposal contract](docs/governance/decisions/ADR_009_APP_SERVER_NO_ENVIRONMENT_PROPOSAL_CONTRACT.md)
 - [Runtime tool-inventory attestation](docs/governance/decisions/ADR_010_RUNTIME_TOOL_INVENTORY_ATTESTATION.md)
+- [Offline execution capsule contract](docs/governance/decisions/ADR_011_OFFLINE_EXECUTION_CAPSULE.md)
 - [File-change governance runbook](docs/governance/runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md)
 - [Gate 0 baseline](docs/governance/CODEX_GOVERNANCE_BASELINE.md)
 
