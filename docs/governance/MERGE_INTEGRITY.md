@@ -19,14 +19,16 @@ applies_to:
 
 # Merge Integrity Gate
 
-This implementation candidate prevents code validation from being treated as
-merge authorization. It applies only to GitHub pull requests targeting `main`;
-it does not grant release, deploy, publish, tag, provider, runtime, worker,
+This active gate prevents code validation from being treated as merge
+authorization. It applies only to GitHub pull requests targeting `main`; it
+does not grant release, deploy, publish, tag, provider, runtime, worker,
 remote-CAS, App Server live-execution, or workspace-write authority.
 
-No GitHub ruleset currently requires this status, and no locked canary has been
-executed. Those platform changes remain behind the separate `R3A-2`
-authorization gate.
+Repository ruleset `19069032` (`codex-router-merge-integrity-v1`) is active for
+`refs/heads/main`. It requires only the exact `Merge Integrity` context, uses
+strict required-status semantics, and has `bypass_actors: []`. R3A-2 proved the
+platform behavior through the harmless, never-merged PR #194 canary; the
+independent R3A-3 closeout records the accepted residual risks.
 
 ## Structured Lock Metadata
 
@@ -164,17 +166,38 @@ The job first publishes `pending`, then `success` or `failure`, to the refreshed
 exact PR head. It is named `Merge Integrity Evaluation`, keeping the commit
 status context distinct from the workflow check name.
 
-This R3A-1 implementation is another bootstrap change: until it is in the
-trusted base, the existing base validator cannot enforce the new metadata
-schema against its own PR. Even after landing, it remains an implementation
-candidate until Jenn separately authorizes the exact `R3A-2` ruleset and
-harmless never-merged locked-canary preflight.
+R3A-1 was a bootstrap change: until it entered the trusted base, the existing
+base validator could not enforce the new metadata schema against its own PR.
+R3A-2 then activated the separately authorized exact ruleset and proved the
+trusted-base workflow, required status, deletion revocation, and head
+invalidation through harmless PR #194 without attempting merge.
+
+## Platform Enforcement Boundary
+
+The active ruleset mechanically requires the exact `Merge Integrity` context
+before `main` can be updated. The required status is strict, so the topic branch
+must also be current with the base. No bypass actor is configured.
+
+The context currently accepts any publisher source because the ruleset has no
+GitHub App `integration_id` binding. This is accepted only for the current
+personal-repository model in which every repository writer and every principal
+with `statuses: write` is treated as an owner-equivalent trusted principal. It
+is not a claim of unforgeable publisher provenance. A multi-maintainer,
+third-party-App, or potentially malicious-writer threat model requires a
+separately designed and authorized source-binding change.
+
+`Merge Integrity` is also the only required context. Typecheck, tests, build,
+state-sync, package-consumer, and other ordinary CI checks are not mechanically
+required by ruleset `19069032`. A successful merge-authorization status does
+not replace those quality signals and does not prove that failing code cannot
+enter `main`.
 
 ## Supply-Chain Boundary
 
-All existing GitHub Actions remain pinned to full commit SHAs. R3A-1 does not
-modify workflows, configure repository rules, add a merge bot, or add a timed
-workflow.
+All existing GitHub Actions remain pinned to full commit SHAs. R3A-2 configured
+only the separately authorized ruleset; it did not modify workflows, add a
+merge bot, or add a timed workflow. R3A-3 does not change the ruleset or add
+required CI contexts.
 
 ## Validation
 
@@ -187,7 +210,8 @@ npm test
 npm run build
 ```
 
-After R3A-1 review, stop at the `R3A-2` authorization gate. Do not configure a
-GitHub ruleset, execute a real locked canary, add a merge bot or timer, split
-runtime artifacts, enter R3B, or add provider, worker, App Server live,
-remote-CAS, or workspace-write capability.
+See `R3A3_MERGE_INTEGRITY_CLOSEOUT.md` for the independent platform evidence,
+threat-model limitation, and closeout disposition. The next entry is R3B
+parallel-runtime inventory only. Do not modify the ruleset, add a merge bot or
+timer, implement runtime separation, or add provider, worker, App Server live,
+remote-CAS, or workspace-write capability under this closeout.
