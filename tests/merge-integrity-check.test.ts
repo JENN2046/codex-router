@@ -302,6 +302,29 @@ test("malformed trusted unlock JSON blocks without exposing comment text", () =>
   assert.equal(JSON.stringify(result).includes("not-json"), false);
 });
 
+test("a valid unlock cannot hide a later trusted malformed or invalid claim", () => {
+  const lock = mergeLock();
+  const valid = comment(authorization(lock), { id: "valid-comment" });
+  const laterTrustedClaims = [
+    comment(undefined, {
+      id: "malformed-comment",
+      body: "<!-- codex-router-merge-authorization:v1\n{not-json}\n-->"
+    }),
+    comment(authorization(lock, { lockId: "wrong-lock" }), {
+      id: "invalid-comment"
+    })
+  ];
+
+  for (const laterClaim of laterTrustedClaims) {
+    const result = evaluateMergeIntegrity(input({
+      comments: [valid, laterClaim]
+    }));
+    assert.equal(result.status, "blocked");
+    assert.equal(result.reason, "invalid_unlock_claim");
+    assert.equal(result.authorization, undefined);
+  }
+});
+
 test("unlock comments reject extra prose and duplicate claims", () => {
   const lock = mergeLock();
   const block = authorizationBlock(authorization(lock));

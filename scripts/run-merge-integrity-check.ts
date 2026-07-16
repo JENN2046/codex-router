@@ -238,6 +238,10 @@ export function evaluateMergeIntegrity(
     input.allowedApprovers.map(normalizeLogin)
   );
   let trustedMalformedClaim = false;
+  let validAuthorization: {
+    comment: MergeIntegrityComment;
+    claim: MergeAuthorization;
+  } | undefined;
 
   for (const comment of input.comments) {
     if (
@@ -258,16 +262,21 @@ export function evaluateMergeIntegrity(
         claim,
         allowedApprovers
       )) {
-        return authorizedResult(
-          lockRequired,
-          protectedPaths,
-          lockEvidence,
-          comment,
-          claim
-        );
+        validAuthorization ??= { comment, claim };
+      } else {
+        trustedMalformedClaim = true;
       }
-      trustedMalformedClaim = true;
     }
+  }
+
+  if (!trustedMalformedClaim && validAuthorization !== undefined) {
+    return authorizedResult(
+      lockRequired,
+      protectedPaths,
+      lockEvidence,
+      validAuthorization.comment,
+      validAuthorization.claim
+    );
   }
 
   return {
