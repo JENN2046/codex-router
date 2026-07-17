@@ -2,17 +2,8 @@
 
 import { spawn } from "node:child_process";
 import { readdir } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
-const ISOLATED_TEST_FILE_NAMES = new Set([
-  "clean-build-determinism.test.ts"
-]);
-
-export interface TestRunBatch {
-  mode: "parallel" | "isolated";
-  files: string[];
-}
 
 export async function discoverTestFiles(
   testDirectory = resolve(process.cwd(), "tests")
@@ -34,36 +25,6 @@ export async function runTests(
   const childEnv: NodeJS.ProcessEnv = { ...process.env };
   delete childEnv.NODE_TEST_CONTEXT;
 
-  for (const batch of planTestRuns(testFiles)) {
-    const exitCode = await runTestBatch(batch.files, childEnv);
-    if (exitCode !== 0) {
-      return exitCode;
-    }
-  }
-  return 0;
-}
-
-export function planTestRuns(testFiles: string[]): TestRunBatch[] {
-  const parallelFiles = testFiles.filter(
-    (file) => !ISOLATED_TEST_FILE_NAMES.has(basename(file))
-  );
-  const isolatedFiles = testFiles.filter(
-    (file) => ISOLATED_TEST_FILE_NAMES.has(basename(file))
-  );
-  const batches: TestRunBatch[] = [];
-  if (parallelFiles.length > 0) {
-    batches.push({ mode: "parallel", files: parallelFiles });
-  }
-  for (const file of isolatedFiles) {
-    batches.push({ mode: "isolated", files: [file] });
-  }
-  return batches;
-}
-
-function runTestBatch(
-  testFiles: string[],
-  childEnv: NodeJS.ProcessEnv
-): Promise<number> {
   return new Promise<number>((resolveResult, reject) => {
     const child = spawn(process.execPath, [
       "--import",
