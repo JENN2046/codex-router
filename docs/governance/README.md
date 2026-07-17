@@ -35,8 +35,12 @@ explicitly promotes them.
   limitation, and R2/R3A closeout disposition.
 - [R3B clean-build determinism](R3B_CLEAN_BUILD_DETERMINISM.md): independently
   reviewed R3B-2A baseline that removes validated stale `dist` output before
-  build and compares dirty/empty build plus pack manifests; closed with a
-  disclosed transient CI diagnostic risk and no core-only artifact claim.
+  build and compares dirty/empty build plus pack manifests; no core-only
+  artifact claim.
+- [R3B-2A diagnostics-only re-closeout](R3B_2A_DIAGNOSTICS_ONLY_RECLOSEOUT.md):
+  closes the diagnostic-observability gap with fixed stage/category labels,
+  forbidden-field redaction, exact-head and post-merge CI evidence, and no
+  determinism, workflow, Ruleset, or package-surface change.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [App Server file-change governance runbook](runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md):
   deterministic offline acceptance and the explicit live-acceptance stop.
@@ -84,9 +88,10 @@ They do not independently open an execution path.
 
 R3A closes Merge Integrity and `R2_GOVERNANCE_INTEGRITY_CLOSEOUT`. R3B-1
 read-only inventory is complete, and R3B-2A clean-build determinism is closed
-with a disclosed transient CI diagnostic risk. R3B-2B remains unauthorized;
-this closeout does not authorize artifact separation, an import firewall,
-ADR 012, a real worker, remote CAS, or a further App Server execution probe.
+with bounded redacted diagnostics and a disclosed transient CI runtime risk.
+R3B-2B remains unauthorized; this closeout does not authorize artifact
+separation, an import firewall, ADR 012, a real worker, remote CAS, or a further
+App Server execution probe.
 
 ## Runner Entry Points
 

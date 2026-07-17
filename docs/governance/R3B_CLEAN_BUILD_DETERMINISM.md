@@ -12,6 +12,8 @@ verified_by:
   - node --import tsx --test tests/clean-build-determinism.test.ts
   - npm run typecheck
   - npm run build
+  - PR #198 merged as d9312acec1389a65c532685ee1b1122f065f853d
+  - Codex Router CI run 29583678323
 supersedes: []
 superseded_by: null
 applies_to:
@@ -94,14 +96,22 @@ then passed all 20 jobs on the unchanged merge commit, including Linux,
 Windows, and macOS on Node 20 and 22. The same PR head had also passed its full
 current-head matrix before merge.
 
-The R3B-2A disposition is therefore
+The initial R3B-2A disposition was therefore
 `PASS_WITH_DISCLOSED_TRANSIENT_CI_DIAGNOSTIC_RISK`. The transient failure was
 not reproduced, but its normalized reason did not preserve enough detail to
-identify the originating filesystem or child-process error. This is retained
-as a maintenance risk; it does not expand the determinism claim into a claim
-that every CI attempt is failure-free.
+identify the originating filesystem or child-process error.
 
-R3B-2A is closed by this finalization when it enters `main`. R3B-2B remains
-unauthorized and does not follow automatically. Its artifact allowlist,
-core-only packaging boundary, and later import-firewall work require a separate
-exact scope, review, and authorization.
+PR #198 subsequently added the bounded stage/category diagnostic projection
+without changing the determinism algorithm, workflow, Ruleset, or package
+surface. Its exact PR head and merge commit passed complete 20-job CI runs,
+including Linux, macOS, and Windows acceptance on Node 20 and 22. The
+diagnostic-observability gap is closed by
+`R3B_2A_DIAGNOSTICS_ONLY_RECLOSEOUT.md`; the unknown historical host/runtime
+cause remains a disclosed transient CI risk.
+
+R3B-2A is re-closed as
+`CLOSED_WITH_BOUNDED_DIAGNOSTICS_AND_DISCLOSED_TRANSIENT_CI_RISK` when the
+diagnostics re-closeout enters `main`. R3B-2B remains unauthorized and does not
+follow automatically. Its artifact allowlist, core-only packaging boundary,
+and later import-firewall work require a separate exact scope, review, and
+authorization.
