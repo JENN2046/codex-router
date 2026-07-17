@@ -1,6 +1,6 @@
 ---
 title: R3B-2A Diagnostics-only Taskbook
-status: local_candidate
+status: closeout_candidate
 owner: governance
 created: 2026-07-17
 last_verified: 2026-07-17
@@ -13,8 +13,11 @@ verified_by:
   - npm test
   - npm run build
   - npm run docs:governance
+  - PR #198 merged as d9312acec1389a65c532685ee1b1122f065f853d
+  - Codex Router CI run 29582276105
+  - Codex Router CI run 29583678323
 supersedes: []
-superseded_by: null
+superseded_by: R3B_2A_DIAGNOSTICS_ONLY_RECLOSEOUT.md
 applies_to:
   - R3B-2A
   - clean-build-determinism
@@ -27,7 +30,7 @@ applies_to:
 
 ```text
 task: R3B_2A_DIAGNOSTICS_ONLY
-mode: PR_DELIVERY_AUTHORIZED
+mode: RECLOSEOUT_AUTHORIZED
 repository: JENN2046/codex-router
 target_branch: main
 reviewed_main: 04b6847ada625675d9686877f3a10be0bf8d3def
@@ -37,7 +40,8 @@ natural_ci_authorized: true
 branch_push_authorized: true
 pull_request_authorized: true
 state_sync_record_reanchor_authorized: true
-merge_authorized: false
+merge_authorized: true
+recloseout_authorized: true
 R3B_2B_authorized: false
 capability_expansion: frozen
 ```
@@ -47,7 +51,8 @@ verdict `REOPEN_R3B2A_DIAGNOSTICS_REQUIRED`. Jenn supplied the exact local
 implementation token, and the bounded implementation plus required local
 validation are complete. Jenn subsequently authorized pushing the scoped task
 branch and opening a pull request, including the natural CI triggered by that
-delivery. Workflow rerun, workflow dispatch, and merge remain unauthorized.
+delivery. At that delivery point, workflow rerun, workflow dispatch, and merge
+remained unauthorized; later authorizations are recorded below.
 
 Exact token received for local implementation authorization:
 
@@ -64,6 +69,19 @@ reanchor/record update scope. This follow-up authorization permits only the
 taskbook authorization note and the policy v2 source-tree digest reattestation
 for the current pull-request head. It does not broaden the diagnostics
 implementation, workflow, merge, re-closeout, or R3B-2B scope.
+
+Jenn later authorized merge, and PR #198 entered `main` as
+`d9312acec1389a65c532685ee1b1122f065f853d`. After the exact merge commit passed
+the complete natural CI matrix, Jenn separately authorized this bounded
+re-closeout with:
+
+```text
+APPROVE_R3B_2A_DIAGNOSTICS_ONLY_RECLOSEOUT
+```
+
+That authorization permits the governance closeout, current-state display,
+governance index, and policy v2 digest attestation required to record the
+reviewed result. It does not authorize R3B-2B or any implementation surface.
 
 ## 2. Review Basis
 
@@ -351,9 +369,9 @@ Blocked result:
 R3B_2A_DIAGNOSTICS_ONLY_BLOCKED
 ```
 
-Stop immediately after reporting either result. The current authorization
-covers PR delivery and natural CI only; do not infer authorization for merge,
-R3B-2A re-closeout, or R3B-2B.
+The original implementation authorization stopped after reporting either
+result and covered PR delivery plus natural CI only. Merge and re-closeout were
+later authorized separately as recorded above; R3B-2B remains unauthorized.
 
 R3B-2A may be considered for re-closeout only after a separately authorized
 delivery, natural CI evidence, and independent review. The determinism claim
@@ -363,17 +381,18 @@ observability is the only reopened boundary.
 ## 12. Taskbook Result
 
 ```text
-R3B_2A_DIAGNOSTICS_ONLY_LOCAL_CANDIDATE
+R3B_2A_DIAGNOSTICS_ONLY_RECLOSEOUT_CANDIDATE
 implementation_authorized: true
 workflow_rerun_authorized: false
 natural_ci_authorized: true
 branch_push_authorized: true
 pull_request_authorized: true
 state_sync_record_reanchor_authorized: true
-merge_authorized: false
+merge_authorized: true
+recloseout_authorized: true
 R3B_2B_authorized: false
 ```
 
-The authorized next action is scoped task-branch push and pull-request delivery
-with natural CI. No workflow rerun, workflow dispatch, merge, R3B-2A
-re-closeout, or R3B-2B action follows automatically.
+The authorized next action is the scoped re-closeout task branch and pull
+request, including natural CI. No workflow rerun, workflow dispatch, merge of
+the re-closeout PR, or R3B-2B action follows automatically.
