@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   hashKernelObject,
   type GovernedFileChangeKind
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";
 import {
   canonicalizeGovernedFileChangeSet,
   type GovernedFileChangeDraft

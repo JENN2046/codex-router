@@ -7,13 +7,14 @@ import { pathToFileURL } from "node:url";
 const GOVERNANCE_CONTROL_PLANE = "docs/governance/GOVERNANCE_CONTROL_PLANE.md";
 const GOVERNANCE_README = "docs/governance/README.md";
 const PROVIDER_CORE_SOURCE = "packages/provider-core/src/index.ts";
+const PROVIDER_GOVERNANCE_PUBLIC_SOURCE = "packages/provider-core/src/governance-public.ts";
 const PROVIDER_REGISTRY_SOURCE = "packages/provider-registry/src/index.ts";
 const PROVIDER_CORE_TEST = "tests/provider-core.test.ts";
 const PROVIDER_REGISTRY_TEST = "tests/provider-registry.test.ts";
 const TOOL_INVOCATION_PLANNER_TEST = "tests/tool-invocation-planner.test.ts";
 const GOVERNANCE_RUNNER = "scripts/run-governance-check.ts";
 
-const REQUIRED_PROVIDER_CORE_PRIMITIVE_MARKERS = [
+const REQUIRED_PROVIDER_GOVERNANCE_PUBLIC_MARKERS = [
   "ProviderKindSchema",
   "\"executor\"",
   "\"tool\"",
@@ -23,6 +24,29 @@ const REQUIRED_PROVIDER_CORE_PRIMITIVE_MARKERS = [
   "\"external_write\"",
   "\"protected_remote\"",
   "ProviderManifestSchema",
+  "interface GovernanceProvider",
+  "parseProviderManifest",
+  "hashProviderManifest",
+  "providerSupportsSideEffectClass",
+  "providerSupportsSandboxProfile",
+  "function stableStringifyProviderObject"
+] as const;
+
+const FORBIDDEN_PROVIDER_GOVERNANCE_PUBLIC_MARKERS = [
+  "ProviderExecutionPermitSchema",
+  "WorkspaceWriteProviderExecutionPermitV2Schema",
+  "ExecutorExecutionPlanSchema",
+  "ToolProviderInvocationPlanSchema",
+  "interface ExecutorProvider",
+  "execute(",
+  "interface ToolProvider",
+  "invoke(",
+  "interface RemoteAgentProvider",
+  "createRemoteTask(",
+  "interface ModelProvider"
+] as const;
+
+const REQUIRED_PROVIDER_CORE_PRIMITIVE_MARKERS = [
   "ProviderExecutionPermitSchema",
   "WorkspaceWriteProviderExecutionPermitV2Schema",
   "ExecutorExecutionPlanSchema",
@@ -51,9 +75,7 @@ const REQUIRED_PROVIDER_CORE_GUARD_MARKERS = [
   "protectedBranchForbidden",
   "dirtyWorktreeForbidden",
   "consumeWorkspaceWriteProviderExecutionPermitV2ForPlan",
-  "consumeIfUnused",
-  "providerSupportsSideEffectClass",
-  "providerSupportsSandboxProfile"
+  "consumeIfUnused"
 ] as const;
 
 const REQUIRED_PROVIDER_CORE_TEST_MARKERS = [
@@ -101,7 +123,8 @@ const FORBIDDEN_OUTPUT_MARKERS = [
 export interface ProviderCoreExecutionPrimitivesBoundaryAuditInput {
   governanceControlPlaneText: string;
   governanceReadmeText: string;
-  providerCoreSourceText: string;
+  providerGovernancePublicSourceText: string;
+  providerCoreInternalSourceText: string;
   providerRegistrySourceText: string;
   providerCoreTestText: string;
   providerRegistryTestText: string;
@@ -115,6 +138,8 @@ export interface ProviderCoreExecutionPrimitivesBoundaryAuditResult {
     controlPlaneBoundaryRecorded: boolean;
     governanceReadmeListsBoundary: boolean;
     governanceRunnerRegistered: boolean;
+    providerGovernancePublicManifestOnly: boolean;
+    providerGovernanceHelperOwnershipValid: boolean;
     providerCorePrimitiveSchemasPresent: boolean;
     providerCorePermitGuardsPresent: boolean;
     providerCoreRegressionCoverageRecorded: boolean;
@@ -150,7 +175,8 @@ export async function collectProviderCoreExecutionPrimitivesBoundaryAuditInput(
   const [
     governanceControlPlaneText,
     governanceReadmeText,
-    providerCoreSourceText,
+    providerGovernancePublicSourceText,
+    providerCoreInternalSourceText,
     providerRegistrySourceText,
     providerCoreTestText,
     providerRegistryTestText,
@@ -159,6 +185,7 @@ export async function collectProviderCoreExecutionPrimitivesBoundaryAuditInput(
   ] = await Promise.all([
     read(cwd, GOVERNANCE_CONTROL_PLANE),
     read(cwd, GOVERNANCE_README),
+    read(cwd, PROVIDER_GOVERNANCE_PUBLIC_SOURCE),
     read(cwd, PROVIDER_CORE_SOURCE),
     read(cwd, PROVIDER_REGISTRY_SOURCE),
     read(cwd, PROVIDER_CORE_TEST),
@@ -170,7 +197,8 @@ export async function collectProviderCoreExecutionPrimitivesBoundaryAuditInput(
   return {
     governanceControlPlaneText,
     governanceReadmeText,
-    providerCoreSourceText,
+    providerGovernancePublicSourceText,
+    providerCoreInternalSourceText,
     providerRegistrySourceText,
     providerCoreTestText,
     providerRegistryTestText,
@@ -192,11 +220,23 @@ export function reviewProviderCoreExecutionPrimitivesBoundaryAudit(
     governanceRunnerRegistered: input.governanceRunnerText.includes(
       "provider-core-execution-primitives-boundary"
     ),
+    providerGovernancePublicManifestOnly:
+      REQUIRED_PROVIDER_GOVERNANCE_PUBLIC_MARKERS.every(
+        (marker) => input.providerGovernancePublicSourceText.includes(marker)
+      ) && FORBIDDEN_PROVIDER_GOVERNANCE_PUBLIC_MARKERS.every(
+        (marker) => !input.providerGovernancePublicSourceText.includes(marker)
+      ),
+    providerGovernanceHelperOwnershipValid:
+      input.providerCoreInternalSourceText.includes('from "./governance-public.js"')
+      && input.providerCoreInternalSourceText.includes("stableStringifyProviderObject")
+      && !input.providerCoreInternalSourceText.includes(
+        "function stableStringifyProviderObject"
+      ),
     providerCorePrimitiveSchemasPresent: REQUIRED_PROVIDER_CORE_PRIMITIVE_MARKERS.every(
-      (marker) => input.providerCoreSourceText.includes(marker)
+      (marker) => input.providerCoreInternalSourceText.includes(marker)
     ),
     providerCorePermitGuardsPresent: REQUIRED_PROVIDER_CORE_GUARD_MARKERS.every(
-      (marker) => input.providerCoreSourceText.includes(marker)
+      (marker) => input.providerCoreInternalSourceText.includes(marker)
     ),
     providerCoreRegressionCoverageRecorded: REQUIRED_PROVIDER_CORE_TEST_MARKERS.every(
       (marker) => input.providerCoreTestText.includes(marker)
@@ -283,7 +323,8 @@ function noBroadExecutionAuthorization(
   const combined = [
     input.governanceControlPlaneText,
     input.governanceReadmeText,
-    input.providerCoreSourceText,
+    input.providerGovernancePublicSourceText,
+    input.providerCoreInternalSourceText,
     input.providerRegistrySourceText
   ].join("\n");
 
@@ -303,6 +344,8 @@ function outputSanitized(input: ProviderCoreExecutionPrimitivesBoundaryAuditInpu
       controlPlaneBoundaryRecorded: true,
       governanceReadmeListsBoundary: true,
       governanceRunnerRegistered: true,
+      providerGovernancePublicManifestOnly: true,
+      providerGovernanceHelperOwnershipValid: true,
       providerCorePrimitiveSchemasPresent: true,
       providerCorePermitGuardsPresent: true,
       providerCoreRegressionCoverageRecorded: true,

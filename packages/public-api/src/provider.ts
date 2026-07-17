@@ -10,7 +10,7 @@ export {
   parseProviderManifest,
   providerSupportsSandboxProfile,
   providerSupportsSideEffectClass
-} from "../../provider-core/src/index.js";
+} from "../../provider-core/src/governance-public.js";
 export type {
   GovernanceProvider,
   ProviderKind,
@@ -18,4 +18,4 @@ export type {
   ProviderRequiredConfig,
   ProviderSecurityBoundary,
   ProviderSideEffectClass
-} from "../../provider-core/src/index.js";
+} from "../../provider-core/src/governance-public.js";

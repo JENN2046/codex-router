@@ -10,7 +10,7 @@ import {
   type CapabilityScope,
   type GovernanceRiskLevel,
   type GovernedFileChangeSet
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";
 import {
   capabilityImplies,
   capabilityScopeToCanonicalString

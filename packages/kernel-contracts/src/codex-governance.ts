@@ -3,7 +3,7 @@ import {
   CapabilityScopeSchema,
   hashKernelObject,
   type CapabilityScope
-} from "./index.js";
+} from "./core.js";
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 const NonEmptyArgvSchema = z.array(z.string()).min(1).superRefine((argv, ctx) => {

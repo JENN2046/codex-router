@@ -27,9 +27,9 @@ export {
   AutoApprovalRuleSchema,
   ExactArgvCommandSchema,
   PreviewPolicySchema
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";
 export type {
   AutoApprovalRule,
   ExactArgvCommand,
   PreviewPolicy
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";

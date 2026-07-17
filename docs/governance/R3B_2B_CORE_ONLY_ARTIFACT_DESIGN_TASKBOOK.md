@@ -1,6 +1,6 @@
 ---
 title: R3B-2B Core-only Artifact Design Taskbook
-status: revision_3_design_candidate_independent_rereview_required
+status: implementation_candidate_local_validation_passed
 owner: governance
 created: 2026-07-17
 last_verified: 2026-07-17
@@ -11,6 +11,8 @@ verified_by:
   - R3B-2B design independent review verdict REOPEN
   - R3B-2B revised design independent review verdict REOPEN
   - R3B-2B revision 2 independent review verdict REOPEN
+  - R3B-2B revision 3 independent review verdict PASS
+  - APPROVE_R3B_2B_CORE_ONLY_ARTIFACT_IMPLEMENTATION
   - strict TypeScript Program with types empty and skipLibCheck false
 supersedes: []
 superseded_by: null
@@ -28,7 +30,7 @@ applies_to:
 
 ```text
 task: R3B_2B_CORE_ONLY_ARTIFACT
-mode: REVISION_3_DESIGN_ONLY
+mode: AUTHORIZED_IMPLEMENTATION_LOCAL_ONLY
 repository: JENN2046/codex-router
 design_base: 751abc9019be047c30ca1a4a96c795835997e2ee
 design_branch: design/r3b2b-core-only-artifact
@@ -37,7 +39,8 @@ R3B_2B_initial_design_review: REOPEN
 R3B_2B_revised_design_review: REOPEN
 R3B_2B_revision_2_design_review: REOPEN
 R3B_2B_revision_3_design: CANDIDATE
-R3B_2B_implementation: NOT_AUTHORIZED
+R3B_2B_revision_3_independent_review: PASS
+R3B_2B_implementation: AUTHORIZED_LOCAL_CANDIDATE
 branch_push: NOT_AUTHORIZED
 pull_request: NOT_AUTHORIZED
 merge: NOT_AUTHORIZED
@@ -1161,5 +1164,52 @@ R3B-2B INITIAL DESIGN REVIEW REOPENED
 R3B-2B REVISED DESIGN REVIEW REOPENED
 R3B-2B REVISION 2 DESIGN REVIEW REOPENED
 R3B-2B REVISION 3 DESIGN CANDIDATE
-R3B-2B IMPLEMENTATION NOT AUTHORIZED
+R3B-2B IMPLEMENTATION AUTHORIZED LOCAL-ONLY
 ```
+
+## 18. Authorized Local Implementation Result
+
+Jenn authorized the exact Revision 3 implementation with
+`APPROVE_R3B_2B_CORE_ONLY_ARTIFACT_IMPLEMENTATION`. The implementation remained
+inside section 13's file set and did not modify `package-lock.json`,
+`tsconfig.json`, workflows, Ruleset, dependencies, version, package exports, or
+scripts.
+
+Implemented result:
+
+```text
+kernel core/public and legacy compatibility DAG: split
+provider governance-public ownership: split
+stableStringifyProviderObject implementations: 1
+packed declaration NodeJS references: 0
+compiled allowlist: 32 files
+runtime closure: 17 files
+declaration closure: 15 files
+pack manifest: 35 entries
+formal package exports: 5 unchanged
+provider execution calls during validation: 0
+workspace-write execution calls during validation: 0
+workflow dispatch or rerun calls: 0
+release / deploy / publish calls: 0
+```
+
+Local validation result:
+
+```text
+git diff --check: PASS
+core-only artifact negative fixtures: PASS (18 tests)
+package consumer unit tests: PASS (5 tests)
+provider-core dual-source governance audit tests: PASS (8 tests)
+core-only artifact audit: PASS
+provider-core execution-primitives governance audit: PASS
+installed blank consumer: PASS
+clean-build determinism: PASS (1042/1042 dist; 35/35 pack)
+TypeScript typecheck: PASS
+full npm test: PASS (2533 tests)
+build: PASS
+governance docs: PASS
+```
+
+The local result is an implementation candidate, not a closeout, release, or
+publication. Push, PR, CI, merge, release, deploy, publish, real provider
+execution, and real workspace-write execution remain unauthorized.

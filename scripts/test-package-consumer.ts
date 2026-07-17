@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, join, posix as pathPosix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import {
+  CORE_DECLARATION_FILES,
+  CORE_EXPORTS,
+  CORE_METADATA_FILES,
+  CORE_RUNTIME_FILES,
+  reviewCoreArtifactBoundary
+} from "./run-core-only-artifact-audit.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -15,8 +22,12 @@ export interface PackageConsumerTestResult {
     packageBuilt: boolean;
     packageCreated: boolean;
     blankConsumerInstalled: boolean;
+    exactArtifactVerified: boolean;
     publicSubpathsTypechecked: boolean;
+    publicSubpathsRuntimeImported: boolean;
+    publicSubpathsSmoked: boolean;
     bareRootImportBlocked: boolean;
+    staleAliasesBlocked: boolean;
   };
   reasons: string[];
 }
@@ -51,8 +62,12 @@ export async function testPackageConsumer(
     packageBuilt: false,
     packageCreated: false,
     blankConsumerInstalled: false,
+    exactArtifactVerified: false,
     publicSubpathsTypechecked: false,
-    bareRootImportBlocked: false
+    publicSubpathsRuntimeImported: false,
+    publicSubpathsSmoked: false,
+    bareRootImportBlocked: false,
+    staleAliasesBlocked: false
   };
   const reasons: string[] = [];
   let stage = "build";
@@ -121,6 +136,34 @@ export async function testPackageConsumer(
     });
     checks.blankConsumerInstalled = true;
 
+    stage = "artifact";
+    const installedPackageRoot = join(consumerRoot, "node_modules", "codex-router");
+    const installedFiles = await readInstalledPackageFiles(installedPackageRoot);
+    const installedManifest = JSON.parse(installedFiles["package.json"] ?? "null") as {
+      exports?: Record<string, unknown>;
+    } | null;
+    const artifactReview = reviewCoreArtifactBoundary({
+      files: installedFiles,
+      packFiles: Object.keys(installedFiles),
+      packageExports: Object.keys(installedManifest?.exports ?? {}),
+      providerGovernancePublicSourceText: await readFile(
+        resolve(repoRoot, "packages/provider-core/src/governance-public.ts"), "utf8"
+      ),
+      providerCoreInternalSourceText: await readFile(
+        resolve(repoRoot, "packages/provider-core/src/index.ts"), "utf8"
+      ),
+      publicProviderFacadeSourceText: await readFile(
+        resolve(repoRoot, "packages/public-api/src/provider.ts"), "utf8"
+      ),
+      legacyAdapterSourceText: await readFile(
+        resolve(repoRoot, "packages/kernel-contracts/src/legacy-adapter.ts"), "utf8"
+      )
+    });
+    if (artifactReview.status !== "passed") {
+      throw new Error("package_consumer_artifact_boundary_failed");
+    }
+    checks.exactArtifactVerified = true;
+
     stage = "typecheck";
     const consumerSource = `
 import { CapabilityFactsSchema } from "codex-router/protocol";
@@ -131,28 +174,39 @@ import { NoEnvironmentProposalEventGate } from "codex-router/codex-adapter";
 // @ts-expect-error offline-only proposal types must not be public
 import type { NoEnvironmentProposalContract } from "codex-router/codex-adapter";
 import { RetainReceiptSchema } from "codex-router/evidence";
-import { ProviderManifestSchema } from "codex-router/provider";
+import { ProviderManifestSchema, type GovernanceProvider } from "codex-router/provider";
 
 void CapabilityFactsSchema;
 void deriveCapabilityFacts;
 void CodexSdkAdapter;
 void RetainReceiptSchema;
 void ProviderManifestSchema;
+const manifest = ProviderManifestSchema.parse({
+  providerId: "consumer-fixture",
+  kind: "tool",
+  displayName: "Consumer fixture",
+  version: "1.0.0",
+  securityBoundary: {}
+});
+const provider: GovernanceProvider = { manifest };
+void provider;
 `;
     const sourcePath = join(consumerRoot, "index.ts");
     await writeFile(sourcePath, consumerSource.trimStart(), "utf8");
+    await writeFile(join(consumerRoot, "tsconfig.json"), `${JSON.stringify({
+      compilerOptions: {
+        module: "NodeNext",
+        moduleResolution: "NodeNext",
+        target: "ES2022",
+        strict: true,
+        noEmit: true,
+        skipLibCheck: false,
+        types: []
+      },
+      files: ["index.ts"]
+    }, null, 2)}\n`, "utf8");
     await execFileAsync(process.execPath, [
-      resolve(repoRoot, "node_modules/typescript/bin/tsc"),
-      "--noEmit",
-      "--strict",
-      "--skipLibCheck",
-      "--target",
-      "ES2022",
-      "--module",
-      "NodeNext",
-      "--moduleResolution",
-      "NodeNext",
-      sourcePath
+      resolve(repoRoot, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.json"
     ], {
       cwd: consumerRoot,
       encoding: "utf8",
@@ -161,26 +215,62 @@ void ProviderManifestSchema;
     });
     checks.publicSubpathsTypechecked = true;
 
-    stage = "bare_root";
-    try {
-      await execFileAsync(process.execPath, [
-        "--input-type=module",
-        "-e",
-        "await import('codex-router')"
-      ], {
-        cwd: consumerRoot,
-        encoding: "utf8",
-        windowsHide: true
-      });
-      reasons.push("package_consumer_bare_root_import_unexpectedly_resolved");
-    } catch (error) {
-      const output = collectProcessErrorOutput(error);
-      if (output.includes("ERR_PACKAGE_PATH_NOT_EXPORTED")) {
-        checks.bareRootImportBlocked = true;
-      } else {
-        reasons.push("package_consumer_bare_root_import_failed_unexpectedly");
-      }
-    }
+    stage = "runtime";
+    const surfaceLocks = Object.fromEntries(await Promise.all(
+      ["protocol", "policy", "codex-adapter", "evidence", "provider"].map(async (name) => [
+        name,
+        JSON.parse(await readFile(
+          resolve(repoRoot, `tests/fixtures/public-api-${name}-surface-lock.fixture.json`),
+          "utf8"
+        )) as string[]
+      ] as const)
+    ));
+    await execFileAsync(process.execPath, ["--input-type=module", "-e", `
+const protocol = await import("codex-router/protocol");
+const policy = await import("codex-router/policy");
+const adapter = await import("codex-router/codex-adapter");
+const evidence = await import("codex-router/evidence");
+const provider = await import("codex-router/provider");
+const modules = { protocol, policy, "codex-adapter": adapter, evidence, provider };
+const locks = ${JSON.stringify(surfaceLocks)};
+for (const [name, module] of Object.entries(modules)) {
+  const actual = Object.keys(module).sort();
+  const expected = [...locks[name]].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error("public_runtime_surface_drift:" + name);
+  }
+}
+if (!protocol.CapabilityFactsSchema || typeof policy.deriveCapabilityFacts !== "function"
+  || typeof adapter.CodexSdkAdapter !== "function" || !evidence.RetainReceiptSchema
+  || !provider.ProviderManifestSchema) throw new Error("public_runtime_import_missing");
+const parsed = provider.ProviderManifestSchema.safeParse({
+  providerId: "consumer-fixture", kind: "tool", displayName: "Consumer fixture",
+  version: "1.0.0", securityBoundary: {}
+});
+if (!parsed.success) throw new Error("provider_manifest_smoke_failed");
+`], { cwd: consumerRoot, encoding: "utf8", windowsHide: true });
+    checks.publicSubpathsRuntimeImported = true;
+    checks.publicSubpathsSmoked = true;
+
+    stage = "negative_aliases";
+    const aliases = [
+      "codex-router", "codex-router/sdk", "codex-router/host", "codex-router/support",
+      "codex-router/contracts", "codex-router/kernel-contracts",
+      "codex-router/protocol-mcp", "codex-router/protocol-a2a",
+      "codex-router/testing", "codex-router/diagnostics"
+    ];
+    await execFileAsync(process.execPath, ["--input-type=module", "-e", `
+const aliases = ${JSON.stringify(aliases)};
+for (const alias of aliases) {
+  try { await import(alias); throw new Error("unexpected_alias:" + alias); }
+  catch (error) {
+    if (error instanceof Error && error.message.startsWith("unexpected_alias:")) throw error;
+    if (!(error && typeof error === "object" && error.code === "ERR_PACKAGE_PATH_NOT_EXPORTED")) throw error;
+  }
+}
+`], { cwd: consumerRoot, encoding: "utf8", windowsHide: true });
+    checks.bareRootImportBlocked = true;
+    checks.staleAliasesBlocked = true;
   } catch (error) {
     reasons.push(`package_consumer_failed_at_${stage}`);
     reasons.push(normalizeError(error));
@@ -198,6 +288,25 @@ void ProviderManifestSchema;
     checks,
     reasons: [...new Set(reasons)].sort()
   };
+}
+
+async function readInstalledPackageFiles(root: string): Promise<Record<string, string>> {
+  const files: Record<string, string> = {};
+  const visit = async (directory: string, prefix = ""): Promise<void> => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const relative = prefix === "" ? entry.name : pathPosix.join(prefix, entry.name);
+      const absolute = join(directory, entry.name);
+      if (entry.isDirectory()) await visit(absolute, relative);
+      else if (entry.isFile()) files[relative] = await readFile(absolute, "utf8");
+    }
+  };
+  await visit(root);
+  const expectedCount = CORE_RUNTIME_FILES.length + CORE_DECLARATION_FILES.length
+    + CORE_METADATA_FILES.length;
+  if (Object.keys(files).length !== expectedCount || CORE_EXPORTS.length !== 5) {
+    throw new Error("package_consumer_artifact_entry_count_mismatch");
+  }
+  return files;
 }
 
 async function runPackageConsumerCommand(
