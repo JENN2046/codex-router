@@ -1,9 +1,9 @@
 ---
 title: R3B-2B Core-only Artifact Design Taskbook
-status: implementation_candidate_local_validation_passed
+status: implementation_candidate_local_recloseout_passed
 owner: governance
 created: 2026-07-17
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 verified_by:
   - main@751abc9019be047c30ca1a4a96c795835997e2ee
   - TypeScript AST runtime and declaration closure traversal
@@ -13,6 +13,10 @@ verified_by:
   - R3B-2B revision 2 independent review verdict REOPEN
   - R3B-2B revision 3 independent review verdict PASS
   - APPROVE_R3B_2B_CORE_ONLY_ARTIFACT_IMPLEMENTATION
+  - implementation@a5df9100716138237650d1482bb52b6a955f7890
+  - dual-source audit hardening@41ce7cde31ebb6d2e36991368ac63791d0803878
+  - lifecycle audit closeout@74e090ca7597b66074a03c6682a763866012ec75
+  - R3B-2B focused implementation rereview verdict PASS
   - strict TypeScript Program with types empty and skipLibCheck false
 supersedes: []
 superseded_by: null
@@ -30,7 +34,7 @@ applies_to:
 
 ```text
 task: R3B_2B_CORE_ONLY_ARTIFACT
-mode: AUTHORIZED_IMPLEMENTATION_LOCAL_ONLY
+mode: LOCAL_IMPLEMENTATION_CANDIDATE_RECLOSED
 repository: JENN2046/codex-router
 design_base: 751abc9019be047c30ca1a4a96c795835997e2ee
 design_branch: design/r3b2b-core-only-artifact
@@ -38,9 +42,10 @@ R3B_2A: CLOSED
 R3B_2B_initial_design_review: REOPEN
 R3B_2B_revised_design_review: REOPEN
 R3B_2B_revision_2_design_review: REOPEN
-R3B_2B_revision_3_design: CANDIDATE
+R3B_2B_revision_3_design: PASSED
 R3B_2B_revision_3_independent_review: PASS
-R3B_2B_implementation: AUTHORIZED_LOCAL_CANDIDATE
+R3B_2B_implementation: LOCAL_CANDIDATE_RECLOSED
+R3B_2B_implementation_independent_review: PASS
 branch_push: NOT_AUTHORIZED
 pull_request: NOT_AUTHORIZED
 merge: NOT_AUTHORIZED
@@ -1132,10 +1137,10 @@ outside scope and is not treated as reversible.
   supported Linux, macOS, and Windows matrix before closeout.
 - The package remains private and no publish path is authorized.
 
-## 17. Revision 3 Design Acceptance Gate
+## 17. Revision 3 Design Acceptance Record
 
-This revision 3 design is ready only for another independent design review. That
-review must confirm:
+The Revision 3 independent design review and the later independent
+implementation reviews confirmed:
 
 ```text
 the predicted 17 runtime / 15 declaration closure is mechanically derivable
@@ -1155,16 +1160,16 @@ the dual-source audit tests reject wrong ownership and helper duplication
 the implementation diff is sufficient and no hidden build dependency exists
 ```
 
-Until that review passes and Jenn provides a separate implementation
-authorization, the formal state is:
+The resulting local state is:
 
 ```text
 R3B-2A CLOSED
 R3B-2B INITIAL DESIGN REVIEW REOPENED
 R3B-2B REVISED DESIGN REVIEW REOPENED
 R3B-2B REVISION 2 DESIGN REVIEW REOPENED
-R3B-2B REVISION 3 DESIGN CANDIDATE
-R3B-2B IMPLEMENTATION AUTHORIZED LOCAL-ONLY
+R3B-2B REVISION 3 DESIGN REVIEW PASSED
+R3B-2B IMPLEMENTATION LOCAL CANDIDATE RECLOSED
+R3B-2B IMPLEMENTATION INDEPENDENT REVIEW PASSED
 ```
 
 ## 18. Authorized Local Implementation Result
@@ -1199,7 +1204,7 @@ Local validation result:
 git diff --check: PASS
 core-only artifact negative fixtures: PASS (18 tests)
 package consumer unit tests: PASS (5 tests)
-provider-core dual-source governance audit tests: PASS (8 tests)
+provider-core dual-source governance audit tests: PASS (15 tests)
 core-only artifact audit: PASS
 provider-core execution-primitives governance audit: PASS
 installed blank consumer: PASS
@@ -1213,3 +1218,53 @@ governance docs: PASS
 The local result is an implementation candidate, not a closeout, release, or
 publication. Push, PR, CI, merge, release, deploy, publish, real provider
 execution, and real workspace-write execution remain unauthorized.
+
+## 19. Local Candidate Re-closeout
+
+The first independent implementation review returned `PASS_WITH_FINDINGS` for
+an incomplete dual-source governance proof. The first focused rereview reopened
+the candidate because several valid workspace-write permit lifecycle identifiers
+could bypass the negative audit. Both findings were limited to the governance
+audit and its synthetic tests; no packed artifact, package consumer, or runtime
+leak was found.
+
+Authorized local follow-up commits:
+
+```text
+a5df9100716138237650d1482bb52b6a955f7890 implementation candidate
+41ce7cde31ebb6d2e36991368ac63791d0803878 ownership and AST audit hardening
+74e090ca7597b66074a03c6682a763866012ec75 lifecycle bypass closeout
+```
+
+The final focused independent rereview returned `PASS` with no findings. It
+confirmed:
+
+```text
+complete provider kind and side-effect vocabulary ownership: PASS
+manifest schemas, helpers, and @internal ownership: PASS
+shared helper import and exact moved-binding re-export: PASS
+duplicate helper definition rejection: PASS
+workspace-write permit lifecycle identifier rejection: PASS
+ProviderExecutionContext / ProviderExecutionResult rejection: PASS
+Provider interface execute-member rejection: PASS
+runner / dispatcher / registry / concrete-provider import rejection: PASS
+existing permit / registry / tool-planner guards retained: PASS
+no-broad-authorization / sanitization / zero-call checks retained: PASS
+focused reviewer tests: PASS (15 tests)
+```
+
+Current formal state:
+
+```text
+R3B-2A CLOSED
+R3B-2B LOCAL IMPLEMENTATION CANDIDATE RECLOSED
+R3B-2B INDEPENDENT IMPLEMENTATION REVIEW PASSED
+ARTIFACT 17 RUNTIME / 15 DECLARATIONS / 35 ENTRIES
+PUSH / PR / CI / MERGE NOT AUTHORIZED
+RELEASE / DEPLOY / PUBLISH NOT AUTHORIZED
+REAL PROVIDER / WORKSPACE-WRITE EXECUTION NOT AUTHORIZED
+```
+
+This is a local candidate re-closeout, not a mainline, release, or publication
+closeout. Any push, PR, natural CI, merge, release, deploy, or publish step
+requires its own current authorization.
