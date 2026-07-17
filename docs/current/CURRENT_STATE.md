@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `3765cb7a55b3fdf1b264af4472bd714050b782436dd55d3e60d1bf3b92e5f6a2` |
+| Source tree digest | `4223add66149a0964e642c0d87e5330f7b6790c59669d8e141e6e9bb41b13945` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -154,9 +154,9 @@ source still includes governance core, historical compatibility, and runnable
 Runtime packages in the build surface, but the default packed artifact now
 selects an exact core-only compiled-file allowlist.
 
-R3B-2A is re-closed by the diagnostics-only post-merge finalization when that
-record enters `main`. The default build validates and removes repository-local
-`dist` before TypeScript compilation.
+R3B-2A was re-closed when the diagnostics-only post-merge finalization entered
+`main`. The default build validates and removes repository-local `dist` before
+TypeScript compilation.
 The isolated `npm run audit:clean-build-determinism` fixture proves that:
 
 - output from a subsequently deleted synthetic source package is removed;
