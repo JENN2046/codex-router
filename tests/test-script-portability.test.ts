@@ -6,8 +6,29 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { planTestRuns } from "../scripts/run-tests.js";
 
 const execFileAsync = promisify(execFile);
+
+test("package test runner isolates the nested clean-build workload", () => {
+  assert.deepEqual(planTestRuns([
+    "/repo/tests/authorization-kernel.test.ts",
+    "/repo/tests/clean-build-determinism.test.ts",
+    "/repo/tests/public-api-surface.test.ts"
+  ]), [
+    {
+      mode: "parallel",
+      files: [
+        "/repo/tests/authorization-kernel.test.ts",
+        "/repo/tests/public-api-surface.test.ts"
+      ]
+    },
+    {
+      mode: "isolated",
+      files: ["/repo/tests/clean-build-determinism.test.ts"]
+    }
+  ]);
+});
 
 test("package test script discovers files without shell glob expansion", async (context) => {
   const packageJson = JSON.parse(
