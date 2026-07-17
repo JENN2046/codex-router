@@ -1,10 +1,13 @@
 ---
 title: R3B Clean-build Determinism
-status: implementation_candidate
+status: active
 owner: governance
 created: 2026-07-17
 last_verified: 2026-07-17
 verified_by:
+  - PR #196 merged as bc98b88cbca80e60855dc7a0b16dab06d848430f
+  - Codex current-head review of d974e3f131a60d35fa76460d33abf5ea345ad6de
+  - Codex Router CI run 29547606677 attempt 2
   - npm run audit:clean-build-determinism
   - node --import tsx --test tests/clean-build-determinism.test.ts
   - npm run typecheck
@@ -76,7 +79,29 @@ package deletion, Runtime migration, workflow or Ruleset change, Node 20
 maintenance, provider/worker/workspace-write authority, or App Server live
 execution. Those boundaries require separate review and authorization.
 
-## Disposition
+## Independent Review And Finalization
 
-R3B-2A remains an implementation candidate until its PR is independently
-reviewed and merged. No R3B-2B artifact-boundary work follows automatically.
+PR #196 merged as `bc98b88cbca80e60855dc7a0b16dab06d848430f` on
+2026-07-17. Independent review found no blocking defect in the bounded cleaner
+or determinism claim. A post-merge local audit again proved identical dirty and
+empty build results: `1032` `dist` files and `229` pack entries, with no
+core-only, allowlist, or Runtime-surface claim.
+
+Post-merge CI run `29547606677` attempt 1 failed once on macOS / Node 22 while
+the audit reported only `clean_build_determinism_unknown_error`; matrix
+fail-fast cancelled the remaining cross-platform jobs. The complete attempt 2
+then passed all 20 jobs on the unchanged merge commit, including Linux,
+Windows, and macOS on Node 20 and 22. The same PR head had also passed its full
+current-head matrix before merge.
+
+The R3B-2A disposition is therefore
+`PASS_WITH_DISCLOSED_TRANSIENT_CI_DIAGNOSTIC_RISK`. The transient failure was
+not reproduced, but its normalized reason did not preserve enough detail to
+identify the originating filesystem or child-process error. This is retained
+as a maintenance risk; it does not expand the determinism claim into a claim
+that every CI attempt is failure-free.
+
+R3B-2A is closed by this finalization when it enters `main`. R3B-2B remains
+unauthorized and does not follow automatically. Its artifact allowlist,
+core-only packaging boundary, and later import-firewall work require a separate
+exact scope, review, and authorization.

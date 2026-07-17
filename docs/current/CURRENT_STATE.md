@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `55307865438d536e51770cefc4f7003bfa201dae7ccc03b6596d994123eadbd3` |
+| Source tree digest | `ec6fcb9b3224e2a6e5421e550a4dae56f7043844df2b7348980a05d9b4127aa0` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -125,9 +125,11 @@ The only current route is `R3_CLOSEOUT_SEQUENCE`, in this fixed order:
 3. `R3A-2`: executed and independently accepted with disclosed residual risk.
 4. `R3A-3`: independently reviewed and closed by the R3A-3 closeout record when
    this record enters `main`.
-5. `R3B`: R3B-1 read-only parallel-runtime inventory is complete. R3B-2A is
-   now limited to the clean-build determinism implementation candidate; no
-   artifact separation follows automatically.
+5. `R3B`: R3B-1 read-only parallel-runtime inventory is complete. PR #196
+   merged the R3B-2A clean-build determinism implementation as
+   `bc98b88cbca80e60855dc7a0b16dab06d848430f`; independent review accepts that
+   bounded claim with a disclosed transient CI diagnostic risk. No artifact
+   separation follows automatically.
 
 `R2_GOVERNANCE_INTEGRITY_CLOSEOUT` and the Merge Integrity mainline are closed
 by R3A-3. Active Merge Integrity enforcement remains an operational governance
@@ -146,8 +148,9 @@ paths are narrow while the default TypeScript compile and package artifact
 remain broad. Current source includes governance core, historical
 compatibility, and runnable Runtime packages in the default build surface.
 
-R3B-2A is the only active implementation candidate. The default build now
-validates and removes repository-local `dist` before TypeScript compilation.
+R3B-2A is closed by the independently reviewed post-merge finalization. The
+default build validates and removes repository-local `dist` before TypeScript
+compilation.
 The isolated `npm run audit:clean-build-determinism` fixture proves that:
 
 - output from a subsequently deleted synthetic source package is removed;
@@ -157,9 +160,13 @@ The isolated `npm run audit:clean-build-determinism` fixture proves that:
 
 This is only a determinism claim. It does not establish a core-only artifact:
 `tsconfig.json` still compiles the existing package surface and
-`package.json.files` still includes the existing `dist/packages` tree. R3B-2A
-must stop for independent review and merge authorization; artifact allowlisting
-and import-firewall work are not authorized by this candidate.
+`package.json.files` still includes the existing `dist/packages` tree. The
+first post-merge CI attempt failed once on macOS / Node 22 with only the
+normalized reason `clean_build_determinism_unknown_error`; the unchanged merge
+commit then passed all 20 jobs on a complete rerun, and the independent local
+audit also passed. This is a disclosed transient CI diagnostic risk, not a
+core-only claim. Artifact allowlisting and import-firewall work remain
+unauthorized.
 
 ## Historical Routes
 
@@ -272,13 +279,13 @@ Merge-governance status:
 `R2 CLOSED / R3A-2 PASS_WITH_DISCLOSED_RESIDUAL_RISK / R3A-3 CLOSED`.
 
 R3B status:
-`R3B-1 COMPLETE / R3B-2A IMPLEMENTATION CANDIDATE / R3B-2B NOT AUTHORIZED`.
+`R3B-1 COMPLETE / R3B-2A PASS_WITH_DISCLOSED_TRANSIENT_CI_DIAGNOSTIC_RISK / R3B-2B NOT AUTHORIZED`.
 
-The only current entry point is independent review of the R3B-2A clean-build
-determinism candidate. It may validate stale-output removal and dirty/empty
-build plus pack-manifest equality. It must not claim core-only packaging or
-advance to artifact allowlisting, import-firewall implementation, repository
-migration, or Runtime deletion without a separate governed scope.
+R3B-2A is closed when this finalization enters `main`. The next possible
+governed entry point is an exact R3B-2B core-only artifact scope and separate
+authorization; R3B-2B is not active and does not follow automatically. No
+current claim authorizes artifact allowlisting, import-firewall implementation,
+repository migration, or Runtime deletion.
 
 Do not use R3A closeout or R3B inventory to modify ruleset `19069032`, add CI
 required contexts, bind a GitHub App, add a merge bot or timer, address Node 20
