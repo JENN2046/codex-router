@@ -36,6 +36,7 @@ workflow_rerun_authorized: false
 natural_ci_authorized: true
 branch_push_authorized: true
 pull_request_authorized: true
+state_sync_record_reanchor_authorized: true
 merge_authorized: false
 R3B_2B_authorized: false
 capability_expansion: frozen
@@ -56,6 +57,13 @@ APPROVE_R3B_2A_DIAGNOSTICS_ONLY_IMPLEMENTATION
 
 Natural CI for this scoped pull-request delivery is authorized. Workflow rerun
 or dispatch remains separate and unauthorized.
+
+After the pull request's exact-head state-sync audit reported a source-tree
+digest mismatch, Jenn separately authorized the bounded state-sync
+reanchor/record update scope. This follow-up authorization permits only the
+taskbook authorization note and the policy v2 source-tree digest reattestation
+for the current pull-request head. It does not broaden the diagnostics
+implementation, workflow, merge, re-closeout, or R3B-2B scope.
 
 ## 2. Review Basis
 
@@ -361,6 +369,7 @@ workflow_rerun_authorized: false
 natural_ci_authorized: true
 branch_push_authorized: true
 pull_request_authorized: true
+state_sync_record_reanchor_authorized: true
 merge_authorized: false
 R3B_2B_authorized: false
 ```
