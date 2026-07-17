@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `ec6fcb9b3224e2a6e5421e550a4dae56f7043844df2b7348980a05d9b4127aa0` |
+| Source tree digest | `111bfb1c6927ee878e7a3e13a21737e400113b7c6d7f941ebe7cba14098ff2f7` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -128,8 +128,11 @@ The only current route is `R3_CLOSEOUT_SEQUENCE`, in this fixed order:
 5. `R3B`: R3B-1 read-only parallel-runtime inventory is complete. PR #196
    merged the R3B-2A clean-build determinism implementation as
    `bc98b88cbca80e60855dc7a0b16dab06d848430f`; independent review accepts that
-   bounded claim with a disclosed transient CI diagnostic risk. No artifact
-   separation follows automatically.
+   bounded claim. PR #198 merged bounded redacted diagnostics as
+   `d9312acec1389a65c532685ee1b1122f065f853d`; the diagnostics re-closeout
+   closes the observability gap while retaining the unknown historical
+   host/runtime cause as a disclosed transient CI risk. No artifact separation
+   follows automatically.
 
 `R2_GOVERNANCE_INTEGRITY_CLOSEOUT` and the Merge Integrity mainline are closed
 by R3A-3. Active Merge Integrity enforcement remains an operational governance
@@ -148,9 +151,9 @@ paths are narrow while the default TypeScript compile and package artifact
 remain broad. Current source includes governance core, historical
 compatibility, and runnable Runtime packages in the default build surface.
 
-R3B-2A is closed by the independently reviewed post-merge finalization. The
-default build validates and removes repository-local `dist` before TypeScript
-compilation.
+R3B-2A is re-closed by the diagnostics-only post-merge finalization when that
+record enters `main`. The default build validates and removes repository-local
+`dist` before TypeScript compilation.
 The isolated `npm run audit:clean-build-determinism` fixture proves that:
 
 - output from a subsequently deleted synthetic source package is removed;
@@ -161,12 +164,19 @@ The isolated `npm run audit:clean-build-determinism` fixture proves that:
 This is only a determinism claim. It does not establish a core-only artifact:
 `tsconfig.json` still compiles the existing package surface and
 `package.json.files` still includes the existing `dist/packages` tree. The
-first post-merge CI attempt failed once on macOS / Node 22 with only the
+first post-merge CI attempt failed once on macOS / Node 22 with only the old
 normalized reason `clean_build_determinism_unknown_error`; the unchanged merge
 commit then passed all 20 jobs on a complete rerun, and the independent local
-audit also passed. This is a disclosed transient CI diagnostic risk, not a
-core-only claim. Artifact allowlisting and import-firewall work remain
-unauthorized.
+audit also passed.
+
+PR #198 added only fixed `copy`, `build`, `pack`, `manifest`, and `cleanup`
+stage labels plus bounded child-process, filesystem, JSON-parse, manifest, and
+unknown categories. It prohibits raw path, stdout/stderr, environment, and
+provider/runtime content. The exact PR head and merge commit each passed all 20
+CI jobs. The diagnostic-observability gap is therefore closed; the historical
+intermittent cause remains unknown and is retained as a disclosed transient CI
+risk, not a claim that every runner attempt is failure-free. Artifact
+allowlisting and import-firewall work remain unauthorized.
 
 ## Historical Routes
 
@@ -279,13 +289,13 @@ Merge-governance status:
 `R2 CLOSED / R3A-2 PASS_WITH_DISCLOSED_RESIDUAL_RISK / R3A-3 CLOSED`.
 
 R3B status:
-`R3B-1 COMPLETE / R3B-2A PASS_WITH_DISCLOSED_TRANSIENT_CI_DIAGNOSTIC_RISK / R3B-2B NOT AUTHORIZED`.
+`R3B-1 COMPLETE / R3B-2A CLOSED_WITH_BOUNDED_DIAGNOSTICS_AND_DISCLOSED_TRANSIENT_CI_RISK / R3B-2B NOT AUTHORIZED`.
 
-R3B-2A is closed when this finalization enters `main`. The next possible
-governed entry point is an exact R3B-2B core-only artifact scope and separate
-authorization; R3B-2B is not active and does not follow automatically. No
-current claim authorizes artifact allowlisting, import-firewall implementation,
-repository migration, or Runtime deletion.
+R3B-2A is re-closed when the diagnostics-only re-closeout enters `main`. The
+next possible governed entry point is an exact R3B-2B core-only artifact scope
+and separate authorization; R3B-2B is not active and does not follow
+automatically. No current claim authorizes artifact allowlisting,
+import-firewall implementation, repository migration, or Runtime deletion.
 
 Do not use R3A closeout or R3B inventory to modify ruleset `19069032`, add CI
 required contexts, bind a GitHub App, add a merge bot or timer, address Node 20
