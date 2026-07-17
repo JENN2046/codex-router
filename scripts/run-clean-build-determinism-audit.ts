@@ -28,6 +28,91 @@ const REPOSITORY_ENTRIES = [
   "README.md",
   "README.AGENTS_OS.md"
 ] as const;
+const AUDIT_STAGES = ["copy", "build", "pack", "manifest", "cleanup"] as const;
+const FILESYSTEM_CODE_VALUES = [
+  "EACCES",
+  "EBUSY",
+  "EEXIST",
+  "EIO",
+  "ENOENT",
+  "ENOSPC",
+  "ENOTDIR",
+  "EPERM",
+  "ETIMEDOUT"
+] as const;
+const FILESYSTEM_CODES = new Set<string>(FILESYSTEM_CODE_VALUES);
+const SIGNAL_CATEGORY_VALUES = [
+  "SIGABRT",
+  "SIGBUS",
+  "SIGFPE",
+  "SIGHUP",
+  "SIGILL",
+  "SIGINT",
+  "SIGKILL",
+  "SIGPIPE",
+  "SIGQUIT",
+  "SIGSEGV",
+  "SIGTERM",
+  "SIGTRAP"
+] as const;
+const SIGNAL_CATEGORIES = new Set<string>(SIGNAL_CATEGORY_VALUES);
+const SAFE_REASON_VALUES = [
+  "clean_build_diagnostic_stage_invalid",
+  "clean_build_dist_manifest_mismatch",
+  "clean_build_manifest_non_file_entry",
+  "clean_build_npm_execpath_missing",
+  "clean_build_outdir_mismatch",
+  "clean_build_outdir_missing",
+  "clean_build_outdir_not_directory",
+  "clean_build_outdir_symlink_rejected",
+  "clean_build_pack_file_invalid",
+  "clean_build_pack_file_list_mismatch",
+  "clean_build_pack_file_size_mismatch",
+  "clean_build_pack_files_missing",
+  "clean_build_pack_json_invalid",
+  "clean_build_pack_path_escape",
+  "clean_build_pack_path_invalid",
+  "clean_build_pack_result_invalid",
+  "clean_build_pack_tarball_unexpected",
+  "clean_build_package_json_invalid",
+  "clean_build_removed_source_output_not_emitted",
+  "clean_build_repository_identity_mismatch",
+  "clean_build_stale_output_remained",
+  "clean_build_tsconfig_invalid",
+  "clean_build_unknown_error"
+] as const;
+const SAFE_REASONS = new Set<string>(SAFE_REASON_VALUES);
+const MANIFEST_MISMATCH_REASONS = new Set([
+  "clean_build_dist_manifest_mismatch",
+  "clean_build_pack_file_list_mismatch"
+]);
+const STAGED_AUDIT_FAILURE = Symbol("staged-audit-failure");
+
+export type CleanBuildAuditStage = typeof AUDIT_STAGES[number];
+export type CleanBuildFilesystemCode = typeof FILESYSTEM_CODE_VALUES[number];
+export type CleanBuildSignalCategory =
+  | typeof SIGNAL_CATEGORY_VALUES[number]
+  | "other_signal";
+export type CleanBuildDiagnosticCategory =
+  | "child_process_exit"
+  | "filesystem_error"
+  | "json_parse_error"
+  | "manifest_mismatch"
+  | "unknown_error";
+
+export interface CleanBuildDiagnostic {
+  stage: CleanBuildAuditStage;
+  category: CleanBuildDiagnosticCategory;
+  reason: string;
+  exitCodeCategory?: "zero" | "nonzero";
+  signalCategory?: CleanBuildSignalCategory;
+  filesystemCode?: CleanBuildFilesystemCode;
+}
+
+interface StagedAuditFailure {
+  [STAGED_AUDIT_FAILURE]: true;
+  diagnostic: CleanBuildDiagnostic;
+}
 
 interface FileManifestEntry {
   path: string;
@@ -72,6 +157,7 @@ export interface CleanBuildDeterminismAuditResult {
     runtimeSurfaceChanged: false;
   };
   reasons: string[];
+  diagnostics: CleanBuildDiagnostic[];
 }
 
 export interface CleanBuildDeterminismAuditOptions {
@@ -83,19 +169,26 @@ export async function runCleanBuildDeterminismAudit(
   options: CleanBuildDeterminismAuditOptions = {}
 ): Promise<CleanBuildDeterminismAuditResult> {
   const root = resolve(repositoryRoot);
-  const fixtureRoot = await mkdtemp(resolve(root, FIXTURE_PREFIX));
   const checks: CleanBuildDeterminismAuditResult["checks"] = {
     removedSourceOutputInitiallyEmitted: false,
     staleOutputRemovedBeforeRebuild: false,
     dirtyAndEmptyDistFilesMatch: false,
     dirtyAndEmptyPackFileListsMatch: false
   };
-  const reasons: string[] = [];
+  const diagnostics: CleanBuildDiagnostic[] = [];
+  let fixtureRoot: string | undefined;
   let dirtySnapshot: ArtifactSnapshot | undefined;
   let emptySnapshot: ArtifactSnapshot | undefined;
 
   try {
-    await copyRepositoryFixture(root, fixtureRoot);
+    fixtureRoot = await runAuditStage(
+      "copy",
+      () => mkdtemp(resolve(root, FIXTURE_PREFIX))
+    );
+    await runAuditStage(
+      "copy",
+      () => copyRepositoryFixture(root, fixtureRoot as string)
+    );
     const removedSourceRoot = resolve(
       fixtureRoot,
       "packages",
@@ -107,31 +200,61 @@ export async function runCleanBuildDeterminismAudit(
       "packages",
       REMOVED_SOURCE_PACKAGE
     );
-    await mkdir(resolve(removedSourceRoot, "src"), { recursive: true });
-    await writeFile(
-      resolve(removedSourceRoot, "src", "index.ts"),
-      "export const removedBuildFixture = true;\n",
-      "utf8"
-    );
+    await runAuditStage("copy", async () => {
+      await mkdir(resolve(removedSourceRoot, "src"), { recursive: true });
+      await writeFile(
+        resolve(removedSourceRoot, "src", "index.ts"),
+        "export const removedBuildFixture = true;\n",
+        "utf8"
+      );
+    });
 
-    await runNpm(fixtureRoot, root, ["run", "build"]);
-    checks.removedSourceOutputInitiallyEmitted = await pathExists(
-      resolve(removedOutputRoot, "src", "index.js")
+    await runAuditStage(
+      "build",
+      () => runNpm(fixtureRoot as string, root, ["run", "build"])
+    );
+    checks.removedSourceOutputInitiallyEmitted = await runAuditStage(
+      "manifest",
+      () => pathExists(resolve(removedOutputRoot, "src", "index.js"))
     );
     if (!checks.removedSourceOutputInitiallyEmitted) {
-      reasons.push("clean_build_removed_source_output_not_emitted");
+      appendUniqueAuditDiagnostic(diagnostics, normalizeAuditDiagnostic(
+        "manifest",
+        new Error("clean_build_removed_source_output_not_emitted")
+      ));
     }
 
-    await rm(removedSourceRoot, { recursive: true, force: true });
-    await runNpm(fixtureRoot, root, ["run", "build"]);
-    checks.staleOutputRemovedBeforeRebuild = !(await pathExists(removedOutputRoot));
+    await runAuditStage(
+      "cleanup",
+      () => rm(removedSourceRoot, { recursive: true, force: true })
+    );
+    await runAuditStage(
+      "build",
+      () => runNpm(fixtureRoot as string, root, ["run", "build"])
+    );
+    checks.staleOutputRemovedBeforeRebuild = !(await runAuditStage(
+      "manifest",
+      () => pathExists(removedOutputRoot)
+    ));
     if (!checks.staleOutputRemovedBeforeRebuild) {
-      reasons.push("clean_build_stale_output_remained");
+      appendUniqueAuditDiagnostic(diagnostics, normalizeAuditDiagnostic(
+        "manifest",
+        new Error("clean_build_stale_output_remained")
+      ));
     }
     dirtySnapshot = await captureArtifactSnapshot(fixtureRoot, root);
 
-    await rm(resolve(fixtureRoot, "dist"), { recursive: true, force: true });
-    await runNpm(fixtureRoot, root, ["run", "build"]);
+    await runAuditStage(
+      "cleanup",
+      () => rm(resolve(fixtureRoot as string, "dist"), {
+        recursive: true,
+        force: true
+      })
+    );
+    await runAuditStage(
+      "build",
+      () => runNpm(fixtureRoot as string, root, ["run", "build"])
+    );
     emptySnapshot = await captureArtifactSnapshot(fixtureRoot, root);
 
     checks.dirtyAndEmptyDistFilesMatch = manifestsEqual(
@@ -139,7 +262,10 @@ export async function runCleanBuildDeterminismAudit(
       emptySnapshot.distFiles
     );
     if (!checks.dirtyAndEmptyDistFilesMatch) {
-      reasons.push("clean_build_dist_manifest_mismatch");
+      appendUniqueAuditDiagnostic(diagnostics, normalizeAuditDiagnostic(
+        "manifest",
+        new Error("clean_build_dist_manifest_mismatch")
+      ));
     }
 
     checks.dirtyAndEmptyPackFileListsMatch = manifestsEqual(
@@ -147,15 +273,32 @@ export async function runCleanBuildDeterminismAudit(
       emptySnapshot.packFiles
     );
     if (!checks.dirtyAndEmptyPackFileListsMatch) {
-      reasons.push("clean_build_pack_file_list_mismatch");
+      appendUniqueAuditDiagnostic(diagnostics, normalizeAuditDiagnostic(
+        "manifest",
+        new Error("clean_build_pack_file_list_mismatch")
+      ));
     }
   } catch (error) {
-    reasons.push(normalizeError(error));
+    appendUniqueAuditDiagnostic(
+      diagnostics,
+      isStagedAuditFailure(error)
+        ? error.diagnostic
+        : normalizeAuditDiagnostic("manifest", error)
+    );
   } finally {
-    if (options.keepFixture !== true) {
-      await rm(fixtureRoot, { recursive: true, force: true });
+    if (options.keepFixture !== true && fixtureRoot !== undefined) {
+      try {
+        await rm(fixtureRoot, { recursive: true, force: true });
+      } catch (error) {
+        appendUniqueAuditDiagnostic(
+          diagnostics,
+          normalizeAuditDiagnostic("cleanup", error)
+        );
+      }
     }
   }
+
+  const reasons = [...new Set(diagnostics.map(({ reason }) => reason))].sort();
 
   return {
     status: reasons.length === 0 ? "passed" : "failed",
@@ -172,7 +315,8 @@ export async function runCleanBuildDeterminismAudit(
       artifactAllowlistChanged: false,
       runtimeSurfaceChanged: false
     },
-    reasons: [...new Set(reasons)].sort()
+    reasons,
+    diagnostics
   };
 }
 
@@ -193,17 +337,20 @@ async function captureArtifactSnapshot(
   fixtureRoot: string,
   repositoryRoot: string
 ): Promise<ArtifactSnapshot> {
-  const distFiles = await collectFileManifest(resolve(fixtureRoot, "dist"));
-  const packFiles = await collectPackFileManifest(
-    fixtureRoot,
-    repositoryRoot
+  const distFiles = await runAuditStage(
+    "manifest",
+    () => collectFileManifest(resolve(fixtureRoot, "dist"))
   );
-  return {
-    distFiles,
-    distDigest: digestManifest(distFiles),
-    packFiles,
-    packFileListDigest: digestFileList(packFiles)
-  };
+  const packFiles = await runAuditStage(
+    "pack",
+    () => collectPackFileManifest(fixtureRoot, repositoryRoot)
+  );
+  return runAuditStage("manifest", async () => ({
+      distFiles,
+      distDigest: digestManifest(distFiles),
+      packFiles,
+      packFileListDigest: digestFileList(packFiles)
+    }));
 }
 
 async function collectFileManifest(root: string): Promise<FileManifestEntry[]> {
@@ -400,11 +547,153 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-function normalizeError(error: unknown): string {
-  if (error instanceof Error && /^[a-z0-9_]+$/u.test(error.message)) {
-    return error.message;
+export function normalizeAuditDiagnostic(
+  stage: unknown,
+  error: unknown
+): CleanBuildDiagnostic {
+  if (!isAuditStage(stage)) {
+    throw new Error("clean_build_diagnostic_stage_invalid");
   }
-  return "clean_build_determinism_unknown_error";
+  const safeReason = readSafeReason(error);
+  if (safeReason !== undefined && MANIFEST_MISMATCH_REASONS.has(safeReason)) {
+    return {
+      stage,
+      category: "manifest_mismatch",
+      reason: safeReason
+    };
+  }
+  if (
+    error instanceof SyntaxError
+    || safeReason === "clean_build_pack_json_invalid"
+  ) {
+    return {
+      stage,
+      category: "json_parse_error",
+      reason: `clean_build_determinism_${stage}_json_parse_error`
+    };
+  }
+  const record = isRecord(error) ? error : undefined;
+  const code = record === undefined ? undefined : readDataProperty(record, "code");
+  const signal = record === undefined
+    ? undefined
+    : readDataProperty(record, "signal");
+  if (typeof code === "number" && Number.isInteger(code)) {
+    const diagnostic: CleanBuildDiagnostic = {
+      stage,
+      category: "child_process_exit",
+      reason: `clean_build_determinism_${stage}_child_process_exit`,
+      exitCodeCategory: code === 0 ? "zero" : "nonzero"
+    };
+    const signalCategory = normalizeSignalCategory(signal);
+    if (signalCategory !== undefined) {
+      diagnostic.signalCategory = signalCategory;
+    }
+    return diagnostic;
+  }
+  const signalCategory = normalizeSignalCategory(signal);
+  if (signalCategory !== undefined) {
+    return {
+      stage,
+      category: "child_process_exit",
+      reason: `clean_build_determinism_${stage}_child_process_exit`,
+      signalCategory
+    };
+  }
+  if (isFilesystemCode(code)) {
+    return {
+      stage,
+      category: "filesystem_error",
+      reason: `clean_build_determinism_${stage}_filesystem_error`,
+      filesystemCode: code
+    };
+  }
+  if (code !== undefined) {
+    return {
+      stage,
+      category: "unknown_error",
+      reason: `clean_build_determinism_${stage}_unknown_error`
+    };
+  }
+  return {
+    stage,
+    category: "unknown_error",
+    reason: safeReason ?? `clean_build_determinism_${stage}_unknown_error`
+  };
+}
+
+async function runAuditStage<T>(
+  stage: CleanBuildAuditStage,
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    const failure: StagedAuditFailure = {
+      [STAGED_AUDIT_FAILURE]: true,
+      diagnostic: normalizeAuditDiagnostic(stage, error)
+    };
+    throw failure;
+  }
+}
+
+function isStagedAuditFailure(error: unknown): error is StagedAuditFailure {
+  return isRecord(error)
+    && readDataProperty(error, STAGED_AUDIT_FAILURE) === true
+    && isRecord(readDataProperty(error, "diagnostic"));
+}
+
+export function appendUniqueAuditDiagnostic(
+  diagnostics: CleanBuildDiagnostic[],
+  diagnostic: CleanBuildDiagnostic
+): void {
+  const serialized = JSON.stringify(diagnostic);
+  if (!diagnostics.some((entry) => JSON.stringify(entry) === serialized)) {
+    diagnostics.push(diagnostic);
+  }
+}
+
+function isAuditStage(value: unknown): value is CleanBuildAuditStage {
+  return typeof value === "string"
+    && (AUDIT_STAGES as readonly string[]).includes(value);
+}
+
+function readSafeReason(error: unknown): string | undefined {
+  if (!isRecord(error)) {
+    return undefined;
+  }
+  const message = readDataProperty(error, "message");
+  return typeof message === "string" && SAFE_REASONS.has(message)
+    ? message
+    : undefined;
+}
+
+function readDataProperty(
+  record: Record<PropertyKey, unknown>,
+  key: PropertyKey
+): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(record, key);
+  return descriptor !== undefined && "value" in descriptor
+    ? descriptor.value
+    : undefined;
+}
+
+function isFilesystemCode(value: unknown): value is CleanBuildFilesystemCode {
+  return typeof value === "string" && FILESYSTEM_CODES.has(value);
+}
+
+function normalizeSignalCategory(
+  signal: unknown
+): CleanBuildSignalCategory | undefined {
+  if (typeof signal !== "string") {
+    return undefined;
+  }
+  return isKnownSignalCategory(signal) ? signal : "other_signal";
+}
+
+function isKnownSignalCategory(
+  value: string
+): value is typeof SIGNAL_CATEGORY_VALUES[number] {
+  return SIGNAL_CATEGORIES.has(value);
 }
 
 async function main(): Promise<void> {
@@ -420,7 +709,7 @@ if (process.argv[1] !== undefined) {
   const current = resolve(fileURLToPath(import.meta.url));
   if (invoked === current) {
     await main().catch((error: unknown) => {
-      console.error(normalizeError(error));
+      console.error(normalizeAuditDiagnostic("cleanup", error).reason);
       process.exitCode = 1;
     });
   }
