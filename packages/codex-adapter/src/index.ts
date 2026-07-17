@@ -15,7 +15,7 @@ import {
   type PreviewReceipt,
   type RetainPermit,
   type RetainReceipt
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";
 import {
   authorizeCapabilityFacts,
   classifySemanticRiskSignal,

@@ -34,11 +34,13 @@ import {
   type PreviewCheckReceipt,
   type PreviewPolicy,
   type PreviewReceipt
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";
 import {
   containsCredentialLikeDiffContent,
   isSensitiveGovernedPath
 } from "../../authorization-kernel/src/index.js";
+
+type ProcessEnvironment = Record<string, string | undefined>;
 
 const PROTECTED_BRANCHES = new Set([
   "main",
@@ -106,7 +108,7 @@ export interface PreviewProcessInput {
   cwd: string;
   stdin?: string | Uint8Array;
   timeoutMs: number;
-  env: NodeJS.ProcessEnv;
+  env: ProcessEnvironment;
 }
 
 export interface PreviewProcessResult {
@@ -920,7 +922,7 @@ async function collectAcceptanceGitControlSourceReasons(
   repoRoot: string,
   changeSet: GovernedFileChangeSet,
   runner: PreviewProcessRunner,
-  env: NodeJS.ProcessEnv
+  env: ProcessEnvironment
 ): Promise<string[]> {
   try {
     const targetAliases = new Set(changeSet.changes.flatMap((change) => [
@@ -1103,7 +1105,7 @@ function governedPathAlias(path: string): string {
 async function hasActiveConfiguredGitFilters(
   repoRoot: string,
   runner: PreviewProcessRunner,
-  env: NodeJS.ProcessEnv,
+  env: ProcessEnvironment,
   additionalPaths: string[] = []
 ): Promise<boolean> {
   const trackedPaths = await runGit(
@@ -1332,7 +1334,7 @@ async function verifyChangedTargetSet(
   clonePath: string,
   changeSet: GovernedFileChangeSet,
   runner: PreviewProcessRunner,
-  env: NodeJS.ProcessEnv
+  env: ProcessEnvironment
 ): Promise<string[]> {
   const status = await runGit(
     runner,
@@ -1401,7 +1403,7 @@ async function collectTrackedTargetModeReasons(
   headCommit: string,
   targets: string[],
   runner: PreviewProcessRunner,
-  env: NodeJS.ProcessEnv
+  env: ProcessEnvironment
 ): Promise<string[]> {
   const reasons: string[] = [];
   targetLoop: for (const target of targets) {
@@ -1661,7 +1663,7 @@ async function runGit(
   runner: PreviewProcessRunner,
   cwd: string,
   argv: string[],
-  env: NodeJS.ProcessEnv
+  env: ProcessEnvironment
 ): Promise<PreviewProcessResult> {
   const result = await runner.run({
     executable: "git",
@@ -1680,7 +1682,7 @@ async function runGitAllowFailure(
   runner: PreviewProcessRunner,
   cwd: string,
   argv: string[],
-  env: NodeJS.ProcessEnv
+  env: ProcessEnvironment
 ): Promise<PreviewProcessResult> {
   return runner.run({
     executable: "git",
@@ -1695,7 +1697,7 @@ async function requireGit(
   runner: PreviewProcessRunner,
   cwd: string,
   argv: string[],
-  env: NodeJS.ProcessEnv
+  env: ProcessEnvironment
 ): Promise<void> {
   await runGit(runner, cwd, argv, env);
 }
@@ -1711,8 +1713,8 @@ async function requireProcessPass(
   }
 }
 
-function createSanitizedEnv(tempRoot: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
+function createSanitizedEnv(tempRoot: string): ProcessEnvironment {
+  const env: ProcessEnvironment = {
     CI: "true",
     GIT_CONFIG_NOSYSTEM: "1",
     GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
@@ -1733,8 +1735,8 @@ function createSanitizedEnv(tempRoot: string): NodeJS.ProcessEnv {
   return env;
 }
 
-function createEffectiveGitCommandEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
+function createEffectiveGitCommandEnv(base: ProcessEnvironment): ProcessEnvironment {
+  const env: ProcessEnvironment = {
     ...base,
     GIT_NO_LAZY_FETCH: "1",
     GIT_OPTIONAL_LOCKS: "0",

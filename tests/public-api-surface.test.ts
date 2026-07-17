@@ -460,6 +460,8 @@ test("public-api package type targets are emitted and stay governance-internal f
       for (const forbiddenPattern of [
         "governance-internal",
         "../../contracts/src/index.js",
+        "../../kernel-contracts/src/index.js",
+        "../../kernel-contracts/src/legacy-adapter.js",
         "../../desktop-host-client/src/index.js",
         "../../codex-desktop-live-host/src/index.js"
       ]) {
@@ -477,9 +479,9 @@ test("public-api package type targets are emitted and stay governance-internal f
     );
     const protocolDeclaration = readFileSync(protocolTypeTarget, "utf8");
     assert.equal(
-      protocolDeclaration.includes("../../kernel-contracts/src/index.js"),
+      protocolDeclaration.includes("../../kernel-contracts/src/public.js"),
       true,
-      "protocol facade declarations must preserve the canonical kernel contract source"
+      "protocol facade declarations must use the core-only kernel contract source"
     );
   } finally {
     rmSync(declarationOutDir, { recursive: true, force: true });

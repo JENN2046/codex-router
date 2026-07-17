@@ -6,7 +6,7 @@ export {
   RetainTargetHashSchema,
   RollbackPermitSchema,
   hashKernelObject
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";
 export type {
   PreviewCheckReceipt,
   PreviewReceipt,
@@ -14,7 +14,7 @@ export type {
   RetainReceipt,
   RetainTargetHash,
   RollbackPermit
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";
 
 export {
   PendingApprovalJournalEntrySchema,

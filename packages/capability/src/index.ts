@@ -3,7 +3,7 @@ import {
   CapabilityScopeSchema,
   type CapabilityGrant,
   type CapabilityScope
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";
 
 export type ParsedCapabilityScope = {
   raw: string;

@@ -38,7 +38,9 @@ import {
   type RetainPermit,
   type RetainReceipt,
   type RollbackPermit
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";
+
+type ProcessEnvironment = Record<string, string | undefined>;
 
 const execFileAsync = promisify(execFile);
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -865,7 +867,7 @@ export class GitWorkspaceTargetRestorePrimitive implements WorkspaceTargetRestor
     if (updatePaths.length > 0) {
       await rollbackRestoreTestHooks.get(this)?.beforeFinalFilterCheck();
       const restoreIndexRoot = await mkdtemp(join(tmpdir(), "codex-router-rollback-index-"));
-      const restoreEnvironment: NodeJS.ProcessEnv = {
+      const restoreEnvironment: ProcessEnvironment = {
         ...process.env,
         GIT_INDEX_FILE: join(restoreIndexRoot, "index"),
         GIT_WORK_TREE: input.cwd,
@@ -1173,7 +1175,7 @@ async function collectActiveConfiguredGitFilterReasons(
   cwd: string,
   operation: "retain" | "rollback",
   options: {
-    env?: NodeJS.ProcessEnv;
+    env?: ProcessEnvironment;
     paths?: string[];
     includeTrackedPaths?: boolean;
     attributeViews?: Array<"worktree" | "cached">;
@@ -1276,7 +1278,7 @@ async function collectActiveConfiguredGitFilterReasons(
 async function collectConfiguredGitFilterDrivers(
   cwd: string,
   operation: "retain" | "rollback",
-  env: NodeJS.ProcessEnv
+  env: ProcessEnvironment
 ): Promise<string[]> {
   try {
     const configuredFilterKeys = await gitBufferWithEnv(cwd, [
@@ -1613,7 +1615,7 @@ async function readCommitWorktreeHashes(
   }
   const tempRoot = await mkdtemp(join(tmpdir(), "codex-router-retain-base-"));
   const worktreeRoot = join(tempRoot, "worktree");
-  const environment: NodeJS.ProcessEnv = {
+  const environment: ProcessEnvironment = {
     ...process.env,
     GIT_INDEX_FILE: join(tempRoot, "index"),
     GIT_WORK_TREE: worktreeRoot,
@@ -1886,7 +1888,7 @@ async function gitBuffer(cwd: string, argv: string[]): Promise<Buffer> {
 async function gitBufferWithEnv(
   cwd: string,
   argv: string[],
-  env: NodeJS.ProcessEnv
+  env: ProcessEnvironment
 ): Promise<Buffer> {
   const { stdout } = await execFileAsync("git", argv, {
     cwd,
@@ -1902,7 +1904,7 @@ async function gitBufferWithInput(
   cwd: string,
   argv: string[],
   input: Buffer,
-  env: NodeJS.ProcessEnv
+  env: ProcessEnvironment
 ): Promise<Buffer> {
   const maxBuffer = 20 * 1024 * 1024;
   if (input.length > maxBuffer) {
@@ -2002,9 +2004,9 @@ export function createTestOnlyDecodeNullTerminatedGitFields(
 }
 
 function appendGitConfigEnvironmentOverrides(
-  base: NodeJS.ProcessEnv,
+  base: ProcessEnvironment,
   entries: ReadonlyArray<readonly [string, string]>
-): NodeJS.ProcessEnv {
+): ProcessEnvironment {
   const countText = base.GIT_CONFIG_COUNT?.trim() ?? "";
   if (countText !== "" && !/^(?:0|[1-9]\d*)$/u.test(countText)) {
     throw new Error("rollback_filter_override_environment_invalid");
@@ -2013,7 +2015,7 @@ function appendGitConfigEnvironmentOverrides(
   if (!Number.isSafeInteger(count) || count > 10_000) {
     throw new Error("rollback_filter_override_environment_invalid");
   }
-  const environment: NodeJS.ProcessEnv = { ...base };
+  const environment: ProcessEnvironment = { ...base };
   for (const [offset, [key, value]] of entries.entries()) {
     const index = count + offset;
     environment[`GIT_CONFIG_KEY_${index}`] = key;
@@ -2025,14 +2027,14 @@ function appendGitConfigEnvironmentOverrides(
 
 /** Internal deterministic seam; intentionally absent from public package exports. */
 export function createTestOnlyGitConfigEnvironmentOverrides(input: {
-  base: NodeJS.ProcessEnv;
+  base: ProcessEnvironment;
   entries: ReadonlyArray<readonly [string, string]>;
-}): NodeJS.ProcessEnv {
+}): ProcessEnvironment {
   return appendGitConfigEnvironmentOverrides(input.base, input.entries);
 }
 
-function safeGitEnvironment(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const environment: NodeJS.ProcessEnv = {
+function safeGitEnvironment(base: ProcessEnvironment = process.env): ProcessEnvironment {
+  const environment: ProcessEnvironment = {
     ...base,
     GIT_NO_LAZY_FETCH: "1",
     GIT_OPTIONAL_LOCKS: "0",

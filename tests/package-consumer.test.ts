@@ -29,6 +29,9 @@ test("package consumer builds before creating the package tarball", async () => 
   );
   assert.equal(typeof calls[1]?.argv[3], "string");
   assert.equal(result.checks.packageBuilt, true);
+  assert.equal(result.checks.exactArtifactVerified, false);
+  assert.equal(result.checks.publicSubpathsRuntimeImported, false);
+  assert.equal(result.checks.staleAliasesBlocked, false);
   assert.ok(result.reasons.includes("package_consumer_failed_at_pack"));
   assert.equal(result.reasons.includes("package_consumer_failed_at_build"), false);
 });

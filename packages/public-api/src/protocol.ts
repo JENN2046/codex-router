@@ -47,7 +47,7 @@ export {
   parsePolicyDecision,
   parsePrincipal,
   parseTask
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";
 export type {
   AgentManifest,
   ApprovalMode,
@@ -91,4 +91,4 @@ export type {
   TaskHintProvenance,
   ToolInvocation,
   ToolManifest
-} from "../../kernel-contracts/src/index.js";
+} from "../../kernel-contracts/src/public.js";

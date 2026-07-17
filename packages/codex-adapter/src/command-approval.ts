@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { hashKernelObject } from "../../kernel-contracts/src/index.js";
+import { hashKernelObject } from "../../kernel-contracts/src/public.js";
 
 const ExecPolicyAmendmentSchema = z.array(z.string());
 
