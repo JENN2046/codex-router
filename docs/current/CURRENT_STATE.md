@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `111bfb1c6927ee878e7a3e13a21737e400113b7c6d7f941ebe7cba14098ff2f7` |
+| Source tree digest | `3765cb7a55b3fdf1b264af4472bd714050b782436dd55d3e60d1bf3b92e5f6a2` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -131,8 +131,10 @@ The only current route is `R3_CLOSEOUT_SEQUENCE`, in this fixed order:
    bounded claim. PR #198 merged bounded redacted diagnostics as
    `d9312acec1389a65c532685ee1b1122f065f853d`; the diagnostics re-closeout
    closes the observability gap while retaining the unknown historical
-   host/runtime cause as a disclosed transient CI risk. No artifact separation
-   follows automatically.
+   host/runtime cause as a disclosed transient CI risk. PR #200 merged the
+   reviewed R3B-2B core-only artifact as
+   `f046b98acda60128b19ef7127ef76c12a2772ab7`; exact-head and post-merge CI
+   each completed 20/20 PASS.
 
 `R2_GOVERNANCE_INTEGRITY_CLOSEOUT` and the Merge Integrity mainline are closed
 by R3A-3. Active Merge Integrity enforcement remains an operational governance
@@ -147,9 +149,10 @@ expansion.
 ## R3B Build Boundary Status
 
 The accepted R3B-1 read-only inventory established that the five public export
-paths are narrow while the default TypeScript compile and package artifact
-remain broad. Current source includes governance core, historical
-compatibility, and runnable Runtime packages in the default build surface.
+paths are narrow while the default TypeScript compile remains broad. Current
+source still includes governance core, historical compatibility, and runnable
+Runtime packages in the build surface, but the default packed artifact now
+selects an exact core-only compiled-file allowlist.
 
 R3B-2A is re-closed by the diagnostics-only post-merge finalization when that
 record enters `main`. The default build validates and removes repository-local
@@ -161,13 +164,16 @@ The isolated `npm run audit:clean-build-determinism` fixture proves that:
   produce identical file paths and file digests;
 - `npm pack --dry-run` reports an identical file manifest for both builds.
 
-This is only a determinism claim. It does not establish a core-only artifact:
-`tsconfig.json` still compiles the existing package surface and
-`package.json.files` still includes the existing `dist/packages` tree. The
-first post-merge CI attempt failed once on macOS / Node 22 with only the old
-normalized reason `clean_build_determinism_unknown_error`; the unchanged merge
-commit then passed all 20 jobs on a complete rerun, and the independent local
-audit also passed.
+R3B-2A remains only a determinism claim. R3B-2B separately establishes the
+core-only artifact without narrowing the TypeScript compile or expanding the
+five formal package exports. The packed closure is exactly 17 runtime files,
+15 declarations, and 35 total entries selected by a 32-file compiled
+allowlist. Mechanical audits exclude provider execution contracts,
+workspace-write Runtime, legacy facades, test fixtures, stale aliases, and
+Node ambient declaration dependencies. The first R3B-2A post-merge CI attempt
+failed once on macOS / Node 22 with only the old normalized reason
+`clean_build_determinism_unknown_error`; the unchanged merge commit then passed
+all 20 jobs on a complete rerun, and the independent local audit also passed.
 
 PR #198 added only fixed `copy`, `build`, `pack`, `manifest`, and `cleanup`
 stage labels plus bounded child-process, filesystem, JSON-parse, manifest, and
@@ -175,8 +181,15 @@ unknown categories. It prohibits raw path, stdout/stderr, environment, and
 provider/runtime content. The exact PR head and merge commit each passed all 20
 CI jobs. The diagnostic-observability gap is therefore closed; the historical
 intermittent cause remains unknown and is retained as a disclosed transient CI
-risk, not a claim that every runner attempt is failure-free. Artifact
-allowlisting and import-firewall work remain unauthorized.
+risk, not a claim that every runner attempt is failure-free.
+
+PR #200 preserves the five public namespaces while physically excluding
+provider execution, workspace-write executors, Runtime families, legacy
+facades, fixtures, stale aliases, and `NodeJS.ProcessEnv` from the packed
+artifact. Its final Ready-state CI and merge-commit main CI each completed all
+20 jobs successfully. The package remains private; release, deploy, publish,
+dependency cleanup, Runtime deletion, and any new capability phase remain
+unauthorized.
 
 ## Historical Routes
 
@@ -289,13 +302,12 @@ Merge-governance status:
 `R2 CLOSED / R3A-2 PASS_WITH_DISCLOSED_RESIDUAL_RISK / R3A-3 CLOSED`.
 
 R3B status:
-`R3B-1 COMPLETE / R3B-2A CLOSED_WITH_BOUNDED_DIAGNOSTICS_AND_DISCLOSED_TRANSIENT_CI_RISK / R3B-2B NOT AUTHORIZED`.
+`R3B-1 COMPLETE / R3B-2A CLOSED_WITH_BOUNDED_DIAGNOSTICS_AND_DISCLOSED_TRANSIENT_CI_RISK / R3B-2B CLOSED`.
 
-R3B-2A is re-closed when the diagnostics-only re-closeout enters `main`. The
-next possible governed entry point is an exact R3B-2B core-only artifact scope
-and separate authorization; R3B-2B is not active and does not follow
-automatically. No current claim authorizes artifact allowlisting,
-import-firewall implementation, repository migration, or Runtime deletion.
+R3B-2B is closed by PR #200 and the reviewed post-merge record. No R3B-2C or
+R3B-3 task is active. Dependency cleanup, further artifact decomposition,
+publication design, CI maintenance, repository migration, and Runtime deletion
+remain separate decisions and do not follow automatically.
 
 Do not use R3A closeout or R3B inventory to modify ruleset `19069032`, add CI
 required contexts, bind a GitHub App, add a merge bot or timer, address Node 20

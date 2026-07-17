@@ -111,7 +111,8 @@ cause remains a disclosed transient CI risk.
 
 R3B-2A is re-closed as
 `CLOSED_WITH_BOUNDED_DIAGNOSTICS_AND_DISCLOSED_TRANSIENT_CI_RISK` when the
-diagnostics re-closeout enters `main`. R3B-2B remains unauthorized and does not
-follow automatically. Its artifact allowlist, core-only packaging boundary,
-and later import-firewall work require a separate exact scope, review, and
-authorization.
+diagnostics re-closeout enters `main`. At that checkpoint, R3B-2B remained
+unauthorized and did not follow automatically. It was later scoped, reviewed,
+implemented, and closed independently through PR #200 and
+`R3B_2B_CORE_ONLY_ARTIFACT_POST_MERGE_CLOSEOUT.md`; that later closeout does not
+expand the bounded R3B-2A determinism claim.
