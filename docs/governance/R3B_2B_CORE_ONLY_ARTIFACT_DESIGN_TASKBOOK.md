@@ -1,6 +1,6 @@
 ---
 title: R3B-2B Core-only Artifact Design Taskbook
-status: revision_2_design_candidate_independent_rereview_required
+status: revision_3_design_candidate_independent_rereview_required
 owner: governance
 created: 2026-07-17
 last_verified: 2026-07-17
@@ -10,6 +10,7 @@ verified_by:
   - npm pack --dry-run --ignore-scripts --json
   - R3B-2B design independent review verdict REOPEN
   - R3B-2B revised design independent review verdict REOPEN
+  - R3B-2B revision 2 independent review verdict REOPEN
   - strict TypeScript Program with types empty and skipLibCheck false
 supersedes: []
 superseded_by: null
@@ -27,14 +28,15 @@ applies_to:
 
 ```text
 task: R3B_2B_CORE_ONLY_ARTIFACT
-mode: REVISION_2_DESIGN_ONLY
+mode: REVISION_3_DESIGN_ONLY
 repository: JENN2046/codex-router
 design_base: 751abc9019be047c30ca1a4a96c795835997e2ee
 design_branch: design/r3b2b-core-only-artifact
 R3B_2A: CLOSED
 R3B_2B_initial_design_review: REOPEN
 R3B_2B_revised_design_review: REOPEN
-R3B_2B_revision_2_design: CANDIDATE
+R3B_2B_revision_2_design_review: REOPEN
+R3B_2B_revision_3_design: CANDIDATE
 R3B_2B_implementation: NOT_AUTHORIZED
 branch_push: NOT_AUTHORIZED
 pull_request: NOT_AUTHORIZED
@@ -66,6 +68,13 @@ Revision 2 authorization:
 
 ```text
 APPROVE_R3B_2B_CORE_ONLY_ARTIFACT_DESIGN_REVISION_2
+```
+
+Revision 3 authorization:
+
+```text
+Jenn authorized Revision 3 taskbook revision solely to close the
+provider-core governance audit and corresponding test design.
 ```
 
 This revision changes only this taskbook. It does not change source,
@@ -374,6 +383,92 @@ Change `packages/public-api/src/provider.ts` to import and re-export only from
 
 The `GovernanceProvider` shape remains manifest-only. No public runtime export
 or type name changes.
+
+### 6.1 preserve the provider-core execution-primitives governance audit
+
+The existing provider-core boundary audit reads only
+`packages/provider-core/src/index.ts` and currently requires manifest markers
+that Revision 3 predicts will move to `governance-public.ts`. Leaving the audit
+unchanged would make governance validation fail even when the decomposition is
+correct.
+
+Future implementation must update:
+
+```text
+scripts/run-provider-core-execution-primitives-boundary-audit.ts
+tests/provider-core-execution-primitives-boundary-audit.test.ts
+```
+
+The audit input must read both source files as separate fields:
+
+```text
+providerGovernancePublicSourceText
+providerCoreInternalSourceText
+```
+
+It must not concatenate them into one undifferentiated marker search. The
+module ownership boundary is itself part of the proof.
+
+Required `governance-public.ts` positive markers:
+
+```text
+ProviderKindSchema and model/executor/tool/remote_agent kinds
+ProviderSideEffectClassSchema and its existing side-effect vocabulary
+ProviderSecurityBoundarySchema
+ProviderRequiredConfigSchema
+ProviderManifestSchema
+GovernanceProvider
+parseProviderManifest
+hashProviderManifest
+providerSupportsSideEffectClass
+assertProviderSupportsSideEffectClass
+providerSupportsSandboxProfile
+assertProviderSupportsSandboxProfile
+stableStringifyProviderObject with @internal ownership
+```
+
+Required `governance-public.ts` negative markers/AST facts:
+
+```text
+no ExecutorProvider declaration
+no ProviderExecutionContext or ProviderExecutionResult
+no provider interface member named execute
+no ProviderExecutionPermitSchema
+no workspace-write permit lifecycle
+no ToolProvider, RemoteAgentProvider, or ModelProvider runtime interface
+no provider runner, dispatcher, registry, or concrete provider import
+```
+
+Required internal `provider-core/index.ts` facts:
+
+```text
+imports manifest schemas/helpers and the internal stable stringifier from
+  ./governance-public.js
+re-exports only the supported moved provider bindings
+contains ProviderExecutionPermitSchema and workspace-write permit schemas
+contains ExecutorExecutionPlanSchema and ToolProviderInvocationPlanSchema
+contains internal ExecutorProvider/ToolProvider/RemoteAgentProvider contracts
+contains the existing permit issuance, validation, consumption, and hard gates
+does not define a second stableStringifyProviderObject implementation
+```
+
+The audit must retain its existing execution-boundary summary and zero-call
+claims. Reading two source files does not authorize or invoke provider runtime.
+
+The corresponding unit test must:
+
+- make `createInputFromWorkspace` read both exact source paths;
+- update the valid fixture to place manifest markers in the public source and
+  execution primitives in the internal source;
+- fail when a required manifest marker remains only in the internal source;
+- fail when `ExecutorProvider`, an `execute` member, or permit lifecycle marker
+  is added to the public source;
+- fail when the internal source omits the import of the shared stable
+  stringifier or defines a second implementation;
+- preserve existing negative tests for missing execution primitives, permit
+  guards, provider-registry guards, tool-planner coverage, broad execution
+  authorization, and forbidden output;
+- make zero provider, workspace-write, network, or external calls.
 
 ## 7. `NodeJS.ProcessEnv` Consumer Contract
 
@@ -902,10 +997,12 @@ M packages/public-api/src/provider.ts
 
 M package.json
 A scripts/run-core-only-artifact-audit.ts
+M scripts/run-provider-core-execution-primitives-boundary-audit.ts
 A tests/core-only-artifact-audit.test.ts
 M scripts/test-package-consumer.ts
 M tests/package-consumer.test.ts
 M tests/public-api-surface.test.ts
+M tests/provider-core-execution-primitives-boundary-audit.test.ts
 M docs/governance/R3B_2B_CORE_ONLY_ARTIFACT_DESIGN_TASKBOOK.md
 ```
 
@@ -917,6 +1014,11 @@ reject ../../kernel-contracts/src/index.js
 reject ../../kernel-contracts/src/legacy-adapter.js
 retain the existing rejection of ../../contracts/src/index.js
 ```
+
+The provider-core execution-primitives audit diff is limited to the dual-source
+ownership model in section 6.1. It must not weaken or delete existing execution
+primitive, permit guard, registry guard, tool-planner, no-broad-authorization,
+sanitization, or zero-runtime-call checks.
 
 `package.json` may change only its `files` array from `dist/packages` to the 32
 exact compiled paths plus the two README paths. Its exports, dependencies,
@@ -945,7 +1047,9 @@ After separate implementation authorization:
 git diff --check
 node --import tsx --test tests/core-only-artifact-audit.test.ts
 node --import tsx --test tests/package-consumer.test.ts
+node --import tsx --test tests/provider-core-execution-primitives-boundary-audit.test.ts
 node --import tsx scripts/run-core-only-artifact-audit.ts
+npm run governance -- audit provider-core-execution-primitives-boundary
 npm run test:package-consumer
 npm run audit:clean-build-determinism
 npm run typecheck
@@ -964,6 +1068,8 @@ provider manifest hash fixtures: unchanged
 legacy adapter internal tests: PASS
 legacy adapter initialization graph cycle check: PASS
 provider manifest hash binding identity/parity: PASS
+provider-core dual-source ownership audit: PASS
+provider-core execution primitive and permit guard checks: unchanged PASS
 dirty/empty build manifest equality: PASS
 dirty/empty 35-entry pack manifest equality: PASS
 real provider calls: 0
@@ -1005,6 +1111,9 @@ outside scope and is not treated as reversible.
   package facade; an accidental facade export would expand the package surface.
 - Moving provider schemas and helpers must preserve binding identity and hash
   bytes across both internal and formal facade import paths.
+- The provider-core execution-primitives audit becomes a dual-source ownership
+  audit. A marker-only implementation could accidentally accept symbols in the
+  wrong module, so positive and negative assertions remain source-specific.
 - `ProcessEnvironment` is structurally compatible with `NodeJS.ProcessEnv`, but
   downstream code that depended on the nominal namespace spelling may observe a
   declaration-text change. Strict structural consumer tests reduce this risk.
@@ -1020,9 +1129,9 @@ outside scope and is not treated as reversible.
   supported Linux, macOS, and Windows matrix before closeout.
 - The package remains private and no publish path is authorized.
 
-## 17. Revision 2 Design Acceptance Gate
+## 17. Revision 3 Design Acceptance Gate
 
-This revision 2 design is ready only for another independent design review. That
+This revision 3 design is ready only for another independent design review. That
 review must confirm:
 
 ```text
@@ -1036,6 +1145,10 @@ the compatibility initialization graph has no index/legacy cycle
 NodeJS ambient declaration dependencies are zero
 five supported public namespaces remain identical
 the public API declaration test expects public.js and rejects old/legacy edges
+the provider-core execution-primitives audit reads both sources separately
+manifest-only markers are required in governance-public and execution markers
+  remain required in the internal index
+the dual-source audit tests reject wrong ownership and helper duplication
 the implementation diff is sufficient and no hidden build dependency exists
 ```
 
@@ -1046,6 +1159,7 @@ authorization, the formal state is:
 R3B-2A CLOSED
 R3B-2B INITIAL DESIGN REVIEW REOPENED
 R3B-2B REVISED DESIGN REVIEW REOPENED
-R3B-2B REVISION 2 DESIGN CANDIDATE
+R3B-2B REVISION 2 DESIGN REVIEW REOPENED
+R3B-2B REVISION 3 DESIGN CANDIDATE
 R3B-2B IMPLEMENTATION NOT AUTHORIZED
 ```
