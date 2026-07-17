@@ -54,8 +54,8 @@ Exact token received for local implementation authorization:
 APPROVE_R3B_2A_DIAGNOSTICS_ONLY_IMPLEMENTATION
 ```
 
-Natural CI remains a separate Jenn decision after the local candidate and its
-validation evidence are reviewed.
+Natural CI for this scoped pull-request delivery is authorized. Workflow rerun
+or dispatch remains separate and unauthorized.
 
 ## 2. Review Basis
 
