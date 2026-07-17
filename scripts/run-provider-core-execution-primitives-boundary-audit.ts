@@ -411,6 +411,7 @@ function providerGovernancePublicAstBoundaryValid(text: string): boolean {
   let stableStringifierInternal = false;
   let forbiddenInterfaceMember = false;
   let forbiddenImport = false;
+  let forbiddenWorkspaceWritePermitLifecycle = false;
 
   for (const statement of source.statements) {
     if (ts.isFunctionDeclaration(statement)
@@ -418,8 +419,15 @@ function providerGovernancePublicAstBoundaryValid(text: string): boolean {
       stableStringifierInternal = ts.getJSDocTags(statement)
         .some((tag) => tag.tagName.text === "internal");
     }
-    if (ts.isInterfaceDeclaration(statement)
-      && statement.members.some((member) => {
+  }
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node)
+      && /(?:WorkspaceWrite.*Permit|Permit.*WorkspaceWrite)/u.test(node.text)) {
+      forbiddenWorkspaceWritePermitLifecycle = true;
+    }
+    if (ts.isInterfaceDeclaration(node)
+      && node.members.some((member) => {
         const name = member.name;
         return name !== undefined
           && (ts.isIdentifier(name) || ts.isStringLiteral(name))
@@ -427,15 +435,20 @@ function providerGovernancePublicAstBoundaryValid(text: string): boolean {
       })) {
       forbiddenInterfaceMember = true;
     }
-    if (ts.isImportDeclaration(statement)
-      && ts.isStringLiteral(statement.moduleSpecifier)
+    if (ts.isImportDeclaration(node)
+      && ts.isStringLiteral(node.moduleSpecifier)
       && /(?:provider-registry|providers\/|provider-execution-runner|provider-dispatcher|controlled-provider-dispatcher|workspace-write-executor)/u
-        .test(statement.moduleSpecifier.text)) {
+        .test(node.moduleSpecifier.text)) {
       forbiddenImport = true;
     }
-  }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
 
-  return stableStringifierInternal && !forbiddenInterfaceMember && !forbiddenImport;
+  return stableStringifierInternal
+    && !forbiddenInterfaceMember
+    && !forbiddenImport
+    && !forbiddenWorkspaceWritePermitLifecycle;
 }
 
 function providerCoreGovernanceImportValid(text: string): boolean {

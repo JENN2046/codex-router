@@ -179,16 +179,56 @@ test("provider-core execution primitives boundary audit requires public helper a
   }
 });
 
-test("provider-core execution primitives boundary audit rejects permit lifecycle and provider runtime imports in governance-public", async () => {
+test("provider-core execution primitives boundary audit rejects the complete workspace-write permit lifecycle in governance-public", async () => {
   const input = await createInputFromWorkspace();
   for (const addition of [
     "export const consumeWorkspaceWriteProviderExecutionPermit = () => undefined;",
-    'import { runProvider } from "../../governance-internal-provider-execution-runner/src/index.js";'
+    "export const createBlockedWorkspaceWriteProviderExecutionPermit = () => undefined;",
+    "export const createWorkspaceWriteProviderExecutionPermitV2 = () => undefined;",
+    "export type WorkspaceWriteProviderExecutionPermitIssueInput = {};"
   ]) {
     const review = reviewProviderCoreExecutionPrimitivesBoundaryAudit({
       ...input,
       providerGovernancePublicSourceText:
         `${input.providerGovernancePublicSourceText}\n${addition}\n`
+    });
+    assert.equal(review.status, "blocked");
+    assert.ok(review.reasons.includes(
+      "provider_core_execution_primitives_boundary_providerGovernancePublicManifestOnly"
+    ));
+  }
+});
+
+test("provider-core execution primitives boundary audit rejects execution context and result in governance-public", async () => {
+  const input = await createInputFromWorkspace();
+  for (const addition of [
+    "export type ProviderExecutionContext = {};",
+    "export type ProviderExecutionResult = {};"
+  ]) {
+    const review = reviewProviderCoreExecutionPrimitivesBoundaryAudit({
+      ...input,
+      providerGovernancePublicSourceText:
+        `${input.providerGovernancePublicSourceText}\n${addition}\n`
+    });
+    assert.equal(review.status, "blocked");
+    assert.ok(review.reasons.includes(
+      "provider_core_execution_primitives_boundary_providerGovernancePublicManifestOnly"
+    ));
+  }
+});
+
+test("provider-core execution primitives boundary audit rejects every provider runtime import category", async () => {
+  const input = await createInputFromWorkspace();
+  for (const moduleSpecifier of [
+    "../../governance-internal-provider-execution-runner/src/index.js",
+    "../../governance-internal-controlled-provider-dispatcher/src/index.js",
+    "../../provider-registry/src/index.js",
+    "../../providers/codex-cli/src/index.js"
+  ]) {
+    const review = reviewProviderCoreExecutionPrimitivesBoundaryAudit({
+      ...input,
+      providerGovernancePublicSourceText:
+        `${input.providerGovernancePublicSourceText}\nimport { forbidden } from ${JSON.stringify(moduleSpecifier)};\n`
     });
     assert.equal(review.status, "blocked");
     assert.ok(review.reasons.includes(
