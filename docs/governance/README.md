@@ -33,6 +33,10 @@ explicitly promotes them.
 - [R3A-3 Merge Integrity closeout](R3A3_MERGE_INTEGRITY_CLOSEOUT.md):
   independent platform evidence, accepted any-source threat model, ordinary-CI
   limitation, and R2/R3A closeout disposition.
+- [R3B clean-build determinism](R3B_CLEAN_BUILD_DETERMINISM.md): bounded
+  R3B-2A implementation candidate that removes validated stale `dist` output
+  before build and compares dirty/empty build plus pack manifests without
+  claiming a core-only artifact.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [App Server file-change governance runbook](runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md):
   deterministic offline acceptance and the explicit live-acceptance stop.
@@ -78,10 +82,11 @@ They do not independently open an execution path.
 | Real worker, remote CAS, retain/apply integration | Not implemented or authorized |
 | Real source-workspace write, release, deploy, publish | Not authorized |
 
-R3A closes Merge Integrity and `R2_GOVERNANCE_INTEGRITY_CLOSEOUT`. The only next
-entry is R3B parallel-runtime inventory; no clean-build, artifact separation,
-import firewall, ADR 012, real worker, remote CAS, or further App Server
-execution probe is authorized by this closeout.
+R3A closes Merge Integrity and `R2_GOVERNANCE_INTEGRITY_CLOSEOUT`. R3B-1
+read-only inventory is complete, and R3B-2A is limited to the separately
+authorized clean-build determinism candidate. It does not authorize artifact
+separation, an import firewall, ADR 012, a real worker, remote CAS, or a further
+App Server execution probe.
 
 ## Runner Entry Points
 

@@ -31,7 +31,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node --import tsx scripts/clean-build-output.ts && tsc -p tsconfig.json",
     "governance": "node --import tsx scripts/run-governance-check.ts",
     "docs:governance": "node --import tsx scripts/check-governance-docs.ts",
     "validate:daily": "node --import tsx scripts/run-governance-check.ts tier daily",
@@ -59,6 +59,7 @@
     "canary:workspace-write:real": "node --import tsx scripts/run-workspace-write-real-canary-local.ts",
     "evidence:collect": "node --import tsx scripts/collect-evidence.ts",
     "test:package-consumer": "node --import tsx scripts/test-package-consumer.ts",
+    "audit:clean-build-determinism": "node --import tsx scripts/run-clean-build-determinism-audit.ts",
     "test:coverage:authorization": "node --experimental-test-coverage --test-coverage-include=\"packages/authorization-kernel/src/**\" --test-coverage-branches=90 --import tsx --test tests/authorization-kernel.test.ts",
     "test:coverage:offline-execution-capsule": "node --experimental-test-coverage --test-coverage-include=\"packages/execution-capsule/src/**\" --test-coverage-branches=90 --import tsx --test tests/offline-execution-capsule.test.ts tests/offline-execution-capsule-fake-worker-input-gate.test.ts tests/offline-execution-capsule-fake-worker-output-gate.test.ts tests/offline-execution-capsule-review-closeout.test.ts",
     "test:coverage:preview": "node --experimental-test-coverage --test-coverage-include=\"packages/file-change-preview/src/**\" --test-coverage-branches=90 --import tsx --test tests/file-change-preview.test.ts",
