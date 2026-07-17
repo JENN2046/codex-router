@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import ts from "typescript";
 
 const GOVERNANCE_CONTROL_PLANE = "docs/governance/GOVERNANCE_CONTROL_PLANE.md";
 const GOVERNANCE_README = "docs/governance/README.md";
@@ -16,25 +17,45 @@ const GOVERNANCE_RUNNER = "scripts/run-governance-check.ts";
 
 const REQUIRED_PROVIDER_GOVERNANCE_PUBLIC_MARKERS = [
   "ProviderKindSchema",
+  "\"model\"",
   "\"executor\"",
   "\"tool\"",
   "\"remote_agent\"",
   "ProviderSideEffectClassSchema",
+  "\"none\"",
+  "\"read\"",
+  "\"read_only\"",
+  "\"local_write\"",
   "\"workspace_write\"",
+  "\"local_command\"",
   "\"external_write\"",
+  "\"external_side_effects\"",
   "\"protected_remote\"",
+  "\"destructive\"",
+  "\"secret_access\"",
+  "\"unknown\"",
+  "ProviderSecurityBoundarySchema",
+  "ProviderRequiredConfigSchema",
   "ProviderManifestSchema",
   "interface GovernanceProvider",
   "parseProviderManifest",
   "hashProviderManifest",
   "providerSupportsSideEffectClass",
+  "assertProviderSupportsSideEffectClass",
   "providerSupportsSandboxProfile",
+  "assertProviderSupportsSandboxProfile",
   "function stableStringifyProviderObject"
 ] as const;
 
 const FORBIDDEN_PROVIDER_GOVERNANCE_PUBLIC_MARKERS = [
   "ProviderExecutionPermitSchema",
+  "ProviderExecutionContext",
+  "ProviderExecutionResult",
+  "WorkspaceWriteProviderExecutionPermitSchema",
   "WorkspaceWriteProviderExecutionPermitV2Schema",
+  "createApprovedWorkspaceWriteProviderExecutionPermit",
+  "validateWorkspaceWriteProviderExecutionPermit",
+  "consumeWorkspaceWriteProviderExecutionPermit",
   "ExecutorExecutionPlanSchema",
   "ToolProviderInvocationPlanSchema",
   "interface ExecutorProvider",
@@ -48,6 +69,7 @@ const FORBIDDEN_PROVIDER_GOVERNANCE_PUBLIC_MARKERS = [
 
 const REQUIRED_PROVIDER_CORE_PRIMITIVE_MARKERS = [
   "ProviderExecutionPermitSchema",
+  "WorkspaceWriteProviderExecutionPermitSchema",
   "WorkspaceWriteProviderExecutionPermitV2Schema",
   "ExecutorExecutionPlanSchema",
   "ToolProviderInvocationPlanSchema",
@@ -57,6 +79,45 @@ const REQUIRED_PROVIDER_CORE_PRIMITIVE_MARKERS = [
   "invoke(",
   "interface RemoteAgentProvider",
   "createRemoteTask("
+] as const;
+
+const REQUIRED_PROVIDER_CORE_GOVERNANCE_IMPORTS = [
+  "ProviderKindSchema",
+  "ProviderManifestSchema",
+  "ProviderRequiredConfigSchema",
+  "ProviderSecurityBoundarySchema",
+  "ProviderSideEffectClassSchema",
+  "assertProviderSupportsSandboxProfile",
+  "assertProviderSupportsSideEffectClass",
+  "hashProviderManifest",
+  "providerSupportsSandboxProfile",
+  "providerSupportsSideEffectClass",
+  "stableStringifyProviderObject",
+  "ProviderKind",
+  "ProviderManifest",
+  "ProviderRequiredConfig",
+  "ProviderSecurityBoundary",
+  "ProviderSideEffectClass"
+] as const;
+
+const SUPPORTED_PROVIDER_CORE_GOVERNANCE_REEXPORTS = [
+  "ProviderKindSchema",
+  "ProviderManifestSchema",
+  "ProviderRequiredConfigSchema",
+  "ProviderSecurityBoundarySchema",
+  "ProviderSideEffectClassSchema",
+  "assertProviderSupportsSandboxProfile",
+  "assertProviderSupportsSideEffectClass",
+  "hashProviderManifest",
+  "parseProviderManifest",
+  "providerSupportsSandboxProfile",
+  "providerSupportsSideEffectClass",
+  "GovernanceProvider",
+  "ProviderKind",
+  "ProviderManifest",
+  "ProviderRequiredConfig",
+  "ProviderSecurityBoundary",
+  "ProviderSideEffectClass"
 ] as const;
 
 const REQUIRED_PROVIDER_CORE_GUARD_MARKERS = [
@@ -140,6 +201,7 @@ export interface ProviderCoreExecutionPrimitivesBoundaryAuditResult {
     governanceRunnerRegistered: boolean;
     providerGovernancePublicManifestOnly: boolean;
     providerGovernanceHelperOwnershipValid: boolean;
+    providerCoreMovedBindingsReexportValid: boolean;
     providerCorePrimitiveSchemasPresent: boolean;
     providerCorePermitGuardsPresent: boolean;
     providerCoreRegressionCoverageRecorded: boolean;
@@ -225,13 +287,15 @@ export function reviewProviderCoreExecutionPrimitivesBoundaryAudit(
         (marker) => input.providerGovernancePublicSourceText.includes(marker)
       ) && FORBIDDEN_PROVIDER_GOVERNANCE_PUBLIC_MARKERS.every(
         (marker) => !input.providerGovernancePublicSourceText.includes(marker)
+      ) && providerGovernancePublicAstBoundaryValid(
+        input.providerGovernancePublicSourceText
       ),
-    providerGovernanceHelperOwnershipValid:
-      input.providerCoreInternalSourceText.includes('from "./governance-public.js"')
-      && input.providerCoreInternalSourceText.includes("stableStringifyProviderObject")
-      && !input.providerCoreInternalSourceText.includes(
-        "function stableStringifyProviderObject"
-      ),
+    providerGovernanceHelperOwnershipValid: providerCoreGovernanceImportValid(
+      input.providerCoreInternalSourceText
+    ),
+    providerCoreMovedBindingsReexportValid: providerCoreGovernanceReexportValid(
+      input.providerCoreInternalSourceText
+    ),
     providerCorePrimitiveSchemasPresent: REQUIRED_PROVIDER_CORE_PRIMITIVE_MARKERS.every(
       (marker) => input.providerCoreInternalSourceText.includes(marker)
     ),
@@ -336,6 +400,104 @@ function noBroadExecutionAuthorization(
     && !/remote-agent, tool, and workspace-write primitives are runtime authorization/i.test(combined);
 }
 
+function providerGovernancePublicAstBoundaryValid(text: string): boolean {
+  const source = ts.createSourceFile(
+    "provider-governance-public.ts",
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  let stableStringifierInternal = false;
+  let forbiddenInterfaceMember = false;
+  let forbiddenImport = false;
+
+  for (const statement of source.statements) {
+    if (ts.isFunctionDeclaration(statement)
+      && statement.name?.text === "stableStringifyProviderObject") {
+      stableStringifierInternal = ts.getJSDocTags(statement)
+        .some((tag) => tag.tagName.text === "internal");
+    }
+    if (ts.isInterfaceDeclaration(statement)
+      && statement.members.some((member) => {
+        const name = member.name;
+        return name !== undefined
+          && (ts.isIdentifier(name) || ts.isStringLiteral(name))
+          && name.text === "execute";
+      })) {
+      forbiddenInterfaceMember = true;
+    }
+    if (ts.isImportDeclaration(statement)
+      && ts.isStringLiteral(statement.moduleSpecifier)
+      && /(?:provider-registry|providers\/|provider-execution-runner|provider-dispatcher|controlled-provider-dispatcher|workspace-write-executor)/u
+        .test(statement.moduleSpecifier.text)) {
+      forbiddenImport = true;
+    }
+  }
+
+  return stableStringifierInternal && !forbiddenInterfaceMember && !forbiddenImport;
+}
+
+function providerCoreGovernanceImportValid(text: string): boolean {
+  const source = ts.createSourceFile(
+    "provider-core-index.ts",
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const imports = source.statements.filter((statement): statement is ts.ImportDeclaration => (
+    ts.isImportDeclaration(statement)
+    && ts.isStringLiteral(statement.moduleSpecifier)
+    && statement.moduleSpecifier.text === "./governance-public.js"
+  ));
+  const importedNames = imports.flatMap((statement) => (
+    statement.importClause?.namedBindings !== undefined
+    && ts.isNamedImports(statement.importClause.namedBindings)
+      ? statement.importClause.namedBindings.elements.map((element) => (
+        element.propertyName?.text ?? element.name.text
+      ))
+      : []
+  ));
+  const stableDefinitions = source.statements.filter((statement) => (
+    ts.isFunctionDeclaration(statement)
+    && statement.name?.text === "stableStringifyProviderObject"
+  ));
+
+  return imports.length === 1
+    && sameStringSet(importedNames, REQUIRED_PROVIDER_CORE_GOVERNANCE_IMPORTS)
+    && stableDefinitions.length === 0;
+}
+
+function providerCoreGovernanceReexportValid(text: string): boolean {
+  const source = ts.createSourceFile(
+    "provider-core-index.ts",
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const reexportedNames = source.statements.flatMap((statement) => {
+    if (!ts.isExportDeclaration(statement)
+      || statement.moduleSpecifier === undefined
+      || !ts.isStringLiteral(statement.moduleSpecifier)
+      || statement.moduleSpecifier.text !== "./governance-public.js"
+      || statement.exportClause === undefined
+      || !ts.isNamedExports(statement.exportClause)) {
+      return [];
+    }
+    return statement.exportClause.elements.map((element) => (
+      element.propertyName?.text ?? element.name.text
+    ));
+  });
+  return sameStringSet(reexportedNames, SUPPORTED_PROVIDER_CORE_GOVERNANCE_REEXPORTS);
+}
+
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  const normalize = (values: readonly string[]): string[] => [...new Set(values)].sort();
+  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+}
+
 function outputSanitized(input: ProviderCoreExecutionPrimitivesBoundaryAuditInput): boolean {
   void input;
   const review: ProviderCoreExecutionPrimitivesBoundaryAuditResult = {
@@ -346,6 +508,7 @@ function outputSanitized(input: ProviderCoreExecutionPrimitivesBoundaryAuditInpu
       governanceRunnerRegistered: true,
       providerGovernancePublicManifestOnly: true,
       providerGovernanceHelperOwnershipValid: true,
+      providerCoreMovedBindingsReexportValid: true,
       providerCorePrimitiveSchemasPresent: true,
       providerCorePermitGuardsPresent: true,
       providerCoreRegressionCoverageRecorded: true,

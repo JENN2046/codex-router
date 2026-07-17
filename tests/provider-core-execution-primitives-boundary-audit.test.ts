@@ -30,6 +30,7 @@ test("provider-core execution primitives boundary audit passes for current evide
   assert.equal(review.checks.governanceRunnerRegistered, true);
   assert.equal(review.checks.providerGovernancePublicManifestOnly, true);
   assert.equal(review.checks.providerGovernanceHelperOwnershipValid, true);
+  assert.equal(review.checks.providerCoreMovedBindingsReexportValid, true);
   assert.equal(review.checks.providerCorePrimitiveSchemasPresent, true);
   assert.equal(review.checks.providerCorePermitGuardsPresent, true);
   assert.equal(review.checks.providerCoreRegressionCoverageRecorded, true);
@@ -137,6 +138,93 @@ test("provider-core execution primitives boundary audit rejects execution owners
   assert.equal(review.status, "blocked");
   assert.ok(review.reasons.includes(
     "provider_core_execution_primitives_boundary_providerGovernancePublicManifestOnly"
+  ));
+});
+
+test("provider-core execution primitives boundary audit requires manifest ownership in governance-public", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewProviderCoreExecutionPrimitivesBoundaryAudit({
+    ...input,
+    providerGovernancePublicSourceText:
+      input.providerGovernancePublicSourceText.replaceAll(
+        "ProviderSecurityBoundarySchema",
+        "MovedSecurityBoundarySchema"
+      )
+  });
+
+  assert.equal(input.providerCoreInternalSourceText.includes("ProviderSecurityBoundarySchema"), true);
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes(
+    "provider_core_execution_primitives_boundary_providerGovernancePublicManifestOnly"
+  ));
+});
+
+test("provider-core execution primitives boundary audit requires public helper and internal annotation", async () => {
+  const input = await createInputFromWorkspace();
+  for (const publicSource of [
+    input.providerGovernancePublicSourceText.replaceAll(
+      "assertProviderSupportsSandboxProfile",
+      "movedAssertProviderSupportsSandboxProfile"
+    ),
+    input.providerGovernancePublicSourceText.replace("/** @internal */", "/** internal */")
+  ]) {
+    const review = reviewProviderCoreExecutionPrimitivesBoundaryAudit({
+      ...input,
+      providerGovernancePublicSourceText: publicSource
+    });
+    assert.equal(review.status, "blocked");
+    assert.ok(review.reasons.includes(
+      "provider_core_execution_primitives_boundary_providerGovernancePublicManifestOnly"
+    ));
+  }
+});
+
+test("provider-core execution primitives boundary audit rejects permit lifecycle and provider runtime imports in governance-public", async () => {
+  const input = await createInputFromWorkspace();
+  for (const addition of [
+    "export const consumeWorkspaceWriteProviderExecutionPermit = () => undefined;",
+    'import { runProvider } from "../../governance-internal-provider-execution-runner/src/index.js";'
+  ]) {
+    const review = reviewProviderCoreExecutionPrimitivesBoundaryAudit({
+      ...input,
+      providerGovernancePublicSourceText:
+        `${input.providerGovernancePublicSourceText}\n${addition}\n`
+    });
+    assert.equal(review.status, "blocked");
+    assert.ok(review.reasons.includes(
+      "provider_core_execution_primitives_boundary_providerGovernancePublicManifestOnly"
+    ));
+  }
+});
+
+test("provider-core execution primitives boundary audit requires the shared helper in the governance import declaration", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewProviderCoreExecutionPrimitivesBoundaryAudit({
+    ...input,
+    providerCoreInternalSourceText: input.providerCoreInternalSourceText
+      .replace("  stableStringifyProviderObject,\n", "")
+      .concat("\nvoid stableStringifyProviderObject;\n")
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes(
+    "provider_core_execution_primitives_boundary_providerGovernanceHelperOwnershipValid"
+  ));
+});
+
+test("provider-core execution primitives boundary audit rejects moved-binding re-export drift", async () => {
+  const input = await createInputFromWorkspace();
+  const review = reviewProviderCoreExecutionPrimitivesBoundaryAudit({
+    ...input,
+    providerCoreInternalSourceText: input.providerCoreInternalSourceText.replace(
+      "  parseProviderManifest,\n",
+      ""
+    )
+  });
+
+  assert.equal(review.status, "blocked");
+  assert.ok(review.reasons.includes(
+    "provider_core_execution_primitives_boundary_providerCoreMovedBindingsReexportValid"
   ));
 });
 
