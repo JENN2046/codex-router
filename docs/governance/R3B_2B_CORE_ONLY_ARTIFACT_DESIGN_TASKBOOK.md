@@ -1,6 +1,6 @@
 ---
 title: R3B-2B Core-only Artifact Design Taskbook
-status: revised_design_candidate_independent_rereview_required
+status: revision_2_design_candidate_independent_rereview_required
 owner: governance
 created: 2026-07-17
 last_verified: 2026-07-17
@@ -9,6 +9,7 @@ verified_by:
   - TypeScript AST runtime and declaration closure traversal
   - npm pack --dry-run --ignore-scripts --json
   - R3B-2B design independent review verdict REOPEN
+  - R3B-2B revised design independent review verdict REOPEN
   - strict TypeScript Program with types empty and skipLibCheck false
 supersedes: []
 superseded_by: null
@@ -26,13 +27,14 @@ applies_to:
 
 ```text
 task: R3B_2B_CORE_ONLY_ARTIFACT
-mode: REVISED_DESIGN_ONLY
+mode: REVISION_2_DESIGN_ONLY
 repository: JENN2046/codex-router
 design_base: 751abc9019be047c30ca1a4a96c795835997e2ee
 design_branch: design/r3b2b-core-only-artifact
 R3B_2A: CLOSED
 R3B_2B_initial_design_review: REOPEN
-R3B_2B_revised_design: CANDIDATE
+R3B_2B_revised_design_review: REOPEN
+R3B_2B_revision_2_design: CANDIDATE
 R3B_2B_implementation: NOT_AUTHORIZED
 branch_push: NOT_AUTHORIZED
 pull_request: NOT_AUTHORIZED
@@ -58,6 +60,12 @@ Revision authorization:
 
 ```text
 APPROVE_R3B_2B_CORE_ONLY_ARTIFACT_DESIGN_REVISION
+```
+
+Revision 2 authorization:
+
+```text
+APPROVE_R3B_2B_CORE_ONLY_ARTIFACT_DESIGN_REVISION_2
 ```
 
 This revision changes only this taskbook. It does not change source,
@@ -204,11 +212,24 @@ Internal consumers outside the core artifact may continue to use the old index
 while migration is evaluated separately. The package export map does not expose
 this raw module.
 
-### 5.4 remove the circular public edge
+### 5.4 remove all kernel compatibility cycles
 
 Change `codex-governance.ts` to import its base kernel symbols from `core.js`,
-not `index.js`. The legacy adapter may retain its compatibility import from the
-index because neither file enters the target artifact.
+not `index.js`.
+
+Change `legacy-adapter.ts` to import kernel schemas and types from `public.js`,
+not `index.js`. The resulting graph is:
+
+```text
+index -> public -> core
+               -> codex-governance -> core
+index -> legacy-adapter -> public
+                        -> contracts
+```
+
+There is no `index -> legacy-adapter -> index` edge. The legacy adapter and
+`contracts` remain internal compatibility modules and remain outside the packed
+artifact, but their initialization no longer depends on an export cycle.
 
 ### 5.5 selected import rewrites
 
@@ -293,6 +314,30 @@ envPolicyImplies
 stableStringifyProviderObject
 ```
 
+Helper ownership is exact:
+
+- `networkAccessImplies`, `writableRootsImply`, `writableRootImplies`,
+  `normalizeRootPattern`, `trimTrailingSlash`, and `envPolicyImplies` remain
+  module-private in `governance-public.ts` because only the moved public
+  sandbox-support functions use them;
+- `stableStringifyProviderObject` has one implementation in
+  `governance-public.ts` and is exported with `/** @internal */` solely so the
+  remaining `provider-core/index.ts` hash/nonce paths can import the same
+  binding;
+- `provider-core/index.ts` removes its local implementation, imports the
+  internal helper, imports the moved public bindings, and re-exports only the
+  moved supported public bindings;
+- `public-api/provider.ts` explicitly enumerates the supported names and must
+  not export `stableStringifyProviderObject`;
+- copying, wrapping, or independently reimplementing the stable stringifier is
+  forbidden.
+
+This keeps provider manifest hashes, execution-plan hashes, permit nonces, and
+workspace-write permit hashes on one canonical serialization algorithm without
+adding another compiled file. The helper is physically present as an internal
+dependency of `governance-public`, but it is not a package export and contains
+no provider execution contract.
+
 The module may import only:
 
 ```text
@@ -318,8 +363,9 @@ provider execution runner
 workspace-write executor
 ```
 
-`packages/provider-core/src/index.ts` must import and re-export the moved names
-so existing internal source imports retain their identity. The remaining
+`packages/provider-core/src/index.ts` must import the moved public names and the
+one internal stable-stringifier binding. It must re-export only the moved public
+names so existing internal source imports retain their identity. The remaining
 provider-core implementation may continue to depend on those names, but its
 compiled `index.js` and `index.d.ts` do not enter the core artifact.
 
@@ -480,6 +526,139 @@ none
 `yaml` remains a declared dependency but is not used by the five-entry closure.
 Dependency cleanup is outside R3B-2B.
 
+### 8.5 exact predicted closure for `./protocol`
+
+Runtime, 4 files:
+
+```text
+dist/packages/kernel-contracts/src/codex-governance.js
+dist/packages/kernel-contracts/src/core.js
+dist/packages/kernel-contracts/src/public.js
+dist/packages/public-api/src/protocol.js
+```
+
+Declarations, 4 files:
+
+```text
+dist/packages/kernel-contracts/src/codex-governance.d.ts
+dist/packages/kernel-contracts/src/core.d.ts
+dist/packages/kernel-contracts/src/public.d.ts
+dist/packages/public-api/src/protocol.d.ts
+```
+
+### 8.6 exact predicted closure for `./policy`
+
+Runtime, 7 files:
+
+```text
+dist/packages/authorization-kernel/src/index.js
+dist/packages/capability/src/index.js
+dist/packages/file-change-preview/src/index.js
+dist/packages/kernel-contracts/src/codex-governance.js
+dist/packages/kernel-contracts/src/core.js
+dist/packages/kernel-contracts/src/public.js
+dist/packages/public-api/src/policy.js
+```
+
+Declarations, 6 files:
+
+```text
+dist/packages/authorization-kernel/src/index.d.ts
+dist/packages/file-change-preview/src/index.d.ts
+dist/packages/kernel-contracts/src/codex-governance.d.ts
+dist/packages/kernel-contracts/src/core.d.ts
+dist/packages/kernel-contracts/src/public.d.ts
+dist/packages/public-api/src/policy.d.ts
+```
+
+`capability/index.d.ts` is not referenced by the emitted public policy
+declarations and remains outside the declaration closure.
+
+### 8.7 exact predicted closure for `./codex-adapter`
+
+Runtime, 12 files:
+
+```text
+dist/packages/authorization-kernel/src/index.js
+dist/packages/capability/src/index.js
+dist/packages/codex-adapter/src/command-approval.js
+dist/packages/codex-adapter/src/index.js
+dist/packages/codex-adapter/src/permission-profile.js
+dist/packages/codex-adapter/src/v2-wire.js
+dist/packages/file-change-preview/src/index.js
+dist/packages/kernel-contracts/src/codex-governance.js
+dist/packages/kernel-contracts/src/core.js
+dist/packages/kernel-contracts/src/public.js
+dist/packages/public-api/src/codex-adapter.js
+dist/packages/retain-control/src/index.js
+```
+
+Declarations, 9 files:
+
+```text
+dist/packages/codex-adapter/src/index.d.ts
+dist/packages/codex-adapter/src/permission-profile.d.ts
+dist/packages/codex-adapter/src/v2-wire.d.ts
+dist/packages/file-change-preview/src/index.d.ts
+dist/packages/kernel-contracts/src/codex-governance.d.ts
+dist/packages/kernel-contracts/src/core.d.ts
+dist/packages/kernel-contracts/src/public.d.ts
+dist/packages/public-api/src/codex-adapter.d.ts
+dist/packages/retain-control/src/index.d.ts
+```
+
+`command-approval.d.ts`, `capability/index.d.ts`, and
+`authorization-kernel/index.d.ts` are not referenced by the emitted public
+adapter declarations and remain outside this declaration closure.
+
+### 8.8 exact predicted closure for `./evidence`
+
+Runtime, 5 files:
+
+```text
+dist/packages/kernel-contracts/src/codex-governance.js
+dist/packages/kernel-contracts/src/core.js
+dist/packages/kernel-contracts/src/public.js
+dist/packages/public-api/src/evidence.js
+dist/packages/retain-control/src/index.js
+```
+
+Declarations, 5 files:
+
+```text
+dist/packages/kernel-contracts/src/codex-governance.d.ts
+dist/packages/kernel-contracts/src/core.d.ts
+dist/packages/kernel-contracts/src/public.d.ts
+dist/packages/public-api/src/evidence.d.ts
+dist/packages/retain-control/src/index.d.ts
+```
+
+### 8.9 exact predicted closure for `./provider`
+
+Runtime, 5 files:
+
+```text
+dist/packages/kernel-contracts/src/codex-governance.js
+dist/packages/kernel-contracts/src/core.js
+dist/packages/kernel-contracts/src/public.js
+dist/packages/provider-core/src/governance-public.js
+dist/packages/public-api/src/provider.js
+```
+
+Declarations, 5 files:
+
+```text
+dist/packages/kernel-contracts/src/codex-governance.d.ts
+dist/packages/kernel-contracts/src/core.d.ts
+dist/packages/kernel-contracts/src/public.d.ts
+dist/packages/provider-core/src/governance-public.d.ts
+dist/packages/public-api/src/provider.d.ts
+```
+
+These five closures are predicted post-decomposition facts. The implementation
+audit must regenerate every set from emitted files and require exact equality;
+it must not treat the union allowlist as a substitute for per-entry proof.
+
 ## 9. Required Exclusions
 
 The artifact contains no file outside the 32-file compiled allowlist. This
@@ -631,10 +810,13 @@ for `provider.execute`. Any occurrence is a hard failure.
 | provider index | add `provider-core/src/index.d.ts` | `provider_core_internal_present` |
 | executor declaration | add `ExecutorProvider` with `execute` | `provider_execute_contract_present` |
 | provider call | add `provider.execute(plan)` | `provider_execute_call_present` |
+| provider helper export | expose stable stringifier from package facade | `provider_internal_helper_exported` |
+| provider helper duplication | add a second stable stringifier implementation | `provider_hash_helper_duplicated` |
 | workspace executor | add exact executor path | `workspace_write_executor_present` |
 | legacy adapter | add either legacy adapter file | `legacy_compatibility_present` |
 | legacy contracts | add `contracts/src/index.*` | `legacy_compatibility_present` |
 | kernel old index | import `kernel-contracts/src/index.js` | `legacy_import_edge_present` |
+| legacy cycle | make legacy adapter import `kernel-contracts/index` | `legacy_initialization_cycle_present` |
 | Node ambient | add `NodeJS.ProcessEnv` to `.d.ts` | `declaration_node_ambient_present` |
 | old facade | add any old public facade pair member | `legacy_facade_present` |
 | Runtime family | add Agent OS/Desktop/MCP file | corresponding Runtime reason |
@@ -678,6 +860,18 @@ Representative symbols:
 The smoke must not call `runGovernedRollback`, instantiate a live transport,
 execute a provider, write the workspace, or contact an external service.
 
+Provider and compatibility regression tests must additionally prove:
+
+```text
+provider-core/index.hashProviderManifest ===
+  provider-core/governance-public.hashProviderManifest
+
+hash fixtures from both import paths are byte-identical
+stableStringifyProviderObject is absent from codex-router/provider namespace
+legacy-adapter imports public.js and does not import index.js
+legacy adapter functions initialize and pass through the compatibility index
+```
+
 ## 13. Exact Future Implementation Diff
 
 Implementation is not authorized. A separately authorized implementation is
@@ -688,6 +882,7 @@ A packages/kernel-contracts/src/core.ts
 A packages/kernel-contracts/src/public.ts
 M packages/kernel-contracts/src/index.ts
 M packages/kernel-contracts/src/codex-governance.ts
+M packages/kernel-contracts/src/legacy-adapter.ts
 
 A packages/provider-core/src/governance-public.ts
 M packages/provider-core/src/index.ts
@@ -710,7 +905,17 @@ A scripts/run-core-only-artifact-audit.ts
 A tests/core-only-artifact-audit.test.ts
 M scripts/test-package-consumer.ts
 M tests/package-consumer.test.ts
+M tests/public-api-surface.test.ts
 M docs/governance/R3B_2B_CORE_ONLY_ARTIFACT_DESIGN_TASKBOOK.md
+```
+
+The `tests/public-api-surface.test.ts` declaration assertion must:
+
+```text
+require ../../kernel-contracts/src/public.js
+reject ../../kernel-contracts/src/index.js
+reject ../../kernel-contracts/src/legacy-adapter.js
+retain the existing rejection of ../../contracts/src/index.js
 ```
 
 `package.json` may change only its `files` array from `dist/packages` to the 32
@@ -757,6 +962,8 @@ five facade runtime export locks: unchanged
 kernel contract schema/hash fixtures: unchanged
 provider manifest hash fixtures: unchanged
 legacy adapter internal tests: PASS
+legacy adapter initialization graph cycle check: PASS
+provider manifest hash binding identity/parity: PASS
 dirty/empty build manifest equality: PASS
 dirty/empty 35-entry pack manifest equality: PASS
 real provider calls: 0
@@ -790,10 +997,14 @@ outside scope and is not treated as reversible.
 
 - Moving kernel definitions is mechanically large even though behavior should
   be unchanged; schema, hash, and export-lock regression tests are mandatory.
-- Internal modules importing `kernel-contracts/index` retain the legacy adapter;
-  only the packed five-entry closure is legacy-free.
-- The provider split must avoid duplicate schema instances or divergent helper
-  implementations; `index.ts` must re-export the same moved bindings.
+- Internal modules importing `kernel-contracts/index` retain access to the
+  legacy adapter, but the adapter now depends on `public` rather than cycling
+  back through `index`; the packed five-entry closure remains legacy-free.
+- The internal stable stringifier is emitted in `governance-public` so the old
+  provider index can share one binding. It is intentionally not exported by the
+  package facade; an accidental facade export would expand the package surface.
+- Moving provider schemas and helpers must preserve binding identity and hash
+  bytes across both internal and formal facade import paths.
 - `ProcessEnvironment` is structurally compatible with `NodeJS.ProcessEnv`, but
   downstream code that depended on the nominal namespace spelling may observe a
   declaration-text change. Strict structural consumer tests reduce this risk.
@@ -809,18 +1020,22 @@ outside scope and is not treated as reversible.
   supported Linux, macOS, and Windows matrix before closeout.
 - The package remains private and no publish path is authorized.
 
-## 17. Revised Design Acceptance Gate
+## 17. Revision 2 Design Acceptance Gate
 
-This revised design is ready only for another independent design review. That
+This revision 2 design is ready only for another independent design review. That
 review must confirm:
 
 ```text
 the predicted 17 runtime / 15 declaration closure is mechanically derivable
+all five predicted per-entry runtime and declaration closures are exact
 the exact artifact manifest is 35 entries
 provider.execute and ExecutorProvider are absent at byte/AST level
+the stable stringifier has one implementation and is not a package export
 legacy adapter and contracts are absent from the artifact
+the compatibility initialization graph has no index/legacy cycle
 NodeJS ambient declaration dependencies are zero
 five supported public namespaces remain identical
+the public API declaration test expects public.js and rejects old/legacy edges
 the implementation diff is sufficient and no hidden build dependency exists
 ```
 
@@ -830,6 +1045,7 @@ authorization, the formal state is:
 ```text
 R3B-2A CLOSED
 R3B-2B INITIAL DESIGN REVIEW REOPENED
-R3B-2B REVISED DESIGN CANDIDATE
+R3B-2B REVISED DESIGN REVIEW REOPENED
+R3B-2B REVISION 2 DESIGN CANDIDATE
 R3B-2B IMPLEMENTATION NOT AUTHORIZED
 ```
