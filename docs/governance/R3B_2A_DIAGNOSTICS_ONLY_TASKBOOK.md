@@ -27,13 +27,16 @@ applies_to:
 
 ```text
 task: R3B_2A_DIAGNOSTICS_ONLY
-mode: LOCAL_CANDIDATE
+mode: PR_DELIVERY_AUTHORIZED
 repository: JENN2046/codex-router
 target_branch: main
 reviewed_main: 04b6847ada625675d9686877f3a10be0bf8d3def
 implementation_authorized: true
 workflow_rerun_authorized: false
-natural_ci_authorized: false
+natural_ci_authorized: true
+branch_push_authorized: true
+pull_request_authorized: true
+merge_authorized: false
 R3B_2B_authorized: false
 capability_expansion: frozen
 ```
@@ -41,9 +44,9 @@ capability_expansion: frozen
 This taskbook records the smallest diagnostics-only response to the independent
 verdict `REOPEN_R3B2A_DIAGNOSTICS_REQUIRED`. Jenn supplied the exact local
 implementation token, and the bounded implementation plus required local
-validation are complete. This local candidate does not authorize branch push,
-pull-request creation, workflow rerun, workflow dispatch, or natural CI
-execution.
+validation are complete. Jenn subsequently authorized pushing the scoped task
+branch and opening a pull request, including the natural CI triggered by that
+delivery. Workflow rerun, workflow dispatch, and merge remain unauthorized.
 
 Exact token received for local implementation authorization:
 
@@ -279,26 +282,24 @@ workflow reruns or dispatches: 0
 GitHub writes: 0
 ```
 
-## 9. Delivery Hold
+## 9. Delivery Authorization
 
-After local validation, stop at:
+Local validation closed at:
 
 ```text
 R3B_2A_DIAGNOSTICS_ONLY_LOCAL_CANDIDATE
 ```
 
-Do not automatically:
+Jenn then authorized the scoped task-branch push and pull-request delivery with
+the instruction `推送，走PR吧`. This authorization permits natural CI triggered
+by the pull request. It does not permit an explicit workflow rerun or dispatch.
 
-- push a branch;
-- create or update a pull request;
+Do not:
+
 - rerun, approve, or dispatch a GitHub Actions workflow;
 - use `gh run rerun` or any equivalent API;
 - amend a workflow to force execution;
 - treat a prior run as validation of the new diagnostics candidate.
-
-Jenn must review the local candidate and decide separately whether to authorize
-a branch push or pull request that would trigger natural CI. Natural CI is not
-a workflow rerun and must still be explicitly authorized for this taskbook.
 
 ## 10. Prohibited Scope
 
@@ -342,8 +343,9 @@ Blocked result:
 R3B_2A_DIAGNOSTICS_ONLY_BLOCKED
 ```
 
-Stop immediately after reporting either result. Do not infer authorization for
-natural CI, PR delivery, merge, R3B-2A re-closeout, or R3B-2B.
+Stop immediately after reporting either result. The current authorization
+covers PR delivery and natural CI only; do not infer authorization for merge,
+R3B-2A re-closeout, or R3B-2B.
 
 R3B-2A may be considered for re-closeout only after a separately authorized
 delivery, natural CI evidence, and independent review. The determinism claim
@@ -356,10 +358,13 @@ observability is the only reopened boundary.
 R3B_2A_DIAGNOSTICS_ONLY_LOCAL_CANDIDATE
 implementation_authorized: true
 workflow_rerun_authorized: false
-natural_ci_authorized: false
+natural_ci_authorized: true
+branch_push_authorized: true
+pull_request_authorized: true
+merge_authorized: false
 R3B_2B_authorized: false
 ```
 
-The next safe action is Jenn's separate decision on branch / PR delivery and
-natural CI. No push, PR creation, workflow rerun, workflow dispatch, merge, or
-R3B-2B action follows automatically.
+The authorized next action is scoped task-branch push and pull-request delivery
+with natural CI. No workflow rerun, workflow dispatch, merge, R3B-2A
+re-closeout, or R3B-2B action follows automatically.
