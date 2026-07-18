@@ -117,6 +117,9 @@ npm run build
 These commands are offline. They read repository fixtures and use in-process
 fake objects only. They do not start Codex or App Server, create a socket,
 access an external service, call a provider, or exercise real workspace-write.
+The audit CLI accepts no fixture-path override; fixture injection is limited to
+the internal test helper so the supported command cannot widen its local file
+read surface.
 
 ## Change control
 
