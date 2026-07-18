@@ -143,6 +143,39 @@ test("CI uploads node-scoped canary evidence before collecting the manifest", as
   assert.equal(evidenceDownload?.with?.["merge-multiple"], true);
 });
 
+test("CI cross-platform acceptance preserves required coverage without repeating typecheck", async () => {
+  const workflow = parse(
+    await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf-8")
+  ) as {
+    jobs: {
+      test: {
+        needs: string;
+        strategy: {
+          matrix: {
+            node: number[];
+            os: string[];
+          };
+        };
+        steps: WorkflowStep[];
+      };
+    };
+  };
+
+  const crossPlatformTest = workflow.jobs.test;
+
+  assert.equal(crossPlatformTest.needs, "build");
+  assert.deepEqual(crossPlatformTest.strategy.matrix.node, [20, 22]);
+  assert.deepEqual(crossPlatformTest.strategy.matrix.os, [
+    "ubuntu-latest",
+    "windows-latest",
+    "macos-latest"
+  ]);
+  assert.deepEqual(
+    crossPlatformTest.steps.flatMap((step) => step.run === undefined ? [] : [step.run]),
+    ["npm ci", "npm run build", "npm test", "npm run test:package-consumer"]
+  );
+});
+
 test("CI runs governance audits before evidence collection", async () => {
   const workflow = parse(
     await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf-8")
