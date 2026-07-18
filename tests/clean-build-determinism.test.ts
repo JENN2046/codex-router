@@ -9,6 +9,7 @@ import {
   type CleanBuildDiagnostic,
   normalizeAuditDiagnostic,
   resolveNpmInvocation,
+  retryChildProcessOnce,
   runCleanBuildDeterminismAudit
 } from "../scripts/run-clean-build-determinism-audit.js";
 
@@ -145,6 +146,44 @@ test("clean-build diagnostics retain only bounded child-process categories", () 
     JSON.stringify(diagnostic),
     /private|secret|stdout|stderr|command|argv|cwd|env|token|npm/iu
   );
+});
+
+test("clean-build retries a child-process exit once and returns the retry result", async () => {
+  let calls = 0;
+  const result = await retryChildProcessOnce(async () => {
+    calls += 1;
+    if (calls === 1) {
+      throw Object.assign(new Error("private child failure"), { code: 1 });
+    }
+    return "passed";
+  });
+
+  assert.equal(result, "passed");
+  assert.equal(calls, 2);
+});
+
+test("clean-build retries at most once and does not retry non-child failures", async () => {
+  let persistentCalls = 0;
+  await assert.rejects(
+    retryChildProcessOnce(async () => {
+      persistentCalls += 1;
+      throw Object.assign(new Error("private persistent failure"), { code: 2 });
+    }),
+    { code: 2 }
+  );
+  assert.equal(persistentCalls, 2);
+
+  let filesystemCalls = 0;
+  await assert.rejects(
+    retryChildProcessOnce(async () => {
+      filesystemCalls += 1;
+      throw Object.assign(new Error("private filesystem failure"), {
+        code: "EACCES"
+      });
+    }),
+    { code: "EACCES" }
+  );
+  assert.equal(filesystemCalls, 1);
 });
 
 test("clean-build diagnostics classify approved filesystem codes without paths", () => {
