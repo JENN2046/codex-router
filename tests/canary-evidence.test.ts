@@ -13,11 +13,11 @@ import {
 } from "../scripts/run-canary-test.js";
 
 const PINNED_CHECKOUT =
-  "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5";
+  "actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd";
 const PINNED_UPLOAD_ARTIFACT =
-  "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02";
+  "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f";
 const PINNED_DOWNLOAD_ARTIFACT =
-  "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093";
+  "actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131";
 
 test("canary evidence paths are risk-specific while preserving latest alias", () => {
   const evidenceDir = "/tmp/codex-router-evidence";
