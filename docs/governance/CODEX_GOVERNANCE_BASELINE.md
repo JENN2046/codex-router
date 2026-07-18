@@ -60,9 +60,9 @@ Required outcomes:
 
 ## CI Baseline
 
-Deterministic typecheck and build remain Node 20/22 gates. The acceptance matrix
-runs typecheck, build, tests, and blank-consumer packaging on Linux, Windows,
-and macOS with Node 20/22. Existing governance, state-sync, fake-canary, and
+Dedicated typecheck and build remain Node 20/22 gates. The acceptance matrix
+runs build, tests, and blank-consumer packaging on Linux, Windows, and macOS
+with Node 20/22. Existing governance, state-sync, fake-canary, and
 contract-smoke jobs remain separate. No ordinary CI job is authorized to invoke
 real Codex CLI, a real App Server, a paid provider, source-workspace write,
 external write, release, publication, tag, or deployment.
