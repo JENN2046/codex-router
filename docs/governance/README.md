@@ -41,6 +41,10 @@ explicitly promotes them.
   closes the diagnostic-observability gap with fixed stage/category labels,
   forbidden-field redaction, exact-head and post-merge CI evidence, and no
   determinism, workflow, Ruleset, or package-surface change.
+- [R3B-2B core-only artifact post-merge closeout](R3B_2B_CORE_ONLY_ARTIFACT_POST_MERGE_CLOSEOUT.md):
+  closes the reviewed five-export artifact decomposition at 17 runtime files,
+  15 declarations, and 35 packed entries while retaining release, provider,
+  workspace-write, and capability-expansion prohibitions.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [App Server file-change governance runbook](runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md):
   deterministic offline acceptance and the explicit live-acceptance stop.
@@ -89,9 +93,10 @@ They do not independently open an execution path.
 R3A closes Merge Integrity and `R2_GOVERNANCE_INTEGRITY_CLOSEOUT`. R3B-1
 read-only inventory is complete, and R3B-2A clean-build determinism is closed
 with bounded redacted diagnostics and a disclosed transient CI runtime risk.
-R3B-2B remains unauthorized; this closeout does not authorize artifact
-separation, an import firewall, ADR 012, a real worker, remote CAS, or a further
-App Server execution probe.
+R3B-2B is closed by the reviewed core-only artifact and its post-merge record.
+The five formal exports remain unchanged, and the package remains private.
+This closeout does not authorize dependency cleanup, publication, ADR 012, a
+real worker, remote CAS, or a further App Server execution probe.
 
 ## Runner Entry Points
 
