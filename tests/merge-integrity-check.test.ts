@@ -28,10 +28,10 @@ const COMMENT_UPDATED_AT = "2026-07-16T12:01:00.000Z";
 const PROTECTED_PATH = "scripts/run-merge-integrity-check.ts";
 
 const PINNED_ACTIONS = {
-  checkout: "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
-  setupNode: "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
-  uploadArtifact: "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
-  downloadArtifact: "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093"
+  checkout: "actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd",
+  setupNode: "actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444",
+  uploadArtifact: "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+  downloadArtifact: "actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131"
 } as const;
 
 test("protected merge-integrity paths are explicit and deterministic", () => {
