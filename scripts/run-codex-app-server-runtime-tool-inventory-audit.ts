@@ -7,6 +7,8 @@ import {
   createInMemoryRuntimeToolInventoryAttestationReplayStore,
   createTestOnlyRuntimeToolInventoryAttestor,
   evaluateRuntimeToolInventoryAttestation,
+  RUNTIME_TOOL_INVENTORY_ASSESSMENT_SCHEMA_VERSION,
+  type RuntimeToolInventoryAssessment,
   type RuntimeToolInventoryExpectedBinding
 } from "../packages/codex-adapter/src/runtime-tool-inventory-attestation.js";
 
@@ -15,7 +17,16 @@ export const DEFAULT_RUNTIME_TOOL_INVENTORY_FIXTURE =
 export const TEST_ONLY_RUNTIME_TOOL_INVENTORY_ISSUER = "test-only-runtime-attestor-v1";
 
 export async function runCodexAppServerRuntimeToolInventoryAudit(
-  fixturePath = DEFAULT_RUNTIME_TOOL_INVENTORY_FIXTURE,
+  cwd = process.cwd()
+) {
+  return runCodexAppServerRuntimeToolInventoryAuditFixture(
+    DEFAULT_RUNTIME_TOOL_INVENTORY_FIXTURE,
+    cwd
+  );
+}
+
+export async function runCodexAppServerRuntimeToolInventoryAuditFixture(
+  fixturePath: string,
   cwd = process.cwd()
 ) {
   const raw = JSON.parse(await readFile(resolve(cwd, fixturePath), "utf8")) as unknown;
@@ -86,7 +97,9 @@ export function testOnlyExpectedBinding(): RuntimeToolInventoryExpectedBinding {
 }
 
 async function main(): Promise<void> {
-  const assessment = await runCodexAppServerRuntimeToolInventoryAudit(process.argv[2]);
+  const assessment = process.argv[2] === undefined
+    ? await runCodexAppServerRuntimeToolInventoryAudit()
+    : fixtureOverrideUnsupportedAssessment();
   process.stdout.write(`${JSON.stringify(assessment, null, 2)}\n`);
   process.exitCode = assessment.status === "verified_offline"
     && assessment.disposition === "no_go"
@@ -94,6 +107,33 @@ async function main(): Promise<void> {
     && !assessment.realWorkspaceWriteAuthorized
     ? 0
     : 1;
+}
+
+function fixtureOverrideUnsupportedAssessment(): RuntimeToolInventoryAssessment {
+  return {
+    schemaVersion: RUNTIME_TOOL_INVENTORY_ASSESSMENT_SCHEMA_VERSION,
+    status: "blocked",
+    disposition: "no_go",
+    contractSatisfied: false,
+    trustedAttestor: false,
+    attestorScope: "none",
+    runtimeOwnedIssuerMechanicallyBound: false,
+    effectiveToolInventoryMechanicallyBound: false,
+    exactRuntimeRequestMechanicallyBound: false,
+    challengeFreshnessMechanicallyBound: false,
+    durableReplayProtectionMechanicallyBound: false,
+    liveExecutionAuthorized: false,
+    liveSmokeEligible: false,
+    realWorkspaceWriteAuthorized: false,
+    evaluationSideEffects: {
+      codexBinaryExecuted: false,
+      appServerStarted: false,
+      liveClientConnected: false,
+      providerCalled: false,
+      workspaceWriteAttempted: false
+    },
+    reasons: ["runtime_tool_inventory_fixture_override_unsupported"]
+  };
 }
 
 const invokedPath = process.argv[1];

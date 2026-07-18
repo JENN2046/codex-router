@@ -8,6 +8,9 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import fixture from "./fixtures/codex-app-server/runtime-tool-inventory/test-only-attestation-v1.json" with { type: "json" };
 import {
+  runCodexAppServerRuntimeToolInventoryAuditFixture
+} from "../scripts/run-codex-app-server-runtime-tool-inventory-audit.js";
+import {
   RuntimeToolInventoryAttestationSchema,
   canonicalRuntimeToolInventoryJson,
   createInMemoryRuntimeToolInventoryAttestationReplayStore,
@@ -416,7 +419,7 @@ test("fixture itself is strict-schema valid", () => {
   assert.equal(RuntimeToolInventoryAttestationSchema.safeParse(fixture).success, true);
 });
 
-test("offline audit CLI reports NO-GO and rejects a tampered fixture", async () => {
+test("offline audit CLI reports NO-GO and rejects fixture overrides", async () => {
   const script = join(process.cwd(), "scripts/run-codex-app-server-runtime-tool-inventory-audit.ts");
   const imported = await execFileAsync(process.execPath, [
     "--import",
@@ -458,6 +461,15 @@ test("offline audit CLI reports NO-GO and rejects a tampered fixture", async () 
     const tampered = structuredClone(fixture) as unknown as Record<string, any>;
     tampered.tools = [{ name: "shell", capability: "execute" }];
     await writeFile(tamperedPath, JSON.stringify(tampered), "utf8");
+    const tamperedAssessment = await runCodexAppServerRuntimeToolInventoryAuditFixture(
+      tamperedPath
+    );
+    assert.equal(tamperedAssessment.status, "blocked");
+    assert.deepEqual(tamperedAssessment.reasons, [
+      "runtime_tool_inventory_attestation_schema_invalid"
+    ]);
+    assertLiveFieldsFalse(tamperedAssessment);
+
     await assert.rejects(
       () => execFileAsync(process.execPath, ["--import", "tsx", script, tamperedPath], {
         cwd: process.cwd(),
@@ -466,14 +478,27 @@ test("offline audit CLI reports NO-GO and rejects a tampered fixture", async () 
       (error: unknown) => {
         const candidate = error as { code?: unknown; stdout?: unknown };
         assert.equal(candidate.code, 1);
-        const blocked = JSON.parse(String(candidate.stdout)) as {
+        const output = String(candidate.stdout);
+        const blocked = JSON.parse(output) as {
           status?: unknown;
           reasons?: unknown;
           liveSmokeEligible?: unknown;
+          evaluationSideEffects?: unknown;
         };
         assert.equal(blocked.status, "blocked");
-        assert.deepEqual(blocked.reasons, ["runtime_tool_inventory_attestation_schema_invalid"]);
+        assert.deepEqual(blocked.reasons, [
+          "runtime_tool_inventory_fixture_override_unsupported"
+        ]);
         assert.equal(blocked.liveSmokeEligible, false);
+        assert.deepEqual(blocked.evaluationSideEffects, {
+          codexBinaryExecuted: false,
+          appServerStarted: false,
+          liveClientConnected: false,
+          providerCalled: false,
+          workspaceWriteAttempted: false
+        });
+        assert.doesNotMatch(output, new RegExp(tamperedPath.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+        assert.doesNotMatch(output, /"name"\s*:\s*"shell"|"capability"/iu);
         return true;
       }
     );
