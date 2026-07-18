@@ -211,7 +211,9 @@ export async function runCleanBuildDeterminismAudit(
 
     await runAuditStage(
       "build",
-      () => runNpm(fixtureRoot as string, root, ["run", "build"])
+      () => retryChildProcessOnce(
+        () => runNpm(fixtureRoot as string, root, ["run", "build"])
+      )
     );
     checks.removedSourceOutputInitiallyEmitted = await runAuditStage(
       "manifest",
@@ -230,7 +232,9 @@ export async function runCleanBuildDeterminismAudit(
     );
     await runAuditStage(
       "build",
-      () => runNpm(fixtureRoot as string, root, ["run", "build"])
+      () => retryChildProcessOnce(
+        () => runNpm(fixtureRoot as string, root, ["run", "build"])
+      )
     );
     checks.staleOutputRemovedBeforeRebuild = !(await runAuditStage(
       "manifest",
@@ -253,7 +257,9 @@ export async function runCleanBuildDeterminismAudit(
     );
     await runAuditStage(
       "build",
-      () => runNpm(fixtureRoot as string, root, ["run", "build"])
+      () => retryChildProcessOnce(
+        () => runNpm(fixtureRoot as string, root, ["run", "build"])
+      )
     );
     emptySnapshot = await captureArtifactSnapshot(fixtureRoot, root);
 
@@ -634,6 +640,29 @@ async function runAuditStage<T>(
     };
     throw failure;
   }
+}
+
+export async function retryChildProcessOnce<T>(
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRetryableChildProcessFailure(error)) {
+      throw error;
+    }
+    return operation();
+  }
+}
+
+function isRetryableChildProcessFailure(error: unknown): boolean {
+  if (!isRecord(error)) {
+    return false;
+  }
+  const code = readDataProperty(error, "code");
+  const signal = readDataProperty(error, "signal");
+  return (typeof code === "number" && Number.isInteger(code))
+    || typeof signal === "string";
 }
 
 function isStagedAuditFailure(error: unknown): error is StagedAuditFailure {
