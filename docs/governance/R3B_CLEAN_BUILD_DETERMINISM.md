@@ -70,16 +70,19 @@ runtimeSurfaceChanged: false
 
 ## Explicit Non-claims
 
-This work does not establish a core-only artifact. `tsconfig.json` still
-compiles the existing source surface, and `package.json.files` still includes
-the existing `dist/packages` tree. Runnable Runtime and historical code remain
-in the default build and pack surface exactly as recorded by the R3B read-only
-inventory.
+At its R3B-2A checkpoint, this work did not establish a core-only artifact.
+`tsconfig.json` compiled the existing source surface, and `package.json.files`
+included the existing `dist/packages` tree. Runnable Runtime and historical
+code remained in the default build and pack surface exactly as recorded by the
+R3B read-only inventory. PR #200 later narrowed the packed artifact without
+narrowing the TypeScript compile, as recorded by the independent R3B-2B
+post-merge closeout.
 
-This candidate does not add an artifact allowlist, import firewall, source
+The R3B-2A candidate did not add an artifact allowlist, import firewall, source
 package deletion, Runtime migration, workflow or Ruleset change, Node 20
 maintenance, provider/worker/workspace-write authority, or App Server live
-execution. Those boundaries require separate review and authorization.
+execution. The later R3B-2B artifact allowlist did not authorize the remaining
+boundaries.
 
 ## Independent Review And Finalization
 
@@ -111,7 +114,8 @@ cause remains a disclosed transient CI risk.
 
 R3B-2A is re-closed as
 `CLOSED_WITH_BOUNDED_DIAGNOSTICS_AND_DISCLOSED_TRANSIENT_CI_RISK` when the
-diagnostics re-closeout enters `main`. R3B-2B remains unauthorized and does not
-follow automatically. Its artifact allowlist, core-only packaging boundary,
-and later import-firewall work require a separate exact scope, review, and
-authorization.
+diagnostics re-closeout enters `main`. At that checkpoint, R3B-2B remained
+unauthorized and did not follow automatically. It was later scoped, reviewed,
+implemented, and closed independently through PR #200 and
+`R3B_2B_CORE_ONLY_ARTIFACT_POST_MERGE_CLOSEOUT.md`; that later closeout does not
+expand the bounded R3B-2A determinism claim.

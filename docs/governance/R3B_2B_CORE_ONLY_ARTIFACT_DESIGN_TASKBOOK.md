@@ -1,6 +1,6 @@
 ---
 title: R3B-2B Core-only Artifact Design Taskbook
-status: implementation_candidate_local_recloseout_passed
+status: closed
 owner: governance
 created: 2026-07-17
 last_verified: 2026-07-18
@@ -18,6 +18,10 @@ verified_by:
   - lifecycle audit closeout@74e090ca7597b66074a03c6682a763866012ec75
   - R3B-2B focused implementation rereview verdict PASS
   - strict TypeScript Program with types empty and skipLibCheck false
+  - pull-request-head@193faad7b3191147d8655a01e965b3a15848f5c8
+  - merge-commit@f046b98acda60128b19ef7127ef76c12a2772ab7
+  - pull-request-ci@29598071557
+  - main-ci@29599301824
 supersedes: []
 superseded_by: null
 applies_to:
@@ -34,7 +38,7 @@ applies_to:
 
 ```text
 task: R3B_2B_CORE_ONLY_ARTIFACT
-mode: LOCAL_IMPLEMENTATION_CANDIDATE_RECLOSED
+mode: MAINLINE_CLOSED
 repository: JENN2046/codex-router
 design_base: 751abc9019be047c30ca1a4a96c795835997e2ee
 design_branch: design/r3b2b-core-only-artifact
@@ -44,11 +48,11 @@ R3B_2B_revised_design_review: REOPEN
 R3B_2B_revision_2_design_review: REOPEN
 R3B_2B_revision_3_design: PASSED
 R3B_2B_revision_3_independent_review: PASS
-R3B_2B_implementation: LOCAL_CANDIDATE_RECLOSED
+R3B_2B_implementation: MERGED
 R3B_2B_implementation_independent_review: PASS
-branch_push: NOT_AUTHORIZED
-pull_request: NOT_AUTHORIZED
-merge: NOT_AUTHORIZED
+branch_push: COMPLETED
+pull_request: MERGED
+merge: COMPLETED
 release_deploy_publish: NOT_AUTHORIZED
 provider_execution: NOT_AUTHORIZED
 workspace_write_execution: NOT_AUTHORIZED
@@ -1253,7 +1257,7 @@ no-broad-authorization / sanitization / zero-call checks retained: PASS
 focused reviewer tests: PASS (15 tests)
 ```
 
-Current formal state:
+Local checkpoint formal state:
 
 ```text
 R3B-2A CLOSED
@@ -1265,6 +1269,35 @@ RELEASE / DEPLOY / PUBLISH NOT AUTHORIZED
 REAL PROVIDER / WORKSPACE-WRITE EXECUTION NOT AUTHORIZED
 ```
 
-This is a local candidate re-closeout, not a mainline, release, or publication
-closeout. Any push, PR, natural CI, merge, release, deploy, or publish step
-requires its own current authorization.
+At that checkpoint, this was a local candidate re-closeout rather than a
+mainline, release, or publication closeout. Each later push, PR, natural CI,
+merge, and governance-repair step received its own current authorization.
+
+## 20. Mainline Post-merge Closeout
+
+Jenn separately authorized branch delivery, PR #200 governance repair,
+structured unlock, the exact failed-job Merge Integrity rerun, and merge. PR
+#200 merged exact head `193faad7b3191147d8655a01e965b3a15848f5c8`
+into `main` as merge commit
+`f046b98acda60128b19ef7127ef76c12a2772ab7`.
+
+The Ready-state PR CI run `29598071557` and the merge-commit `main` CI run
+`29599301824` each completed `20/20 PASS`. The final Merge Integrity evaluation
+passed, the required context was successful, and the PR was `CLEAN / MERGEABLE`
+immediately before merge. The post-merge closeout is recorded separately in
+`R3B_2B_CORE_ONLY_ARTIFACT_POST_MERGE_CLOSEOUT.md`.
+
+Current formal state:
+
+```text
+R3B-2A CLOSED
+R3B-2B CLOSED
+ARTIFACT 17 RUNTIME / 15 DECLARATIONS / 35 ENTRIES
+FORMAL PACKAGE EXPORTS 5 UNCHANGED
+RELEASE / DEPLOY / PUBLISH NOT AUTHORIZED
+REAL PROVIDER / CODEX CLI / WORKSPACE-WRITE EXECUTION NOT AUTHORIZED
+```
+
+This closeout does not activate an R3B-2C or R3B-3 task. Dependency cleanup,
+further artifact decomposition, publication design, CI maintenance, and any
+capability expansion remain separate decisions requiring current authorization.

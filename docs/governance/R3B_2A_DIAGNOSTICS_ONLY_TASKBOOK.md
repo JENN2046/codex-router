@@ -371,7 +371,9 @@ R3B_2A_DIAGNOSTICS_ONLY_BLOCKED
 
 The original implementation authorization stopped after reporting either
 result and covered PR delivery plus natural CI only. Merge and re-closeout were
-later authorized separately as recorded above; R3B-2B remains unauthorized.
+later authorized separately as recorded above. At this diagnostics checkpoint,
+R3B-2B remained unauthorized; it was later authorized and closed independently
+through PR #200 and the R3B-2B post-merge closeout.
 
 R3B-2A may be considered for re-closeout only after a separately authorized
 delivery, natural CI evidence, and independent review. The determinism claim
