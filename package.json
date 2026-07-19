@@ -92,6 +92,7 @@
     "evidence:collect": "node --import tsx scripts/collect-evidence.ts",
     "test:package-consumer": "node --import tsx scripts/test-package-consumer.ts",
     "audit:clean-build-determinism": "node --import tsx scripts/run-clean-build-determinism-audit.ts",
+    "experiment:toolchain-stability": "node --import tsx scripts/run-toolchain-stability-experiment.ts",
     "test:coverage:authorization": "node --experimental-test-coverage --test-coverage-include=\"packages/authorization-kernel/src/**\" --test-coverage-branches=90 --import tsx --test tests/authorization-kernel.test.ts",
     "test:coverage:offline-execution-capsule": "node --experimental-test-coverage --test-coverage-include=\"packages/execution-capsule/src/**\" --test-coverage-branches=90 --import tsx --test tests/offline-execution-capsule.test.ts tests/offline-execution-capsule-fake-worker-input-gate.test.ts tests/offline-execution-capsule-fake-worker-output-gate.test.ts tests/offline-execution-capsule-review-closeout.test.ts",
     "test:coverage:preview": "node --experimental-test-coverage --test-coverage-include=\"packages/file-change-preview/src/**\" --test-coverage-branches=90 --import tsx --test tests/file-change-preview.test.ts",
@@ -108,6 +109,7 @@
   "devDependencies": {
     "@types/node": "^22.15.30",
     "tsx": "^4.19.3",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "typescript-5-9": "npm:typescript@5.9.3"
   }
 }

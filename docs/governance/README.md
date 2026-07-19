@@ -37,6 +37,9 @@ explicitly promotes them.
   reviewed R3B-2A baseline that removes validated stale `dist` output before
   build and compares dirty/empty build plus pack manifests; no core-only
   artifact claim.
+- [Node 22 patch stability Stage 1 experiment](TYPESCRIPT_TOOLCHAIN_STABILITY_EXPERIMENT.md):
+  compares exact Node 22.23.1 and 22.23.0 macOS compiler controls using only
+  the default stack, without retry or changes to the existing CI matrix.
 - [R3B-2A diagnostics-only re-closeout](R3B_2A_DIAGNOSTICS_ONLY_RECLOSEOUT.md):
   closes the diagnostic-observability gap with fixed stage/category labels,
   forbidden-field redaction, exact-head and post-merge CI evidence, and no
