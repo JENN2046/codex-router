@@ -338,6 +338,13 @@ ordinary `pull_request` workflow does not emit this context. A bare local
 invocation is only a non-applicable runner check unless a trusted event is
 explicitly simulated, and it cannot authorize merge.
 
+Policy outcome and workflow health are separate. A completed `blocked`
+evaluation publishes a failing exact-head `Merge Integrity` status without
+failing the trusted-base workflow CheckRun; malformed events, GitHub inventory
+errors, evaluation errors, and status-publication errors still fail the
+workflow. When exact-head facts and status publication remain available, the
+gate attempts to replace `pending` with a fail-closed exact-head status.
+
 Ruleset `19069032` now requires that exact context for `main`, with strict
 required-status semantics and no bypass actors. The required status accepts any
 publisher source and is safe only under the documented owner-equivalent
