@@ -214,6 +214,58 @@ test("state-sync display sync renders policy v2 content attestations", async () 
   assert.deepEqual(clean.changedPaths, []);
 });
 
+test("state-sync display sync updates the compact policy v2 current-state table", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-v2-compact-"));
+  await writePolicyV2DisplayFixture(cwd);
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    [
+      "# Current State",
+      "",
+      "CURRENT_STATE_RECORDED",
+      "",
+      "## Machine Authority",
+      "",
+      "| Field | Current value |",
+      "| --- | --- |",
+      "| Schema | `1` |",
+      "| Policy | `stale-policy` |",
+      "| Repository | `JENN2046/codex-router` |",
+      "| Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |",
+      "| Source tree digest | `ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff` |",
+      "| Target | `refs/heads/main` |",
+      "",
+      "## Active Product Boundary",
+      "",
+      "Compact policy-v2 prose must remain unchanged.",
+      ""
+    ].join("\n"),
+    "utf8"
+  );
+
+  const drift = await syncStateSyncDisplay(cwd);
+  assert.ok(drift.changedPaths.includes("docs/current/CURRENT_STATE.md"));
+
+  const written = await syncStateSyncDisplay(cwd, { write: true });
+  assert.ok(written.changedPaths.includes("docs/current/CURRENT_STATE.md"));
+
+  const currentState = await readFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    "utf8"
+  );
+  assert.match(currentState, /\| Schema \| `2` \|/);
+  assert.match(currentState, /\| Policy \| `state-sync-policy\.v2` \|/);
+  assert.match(
+    currentState,
+    new RegExp(`\\| Source tree digest \\| \`${CLAIM_DIGEST}\` \\|`)
+  );
+  assert.match(currentState, /Compact policy-v2 prose must remain unchanged\./);
+  assert.doesNotMatch(currentState, /Current branch/);
+
+  const clean = await syncStateSyncDisplay(cwd);
+  assert.deepEqual(clean.changedPaths, []);
+});
+
 test("state-sync display sync cleans volatile main pushed prose", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-volatile-"));
   await writeDisplayFixture(cwd, "state_only_pushed", "main");

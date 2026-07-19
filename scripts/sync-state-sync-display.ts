@@ -165,6 +165,13 @@ function updateDisplayFile(
 }
 
 function updateCurrentState(text: string, display: DisplayFields): string {
+  if (
+    display.policyVersion === "state-sync-policy.v2"
+    && standaloneLineIndex(text, "## Machine Authority") >= 0
+  ) {
+    return updateCompactPolicyV2CurrentState(text, display);
+  }
+
   let updated = text;
   updated = replaceTableField(updated, "Current branch", display.branch);
   updated = replaceTableField(updated, "Current head", display.currentHead);
@@ -247,6 +254,21 @@ function updateCurrentState(text: string, display: DisplayFields): string {
     renderCurrentStateAuditStatus(display)
   );
 
+  return updated;
+}
+
+function updateCompactPolicyV2CurrentState(
+  text: string,
+  display: DisplayFields
+): string {
+  let updated = text;
+  updated = replaceTableField(updated, "Schema", display.schemaVersion);
+  updated = replaceTableField(updated, "Policy", display.policyVersion);
+  updated = replaceTableField(
+    updated,
+    "Source tree digest",
+    display.sourceTreeDigestValue
+  );
   return updated;
 }
 
