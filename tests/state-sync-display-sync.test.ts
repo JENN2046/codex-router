@@ -234,6 +234,18 @@ test("state-sync display sync updates the compact policy v2 current-state table"
       "",
       "CURRENT_STATE_RECORDED",
       "",
+      "## Document Metadata",
+      "",
+      "| Field | Current value |",
+      "| --- | --- |",
+      "| Schema | `2` |",
+      "| Policy | `state-sync-policy.v2` |",
+      "| Repository | `JENN2046/codex-router-renamed` (`9876543210`) |",
+      "| Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |",
+      `| Source tree digest | \`${CLAIM_DIGEST}\` |`,
+      "| Target | `refs/heads/main` |",
+      "| Allowed events | local and push to the main target |",
+      "",
       "## Machine Authority",
       "",
       "| Field | Current value |",
@@ -264,26 +276,30 @@ test("state-sync display sync updates the compact policy v2 current-state table"
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
     "utf8"
   );
-  assert.match(currentState, /\| Schema \| `2` \|/);
-  assert.match(currentState, /\| Policy \| `state-sync-policy\.v2` \|/);
+  const machineAuthority = currentState.slice(
+    currentState.indexOf("## Machine Authority"),
+    currentState.indexOf("## Active Product Boundary")
+  );
+  assert.match(machineAuthority, /\| Schema \| `2` \|/);
+  assert.match(machineAuthority, /\| Policy \| `state-sync-policy\.v2` \|/);
   assert.match(
-    currentState,
+    machineAuthority,
     /\| Repository \| `JENN2046\/codex-router-renamed` \(`9876543210`\) \|/
   );
   assert.match(
-    currentState,
+    machineAuthority,
     /\| Source identity \| filtered Git tree digest \(`git-ls-tree-sha256`\) \|/
   );
   assert.match(
-    currentState,
+    machineAuthority,
     new RegExp(`\\| Source tree digest \\| \`${CLAIM_DIGEST}\` \\|`)
   );
-  assert.match(currentState, /\| Target \| `refs\/heads\/main` \|/);
+  assert.match(machineAuthority, /\| Target \| `refs\/heads\/main` \|/);
   assert.match(
-    currentState,
+    machineAuthority,
     /\| Allowed events \| local and push to the main target \|/
   );
-  assert.doesNotMatch(currentState, /local, pull request, and push/);
+  assert.doesNotMatch(machineAuthority, /local, pull request, and push/);
   assert.match(currentState, /Compact policy-v2 prose must remain unchanged\./);
   assert.doesNotMatch(currentState, /Current branch/);
 
@@ -292,7 +308,10 @@ test("state-sync display sync updates the compact policy v2 current-state table"
 
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
-    currentState.replace(/^\| Repository \|.*\r?\n/m, ""),
+    currentState.replace(
+      machineAuthority,
+      machineAuthority.replace(/^\| Repository \|.*\r?\n/m, "")
+    ),
     "utf8"
   );
   await assert.rejects(
@@ -302,7 +321,10 @@ test("state-sync display sync updates the compact policy v2 current-state table"
 
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
-    currentState.replace(/^\| Allowed events \|.*\r?\n/m, ""),
+    currentState.replace(
+      machineAuthority,
+      machineAuthority.replace(/^\| Allowed events \|.*\r?\n/m, "")
+    ),
     "utf8"
   );
   await assert.rejects(

@@ -282,32 +282,42 @@ function updateCompactPolicyV2CurrentState(
   if (display.targetRef === undefined) {
     throw new Error("Policy v2 compact display is missing target ref");
   }
+  const repositoryDisplay = display.repositoryDisplay;
+  const sourceIdentityDisplay = display.sourceIdentityDisplay;
+  const targetRef = display.targetRef;
+  const allowedEvents = display.allowedEvents;
 
-  let updated = text;
-  updated = replaceTableField(updated, "Schema", display.schemaVersion);
-  updated = replaceTableField(updated, "Policy", display.policyVersion);
-  updated = replacePlainTableField(
-    updated,
-    "Repository",
-    display.repositoryDisplay
+  return replaceMarkdownSection(
+    text,
+    "## Machine Authority",
+    (section) => {
+      let updated = section;
+      updated = replaceTableField(updated, "Schema", display.schemaVersion);
+      updated = replaceTableField(updated, "Policy", display.policyVersion);
+      updated = replacePlainTableField(
+        updated,
+        "Repository",
+        repositoryDisplay
+      );
+      updated = replacePlainTableField(
+        updated,
+        "Source identity",
+        sourceIdentityDisplay
+      );
+      updated = replaceTableField(
+        updated,
+        "Source tree digest",
+        display.sourceTreeDigestValue
+      );
+      updated = replaceTableField(updated, "Target", targetRef);
+      updated = replacePlainTableField(
+        updated,
+        "Allowed events",
+        allowedEvents
+      );
+      return updated;
+    }
   );
-  updated = replacePlainTableField(
-    updated,
-    "Source identity",
-    display.sourceIdentityDisplay
-  );
-  updated = replaceTableField(
-    updated,
-    "Source tree digest",
-    display.sourceTreeDigestValue
-  );
-  updated = replaceTableField(updated, "Target", display.targetRef);
-  updated = replacePlainTableField(
-    updated,
-    "Allowed events",
-    display.allowedEvents
-  );
-  return updated;
 }
 
 function formatPolicyV2AllowedEvents(claim: StateSyncPolicyV2Claim): string {
@@ -792,6 +802,35 @@ function replaceInSection(
   const before = text.slice(0, headingIndex);
   const section = text.slice(headingIndex);
   return before + replaceRequired(section, pattern, label, replacement);
+}
+
+function replaceMarkdownSection(
+  text: string,
+  heading: string,
+  replacement: (section: string) => string
+): string {
+  const headingIndex = standaloneLineIndex(text, heading);
+  if (headingIndex < 0) {
+    throw new Error(`State-sync display section not found: ${heading}`);
+  }
+
+  const headingLevel = heading.match(/^#+/)?.[0];
+  if (headingLevel === undefined) {
+    throw new Error(`State-sync display section heading is invalid: ${heading}`);
+  }
+
+  const nextHeadingPattern = new RegExp(
+    `^#{1,${headingLevel.length}} [^\\r\\n]+\\s*$`,
+    "gm"
+  );
+  nextHeadingPattern.lastIndex = headingIndex + heading.length;
+  const nextHeading = nextHeadingPattern.exec(text);
+  const sectionEnd = nextHeading?.index ?? text.length;
+  const section = text.slice(headingIndex, sectionEnd);
+
+  return text.slice(0, headingIndex)
+    + replacement(section)
+    + text.slice(sectionEnd);
 }
 
 function standaloneLineIndex(text: string, line: string): number {
