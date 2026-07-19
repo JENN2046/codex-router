@@ -1,6 +1,6 @@
 # TypeScript Toolchain Stability Experiment
 
-Status: active bounded experiment
+Status: closed as evidence; acceptance failed
 
 Scope: macOS compile stability only
 
@@ -80,3 +80,47 @@ the fixed-stack row passes, that result remains diagnostic and requires a
 separate root-cause decision. If no row fails, the incident remains a known
 intermittent risk; one green experiment run is evidence, not proof that the
 underlying flake is eliminated.
+
+## Closeout
+
+Disposition: `evidence_complete / acceptance_failed / no_mitigation_adopted`
+
+The first corrected-scanner run
+[`29675611204`](https://github.com/JENN2046/codex-router/actions/runs/29675611204)
+completed all five rows and 100 compiles successfully. It preceded the
+exact-head checkout correction, so it is preliminary stability evidence rather
+than exact-head acceptance evidence. The earlier run `29675348133` is excluded
+from signature comparisons because its scanner could discard a long-chunk
+stack-overflow signature before classifying the failure.
+
+The ready-for-review run
+[`29676098929`](https://github.com/JENN2046/codex-router/actions/runs/29676098929)
+then recorded one `typescript_maximum_call_stack` failure in the Node 22,
+TypeScript 6.0.3, default-stack row: 19/20 passed. The other four rows passed
+20/20. That run also preceded the exact-head checkout correction and remains
+supporting, not acceptance, evidence.
+
+PR review identified that the workflow had relied on checkout's pull-request
+merge ref. HEAD `418f820ed274c685f8d705a690fedd2197031556` corrected the workflow to
+checkout `github.event.pull_request.head.sha` and added a regression assertion.
+The exact-head run
+[`29676398234`](https://github.com/JENN2046/codex-router/actions/runs/29676398234)
+recorded one `typescript_maximum_call_stack` failure in the Node 22,
+TypeScript 5.9.3, default-stack row at iteration 15: 19/20 passed. The Node 20
+rows, Node 22 with TypeScript 6.0.3 at default stack, and the fixed-stack
+diagnostic row each passed 20/20. The unchanged full CI run
+[`29676398229`](https://github.com/JENN2046/codex-router/actions/runs/29676398229)
+passed all 20 jobs on the same exact head.
+
+These results fail the zero-crash acceptance rule and reproduce the bounded
+stack-overflow signature across both compiler versions on Node 22/macOS.
+Changing only the TypeScript version is therefore not an evidence-backed fix.
+The fixed-stack row remains diagnostic because it was not paired with a
+controlled root-cause proof and cannot authorize a permanent stack increase.
+
+No generic retry, `continue-on-error`, manual workflow rerun, runtime-matrix
+change, required-context change, permanent stack increase, merge, release,
+deploy, publish, or tag was used to obtain this closeout. PR #209 remains a
+draft evidence carrier. Any mitigation must be proposed independently and must
+retain consecutive crash-free compile acceptance plus the unchanged 20-job CI
+matrix.
