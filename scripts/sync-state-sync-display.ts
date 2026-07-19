@@ -49,6 +49,10 @@ interface DisplayFields {
   stateRecordMode: string;
   sourceTreeDigestAlgorithm: string;
   sourceTreeDigestValue: string;
+  allowedEvents?: string;
+  repositoryDisplay?: string;
+  sourceIdentityDisplay?: string;
+  targetRef?: string;
   statePathListHeading: string;
   strictStatePaths: string[];
   validatedSourceDivergenceExpectation: string;
@@ -136,6 +140,11 @@ function displayFieldsFromPolicyV2Claim(claim: StateSyncPolicyV2Claim): DisplayF
     stateRecordMode: "content attestation",
     sourceTreeDigestAlgorithm: claim.source.sourceTreeDigest.algorithm,
     sourceTreeDigestValue: claim.source.sourceTreeDigest.value,
+    allowedEvents: formatPolicyV2AllowedEvents(claim),
+    repositoryDisplay: formatPolicyV2Repository(claim),
+    sourceIdentityDisplay:
+      `filtered Git tree digest (\`${claim.source.sourceTreeDigest.algorithm}\`)`,
+    targetRef: formatPolicyV2TargetRef(claim),
     statePathListHeading: "Source digest excluded paths:",
     strictStatePaths: claim.source.sourceTreeDigest.excludedPaths,
     validatedSourceDivergenceExpectation:
@@ -165,6 +174,13 @@ function updateDisplayFile(
 }
 
 function updateCurrentState(text: string, display: DisplayFields): string {
+  if (
+    display.policyVersion === "state-sync-policy.v2"
+    && standaloneLineIndex(text, "## Machine Authority") >= 0
+  ) {
+    return updateCompactPolicyV2CurrentState(text, display);
+  }
+
   let updated = text;
   updated = replaceTableField(updated, "Current branch", display.branch);
   updated = replaceTableField(updated, "Current head", display.currentHead);
@@ -248,6 +264,97 @@ function updateCurrentState(text: string, display: DisplayFields): string {
   );
 
   return updated;
+}
+
+function updateCompactPolicyV2CurrentState(
+  text: string,
+  display: DisplayFields
+): string {
+  if (display.allowedEvents === undefined) {
+    throw new Error("Policy v2 compact display is missing allowed events");
+  }
+  if (display.repositoryDisplay === undefined) {
+    throw new Error("Policy v2 compact display is missing repository identity");
+  }
+  if (display.sourceIdentityDisplay === undefined) {
+    throw new Error("Policy v2 compact display is missing source identity");
+  }
+  if (display.targetRef === undefined) {
+    throw new Error("Policy v2 compact display is missing target ref");
+  }
+  const repositoryDisplay = display.repositoryDisplay;
+  const sourceIdentityDisplay = display.sourceIdentityDisplay;
+  const targetRef = display.targetRef;
+  const allowedEvents = display.allowedEvents;
+
+  return replaceMarkdownSection(
+    text,
+    "## Machine Authority",
+    (section) => {
+      let updated = section;
+      updated = replaceTableField(updated, "Schema", display.schemaVersion);
+      updated = replaceTableField(updated, "Policy", display.policyVersion);
+      updated = replacePlainTableField(
+        updated,
+        "Repository",
+        repositoryDisplay
+      );
+      updated = replacePlainTableField(
+        updated,
+        "Source identity",
+        sourceIdentityDisplay
+      );
+      updated = replaceTableField(
+        updated,
+        "Source tree digest",
+        display.sourceTreeDigestValue
+      );
+      updated = replaceTableField(updated, "Target", targetRef);
+      updated = replacePlainTableField(
+        updated,
+        "Allowed events",
+        allowedEvents
+      );
+      return updated;
+    }
+  );
+}
+
+function formatPolicyV2AllowedEvents(claim: StateSyncPolicyV2Claim): string {
+  const allowed = new Set(claim.allowedContexts.map((context) => context.event));
+  const labels = (["local", "pull_request", "push"] as const)
+    .filter((event) => allowed.has(event))
+    .map((event) => event === "pull_request" ? "pull request" : event);
+
+  if (labels.length === 0) {
+    throw new Error("Policy v2 claim has no allowed event labels");
+  }
+  if (labels.length === 1) {
+    return `${labels[0]} to the main target`;
+  }
+  if (labels.length === 2) {
+    return `${labels[0]} and ${labels[1]} to the main target`;
+  }
+  return `${labels.slice(0, -1).join(", ")}, and ${
+    labels.at(-1)
+  } to the main target`;
+}
+
+function formatPolicyV2Repository(claim: StateSyncPolicyV2Claim): string {
+  const fullName = `\`${claim.repository.fullName}\``;
+  return claim.repository.id === undefined
+    ? fullName
+    : `${fullName} (\`${claim.repository.id}\`)`;
+}
+
+function formatPolicyV2TargetRef(claim: StateSyncPolicyV2Claim): string {
+  const targetRefs = new Set(
+    claim.allowedContexts.map((context) => context.targetRef)
+  );
+  if (targetRefs.size !== 1) {
+    throw new Error("Policy v2 claim does not have one compact target ref");
+  }
+  return [...targetRefs][0]!;
 }
 
 function updateAgentBoardFields(text: string, display: DisplayFields): string {
@@ -498,6 +605,22 @@ function replaceTableField(text: string, field: string, value: string): string {
   );
 }
 
+function replacePlainTableField(
+  text: string,
+  field: string,
+  value: string
+): string {
+  const pattern = new RegExp(
+    `(\\| ${escapeRegExp(field)} \\| )[^|\\r\\n]+( \\|)`
+  );
+  return replaceRequired(
+    text,
+    pattern,
+    `$plain-table:${field}`,
+    (_match, start, end) => `${start}${value}${end}`
+  );
+}
+
 function replaceBulletCode(text: string, label: string, value: string): string {
   const pattern = new RegExp(`(- ${escapeRegExp(label)}: \`)[^\`\\r\\n]*(\`)`);
   return replaceRequired(text, pattern, `$bullet:${label}`, (_match, start, end) =>
@@ -679,6 +802,35 @@ function replaceInSection(
   const before = text.slice(0, headingIndex);
   const section = text.slice(headingIndex);
   return before + replaceRequired(section, pattern, label, replacement);
+}
+
+function replaceMarkdownSection(
+  text: string,
+  heading: string,
+  replacement: (section: string) => string
+): string {
+  const headingIndex = standaloneLineIndex(text, heading);
+  if (headingIndex < 0) {
+    throw new Error(`State-sync display section not found: ${heading}`);
+  }
+
+  const headingLevel = heading.match(/^#+/)?.[0];
+  if (headingLevel === undefined) {
+    throw new Error(`State-sync display section heading is invalid: ${heading}`);
+  }
+
+  const nextHeadingPattern = new RegExp(
+    `^#{1,${headingLevel.length}} [^\\r\\n]+\\s*$`,
+    "gm"
+  );
+  nextHeadingPattern.lastIndex = headingIndex + heading.length;
+  const nextHeading = nextHeadingPattern.exec(text);
+  const sectionEnd = nextHeading?.index ?? text.length;
+  const section = text.slice(headingIndex, sectionEnd);
+
+  return text.slice(0, headingIndex)
+    + replacement(section)
+    + text.slice(sectionEnd);
 }
 
 function standaloneLineIndex(text: string, line: string): number {

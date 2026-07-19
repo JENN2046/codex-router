@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `7d592703196c95e595a84907757b03ea53116d6ffdf04945eb1302a97ef645e2` |
+| Source tree digest | `b0e9bd9dace3495c826ff0df9a4bbefb9be929012b49eea87836008e3d43a72a` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -191,6 +191,41 @@ artifact. Its final Ready-state CI and merge-commit main CI each completed all
 dependency cleanup, Runtime deletion, and any new capability phase remain
 unauthorized.
 
+## Post-R3B CI Maintenance
+
+PR #207 merged the reviewed GitHub Actions runtime maintenance at merge commit
+`4135186f31410d0ac754ade863512c9f9cf547df`. The pinned `checkout`,
+`setup-node`, `upload-artifact`, and `download-artifact` implementations now
+use their Node 24 action runtimes while the project validation matrix remains
+Node 20 and Node 22. This was CI maintenance only; it did not change the
+package surface, runtime capability, Merge Integrity ruleset, release posture,
+or execution authorization.
+
+The first post-merge run `29655288120` encountered one TypeScript compiler
+`Maximum call stack size exceeded` failure during macOS / Node 22 build. The
+merge commit and reviewed PR head have identical Git trees, and the same job
+had already passed for the reviewed head. Jenn authorized one complete rerun;
+attempt 2 completed all 20 jobs successfully with zero annotations, including
+State Sync Audit and Execution Boundary Audit. The isolated first-attempt
+failure is retained as a transient compiler/runner risk rather than evidence
+of an action-runtime or source regression.
+
+## Compact State Display Maintenance
+
+PR #208 updates the optional compact policy-v2 display synchronizer so every
+field in `## Machine Authority` is derived from the structured claim. It
+synchronizes schema, policy, repository identity, source identity, filtered
+tree digest, target, and allowed events; missing required rows fail closed.
+
+Review-driven regression coverage proves that narrowed contexts and changed
+repository/source metadata cannot leave stale authority rows. Compact updates
+are also bounded to the `## Machine Authority` Markdown section, so same-named
+table rows elsewhere in `CURRENT_STATE.md` cannot intercept an update or make
+`--check` report a false clean result. The legacy display path remains
+unchanged. This maintenance does not expand runtime capability, execution
+authorization, package surface, release posture, or the Merge Integrity
+ruleset.
+
 ## Historical Routes
 
 Phase-numbered runtime work, DGP, provider execution, Desktop host, VCPToolBox,
@@ -304,16 +339,18 @@ Merge-governance status:
 R3B status:
 `R3B-1 COMPLETE / R3B-2A CLOSED_WITH_BOUNDED_DIAGNOSTICS_AND_DISCLOSED_TRANSIENT_CI_RISK / R3B-2B CLOSED`.
 
-R3B-2B is closed by PR #200 and the reviewed post-merge record. No R3B-2C or
-R3B-3 task is active. Dependency cleanup, further artifact decomposition,
-publication design, CI maintenance, repository migration, and Runtime deletion
-remain separate decisions and do not follow automatically.
+R3B-2B is closed by PR #200 and the reviewed post-merge record. The scoped
+GitHub Actions Node 24 runtime maintenance is closed by PR #207 and its complete
+post-merge rerun. No R3B-2C or R3B-3 task is active. Dependency cleanup,
+further artifact decomposition, publication design, additional CI policy
+changes, repository migration, and Runtime deletion remain separate decisions
+and do not follow automatically.
 
 Do not use R3A closeout or R3B inventory to modify ruleset `19069032`, add CI
-required contexts, bind a GitHub App, add a merge bot or timer, address Node 20
-maintenance, fix unrelated macOS CI, add ADR 012, implement a real worker or
-remote CAS, start new App Server execution probes, enable workspace-write, or
-grant any live execution authority.
+required contexts, bind a GitHub App, add a merge bot or timer, change the Node
+20/22 project runtime matrix, generalize transient-CI retries, add ADR 012,
+implement a real worker or remote CAS, start new App Server execution probes,
+enable workspace-write, or grant any live execution authority.
 
 
 ## Historical Audit Compatibility

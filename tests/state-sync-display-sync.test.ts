@@ -11,6 +11,12 @@ const CLAIM_SOURCE_COMMIT = "abc1234";
 const CLAIM_DIGEST =
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
+interface PolicyV2ClaimFixtureOptions {
+  allowedEvents?: Array<"local" | "pull_request" | "push">;
+  repositoryFullName?: string;
+  repositoryId?: string;
+}
+
 test("state-sync display sync reports optional display drift, writes fields, then becomes idempotent", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-sync-"));
   await writeDisplayFixture(cwd, "state_only_pushed");
@@ -214,6 +220,119 @@ test("state-sync display sync renders policy v2 content attestations", async () 
   assert.deepEqual(clean.changedPaths, []);
 });
 
+test("state-sync display sync updates the compact policy v2 current-state table", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-v2-compact-"));
+  await writePolicyV2DisplayFixture(cwd, {
+    allowedEvents: ["local", "push"],
+    repositoryFullName: "JENN2046/codex-router-renamed",
+    repositoryId: "9876543210"
+  });
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    [
+      "# Current State",
+      "",
+      "CURRENT_STATE_RECORDED",
+      "",
+      "## Document Metadata",
+      "",
+      "| Field | Current value |",
+      "| --- | --- |",
+      "| Schema | `2` |",
+      "| Policy | `state-sync-policy.v2` |",
+      "| Repository | `JENN2046/codex-router-renamed` (`9876543210`) |",
+      "| Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |",
+      `| Source tree digest | \`${CLAIM_DIGEST}\` |`,
+      "| Target | `refs/heads/main` |",
+      "| Allowed events | local and push to the main target |",
+      "",
+      "## Machine Authority",
+      "",
+      "| Field | Current value |",
+      "| --- | --- |",
+      "| Schema | `1` |",
+      "| Policy | `stale-policy` |",
+      "| Repository | `JENN2046/codex-router` |",
+      "| Source identity | stale source identity |",
+      "| Source tree digest | `ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff` |",
+      "| Target | `refs/heads/release` |",
+      "| Allowed events | local, pull request, and push to the main target |",
+      "",
+      "## Active Product Boundary",
+      "",
+      "Compact policy-v2 prose must remain unchanged.",
+      ""
+    ].join("\n"),
+    "utf8"
+  );
+
+  const drift = await syncStateSyncDisplay(cwd);
+  assert.ok(drift.changedPaths.includes("docs/current/CURRENT_STATE.md"));
+
+  const written = await syncStateSyncDisplay(cwd, { write: true });
+  assert.ok(written.changedPaths.includes("docs/current/CURRENT_STATE.md"));
+
+  const currentState = await readFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    "utf8"
+  );
+  const machineAuthority = currentState.slice(
+    currentState.indexOf("## Machine Authority"),
+    currentState.indexOf("## Active Product Boundary")
+  );
+  assert.match(machineAuthority, /\| Schema \| `2` \|/);
+  assert.match(machineAuthority, /\| Policy \| `state-sync-policy\.v2` \|/);
+  assert.match(
+    machineAuthority,
+    /\| Repository \| `JENN2046\/codex-router-renamed` \(`9876543210`\) \|/
+  );
+  assert.match(
+    machineAuthority,
+    /\| Source identity \| filtered Git tree digest \(`git-ls-tree-sha256`\) \|/
+  );
+  assert.match(
+    machineAuthority,
+    new RegExp(`\\| Source tree digest \\| \`${CLAIM_DIGEST}\` \\|`)
+  );
+  assert.match(machineAuthority, /\| Target \| `refs\/heads\/main` \|/);
+  assert.match(
+    machineAuthority,
+    /\| Allowed events \| local and push to the main target \|/
+  );
+  assert.doesNotMatch(machineAuthority, /local, pull request, and push/);
+  assert.match(currentState, /Compact policy-v2 prose must remain unchanged\./);
+  assert.doesNotMatch(currentState, /Current branch/);
+
+  const clean = await syncStateSyncDisplay(cwd);
+  assert.deepEqual(clean.changedPaths, []);
+
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    currentState.replace(
+      machineAuthority,
+      machineAuthority.replace(/^\| Repository \|.*\r?\n/m, "")
+    ),
+    "utf8"
+  );
+  await assert.rejects(
+    syncStateSyncDisplay(cwd),
+    /State-sync display field not found: \$plain-table:Repository/
+  );
+
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    currentState.replace(
+      machineAuthority,
+      machineAuthority.replace(/^\| Allowed events \|.*\r?\n/m, "")
+    ),
+    "utf8"
+  );
+  await assert.rejects(
+    syncStateSyncDisplay(cwd),
+    /State-sync display field not found: \$plain-table:Allowed events/
+  );
+});
+
 test("state-sync display sync cleans volatile main pushed prose", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-volatile-"));
   await writeDisplayFixture(cwd, "state_only_pushed", "main");
@@ -401,10 +520,13 @@ async function writeDisplayClaim(
   );
 }
 
-async function writePolicyV2DisplayFixture(cwd: string): Promise<void> {
+async function writePolicyV2DisplayFixture(
+  cwd: string,
+  options?: PolicyV2ClaimFixtureOptions
+): Promise<void> {
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
   await mkdir(join(cwd, ".agent_board"), { recursive: true });
-  await writePolicyV2Claim(cwd);
+  await writePolicyV2Claim(cwd, options);
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
     staleCurrentState()
@@ -432,14 +554,25 @@ async function writePolicyV2DisplayFixture(cwd: string): Promise<void> {
   }
 }
 
-async function writePolicyV2Claim(cwd: string): Promise<void> {
+async function writePolicyV2Claim(
+  cwd: string,
+  options: PolicyV2ClaimFixtureOptions = {}
+): Promise<void> {
+  const allowedEvents = options.allowedEvents ?? [
+    "local",
+    "pull_request",
+    "push"
+  ];
   await writeFile(
     join(cwd, "docs", "current", "state-sync-record.json"),
     JSON.stringify({
       schemaVersion: 2,
       policyVersion: "state-sync-policy.v2",
       repository: {
-        fullName: "JENN2046/codex-router"
+        fullName: options.repositoryFullName ?? "JENN2046/codex-router",
+        ...(options.repositoryId === undefined
+          ? {}
+          : { id: options.repositoryId })
       },
       source: {
         sourceTreeDigest: {
@@ -448,20 +581,10 @@ async function writePolicyV2Claim(cwd: string): Promise<void> {
           excludedPaths: policyV2SourceTreeDigestExcludedPaths()
         }
       },
-      allowedContexts: [
-        {
-          event: "local",
-          targetRef: "refs/heads/main"
-        },
-        {
-          event: "pull_request",
-          targetRef: "refs/heads/main"
-        },
-        {
-          event: "push",
-          targetRef: "refs/heads/main"
-        }
-      ]
+      allowedContexts: allowedEvents.map((event) => ({
+        event,
+        targetRef: "refs/heads/main"
+      }))
     }, null, 2)
   );
 }
