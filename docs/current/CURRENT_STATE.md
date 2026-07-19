@@ -239,6 +239,25 @@ unchanged. This maintenance does not expand runtime capability, execution
 authorization, package surface, release posture, or the Merge Integrity
 ruleset.
 
+## Merge Integrity Result Semantics Maintenance
+
+PR #212 merged the reviewed result-semantics implementation head
+`b8f1f8d7268089cd40ea7fddffd5668385582c99` into `main` as merge commit
+`6826b4620e94f1e496c2fcf8120fe12a94af93b9`. Its Ready-state CI run
+`29685974361` and post-merge `main` CI run `29686550618` each completed all 20
+jobs successfully. The final pre-merge Merge Integrity evaluation also passed.
+
+The maintenance keeps the exact-head `Merge Integrity` context fail closed
+while making a completed policy-blocked decision observably distinct from a
+workflow operational failure. Ruleset `19069032`, structured lock and unlock
+semantics, event triggers, workflow permissions, and the ordinary CI matrix
+remain unchanged. The maintenance line is closed by
+`docs/governance/MERGE_INTEGRITY_RESULT_SEMANTICS_POST_MERGE_CLOSEOUT.md`.
+
+Draft PR #209 and draft PR #211 remain evidence carriers for the separate
+macOS Node 22 TypeScript compiler-stack investigation. This closeout does not
+promote, rerun, merge, or otherwise change either draft.
+
 ## Historical Routes
 
 Phase-numbered runtime work, DGP, provider execution, Desktop host, VCPToolBox,
@@ -361,10 +380,12 @@ R3B status:
 
 R3B-2B is closed by PR #200 and the reviewed post-merge record. The scoped
 GitHub Actions Node 24 runtime maintenance is closed by PR #207 and its complete
-post-merge rerun. No R3B-2C or R3B-3 task is active. Dependency cleanup,
-further artifact decomposition, publication design, additional CI policy
-changes, repository migration, and Runtime deletion remain separate decisions
-and do not follow automatically.
+post-merge rerun. Merge Integrity result-semantics maintenance is closed by PR
+#212 and its reviewed post-merge record. No R3B-2C, R3B-3, or further Merge
+Integrity maintenance task is active. Dependency cleanup, further artifact
+decomposition, publication design, additional CI policy changes, repository
+migration, and Runtime deletion remain separate decisions and do not follow
+automatically.
 
 Do not use R3A closeout or R3B inventory to modify ruleset `19069032`, add CI
 required contexts, bind a GitHub App, add a merge bot or timer, change the Node
