@@ -157,6 +157,19 @@ export type MergeIntegrityGateRun =
 
 type FetchLike = typeof fetch;
 
+export interface MergeIntegrityGateOptions {
+  eventName: string;
+  token: string;
+  allowedApprovers: string[];
+  apiUrl?: string;
+  fetchImpl?: FetchLike;
+}
+
+export interface MergeIntegrityCommandRun {
+  run: MergeIntegrityGateRun;
+  output: string;
+}
+
 export function isMergeLockProtectedPath(path: string): boolean {
   return PROTECTED_EXACT_PATHS.has(path)
     || PROTECTED_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
@@ -392,13 +405,7 @@ export async function publishMergeIntegrityStatus(
 
 export async function runMergeIntegrityGate(
   event: unknown,
-  options: {
-    eventName: string;
-    token: string;
-    allowedApprovers: string[];
-    apiUrl?: string;
-    fetchImpl?: FetchLike;
-  }
+  options: MergeIntegrityGateOptions
 ): Promise<MergeIntegrityGateRun> {
   if (!isMergeIntegrityEventName(options.eventName)) {
     return { mode: "not_applicable", reason: "event" };
@@ -1016,6 +1023,19 @@ function formatResult(result: MergeIntegrityResult): string {
   return lines.join("\n");
 }
 
+export async function runMergeIntegrityCommand(
+  event: unknown,
+  options: MergeIntegrityGateOptions
+): Promise<MergeIntegrityCommandRun> {
+  const run = await runMergeIntegrityGate(event, options);
+  return {
+    run,
+    output: run.mode === "not_applicable"
+      ? `Merge integrity gate\nstatus: passed\nreason: not_applicable_${run.reason}`
+      : formatResult(run.result)
+  };
+}
+
 export function isMergeIntegrityEventName(value: string): boolean {
   return value === "pull_request_target" || value === "issue_comment";
 }
@@ -1033,7 +1053,7 @@ async function main(): Promise<void> {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
-  const run = await runMergeIntegrityGate(event, {
+  const command = await runMergeIntegrityCommand(event, {
     eventName,
     token: process.env.GITHUB_TOKEN ?? "",
     allowedApprovers,
@@ -1041,14 +1061,7 @@ async function main(): Promise<void> {
       ? {}
       : { apiUrl: process.env.GITHUB_API_URL })
   });
-  if (run.mode === "not_applicable") {
-    console.log(`Merge integrity gate\nstatus: passed\nreason: not_applicable_${run.reason}`);
-    return;
-  }
-  console.log(formatResult(run.result));
-  if (run.result.status !== "passed") {
-    process.exitCode = 1;
-  }
+  console.log(command.output);
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

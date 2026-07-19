@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `5b6adb192e54fa1abbfbd361627064e3e601ee2954cbc8ad09122e8b2df8dd0d` |
+| Source tree digest | `41cda81fd2950a2f870905304c45954095a1da5948a2c4a08f107010f3ca21d3` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -337,6 +337,13 @@ commit status to the exact current PR head with only `statuses: write`; the
 ordinary `pull_request` workflow does not emit this context. A bare local
 invocation is only a non-applicable runner check unless a trusted event is
 explicitly simulated, and it cannot authorize merge.
+
+Policy outcome and workflow health are separate. A completed `blocked`
+evaluation publishes a failing exact-head `Merge Integrity` status without
+failing the trusted-base workflow CheckRun; malformed events, GitHub inventory
+errors, evaluation errors, and status-publication errors still fail the
+workflow. When exact-head facts and status publication remain available, the
+gate attempts to replace `pending` with a fail-closed exact-head status.
 
 Ruleset `19069032` now requires that exact context for `main`, with strict
 required-status semantics and no bypass actors. The required status accepts any

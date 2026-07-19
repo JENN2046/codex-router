@@ -3,7 +3,7 @@ title: Merge Integrity Gate
 status: active
 owner: governance
 created: 2026-07-16
-last_verified: 2026-07-17
+last_verified: 2026-07-19
 verified_by:
   - node --import tsx --test tests/merge-integrity-check.test.ts
   - npm run typecheck
@@ -165,6 +165,17 @@ or executes the PR head in the privileged context.
 The job first publishes `pending`, then `success` or `failure`, to the refreshed
 exact PR head. It is named `Merge Integrity Evaluation`, keeping the commit
 status context distinct from the workflow check name.
+
+An evaluated policy result and an operational workflow result use separate
+channels. A `blocked` policy result is a completed evaluation: the command
+publishes `failure` to the exact PR-head `Merge Integrity` status and then exits
+successfully, so an expected authorization denial does not mark the trusted
+base SHA as a runner failure. Event parsing or PR-fact resolution errors still
+reject the command and fail the workflow. GitHub inventory, evaluation, or
+status-publication errors also reject the command; when exact-head facts and
+status publication remain available, the gate attempts to replace `pending`
+with a fail-closed status. The ruleset therefore continues to block the PR head
+while the workflow conclusion reports whether evaluation itself completed.
 
 R3A-1 was a bootstrap change: until it entered the trusted base, the existing
 base validator could not enforce the new metadata schema against its own PR.

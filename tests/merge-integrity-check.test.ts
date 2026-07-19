@@ -12,6 +12,7 @@ import {
   MERGE_LOCK_PROTECTED_PATHS,
   publishMergeIntegrityStatus,
   resolvePullRequestEventFacts,
+  runMergeIntegrityCommand,
   runMergeIntegrityGate,
   type MergeAuthorization,
   type MergeIntegrityComment,
@@ -518,10 +519,10 @@ test("merge integrity publishes a sanitized status to the exact PR head", async 
   });
 });
 
-test("comment deletion re-evaluates current PR, file, and empty comment inventories", async () => {
+test("policy-blocked command completes after publishing exact-head failure status", async () => {
   const lock = mergeLock();
   const requests: Array<{ url: string; method: string; body?: unknown }> = [];
-  const run = await runMergeIntegrityGate(issueCommentEvent(), {
+  const command = await runMergeIntegrityCommand(issueCommentEvent(), {
     eventName: "issue_comment",
     token: "token-for-test",
     allowedApprovers: ["JENN2046"],
@@ -552,8 +553,13 @@ test("comment deletion re-evaluates current PR, file, and empty comment inventor
     }) as typeof fetch
   });
 
-  assert.equal(run.mode, "evaluated");
-  assert.equal(run.mode === "evaluated" && run.result.reason, "merge_lock_active");
+  assert.equal(command.run.mode, "evaluated");
+  assert.equal(
+    command.run.mode === "evaluated" && command.run.result.reason,
+    "merge_lock_active"
+  );
+  assert.match(command.output, /status: blocked/u);
+  assert.match(command.output, /reason: merge_lock_active/u);
   assert.deepEqual(
     requests.filter((request) => request.method === "POST").map((request) => request.body),
     [
@@ -571,10 +577,10 @@ test("comment deletion re-evaluates current PR, file, and empty comment inventor
   );
 });
 
-test("inventory errors replace pending with a fail-closed status", async () => {
+test("operational inventory errors reject after publishing fail-closed status", async () => {
   const states: string[] = [];
   await assert.rejects(
-    runMergeIntegrityGate(event("Ready for review."), {
+    runMergeIntegrityCommand(event("Ready for review."), {
       eventName: "pull_request_target",
       token: "token-for-test",
       allowedApprovers: ["JENN2046"],
@@ -589,6 +595,27 @@ test("inventory errors replace pending with a fail-closed status", async () => {
     /github_inventory_failed_status_403/
   );
   assert.deepEqual(states, ["pending", "failure"]);
+});
+
+test("operational status-publication errors reject and retry fail closed", async () => {
+  const states: string[] = [];
+  await assert.rejects(
+    runMergeIntegrityCommand(event("Ready for review."), {
+      eventName: "pull_request_target",
+      token: "token-for-test",
+      allowedApprovers: ["JENN2046"],
+      fetchImpl: (async (_url, init) => {
+        if ((init?.method ?? "GET") === "POST") {
+          const state = (JSON.parse(String(init?.body)) as { state: string }).state;
+          states.push(state);
+          return new Response("{}", { status: state === "pending" ? 201 : 503 });
+        }
+        return new Response(JSON.stringify([{ filename: "README.md" }]));
+      }) as typeof fetch
+    }),
+    /github_commit_status_failed_status_503/
+  );
+  assert.deepEqual(states, ["pending", "success", "failure"]);
 });
 
 test("CI hardening remains pinned and the trusted gate permissions stay minimal", async () => {
