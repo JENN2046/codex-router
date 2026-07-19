@@ -45,6 +45,9 @@ explicitly promotes them.
   closes the reviewed five-export artifact decomposition at 17 runtime files,
   15 declarations, and 35 packed entries while retaining release, provider,
   workspace-write, and capability-expansion prohibitions.
+- [macOS Node 22 TypeScript compiler-stack mitigation proposal](MACOS_NODE22_TYPESCRIPT_MITIGATION_PROPOSAL.md):
+  proposal-only cross-version evidence, Node/V8 isolation order, consecutive
+  compile acceptance, and explicit retry, stack, matrix, and delivery limits.
 - [glossary](GLOSSARY.md): shared governance terminology.
 - [App Server file-change governance runbook](runbooks/CODEX_APP_SERVER_FILE_CHANGE_GOVERNANCE.md):
   deterministic offline acceptance and the explicit live-acceptance stop.
