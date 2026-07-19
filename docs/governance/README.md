@@ -37,6 +37,9 @@ explicitly promotes them.
   reviewed R3B-2A baseline that removes validated stale `dist` output before
   build and compares dirty/empty build plus pack manifests; no core-only
   artifact claim.
+- [TypeScript toolchain stability experiment](TYPESCRIPT_TOOLCHAIN_STABILITY_EXPERIMENT.md):
+  samples bounded macOS Node 20/22 compiler controls without adding retry or
+  weakening the existing CI matrix.
 - [R3B-2A diagnostics-only re-closeout](R3B_2A_DIAGNOSTICS_ONLY_RECLOSEOUT.md):
   closes the diagnostic-observability gap with fixed stage/category labels,
   forbidden-field redaction, exact-head and post-merge CI evidence, and no
