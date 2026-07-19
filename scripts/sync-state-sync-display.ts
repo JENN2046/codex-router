@@ -50,6 +50,7 @@ interface DisplayFields {
   sourceTreeDigestAlgorithm: string;
   sourceTreeDigestValue: string;
   allowedEvents?: string;
+  repositoryDisplay?: string;
   statePathListHeading: string;
   strictStatePaths: string[];
   validatedSourceDivergenceExpectation: string;
@@ -138,6 +139,7 @@ function displayFieldsFromPolicyV2Claim(claim: StateSyncPolicyV2Claim): DisplayF
     sourceTreeDigestAlgorithm: claim.source.sourceTreeDigest.algorithm,
     sourceTreeDigestValue: claim.source.sourceTreeDigest.value,
     allowedEvents: formatPolicyV2AllowedEvents(claim),
+    repositoryDisplay: formatPolicyV2Repository(claim),
     statePathListHeading: "Source digest excluded paths:",
     strictStatePaths: claim.source.sourceTreeDigest.excludedPaths,
     validatedSourceDivergenceExpectation:
@@ -266,10 +268,18 @@ function updateCompactPolicyV2CurrentState(
   if (display.allowedEvents === undefined) {
     throw new Error("Policy v2 compact display is missing allowed events");
   }
+  if (display.repositoryDisplay === undefined) {
+    throw new Error("Policy v2 compact display is missing repository identity");
+  }
 
   let updated = text;
   updated = replaceTableField(updated, "Schema", display.schemaVersion);
   updated = replaceTableField(updated, "Policy", display.policyVersion);
+  updated = replacePlainTableField(
+    updated,
+    "Repository",
+    display.repositoryDisplay
+  );
   updated = replaceTableField(
     updated,
     "Source tree digest",
@@ -301,6 +311,13 @@ function formatPolicyV2AllowedEvents(claim: StateSyncPolicyV2Claim): string {
   return `${labels.slice(0, -1).join(", ")}, and ${
     labels.at(-1)
   } to the main target`;
+}
+
+function formatPolicyV2Repository(claim: StateSyncPolicyV2Claim): string {
+  const fullName = `\`${claim.repository.fullName}\``;
+  return claim.repository.id === undefined
+    ? fullName
+    : `${fullName} (\`${claim.repository.id}\`)`;
 }
 
 function updateAgentBoardFields(text: string, display: DisplayFields): string {

@@ -11,6 +11,12 @@ const CLAIM_SOURCE_COMMIT = "abc1234";
 const CLAIM_DIGEST =
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
+interface PolicyV2ClaimFixtureOptions {
+  allowedEvents?: Array<"local" | "pull_request" | "push">;
+  repositoryFullName?: string;
+  repositoryId?: string;
+}
+
 test("state-sync display sync reports optional display drift, writes fields, then becomes idempotent", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-sync-"));
   await writeDisplayFixture(cwd, "state_only_pushed");
@@ -216,7 +222,11 @@ test("state-sync display sync renders policy v2 content attestations", async () 
 
 test("state-sync display sync updates the compact policy v2 current-state table", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-v2-compact-"));
-  await writePolicyV2DisplayFixture(cwd, ["local", "push"]);
+  await writePolicyV2DisplayFixture(cwd, {
+    allowedEvents: ["local", "push"],
+    repositoryFullName: "JENN2046/codex-router-renamed",
+    repositoryId: "9876543210"
+  });
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
     [
@@ -258,6 +268,10 @@ test("state-sync display sync updates the compact policy v2 current-state table"
   assert.match(currentState, /\| Policy \| `state-sync-policy\.v2` \|/);
   assert.match(
     currentState,
+    /\| Repository \| `JENN2046\/codex-router-renamed` \(`9876543210`\) \|/
+  );
+  assert.match(
+    currentState,
     new RegExp(`\\| Source tree digest \\| \`${CLAIM_DIGEST}\` \\|`)
   );
   assert.match(
@@ -270,6 +284,16 @@ test("state-sync display sync updates the compact policy v2 current-state table"
 
   const clean = await syncStateSyncDisplay(cwd);
   assert.deepEqual(clean.changedPaths, []);
+
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    currentState.replace(/^\| Repository \|.*\r?\n/m, ""),
+    "utf8"
+  );
+  await assert.rejects(
+    syncStateSyncDisplay(cwd),
+    /State-sync display field not found: \$plain-table:Repository/
+  );
 
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
@@ -471,11 +495,11 @@ async function writeDisplayClaim(
 
 async function writePolicyV2DisplayFixture(
   cwd: string,
-  allowedEvents?: Array<"local" | "pull_request" | "push">
+  options?: PolicyV2ClaimFixtureOptions
 ): Promise<void> {
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
   await mkdir(join(cwd, ".agent_board"), { recursive: true });
-  await writePolicyV2Claim(cwd, allowedEvents);
+  await writePolicyV2Claim(cwd, options);
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
     staleCurrentState()
@@ -505,19 +529,23 @@ async function writePolicyV2DisplayFixture(
 
 async function writePolicyV2Claim(
   cwd: string,
-  allowedEvents: Array<"local" | "pull_request" | "push"> = [
+  options: PolicyV2ClaimFixtureOptions = {}
+): Promise<void> {
+  const allowedEvents = options.allowedEvents ?? [
     "local",
     "pull_request",
     "push"
-  ]
-): Promise<void> {
+  ];
   await writeFile(
     join(cwd, "docs", "current", "state-sync-record.json"),
     JSON.stringify({
       schemaVersion: 2,
       policyVersion: "state-sync-policy.v2",
       repository: {
-        fullName: "JENN2046/codex-router"
+        fullName: options.repositoryFullName ?? "JENN2046/codex-router",
+        ...(options.repositoryId === undefined
+          ? {}
+          : { id: options.repositoryId })
       },
       source: {
         sourceTreeDigest: {
