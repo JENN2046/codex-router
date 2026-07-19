@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `b0e9bd9dace3495c826ff0df9a4bbefb9be929012b49eea87836008e3d43a72a` |
+| Source tree digest | `47854014280256985e291b4ebfd646185d65c7e6d25a4c9253cb948adc7fe046` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -345,6 +345,12 @@ post-merge rerun. No R3B-2C or R3B-3 task is active. Dependency cleanup,
 further artifact decomposition, publication design, additional CI policy
 changes, repository migration, and Runtime deletion remain separate decisions
 and do not follow automatically.
+
+A separately authorized TypeScript toolchain stability experiment is active as
+a bounded CI diagnostic. It samples macOS Node 20/22 with TypeScript 5.9.3 and
+6.0.3 plus one fixed-stack control, while preserving the existing 20-job CI
+workflow. It does not authorize generic retry, a Node runtime-matrix change, or
+adoption of the larger stack as a permanent build setting.
 
 Do not use R3A closeout or R3B inventory to modify ruleset `19069032`, add CI
 required contexts, bind a GitHub App, add a merge bot or timer, change the Node
