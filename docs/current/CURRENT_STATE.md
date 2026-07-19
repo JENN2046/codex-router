@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `b0e9bd9dace3495c826ff0df9a4bbefb9be929012b49eea87836008e3d43a72a` |
+| Source tree digest | `5b6adb192e54fa1abbfbd361627064e3e601ee2954cbc8ad09122e8b2df8dd0d` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -207,8 +207,21 @@ merge commit and reviewed PR head have identical Git trees, and the same job
 had already passed for the reviewed head. Jenn authorized one complete rerun;
 attempt 2 completed all 20 jobs successfully with zero annotations, including
 State Sync Audit and Execution Boundary Audit. The isolated first-attempt
-failure is retained as a transient compiler/runner risk rather than evidence
-of an action-runtime or source regression.
+failure was initially retained as a transient compiler/runner risk rather than
+evidence of an action-runtime or source regression. Draft experiment PR #209
+later reproduced the bounded `typescript_maximum_call_stack` signature on an
+exact PR head with Node 22 and TypeScript 5.9.3 while its other four controlled
+rows passed 20/20 and the unchanged full CI passed 20/20. Supporting evidence
+also observed the signature with TypeScript 6.0.3. TypeScript downgrade is
+therefore not an evidence-backed mitigation, and a successful fixed-stack
+diagnostic does not authorize a permanent stack increase.
+
+`MACOS_NODE22_TYPESCRIPT_MITIGATION_PROPOSAL` is proposal-only. It requires
+exact Node/V8/compiler facts, cross-version controls, at least three independent
+zero-crash batches totaling at least 300 consecutive controlled compiles, and
+the unchanged 20-job CI on every evaluated exact head. It does not authorize
+retry, workflow rerun, matrix reduction, toolchain changes, stack changes,
+merge, release, deploy, publish, or tag.
 
 ## Compact State Display Maintenance
 
