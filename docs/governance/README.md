@@ -26,6 +26,10 @@ explicitly promotes them.
 - [merge integrity gate](MERGE_INTEGRITY.md): protected-path structured lock
   metadata, lock-digest and exact-head unlock records, fail-closed GitHub
   inventory, minimum workflow permissions, and pinned GitHub Action revisions.
+- [Merge Integrity result-semantics post-merge closeout](MERGE_INTEGRITY_RESULT_SEMANTICS_POST_MERGE_CLOSEOUT.md):
+  closes the policy-blocked versus workflow operational-failure maintenance
+  after reviewed exact-head and `main` 20-job CI evidence, without changing the
+  Ruleset, unlock semantics, event surface, permissions, or ordinary CI matrix.
 - [R3A-2 Merge Integrity platform preflight](R3A2_MERGE_INTEGRITY_PLATFORM_PREFLIGHT.md):
   executed authorization package containing the exact ruleset diff,
   required-status limitation, no-bypass policy, never-merged canary, rollback,
@@ -98,8 +102,10 @@ read-only inventory is complete, and R3B-2A clean-build determinism is closed
 with bounded redacted diagnostics and a disclosed transient CI runtime risk.
 R3B-2B is closed by the reviewed core-only artifact and its post-merge record.
 The five formal exports remain unchanged, and the package remains private.
-This closeout does not authorize dependency cleanup, publication, ADR 012, a
-real worker, remote CAS, or a further App Server execution probe.
+Merge Integrity result-semantics maintenance is closed by PR #212 and its
+post-merge record. These closeouts do not authorize dependency cleanup,
+publication, ADR 012, a real worker, remote CAS, or a further App Server
+execution probe.
 
 ## Runner Entry Points
 
