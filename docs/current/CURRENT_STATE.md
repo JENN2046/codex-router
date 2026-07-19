@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `b0e9bd9dace3495c826ff0df9a4bbefb9be929012b49eea87836008e3d43a72a` |
+| Source tree digest | `3ddf467b614f34b3fe782c377f49f446dd07fd08c6c0d6c25d2d6bb812a99cf7` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -345,6 +345,17 @@ post-merge rerun. No R3B-2C or R3B-3 task is active. Dependency cleanup,
 further artifact decomposition, publication design, additional CI policy
 changes, repository migration, and Runtime deletion remain separate decisions
 and do not follow automatically.
+
+The separately authorized TypeScript toolchain stability experiment is closed
+as evidence with acceptance failed. Its exact-head run reproduced
+`typescript_maximum_call_stack` once in 20 compiles on macOS Node 22 with
+TypeScript 5.9.3 while the other four controlled rows passed 20/20 and the
+unchanged full CI passed 20/20. Supporting evidence also observed the same
+signature with TypeScript 6.0.3 before the exact-head checkout correction.
+PR #209 remains a draft evidence carrier. TypeScript version adjustment is not
+an evidence-backed mitigation, and the successful fixed-stack diagnostic does
+not authorize a permanent stack increase. Generic retry and runtime-matrix
+changes remain prohibited; mitigation requires an independent proposal.
 
 Do not use R3A closeout or R3B inventory to modify ruleset `19069032`, add CI
 required contexts, bind a GitHub App, add a merge bot or timer, change the Node
