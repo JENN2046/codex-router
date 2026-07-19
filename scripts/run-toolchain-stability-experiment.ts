@@ -135,12 +135,13 @@ export function createCompilerFailureScanner(): {
   let detected: CompileFailureSignature = "compiler_nonzero_exit";
   return {
     ingest(chunk) {
-      tail = `${tail}${String(chunk)}`.slice(-512);
-      if (/Maximum call stack size exceeded/u.test(tail)) {
+      const combined = `${tail}${String(chunk)}`;
+      if (/Maximum call stack size exceeded/u.test(combined)) {
         detected = "typescript_maximum_call_stack";
-      } else if (/heap out of memory/iu.test(tail)) {
+      } else if (/heap out of memory/iu.test(combined)) {
         detected = "node_heap_exhausted";
       }
+      tail = combined.slice(-512);
     },
     signature() {
       return detected;

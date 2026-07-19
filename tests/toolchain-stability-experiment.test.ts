@@ -113,6 +113,15 @@ test("compiler diagnostics retain only bounded failure signatures", () => {
   const unknownScanner = createCompilerFailureScanner();
   unknownScanner.ingest("private compiler output");
   assert.equal(unknownScanner.signature(), "compiler_nonzero_exit");
+
+  const longChunkScanner = createCompilerFailureScanner();
+  longChunkScanner.ingest(
+    `RangeError: Maximum call stack size exceeded${" private".repeat(256)}`
+  );
+  assert.equal(
+    longChunkScanner.signature(),
+    "typescript_maximum_call_stack"
+  );
 });
 
 test("stack-size control changes only the Node compiler invocation", () => {
