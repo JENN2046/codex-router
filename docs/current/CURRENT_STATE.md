@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `a1a80ca89b03e2844b088960ddc755015838e6f73e215b36ae834a491fba5a09` |
+| Source tree digest | `b0e9bd9dace3495c826ff0df9a4bbefb9be929012b49eea87836008e3d43a72a` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -209,6 +209,22 @@ attempt 2 completed all 20 jobs successfully with zero annotations, including
 State Sync Audit and Execution Boundary Audit. The isolated first-attempt
 failure is retained as a transient compiler/runner risk rather than evidence
 of an action-runtime or source regression.
+
+## Compact State Display Maintenance
+
+PR #208 updates the optional compact policy-v2 display synchronizer so every
+field in `## Machine Authority` is derived from the structured claim. It
+synchronizes schema, policy, repository identity, source identity, filtered
+tree digest, target, and allowed events; missing required rows fail closed.
+
+Review-driven regression coverage proves that narrowed contexts and changed
+repository/source metadata cannot leave stale authority rows. Compact updates
+are also bounded to the `## Machine Authority` Markdown section, so same-named
+table rows elsewhere in `CURRENT_STATE.md` cannot intercept an update or make
+`--check` report a false clean result. The legacy display path remains
+unchanged. This maintenance does not expand runtime capability, execution
+authorization, package surface, release posture, or the Merge Integrity
+ruleset.
 
 ## Historical Routes
 
