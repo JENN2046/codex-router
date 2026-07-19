@@ -216,7 +216,7 @@ test("state-sync display sync renders policy v2 content attestations", async () 
 
 test("state-sync display sync updates the compact policy v2 current-state table", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "state-sync-display-v2-compact-"));
-  await writePolicyV2DisplayFixture(cwd);
+  await writePolicyV2DisplayFixture(cwd, ["local", "push"]);
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
     [
@@ -234,6 +234,7 @@ test("state-sync display sync updates the compact policy v2 current-state table"
       "| Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |",
       "| Source tree digest | `ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff` |",
       "| Target | `refs/heads/main` |",
+      "| Allowed events | local, pull request, and push to the main target |",
       "",
       "## Active Product Boundary",
       "",
@@ -259,11 +260,26 @@ test("state-sync display sync updates the compact policy v2 current-state table"
     currentState,
     new RegExp(`\\| Source tree digest \\| \`${CLAIM_DIGEST}\` \\|`)
   );
+  assert.match(
+    currentState,
+    /\| Allowed events \| local and push to the main target \|/
+  );
+  assert.doesNotMatch(currentState, /local, pull request, and push/);
   assert.match(currentState, /Compact policy-v2 prose must remain unchanged\./);
   assert.doesNotMatch(currentState, /Current branch/);
 
   const clean = await syncStateSyncDisplay(cwd);
   assert.deepEqual(clean.changedPaths, []);
+
+  await writeFile(
+    join(cwd, "docs", "current", "CURRENT_STATE.md"),
+    currentState.replace(/^\| Allowed events \|.*\r?\n/m, ""),
+    "utf8"
+  );
+  await assert.rejects(
+    syncStateSyncDisplay(cwd),
+    /State-sync display field not found: \$plain-table:Allowed events/
+  );
 });
 
 test("state-sync display sync cleans volatile main pushed prose", async () => {
@@ -453,10 +469,13 @@ async function writeDisplayClaim(
   );
 }
 
-async function writePolicyV2DisplayFixture(cwd: string): Promise<void> {
+async function writePolicyV2DisplayFixture(
+  cwd: string,
+  allowedEvents?: Array<"local" | "pull_request" | "push">
+): Promise<void> {
   await mkdir(join(cwd, "docs", "current"), { recursive: true });
   await mkdir(join(cwd, ".agent_board"), { recursive: true });
-  await writePolicyV2Claim(cwd);
+  await writePolicyV2Claim(cwd, allowedEvents);
   await writeFile(
     join(cwd, "docs", "current", "CURRENT_STATE.md"),
     staleCurrentState()
@@ -484,7 +503,14 @@ async function writePolicyV2DisplayFixture(cwd: string): Promise<void> {
   }
 }
 
-async function writePolicyV2Claim(cwd: string): Promise<void> {
+async function writePolicyV2Claim(
+  cwd: string,
+  allowedEvents: Array<"local" | "pull_request" | "push"> = [
+    "local",
+    "pull_request",
+    "push"
+  ]
+): Promise<void> {
   await writeFile(
     join(cwd, "docs", "current", "state-sync-record.json"),
     JSON.stringify({
@@ -500,20 +526,10 @@ async function writePolicyV2Claim(cwd: string): Promise<void> {
           excludedPaths: policyV2SourceTreeDigestExcludedPaths()
         }
       },
-      allowedContexts: [
-        {
-          event: "local",
-          targetRef: "refs/heads/main"
-        },
-        {
-          event: "pull_request",
-          targetRef: "refs/heads/main"
-        },
-        {
-          event: "push",
-          targetRef: "refs/heads/main"
-        }
-      ]
+      allowedContexts: allowedEvents.map((event) => ({
+        event,
+        targetRef: "refs/heads/main"
+      }))
     }, null, 2)
   );
 }

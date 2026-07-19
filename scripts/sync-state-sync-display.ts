@@ -49,6 +49,7 @@ interface DisplayFields {
   stateRecordMode: string;
   sourceTreeDigestAlgorithm: string;
   sourceTreeDigestValue: string;
+  allowedEvents?: string;
   statePathListHeading: string;
   strictStatePaths: string[];
   validatedSourceDivergenceExpectation: string;
@@ -136,6 +137,7 @@ function displayFieldsFromPolicyV2Claim(claim: StateSyncPolicyV2Claim): DisplayF
     stateRecordMode: "content attestation",
     sourceTreeDigestAlgorithm: claim.source.sourceTreeDigest.algorithm,
     sourceTreeDigestValue: claim.source.sourceTreeDigest.value,
+    allowedEvents: formatPolicyV2AllowedEvents(claim),
     statePathListHeading: "Source digest excluded paths:",
     strictStatePaths: claim.source.sourceTreeDigest.excludedPaths,
     validatedSourceDivergenceExpectation:
@@ -261,6 +263,10 @@ function updateCompactPolicyV2CurrentState(
   text: string,
   display: DisplayFields
 ): string {
+  if (display.allowedEvents === undefined) {
+    throw new Error("Policy v2 compact display is missing allowed events");
+  }
+
   let updated = text;
   updated = replaceTableField(updated, "Schema", display.schemaVersion);
   updated = replaceTableField(updated, "Policy", display.policyVersion);
@@ -269,7 +275,32 @@ function updateCompactPolicyV2CurrentState(
     "Source tree digest",
     display.sourceTreeDigestValue
   );
+  updated = replacePlainTableField(
+    updated,
+    "Allowed events",
+    display.allowedEvents
+  );
   return updated;
+}
+
+function formatPolicyV2AllowedEvents(claim: StateSyncPolicyV2Claim): string {
+  const allowed = new Set(claim.allowedContexts.map((context) => context.event));
+  const labels = (["local", "pull_request", "push"] as const)
+    .filter((event) => allowed.has(event))
+    .map((event) => event === "pull_request" ? "pull request" : event);
+
+  if (labels.length === 0) {
+    throw new Error("Policy v2 claim has no allowed event labels");
+  }
+  if (labels.length === 1) {
+    return `${labels[0]} to the main target`;
+  }
+  if (labels.length === 2) {
+    return `${labels[0]} and ${labels[1]} to the main target`;
+  }
+  return `${labels.slice(0, -1).join(", ")}, and ${
+    labels.at(-1)
+  } to the main target`;
 }
 
 function updateAgentBoardFields(text: string, display: DisplayFields): string {
@@ -517,6 +548,22 @@ function replaceTableField(text: string, field: string, value: string): string {
   );
   return replaceRequired(text, pattern, `$table:${field}`, (_match, start, end) =>
     `${start}${value}${end}`
+  );
+}
+
+function replacePlainTableField(
+  text: string,
+  field: string,
+  value: string
+): string {
+  const pattern = new RegExp(
+    `(\\| ${escapeRegExp(field)} \\| )[^|\\r\\n]+( \\|)`
+  );
+  return replaceRequired(
+    text,
+    pattern,
+    `$plain-table:${field}`,
+    (_match, start, end) => `${start}${value}${end}`
   );
 }
 
