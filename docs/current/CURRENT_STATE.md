@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `5b6adb192e54fa1abbfbd361627064e3e601ee2954cbc8ad09122e8b2df8dd0d` |
+| Source tree digest | `f68bc2d50c378c9a4cecd21a96d66d486d8d7ee2f34288057bf353556e58d60c` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -222,6 +222,21 @@ zero-crash batches totaling at least 300 consecutive controlled compiles, and
 the unchanged 20-job CI on every evaluated exact head. It does not authorize
 retry, workflow rerun, matrix reduction, toolchain changes, stack changes,
 merge, release, deploy, publish, or tag.
+
+The separate Stage 1 patch experiment compares exact Node `22.23.1` incident
+baseline rows with exact Node `22.23.0` diagnostic rows under TypeScript
+`5.9.3` and `6.0.3`, while retaining exact Node `20.20.2` controls. All six
+rows use the default stack and perform twenty independent clean compiles, for
+120 compiles per batch. The harness fails closed on Node-version or exact-HEAD
+drift and retains only bounded failure signatures and runtime tuple facts.
+
+Node `22.23.0` is diagnostic evidence only because `22.23.1` fixed unexpected
+behavior introduced by that security release. The experiment does not propose
+a downgrade or production pin. It contains no stack-size control, retry,
+`continue-on-error`, matrix reduction, required-context change, or failure
+suppression. One green batch remains preliminary evidence; additional batches
+require separately authorized triggers, and any implementation requires a
+separate proposal.
 
 ## Compact State Display Maintenance
 
