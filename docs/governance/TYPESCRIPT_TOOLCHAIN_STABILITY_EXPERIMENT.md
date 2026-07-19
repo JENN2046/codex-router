@@ -28,6 +28,8 @@ not prove a deterministic source defect or a final upstream root cause.
 The dedicated `TypeScript Toolchain Stability` workflow runs only when its
 bounded workflow, package, lockfile, tsconfig, harness, or harness test changes.
 It does not replace or weaken the existing 20-job `Codex Router CI` workflow.
+It explicitly checks out `github.event.pull_request.head.sha`, so every sample
+binds to the exact PR head rather than GitHub's synthetic pull-request merge ref.
 
 Each row samples twenty independent clean compiles on `macos-latest`:
 

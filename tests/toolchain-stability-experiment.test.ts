@@ -172,9 +172,15 @@ test("toolchain workflow keeps the experiment bounded and non-retrying", async (
     };
   };
   const job = workflow.jobs["compile-stability"];
+  const checkout = job.steps.find((step) => (
+    typeof step.uses === "string" && step.uses.startsWith("actions/checkout@")
+  ));
 
   assert.deepEqual(Object.keys(workflow.on), ["pull_request"]);
   assert.deepEqual(workflow.permissions, { contents: "read" });
+  assert.deepEqual(checkout?.with, {
+    ref: "${{ github.event.pull_request.head.sha }}"
+  });
   assert.equal(job.strategy["fail-fast"], false);
   assert.equal(job.strategy.matrix.include.length, 5);
   assert.deepEqual(job.strategy.matrix.include.map((row) => [
