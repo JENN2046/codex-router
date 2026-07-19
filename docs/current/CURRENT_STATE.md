@@ -19,7 +19,7 @@ audit results.
 | Policy | `state-sync-policy.v2` |
 | Repository | `JENN2046/codex-router` (`1220937060`) |
 | Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |
-| Source tree digest | `5d0b410fa4cfd8a0e5e258abbd80c5f8355e44146843c7038f3d6056ecb34f69` |
+| Source tree digest | `5e64a2b1ddce29c9a77e4bebf376bf13552d66b306b34a689c3819dc7796e193` |
 | Target | `refs/heads/main` |
 | Allowed events | local, pull request, and push to the main target |
 
@@ -349,8 +349,10 @@ and do not follow automatically.
 A separately authorized TypeScript toolchain stability experiment is active as
 a bounded CI diagnostic. It samples macOS Node 20/22 with TypeScript 5.9.3 and
 6.0.3 plus one fixed-stack control, while preserving the existing 20-job CI
-workflow. It does not authorize generic retry, a Node runtime-matrix change, or
-adoption of the larger stack as a permanent build setting.
+workflow. The dedicated workflow explicitly checks out the exact pull-request
+head SHA rather than the synthetic merge ref. It does not authorize generic
+retry, a Node runtime-matrix change, or adoption of the larger stack as a
+permanent build setting.
 
 Do not use R3A closeout or R3B inventory to modify ruleset `19069032`, add CI
 required contexts, bind a GitHub App, add a merge bot or timer, change the Node
