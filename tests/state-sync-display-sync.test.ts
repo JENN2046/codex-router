@@ -241,9 +241,9 @@ test("state-sync display sync updates the compact policy v2 current-state table"
       "| Schema | `1` |",
       "| Policy | `stale-policy` |",
       "| Repository | `JENN2046/codex-router` |",
-      "| Source identity | filtered Git tree digest (`git-ls-tree-sha256`) |",
+      "| Source identity | stale source identity |",
       "| Source tree digest | `ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff` |",
-      "| Target | `refs/heads/main` |",
+      "| Target | `refs/heads/release` |",
       "| Allowed events | local, pull request, and push to the main target |",
       "",
       "## Active Product Boundary",
@@ -272,8 +272,13 @@ test("state-sync display sync updates the compact policy v2 current-state table"
   );
   assert.match(
     currentState,
+    /\| Source identity \| filtered Git tree digest \(`git-ls-tree-sha256`\) \|/
+  );
+  assert.match(
+    currentState,
     new RegExp(`\\| Source tree digest \\| \`${CLAIM_DIGEST}\` \\|`)
   );
+  assert.match(currentState, /\| Target \| `refs\/heads\/main` \|/);
   assert.match(
     currentState,
     /\| Allowed events \| local and push to the main target \|/

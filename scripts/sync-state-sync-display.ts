@@ -51,6 +51,8 @@ interface DisplayFields {
   sourceTreeDigestValue: string;
   allowedEvents?: string;
   repositoryDisplay?: string;
+  sourceIdentityDisplay?: string;
+  targetRef?: string;
   statePathListHeading: string;
   strictStatePaths: string[];
   validatedSourceDivergenceExpectation: string;
@@ -140,6 +142,9 @@ function displayFieldsFromPolicyV2Claim(claim: StateSyncPolicyV2Claim): DisplayF
     sourceTreeDigestValue: claim.source.sourceTreeDigest.value,
     allowedEvents: formatPolicyV2AllowedEvents(claim),
     repositoryDisplay: formatPolicyV2Repository(claim),
+    sourceIdentityDisplay:
+      `filtered Git tree digest (\`${claim.source.sourceTreeDigest.algorithm}\`)`,
+    targetRef: formatPolicyV2TargetRef(claim),
     statePathListHeading: "Source digest excluded paths:",
     strictStatePaths: claim.source.sourceTreeDigest.excludedPaths,
     validatedSourceDivergenceExpectation:
@@ -271,6 +276,12 @@ function updateCompactPolicyV2CurrentState(
   if (display.repositoryDisplay === undefined) {
     throw new Error("Policy v2 compact display is missing repository identity");
   }
+  if (display.sourceIdentityDisplay === undefined) {
+    throw new Error("Policy v2 compact display is missing source identity");
+  }
+  if (display.targetRef === undefined) {
+    throw new Error("Policy v2 compact display is missing target ref");
+  }
 
   let updated = text;
   updated = replaceTableField(updated, "Schema", display.schemaVersion);
@@ -280,11 +291,17 @@ function updateCompactPolicyV2CurrentState(
     "Repository",
     display.repositoryDisplay
   );
+  updated = replacePlainTableField(
+    updated,
+    "Source identity",
+    display.sourceIdentityDisplay
+  );
   updated = replaceTableField(
     updated,
     "Source tree digest",
     display.sourceTreeDigestValue
   );
+  updated = replaceTableField(updated, "Target", display.targetRef);
   updated = replacePlainTableField(
     updated,
     "Allowed events",
@@ -318,6 +335,16 @@ function formatPolicyV2Repository(claim: StateSyncPolicyV2Claim): string {
   return claim.repository.id === undefined
     ? fullName
     : `${fullName} (\`${claim.repository.id}\`)`;
+}
+
+function formatPolicyV2TargetRef(claim: StateSyncPolicyV2Claim): string {
+  const targetRefs = new Set(
+    claim.allowedContexts.map((context) => context.targetRef)
+  );
+  if (targetRefs.size !== 1) {
+    throw new Error("Policy v2 claim does not have one compact target ref");
+  }
+  return [...targetRefs][0]!;
 }
 
 function updateAgentBoardFields(text: string, display: DisplayFields): string {
