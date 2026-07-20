@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
+import YAML from "yaml";
 import {
   getTelemetryAlertDeliveryThresholdPreset,
   getTelemetryAlertDeliveryWindowPolicy,
@@ -116,5 +117,31 @@ test("policy config rejects policies without hostRoutes", async () => {
   assert.throws(
     () => loadPolicyFromString(withoutHostRoutes),
     /hostRoutes/
+  );
+});
+
+test("yaml parser reports invalid Unicode escapes without throwing a RangeError", () => {
+  const document = YAML.parseDocument(String.raw`"\U00110000"`);
+
+  assert.deepEqual(document.errors.map((error) => error.code), ["BAD_DQ_ESCAPE"]);
+});
+
+test("yaml parser handles excessive tag indicators without exhausting the call stack", () => {
+  const document = YAML.parseDocument(`${"! ".repeat(5000)}a`);
+
+  assert.equal(document.errors.length, 4999);
+});
+
+test("yaml parser handles large flow-collection separators without exhausting the call stack", () => {
+  const document = YAML.parseDocument(`[[]${"\n".repeat(150_000)}]`);
+
+  assert.equal(document.errors.length, 0);
+  assert.deepEqual(document.toJS(), [[]]);
+});
+
+test("yaml parser disables alias resolution when maxAliasCount is zero", () => {
+  assert.throws(
+    () => YAML.parse("a: &a 1\nb: *a", { maxAliasCount: 0 }),
+    ReferenceError
   );
 });
